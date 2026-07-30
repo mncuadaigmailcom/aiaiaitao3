@@ -1,10 +1,10 @@
 -- ============================================
 -- EXECUTOR MENU - Fix NoClip Không Lỗi Thảm & Xuyên Tường Mượt 100%
 -- (Banana Cat Hub Style + Caro Pattern + Chỉnh kích thước 4 góc + Chỉnh Rộng/Dày/Dài Thảm Kính)
--- + ESP: Phân biệt Bạn Bè (Hồng/Tím) & Hạ ngục/Chết + Đếm giờ Hạ Ngục
+-- + ESP: Phân biệt Bạn Bè (Hồng/Tím) & Hạ ngục/Chế + Đếm giờ Hạ Ngục
 -- + Định Vị Lẻ: Bật tính năng -> Nhấn tên người chơi -> Chỉ định vị 1 người đó
 -- + Tab Tọa Độ: Lưu, Đặt tên, ESP All/Lẻ, Xóa, Bay tới Tọa Độ
--- + Tab Niệm Tâm: Vòng tròn + Định vị người trong vòng + Tự ngắm khi bắn (Aimbot)
+-- + Tab Niệm Tâm: Vòng tròn + Tự nhận diện/định vị + Nút bấm để Ngắm (Aimbot)
 -- StarterGui -> LocalScript hoặc Executor
 -- ============================================
 
@@ -30,6 +30,23 @@ pcall(function()
         targetGui = game:GetService("CoreGui")
     end
 end)
+
+-- ==================== DỌN DẸP KẾT NỐI CŨ (ANTI-MEMORY LEAK) ====================
+if _G.BananaCatHub_Connections then
+    for _, c in ipairs(_G.BananaCatHub_Connections) do
+        pcall(function() c:Disconnect() end)
+    end
+end
+_G.BananaCatHub_Connections = {}
+
+local function trackConn(conn)
+    table.insert(_G.BananaCatHub_Connections, conn)
+    return conn
+end
+
+-- Unbind các RenderStep cũ để tránh trùng lặp gây lỗi
+pcall(function() RunService:UnbindFromRenderStep("Fly") end)
+pcall(function() RunService:UnbindFromRenderStep("Carpet") end)
 
 -- ==================== CONSTANTS ====================
 local C = {
@@ -191,15 +208,15 @@ local minW, minH = 440, 260
 
 local function SetupResizeHandle(btn, cornerType)
     local resizing, sizeStart, posStart, inputStart
-    btn.InputBegan:Connect(function(i)
+    trackConn(btn.InputBegan:Connect(function(i)
         if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then
             resizing=true
             sizeStart=main.Size
             posStart=main.Position
             inputStart=i.Position
         end
-    end)
-    UserInputService.InputChanged:Connect(function(i)
+    end))
+    trackConn(UserInputService.InputChanged:Connect(function(i)
         if resizing and sizeStart and posStart and inputStart and (i.UserInputType==Enum.UserInputType.MouseMovement or i.UserInputType==Enum.UserInputType.Touch) then
             local d = i.Position - inputStart
             local w, h = sizeStart.X.Offset, sizeStart.Y.Offset
@@ -229,12 +246,12 @@ local function SetupResizeHandle(btn, cornerType)
             main.Size = UDim2.new(sizeStart.X.Scale, newW, sizeStart.Y.Scale, newH)
             main.Position = UDim2.new(posStart.X.Scale, newX, posStart.Y.Scale, newY)
         end
-    end)
-    UserInputService.InputEnded:Connect(function(i)
+    end))
+    trackConn(UserInputService.InputEnded:Connect(function(i)
         if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then
             resizing=false
         end
-    end)
+    end))
 end
 
 local function CreateHandle(icon, pos)
@@ -379,11 +396,13 @@ local S = {
     dragMenu=false, 
     soloTrack=false, soloTarget=nil, 
     locEspAll=false, locEspSingle=false, locTarget=nil, flyToLocTarget=nil, 
-    xrayCircle=false, xrayCircleSize=150, 
-    aimLock=false, 
+    xrayCircle=false, xrayCircleSize=150, -- Niệm Tâm Vòng Tròn
+    aimLock=false, -- Bật tính năng tự nhận diện
+    aimTarget=nil, -- Người đang bị định vị trong vòng
+    isAiming=false, -- Trạng thái đang bấm nút ngắm hay không
 }
 
-local noclipBtn 
+local noclipBtn
 local RebuildTPList
 local RebuildLocList
 
@@ -431,12 +450,80 @@ local xrayStroke = New("UIStroke", {
     ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
 }, xrayCircleFrame)
 
+-- NÚT BẮT NGẮM MỤC TIÊU (Chỉ hiện khi có người trong vòng)
+local aimActionBtn = New("TextButton", {
+    Name = "AimActionButton",
+    Size = UDim2.new(0, 220, 0, 40),
+    Position = UDim2.new(0.5, -110, 0.75, -20),
+    BackgroundColor3 = C.RED,
+    BackgroundTransparency = 0.1,
+    Text = "🎯 Ngắm Mục Tiêu",
+    TextColor3 = C.WHITE,
+    Font = Enum.Font.GothamBold,
+    TextSize = 14,
+    Visible = false,
+    ZIndex = 9998,
+    Parent = gui
+})
+Corner(aimActionBtn, UDim.new(0, 6))
+Stroke(aimActionBtn, C.WHITE, 2)
+
+aimActionBtn.Activated:Connect(function()
+    S.isAiming = not S.isAiming
+    if S.isAiming then
+        aimActionBtn.BackgroundColor3 = C.GREEN
+        aimActionBtn.Text = "🔒 ĐANG NGẮM (Bấm hủy)"
+    else
+        aimActionBtn.BackgroundColor3 = C.RED
+        if S.aimTarget then
+            aimActionBtn.Text = "🎯 Ngắm: " .. S.aimTarget.Name
+        else
+            aimActionBtn.Text = "🎯 Ngắm Mục Tiêu"
+        end
+    end
+end)
+
+-- ESP ĐỊNH VỊ MỤC TIÊU TRONG VÒNG
+local espGui = New("ScreenGui", {
+    Name = "ExMenu_ESP",
+    ResetOnSpawn = false,
+    ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+}, targetGui)
+
+local aimHighlight = Instance.new("Highlight")
+aimHighlight.Name = "AimLock_HL"
+aimHighlight.FillColor = Color3.fromRGB(255, 165, 0) -- Cam
+aimHighlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+aimHighlight.FillTransparency = 0.5
+aimHighlight.OutlineTransparency = 0
+aimHighlight.Enabled = false
+aimHighlight.Parent = espGui
+
+local aimBB = New("BillboardGui", {
+    Name = "AimLock_BB",
+    Size = UDim2.new(0, 150, 0, 30),
+    AlwaysOnTop = true,
+    Enabled = false,
+    ZIndex = 5
+}, espGui)
+local aimLbl = New("TextLabel", {
+    Size = UDim2.new(1,0,1,0),
+    BackgroundTransparency = 1,
+    TextColor3 = Color3.fromRGB(255, 165, 0),
+    Text = "🎯 Mục Tiêu",
+    Font = Enum.Font.GothamBold,
+    TextSize = 12,
+    TextStrokeTransparency = 0.2,
+    ZIndex = 6
+}, aimBB)
+
+
 -- ==================== CHẶN SERVER TÁC ĐỘNG BẢO VỆ BẢN THÂN ====================
 local oldNamecall
 if hookmetamethod then
     oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
         local method = getnamecallmethod()
-        if S.blockServer then
+        if S.blockServer and self == player then
             if method == "Kick" or method == "kick" then
                 warn("[Banana Cat Hub] Đã chặn thành công lệnh Kick từ Máy chủ!")
                 return nil
@@ -447,7 +534,7 @@ if hookmetamethod then
 end
 
 -- ==================== VÒNG LẶP STEPPED: FREEZE OTHERS & ANTI-SERVER ====================
-RunService.Stepped:Connect(function()
+trackConn(RunService.Stepped:Connect(function()
     if S.blockServer then
         local h = Hum()
         local r = Root()
@@ -466,7 +553,7 @@ RunService.Stepped:Connect(function()
             end
         end
     end
-end)
+end))
 
 local function UnfreezeAllPlayers()
     for _, p in ipairs(Players:GetPlayers()) do
@@ -481,22 +568,24 @@ local function UnfreezeAllPlayers()
 end
 
 -- ==================== ANTI AFK ====================
-player.Idled:Connect(function()
+trackConn(player.Idled:Connect(function()
     if S.antiAfk then
-        VirtualUser:CaptureController()
-        VirtualUser:ClickButton2(Vector2.new())
+        pcall(function()
+            VirtualUser:CaptureController()
+            VirtualUser:ClickButton2(Vector2.new())
+        end)
     end
-end)
+end))
 
 -- ==================== INFINITE JUMP ====================
-UserInputService.JumpRequest:Connect(function()
+trackConn(UserInputService.JumpRequest:Connect(function()
     if S.infJump and Hum() then
         Hum():ChangeState(Enum.HumanoidStateType.Jumping)
     end
-end)
+end))
 
 -- ==================== CLICK TELEPORT ====================
-UserInputService.InputBegan:Connect(function(i, gp)
+trackConn(UserInputService.InputBegan:Connect(function(i, gp)
     if gp then return end
     if S.clickTp and i.UserInputType == Enum.UserInputType.MouseButton1 and UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
         local mouse = player:GetMouse()
@@ -505,14 +594,14 @@ UserInputService.InputBegan:Connect(function(i, gp)
             r.CFrame = CFrame.new(mouse.Hit.Position + Vector3.new(0, 3, 0))
         end
     end
-end)
+end))
 
 -- ==================== NOCLIP (STEPPED MƯỢT 100%) ====================
 local ncConn = nil
 
 local function EnNC()
     if ncConn then ncConn:Disconnect() end
-    ncConn = RunService.Stepped:Connect(function()
+    ncConn = trackConn(RunService.Stepped:Connect(function()
         if not S.noClip then return end
         local c = GetChar()
         if c then
@@ -522,7 +611,7 @@ local function EnNC()
                 end
             end
         end
-    end)
+    end))
 end
 
 local function DisNC()
@@ -560,7 +649,7 @@ local dnBtn = MobBtn("⏬", UDim2.new(0,134,0,8))
 local mInput = {up=false, down=false}
 local tMap = {}
 
-UserInputService.TouchStarted:Connect(function(i, p)
+trackConn(UserInputService.TouchStarted:Connect(function(i, p)
     if p then return end
     local pos = i.Position
     for _, d in ipairs({{upBtn,"up"},{dnBtn,"down"}}) do
@@ -571,11 +660,11 @@ UserInputService.TouchStarted:Connect(function(i, p)
             mInput[k]=true; tMap[i]=k; break
         end
     end
-end)
+end))
 
-UserInputService.TouchEnded:Connect(function(i)
+trackConn(UserInputService.TouchEnded:Connect(function(i)
     if tMap[i] then mInput[tMap[i]]=false; tMap[i]=nil end
-end)
+end))
 
 local function VInput()
     return UserInputService:IsKeyDown(Enum.KeyCode.Space) or mInput.up,
@@ -606,7 +695,6 @@ local function CreateCarpet(y)
     if not r then return end
     
     if cp then cp:Destroy() end
-
     local w = S.carpetWidth or 1.5
     local t = S.carpetThickness or 0.2
     local l = S.carpetLength or 1.5
@@ -824,7 +912,7 @@ local function StartFlyTo(targetPlayer)
         autoNoClipActive = false
     end
 
-    flyToConn = RunService.RenderStepped:Connect(function(dt)
+    flyToConn = trackConn(RunService.RenderStepped:Connect(function(dt)
         local r = Root()
         local h = Hum()
         if not r or not h or not S.flyToTarget or not S.flyToTarget.Parent then 
@@ -844,17 +932,23 @@ local function StartFlyTo(targetPlayer)
 
         local dir = (targetR.Position - r.Position)
         local dist = dir.Magnitude
-        local stopDist = 4 
+        local stopDist = 4  
 
         if dist > stopDist then
             local moveAmount = math.min(dist - stopDist, S.flyToSpeed * dt)
             local newPos = r.Position + dir.Unit * moveAmount
-            r.CFrame = CFrame.lookAt(newPos, targetR.Position)
+            if (newPos - targetR.Position).Magnitude > 0.1 then
+                r.CFrame = CFrame.lookAt(newPos, targetR.Position)
+            else
+                r.CFrame = CFrame.new(newPos)
+            end
         else
-            r.CFrame = CFrame.new(r.Position, targetR.Position)
+            if (r.Position - targetR.Position).Magnitude > 0.1 then
+                r.CFrame = CFrame.new(r.Position, targetR.Position)
+            end
             r.AssemblyLinearVelocity = Vector3.new(0,0,0)
         end
-    end)
+    end))
 end
 
 -- ==================== FLY TO LOCATION SYSTEM ====================
@@ -908,7 +1002,7 @@ local function StartFlyToLoc(locItem)
 
     if RebuildLocList then RebuildLocList() end
 
-    flyToLocConn = RunService.RenderStepped:Connect(function(dt)
+    flyToLocConn = trackConn(RunService.RenderStepped:Connect(function(dt)
         local r = Root()
         local h = Hum()
         if not r or not h or not S.flyToLocTarget then 
@@ -919,35 +1013,35 @@ local function StartFlyToLoc(locItem)
         local targetPos = S.flyToLocTarget.pos
         local dir = (targetPos - r.Position)
         local dist = dir.Magnitude
-        local stopDist = 3 
+        local stopDist = 3  
 
         if dist > stopDist then
             local moveAmount = math.min(dist - stopDist, S.flyToSpeed * dt)
             local newPos = r.Position + dir.Unit * moveAmount
-            r.CFrame = CFrame.lookAt(newPos, targetPos)
+            if (newPos - targetPos).Magnitude > 0.1 then
+                r.CFrame = CFrame.lookAt(newPos, targetPos)
+            else
+                r.CFrame = CFrame.new(newPos)
+            end
         else
-            r.CFrame = CFrame.new(r.Position, targetPos)
+            if (r.Position - targetPos).Magnitude > 0.1 then
+                r.CFrame = CFrame.new(r.Position, targetPos)
+            end
             r.AssemblyLinearVelocity = Vector3.new(0,0,0)
             StopFlyToLoc()
         end
-    end)
+    end))
 end
 
 
 -- ==================== ESP SYSTEM (CẬP NHẬT MÀU BẠN BÈ & TRẠNG THÁI) ====================
-local espGui = New("ScreenGui", {
-    Name = "ExMenu_ESP",
-    ResetOnSpawn = false,
-    ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
-}, targetGui)
-
 local activeESPs = {}
 
 local function RemovePlayerESP(p)
     if activeESPs[p] then
         if activeESPs[p].HL then activeESPs[p].HL:Destroy() end
         if activeESPs[p].BB then activeESPs[p].BB:Destroy() end
-        if activeESPs[p].Thread then task.cancel(activeESPs[p].Thread) end
+        if activeESPs[p].Thread then pcall(task.cancel, activeESPs[p].Thread) end
         activeESPs[p] = nil
     end
 end
@@ -956,7 +1050,6 @@ local function ClearAllESP()
     for p, _ in pairs(activeESPs) do
         RemovePlayerESP(p)
     end
-    espGui:ClearAllChildren()
 end
 
 local function CreatePlayerESP(p)
@@ -1080,16 +1173,16 @@ end
 local function HookPlayer(p)
     if p == player then return end
 
-    p.CharacterAdded:Connect(function()
+    trackConn(p.CharacterAdded:Connect(function()
         if S.esp then
             task.wait(0.5)
             CreatePlayerESP(p)
         end
-    end)
+    end))
 
-    p.CharacterRemoving:Connect(function()
+    trackConn(p.CharacterRemoving:Connect(function()
         RemovePlayerESP(p)
-    end)
+    end))
 
     if p.Character and S.esp then
         CreatePlayerESP(p)
@@ -1115,7 +1208,7 @@ end
 
 for _, p in ipairs(Players:GetPlayers()) do HookPlayer(p) end
 
-Players.PlayerAdded:Connect(function(p) 
+trackConn(Players.PlayerAdded:Connect(function(p) 
     HookPlayer(p)
     if S.esp then
         task.spawn(function()
@@ -1126,16 +1219,16 @@ Players.PlayerAdded:Connect(function(p)
             end
         end)
     end
-end)
+end))
 
-Players.PlayerRemoving:Connect(function(p) 
+trackConn(Players.PlayerRemoving:Connect(function(p) 
     if S.soloTarget == p then 
         S.soloTarget = nil 
         if S.soloTrack then UpdateESP() end
     end
     RemovePlayerESP(p)
     friendCache[p.UserId] = nil
-end)
+end))
 
 -- ==================== CODE EXECUTION ====================
 local function ExecOnce(code, name)
@@ -1149,7 +1242,7 @@ end
 
 local function Cancel()
     cancelled=true
-    if curThread then task.cancel(curThread); curThread=nil end
+    if curThread then pcall(task.cancel, curThread); curThread=nil end
     if curIndicator then curIndicator.BackgroundColor3=C.BLUE; curIndicator=nil end
 end
 
@@ -1317,7 +1410,7 @@ unitBtn.Activated:Connect(function() ddFrame.Visible=not ddFrame.Visible end)
 secOpt.Activated:Connect(function() unitBtn.Text="Giây ▾"; ddFrame.Visible=false end)
 minOpt.Activated:Connect(function() unitBtn.Text="Phút ▾"; ddFrame.Visible=false end)
 
-UserInputService.InputBegan:Connect(function(i,gp)
+trackConn(UserInputService.InputBegan:Connect(function(i,gp)
     if gp then return end
     if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then
         local objs = playerGui:GetGuiObjectsAtPosition(i.Position.X, i.Position.Y)
@@ -1327,7 +1420,7 @@ UserInputService.InputBegan:Connect(function(i,gp)
         end
         if not f then ddFrame.Visible=false end
     end
-end)
+end))
 
 y = y + 82
 
@@ -1500,10 +1593,10 @@ RebuildScripts = function()
 
             copyBtn.Activated:Connect(function()
                 if setclipboard then
-                    setclipboard(d.code)
+                    pcall(setclipboard, d.code)
                     copyBtn.Text = "✅ Đã Sao Chép!"
                 elseif toclipboard then
-                    toclipboard(d.code)
+                    pcall(toclipboard, d.code)
                     copyBtn.Text = "✅ Đã Sao Chép!"
                 else
                     codeLbl:CaptureFocus()
@@ -1835,13 +1928,13 @@ flyToSpdIn.FocusLost:Connect(function(e) if not e then return end; local n=tonum
 
 searchTPIn:GetPropertyChangedSignal("Text"):Connect(RebuildTPList)
 
-Players.PlayerAdded:Connect(function(p) task.wait(0.5); RebuildTPList() end)
-Players.PlayerRemoving:Connect(function(p) 
+trackConn(Players.PlayerAdded:Connect(function(p) task.wait(0.5); RebuildTPList() end))
+trackConn(Players.PlayerRemoving:Connect(function(p) 
     if S.flyToTarget == p then
         StopFlyTo()
     end
     RebuildTPList() 
-end)
+end))
 RebuildTPList()
 
 -- ==================== TAB 5: NGƯỜI CHƠI ====================
@@ -2144,7 +2237,7 @@ RebuildLocList()
 
 -- VÒNG LẶP CẬP NHẬT ESP TỌA ĐỘ REALTIME
 local locEspObjs = {}
-RunService.RenderStepped:Connect(function()
+trackConn(RunService.RenderStepped:Connect(function()
     if not S.locEspAll and not S.locEspSingle then
         if next(locEspObjs) then
             for loc, obj in pairs(locEspObjs) do
@@ -2206,13 +2299,13 @@ RunService.RenderStepped:Connect(function()
             obj.Lbl.TextColor3 = Color3.fromRGB(255, 215, 0) -- Vàng
         end
     end
-end)
+end))
 
 
 -- ==================== TAB 8: NIỆM TÂM (VÒNG TRÒN TÂM NGẮM & AIM) ====================
 local xy = 8
 
-Label(xrayTab, "🎯 Niệm Tâm & Tự Động Ngắm (Aimbot)", xy)
+Label(xrayTab, "🎯 Niệm Tâm - Vòng tròn & Tự Động Ngắm", xy)
 xy = xy + 14
 
 local xrayToggleBtn = Button(xrayTab, "👁️ Bật Vòng Tròn: TẮT", 8, xy, 220, 24, C.GRAY)
@@ -2224,12 +2317,19 @@ xrayToggleBtn.Activated:Connect(function()
 end)
 xy = xy + 30
 
--- Nút Bật Tự Động Ngắm & Định Vị
-local aimLockBtn = Button(xrayTab, "🎯 Ngắm & Định Vị Khi Bắn: TẮT", 8, xy, 260, 24, C.GRAY)
+-- Nút Bật Nhận Diện Mục Tiêu (Tự động tìm người trong vòng)
+local aimLockBtn = Button(xrayTab, "🔒 Nhận Diện Mục Tiêu: TẮT", 8, xy, 250, 24, C.GRAY)
 aimLockBtn.Activated:Connect(function()
     S.aimLock = not S.aimLock
-    aimLockBtn.Text = S.aimLock and "🎯 Ngắm & Định Vị Khi Bắn: BẬT" or "🎯 Ngắm & Định Vị Khi Bắn: TẮT"
+    aimLockBtn.Text = S.aimLock and "🔓 Nhận Diện Mục Tiêu: BẬT" or "🔒 Nhận Diện Mục Tiêu: TẮT"
     aimLockBtn.BackgroundColor3 = S.aimLock and C.RED or C.GRAY
+    if not S.aimLock then
+        S.aimTarget = nil
+        S.isAiming = false
+        aimActionBtn.Visible = false
+        aimHighlight.Enabled = false
+        aimBB.Enabled = false
+    end
 end)
 xy = xy + 30
 
@@ -2300,74 +2400,27 @@ end)
 xrayTab.CanvasSize = UDim2.new(0,0,0,xy+40)
 
 
--- ==================== AIMBOT LOCK ESP & LOGIC ====================
-local aimLockHL = Instance.new("Highlight")
-aimLockHL.Name = "AimLockHighlight"
-aimLockHL.FillColor = Color3.fromRGB(255, 255, 0)
-aimLockHL.FillTransparency = 0.5
-aimLockHL.OutlineColor = Color3.fromRGB(255, 255, 0)
-aimLockHL.OutlineTransparency = 0
-aimLockHL.Enabled = false
-aimLockHL.Parent = espGui
-
-local aimLockBB = Instance.new("BillboardGui")
-aimLockBB.Name = "AimLockBillboard"
-aimLockBB.Size = UDim2.new(0, 200, 0, 50)
-aimLockBB.StudsOffset = Vector3.new(0, 3.5, 0)
-aimLockBB.AlwaysOnTop = true
-aimLockBB.Enabled = false
-aimLockBB.Parent = espGui
-
-local aimLockLbl = Instance.new("TextLabel")
-aimLockLbl.Size = UDim2.new(1, 0, 1, 0)
-aimLockLbl.BackgroundTransparency = 1
-aimLockLbl.TextColor3 = Color3.fromRGB(255, 255, 0)
-aimLockLbl.Font = Enum.Font.GothamBold
-aimLockLbl.TextSize = 13
-aimLockLbl.TextStrokeTransparency = 0.2
-aimLockLbl.Parent = aimLockBB
-
-local function HideAimLockESP()
-    aimLockHL.Enabled = false
-    aimLockBB.Enabled = false
-end
-
-local function UpdateAimLockESP(targetPart)
-    if not targetPart or not targetPart.Parent then HideAimLockESP() return end
-    local char = targetPart.Parent
-    local hum = char:FindFirstChildOfClass("Humanoid")
-
-    aimLockHL.Adornee = char
-    aimLockHL.Enabled = true
-    aimLockBB.Adornee = targetPart
-    aimLockBB.Enabled = true
-
-    local isDowned = hum and (hum.PlatformStand or hum.Health <= 0)
-    if isDowned then
-        aimLockHL.FillColor = Color3.fromRGB(200, 0, 0)
-        aimLockHL.OutlineColor = Color3.fromRGB(255, 100, 100)
-        aimLockLbl.TextColor3 = Color3.fromRGB(255, 100, 100)
-    else
-        aimLockHL.FillColor = Color3.fromRGB(255, 255, 0)
-        aimLockHL.OutlineColor = Color3.fromRGB(255, 255, 0)
-        aimLockLbl.TextColor3 = Color3.fromRGB(255, 255, 0)
+-- VÒNG LẶP XỬ LÝ NHẬN DIỆN VÀ NGẮM MỤC TIÊU
+trackConn(RunService.RenderStepped:Connect(function()
+    if not S.aimLock or not S.xrayCircle then
+        aimActionBtn.Visible = false
+        aimHighlight.Enabled = false
+        aimBB.Enabled = false
+        S.aimTarget = nil
+        S.isAiming = false
+        return
     end
 
-    local hp = hum and math.floor(hum.Health) or 0
-    local maxHp = hum and math.floor(hum.MaxHealth) or 100
-    local status = isDowned and " [BỊ HẠ]" or ""
-    aimLockLbl.Text = string.format("🎯 %s%s\n❤️ %d/%d", char.Name, status, hp, maxHp)
-end
-
-local function GetClosestPlayerInCircle()
     local camera = workspace.CurrentCamera
-    if not camera then return nil end
+    if not camera then return end
     
     local centerScreen = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
     local radius = S.xrayCircleSize / 2
-    local closestTarget = nil
+    local closestTargetChar = nil
+    local closestPlayer = nil
     local shortestDist = math.huge
 
+    -- Tìm người chơi gần tâm vòng tròn nhất
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= player and p.Character and p.Character:FindFirstChild("HumanoidRootPart") and p.Character:FindFirstChild("Humanoid") then
             local hum = p.Character.Humanoid
@@ -2380,40 +2433,60 @@ local function GetClosestPlayerInCircle()
                     if distToCenter <= radius then
                         if distToCenter < shortestDist then
                             shortestDist = distToCenter
-                            closestTarget = p.Character.HumanoidRootPart
+                            closestTargetChar = p.Character
+                            closestPlayer = p
                         end
                     end
                 end
             end
         end
     end
-    return closestTarget
-end
 
-RunService.RenderStepped:Connect(function()
-    if S.aimLock and S.xrayCircle then
-        -- Chỉ ngắm khi nhấn chuột trái (bắn)
-        local isFiring = UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1)
-        local target = GetClosestPlayerInCircle()
-        local camera = workspace.CurrentCamera
+    -- Xử lý khi mục tiêu thay đổi hoặc mất đi
+    if closestPlayer ~= S.aimTarget then
+        S.aimTarget = closestPlayer
+        -- Nếu đổi mục tiêu thì tự động hủy trạng thái đang ngắm
+        S.isAiming = false
+        aimActionBtn.BackgroundColor3 = C.RED
+    end
 
-        if target and camera then
-            -- Luôn hiện định vị người bị khóa
-            UpdateAimLockESP(target)
+    -- Cập nhật Hiển thị Nút & ESP Định Vị
+    if closestTargetChar and closestPlayer then
+        -- Cập nhật ESP định vị (chỉ hiển thị, chưa ngắm)
+        aimHighlight.Adornee = closestTargetChar
+        aimHighlight.Enabled = true
+        
+        local rPart = closestTargetChar:FindFirstChild("HumanoidRootPart")
+        if rPart then
+            aimBB.Adornee = rPart
+            aimBB.Enabled = true
+            aimLbl.Text = "🎯 " .. closestPlayer.Name
+        end
 
-            -- CHỈ khi bắn mới tự động ngắm vào người chơi
-            if isFiring then
-                camera.CFrame = CFrame.lookAt(camera.CFrame.Position, target.Position)
-            end
+        -- Hiện nút bấm ngắm
+        aimActionBtn.Visible = true
+        if not S.isAiming then
+            aimActionBtn.Text = "🎯 Ngắm: " .. closestPlayer.Name
         else
-            -- Không có ai trong vòng thì ẩn ESP đi
-            HideAimLockESP()
+            aimActionBtn.Text = "🔒 ĐANG NGẮM: " .. closestPlayer.Name
+        end
+
+        -- THỰC HIỆN NGẮM CAMERA (Chỉ khi isAiming = true)
+        if S.isAiming then
+            local camPos = camera.CFrame.Position
+            local targetPos = closestTargetChar.HumanoidRootPart.Position
+            if (camPos - targetPos).Magnitude > 0.1 then
+                camera.CFrame = CFrame.lookAt(camPos, targetPos)
+            end
         end
     else
-        -- Tắt tính năng thì ẩn ESP
-        HideAimLockESP()
+        -- Không có ai trong vòng tròn
+        aimActionBtn.Visible = false
+        aimHighlight.Enabled = false
+        aimBB.Enabled = false
+        S.isAiming = false
     end
-end)
+end))
 
 
 -- ==================== TOGGLE MENU LOGIC & DRAG SYSTEM ====================
@@ -2443,32 +2516,32 @@ dragLockBtn.Activated:Connect(function()
 end)
 
 local dragging, dragStart, startPos
-titleBar.InputBegan:Connect(function(i)
+trackConn(titleBar.InputBegan:Connect(function(i)
     if S.dragMenu and (i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch) then
         dragging=true
         dragStart=i.Position
         startPos=main.Position
     end
-end)
+end))
 
-UserInputService.InputChanged:Connect(function(i)
+trackConn(UserInputService.InputChanged:Connect(function(i)
     if dragging and startPos and dragStart and (i.UserInputType==Enum.UserInputType.MouseMovement or i.UserInputType==Enum.UserInputType.Touch) then
         local d=i.Position-dragStart
         main.Position=UDim2.new(startPos.X.Scale, startPos.X.Offset+d.X, startPos.Y.Scale, startPos.Y.Offset+d.Y)
     end
-end)
+end))
 
-UserInputService.InputEnded:Connect(function(i)
+trackConn(UserInputService.InputEnded:Connect(function(i)
     if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then
         dragging=false
     end
-end)
+end))
 
 local togDragging = false
 local togDragStart, togStartPos
 local togMoved = false
 
-togBtn.InputBegan:Connect(function(i)
+trackConn(togBtn.InputBegan:Connect(function(i)
     if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
         if S.dragMenu then
             togDragging = true
@@ -2477,9 +2550,9 @@ togBtn.InputBegan:Connect(function(i)
             togMoved = false
         end
     end
-end)
+end))
 
-UserInputService.InputChanged:Connect(function(i)
+trackConn(UserInputService.InputChanged:Connect(function(i)
     if togDragging and S.dragMenu and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
         local delta = i.Position - togDragStart
         if delta.Magnitude > 5 then
@@ -2492,9 +2565,9 @@ UserInputService.InputChanged:Connect(function(i)
             )
         end
     end
-end)
+end))
 
-UserInputService.InputEnded:Connect(function(i)
+trackConn(UserInputService.InputEnded:Connect(function(i)
     if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
         if togDragging then
             togDragging = false
@@ -2503,7 +2576,7 @@ UserInputService.InputEnded:Connect(function(i)
             end
         end
     end
-end)
+end))
 
 togBtn.Activated:Connect(function()
     if not S.dragMenu then
@@ -2511,29 +2584,29 @@ togBtn.Activated:Connect(function()
     end
 end)
 
-UserInputService.InputBegan:Connect(function(i, gp)
+trackConn(UserInputService.InputBegan:Connect(function(i, gp)
     if not gp and i.KeyCode == Enum.KeyCode.RightControl then
         ToggleMainFrame()
     end
-end)
+end))
 
 main.Visible = true
 togBtn.Text = "✕"
 
 -- ==================== RESPAWN HANDLER ====================
-player.CharacterAdded:Connect(function(c)
+trackConn(player.CharacterAdded:Connect(function(c)
     task.wait(0.3)
     UpdChar()
     if S.noClip then EnNC() end
     if S.flying then StopFly(); TogFly() end
     if S.carpet then StopCarpet(); TogCarpet() end
     if S.flyRun then TogFlyRun() end
-    StopFlyTo() 
+    StopFlyTo()
     StopFlyToLoc()
     if S.esp then UpdateESP() end
-end)
+end))
 
 UpdChar()
 if S.noClip then EnNC() end
 
-print("✅ Đã cập nhật Aimbot: Ngắm khi bắn + Định vị Tên/Màu Đỏ khi Hạ Ngục!")
+print("✅ Đã cập nhật Tab Niệm Tâm: Tự định vị + Nút bấm để Ngắm!")
