@@ -4,7 +4,7 @@
 -- + ESP: Phân biệt Bạn Bè (Hồng/Tím) & Hạ ngục/Chết + Đếm giờ Hạ Ngục
 -- + Định Vị Lẻ: Bật tính năng -> Nhấn tên người chơi -> Chỉ định vị 1 người đó
 -- + Tab Tọa Độ: Lưu, Đặt tên, ESP All/Lẻ, Xóa, Bay tới Tọa Độ
--- + Tab Niệm Tâm: Vòng tròn trên màn hình + Tự động ngắm người trong vòng (Aimbot)
+-- + Tab Niệm Tâm: Vòng tròn + Tự định vị + Nút bấm để Ngắm (Aimbot)
 -- StarterGui -> LocalScript hoặc Executor
 -- ============================================
 
@@ -44,7 +44,6 @@ local function trackConn(conn)
     return conn
 end
 
--- Unbind các RenderStep cũ để tránh trùng lặp gây lỗi
 pcall(function() RunService:UnbindFromRenderStep("Fly") end)
 pcall(function() RunService:UnbindFromRenderStep("Carpet") end)
 
@@ -178,7 +177,6 @@ New("TextLabel", {
     ZIndex=4,
 }, titleBar)
 
--- NÚT MỞ KHÓA DI CHUYỂN MENU
 local dragLockBtn = New("TextButton", {
     Size=UDim2.new(0,30,0,30),
     Position=UDim2.new(1,-64,0,0),
@@ -371,7 +369,6 @@ local function AddTab(name, icon, order)
     return sf
 end
 
--- 8 TABS
 local codeTab      = AddTab("Code", "💻", 1)
 local savedCodeTab = AddTab("Code Đã Lưu", "💾", 2)
 local moveTab      = AddTab("Di Chuyển", "🏃", 3)
@@ -396,8 +393,8 @@ local S = {
     dragMenu=false, 
     soloTrack=false, soloTarget=nil, 
     locEspAll=false, locEspSingle=false, locTarget=nil, flyToLocTarget=nil, 
-    xrayCircle=false, xrayCircleSize=150, -- Niệm Tâm Vòng Tròn
-    aimLock=false, -- Tự ngắm người trong vòng
+    xrayCircle=false, xrayCircleSize=150,
+    aimLock=false, aimTarget=nil, isAiming=false,
 }
 
 local noclipBtn
@@ -408,7 +405,6 @@ local scripts = {}
 local savedLocations = {}
 local totalRuns, cancelled = 0, false
 local curThread, curIndicator = nil, nil
-
 local friendCache = {}
 
 -- ==================== HELPERS ====================
@@ -430,7 +426,7 @@ local function UpdChar()
     end
 end
 
--- ==================== VÒNG TRÒN NIỆM TÂM ====================
+-- ==================== VÒNG TRÒN NIỆM TÂM & ESP AIM ====================
 local xrayCircleFrame = New("Frame", {
     Name = "XrayCircle",
     AnchorPoint = Vector2.new(0.5, 0.5),
@@ -448,20 +444,87 @@ local xrayStroke = New("UIStroke", {
     ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
 }, xrayCircleFrame)
 
--- ==================== CHẶN SERVER TÁC ĐỘNG BẢO VỆ BẢN THÂN ====================
-local oldNamecall
-if hookmetamethod then
-    oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
-        local method = getnamecallmethod()
-        if S.blockServer and self == player then
-            if method == "Kick" or method == "kick" then
-                warn("[Banana Cat Hub] Đã chặn thành công lệnh Kick từ Máy chủ!")
-                return nil
-            end
+local espGui = New("ScreenGui", {
+    Name = "ExMenu_ESP",
+    ResetOnSpawn = false,
+    ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+}, targetGui)
+
+local aimActionBtn = New("TextButton", {
+    Name = "AimActionButton",
+    Size = UDim2.new(0, 220, 0, 40),
+    Position = UDim2.new(0.5, -110, 0.75, -20),
+    BackgroundColor3 = C.RED,
+    BackgroundTransparency = 0.1,
+    Text = "🎯 Ngắm Mục Tiêu",
+    TextColor3 = C.WHITE,
+    Font = Enum.Font.GothamBold,
+    TextSize = 14,
+    Visible = false,
+    ZIndex = 9998
+}, gui)
+Corner(aimActionBtn, UDim.new(0, 6))
+Stroke(aimActionBtn, C.WHITE, 2)
+
+aimActionBtn.Activated:Connect(function()
+    S.isAiming = not S.isAiming
+    if S.isAiming then
+        aimActionBtn.BackgroundColor3 = C.GREEN
+        aimActionBtn.Text = "🔒 ĐANG NGẮM (Bấm hủy)"
+    else
+        aimActionBtn.BackgroundColor3 = C.RED
+        if S.aimTarget then
+            aimActionBtn.Text = "🎯 Ngắm: " .. S.aimTarget.Name
+        else
+            aimActionBtn.Text = "🎯 Ngắm Mục Tiêu"
         end
-        return oldNamecall(self, ...)
-    end)
-end
+    end
+end)
+
+local aimHighlight = Instance.new("Highlight")
+aimHighlight.Name = "AimLock_HL"
+aimHighlight.FillColor = Color3.fromRGB(255, 165, 0)
+aimHighlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+aimHighlight.FillTransparency = 0.5
+aimHighlight.OutlineTransparency = 0
+aimHighlight.Enabled = false
+aimHighlight.Parent = espGui
+
+local aimBB = New("BillboardGui", {
+    Name = "AimLock_BB",
+    Size = UDim2.new(0, 150, 0, 30),
+    AlwaysOnTop = true,
+    Enabled = false,
+    ZIndex = 5
+}, espGui)
+local aimLbl = New("TextLabel", {
+    Size = UDim2.new(1,0,1,0),
+    BackgroundTransparency = 1,
+    TextColor3 = Color3.fromRGB(255, 165, 0),
+    Text = "🎯 Mục Tiêu",
+    Font = Enum.Font.GothamBold,
+    TextSize = 12,
+    TextStrokeTransparency = 0.2,
+    ZIndex = 6
+}, aimBB)
+
+
+-- ==================== CHẶN SERVER TÁC ĐỘNG BẢO VỆ BẢN THÂN ====================
+pcall(function()
+    if hookmetamethod and not _G.BananaHub_Hooked then
+        local oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+            local method = getnamecallmethod()
+            if S.blockServer and self == player then
+                if method == "Kick" or method == "kick" then
+                    warn("[Banana Cat Hub] Đã chặn lệnh Kick từ Máy chủ!")
+                    return nil
+                end
+            end
+            return oldNamecall(self, ...)
+        end)
+        _G.BananaHub_Hooked = true
+    end
+end)
 
 -- ==================== VÒNG LẶP STEPPED: FREEZE OTHERS & ANTI-SERVER ====================
 trackConn(RunService.Stepped:Connect(function()
@@ -610,13 +673,13 @@ local function StopFly()
     if fp then fp:Destroy(); fp=nil end
     local h = Hum()
     if h then h.AutoRotate=true; h.PlatformStand=false end
-    RunService:UnbindFromRenderStep("Fly")
+    pcall(function() RunService:UnbindFromRenderStep("Fly") end)
     mobile.Visible=false
 end
 
 local function StopCarpet()
     if cp then cp:Destroy(); cp=nil end
-    RunService:UnbindFromRenderStep("Carpet")
+    pcall(function() RunService:UnbindFromRenderStep("Carpet") end)
     S.carpetY=nil
 end
 
@@ -963,14 +1026,7 @@ local function StartFlyToLoc(locItem)
     end))
 end
 
-
--- ==================== ESP SYSTEM (CẬP NHẬT MÀU BẠN BÈ & TRẠNG THÁI) ====================
-local espGui = New("ScreenGui", {
-    Name = "ExMenu_ESP",
-    ResetOnSpawn = false,
-    ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
-}, targetGui)
-
+-- ==================== ESP SYSTEM ====================
 local activeESPs = {}
 
 local function RemovePlayerESP(p)
@@ -986,7 +1042,6 @@ local function ClearAllESP()
     for p, _ in pairs(activeESPs) do
         RemovePlayerESP(p)
     end
-    espGui:ClearAllChildren()
 end
 
 local function CreatePlayerESP(p)
@@ -2172,7 +2227,6 @@ end)
 
 RebuildLocList()
 
--- VÒNG LẶP CẬP NHẬT ESP TỌA ĐỘ REALTIME
 local locEspObjs = {}
 trackConn(RunService.RenderStepped:Connect(function()
     if not S.locEspAll and not S.locEspSingle then
@@ -2194,7 +2248,6 @@ trackConn(RunService.RenderStepped:Connect(function()
         table.insert(activeLocs, S.locTarget)
     end
 
-    -- Clean up removed/unused
     for loc, obj in pairs(locEspObjs) do
         local stillActive = false
         for _, aloc in ipairs(activeLocs) do
@@ -2207,7 +2260,6 @@ trackConn(RunService.RenderStepped:Connect(function()
         end
     end
 
-    -- Create/Update active
     for _, loc in ipairs(activeLocs) do
         if not locEspObjs[loc] then
             local att = Instance.new("Attachment")
@@ -2231,15 +2283,14 @@ trackConn(RunService.RenderStepped:Connect(function()
         obj.Lbl.Text = string.format("📍 %s\n📏 %dm", loc.name, dist)
         
         if S.locEspSingle and S.locTarget == loc then
-            obj.Lbl.TextColor3 = Color3.fromRGB(255, 105, 180) -- Hồng
+            obj.Lbl.TextColor3 = Color3.fromRGB(255, 105, 180)
         else
-            obj.Lbl.TextColor3 = Color3.fromRGB(255, 215, 0) -- Vàng
+            obj.Lbl.TextColor3 = Color3.fromRGB(255, 215, 0)
         end
     end
 end))
 
-
--- ==================== TAB 8: NIỆM TÂM (VÒNG TRÒN TÂM NGẮM & AIM) ====================
+-- ==================== TAB 8: NIỆM TÂM ====================
 local xy = 8
 
 Label(xrayTab, "🎯 Niệm Tâm - Vòng tròn & Tự Động Ngắm", xy)
@@ -2254,12 +2305,18 @@ xrayToggleBtn.Activated:Connect(function()
 end)
 xy = xy + 30
 
--- Nút Bật Tự Động Ngắm (Aim Lock)
-local aimLockBtn = Button(xrayTab, "🔒 Tự Ngắm Người Trong Vòng: TẮT", 8, xy, 250, 24, C.GRAY)
+local aimLockBtn = Button(xrayTab, "🔒 Nhận Diện Mục Tiêu: TẮT", 8, xy, 250, 24, C.GRAY)
 aimLockBtn.Activated:Connect(function()
     S.aimLock = not S.aimLock
-    aimLockBtn.Text = S.aimLock and "🔓 Tự Ngắm Người Trong Vòng: BẬT" or "🔒 Tự Ngắm Người Trong Vòng: TẮT"
+    aimLockBtn.Text = S.aimLock and "🔓 Nhận Diện Mục Tiêu: BẬT" or "🔒 Nhận Diện Mục Tiêu: TẮT"
     aimLockBtn.BackgroundColor3 = S.aimLock and C.RED or C.GRAY
+    if not S.aimLock then
+        S.aimTarget = nil
+        S.isAiming = false
+        aimActionBtn.Visible = false
+        aimHighlight.Enabled = false
+        aimBB.Enabled = false
+    end
 end)
 xy = xy + 30
 
@@ -2329,15 +2386,24 @@ end)
 
 xrayTab.CanvasSize = UDim2.new(0,0,0,xy+40)
 
+-- VÒNG LẶP XỬ LÝ NHẬN DIỆN VÀ NGẮM MỤC TIÊU
+trackConn(RunService.RenderStepped:Connect(function()
+    if not S.aimLock or not S.xrayCircle then
+        aimActionBtn.Visible = false
+        aimHighlight.Enabled = false
+        aimBB.Enabled = false
+        S.aimTarget = nil
+        S.isAiming = false
+        return
+    end
 
--- VÒNG LẶP XỬ LÝ TỰ ĐỘNG NGẮM (AIMBOT CIRCLE)
-local function GetClosestPlayerInCircle()
     local camera = workspace.CurrentCamera
-    if not camera then return nil end
+    if not camera then return end
     
     local centerScreen = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
     local radius = S.xrayCircleSize / 2
-    local closestTarget = nil
+    local closestTargetChar = nil
+    local closestPlayer = nil
     local shortestDist = math.huge
 
     for _, p in ipairs(Players:GetPlayers()) do
@@ -2352,29 +2418,53 @@ local function GetClosestPlayerInCircle()
                     if distToCenter <= radius then
                         if distToCenter < shortestDist then
                             shortestDist = distToCenter
-                            closestTarget = p.Character.HumanoidRootPart
+                            closestTargetChar = p.Character
+                            closestPlayer = p
                         end
                     end
                 end
             end
         end
     end
-    return closestTarget
-end
 
-trackConn(RunService.RenderStepped:Connect(function()
-    if S.aimLock and S.xrayCircle then
-        local target = GetClosestPlayerInCircle()
-        local camera = workspace.CurrentCamera
-        if target and camera then
+    if closestPlayer ~= S.aimTarget then
+        S.aimTarget = closestPlayer
+        S.isAiming = false
+        aimActionBtn.BackgroundColor3 = C.RED
+    end
+
+    if closestTargetChar and closestPlayer then
+        aimHighlight.Adornee = closestTargetChar
+        aimHighlight.Enabled = true
+        
+        local rPart = closestTargetChar:FindFirstChild("HumanoidRootPart")
+        if rPart then
+            aimBB.Adornee = rPart
+            aimBB.Enabled = true
+            aimLbl.Text = "🎯 " .. closestPlayer.Name
+        end
+
+        aimActionBtn.Visible = true
+        if not S.isAiming then
+            aimActionBtn.Text = "🎯 Ngắm: " .. closestPlayer.Name
+        else
+            aimActionBtn.Text = "🔒 ĐANG NGẮM: " .. closestPlayer.Name
+        end
+
+        if S.isAiming then
             local camPos = camera.CFrame.Position
-            if (camPos - target.Position).Magnitude > 0.1 then
-                camera.CFrame = CFrame.lookAt(camPos, target.Position)
+            local targetPos = closestTargetChar.HumanoidRootPart.Position
+            if (camPos - targetPos).Magnitude > 0.1 then
+                camera.CFrame = CFrame.lookAt(camPos, targetPos)
             end
         end
+    else
+        aimActionBtn.Visible = false
+        aimHighlight.Enabled = false
+        aimBB.Enabled = false
+        S.isAiming = false
     end
 end))
-
 
 -- ==================== TOGGLE MENU LOGIC & DRAG SYSTEM ====================
 local function ToggleMainFrame()
@@ -2495,5 +2585,4 @@ end))
 
 UpdChar()
 if S.noClip then EnNC() end
-
-print("✅ Đã thêm Tính Năng Tự Ngắm Người Trong Vòng Tròn Niệm Tâm!")
+print("✅ Đã sửa toàn bộ lỗi và cập nhật tính năng Ngắm thủ công!")
