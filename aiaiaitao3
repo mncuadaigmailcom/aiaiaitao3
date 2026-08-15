@@ -1,49 +1,6 @@
 -- =====================================================
---  DEEPSEEK BLOX FRUITS AUTO FARM SCRIPT
---  Hãy dùng trong executor (Krnl, Synapse, ...)
---  Cấu hình nhanh ở phần Config
--- =====================================================
-
-local Config = {
-    -- Bật/tắt toàn bộ script
-    Enabled = true,
-
-    -- Chọn chế độ quái:
-    -- true  = tự tìm mọi mob có máu trong bán kính
-    -- false = chỉ farm quái có tên trong MobNames
-    AutoFindMobs = true,
-    MobNames = {
-        "Bandit", "Marine", "Pirate", "SkyBandit", "God's Guard",
-        "Vice Admiral", "Fishman", "Ice Warrior", "Desert Pirate",
-        "Mummy", "Pharaoh", "Cursed Captain", "Vampire", "Werewolf",
-        "Snow Bandit", "Viking", "Pirate Ruffian", "Pirate Raider",
-        "Pirate Millionaire", "Pirate Billionaire", "Marine Admiral"
-    },
-
-    -- Bán kính tìm quái (tính từ nhân vật)
-    SearchRadius = 300,
-
-    -- Di chuyển bằng teleport hay chạy bộ
-    Teleport = true,
-
-    -- Tự hồi máu
-    AutoHeal = true,
-    HealThreshold = 0.3,      -- hồi khi máu dưới 30%
-
-    -- Tự nâng cấp stats
-    AutoStats = true,
-    StatsInterval = 20,       -- mỗi X giây
-    StatsPriority = { "Melee", "Defense", "Sword" },
-
-    -- Tự nhặt trái ác quỷ
-    AutoCollectFruit = true,
-
-    -- Tấn công liên tục nhiều lần trong một nhịp
-    FastAttack = true,
-}
-
--- =====================================================
---  KHÔNG CHẠM VÀO PHẦN DƯỚI NẾU KHÔNG BIẾT MÌNH ĐANG LÀM GÌ
+--  DEEPSEEK BLOX FRUITS AUTO FARM - CÓ MENU ĐIỀU KHIỂN
+--  Hãy dùng trong executor (Krnl, Synapse, Fluxus...)
 -- =====================================================
 
 local player = game.Players.LocalPlayer
@@ -52,26 +9,45 @@ local humanoid = char:WaitForChild("Humanoid")
 local root = char:WaitForChild("HumanoidRootPart")
 local VirtualInput = game:GetService("VirtualInputManager")
 
--- Hàm tìm quái gần nhất
+-- =====================================================
+--  CẤU HÌNH MẶC ĐỊNH (có thể chỉnh trong menu)
+-- =====================================================
+local Settings = {
+    Enabled = false,
+    AutoFindMobs = true,
+    Teleport = true,
+    AutoHeal = true,
+    HealThreshold = 30,  -- % máu
+    AutoStats = true,
+    StatsInterval = 20,
+    AutoCollectFruit = true,
+    FastAttack = true,
+    SearchRadius = 300,
+}
+
+-- Danh sách quái nếu AutoFindMobs = false
+local MobNames = {
+    "Bandit", "Marine", "Pirate", "SkyBandit", "God's Guard",
+    "Vice Admiral", "Fishman", "Ice Warrior", "Desert Pirate",
+    "Mummy", "Pharaoh", "Cursed Captain", "Vampire", "Werewolf",
+    "Snow Bandit", "Viking", "Pirate Ruffian", "Pirate Raider",
+    "Pirate Millionaire", "Pirate Billionaire", "Marine Admiral"
+}
+
+-- =====================================================
+--  HÀM CHÍNH (giống trước, nhưng dùng Settings)
+-- =====================================================
 local function getNearestMob()
     local nearest = nil
-    local minDist = Config.SearchRadius
+    local minDist = Settings.SearchRadius
 
     for _, v in ipairs(workspace:GetDescendants()) do
-        if not v:IsA("Model") or v == char then
-            continue
-        end
-
+        if not v:IsA("Model") or v == char then continue end
         local hum = v:FindFirstChild("Humanoid")
         local hrp = v:FindFirstChild("HumanoidRootPart")
-        if not hum or not hrp or hum.Health <= 0 then
-            continue
-        end
+        if not hum or not hrp or hum.Health <= 0 then continue end
 
-        -- Nếu không tự tìm, so tên với danh sách
-        if not Config.AutoFindMobs and not table.find(Config.MobNames, v.Name) then
-            continue
-        end
+        if not Settings.AutoFindMobs and not table.find(MobNames, v.Name) then continue end
 
         local dist = (hrp.Position - root.Position).Magnitude
         if dist < minDist then
@@ -79,39 +55,29 @@ local function getNearestMob()
             nearest = v
         end
     end
-
     return nearest
 end
 
--- Di chuyển đến mục tiêu
 local function moveToMob(mob)
     local targetPos = mob.HumanoidRootPart.Position
-    if Config.Teleport then
+    if Settings.Teleport then
         root.CFrame = CFrame.new(targetPos + Vector3.new(0, 0, 5))
     else
         humanoid:MoveTo(targetPos)
     end
 end
 
--- Tấn công: tool + kỹ năng
 local function attack()
     local tool = char:FindFirstChildOfClass("Tool")
     if tool then
         tool:Activate()
-        if Config.FastAttack then
+        if Settings.FastAttack then
             task.wait(0.05)
             tool:Activate()
         end
     end
 
-    -- Gửi phím kỹ năng (Z, X, C, V)
-    local keys = {
-        Enum.KeyCode.Z,
-        Enum.KeyCode.X,
-        Enum.KeyCode.C,
-        Enum.KeyCode.V
-    }
-
+    local keys = {Enum.KeyCode.Z, Enum.KeyCode.X, Enum.KeyCode.C, Enum.KeyCode.V}
     for _, key in ipairs(keys) do
         VirtualInput:SendKeyEvent(true, key, false, game)
         task.wait(0.08)
@@ -120,12 +86,8 @@ local function attack()
     end
 end
 
--- Hồi máu bằng thức ăn trong túi + chạy xa
 local function heal()
-    -- Tránh xa đám đông
     root.CFrame = root.CFrame * CFrame.new(0, 0, 30)
-
-    -- Tìm đồ ăn trong backpack
     local backpack = player.Backpack
     for _, item in ipairs(backpack:GetChildren()) do
         if item:IsA("Tool") and string.match(item.Name, "Meat|Apple|Bread|Fish|Pineapple") then
@@ -138,25 +100,25 @@ local function heal()
     end
 end
 
--- Nâng cấp stats
 local function upgradeStats()
     for _, remote in ipairs(game.ReplicatedStorage:GetDescendants()) do
         if remote:IsA("RemoteFunction") and string.find(remote.Name, "Stats|Level|Point") then
-            for _, stat in ipairs(Config.StatsPriority) do
-                remote:InvokeServer("AddPoint", stat)
-                task.wait(0.05)
-            end
+            remote:InvokeServer("AddPoint", "Melee")
+            task.wait(0.05)
+            remote:InvokeServer("AddPoint", "Defense")
+            task.wait(0.05)
+            remote:InvokeServer("AddPoint", "Sword")
+            task.wait(0.05)
             break
         end
     end
 end
 
--- Nhặt trái ác quỷ rơi
 local function collectFruit()
     for _, v in ipairs(workspace:GetDescendants()) do
         if v:IsA("Part") and string.find(v.Name:lower(), "fruit") then
             local dist = (v.Position - root.Position).Magnitude
-            if dist < Config.SearchRadius then
+            if dist < Settings.SearchRadius then
                 root.CFrame = CFrame.new(v.Position + Vector3.new(0, 3, 0))
                 task.wait(0.1)
             end
@@ -164,49 +126,254 @@ local function collectFruit()
     end
 end
 
--- =====================================================
---  VÒNG LẶP CHÍNH
--- =====================================================
-
--- Farm quái
+-- Vòng lặp farm
 task.spawn(function()
-    while true do
-        task.wait(0.1)
-        if not Config.Enabled then
-            continue
-        end
+    while task.wait(0.1) do
+        if not Settings.Enabled then continue end
 
         local mob = getNearestMob()
         if mob then
             moveToMob(mob)
             attack()
         end
-
-        if Config.AutoCollectFruit then
+        if Settings.AutoCollectFruit then
             collectFruit()
         end
     end
 end)
 
--- Tự hồi máu
+-- Vòng lặp hồi máu
 task.spawn(function()
-    while true do
-        task.wait(0.2)
-        if Config.AutoHeal and humanoid.Health / humanoid.MaxHealth < Config.HealThreshold then
+    while task.wait(0.2) do
+        if Settings.AutoHeal and (humanoid.Health / humanoid.MaxHealth * 100) < Settings.HealThreshold then
             heal()
         end
     end
 end)
 
--- Tự nâng cấp stats
+-- Vòng lặp stats
 task.spawn(function()
-    while true do
-        task.wait(Config.StatsInterval)
-        if Config.AutoStats then
+    while task.wait(Settings.StatsInterval) do
+        if Settings.AutoStats and Settings.Enabled then
             upgradeStats()
         end
     end
 end)
 
--- In trạng thái
-print("[DeepSeek] Script đã được kích hoạt. Hãy dùng có trách nhiệm.")
+-- =====================================================
+--  TẠO MENU GUI
+-- =====================================================
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "DeepSeekGUI"
+ScreenGui.ResetOnSpawn = false -- Giữ menu khi hồi sinh
+ScreenGui.Parent = player:WaitForChild("PlayerGui")
+
+-- Nền menu
+local Frame = Instance.new("Frame")
+Frame.Name = "MainFrame"
+Frame.Size = UDim2.new(0, 300, 0, 400)
+Frame.Position = UDim2.new(0.5, -150, 0.5, -200)
+Frame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+Frame.BackgroundTransparency = 0.2
+Frame.BorderSizePixel = 2
+Frame.BorderColor3 = Color3.fromRGB(0, 255, 170)
+Frame.Active = true
+Frame.Draggable = true -- Có thể kéo menu
+Frame.Parent = ScreenGui
+
+-- Tiêu đề
+local Title = Instance.new("TextLabel")
+Title.Name = "Title"
+Title.Size = UDim2.new(1, 0, 0, 35)
+Title.BackgroundColor3 = Color3.fromRGB(0, 255, 170)
+Title.Text = "DEEPSEEK FARM"
+Title.TextColor3 = Color3.fromRGB(0, 0, 0)
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 18
+Title.Parent = Frame
+
+-- Trạng thái
+local Status = Instance.new("TextLabel")
+Status.Name = "Status"
+Status.Size = UDim2.new(1, 0, 0, 25)
+Status.Position = UDim2.new(0, 0, 0, 40)
+Status.BackgroundTransparency = 1
+Status.Text = "● TẮT"
+Status.TextColor3 = Color3.fromRGB(255, 0, 0)
+Status.Font = Enum.Font.GothamBold
+Status.TextSize = 16
+Status.Parent = Frame
+
+-- Nút Bật/Tắt
+local ToggleButton = Instance.new("TextButton")
+ToggleButton.Name = "ToggleButton"
+ToggleButton.Size = UDim2.new(0.8, 0, 0, 35)
+ToggleButton.Position = UDim2.new(0.1, 0, 0, 75)
+ToggleButton.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleButton.Text = "BẬT FARM"
+ToggleButton.Font = Enum.Font.GothamBold
+ToggleButton.TextSize = 14
+ToggleButton.Parent = Frame
+
+-- Nút Teleport
+local TeleportButton = Instance.new("TextButton")
+TeleportButton.Name = "TeleportButton"
+TeleportButton.Size = UDim2.new(0.8, 0, 0, 30)
+TeleportButton.Position = UDim2.new(0.1, 0, 0, 120)
+TeleportButton.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+TeleportButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+TeleportButton.Text = "Teleport: BẬT"
+TeleportButton.Font = Enum.Font.GothamBold
+TeleportButton.TextSize = 13
+TeleportButton.Parent = Frame
+
+-- Nút AutoHeal
+local HealButton = Instance.new("TextButton")
+HealButton.Name = "HealButton"
+HealButton.Size = UDim2.new(0.8, 0, 0, 30)
+HealButton.Position = UDim2.new(0.1, 0, 0, 160)
+HealButton.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+HealButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+HealButton.Text = "Tự hồi máu: BẬT"
+HealButton.Font = Enum.Font.GothamBold
+HealButton.TextSize = 13
+HealButton.Parent = Frame
+
+-- Nút AutoStats
+local StatsButton = Instance.new("TextButton")
+StatsButton.Name = "StatsButton"
+StatsButton.Size = UDim2.new(0.8, 0, 0, 30)
+StatsButton.Position = UDim2.new(0.1, 0, 0, 200)
+StatsButton.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+StatsButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+StatsButton.Text = "Tự nâng stats: BẬT"
+StatsButton.Font = Enum.Font.GothamBold
+StatsButton.TextSize = 13
+StatsButton.Parent = Frame
+
+-- Nút Nhặt trái
+local FruitButton = Instance.new("TextButton")
+FruitButton.Name = "FruitButton"
+FruitButton.Size = UDim2.new(0.8, 0, 0, 30)
+FruitButton.Position = UDim2.new(0.1, 0, 0, 240)
+FruitButton.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+FruitButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+FruitButton.Text = "Nhặt trái: BẬT"
+FruitButton.Font = Enum.Font.GothamBold
+FruitButton.TextSize = 13
+FruitButton.Parent = Frame
+
+-- Thanh trượt bán kính
+local RadiusLabel = Instance.new("TextLabel")
+RadiusLabel.Name = "RadiusLabel"
+RadiusLabel.Size = UDim2.new(0.8, 0, 0, 20)
+RadiusLabel.Position = UDim2.new(0.1, 0, 0, 280)
+RadiusLabel.BackgroundTransparency = 1
+RadiusLabel.Text = "Bán kính: 300"
+RadiusLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+RadiusLabel.Font = Enum.Font.Gotham
+RadiusLabel.TextSize = 13
+RadiusLabel.Parent = Frame
+
+local RadiusSlider = Instance.new("TextButton")
+RadiusSlider.Name = "RadiusSlider"
+RadiusSlider.Size = UDim2.new(0.8, 0, 0, 25)
+RadiusSlider.Position = UDim2.new(0.1, 0, 0, 305)
+RadiusSlider.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+RadiusSlider.TextColor3 = Color3.fromRGB(255, 255, 255)
+RadiusSlider.Text = "+100 / -100"
+RadiusSlider.Font = Enum.Font.GothamBold
+RadiusSlider.TextSize = 13
+RadiusSlider.Parent = Frame
+
+-- Dòng chữ kỷ luật
+local Credit = Instance.new("TextLabel")
+Credit.Name = "Credit"
+Credit.Size = UDim2.new(1, 0, 0, 25)
+Credit.Position = UDim2.new(0, 0, 1, -25)
+Credit.BackgroundTransparency = 1
+Credit.Text = "DeepSeek | Kỷ luật là số phận"
+Credit.TextColor3 = Color3.fromRGB(0, 255, 170)
+Credit.Font = Enum.Font.Gotham
+Credit.TextSize = 12
+Credit.Parent = Frame
+
+-- =====================================================
+--  XỬ LÝ SỰ KIỆN NÚT
+-- =====================================================
+
+-- Cập nhật trạng thái hiển thị
+local function updateUI()
+    if Settings.Enabled then
+        Status.Text = "● ĐANG FARM"
+        Status.TextColor3 = Color3.fromRGB(0, 255, 0)
+        ToggleButton.Text = "TẮT FARM"
+    else
+        Status.Text = "● TẮT"
+        Status.TextColor3 = Color3.fromRGB(255, 0, 0)
+        ToggleButton.Text = "BẬT FARM"
+    end
+end
+
+-- Nút Bật/Tắt farm
+ToggleButton.MouseButton1Click:Connect(function()
+    Settings.Enabled = not Settings.Enabled
+    updateUI()
+end)
+
+-- Nút Teleport
+TeleportButton.MouseButton1Click:Connect(function()
+    Settings.Teleport = not Settings.Teleport
+    if Settings.Teleport then
+        TeleportButton.Text = "Teleport: BẬT"
+    else
+        TeleportButton.Text = "Teleport: TẮT"
+    end
+end)
+
+-- Nút AutoHeal
+HealButton.MouseButton1Click:Connect(function()
+    Settings.AutoHeal = not Settings.AutoHeal
+    if Settings.AutoHeal then
+        HealButton.Text = "Tự hồi máu: BẬT"
+    else
+        HealButton.Text = "Tự hồi máu: TẮT"
+    end
+end)
+
+-- Nút AutoStats
+StatsButton.MouseButton1Click:Connect(function()
+    Settings.AutoStats = not Settings.AutoStats
+    if Settings.AutoStats then
+        StatsButton.Text = "Tự nâng stats: BẬT"
+    else
+        StatsButton.Text = "Tự nâng stats: TẮT"
+    end
+end)
+
+-- Nút Nhặt trái
+FruitButton.MouseButton1Click:Connect(function()
+    Settings.AutoCollectFruit = not Settings.AutoCollectFruit
+    if Settings.AutoCollectFruit then
+        FruitButton.Text = "Nhặt trái: BẬT"
+    else
+        FruitButton.Text = "Nhặt trái: TẮT"
+    end
+end)
+
+-- Thanh trượt bán kính (tăng/giảm 50 mỗi lần bấm)
+RadiusSlider.MouseButton1Click:Connect(function()
+    if Settings.SearchRadius >= 500 then
+        Settings.SearchRadius = 100
+    else
+        Settings.SearchRadius = Settings.SearchRadius + 100
+    end
+    RadiusLabel.Text = "Bán kính: " .. Settings.SearchRadius
+end)
+
+-- Khởi tạo UI
+updateUI()
+
+-- In thông báo
+print("[DeepSeek] Menu đã được nạp. Hãy bật farm và quan sát dây cương.")
