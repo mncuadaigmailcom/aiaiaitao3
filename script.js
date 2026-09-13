@@ -18,8 +18,12 @@
           chuột 🖱, nạp lại hub từ đĩa 🔄, dọn host nhúng rác 🧹) -> KHÔNG có nút chết/link chết.
         • Tách 5 handler thành hàm tái sử dụng: S.DoReload, S.DoFixMouse, S.DoToggleEmbed,
           S.DoToggleGuess, S.DoTogglePark (nút cũ vẫn nối vào chính những hàm này — hành vi y hệt).
-        • Thứ tự trang: 1 💻 Code · 2 📚 Script Hub · 3 💾 Code Đã Lưu · 4 🛠 Hỗ Trợ · 5 🤖 AI AI ·
-          6 ➕ Tạo Tính Năng · 7+ tab tính năng của bạn · 99 🧩 GUI Ngoài.
+        • Thứ tự trang (v4.6.2, theo yêu cầu): 1 💾 Code Đã Lưu · 2 💻 Code · 3 📚 Script Hub ·
+          4 🛠 Hỗ Trợ · 5 🤖 AI AI · 6 ➕ Tạo Tính Năng · 7+ tab tính năng của bạn · 99 🧩 GUI Ngoài.
+          Menu mở lên là thấy ngay 💾 Code Đã Lưu. Vì mảng `tabs` xếp theo thứ tự TẠO còn rail xếp
+          theo LayoutOrder, mọi chỗ "về trang đầu" (lúc khởi động, bấm ✕ đóng tab tính năng, xóa
+          tab) nay đi qua hàm OpenFirstPage() — tìm nút có LayoutOrder nhỏ nhất — nên icon được tô
+          vàng luôn khớp với trang đang mở.
         • DỌN SẠCH dấu vết layout cũ: các hàng nút vốn xếp cho khổ nội dung 435px nay trải hết khổ
           mới (lề 8px, mép phải 476px) ở 💻 Code, 🛠 Hỗ Trợ, ➕ Tạo Tính Năng; đường phân cách "━"
           dài gấp đôi cho vừa khổ; 3 nhãn X:/Y:/Z: ở mục 🚀 Teleport trước đây ĐÈ LÊN NHAU (Label()
@@ -839,7 +843,7 @@ D.pageHeader = New("Frame", {
 }, main)
 D.pageTitle = New("TextLabel", {
     Name="PageTitle", Size=UDim2.new(1,-196,1,0), Position=UDim2.new(0,10,0,0),
-    Text="💻 Code", BackgroundTransparency=1, TextColor3=C.ACCENT,
+    Text="💾 Code Đã Lưu", BackgroundTransparency=1, TextColor3=C.ACCENT,   -- v4.6.2: trang đầu tiên
     Font=Enum.Font.GothamBold, TextSize=11,
     TextXAlignment=Enum.TextXAlignment.Left, ZIndex=5,
 }, D.pageHeader)
@@ -982,6 +986,21 @@ local function SwitchTab(index)
     BcFit()   -- v4.4c: tab vừa hiện -> đo lại để GUI nằm vừa đúng ô của tab
 end
 
+-- v4.6.2: "trang đầu tiên" = trang có LayoutOrder NHỎ NHẤT trên rail, KHÔNG phải tabs[1].
+-- Lý do: mảng `tabs` xếp theo THỨ TỰ TẠO (💻 Code được tạo trước tiên), còn thứ tự người dùng
+-- NHÌN THẤY trên rail do LayoutOrder quyết định. Từ v4.6.2 trang đầu là 💾 Code Đã Lưu, nên mọi
+-- chỗ trước đây gọi SwitchTab(1) — lúc khởi động, khi bấm ✕ đóng tab tính năng, khi xóa tab —
+-- đều phải đi qua hàm này; nếu không menu sẽ mở trang 💻 Code trong khi icon được tô vàng lại là
+-- icon thứ hai trên rail (lệch nhau, tưởng như bấm không ăn).
+local function OpenFirstPage()
+    local idx, best = 1, nil
+    for i, b in ipairs(tabs) do
+        local o = b and b.LayoutOrder
+        if type(o) == "number" and (best == nil or o < best) then best = o; idx = i end
+    end
+    SwitchTab(idx)
+end
+
 local function AddTab(name, icon, order, customContent)
     local btn = New("TextButton", {
         Size=UDim2.new(1,-8,0,38),        -- v4.5 Delta: ô icon 48x38
@@ -1063,10 +1082,13 @@ local function AddTab(name, icon, order, customContent)
     return sf, btn
 end
 
-local codeTab      = AddTab("Code", "💻", 1)
-local savedCodeTab = AddTab("Code Đã Lưu", "💾", 3)
+-- v4.6.2: thứ tự trang theo yêu cầu — 1 💾 Code Đã Lưu · 2 💻 Code · 3 📚 Script Hub ·
+-- 4 🛠 Hỗ Trợ · 5 🤖 AI AI · 6 ➕ Tạo Tính Năng · 7+ tab tính năng của bạn · 99 🧩 GUI Ngoài.
+-- (Thứ tự TẠO vẫn giữ nguyên để không đụng scope biến; thứ tự HIỂN THỊ do LayoutOrder.)
+local codeTab      = AddTab("Code", "💻", 2)
+local savedCodeTab = AddTab("Code Đã Lưu", "💾", 1)
 
-SwitchTab(1)
+OpenFirstPage()   -- v4.6.2: mở trang ĐẦU TIÊN theo thứ tự rail (💾 Code Đã Lưu)
 
 -- Bang trang thai. Chua ca cac bien keo/tha menu: Luau gioi han 200 bien local moi function
 -- (loi "Out of local registers ... exceeded limit 200"), main chunk cua script nay da gan
@@ -1110,7 +1132,7 @@ end
 local scripts = {}
 local waypoints = {}          -- khai báo sớm để khối lưu trữ bên dưới dùng được
 local featureTabs = {}        -- nt: khai báo sớm để Store.serialize() và nhãn trạng thái dùng được
-local featureTabIndex = 7   -- v4.5: 1=Code 2=Script Hub 3=Code Đã Lưu 4=Hỗ Trợ 5=AI 6=Tạo Tính Năng; tab tính năng của người dùng từ 7 trở đi
+local featureTabIndex = 7   -- v4.6.2: 1=Code Đã Lưu 2=Code 3=Script Hub 4=Hỗ Trợ 5=AI AI 6=Tạo Tính Năng; tab tính năng của người dùng từ 7 trở đi
 local totalRuns, cancelled = 0, false
 local curThread, curIndicator = nil, nil
 local runActive = false       -- cờ trạng thái chạy (không dựa vào curThread nữa)
@@ -5701,7 +5723,7 @@ local function CreateFeatureTab(name, icon, codeContent)
 
     closeFeatureBtn.Activated:Connect(function()
         ClearHost()
-        SwitchTab(1)
+        OpenFirstPage()   -- v4.6.2: đóng tab tính năng thì về trang đầu (💾 Code Đã Lưu)
     end)
 
     return featureData
@@ -6195,7 +6217,7 @@ local function RebuildFeatureList()
                 if t == ft.btn then idx = j; break end
             end
             if idx then
-                if activeTab == ft.frame then SwitchTab(1) end
+                if activeTab == ft.frame then OpenFirstPage() end   -- v4.6.2
                 -- v4.4b: trả GUI của script về ScreenGui gốc TRƯỚC khi xóa frame, nếu không
                 -- GUI đó mất cha là biến mất hẳn khỏi game (bản cũ để nguyên như vậy).
                 local hostFrame = ft.frame and ft.frame:FindFirstChild("ScriptHost")
@@ -6288,7 +6310,7 @@ Store.restoreFeatures = function()
                 break
             end
         end
-        if activeTab == ft.frame then SwitchTab(1) end
+        if activeTab == ft.frame then OpenFirstPage() end   -- v4.6.2
         -- v4.4g: TRẢ GUI đang nhúng về ScreenGui gốc TRƯỚC khi destroy frame của tab.
         -- Bản cũ destroy luôn -> mấy frame con mà hub "mượn" bị Destroy theo -> script của người
         -- dùng MẤT TRẮNG UI, không khôi phục được. (Nút xóa tab đã làm đúng bước này từ v4.4b.)
@@ -6409,7 +6431,7 @@ function D.CardBtn(parent, text, posX, w, color)
     return b
 end
 
-D.hubTab = AddTab("Script Hub", "📚", 2)
+D.hubTab = AddTab("Script Hub", "📚", 3)
 
 -- ô tìm kiếm
 D.hubSearchBox = New("TextBox", {

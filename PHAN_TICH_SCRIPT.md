@@ -747,6 +747,24 @@ Không mất tính năng: các nhãn tọa độ chỉ để **xem** (nút 📋 
 
 Cú pháp OK · depth 0 · local cấp chunk **189/200** · CRLF 100% (6.757/0).
 
+### 6. v4.6.2 — đổi thứ tự trang theo yêu cầu người dùng
+
+Thứ tự mới trên rail: **1 💾 Code Đã Lưu · 2 💻 Code · 3 📚 Script Hub · 4 🛠 Hỗ Trợ · 5 🤖 AI AI ·
+6 ➕ Tạo Tính Năng · 7+ tab tính năng của bạn · 99 🧩 GUI Ngoài** (mở menu là vào thẳng 💾 Code Đã Lưu).
+
+Chỉ đổi `LayoutOrder` của 3 trang (Code 1→2, Code Đã Lưu 3→1, Script Hub 2→3) — **thứ tự TẠO tab giữ
+nguyên** để không đụng scope biến (tránh lỗi forward-reference của Luau).
+
+Kéo theo một chỗ phải sửa cho đúng: mảng `tabs` xếp theo **thứ tự tạo** (💻 Code vẫn là `tabs[1]`),
+còn rail xếp theo **LayoutOrder**, nên 4 chỗ đang gọi `SwitchTab(1)` (lúc khởi động, bấm ✕ đóng tab
+tính năng, và 2 chỗ xóa tab) sẽ mở 💻 Code trong khi icon được tô vàng là icon thứ hai → lệch nhau.
+Đã thay bằng **`OpenFirstPage()`**: tìm nút có `LayoutOrder` nhỏ nhất rồi mới `SwitchTab` đúng index.
+
+**Kiểm chứng:** bộ test mới `test_order.lua` chạy đúng hàm trích từ `script.js` — **9/9 PASS**
+(đúng thứ tự rail · mở menu vào 💾 Code Đã Lưu · có tab 7+/99 vẫn đúng · nút thiếu LayoutOrder ·
+rail trống · thứ tự tạo đảo lộn). Tổng cộng **218 PASS / 0 FAIL** (85 tính năng cũ + 72 Script Hub
++ 31 header + 21 perf + 9 thứ tự), compare 8/8, local cấp chunk **190/200**, cú pháp OK, CRLF 100%.
+
 ---
 
 ## 9. Kết luận một câu

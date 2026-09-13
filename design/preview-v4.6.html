@@ -150,7 +150,7 @@ gạt công tắc, tìm kiếm, lọc chip, ghim ⭐.</p>
       <div class="rail" id="rail"></div>
       <div class="rightcol">
         <div class="phead">
-          <div class="ptitle" id="ptitle">💻 Code</div>
+          <div class="ptitle" id="ptitle">💾 Code Đã Lưu</div>
           <div class="sws" id="sws"></div>
         </div>
         <div class="content" id="content"></div>
@@ -169,18 +169,19 @@ gạt công tắc, tìm kiếm, lọc chip, ghim ⭐.</p>
       <tr><td class="del">3 nhãn X:/Y:/Z: đè lên nhau</td><td class="new">Đứng đúng cạnh ô của mình, 3 ô trải đều hết hàng</td></tr>
       <tr><td class="del">RenderStepped: raycast + HTTP <b>mỗi frame</b>, chạy cả khi đóng menu</td><td class="new">Chỉ chạy khi mở trang 🛠, 20 lần/giây, HTTP ≤ 1 lần/10 giây</td></tr>
       <tr><td class="del">Tìm kiếm rebuild sau mỗi phím</td><td class="new">Debounce 0.18s (gõ 6 phím = 1 lần dựng)</td></tr>
+      <tr><td class="del">Thứ tự: 💻 Code · 📚 Script Hub · 💾 Code Đã Lưu …</td><td class="new">Thứ tự mới: 💾 Code Đã Lưu · 💻 Code · 📚 Script Hub · 🛠 · 🤖 · ➕ (mở menu vào thẳng Code Đã Lưu)</td></tr>
     </table>
     <p class="foot">✅ <b>Không mất tính năng nào</b>: 209 kiểm thử tự động PASS
     (21 unit · 15 E2E · 25 park · 24 nopark · 72 Script Hub · 31 header · 21 perf).
-    Thứ tự trang: 1 💻 · 2 📚 · 3 💾 · 4 🛠 · 5 🤖 · 6 ➕ · 7+ tab của bạn · 99 🧩.</p>
+    Thứ tự trang (v4.6.2): 1 💾 Code Đã Lưu · 2 💻 Code · 3 📚 Script Hub · 4 🛠 · 5 🤖 · 6 ➕ · 7+ tab của bạn · 99 🧩 — mở menu là thấy 💾 Code Đã Lưu.</p>
   </div>
 </div>
 
 <script>
 const PAGES = [
- {id:"code", icon:"💻", name:"Code", order:1},
- {id:"hub",  icon:"📚", name:"Script Hub", order:2},
- {id:"saved",icon:"💾", name:"Code Đã Lưu", order:3},
+ {id:"saved",icon:"💾", name:"Code Đã Lưu", order:1},
+ {id:"code", icon:"💻", name:"Code", order:2},
+ {id:"hub",  icon:"📚", name:"Script Hub", order:3},
  {id:"sup",  icon:"🛠", name:"Hỗ Trợ", order:4},
  {id:"ai",   icon:"🤖", name:"AI AI", order:5},
  {id:"create",icon:"➕", name:"Tạo Tính Năng", order:6},
@@ -347,7 +348,7 @@ function pageHub(){
 
 const RENDER = {code:pageCode, hub:pageHub, saved:pageSaved, sup:pageSup, ai:pageAi,
                 create:pageCreate, feat:pageFeat, park:pagePark};
-let current = "code";
+let current = "saved";   // v4.6.2: mở menu là vào 💾 Code Đã Lưu
 
 /* ---- rail ---- */
 const rail = document.getElementById("rail");
