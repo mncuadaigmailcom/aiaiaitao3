@@ -645,6 +645,65 @@ tông (ví dụ tím‑xanh "Neon", hoặc nền sáng trở lại). Không cầ
 
 ---
 
+## 8b. v4.6 — "MENU GIỐNG DELTA" (layout mới, giữ nguyên mọi tính năng)
+
+Yêu cầu: *thêm menu giống Delta + tính năng giống bản đang dùng, không làm mất tính năng*.
+Đã chốt 3 điểm với người dùng: **đổi cả hub sang layout Delta**, **giữ tông Midnight Gold v4.5**,
+**danh sách script có sẵn trong file** (không thêm link hub ngoài chưa kiểm chứng → tránh nút chết).
+
+### 1. Layout Delta (chỉ đổi cách bố trí)
+
+| phần | v4.5 (trước) | v4.6 (Delta) |
+|---|---|---|
+| Thanh tab | **PHẢI**, có chữ, rộng 105px | **TRÁI**, chỉ icon, rộng **56px**; tab mở có vạch accent 3px |
+| Header trang | không có | **24px**: trái = tên trang đang mở · phải = 3 công tắc gạt 🧩/🕵/🪟 |
+| Vùng nội dung | `Size(1,-105,1,-30)` `Pos(0,0,0,30)` | `Size(1,-56,1,-54)` `Pos(0,56,0,54)` → **rộng thêm 49px** |
+| Rê chuột vào tab | — | header hiện **tên trang đó** (mờ 40%), rời chuột trả về trang đang mở |
+| Thanh tiêu đề | 30px | **30px — giữ nguyên** (là mốc neo của tabBar/contentArea, cấm đổi) |
+
+Geometry cụ thể: `tabBar Size(0,56,1,-30) Pos(0,0,0,30)` · `PageHeader Size(1,-56,0,24) Pos(0,56,0,30)`
+· `PageHeaderRule Size(1,-56,0,1) Pos(0,56,0,53)` · `TabRailDivider Pos(0,56,0,30)` · nút tab
+`Size(1,-8,0,38)` chỉ icon, `CanvasSize = #tabs*44+10`.
+
+### 2. Trang mới 📚 Script Hub (đứng thứ 2, ngay sau 💻 Code)
+
+- **Ô tìm kiếm 🔍**: soi tên + mô tả + phân loại, hỗ trợ tiếng Việt có dấu, không phân biệt hoa/thường.
+- **5 chip lọc**: Tất cả · Admin · Explorer · Spy · Tiện ích (chip đang chọn tô vàng, chữ đậm).
+- **Thẻ script**: icon · tên · phân loại · mô tả · `▶ Chạy` · `📋 Copy` · `💾 Lưu sang Code Đã Lưu`
+  (tự đổi tên tránh trùng) · `☆/⭐ Ghim lên đầu` (**có lưu xuống đĩa** qua `settings.hubFavs`).
+- **Nguồn dữ liệu = MỘT bảng `S.ScriptHubList`** (muốn thêm script chỉ cần thêm 1 dòng):
+  - 3 script **ngoài**, link đã kiểm chứng (đang dùng ở tab 🛠 Hỗ Trợ): Infinite Yield, Dex Explorer,
+    SimpleSpy v3 — vẫn truyền `noPark=true` để GUI ở **ngoài màn hình game** (giữ đúng v4.4i).
+  - 5 **tiện ích nội bộ** gọi thẳng hàm có sẵn: 🎯 niêm tâm (`S.ToggleCrosshair`) · 🧩 trả GUI về
+    màn hình (`S.RemoveAllParked`+`ClearEmbedsUnder`+`PruneEmbeds`) · 🖱 sửa kẹt chuột (`S.DoFixMouse`)
+    · 🔄 nạp lại hub từ đĩa (`S.DoReload`) · 🧹 dọn host nhúng rác (`S.PruneEmbeds`).
+  - → **không có link chết**: phần tiện ích không cần mạng, phần script ngoài chỉ dùng link đã chạy được.
+
+### 3. Không nhân đôi logic (chống lệch hành vi về sau)
+
+5 handler được tách thành hàm để trang 📚 và công tắc trên header gọi lại **đúng** chúng; nút cũ vẫn
+nối vào chính những hàm đó nên hành vi không đổi: `S.DoReload`, `S.DoFixMouse`, `S.DoToggleEmbed`,
+`S.DoToggleGuess`, `S.DoTogglePark`.
+
+Thứ tự trang mới: `1 💻 Code · 2 📚 Script Hub · 3 💾 Code Đã Lưu · 4 🛠 Hỗ Trợ · 5 🤖 AI AI ·
+6 ➕ Tạo Tính Năng · 7+ tab tính năng của bạn (featureTabIndex = 7) · 99 🧩 GUI Ngoài`.
+
+### 4. Kiểm chứng
+
+| hạng mục | cách kiểm | kết quả |
+|---|---|---|
+| Tính năng cũ không mất | 4 bộ test cũ (unit 21 · e2e 15 · park 25 · nopark 24) | **85/85 PASS** |
+| Trang 📚 Script Hub chạy thật | **bộ test mới `test_hub.lua`** chạy đúng khối code trích từ `script.js`: tạo tab, 8 thẻ, ▶ chạy (đúng `noPark`), 🔍 tìm (kể cả "chuột" có dấu), 5 chip lọc, ⭐ ghim+lưu đĩa, 📋 clipboard, 💾 lưu (tránh trùng tên), 5 tiện ích gọi đúng hàm | **69/69 PASS** |
+| Header + công tắc gạt | **bộ test mới `test_header.lua`**: geometry 24px/56px, 3 switch 🧩🕵🪟, knob gạt theo trạng thái, bấm = gọi `S.DoToggle*`, hover không ghi đè tên tab | **31/31 PASS** |
+| Không hồi quy fix cũ | bảng so 3 phiên bản / 8 kịch bản | **8/8** |
+| Cú pháp + trần local Luau | compile Lua 5.x, đếm khối, đếm local cấp chunk | **OK**, depth 0, **188/200** |
+
+**2 bug do test mới phát hiện và đã sửa ngay:** (1) vòng lặp xóa thẻ cũ *vừa duyệt `GetChildren()`
+vừa `Destroy()`* → sót thẻ, danh sách nhân đôi mỗi lần lọc (sửa: gom ra bảng `stale` rồi mới xóa);
+(2) rời chuột khỏi công tắc trên header ghi đè mất tên tab đang hover (sửa: trả về `D.hoverName or D.activeName`).
+
+---
+
 ## 9. Kết luận một câu
 
 Đây là một hub executor **được viết bởi người hiểu rất rõ những "nỗi đau" thực tế của Roblox UI** (focus,

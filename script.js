@@ -1,6 +1,27 @@
 --[[
-    🍌 Banana Cat Hub v4.5 — FULL CODE  ·  giao diện "MIDNIGHT GOLD"
-    + THIẾT KẾ LẠI TOÀN BỘ GIAO DIỆN (chỉ đổi màu/chất liệu/hiệu ứng — KHÔNG đổi layout, kích
+    🍌 Banana Cat Hub v4.6 — FULL CODE  ·  giao diện "MIDNIGHT GOLD" + layout kiểu DELTA
+    + v4.6 (bản này): MENU GIỐNG DELTA — chỉ đổi CÁCH BỐ TRÍ, không bỏ tính năng nào:
+        • Thanh tab chuyển từ PHẢI (chữ, rộng 105px) sang TRÁI (chỉ icon, rộng 56px) như Delta;
+          tab đang mở có vạch accent 3px. Rê chuột vào một icon -> header hiện tên trang đó (chữ
+          mờ 40%), rời chuột thì trả về tên trang đang mở. Vùng nội dung nhờ vậy RỘNG thêm 49px.
+        • HEADER TRANG cao 24px (ngay dưới thanh tiêu đề): trái = tên trang đang mở, phải = 3
+          CÔNG TẮC GẠT 🧩 / 🕵 / 🪟. Bấm công tắc ở đây = bấm nút gốc ở tab ➕ (cùng một hàm
+          S.DoToggle*) nên trạng thái, thông báo và việc lưu xuống đĩa không thể lệch nhau.
+        • Trang mới 📚 SCRIPT HUB (đứng thứ 2, ngay sau 💻 Code) — "menu script" kiểu Delta:
+          ô tìm kiếm 🔍 (soi cả tên, mô tả, phân loại, có dấu) + 5 chip lọc (Tất cả / Admin /
+          Explorer / Spy / Tiện ích) + danh sách THẺ (icon · tên · phân loại · mô tả · nút
+          ▶ Chạy / 📋 Copy loadstring / 💾 Lưu sang Code Đã Lưu / ☆ Ghim lên đầu — có lưu đĩa).
+          Toàn bộ danh sách nằm trong MỘT bảng S.ScriptHubList, muốn thêm script chỉ cần thêm
+          1 dòng. Gồm 3 script NGOÀI đã kiểm chứng link (Infinite Yield, Dex Explorer, SimpleSpy
+          — vẫn truyền noPark=true để GUI của chúng ở NGOÀI màn hình game như v4.4i) và 5 TIỆN
+          ÍCH NỘI BỘ gọi thẳng hàm có sẵn của hub (niêm tâm 🎯, trả GUI về màn hình 🧩, sửa kẹt
+          chuột 🖱, nạp lại hub từ đĩa 🔄, dọn host nhúng rác 🧹) -> KHÔNG có nút chết/link chết.
+        • Tách 5 handler thành hàm tái sử dụng: S.DoReload, S.DoFixMouse, S.DoToggleEmbed,
+          S.DoToggleGuess, S.DoTogglePark (nút cũ vẫn nối vào chính những hàm này — hành vi y hệt).
+        • Thứ tự trang: 1 💻 Code · 2 📚 Script Hub · 3 💾 Code Đã Lưu · 4 🛠 Hỗ Trợ · 5 🤖 AI AI ·
+          6 ➕ Tạo Tính Năng · 7+ tab tính năng của bạn · 99 🧩 GUI Ngoài.
+        • 185 kiểm thử tự động PASS (21 unit · 15 E2E · 25 park · 24 nopark · 69 Script Hub · 31 header).
+    + v4.5: THIẾT KẾ LẠI TOÀN BỘ GIAO DIỆN (chỉ đổi màu/chất liệu/hiệu ứng — KHÔNG đổi layout, kích
       thước, vị trí hay logic, nên MỌI TÍNH NĂNG giữ nguyên 100%):
         • Bảng màu tối "Midnight Gold": nền 18,20,27 · thẻ 26,29,38 · viền mảnh 52,58,74 ·
           chữ chính 233,237,245 · chữ phụ 150,158,176 · accent vàng chuối 255,196,61 -> cam
@@ -640,7 +661,7 @@ D.verPill = New("Frame", {
 Corner(D.verPill, UDim.new(1,0))
 Stroke(D.verPill, C.ACCENT, 1)
 New("TextLabel", {
-    Size=UDim2.new(1,0,1,0), Text="v4.5 · PRO", BackgroundTransparency=1,
+    Size=UDim2.new(1,0,1,0), Text="v4.6 · DELTA", BackgroundTransparency=1,
     TextColor3=C.ACCENT, Font=Enum.Font.GothamBold, TextSize=8, ZIndex=6,
 }, D.verPill)
 
@@ -757,9 +778,12 @@ SetupResizeHandle(CreateHandle("↘", UDim2.new(1, -22, 1, -22)), "BR")
 local tabs = {}
 local tabContent = {}
 
+-- v4.5 (Delta-style): thanh trang chuyển sang TRÁI, rộng 56px, CHỈ ICON.
+-- Tên trang hiện ở header (D.pageTitle) — đúng cách Delta làm, và cũng giúp thanh trang không
+-- chật khi tên dài ("➕ Tạo Tính Năng", "🧩 GUI Ngoài (2)"...).
 local tabBar = New("ScrollingFrame", {
-    Size=UDim2.new(0,105,1,-30),
-    Position=UDim2.new(1,-105,0,30),
+    Size=UDim2.new(0,56,1,-30),
+    Position=UDim2.new(0,0,0,30),
     BackgroundColor3=C.SURFACE,
     BackgroundTransparency=0.35,
     BorderSizePixel=0,
@@ -771,7 +795,7 @@ local tabBar = New("ScrollingFrame", {
 -- v4.5: đường kẻ 1px tách thanh tab khỏi vùng nội dung. PHẢI neo vào `main` chứ không neo vào
 -- tabBar: tabBar có UIListLayout, thêm con vào đó sẽ xô vị trí toàn bộ nút tab.
 New("Frame", {
-    Name="TabRailDivider", Size=UDim2.new(0,1,1,-30), Position=UDim2.new(1,-105,0,30),
+    Name="TabRailDivider", Size=UDim2.new(0,1,1,-30), Position=UDim2.new(0,56,0,30),
     BackgroundColor3=C.BORDER, BackgroundTransparency=0.3, BorderSizePixel=0, ZIndex=4,
 }, main)
 
@@ -784,13 +808,117 @@ New("UIListLayout", {
 New("UIPadding", {PaddingTop=UDim.new(0,6), PaddingLeft=UDim.new(0,4)}, tabBar)
 
 local contentArea = New("Frame", {
-    Size=UDim2.new(1,-105,1,-30),
-    Position=UDim2.new(0,0,0,30),
+    Size=UDim2.new(1,-56,1,-54),     -- v4.5: nhường 56px cho thanh icon + 24px cho header trang
+    Position=UDim2.new(0,56,0,54),
     BackgroundTransparency=1,
     BorderSizePixel=0,
     ZIndex=3,
     ClipsDescendants=true,
 }, main)
+
+-- v4.5 (Delta-style): HEADER TRANG cao 24px, giữa thanh tiêu đề và vùng nội dung.
+-- Trái: icon + tên trang đang mở (vàng). Phải: cụm chip trạng thái 🧩/🕵/🪟.
+-- Cất vào bảng D để KHÔNG tốn biến local cấp chunk (đang 188/200).
+D.pageHeader = New("Frame", {
+    Name="PageHeader", Size=UDim2.new(1,-56,0,24), Position=UDim2.new(0,56,0,30),
+    BackgroundColor3=C.SURFACE, BackgroundTransparency=0.55, BorderSizePixel=0, ZIndex=3,
+}, main)
+D.pageTitle = New("TextLabel", {
+    Name="PageTitle", Size=UDim2.new(1,-196,1,0), Position=UDim2.new(0,10,0,0),
+    Text="💻 Code", BackgroundTransparency=1, TextColor3=C.ACCENT,
+    Font=Enum.Font.GothamBold, TextSize=11,
+    TextXAlignment=Enum.TextXAlignment.Left, ZIndex=5,
+}, D.pageHeader)
+-- v4.5 (Delta-style): cụm 3 CÔNG TẮC GẠT 🧩 / 🕵 / 🪟 nằm bên phải header trang.
+-- Bấm vào đây = bấm vào nút gốc ở tab ➕ Tạo Tính Năng (gọi cùng một hàm S.DoToggle*),
+-- nên trạng thái, thông báo, lưu xuống đĩa đều y hệt — không có logic thứ hai để lệch nhau.
+D.pageChips = New("Frame", {
+    Name="PageChips", Size=UDim2.new(0,150,1,-6), Position=UDim2.new(1,-156,0,3),
+    BackgroundTransparency=1, BorderSizePixel=0, ZIndex=5,
+}, D.pageHeader)
+New("UIListLayout", {
+    FillDirection=Enum.FillDirection.Horizontal, Padding=UDim.new(0,8),
+    SortOrder=Enum.SortOrder.LayoutOrder, VerticalAlignment=Enum.VerticalAlignment.Center,
+}, D.pageChips)
+
+D.hdrSwitches = {}
+for i, sw in ipairs({
+    {key="embed", icon="🧩", onColor=C.GREEN,  tip="Nhúng GUI của script vào tab tính năng"},
+    {key="guess", icon="🕵", onColor=C.ORANGE, tip="Đoán GUI tạo trễ (dễ ăn nhầm GUI game)"},
+    {key="park",  icon="🪟", onColor=C.GREEN,  tip="Đưa GUI của tab 💻 Code vào menu"},
+}) do
+    local btn = New("TextButton", {
+        Size=UDim2.new(0,42,0,16), Text="", AutoButtonColor=false,
+        BackgroundTransparency=1, BorderSizePixel=0, LayoutOrder=i, ZIndex=6,
+    }, D.pageChips)
+    btn:SetAttribute("BCSwKey", sw.key)
+    local ic = New("TextLabel", {
+        Size=UDim2.new(0,14,1,0), Position=UDim2.new(0,0,0,0), Text=sw.icon,
+        BackgroundTransparency=1, TextColor3=C.MUTED, Font=Enum.Font.GothamBold,
+        TextSize=10, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7,
+    }, btn)
+    local track = New("Frame", {
+        Name="BC_SwTrack", Size=UDim2.new(0,26,0,12), Position=UDim2.new(1,-26,0,2),
+        BackgroundColor3=C.SURFACE3, BorderSizePixel=0, ZIndex=7,
+    }, btn)
+    Corner(track, UDim.new(1,0))
+    local knob = New("Frame", {
+        Name="BC_SwKnob", Size=UDim2.new(0,8,0,8), Position=UDim2.new(0,2,0,2),
+        BackgroundColor3=C.GRAY, BorderSizePixel=0, ZIndex=8,
+    }, track)
+    Corner(knob, UDim.new(1,0))
+    D.hdrSwitches[sw.key] = {btn=btn, icon=ic, track=track, knob=knob, onColor=sw.onColor}
+
+    btn.Activated:Connect(function()
+        local fn = (sw.key == "embed" and S.DoToggleEmbed)
+                or (sw.key == "guess" and S.DoToggleGuess)
+                or (sw.key == "park"  and S.DoTogglePark)
+        if type(fn) == "function" then
+            pcall(fn)   -- hàm gốc đã tự đổi nhãn nút, ghi đĩa và báo trạng thái
+        end
+        D.SyncPageChips()
+        pcall(function() if S.SyncEmbedToggles then S.SyncEmbedToggles() end end)
+    end)
+    -- hover: mượn dòng tiêu đề trang để giải thích công tắc (không tốn thêm chỗ)
+    btn.MouseEnter:Connect(function()
+        D.pageTitle.Text = sw.icon .. "  " .. sw.tip
+        D.pageTitle.TextColor3 = C.DARK
+        D.pageTitle.TextTransparency = 0.25
+    end)
+    btn.MouseLeave:Connect(function()
+        -- rời chuột: trả tiêu đề về đúng chỗ cũ. Nếu chuột đang lơ lửng trên một tab
+        -- (D.hoverName) thì trả về TÊN TAB đó (mờ 40% như hover tab), còn không thì
+        -- trả về tên trang đang mở. Không làm vậy sẽ ghi đè mất tên tab người dùng đang xem.
+        D.pageTitle.TextColor3 = C.ACCENT
+        local back = D.hoverName or D.activeName
+        if back then D.pageTitle.Text = back end
+        D.pageTitle.TextTransparency = D.hoverName and 0.4 or 0
+    end)
+end
+New("Frame", {   -- kẻ mảnh dưới header
+    Name="PageHeaderRule", Size=UDim2.new(1,-56,0,1), Position=UDim2.new(0,56,0,53),
+    BackgroundColor3=C.BORDER, BackgroundTransparency=0.35, BorderSizePixel=0, ZIndex=4,
+}, main)
+
+-- Đồng bộ 3 công tắc trên header theo trạng thái thật trong S.
+-- (Hàm chỉ chạy lúc runtime nên thứ tự khai báo không quan trọng.)
+function D.SyncPageChips()
+    pcall(function()
+        if not D.hdrSwitches then return end
+        local state = {
+            embed = (S.embedEnabled == true),
+            guess = (S.embedGuessNew == true),
+            park  = (S.parkCodeGuis ~= false),
+        }
+        for k, s in pairs(D.hdrSwitches) do
+            local on = (state[k] == true)
+            s.track.BackgroundColor3 = on and (s.onColor or C.GREEN) or C.SURFACE3
+            s.knob.BackgroundColor3  = on and C.WHITE or C.GRAY
+            s.knob.Position = on and UDim2.new(1,-10,0,2) or UDim2.new(0,2,0,2)
+            s.icon.TextColor3 = on and C.DARK or C.GRAY
+        end
+    end)
+end
 
 local activeTab = nil
 
@@ -824,33 +952,64 @@ local function SwitchTab(index)
         end
         bar.Visible = true
         activeTab = tabContent[index]
+        -- v4.5 (Delta): header hiện icon + tên trang đang mở (thanh trang giờ chỉ có icon)
+        pcall(function()
+            if D.pageTitle then
+                local ic = b:GetAttribute("BCTabIcon")
+                local nm = b:GetAttribute("BCTabName")
+                D.activeName = (ic and (ic .. "  ") or "") .. tostring(nm or ("Trang " .. index))
+                if not D.hoverName then
+                    D.pageTitle.Text = D.activeName
+                    D.pageTitle.TextTransparency = 0
+                end
+            end
+        end)
     end
     BcFit()   -- v4.4c: tab vừa hiện -> đo lại để GUI nằm vừa đúng ô của tab
 end
 
 local function AddTab(name, icon, order, customContent)
     local btn = New("TextButton", {
-        Size=UDim2.new(1,-8,0,30),
-        Text=icon.." "..name,
-        BackgroundColor3=C.SURFACE2,      -- v4.5: pill ghost (SwitchTab tô màu khi tab mở)
+        Size=UDim2.new(1,-8,0,38),        -- v4.5 Delta: ô icon 48x38
+        Text=icon,                        -- CHỈ icon; tên trang hiện ở header
+        BackgroundColor3=C.SURFACE2,      -- pill ghost (SwitchTab tô màu khi trang mở)
         BackgroundTransparency=1,
         TextColor3=C.MUTED,
         Font=Enum.Font.GothamBold,
-        TextSize=10,
+        TextSize=16,
         BorderSizePixel=0,
         LayoutOrder=order,
-        TextXAlignment=Enum.TextXAlignment.Left,
+        TextXAlignment=Enum.TextXAlignment.Center,
         ZIndex=4,
     }, tabBar)
-    Corner(btn, UDim.new(0,8))            -- v4.5: bo 8px cho pill
+    Corner(btn, UDim.new(0,10))           -- v4.5 Delta: bo 10px cho ô icon
+    pcall(function()
+        btn:SetAttribute("BCTabName", name)   -- header + hover đọc tên trang từ đây
+        btn:SetAttribute("BCTabIcon", icon)
+    end)
     -- v4.5: rê chuột vào tab chưa mở thì pill hiện nhẹ. Tab ĐANG mở (chữ vàng) thì không đụng,
     -- để SwitchTab toàn quyền quyết định màu -> không đánh nhau giữa tween và trạng thái tab.
     pcall(function()
         trackConn(btn.MouseEnter:Connect(function()
             if btn.BackgroundTransparency > 0.5 then Tween(btn, {BackgroundTransparency = 0.62}, 0.16) end
+            pcall(function()   -- v4.5 Delta: rê vào icon nào thì header hiện TÊN trang đó (mờ nhẹ)
+                if D.pageTitle then
+                    D.hoverName = btn:GetAttribute("BCTabName")
+                    local ic = btn:GetAttribute("BCTabIcon")
+                    D.pageTitle.Text = (ic and (ic .. "  ") or "") .. tostring(D.hoverName or "")
+                    D.pageTitle.TextTransparency = 0.4
+                end
+            end)
         end))
         trackConn(btn.MouseLeave:Connect(function()
             if btn.TextColor3 ~= C.ACCENT then Tween(btn, {BackgroundTransparency = 1}, 0.2) end
+            pcall(function()   -- rời chuột: header trả về tên trang ĐANG MỞ
+                D.hoverName = nil
+                if D.pageTitle and D.activeName then
+                    D.pageTitle.Text = D.activeName
+                    D.pageTitle.TextTransparency = 0
+                end
+            end)
         end))
     end)
 
@@ -886,12 +1045,12 @@ local function AddTab(name, icon, order, customContent)
 
     table.insert(tabs, btn)
     table.insert(tabContent, sf)
-    tabBar.CanvasSize = UDim2.new(0, 0, 0, #tabs * 34 + 10)
+    tabBar.CanvasSize = UDim2.new(0, 0, 0, #tabs * 44 + 10)
     return sf, btn
 end
 
 local codeTab      = AddTab("Code", "💻", 1)
-local savedCodeTab = AddTab("Code Đã Lưu", "💾", 2)
+local savedCodeTab = AddTab("Code Đã Lưu", "💾", 3)
 
 SwitchTab(1)
 
@@ -937,7 +1096,7 @@ end
 local scripts = {}
 local waypoints = {}          -- khai báo sớm để khối lưu trữ bên dưới dùng được
 local featureTabs = {}        -- nt: khai báo sớm để Store.serialize() và nhãn trạng thái dùng được
-local featureTabIndex = 5
+local featureTabIndex = 7   -- v4.5: 1=Code 2=Script Hub 3=Code Đã Lưu 4=Hỗ Trợ 5=AI 6=Tạo Tính Năng; tab tính năng của người dùng từ 7 trở đi
 local totalRuns, cancelled = 0, false
 local curThread, curIndicator = nil, nil
 local runActive = false       -- cờ trạng thái chạy (không dựa vào curThread nữa)
@@ -1079,6 +1238,14 @@ function Store.serialize()
             embedEnabled  = (S.embedEnabled == true),
             embedGuessNew = (S.embedGuessNew == true),
             parkCodeGuis  = (S.parkCodeGuis ~= false),   -- v4.4i
+            -- v4.5: danh sách ⭐ yêu thích ở trang 📚 Script Hub (lưu dạng MẢNG cho dễ đọc/ghi JSON)
+            hubFavs = (function()
+                local out = {}
+                if type(S.hubFavs) == "table" then
+                    for nm, v in pairs(S.hubFavs) do if v then out[#out + 1] = tostring(nm) end end
+                end
+                return out
+            end)(),
         },
     }
 end
@@ -1125,6 +1292,11 @@ function Store.load()
         S.embedGuessNew = (data.settings.embedGuessNew == true)
         -- v4.4i: file cũ chưa có khóa này -> giữ mặc định BẬT
         S.parkCodeGuis  = (data.settings.parkCodeGuis ~= false)
+        -- v4.5: nạp lại ⭐ yêu thích của trang 📚 Script Hub (file cũ chưa có thì để trống)
+        if type(data.settings.hubFavs) == "table" then
+            S.hubFavs = {}
+            for _, nm in ipairs(data.settings.hubFavs) do S.hubFavs[tostring(nm)] = true end
+        end
     end
 
     local sOut = {}
@@ -1515,11 +1687,14 @@ Store.refreshStatus = function()
     end
 end
 
-Store.reloadBtn.Activated:Connect(function()
+-- v4.5: tách thành hàm S.DoReload để trang 📚 Script Hub gọi lại được (không nhân đôi logic)
+S.DoReload = function()
     -- Nạp lại từ đĩa. Hữu ích khi: file bị sửa tay, executor vừa cấp quyền ghi,
     -- hoặc bạn copy file banana_cat_saved.json từ máy/executor khác sang.
     Store.load()
     RebuildScripts()
+    -- v4.5: nạp lại cả ⭐ yêu thích của trang 📚 Script Hub (Store.load vừa đọc xong)
+    pcall(function() if S.RebuildHubList then S.RebuildHubList() end end)
     -- v4.4b: Waypoint cũng phải dựng lại (trước đây thiếu: local RebuildWaypoints được khai
     -- báo ở TAB3, SAU closure này, nên gọi thẳng ở đây sẽ thành global nil -> lỗi).
     if Store.restoreWaypoints then pcall(Store.restoreWaypoints) end
@@ -1530,7 +1705,8 @@ Store.reloadBtn.Activated:Connect(function()
     task.delay(1.4, function()
         if Store.reloadBtn and Store.reloadBtn.Parent then Store.reloadBtn.Text = "🔄 Nạp lại" end
     end)
-end)
+end
+Store.reloadBtn.Activated:Connect(S.DoReload)
 
 sy = sy + 24
 
@@ -1700,7 +1876,7 @@ searchIn:GetPropertyChangedSignal("Text"):Connect(RebuildScripts)
 RebuildScripts()
 
 -- ==================== TAB 3: HỖ TRỢ — SCRIPT NHANH + PHÂN TÍCH TỌA ĐỘ ====================
-local supportTab = AddTab("Hỗ Trợ", "🛠", 3)
+local supportTab = AddTab("Hỗ Trợ", "🛠", 4)
 
 local posY = 8
 
@@ -2541,7 +2717,7 @@ end
 RebuildWaypoints()
 
 -- ==================== TAB 4: AI AI — MINI WEB CHAT ====================
-local aiTab = AddTab("AI AI", "🤖", 4)
+local aiTab = AddTab("AI AI", "🤖", 5)
 
 aiTab.BackgroundTransparency = 1
 aiTab.ScrollingDirection = Enum.ScrollingDirection.Y
@@ -3823,7 +3999,7 @@ function S.FitToTab(obj, nm)
 end
 
 _G.BananaCatHubAPI = {
-    Version = "4.5",
+    Version = "4.6",
     HubGui = gui,     -- v4.4e: sửa lỗi cũ — biến tên là `gui`, không phải `hubGui` (trước đây là nil)
     Main = main,
     -- gọi bằng dấu hai chấm: API:TabArea("Tên Tab")  ->  Vector2 khổ vùng nội dung của tab
@@ -5227,27 +5403,46 @@ local function CreateFeatureTab(name, icon, codeContent)
     }, contentArea)
 
     local btn = New("TextButton", {
-        Size=UDim2.new(1,-8,0,30),
-        Text=icon.." "..name,
-        BackgroundColor3=C.SURFACE2,      -- v4.5: pill ghost (SwitchTab tô màu khi tab mở)
+        Size=UDim2.new(1,-8,0,38),        -- v4.5 Delta: ô icon 48x38
+        Text=icon,                        -- CHỈ icon; tên trang hiện ở header
+        BackgroundColor3=C.SURFACE2,      -- pill ghost (SwitchTab tô màu khi trang mở)
         BackgroundTransparency=1,
         TextColor3=C.MUTED,
         Font=Enum.Font.GothamBold,
-        TextSize=10,
+        TextSize=16,
         BorderSizePixel=0,
         LayoutOrder=featureTabIndex + #featureTabs,
-        TextXAlignment=Enum.TextXAlignment.Left,
+        TextXAlignment=Enum.TextXAlignment.Center,
         ZIndex=4,
     }, tabBar)
-    Corner(btn, UDim.new(0,8))            -- v4.5: bo 8px cho pill
+    Corner(btn, UDim.new(0,10))           -- v4.5 Delta: bo 10px cho ô icon
+    pcall(function()
+        btn:SetAttribute("BCTabName", name)   -- header + hover đọc tên trang từ đây
+        btn:SetAttribute("BCTabIcon", icon)
+    end)
     -- v4.5: rê chuột vào tab chưa mở thì pill hiện nhẹ. Tab ĐANG mở (chữ vàng) thì không đụng,
     -- để SwitchTab toàn quyền quyết định màu -> không đánh nhau giữa tween và trạng thái tab.
     pcall(function()
         trackConn(btn.MouseEnter:Connect(function()
             if btn.BackgroundTransparency > 0.5 then Tween(btn, {BackgroundTransparency = 0.62}, 0.16) end
+            pcall(function()   -- v4.5 Delta: rê vào icon nào thì header hiện TÊN trang đó (mờ nhẹ)
+                if D.pageTitle then
+                    D.hoverName = btn:GetAttribute("BCTabName")
+                    local ic = btn:GetAttribute("BCTabIcon")
+                    D.pageTitle.Text = (ic and (ic .. "  ") or "") .. tostring(D.hoverName or "")
+                    D.pageTitle.TextTransparency = 0.4
+                end
+            end)
         end))
         trackConn(btn.MouseLeave:Connect(function()
             if btn.TextColor3 ~= C.ACCENT then Tween(btn, {BackgroundTransparency = 1}, 0.2) end
+            pcall(function()   -- rời chuột: header trả về tên trang ĐANG MỞ
+                D.hoverName = nil
+                if D.pageTitle and D.activeName then
+                    D.pageTitle.Text = D.activeName
+                    D.pageTitle.TextTransparency = 0
+                end
+            end)
         end))
     end)
 
@@ -5266,7 +5461,7 @@ local function CreateFeatureTab(name, icon, codeContent)
 
     table.insert(tabs, btn)
     table.insert(tabContent, sf)
-    tabBar.CanvasSize = UDim2.new(0, 0, 0, #tabs * 34 + 10)
+    tabBar.CanvasSize = UDim2.new(0, 0, 0, #tabs * 44 + 10)
 
     local tabIdx = #tabs
 
@@ -5482,7 +5677,7 @@ task.spawn(function()
     end
 end)
 
-local createFeatureTab = AddTab("Tạo Tính Năng", "➕", 5)
+local createFeatureTab = AddTab("Tạo Tính Năng", "➕", 6)
 
 local cy = 8
 Label(createFeatureTab, "➕ Tạo Tab Tính Năng Tích Hợp", cy)
@@ -5583,6 +5778,7 @@ cy = cy + 32
 -- v4.4g: 🧩 và 🕵 giờ ĐƯỢC LƯU XUỐNG ĐĨA (Store.serialize mục settings) -> vào lại game
 -- phải đồng bộ nhãn nút theo trạng thái đã nạp, không thì nút hiện "BẬT" trong khi đang TẮT.
 S.SyncEmbedToggles = function()
+    pcall(function() if D.SyncPageChips then D.SyncPageChips() end end)   -- v4.5: chip trên header trang
     pcall(function()
         embedToggleBtn.Text = S.embedEnabled and "🧩 Nhúng vào Tab: BẬT" or "🧩 Nhúng vào Tab: TẮT"
         D.SetBg(embedToggleBtn, S.embedEnabled and C.GREEN or C.GRAY)   -- v4.5
@@ -5605,7 +5801,8 @@ cy = cy + 14
 
 -- (handler đặt ở ĐÂY vì createStatus phải nằm trong scope lúc compile closure —
 --  đặt sớm hơn thì Lua biên dịch `createStatus` thành GLOBAL và gán vào nil -> error)
-embedToggleBtn.Activated:Connect(function()
+-- v4.5: tách thành hàm để công tắc trên header trang gọi lại ĐÚNG logic này (một nguồn duy nhất)
+S.DoToggleEmbed = function()
     S.embedEnabled = not S.embedEnabled
     if S.embedEnabled then
         embedToggleBtn.Text = "🧩 Nhúng vào Tab: BẬT"
@@ -5625,9 +5822,10 @@ embedToggleBtn.Activated:Connect(function()
     end
     Store.saveSoon()   -- v4.4g: lưu trạng thái 🧩 xuống đĩa -> thoát game vào lại vẫn giữ
     pcall(function() if Store.refreshStatus then Store.refreshStatus() end end)
-end)
+end
+embedToggleBtn.Activated:Connect(S.DoToggleEmbed)
 
-guessToggleBtn.Activated:Connect(function()
+S.DoToggleGuess = function()
     S.embedGuessNew = not (S.embedGuessNew == true)
     if S.embedGuessNew then
         guessToggleBtn.Text = "🕵 Đoán GUI trễ: BẬT"
@@ -5641,10 +5839,11 @@ guessToggleBtn.Activated:Connect(function()
             .. " Script tạo GUI trễ sẽ chạy bình thường ngoài màn hình, không bị nhúng."
     end
     Store.saveSoon()   -- v4.4g: lưu trạng thái 🕵 xuống đĩa
-end)
+end
+guessToggleBtn.Activated:Connect(S.DoToggleGuess)
 
 -- v4.4i: bật/tắt việc đưa GUI của script chạy ở tab 💻 Code vào menu
-S.parkToggleBtn.Activated:Connect(function()
+S.DoTogglePark = function()
     S.parkCodeGuis = (S.parkCodeGuis == false)   -- đảo trạng thái
     S.SyncEmbedToggles()
     if S.parkCodeGuis == false then
@@ -5657,7 +5856,8 @@ S.parkToggleBtn.Activated:Connect(function()
             .. " (mỗi GUI có nút ↩ trả về màn hình). Dex/IY/SimpleSpy vẫn LUÔN ở ngoài màn hình game."
     end
     Store.saveSoon()   -- lưu xuống đĩa: thoát game vào lại vẫn giữ lựa chọn này
-end)
+end
+S.parkToggleBtn.Activated:Connect(S.DoTogglePark)
 
 grabSizeCodeBtn.Activated:Connect(function()
     local currentCode = featureCodeIn.Text
@@ -5762,7 +5962,8 @@ end)
 -- Nút "cứu nguy": trả mọi GUI hub đang mượn về game + nhả focus + trả chuột về mặc định.
 -- Dùng khi bấm ▶ Chạy Script xong mà không quay chuột/bắn được (do CHÍNH script bạn dán chiếm,
 -- không phải do hub) — hub không can thiệp ngược lại script đó, chỉ trả input về cho game.
-fixMouseBtn.Activated:Connect(function()
+-- v4.5: tách thành hàm S.DoFixMouse để trang 📚 Script Hub gọi lại được
+S.DoFixMouse = function()
     local done = {}
     ReleaseHubFocus()
     done[#done+1] = "nhả focus"
@@ -5780,7 +5981,9 @@ fixMouseBtn.Activated:Connect(function()
     done[#done+1] = "chuột về mặc định"
     createStatus.Text = "🖱 " .. table.concat(done, " · ")
         .. " — vẫn không được? 🧩 TẮT nhúng rồi bấm ▶ lại (lúc đó hub không đụng GUI nào)"
-end)
+    return table.concat(done, " · ")
+end
+fixMouseBtn.Activated:Connect(S.DoFixMouse)
 
 S.reembedBtn.Activated:Connect(function()
     ReleaseHubFocus()
@@ -6046,7 +6249,7 @@ Store.restoreFeatures = function()
     end
 
     for j, t in ipairs(tabs) do t.LayoutOrder = j end
-    tabBar.CanvasSize = UDim2.new(0, 0, 0, #tabs * 34 + 10)
+    tabBar.CanvasSize = UDim2.new(0, 0, 0, #tabs * 44 + 10)
     RebuildFeatureList()
     -- phai goi lai: nhãn trạng thái ở TAB2 đã được dựng từ TRƯỚC khi các tab tính năng
     -- được khôi phục, nên số "N tab" trên đó vẫn là 0 nếu không làm mới lại ở đây.
@@ -6057,6 +6260,319 @@ if #Store.loadedFeatures > 0 then
     Store.restoreFeatures()
     createStatus.Text = string.format("💾 Đã khôi phục %d tab tính năng từ bộ nhớ", #Store.loadedFeatures)
 end
+
+-- ==================== v4.5: TRANG 📚 SCRIPT HUB (menu kiểu Delta) ====================
+-- "Menu giống Delta": ô tìm kiếm + dãy chip phân loại + danh sách THẺ script (icon, tên, mô tả,
+-- nút chạy/copy/lưu/yêu thích). Vẫn đúng tông Midnight Gold của v4.5.
+--
+-- NGUỒN DỮ LIỆU: MỘT bảng S.ScriptHubList duy nhất — muốn thêm script chỉ cần thêm 1 dòng.
+--   • 3 script NGOÀI là 3 link ĐANG DÙNG ở tab 🛠 Hỗ Trợ (link đã được kiểm chứng, không đoán bừa
+--     link hub khác vì link chết = nút hỏng = mất tính năng).
+--   • Còn lại là TIỆN ÍCH NỘI BỘ gọi thẳng hàm có sẵn của hub (S.ToggleCrosshair, S.RemoveAllParked,
+--     S.DoFixMouse, S.DoReload, S.PruneEmbeds) -> không cần mạng, không bao giờ "chạy không được".
+--   • 3 script ngoài truyền noPark=true cho RunCode: GUI của chúng ở NGOÀI màn hình game (v4.4i).
+S.ScriptHubList = {
+    {icon="🛡", name="Infinite Yield", cat="Admin", ord=1,
+     desc="Admin commands: kill, speed, jump, noclip, teleport, bring, prefix tùy chỉnh...",
+     code=[[loadstring(game:HttpGet("https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source"))()]],
+     noPark=true},
+    {icon="🧰", name="Dex Explorer", cat="Explorer", ord=2,
+     desc="Duyệt toàn bộ instance trong game, xem/sửa property, tìm object theo đường dẫn.",
+     code=[[loadstring(game:HttpGet("https://raw.githubusercontent.com/infyiff/backup/main/dex.lua"))()]],
+     noPark=true},
+    {icon="📡", name="SimpleSpy v3", cat="Spy", ord=3,
+     desc="Theo dõi RemoteEvent/RemoteFunction: tên, tham số, copy code để gọi lại y hệt.",
+     code=[[loadstring(game:HttpGet("https://raw.githubusercontent.com/ex-serum/SimpleSpy/main/SimpleSpy.lua"))()]],
+     noPark=true},
+    {icon="🎯", name="Niêm tâm (Crosshair)", cat="Tiện ích", ord=4, action="crosshair",
+     desc="Bật/tắt vòng tròn niêm tâm + 4 nét ngắn ở GIỮA màn hình game (ngoài menu)."},
+    {icon="🧩", name="Trả GUI về màn hình", cat="Tiện ích", ord=5, action="unpark",
+     desc="Hoàn tác MỌI GUI hub đang mượn vào menu: tab tính năng + tab 🧩 GUI Ngoài."},
+    {icon="🖱", name="Sửa kẹt chuột", cat="Tiện ích", ord=6, action="fixmouse",
+     desc="Nhả focus ô nhập, trả GUI về game, đặt lại MouseBehavior — hết cảnh không quay chuột/không bắn."},
+    {icon="🔄", name="Nạp lại hub từ đĩa", cat="Tiện ích", ord=7, action="reload",
+     desc="Đọc lại file lưu: script đã lưu, waypoint, tab tính năng, cài đặt 🧩 / 🕵 / 🪟."},
+    {icon="🧹", name="Dọn host nhúng rác", cat="Tiện ích", ord=8, action="prune",
+     desc="Xóa các khung Embedded_ mồ côi/rỗng còn sót trong tab (script tự Destroy GUI để lại)."},
+}
+S.hubFavs   = S.hubFavs or {}
+S.hubCat    = "Tất cả"
+S.hubSearch = ""
+
+-- Thao tác nội bộ (không chạy code, gọi thẳng hàm có sẵn của hub)
+function S.RunHubAction(id)
+    if id == "crosshair" then
+        local okC = pcall(function() S.ToggleCrosshair() end)
+        if not okC then return "⚠️ chưa bật được niêm tâm" end
+        pcall(function() if S.RebuildHubList then S.RebuildHubList() end end)   -- cập nhật nhãn nút
+        return "🎯 Niêm tâm: " .. (S.crosshairOn and "BẬT (giữa màn hình game)" or "TẮT")
+    elseif id == "unpark" then
+        local n = 0
+        pcall(function() n = n + (S.RemoveAllParked() or 0) end)
+        for _, ft in ipairs(featureTabs) do
+            local host = ft.frame and ft.frame:FindFirstChild("ScriptHost")
+            if host then pcall(function() n = n + S.ClearEmbedsUnder(host) end) end
+        end
+        pcall(S.PruneEmbeds)
+        pcall(function() if S.SyncEmbedToggles then S.SyncEmbedToggles() end end)
+        return "🧩 đã trả " .. n .. " GUI về màn hình game (GUI gốc giữ nguyên, không Destroy)"
+    elseif id == "fixmouse" then
+        if type(S.DoFixMouse) == "function" then
+            local msg = nil
+            pcall(function() msg = S.DoFixMouse() end)
+            return "🖱 " .. tostring(msg or "đã trả input cho game")
+        end
+        pcall(ReleaseHubFocus)
+        pcall(function() UserInputService.MouseBehavior = Enum.MouseBehavior.Default end)
+        return "🖱 đã nhả focus + đặt lại chuột"
+    elseif id == "reload" then
+        if type(S.DoReload) == "function" then
+            task.spawn(function() pcall(S.DoReload) end)
+            return "🔄 đang nạp lại hub từ đĩa..."
+        end
+        return "⚠️ hub chưa sẵn sàng để nạp lại"
+    elseif id == "prune" then
+        pcall(S.PruneEmbeds)
+        return "🧹 đã dọn các host nhúng rác"
+    end
+    return "⚠️ không rõ thao tác: " .. tostring(id)
+end
+
+-- nút nhỏ trong thẻ (nền đặc, bo 7px, hover/nhấn) — cất vào D để không tốn local cấp chunk
+function D.CardBtn(parent, text, posX, w, color)
+    local b = New("TextButton", {
+        Size = UDim2.new(0, w, 0, 24), Position = UDim2.new(1, posX, 0, 16),
+        Text = text, BackgroundColor3 = color or C.SURFACE3, BackgroundTransparency = 0.08,
+        TextColor3 = D.BestText(color or C.SURFACE3), Font = Enum.Font.GothamBold, TextSize = 9,
+        BorderSizePixel = 0, ZIndex = 8,
+    }, parent)
+    Corner(b, UDim.new(0, 7))
+    Stroke(b, D.Edge(color or C.SURFACE3), 1)
+    D.Shade(b, Color3.fromRGB(255,255,255), Color3.fromRGB(206,209,220), 90)
+    D.Tactile(b, 0.08)
+    return b
+end
+
+D.hubTab = AddTab("Script Hub", "📚", 2)
+
+-- ô tìm kiếm
+D.hubSearchBox = New("TextBox", {
+    Size = UDim2.new(1, -16, 0, 26), Position = UDim2.new(0, 8, 0, 8),
+    PlaceholderText = "🔍  Tìm script hoặc tiện ích...", Text = "", ClearTextOnFocus = false,
+    BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.08, TextColor3 = C.DARK,
+    PlaceholderColor3 = C.GRAY, Font = Enum.Font.GothamMedium, TextSize = 10,
+    TextXAlignment = Enum.TextXAlignment.Left, BorderSizePixel = 0, ZIndex = 6,
+}, D.hubTab)
+Corner(D.hubSearchBox, UDim.new(0, 10))
+Stroke(D.hubSearchBox, C.BORDER, 1)
+New("UIPadding", {PaddingLeft = UDim.new(0, 9)}, D.hubSearchBox)
+
+-- dãy chip phân loại
+D.hubChips = New("Frame", {
+    Size = UDim2.new(1, -16, 0, 22), Position = UDim2.new(0, 8, 0, 38),
+    BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = 6,
+}, D.hubTab)
+New("UIListLayout", {
+    FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 5),
+    SortOrder = Enum.SortOrder.LayoutOrder, VerticalAlignment = Enum.VerticalAlignment.Center,
+}, D.hubChips)
+
+-- danh sách thẻ (cuộn dọc)
+D.hubList = New("ScrollingFrame", {
+    Size = UDim2.new(1, -16, 1, -92), Position = UDim2.new(0, 8, 0, 64),
+    BackgroundTransparency = 1, BorderSizePixel = 0, CanvasSize = UDim2.new(0, 0, 0, 0),
+    ScrollBarThickness = 3, ClipsDescendants = true, ZIndex = 6,
+    AutomaticCanvasSize = Enum.AutomaticSize.Y,
+}, D.hubTab)
+New("UIListLayout", {Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder}, D.hubList)
+
+-- dòng trạng thái cuối trang
+D.hubStatus = New("TextLabel", {
+    Size = UDim2.new(1, -16, 0, 22), Position = UDim2.new(0, 8, 1, -24),
+    Text = "📚 Bấm ▶ để chạy script, ⚡ để thực hiện tiện ích · ⭐ để ghim lên đầu",
+    BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium, TextSize = 9,
+    TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left,
+    TextYAlignment = Enum.TextYAlignment.Top, ZIndex = 6,
+}, D.hubTab)
+
+-- dựng lại danh sách theo từ khóa + phân loại + yêu thích
+function S.RebuildHubList()
+    local list = D.hubList
+    if not list or not list.Parent then return end
+    -- Gom thẻ cũ ra MỘT bảng rồi mới xóa: vừa duyệt GetChildren() vừa Destroy() sẽ làm
+    -- mảng con co lại giữa chừng -> duyệt SÓT thẻ -> danh sách bị nhân đôi mỗi lần lọc.
+    local stale = {}
+    for _, c in ipairs(list:GetChildren()) do
+        if c:IsA("Frame") and c.Name:sub(1, 8) == "HubCard_" then stale[#stale + 1] = c end
+    end
+    for _, c in ipairs(stale) do pcall(function() c:Destroy() end) end
+
+    local q = tostring(S.hubSearch or ""):lower()
+    local cat = S.hubCat or "Tất cả"
+    local items = {}
+    for _, it in ipairs(S.ScriptHubList) do
+        local okCat = (cat == "Tất cả") or (it.cat == cat)
+        local okQ = (q == "")
+            or tostring(it.name):lower():find(q, 1, true) ~= nil
+            or tostring(it.desc or ""):lower():find(q, 1, true) ~= nil
+            or tostring(it.cat or ""):lower():find(q, 1, true) ~= nil
+        if okCat and okQ then items[#items + 1] = it end
+    end
+    table.sort(items, function(a, b)
+        local fa = S.hubFavs[a.name] and 1 or 0
+        local fb = S.hubFavs[b.name] and 1 or 0
+        if fa ~= fb then return fa > fb end
+        return (a.ord or 99) < (b.ord or 99)
+    end)
+
+    for i, it in ipairs(items) do
+        local card = New("Frame", {
+            Name = "HubCard_" .. tostring(it.name), Size = UDim2.new(1, 0, 0, 56), LayoutOrder = i,
+            BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, BorderSizePixel = 0, ZIndex = 6,
+        }, list)
+        Corner(card, UDim.new(0, 10))
+        Stroke(card, S.hubFavs[it.name] and C.ACCENT or C.BORDER, 1)
+
+        local ico = New("TextLabel", {
+            Size = UDim2.new(0, 34, 0, 34), Position = UDim2.new(0, 8, 0, 11), Text = it.icon,
+            BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.15, TextColor3 = C.ACCENT,
+            Font = Enum.Font.GothamBold, TextSize = 16, BorderSizePixel = 0, ZIndex = 7,
+        }, card)
+        Corner(ico, UDim.new(0, 9))
+
+        New("TextLabel", {
+            Size = UDim2.new(1, -214, 0, 14), Position = UDim2.new(0, 50, 0, 8),
+            Text = tostring(it.name) .. (S.hubFavs[it.name] and "  ⭐" or ""),
+            BackgroundTransparency = 1, TextColor3 = C.DARK, Font = Enum.Font.GothamBold, TextSize = 11,
+            TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+        }, card)
+        New("TextLabel", {
+            Size = UDim2.new(1, -214, 0, 10), Position = UDim2.new(0, 50, 0, 22),
+            Text = string.upper(tostring(it.cat or "")), BackgroundTransparency = 1,
+            TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 8,
+            TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+        }, card)
+        New("TextLabel", {
+            Size = UDim2.new(1, -214, 0, 20), Position = UDim2.new(0, 50, 0, 33),
+            Text = tostring(it.desc or ""), BackgroundTransparency = 1, TextColor3 = C.MUTED,
+            Font = Enum.Font.GothamMedium, TextSize = 9, TextWrapped = true,
+            TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, ZIndex = 7,
+        }, card)
+
+        -- nút chính: chạy script / thực hiện tiện ích
+        local isAction = (it.action ~= nil)
+        local runText
+        if isAction then
+            runText = (it.action == "crosshair")
+                and ((S.crosshairOn and "🎯 TẮT") or "🎯 BẬT")
+                or  "⚡ Chạy"
+        else
+            runText = "▶ Chạy"
+        end
+        local runBtn = D.CardBtn(card, runText, -166, 78, isAction and C.SURFACE3 or C.GREEN)
+        runBtn.Activated:Connect(function()
+            ReleaseHubFocus()
+            if it.code then
+                local okR = RunCode(it.code, it.name, nil, 1, 0, it.noPark == true)
+                D.hubStatus.Text = (okR and "▶ đã chạy '" or "⚠️ không chạy được '") .. it.name .. "'"
+                    .. (it.noPark and " · 🪟 GUI của nó ở NGOÀI màn hình game (đúng như tab 🛠)" or "")
+                    .. " · xem chi tiết ở tab 💻 Code"
+            else
+                D.hubStatus.Text = S.RunHubAction(it.action)
+            end
+            D.hubStatus.TextColor3 = C.YELLOW
+        end)
+
+        if it.code then
+            local copyBtn = D.CardBtn(card, "📋", -84, 24, C.BLUE)
+            copyBtn.Activated:Connect(function()
+                local did = false
+                pcall(function()
+                    if setclipboard then setclipboard(it.code) did = true
+                    elseif toclipboard then toclipboard(it.code) did = true
+                    elseif set_clipboard then set_clipboard(it.code) did = true end
+                end)
+                D.hubStatus.Text = did and ("📋 đã copy loadstring của '" .. it.name .. "'")
+                                       or "⚠️ executor này không hỗ trợ clipboard"
+                D.hubStatus.TextColor3 = did and C.GREEN or C.RED
+            end)
+            local saveBtn = D.CardBtn(card, "💾", -56, 24, C.PURPLE)
+            saveBtn.Activated:Connect(function()
+                local nm = it.name
+                local cnt = 1
+                while true do
+                    local ex = false
+                    for _, s in ipairs(scripts) do if s.name == nm then ex = true break end end
+                    if not ex then break end
+                    cnt += 1
+                    nm = it.name .. " (" .. cnt .. ")"
+                end
+                table.insert(scripts, {name = nm, code = it.code, expanded = false})
+                pcall(function() if RebuildScripts then RebuildScripts() end end)
+                pcall(function() Store.saveSoon() end)
+                D.hubStatus.Text = "💾 đã lưu '" .. nm .. "' sang tab 💾 Code Đã Lưu"
+                D.hubStatus.TextColor3 = C.GREEN
+            end)
+        end
+
+        local favBtn = D.CardBtn(card, S.hubFavs[it.name] and "⭐" or "☆", -28, 24,
+            S.hubFavs[it.name] and C.YELLOW or C.SURFACE3)
+        favBtn.Activated:Connect(function()
+            if S.hubFavs[it.name] then S.hubFavs[it.name] = nil else S.hubFavs[it.name] = true end
+            pcall(function() Store.saveSoon() end)   -- lưu yêu thích xuống đĩa
+            S.RebuildHubList()
+            D.hubStatus.Text = S.hubFavs[it.name] and ("⭐ đã ghim '" .. it.name .. "' lên đầu")
+                                                   or ("☆ đã bỏ ghim '" .. it.name .. "'")
+            D.hubStatus.TextColor3 = C.MUTED
+        end)
+    end
+
+    pcall(function()
+        list.CanvasSize = UDim2.new(0, 0, 0, #items * 62 + 6)
+    end)
+    if #items == 0 and D.hubStatus then
+        D.hubStatus.Text = "🔍 không tìm thấy gì khớp '" .. tostring(S.hubSearch or "") .. "'"
+        D.hubStatus.TextColor3 = C.MUTED
+    end
+end
+
+-- chip phân loại
+D.hubChipBtns = {}
+for _, cname in ipairs({"Tất cả", "Admin", "Explorer", "Spy", "Tiện ích"}) do
+    local w = (cname == "Tất cả" and 58) or (cname == "Explorer" and 68) or (cname == "Tiện ích" and 64)
+              or (cname == "Admin" and 52) or 44
+    local chip = New("TextButton", {
+        Size = UDim2.new(0, w, 0, 20), Text = cname,
+        BackgroundColor3 = (S.hubCat == cname) and C.ACCENT or C.SURFACE2,
+        BackgroundTransparency = (S.hubCat == cname) and 0.08 or 1,
+        TextColor3 = (S.hubCat == cname) and C.INK or C.MUTED,
+        Font = Enum.Font.GothamBold, TextSize = 9, BorderSizePixel = 0, ZIndex = 7,
+    }, D.hubChips)
+    Corner(chip, UDim.new(1, 0))
+    Stroke(chip, (S.hubCat == cname) and C.ACCENT2 or C.BORDER, 1)
+    chip.Activated:Connect(function()
+        S.hubCat = cname
+        for nm, cb in pairs(D.hubChipBtns) do
+            local on = (nm == cname)
+            cb.BackgroundColor3 = on and C.ACCENT or C.SURFACE2
+            cb.BackgroundTransparency = on and 0.08 or 1
+            cb.TextColor3 = on and C.INK or C.MUTED
+            local st = cb:FindFirstChildOfClass("UIStroke")
+            if st then st.Color = on and C.ACCENT2 or C.BORDER end
+        end
+        S.RebuildHubList()
+    end)
+    D.hubChipBtns[cname] = chip
+end
+
+trackConn(D.hubSearchBox:GetPropertyChangedSignal("Text"):Connect(function()
+    S.hubSearch = D.hubSearchBox.Text
+    S.RebuildHubList()
+end))
+S.RebuildHubList()
+
+-- chip trạng thái 🧩/🕵/🪟 trên header trang (đọc từ Store khi đã nạp xong cài đặt)
+D.SyncPageChips()
 
 -- ==================== TOGGLE MENU & DRAG ====================
 local function ToggleMainFrame()
@@ -6178,7 +6694,7 @@ main.Visible = true
 togBtn.Text = "✕"
 
 print(string.format(
-    "✅ Banana Cat Hub v4.5 — sẵn sàng! Đã nạp lại %d script + %d waypoint + %d tab tính năng từ bộ nhớ (chế độ: %s%s)",
+    "✅ Banana Cat Hub v4.6 — sẵn sàng! Đã nạp lại %d script + %d waypoint + %d tab tính năng từ bộ nhớ (chế độ: %s%s)",
     Store.loadedScripts, Store.loadedWp, #Store.loadedFeatures, Store.mode,
     Store.lastError and (" | ⚠️ " .. Store.lastError) or ""
 ))
