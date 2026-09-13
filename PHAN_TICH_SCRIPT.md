@@ -767,6 +767,34 @@ rail trống · thứ tự tạo đảo lộn). Tổng cộng **218 PASS / 0 FAI
 
 ---
 
+### v4.6.3 — 🌐 Nhóm tính năng SERVER trong 📚 Script Hub
+
+> Yêu cầu: thêm **reset server**, **hop server (tự đi lấy mã server)** và **ô nhập mã server**,
+> không làm mất tính năng nào.
+
+| Thẻ / nút | Gọi | Làm gì |
+|---|---|---|
+| 🔄 **Reset Server** | `S.ResetServer()` | Vào lại **ĐÚNG server đang chơi** (`TeleportToPlaceInstance(PlaceId, JobId hiện tại)`) — giữ nguyên bạn bè/người chơi cùng server. Studio (không có JobId) thì nạp lại game. |
+| 🔀 **Hop Server** | `S.HopServer()` | **Tự đi lấy mã server**: đọc `https://games.roblox.com/v1/games/{PlaceId}/servers/Public` qua `game:HttpGet` (lật tối đa 3 trang), loại server hiện tại + server đầy, chọn ngẫu nhiên 1 server còn chỗ rồi nhảy sang. |
+| 🌐 **Lấy mã server (JobId)** | `S.GetJobId()` + `S.CopyToClipboard()` | Đọc mã server, copy ra clipboard, điền sẵn vào ô 🎟 để gửi bạn bè vào cùng. |
+| 🎟 **Ô nhập mã + 🚀 Vào** | `S.JoinServer(jobId)` | Đường thoát khi game **ẩn danh sách server**: dán tay mã người khác đưa rồi vào. Bám phím Enter, gọt dấu cách/nháy, thiếu 36 ký tự thì cảnh báo. |
+
+Khung `hubSrvPanel` (54px) nằm dưới danh sách thẻ; danh sách rút còn `-146px` để không bị che.
+Cập nhật live: JobId mỗi 2s, danh sách server mỗi 30s. Chip lọc thêm nhóm **Server** (6 chip).
+
+**An toàn & không mất tính năng**
+- Chỉ dùng API công khai của Roblox + dịch vụ có sẵn (`TeleportService`); không link lạ, không quyền đặc biệt.
+- Mọi lệnh bọc `pcall` và **báo rõ lý do** trên dòng trạng thái (chưa lấy được JobId / game bật "không cho vào
+  server theo mã" / không tìm được server / đang thử lại lần 2-3…).
+- `TeleportToPlaceInstance` có thể bị vài game chặn → **vẫn vào được bằng cách dán mã thủ công** ở ô 🎟.
+- Toàn bộ tab/trang/công tắc/kéo-thả/AI cũ giữ nguyên; chỉ thêm, không sửa hành vi có sẵn.
+
+**Kiểm thử:** 193 PASS / 0 FAIL — 105 Script Hub (30+ cho nhóm server), 31 header/công tắc, 20 perf RenderStepped,
+15 park/noPark, 13 nhúng GUI vào tab, 9 thứ tự trang.
+
+
+---
+
 ## 9. Kết luận một câu
 
 Đây là một hub executor **được viết bởi người hiểu rất rõ những "nỗi đau" thực tế của Roblox UI** (focus,
