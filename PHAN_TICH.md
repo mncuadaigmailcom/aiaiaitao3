@@ -733,3 +733,47 @@ Và toàn bộ test cũ của v4.4 **vẫn pass** — không có hồi quy.
 4. Muốn chép code của tab sang khu Code để tiện tìm kiếm → bấm `📤 Chép sang Code`.
    Đây là **bản chép**, bản chính vẫn là tab tính năng.
 5. Nhãn ở tab **Code Đã Lưu** cho biết tổng: `💾 N script · M WP · K tab · <file> · lưu lúc <giờ>`.
+
+---
+
+## Phụ lục 3 — v4.4b & v4.4c: sửa lỗi "Chạy Script" và lỗi "ẩn/hiện menu"
+
+Hai lỗi do người dùng báo khi dùng thật, đều nằm ở TAB 5 (Tạo Tính Năng) và nút 🍌.
+
+### 3.1 Bấm `▶ Chạy Script` thì bị "lỗi" (v4.4b)
+
+| # | Lỗi | Cơ chế | Cách sửa |
+|---|-----|--------|----------|
+| 1 | **Script chạy đồng bộ → treo cứng** | `RunFeatureScript()` gọi `fn()` ngay trong handler nút bấm, **rồi mới** tới vòng quét GUI. Ô nhập gợi ý "VD: Auto Farm, Fly, Speed…" mà mấy script đó gần như luôn kết thúc bằng `while true do task.wait(1) end` ⇒ `fn()` không bao giờ `return` ⇒ status kẹt `⏳ Đang thực thi...` vĩnh viễn, GUI không bao giờ được nhúng, thread nút bấm bị chiếm | `loadstring` biên dịch trước ở ngoài; `fn()` chạy trên `task.spawn` riêng; vòng quét + nhúng GUI chạy song song trên một `task.spawn` khác |
+| 2 | **Lỗi bị cắt cụt** | `fStatus` là `TextLabel` 180×26, không `TextTruncate` ⇒ `[string "…"]:237: ')' expected near 'end'` bị cắt còn `❌ Lỗi: [string "--` | Thêm panel lỗi riêng (`FeatureErrorPanel`) hiện nguyên văn, cuộn + copy được; `fStatus` thêm `TextTruncate=AtEnd` |
+| 3 | **GUI nhúng vỡ thành một đống** | `ForceStretchToParent()` đệ quy xuống **mọi** `Frame`/`ScrollingFrame`/`CanvasGroup`, ép `Size=(1,0,1,0)` + `Position=(0,0,0,0)` ⇒ sidebar/panel/nút chồng hết lên nhau ở góc trên-trái | Mặc định chỉ xử lý đúng object được đưa vào (dãn cấp ROOT). Hành vi cũ giữ được qua công tắc `📐 Dãn sâu GUI nhúng` (`Store.deepStretch`, có lưu xuống đĩa) |
+| 4 | **Bắt cóc UI của game** | Cửa sổ quét 2,4s, không loại trừ UI core | Quét dày 0,05s, **dừng ngay** khi thấy GUI; trần 6s cho GUI tạo muộn; `CORE_GUI_SKIP` bỏ qua HUD/chat/backpack/voice… của Roblox |
+| 5 | Bấm đúp chạy chồng nhiều bản | không có khoá | `featureRunning` + `onDone()`; quá 1,5s chưa thấy GUI thì nhả khoá, vòng quét vẫn chạy nền |
+| 6 | `_G.BananaCatHub_EmbedHosts` phình vô hạn | `ClearHost()` không dọn | Dọn host đã chết khi `ClearHost()` |
+| 7 | Vòng lặp resize dãn sai cấp | `ForceStretchToParent(host)` | Duyệt từng con của `host` |
+
+`ExecOnce()` (tab Code Đã Lưu) **cố ý giữ đồng bộ**: nó nằm trong `task.spawn` có `Cancel()`/`task.cancel` phục vụ vòng lặp times/delay — không cùng một bug.
+
+Trạng thái giờ báo đúng sự thật: `🟢 Đang chạy nền...` (script còn vòng lặp — **không phải lỗi**) · `✅ Đã nhúng N GUI vào tab` · `✅ Hoàn thành!` · `❌ Lỗi cú pháp / Lỗi khi chạy — xem chi tiết`.
+
+### 3.2 Ẩn menu rồi bật lại mà không thấy menu (v4.4c)
+
+Ba nguyên nhân **độc lập**, cộng hưởng thành "bấm hiện mà menu không hiện":
+
+1. **Hub bị GUI của script vẽ đè lên (nguyên nhân chính).** `ExMenu` dùng `DisplayOrder` mặc định = 0. Script trong tab Tạo Tính Năng thường `Instance.new("ScreenGui")` thẳng vào CoreGui ⇒ **sinh ra sau** `ExMenu` ⇒ vẽ đè lên, che khung menu và che luôn nút 🍌 góc dưới-phải.
+   → `DisplayOrder = 100` + hàm `RaiseHub()` soi mọi ScreenGui anh-em rồi đẩy hub lên trên cái cao nhất (phòng script đặt `DisplayOrder` > 100). Gọi lúc khởi động, mỗi lần bấm 🍌, và sau mỗi lần nhúng GUI.
+2. **Menu bị kéo lê ra hẳn ngoài màn hình.** Bật 🔓 rồi kéo titlebar có thể đưa `main.Position` ra ngoài viewport; `Visible = true` nhưng không thấy gì.
+   → Mỗi lần hiện menu thì kẹp `Position` về trong khung nhìn (chừa 60px để còn nắm titlebar). Phải set `Visible` **trước** rồi mới đo `Absolute*`.
+3. **Double-toggle.** Nút 🍌 có 2 đường kích hoạt: `UserInputService.InputEnded` (khi bật kéo-thả) và `togBtn.Activated`. Cờ `S.togDragging` còn sót ⇒ **cả hai cùng chạy** ⇒ `Visible` đổi 2 lần ⇒ về y như cũ.
+   → Debounce 0,1s trong `ToggleMainFrame()`; xoá sạch `S.dragging/togDragging/togMoved` khi bật-tắt 🔒; reset `S.togMoved` trong `InputEnded`.
+
+### 3.3 Kiểm chứng
+
+- `PARSE OK` · **185/200** local main chunk · **22/60** upvalue · `CreateFeatureTab` 35/200 · 0 ký tự CJK lạc · 3.846 dòng.
+- Bộ test runtime mở rộng **54 → 85 case**, **85/85 PASS**.
+- `test5.lua` (31 case) chạy ở Lua state **riêng** để không làm lệch số liệu đếm tab của test2/test4:
+  - **H1–H8** nhóm ẩn/hiện menu: `DisplayOrder` ≥ 100; tạo ScreenGui `DisplayOrder=500` rồi bấm hiện ⇒ hub phải leo lên trên nó; menu trôi ra (5000,5000) ⇒ phải được kẹp về `[0,740]×[0,380]`; 2 cú bấm sát nhau chỉ đổi trạng thái 1 lần; bật 🔓 rồi tắt 🔒 xong nút vẫn hoạt động; nút ✕ titlebar ẩn menu + đồng bộ nhãn.
+  - **G1–G19** nhóm chạy tính năng: script `while true do` không chiếm UI thread; GUI **vẫn được nhúng**; root dãn full nhưng layout bên trong giữ nguyên; lỗi cú pháp/runtime hiện panel đầy đủ; không bắt cóc `RobloxGui`; công tắc dãn sâu + lưu xuống đĩa; `_G.BananaCatHub_EmbedHosts` không phình.
+- **Đối chiếu v4.3 gốc:** `H1` (`DisplayOrder=nil`), `H4` (hub bị đè), `H6` (double-toggle) **FAIL** ⇒ test bắt đúng bệnh, không phải pass rỗng.
+- **Sửa luôn mock Fengari:** `Parent` phải lưu ở `__Parent` và giữ key `"Parent"` **vắng mặt**, vì Lua chỉ gọi `__newindex` khi key vắng. Trước đây lần gán `Parent` thứ hai (re-parent) là phép gán thô ⇒ con của ScreenGui không vào được khung nhúng ⇒ test G6 "pass" sai lý do.
+- Thêm guard tuỳ chọn `MAIN_WAIT_LIMIT` vào mock: `task.wait` gọi quá N lần từ main thread sẽ `error`, biến đúng cái bug "treo vĩnh viễn" ngoài đời thật thành một lỗi bắt được trong test.
