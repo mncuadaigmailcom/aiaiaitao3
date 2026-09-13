@@ -702,6 +702,51 @@ Thứ tự trang mới: `1 💻 Code · 2 📚 Script Hub · 3 💾 Code Đã L�
 vừa `Destroy()`* → sót thẻ, danh sách nhân đôi mỗi lần lọc (sửa: gom ra bảng `stale` rồi mới xóa);
 (2) rời chuột khỏi công tắc trên header ghi đè mất tên tab đang hover (sửa: trả về `D.hoverName or D.activeName`).
 
+### 5. v4.6.1 — XÓA dứt điểm dấu vết menu bản cũ + làm hub mượt hơn
+
+Yêu cầu người dùng: *"xóa menu bản cũ đi, để menu bản Delta lại, để cho script mượt hơn — tất cả
+tính năng giữ lại"*. Trong `script.js` **không tồn tại hai menu** (Stage A đã thay layout tại chỗ,
+chỉ có MỘT `ScreenGui` của hub), nên phần "bản cũ" còn sót là (a) các hàng nút xếp cho khổ nội dung
+435px cũ, (b) file mock thiết kế cũ, (c) vài điểm ngốn khung hình thật sự. Đã dọn cả ba:
+
+**(a) Layout cũ → trải hết khổ Delta 484px** (lề 8 → mép phải 476):
+
+| trang | trước (mép phải) | sau |
+|---|---|---|
+| 💻 Code | `▶ Chạy Code` 148 · `⏹ Dừng` 236 · `💾 Lưu` 168 | `▶ 336` + `⏹ 126` = **476** · `💾 Lưu` **468** |
+| 🛠 Hỗ Trợ | các hàng chỉ tới 208 / 304 / 254 | `372` + `90` phải = **476** · hàng đơn = **468** |
+| 🚀 Teleport X/Y/Z | 3 ô 70px, mép 270 — **3 nhãn X:/Y:/Z: đè lên nhau** (Label() luôn đặt x=8) | nhãn đặt đúng x=8/166/324 (w=14), 3 ô 136px → mép **476** |
+| ➕ Tạo Tính Năng | hàng 3 nút mép 426, hàng 2 nút mép 426, 4 nút 418 | `210+116+130` và `176+286` → **476**; 4 nút dài → **468** |
+| đường phân cách `━` | 22 ký tự (~220px / 435px) | 46 ký tự (vừa khổ mới) |
+
+**(b) Xóa file mock layout cũ**: `design/preview-v4.5.html` (thanh tab phải 105px) → `git rm`;
+thay bằng **`design/preview-v4.6.html`** dựng theo đúng số đo Delta (rail 56px, header 24px,
+khổ nội dung 484px, trang 📚 Script Hub lọc/tìm/ghim chạy được thật trong trình duyệt).
+
+**(c) Mượt hơn — 3 chỗ ngốn khung hình thật sự, đo được bằng test:**
+
+| vấn đề (bản trước) | sửa (v4.6.1) | kết quả đo trong test |
+|---|---|---|
+| `RunService.RenderStepped` của tab 🛠: raycast + đọc Humanoid + ghi >10 nhãn **mỗi frame**, và **chạy cả khi menu đóng** | chỉ chạy khi `main.Visible` **và** `supportTab.Visible`; dồn tích lũy `coordAcc` → tối đa **20 lần/giây** | 10s @60fps: 600 → **200** lượt; 10s @144fps: 1440 → **180** lượt; menu đóng: **0** raycast |
+| `GetProductInfo` (HTTP) nằm trong nhánh `placeLbl.Text == "Place: ..."` → nếu executor **chặn HTTP** thì nhãn không bao giờ đổi ⇒ **gọi HTTP mỗi frame, mãi mãi** | giới hạn **1 lần / 10 giây** (`D.placeTryAt` + `os.clock()`); thành công thì không gọi lại | HTTP lỗi suốt 50s: 3000 → **≤1** lần; khi được phép vẫn tự điền `Place: 123 — Test Place` |
+| `tostring(state):gsub(...)` mỗi frame → 1 chuỗi rác/frame cho GC | so sánh **bằng giá trị enum**, chỉ dựng chuỗi khi state thật sự đổi | nhãn vẫn đúng `State: Running` / `Jumping` / `No Humanoid` |
+| ô tìm kiếm rebuild **sau mỗi phím** (2 nơi: 💾 Code Đã Lưu, 📚 Script Hub) | `S.Debounce(key, 0.18, fn)` — gộp phím, kết quả cuối giống hệt | gõ 6 phím liền: **0** lần dựng; sau 0.18s: đúng **1** lần, kết quả vẫn đúng |
+
+Không mất tính năng: các nhãn tọa độ chỉ để **xem** (nút 📋 Copy / 📍 Lấy Vị Trí tự gọi
+`GetGroundPosition()` khi bấm), và `S.Debounce` vẫn đọc nội dung ô nhập tại thời điểm chạy.
+
+**Kiểm chứng v4.6.1 — 209 PASS / 0 FAIL** (thêm 2 bộ test mới so với v4.6):
+
+| bộ test | số kiểm tra |
+|---|---|
+| `test_unit` · `test_e2e` · `test_park` · `test_nopark` (tính năng cũ) | 21 · 15 · 25 · 24 = **85** |
+| `test_compare` (hồi quy 3 phiên bản / 8 kịch bản) | **8/8** |
+| `test_hub` (trang 📚, chạy code trích thật từ `script.js` — **thêm mục [L] đo debounce**) | **72** |
+| `test_header` (header 24px + 3 công tắc gạt) | **31** |
+| `test_coord` (**mới**: RenderStepped — 20Hz, gate theo trang, cap HTTP, state enum, N/A, dt lạ) | **21** |
+
+Cú pháp OK · depth 0 · local cấp chunk **189/200** · CRLF 100% (6.757/0).
+
 ---
 
 ## 9. Kết luận một câu

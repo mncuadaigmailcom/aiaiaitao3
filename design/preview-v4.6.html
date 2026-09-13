@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Banana Cat Hub v4.6 — preview layout DELTA</title>
+<style>
+  :root{
+    --bg:#12141B; --surface:#1A1D26; --surface2:#222632; --surface3:#2E3342;
+    --border:#343A4A; --muted:#969EB0; --dark:#E9EDF5; --ink:#101218;
+    --accent:#FFC43D; --accent2:#FF843E; --green:#26C276; --blue:#4894F8;
+    --red:#F2565E; --yellow:#FFCD40; --purple:#AC69FF; --orange:#F59842; --gray:#7C8496;
+    --rail:56px; --head:24px; --title:30px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;padding:22px;background:#0B0D12;color:var(--dark);
+       font:13px/1.45 "Segoe UI",system-ui,-apple-system,sans-serif}
+  h1{font-size:17px;margin:0 0 4px;color:var(--accent)}
+  .sub{color:var(--muted);margin:0 0 16px;font-size:12px}
+  .sub b{color:var(--dark)}
+  .stage{display:flex;gap:26px;flex-wrap:wrap;align-items:flex-start}
+
+  /* ===== cửa sổ hub: 540×340 đúng số đo trong script.js ===== */
+  .hub{width:540px;height:340px;background:linear-gradient(180deg,#161922,#101319);
+       border:1.4px solid #3A4152;border-radius:14px;overflow:hidden;position:relative;
+       box-shadow:0 18px 46px rgba(0,0,0,.6);flex:0 0 auto}
+  .titlebar{height:var(--title);display:flex;align-items:center;gap:6px;padding:0 8px;
+       background:linear-gradient(180deg,#252A37,#1D212C);border-bottom:1px solid rgba(255,196,61,.28);
+       position:relative}
+  .titlebar .name{font-weight:800;font-size:12px;
+       background:linear-gradient(90deg,var(--accent),#FFF3D6);-webkit-background-clip:text;
+       background-clip:text;color:transparent}
+  .pill{font-size:8px;font-weight:800;color:var(--accent);border:1px solid var(--accent);
+       border-radius:99px;padding:2px 7px;background:rgba(46,51,66,.55)}
+  .tbtn{margin-left:auto;width:26px;height:22px;border-radius:7px;border:1px solid var(--border);
+       background:var(--surface2);color:var(--muted);font-size:10px;cursor:pointer}
+  .tbtn+.tbtn{margin-left:4px}
+  .body{display:flex;height:calc(340px - var(--title))}
+
+  /* ===== RAIL TRÁI: chỉ icon, 56px (kiểu Delta) ===== */
+  .rail{width:var(--rail);flex:0 0 var(--rail);padding:6px 4px;overflow-y:auto;
+       border-right:1px solid rgba(52,58,74,.7);display:flex;flex-direction:column;gap:4px}
+  .rail::-webkit-scrollbar{width:3px}.rail::-webkit-scrollbar-thumb{background:var(--surface3);border-radius:3px}
+  .tab{width:48px;height:38px;border-radius:10px;border:1px solid transparent;background:transparent;
+       color:var(--muted);font-size:16px;cursor:pointer;position:relative;flex:0 0 auto;
+       display:flex;align-items:center;justify-content:center;transition:.16s}
+  .tab:hover{background:rgba(34,38,50,.75)}
+  .tab.on{background:rgba(34,38,50,.92);border-color:var(--border);color:var(--accent)}
+  .tab.on::before{content:"";position:absolute;left:2px;top:6px;bottom:6px;width:3px;border-radius:3px;
+       background:linear-gradient(180deg,var(--accent),var(--accent2))}
+
+  .rightcol{flex:1 1 auto;min-width:0;display:flex;flex-direction:column}
+
+  /* ===== HEADER TRANG 24px: tên trang + 3 công tắc gạt ===== */
+  .phead{height:var(--head);flex:0 0 var(--head);display:flex;align-items:center;
+       background:rgba(26,29,38,.55);border-bottom:1px solid rgba(52,58,74,.65);padding:0 8px}
+  .ptitle{font-size:11px;font-weight:800;color:var(--accent);white-space:nowrap;overflow:hidden;
+       text-overflow:ellipsis;flex:1 1 auto}
+  .ptitle.dim{color:var(--dark);opacity:.6;font-weight:600}
+  .sws{display:flex;gap:8px;flex:0 0 auto}
+  .sw{display:flex;align-items:center;gap:4px;cursor:pointer;background:none;border:0;padding:0}
+  .sw .ic{font-size:10px;color:var(--gray)}
+  .sw.on .ic{color:var(--dark)}
+  .track{width:26px;height:12px;border-radius:99px;background:var(--surface3);position:relative;transition:.18s}
+  .sw.on .track{background:var(--green)} .sw.on.warn .track{background:var(--orange)}
+  .knob{width:8px;height:8px;border-radius:99px;background:var(--gray);position:absolute;top:2px;left:2px;transition:.18s}
+  .sw.on .knob{background:#fff;left:16px}
+
+  .content{flex:1 1 auto;min-height:0;overflow-y:auto;padding:8px;position:relative}
+  .content::-webkit-scrollbar{width:3px}.content::-webkit-scrollbar-thumb{background:var(--surface3);border-radius:3px}
+
+  /* ===== widget dùng chung (đúng số đo v4.6: lề 8, mép phải 476) ===== */
+  .lbl{font-size:10px;color:var(--muted);margin:0 0 4px}
+  .rule{height:1px;background:linear-gradient(90deg,transparent,var(--border),transparent);margin:8px 0}
+  .inp,.ta,.btn{width:468px;border-radius:8px;border:1px solid var(--border);background:var(--surface);
+       color:var(--dark);font:10px/1.3 "Segoe UI",sans-serif;padding:6px 8px}
+  .ta{height:80px;resize:none;font-family:ui-monospace,Consolas,monospace}
+  .inp:focus,.ta:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px rgba(255,196,61,.22)}
+  .row{display:flex;gap:6px;margin:6px 0}
+  .btn{cursor:pointer;font-weight:800;text-align:center;padding:7px 8px;border-radius:8px;
+       background:var(--surface3);border:1px solid #3B4254;color:var(--dark)}
+  .btn:hover{filter:brightness(1.12)} .btn:active{transform:translateY(1px)}
+  .btn.green{background:var(--green);color:var(--ink);border-color:#4BD79A}
+  .btn.red{background:var(--red);color:#fff;border-color:#FF7A82}
+  .btn.blue{background:var(--blue);color:var(--ink);border-color:#77B2FF}
+  .btn.purple{background:var(--purple);color:#fff;border-color:#C69BFF}
+  .btn.orange{background:var(--orange);color:var(--ink);border-color:#FFB877}
+  .btn.gray{background:var(--gray);color:var(--ink);border-color:#98A0B2}
+  .btn.yellow{background:var(--yellow);color:var(--ink);border-color:#FFE07A}
+  .status{font-size:9px;color:var(--yellow);margin-top:6px;min-height:12px}
+
+  /* ===== 📚 SCRIPT HUB ===== */
+  .search{width:468px;height:26px;border-radius:10px;border:1px solid var(--border);
+       background:var(--surface);color:var(--dark);font-size:10px;padding:0 9px}
+  .search:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px rgba(255,196,61,.2)}
+  .chips{display:flex;gap:5px;margin:8px 0}
+  .chip{height:20px;border-radius:99px;border:1px solid var(--border);background:transparent;
+       color:var(--muted);font-size:9px;font-weight:800;padding:0 10px;cursor:pointer}
+  .chip.on{background:var(--accent);border-color:var(--accent2);color:var(--ink)}
+  .cards{display:flex;flex-direction:column;gap:6px}
+  .card{height:56px;border-radius:10px;border:1px solid var(--border);background:rgba(26,29,38,.88);
+       display:flex;align-items:center;gap:8px;padding:0 8px;position:relative}
+  .card.fav{border-color:var(--accent)}
+  .cicon{width:34px;height:34px;border-radius:9px;background:var(--surface2);color:var(--accent);
+       display:flex;align-items:center;justify-content:center;font-size:16px;flex:0 0 auto}
+  .cmeta{flex:1 1 auto;min-width:0}
+  .cname{font-size:11px;font-weight:800;color:var(--dark);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ccat{font-size:8px;font-weight:800;color:var(--accent);letter-spacing:.06em}
+  .cdesc{font-size:9px;color:var(--muted);line-height:1.25;max-height:20px;overflow:hidden}
+  .cbtns{display:flex;gap:4px;flex:0 0 auto}
+  .cb{height:24px;border-radius:7px;border:1px solid #3B4254;background:var(--surface3);color:var(--dark);
+      font-size:9px;font-weight:800;padding:0 7px;cursor:pointer}
+  .cb.run{background:var(--green);color:var(--ink);border-color:#4BD79A;width:78px}
+  .cb.act{width:78px}
+  .cb.copy{background:var(--blue);color:var(--ink);border-color:#77B2FF;width:24px;padding:0}
+  .cb.save{background:var(--purple);color:#fff;border-color:#C69BFF;width:24px;padding:0}
+  .cb.fav{width:24px;padding:0} .cb.fav.on{background:var(--yellow);color:var(--ink);border-color:#FFE07A}
+  .cb:hover{filter:brightness(1.14)}
+
+  /* ===== chú thích phải ===== */
+  .legend{max-width:420px;font-size:12px;color:var(--muted)}
+  .legend h2{font-size:13px;color:var(--dark);margin:0 0 8px}
+  .legend table{border-collapse:collapse;width:100%;font-size:11.5px}
+  .legend td,.legend th{border-bottom:1px solid #1E2330;padding:5px 6px;text-align:left;vertical-align:top}
+  .legend th{color:var(--accent);font-weight:700}
+  .legend code{background:#171B24;border:1px solid #232937;border-radius:4px;padding:1px 4px;color:#D8DEEA;font-size:11px}
+  .legend .del{color:var(--red);text-decoration:line-through}
+  .legend .new{color:var(--green);font-weight:700}
+  .foot{margin-top:14px;font-size:11px;color:#6E7789}
+</style>
+</head>
+<body>
+
+<h1>🍌 Banana Cat Hub — v4.6 “DELTA”</h1>
+<p class="sub">Bản xem trước <b>chỉ còn layout Delta</b> (bản mock menu cũ v4.5 đã xóa khỏi repo).
+Số đo lấy thẳng từ <code>script.js</code>: cửa sổ 540×340 · thanh tiêu đề 30px · <b>rail icon trái 56px</b>
+· <b>header trang 24px</b> · nội dung 484px (lề 8 → mép phải 476). Bấm được thật: đổi trang, rê icon,
+gạt công tắc, tìm kiếm, lọc chip, ghim ⭐.</p>
+
+<div class="stage">
+  <div class="hub">
+    <div class="titlebar">
+      <span class="name">🍌 Banana Cat Hub</span>
+      <span class="pill">v4.6 · DELTA</span>
+      <button class="tbtn" title="Khóa kéo/nới">🔒</button>
+      <button class="tbtn" title="Thu nhỏ">—</button>
+      <button class="tbtn" title="Đóng">✕</button>
+    </div>
+    <div class="body">
+      <div class="rail" id="rail"></div>
+      <div class="rightcol">
+        <div class="phead">
+          <div class="ptitle" id="ptitle">💻 Code</div>
+          <div class="sws" id="sws"></div>
+        </div>
+        <div class="content" id="content"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <h2>Có gì trong bản này</h2>
+    <table>
+      <tr><th>Menu cũ (v4.5)</th><th>Menu Delta (v4.6)</th></tr>
+      <tr><td class="del">Thanh tab bên PHẢI, có chữ, 105px</td><td class="new">Rail icon bên TRÁI, 56px</td></tr>
+      <tr><td class="del">Không có header trang</td><td class="new">Header 24px: tên trang + 3 công tắc gạt 🧩 🕵 🪟</td></tr>
+      <tr><td class="del">Nội dung rộng 435px, hàng nút chỉ tới ~304px</td><td class="new">Nội dung 484px, mọi hàng nút chạm mép 476px</td></tr>
+      <tr><td class="del">Không có trang danh sách script</td><td class="new">📚 Script Hub: 🔍 tìm + 5 chip lọc + thẻ script (▶ 📋 💾 ☆)</td></tr>
+      <tr><td class="del">3 nhãn X:/Y:/Z: đè lên nhau</td><td class="new">Đứng đúng cạnh ô của mình, 3 ô trải đều hết hàng</td></tr>
+      <tr><td class="del">RenderStepped: raycast + HTTP <b>mỗi frame</b>, chạy cả khi đóng menu</td><td class="new">Chỉ chạy khi mở trang 🛠, 20 lần/giây, HTTP ≤ 1 lần/10 giây</td></tr>
+      <tr><td class="del">Tìm kiếm rebuild sau mỗi phím</td><td class="new">Debounce 0.18s (gõ 6 phím = 1 lần dựng)</td></tr>
+    </table>
+    <p class="foot">✅ <b>Không mất tính năng nào</b>: 209 kiểm thử tự động PASS
+    (21 unit · 15 E2E · 25 park · 24 nopark · 72 Script Hub · 31 header · 21 perf).
+    Thứ tự trang: 1 💻 · 2 📚 · 3 💾 · 4 🛠 · 5 🤖 · 6 ➕ · 7+ tab của bạn · 99 🧩.</p>
+  </div>
+</div>
+
+<script>
+const PAGES = [
+ {id:"code", icon:"💻", name:"Code", order:1},
+ {id:"hub",  icon:"📚", name:"Script Hub", order:2},
+ {id:"saved",icon:"💾", name:"Code Đã Lưu", order:3},
+ {id:"sup",  icon:"🛠", name:"Hỗ Trợ", order:4},
+ {id:"ai",   icon:"🤖", name:"AI AI", order:5},
+ {id:"create",icon:"➕", name:"Tạo Tính Năng", order:6},
+ {id:"feat", icon:"⚡", name:"Tính Năng Của Bạn", order:7},
+ {id:"park", icon:"🧩", name:"GUI Ngoài", order:99},
+];
+
+/* ---- 📚 Script Hub: đúng 8 mục của bảng S.ScriptHubList trong script.js ---- */
+const HUBLIST = [
+ {icon:"🛡",name:"Infinite Yield",cat:"Admin",ord:1,code:true,
+  desc:"Admin commands: kill, speed, jump, noclip, teleport, bring, prefix tùy chỉnh..."},
+ {icon:"🧰",name:"Dex Explorer",cat:"Explorer",ord:2,code:true,
+  desc:"Duyệt toàn bộ instance trong game, xem/sửa property, tìm object theo đường dẫn."},
+ {icon:"📡",name:"SimpleSpy v3",cat:"Spy",ord:3,code:true,
+  desc:"Theo dõi RemoteEvent/RemoteFunction: tên, tham số, copy code để gọi lại y hệt."},
+ {icon:"🎯",name:"Niêm tâm (Crosshair)",cat:"Tiện ích",ord:4,action:"crosshair",
+  desc:"Bật/tắt vòng tròn niêm tâm + 4 nét ngắn ở GIỮA màn hình game (ngoài menu)."},
+ {icon:"🧩",name:"Trả GUI về màn hình",cat:"Tiện ích",ord:5,action:"unpark",
+  desc:"Hoàn tác MỌI GUI hub đang mượn vào menu: tab tính năng + tab 🧩 GUI Ngoài."},
+ {icon:"🖱",name:"Sửa kẹt chuột",cat:"Tiện ích",ord:6,action:"fixmouse",
+  desc:"Nhả focus ô nhập, trả GUI về game, đặt lại MouseBehavior."},
+ {icon:"🔄",name:"Nạp lại hub từ đĩa",cat:"Tiện ích",ord:7,action:"reload",
+  desc:"Đọc lại file lưu: script, waypoint, tab tính năng, cài đặt 🧩 / 🕵 / 🪟."},
+ {icon:"🧹",name:"Dọn host nhúng rác",cat:"Tiện ích",ord:8,action:"prune",
+  desc:"Xóa các khung Embedded_ mồ côi/rỗng còn sót trong tab."},
+];
+const CATS = ["Tất cả","Admin","Explorer","Spy","Tiện ích"];
+let hubCat = "Tất cả", hubSearch = "", favs = {}, crosshair = false, debounceTimer = null;
+
+function esc(s){return String(s).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]))}
+
+/* ---------------- render từng trang ---------------- */
+function pageCode(){return `
+  <div class="lbl">💻 Nhập Code Tùy Chỉnh</div>
+  <input class="inp" placeholder="Tên script (để trống thì tự đặt)">
+  <div class="lbl" style="margin-top:8px">Dán code / loadstring vào đây</div>
+  <textarea class="ta" placeholder='loadstring(game:HttpGet("https://..."))()'></textarea>
+  <div class="row" style="align-items:center">
+    <span class="lbl" style="margin:0">🔁 Lặp</span><input class="inp" style="width:55px" value="1">
+    <span class="lbl" style="margin:0">⏱ Delay</span><input class="inp" style="width:55px" value="0">
+    <button class="btn" style="width:55px">Giây ▾</button>
+  </div>
+  <div class="row"><button class="btn green" style="width:336px">▶ Chạy Code</button>
+    <button class="btn red" style="width:126px">⏹ Dừng</button></div>
+  <div class="row"><button class="btn blue" style="width:468px">💾 Lưu Vào Danh Sách</button></div>
+  <div class="status">⏳ trạng thái chạy hiện ở đây · 🔄 Tổng số lần đã chạy: 0</div>`}
+
+function pageSaved(){return `
+  <div class="lbl">🔍 Tìm trong danh sách (debounce 0.18s — gõ 6 phím chỉ dựng lại 1 lần)</div>
+  <input class="search" placeholder="Tìm script đã lưu...">
+  <div class="rule"></div>
+  ${["Infinite Yield","Dex Explorer","Auto Farm mẫu"].map(n=>`
+    <div class="card" style="height:40px">
+      <div class="cicon" style="width:24px;height:24px;font-size:12px">📄</div>
+      <div class="cmeta"><div class="cname">${n}</div>
+        <div class="cdesc">đã lưu · bấm để mở rộng code</div></div>
+      <div class="cbtns"><button class="cb run" style="width:56px">▶ Chạy</button>
+        <button class="cb copy">📋</button><button class="cb save">🗑</button></div>
+    </div>`).join("")}`}
+
+function pageSup(){return `
+  <div class="lbl">⚡ Script Nhanh — GUI của 3 script này LUÔN ở NGOÀI màn hình game (noPark)</div>
+  <div class="row"><button class="btn blue" style="width:468px">🧰 Dex Explorer</button></div>
+  <div class="row"><button class="btn purple" style="width:468px">🛡 Infinite Yield</button></div>
+  <div class="row"><button class="btn green" style="width:468px">📡 SimpleSpy v3</button></div>
+  <div class="rule"></div>
+  <div class="row"><button class="btn gray" style="width:372px">🎯 Phân Tích Vật Thể: TẮT</button>
+    <button class="btn red" style="width:90px">🧹 Xóa KQ</button></div>
+  <div class="row"><button class="btn purple" style="width:372px">💜 Highlight Tím: BẬT</button>
+    <button class="btn red" style="width:90px">❌ Xóa Highlight</button></div>
+  <div class="lbl">X: 10.000 · Y: 20.000 · Z: 30.000 &nbsp;|&nbsp; Look: 0.000, 0.000, -1.000</div>
+  <div class="lbl">State: Running · HP: 88 / 100 · Place: 123 — Test Place</div>
+  <div class="rule"></div>
+  <div class="lbl">🚀 Teleport Tới Tọa Độ <span style="color:#6E7789">(v4.6: X:/Y:/Z: hết đè nhau)</span></div>
+  <div class="row">
+    <span class="lbl" style="width:14px;margin:6px 0 0 0">X:</span><input class="inp" style="width:136px" value="0">
+    <span class="lbl" style="width:14px;margin:6px 0 0 0">Y:</span><input class="inp" style="width:136px" value="0">
+    <span class="lbl" style="width:14px;margin:6px 0 0 0">Z:</span><input class="inp" style="width:136px" value="0">
+  </div>
+  <div class="row"><button class="btn orange" style="width:372px">📍 Lấy Vị Trí Dưới Chân</button>
+    <button class="btn green" style="width:90px">🚀 Teleport</button></div>
+  <div class="row"><button class="btn blue" style="width:468px">📋 Copy Tọa Độ Dưới Chân</button></div>`}
+
+function pageAi(){return `
+  <div class="lbl">🤖 AI AI — mini web chat (giữ nguyên như bản cũ)</div>
+  <div style="width:468px;height:150px;border:1px solid var(--border);border-radius:10px;
+       background:var(--surface);padding:8px;font-size:10px;color:var(--muted)">
+    <div><b style="color:var(--accent)">Bạn:</b> viết cho tôi script auto farm</div>
+    <div style="margin-top:6px"><b style="color:var(--green)">AI:</b> đây là khung trả lời…</div>
+  </div>
+  <div class="row" style="margin-top:6px"><input class="inp" style="width:372px" placeholder="Nhập câu hỏi...">
+    <button class="btn green" style="width:90px">Gửi</button></div>`}
+
+function pageCreate(){return `
+  <div class="lbl">➕ Tạo Tính Năng (tab riêng cho script của bạn)</div>
+  <input class="inp" placeholder="Tên tính năng"><div style="height:6px"></div>
+  <input class="inp" placeholder="Icon (1 emoji)" style="width:60px">
+  <textarea class="ta" style="margin-top:6px" placeholder="Dán code tính năng..."></textarea>
+  <div class="row"><button class="btn blue" style="width:210px">➕ Tạo Tab Tính Năng</button>
+    <button class="btn orange" style="width:116px">🧹 Xóa Form</button>
+    <button class="btn green" style="width:130px">🧩 Nhúng vào Tab: BẬT</button></div>
+  <div class="row"><button class="btn gray" style="width:176px">🕵 Đoán GUI trễ: TẮT</button>
+    <button class="btn purple" style="width:286px">📏 Code Tự Co Giãn (an toàn, Auto-Lưu)</button></div>
+  <div class="row"><button class="btn red" style="width:468px">🖱 Kẹt chuột / không bấm được? Bấm đây</button></div>
+  <div class="row"><button class="btn blue" style="width:468px">🔁 Cứu GUI: nhúng lại GUI của tab ĐANG MỞ</button></div>
+  <div class="row"><button class="btn green" style="width:468px">🪟 GUI chạy ở tab 💻 Code → đưa vào menu: BẬT</button></div>
+  <div class="status">3 công tắc 🧩 / 🕵 / 🪟 giờ còn có bản gạt ở HEADER TRANG (bấm đâu cũng cùng một hàm).</div>`}
+
+function pageFeat(){return `
+  <div class="lbl">⚡ Tab tính năng của bạn — toolbar tự tràn theo khổ mới 484px</div>
+  <div class="row" style="border:1px solid var(--border);border-radius:8px;padding:5px;width:468px">
+    <button class="btn green" style="width:90px">▶ Chạy Script</button>
+    <button class="btn" style="width:84px">📋 Chép Code</button>
+    <button class="btn" style="width:52px">✏️ Sửa</button>
+    <button class="btn" style="width:68px">🎯 Tâm</button>
+    <span class="lbl" style="flex:1;margin:7px 0 0 6px">sẵn sàng</span>
+    <button class="btn red" style="width:40px">✕</button>
+  </div>
+  <div style="width:468px;height:120px;margin-top:8px;border:1px dashed var(--border);border-radius:10px;
+       display:flex;align-items:center;justify-content:center;color:#6E7789;font-size:10px">
+    GUI của script được nhúng vào đây (bấm ✕ trên tab để trả về màn hình game)</div>`}
+
+function pagePark(){return `
+  <div class="lbl">🧩 GUI Ngoài — GUI của script chạy ở tab 💻 Code được “đậu” vào đây</div>
+  <div class="row"><button class="btn orange" style="width:468px">↩ Trả tất cả về màn hình game</button></div>
+  <div class="card" style="height:44px"><div class="cicon" style="width:26px;height:26px;font-size:13px">🪟</div>
+    <div class="cmeta"><div class="cname">ScreenGui của script</div>
+    <div class="cdesc">mỗi GUI có nút ↩ trả về màn hình · Dex/IY/SimpleSpy không bao giờ vào đây</div></div>
+    <div class="cbtns"><button class="cb" style="width:40px">↩</button></div></div>`}
+
+/* ---- trang 📚 Script Hub (dựng động, có lọc thật) ---- */
+function pageHub(){
+  const items = HUBLIST
+    .filter(it => (hubCat==="Tất cả"||it.cat===hubCat))
+    .filter(it => {
+      const q = hubSearch.toLowerCase();
+      return !q || it.name.toLowerCase().includes(q) || it.desc.toLowerCase().includes(q)
+             || it.cat.toLowerCase().includes(q);
+    })
+    .sort((a,b)=> (favs[b.name]?1:0)-(favs[a.name]?1:0) || a.ord-b.ord);
+  return `
+  <input class="search" id="hubSearch" placeholder="🔍  Tìm script hoặc tiện ích..." value="${esc(hubSearch)}">
+  <div class="chips">${CATS.map(c=>`<button class="chip ${c===hubCat?'on':''}" data-cat="${c}">${c}</button>`).join("")}</div>
+  <div class="cards">
+  ${items.map(it=>`
+    <div class="card ${favs[it.name]?'fav':''}">
+      <div class="cicon">${it.icon}</div>
+      <div class="cmeta">
+        <div class="cname">${esc(it.name)}${favs[it.name]?'  ⭐':''}</div>
+        <div class="ccat">${it.cat.toUpperCase()}</div>
+        <div class="cdesc">${esc(it.desc)}</div>
+      </div>
+      <div class="cbtns">
+        <button class="cb ${it.code?'run':'run act'}" data-run="${esc(it.name)}">${
+          it.code ? '▶ Chạy' : (it.action==='crosshair' ? (crosshair?'🎯 TẮT':'🎯 BẬT') : '⚡ Chạy')}</button>
+        ${it.code?`<button class="cb copy" data-copy="${esc(it.name)}" title="Copy loadstring">📋</button>
+        <button class="cb save" data-save="${esc(it.name)}" title="Lưu sang Code Đã Lưu">💾</button>`:''}
+        <button class="cb fav ${favs[it.name]?'on':''}" data-fav="${esc(it.name)}">${favs[it.name]?'⭐':'☆'}</button>
+      </div>
+    </div>`).join("") || `<div class="status">🔍 không tìm thấy gì khớp '${esc(hubSearch)}'</div>`}
+  </div>
+  <div class="status" id="hubStatus">📚 Bấm ▶ để chạy script, ⚡ để thực hiện tiện ích · ⭐ để ghim lên đầu</div>`;
+}
+
+const RENDER = {code:pageCode, hub:pageHub, saved:pageSaved, sup:pageSup, ai:pageAi,
+                create:pageCreate, feat:pageFeat, park:pagePark};
+let current = "code";
+
+/* ---- rail ---- */
+const rail = document.getElementById("rail");
+PAGES.slice().sort((a,b)=>a.order-b.order).forEach(p=>{
+  const b = document.createElement("button");
+  b.className = "tab" + (p.id===current?" on":"");
+  b.textContent = p.icon; b.dataset.id = p.id; b.title = p.name;
+  b.onclick = ()=>{ current = p.id; paint(); };
+  b.onmouseenter = ()=>{ const t=document.getElementById("ptitle");
+    t.textContent = p.icon+"  "+p.name; t.classList.add("dim"); };
+  b.onmouseleave = ()=>{ const t=document.getElementById("ptitle");
+    t.textContent = PAGES.find(x=>x.id===current).icon+"  "+PAGES.find(x=>x.id===current).name;
+    t.classList.remove("dim"); };
+  rail.appendChild(b);
+});
+
+/* ---- 3 công tắc gạt trên header ---- */
+const SW = [{k:"embed",ic:"🧩",on:true,warn:false,tip:"Nhúng GUI của script vào tab tính năng"},
+            {k:"guess",ic:"🕵",on:false,warn:true,tip:"Đoán GUI tạo trễ (dễ ăn nhầm GUI game)"},
+            {k:"park", ic:"🪟",on:true,warn:false,tip:"Đưa GUI của tab 💻 Code vào menu"}];
+const sws = document.getElementById("sws");
+SW.forEach(s=>{
+  const b=document.createElement("button");
+  b.className="sw"+(s.on?" on":"")+(s.warn?" warn":""); b.dataset.k=s.k;
+  b.innerHTML=`<span class="ic">${s.ic}</span><span class="track"><span class="knob"></span></span>`;
+  b.onclick=()=>{ s.on=!s.on; b.classList.toggle("on",s.on);
+    document.getElementById("ptitle").textContent =
+      `${s.ic} ${s.on?"BẬT":"TẮT"} — ${s.tip} (đã lưu xuống đĩa)`; };
+  b.onmouseenter=()=>{const t=document.getElementById("ptitle");
+    t.textContent=s.ic+"  "+s.tip; t.classList.add("dim");};
+  b.onmouseleave=()=>{const p=PAGES.find(x=>x.id===current);
+    const t=document.getElementById("ptitle"); t.textContent=p.icon+"  "+p.name; t.classList.remove("dim");};
+  sws.appendChild(b);
+});
+
+/* ---- vẽ nội dung ---- */
+function paint(){
+  [...rail.children].forEach(b=>b.classList.toggle("on", b.dataset.id===current));
+  const p = PAGES.find(x=>x.id===current);
+  const t = document.getElementById("ptitle");
+  t.textContent = p.icon+"  "+p.name; t.classList.remove("dim");
+  document.getElementById("content").innerHTML = RENDER[current]();
+  if(current==="hub") wireHub();
+}
+function wireHub(){
+  const s = document.getElementById("hubSearch");
+  s.oninput = ()=>{ hubSearch = s.value;                 /* debounce 0.18s như S.Debounce */
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(()=>{ const c=document.getElementById("content");
+      c.innerHTML = pageHub(); wireHub();
+      document.getElementById("hubSearch").focus(); }, 180); };
+  document.querySelectorAll("[data-cat]").forEach(b=>b.onclick=()=>{hubCat=b.dataset.cat;paint();});
+  document.querySelectorAll("[data-fav]").forEach(b=>b.onclick=()=>{
+    const n=b.dataset.fav; favs[n]=!favs[n]; paint();
+    document.getElementById("hubStatus").textContent = favs[n]?`⭐ đã ghim '${n}' lên đầu`:`☆ đã bỏ ghim '${n}'`;});
+  document.querySelectorAll("[data-run]").forEach(b=>b.onclick=()=>{
+    const it=HUBLIST.find(x=>x.name===b.dataset.run);
+    if(it.action==="crosshair"){ crosshair=!crosshair; paint();
+      document.getElementById("hubStatus").textContent="🎯 Niêm tâm: "+(crosshair?"BẬT (giữa màn hình game)":"TẮT"); return;}
+    document.getElementById("hubStatus").textContent = it.code
+      ? `▶ đã chạy '${it.name}' · 🪟 GUI của nó ở NGOÀI màn hình game · xem chi tiết ở tab 💻 Code`
+      : `⚡ ${it.name}: đã thực hiện (gọi thẳng hàm có sẵn của hub)`;});
+  document.querySelectorAll("[data-copy]").forEach(b=>b.onclick=()=>{
+    document.getElementById("hubStatus").textContent=`📋 đã copy loadstring của '${b.dataset.copy}'`;});
+  document.querySelectorAll("[data-save]").forEach(b=>b.onclick=()=>{
+    document.getElementById("hubStatus").textContent=`💾 đã lưu '${b.dataset.save}' sang tab 💾 Code Đã Lưu`;});
+}
+paint();
+</script>
+</body>
+</html>

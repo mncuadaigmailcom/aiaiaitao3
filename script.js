@@ -20,7 +20,21 @@
           S.DoToggleGuess, S.DoTogglePark (nút cũ vẫn nối vào chính những hàm này — hành vi y hệt).
         • Thứ tự trang: 1 💻 Code · 2 📚 Script Hub · 3 💾 Code Đã Lưu · 4 🛠 Hỗ Trợ · 5 🤖 AI AI ·
           6 ➕ Tạo Tính Năng · 7+ tab tính năng của bạn · 99 🧩 GUI Ngoài.
-        • 185 kiểm thử tự động PASS (21 unit · 15 E2E · 25 park · 24 nopark · 69 Script Hub · 31 header).
+        • DỌN SẠCH dấu vết layout cũ: các hàng nút vốn xếp cho khổ nội dung 435px nay trải hết khổ
+          mới (lề 8px, mép phải 476px) ở 💻 Code, 🛠 Hỗ Trợ, ➕ Tạo Tính Năng; đường phân cách "━"
+          dài gấp đôi cho vừa khổ; 3 nhãn X:/Y:/Z: ở mục 🚀 Teleport trước đây ĐÈ LÊN NHAU (Label()
+          luôn đặt x=8) nay đứng đúng cạnh ô của mình, 3 ô nhập trải đều hết hàng.
+        • MƯỢT HƠN (đo được, không phải nói suông):
+            - Vòng RenderStepped của tab 🛠 trước đây raycast + đọc Humanoid + ghi hơn 10 nhãn
+              MỖI FRAME (60-144 lần/giây) và chạy cả khi menu ĐÓNG; tệ hơn: nếu GetProductInfo lỗi
+              (executor chặn HTTP) thì nhãn cứ ở "Place: ..." nên nó GỌI HTTP LẠI MỖI FRAME mãi mãi.
+              Nay: chỉ chạy khi menu MỞ **và** đang ở trang 🛠, tối đa 20 lần/giây, HTTP tối đa
+              1 lần/10 giây (vẫn tự điền tên Place), so sánh HumanoidState bằng enum thay vì
+              tostring+gsub mỗi frame (bớt 1 chuỗi rác/frame cho GC). Đóng menu = 0 raycast.
+            - Ô tìm kiếm ở 💾 Code Đã Lưu và 📚 Script Hub: debounce 0.18s (S.Debounce) — gõ 6 phím
+              chỉ dựng lại danh sách 1 lần, kết quả cuối giống hệt.
+        • 209 kiểm thử tự động PASS (21 unit · 15 E2E · 25 park · 24 nopark · 72 Script Hub ·
+          31 header · 21 perf RenderStepped).
     + v4.5: THIẾT KẾ LẠI TOÀN BỘ GIAO DIỆN (chỉ đổi màu/chất liệu/hiệu ứng — KHÔNG đổi layout, kích
       thước, vị trí hay logic, nên MỌI TÍNH NĂNG giữ nguyên 100%):
         • Bảng màu tối "Midnight Gold": nền 18,20,27 · thẻ 26,29,38 · viền mảnh 52,58,74 ·
@@ -1464,6 +1478,23 @@ local function Button(parent, text, x, y, w, h, color)
     return btn
 end
 
+-- v4.6 (mượt hơn): gộp nhiều phím gõ liên tiếp thành MỘT lần dựng lại danh sách.
+-- Trước đây ô tìm kiếm rebuild sau MỖI phím — danh sách dài thì gõ nhanh sẽ giật/rớt khung hình.
+-- Kết quả cuối cùng GIỐNG HỆT vì hàm vẫn đọc nội dung ô nhập tại thời điểm nó chạy.
+--   key  = tên ổ debounce (mỗi ô tìm kiếm một key)
+--   secs = chờ bao lâu sau phím cuối cùng (mặc định 0.18s)
+--   fn   = việc cần làm
+function S.Debounce(key, secs, fn)
+    S._dbt = S._dbt or {}
+    local n = (S._dbt[key] or 0) + 1
+    S._dbt[key] = n
+    task.delay(secs or 0.18, function()
+        if S._dbt[key] ~= n then return end   -- đã có phím mới hơn -> lượt này bỏ qua
+        S._dbt[key] = nil
+        pcall(fn)
+    end)
+end
+
 -- ==================== TAB 1: CODE ====================
 local y = 8
 Label(codeTab, "💻 Nhập Code Tùy Chỉnh", y)
@@ -1563,10 +1594,10 @@ end))
 
 y = y + 82
 
-local runBtn = Button(codeTab, "▶ Chạy Code", 8, y, 140, 26, Color3.fromRGB(0,160,90))
-local stopBtn = Button(codeTab, "⏹ Dừng", 156, y, 80, 26, C.RED)
+local runBtn = Button(codeTab, "▶ Chạy Code", 8, y, 336, 26, Color3.fromRGB(0,160,90))
+local stopBtn = Button(codeTab, "⏹ Dừng", 350, y, 126, 26, C.RED)
 y = y + 32
-local saveBtn = Button(codeTab, "💾 Lưu Vào Danh Sách", 8, y, 160, 26, C.BLUE)
+local saveBtn = Button(codeTab, "💾 Lưu Vào Danh Sách", 8, y, 468, 26, C.BLUE)
 y = y + 32
 
 local statusLbl = Label(codeTab, "", y)
@@ -1872,7 +1903,8 @@ RebuildScripts = function()
     if Store.refreshStatus then Store.refreshStatus() end
 end
 
-searchIn:GetPropertyChangedSignal("Text"):Connect(RebuildScripts)
+-- v4.6: debounce (trước: mỗi phím = dựng lại TOÀN BỘ danh sách Code Đã Lưu một lần)
+searchIn:GetPropertyChangedSignal("Text"):Connect(function() S.Debounce("savedSearch", 0.18, RebuildScripts) end)
 RebuildScripts()
 
 -- ==================== TAB 3: HỖ TRỢ — SCRIPT NHANH + PHÂN TÍCH TỌA ĐỘ ====================
@@ -1908,24 +1940,24 @@ for _, s in ipairs(quickScripts) do
 end
 
 posY = posY + 6
-Label(supportTab, "━━━━━━━━━━━━━━━━━━━━━━", posY)
+Label(supportTab, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", posY)
 posY = posY + 16
 
 Label(supportTab, "🛠 Hỗ Trợ — Phân Tích Tọa Độ", posY)
 posY = posY + 18
-Label(supportTab, "━━━━━━━━━━━━━━━━━━━━━━", posY)
+Label(supportTab, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", posY)
 posY = posY + 16
 
 -- ===== NÚT BẬT/TẮT PHÂN TÍCH VẬT THỂ + HIGHLIGHT =====
 local analyzeObjectEnabled = false
 local highlightEnabled = true
 
-local objectAnalyzeBtn = Button(supportTab, "🎯 Phân Tích Vật Thể: TẮT", 8, posY, 200, 26, C.GRAY)
-local clearObjectBtn = Button(supportTab, "🧹 Xóa KQ", 214, posY, 90, 26, C.RED)
+local objectAnalyzeBtn = Button(supportTab, "🎯 Phân Tích Vật Thể: TẮT", 8, posY, 372, 26, C.GRAY)
+local clearObjectBtn = Button(supportTab, "🧹 Xóa KQ", 386, posY, 90, 26, C.RED)
 posY = posY + 32
 
-local highlightToggleBtn = Button(supportTab, "💜 Highlight Tím: BẬT", 8, posY, 200, 26, C.PURPLE)
-local removeHighlightBtn = Button(supportTab, "❌ Xóa Highlight", 214, posY, 90, 26, C.RED)
+local highlightToggleBtn = Button(supportTab, "💜 Highlight Tím: BẬT", 8, posY, 372, 26, C.PURPLE)
+local removeHighlightBtn = Button(supportTab, "❌ Xóa Highlight", 386, posY, 90, 26, C.RED)
 posY = posY + 32
 
 Label(supportTab, "💡 Bật rồi NHẤP CHUỘT PHẢI (lệt) vào vật thể để chọn (chuột trái vẫn bắn/đi bình thường)", posY)
@@ -2191,7 +2223,20 @@ local function GetGroundPosition()
     return nil
 end
 
-local coordUpdateConn = RunService.RenderStepped:Connect(function()
+-- v4.6 (mượt hơn): đây là vòng tốn khung hình NHẤT của hub — raycast + đọc Humanoid + ghi
+-- hơn 10 nhãn... MỖI FRAME (60-144 lần/giây), và chạy cả khi menu đang ĐÓNG. Nay:
+--   • chỉ chạy khi menu MỞ và trang 🛠 Hỗ Trợ đang hiện. KHÔNG mất tính năng: các nhãn này
+--     chỉ để XEM, không nút nào đọc lại chữ trong chúng (📋 Copy / 📍 Lấy Vị Trí tự gọi
+--     GetGroundPosition() khi bấm) — mở trang ra là số liệu có ngay trong 1/20 giây;
+--   • tối đa ~20 lần/giây: mắt đọc số không phân biệt được 20Hz với 144Hz, còn CPU thì có;
+--   • đóng menu = vòng này tốn đúng 2 phép cộng, không raycast, không ghi nhãn nào.
+local coordAcc = 0
+local coordUpdateConn = RunService.RenderStepped:Connect(function(stepDt)
+    coordAcc = coordAcc + (tonumber(stepDt) or 0.016)
+    if coordAcc < 0.05 then return end
+    coordAcc = 0
+    if not (main and main.Visible) then return end
+    if not (supportTab and supportTab.Visible) then return end
     local char = player.Character
     if not char then
         xValLbl.Text = "N/A"; yValLbl.Text = "N/A"; zValLbl.Text = "N/A"
@@ -2249,11 +2294,12 @@ local coordUpdateConn = RunService.RenderStepped:Connect(function()
     end
 
     if humanoid then
+        -- v4.6: so sánh BẰNG ENUM, chỉ dựng chuỗi khi state thật sự đổi.
+        -- (bản cũ gọi tostring()+gsub() mỗi frame -> 1 chuỗi rác/frame cho GC dọn => khựng nhẹ)
         local state = humanoid:GetState()
-        local stateName = tostring(state):gsub("Enum.HumanoidStateType.", "")
-        if stateName ~= lastState then
-            lastState = stateName
-            stateValLbl.Text = "State: "..stateName
+        if state ~= lastState then
+            lastState = state
+            stateValLbl.Text = "State: "..tostring(state):gsub("Enum.HumanoidStateType.", "")
         end
 
         local hp = math.floor(humanoid.Health)
@@ -2266,7 +2312,12 @@ local coordUpdateConn = RunService.RenderStepped:Connect(function()
         hpValLbl.Text = "HP: N/A"
     end
 
-    if placeLbl.Text == "Place: ..." then
+    -- v4.6 (bug ngốn mạng/FPS): bản cũ đặt lời gọi HTTP trong nhánh `placeLbl.Text == "Place: ..."`.
+    -- Nếu GetProductInfo LỖI (executor chặn, thiếu quyền, mất mạng) thì nhãn VẪN là "Place: ..."
+    -- -> nhánh này chạy lại MỖI FRAME = gọi HTTP 60-144 lần/giây, mãi mãi. Nay giới hạn
+    -- tối đa 1 lần / 10 giây: vẫn TỰ điền tên Place khi mạng/quyền sẵn sàng, không mất tính năng.
+    if placeLbl.Text == "Place: ..." and (os.clock() - (D.placeTryAt or -99)) >= 10 then
+        D.placeTryAt = os.clock()
         pcall(function()
             local info = game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId)
             placeLbl.Text = "Place: "..game.PlaceId.." — "..info.Name
@@ -2518,7 +2569,7 @@ end)
 
 posY = posY + 6
 
-local copyCoordBtn = Button(supportTab, "📋 Copy Tọa Độ Dưới Chân", 8, posY, 200, 26, C.BLUE)
+local copyCoordBtn = Button(supportTab, "📋 Copy Tọa Độ Dưới Chân", 8, posY, 468, 26, C.BLUE)
 posY = posY + 32
 
 copyCoordBtn.Activated:Connect(function()
@@ -2543,9 +2594,12 @@ end)
 Label(supportTab, "🚀 Teleport Tới Tọa Độ", posY)
 posY = posY + 14
 
-Label(supportTab, "X:", posY)
+-- v4.6: 3 nhãn X:/Y:/Z: trước đây đều được Label() đặt ở x=8 nên ĐÈ LÊN NHAU (chỉ thấy "Z:").
+-- Nay mỗi nhãn đứng đúng cạnh ô của mình, và 3 ô nhập trải đều hết khổ 468px.
+D.tpLblX = Label(supportTab, "X:", posY)
+D.tpLblX.Size = UDim2.new(0,14,0,14); D.tpLblX.Position = UDim2.new(0,8,0,posY)
 local tpXIn = New("TextBox", {
-    Size=UDim2.new(0,70,0,24), Position=UDim2.new(0,20,0,posY-2), Text="0",
+    Size=UDim2.new(0,136,0,24), Position=UDim2.new(0,24,0,posY-2), Text="0",
     PlaceholderColor3=Color3.fromRGB(122, 130, 148),
     BackgroundColor3=Color3.fromRGB(26, 29, 38), BackgroundTransparency=0,
     TextColor3=Color3.fromRGB(233, 237, 245), Font=Enum.Font.Code, TextSize=11,
@@ -2553,9 +2607,10 @@ local tpXIn = New("TextBox", {
 }, supportTab)
 Corner(tpXIn, UDim.new(0,4)); Stroke(tpXIn, Color3.fromRGB(255,100,100), 1.2)
 
-Label(supportTab, "Y:", posY)
+D.tpLblY = Label(supportTab, "Y:", posY)
+D.tpLblY.Size = UDim2.new(0,14,0,14); D.tpLblY.Position = UDim2.new(0,166,0,posY)
 local tpYIn = New("TextBox", {
-    Size=UDim2.new(0,70,0,24), Position=UDim2.new(0,110,0,posY-2), Text="0",
+    Size=UDim2.new(0,136,0,24), Position=UDim2.new(0,182,0,posY-2), Text="0",
     PlaceholderColor3=Color3.fromRGB(122, 130, 148),
     BackgroundColor3=Color3.fromRGB(26, 29, 38), BackgroundTransparency=0,
     TextColor3=Color3.fromRGB(233, 237, 245), Font=Enum.Font.Code, TextSize=11,
@@ -2563,9 +2618,10 @@ local tpYIn = New("TextBox", {
 }, supportTab)
 Corner(tpYIn, UDim.new(0,4)); Stroke(tpYIn, Color3.fromRGB(100,255,100), 1.2)
 
-Label(supportTab, "Z:", posY)
+D.tpLblZ = Label(supportTab, "Z:", posY)
+D.tpLblZ.Size = UDim2.new(0,14,0,14); D.tpLblZ.Position = UDim2.new(0,324,0,posY)
 local tpZIn = New("TextBox", {
-    Size=UDim2.new(0,70,0,24), Position=UDim2.new(0,200,0,posY-2), Text="0",
+    Size=UDim2.new(0,136,0,24), Position=UDim2.new(0,340,0,posY-2), Text="0",
     PlaceholderColor3=Color3.fromRGB(122, 130, 148),
     BackgroundColor3=Color3.fromRGB(26, 29, 38), BackgroundTransparency=0,
     TextColor3=Color3.fromRGB(233, 237, 245), Font=Enum.Font.Code, TextSize=11,
@@ -2575,8 +2631,8 @@ Corner(tpZIn, UDim.new(0,4)); Stroke(tpZIn, Color3.fromRGB(100,150,255), 1.2)
 
 posY = posY + 30
 
-local fillCurrentBtn = Button(supportTab, "📍 Lấy Vị Trí Dưới Chân", 8, posY, 150, 24, C.ORANGE)
-local tpBtn = Button(supportTab, "🚀 Teleport", 164, posY, 90, 24, C.GREEN)
+local fillCurrentBtn = Button(supportTab, "📍 Lấy Vị Trí Dưới Chân", 8, posY, 372, 24, C.ORANGE)
+local tpBtn = Button(supportTab, "🚀 Teleport", 386, posY, 90, 24, C.GREEN)
 posY = posY + 30
 
 fillCurrentBtn.Activated:Connect(function()
@@ -2602,7 +2658,7 @@ tpBtn.Activated:Connect(function()
     end)
 end)
 
-Label(supportTab, "━━━━━━━━━━━━━━━━━━━━━━", posY)
+Label(supportTab, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", posY)
 posY = posY + 16
 Label(supportTab, "💾 Waypoint Đã Lưu", posY)
 posY = posY + 14
@@ -5497,7 +5553,7 @@ local function CreateFeatureTab(name, icon, codeContent)
     Corner(toolbar, UDim.new(0,6))
     Stroke(toolbar, Color3.fromRGB(180,185,200), 1)
 
-    -- Bố cục toolbar (tổng nội dung ~429px cho khung 435px):
+    -- Bố cục toolbar (khung nội dung v4.6 rộng 484px; ô trạng thái dùng Scale nên tự tràn):
     --   Chạy Script (90px @6) | Chép Code (84px @100) | Sửa (52px @188)
     --   | 🎯 Tâm (68px @244) | [trạng thái co giãn] (Scale fill từ 316 → -56) | ✕ (40px @-46)
     local runFeatureBtn = New("TextButton", {
@@ -5741,21 +5797,21 @@ New("UIPadding", {PaddingLeft=UDim.new(0,6), PaddingTop=UDim.new(0,4)}, featureC
 
 cy = cy + 146
 
-local createTabBtn = Button(createFeatureTab, "➕ Tạo Tab Tính Năng", 8, cy, 180, 28, Color3.fromRGB(0,150,200))
-local clearFormBtn = Button(createFeatureTab, "🧹 Xóa Form", 196, cy, 100, 28, C.ORANGE)
+local createTabBtn = Button(createFeatureTab, "➕ Tạo Tab Tính Năng", 8, cy, 210, 28, Color3.fromRGB(0,150,200))
+local clearFormBtn = Button(createFeatureTab, "🧹 Xóa Form", 224, cy, 116, 28, C.ORANGE)
 cy = cy + 34
 
-local embedToggleBtn = Button(createFeatureTab, "🧩 Nhúng vào Tab: BẬT", 304, cy - 34, 122, 28, C.GREEN)
-local guessToggleBtn = Button(createFeatureTab, "🕵 Đoán GUI trễ: TẮT", 8, cy, 150, 26, C.GRAY)
-local grabSizeCodeBtn = Button(createFeatureTab, "📏 Code Tự Co Giãn (an toàn, Auto-Lưu)", 164, cy, 262, 26, C.PURPLE)
+local embedToggleBtn = Button(createFeatureTab, "🧩 Nhúng vào Tab: BẬT", 346, cy - 34, 130, 28, C.GREEN)
+local guessToggleBtn = Button(createFeatureTab, "🕵 Đoán GUI trễ: TẮT", 8, cy, 176, 26, C.GRAY)
+local grabSizeCodeBtn = Button(createFeatureTab, "📏 Code Tự Co Giãn (an toàn, Auto-Lưu)", 190, cy, 286, 26, C.PURPLE)
 cy = cy + 34
-local fixMouseBtn = Button(createFeatureTab, "🖱 Kẹt chuột / không bấm được? Bấm đây", 8, cy, 418, 24, C.RED)
+local fixMouseBtn = Button(createFeatureTab, "🖱 Kẹt chuột / không bấm được? Bấm đây", 8, cy, 468, 24, C.RED)
 cy = cy + 30
 -- v4.4e: CODE MẪU mới có sẵn (1) "hợp đồng kích thước" để GUI tự vừa ô tab khi
 -- người khác chạy, (2) khối EXTERNAL OVERLAY + nút 🎯 niêm tâm ở GIỮA MÀN HÌNH
 -- GAME (không bị hub kéo vào trong khung menu) làm ví dụ cho AI/người nhận viết
 -- tiếp các tính năng can thiệp ngoài màn hình (ESP/HUD/crosshair).
-local copyTemplateBtn = Button(createFeatureTab, "📋 Copy Code Mẫu Cho AI (menu + niêm tâm)", 8, cy, 418, 26, C.BLUE)
+local copyTemplateBtn = Button(createFeatureTab, "📋 Copy Code Mẫu Cho AI (menu + niêm tâm)", 8, cy, 468, 26, C.BLUE)
 cy = cy + 32
 
 -- v4.4g: NÚT CỨU GUI — nhúng lại GUI của tab tính năng ĐANG MỞ vào trong menu.
@@ -5764,7 +5820,7 @@ cy = cy + 32
 -- đang nằm ngoài (đã lọc: không phải của hub, không phải GUI hệ thống/game, không phải overlay
 -- BCHub_External, phải có frame con) — bấm ✕ trên tab là trả GUI về nguyên trạng.
 S.reembedBtn = Button(createFeatureTab,
-    "🔁 Cứu GUI: nhúng lại GUI của tab ĐANG MỞ vào menu", 8, cy, 418, 26, C.BLUE)
+    "🔁 Cứu GUI: nhúng lại GUI của tab ĐANG MỞ vào menu", 8, cy, 468, 26, C.BLUE)
 cy = cy + 32
 
 -- v4.4i: công tắc 🪟 cho việc đưa GUI của script chạy ở TAB CODE vào menu.
@@ -5772,7 +5828,7 @@ cy = cy + 32
 -- "cửa sổ riêng" — chúng phải nằm NGOÀI màn hình game. Ai muốn mọi script ở tab 💻 Code
 -- đều hiện ngoài màn hình (như bản cũ) thì bấm TẮT một cái là xong.
 S.parkToggleBtn = Button(createFeatureTab,
-    "🪟 GUI chạy ở tab 💻 Code → đưa vào menu: BẬT", 8, cy, 418, 26, C.GREEN)
+    "🪟 GUI chạy ở tab 💻 Code → đưa vào menu: BẬT", 8, cy, 468, 26, C.GREEN)
 cy = cy + 32
 
 -- v4.4g: 🧩 và 🕵 giờ ĐƯỢC LƯU XUỐNG ĐĨA (Store.serialize mục settings) -> vào lại game
@@ -6074,7 +6130,7 @@ copyTemplateBtn.Activated:Connect(function()
         .. tostring(copied))
 end)
 
-Label(createFeatureTab, "━━━━━━━━━━━━━━━━━━━━━━", cy)
+Label(createFeatureTab, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", cy)
 cy = cy + 16
 Label(createFeatureTab, "📋 Danh Sách Tab Tính Năng Đã Tạo:", cy)
 cy = cy + 16
@@ -6566,8 +6622,8 @@ for _, cname in ipairs({"Tất cả", "Admin", "Explorer", "Spy", "Tiện ích"}
 end
 
 trackConn(D.hubSearchBox:GetPropertyChangedSignal("Text"):Connect(function()
-    S.hubSearch = D.hubSearchBox.Text
-    S.RebuildHubList()
+    S.hubSearch = D.hubSearchBox.Text          -- ghi nhận ngay (rẻ) để chip/lọc khác đọc đúng
+    S.Debounce("hubSearch", 0.18, S.RebuildHubList)   -- nhưng chỉ DỰNG lại thẻ 1 lần sau phím cuối
 end))
 S.RebuildHubList()
 
