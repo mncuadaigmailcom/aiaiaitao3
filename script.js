@@ -1,5 +1,25 @@
 --[[
-    🍌 Banana Cat Hub v4.4i — FULL CODE
+    🍌 Banana Cat Hub v4.5 — FULL CODE  ·  giao diện "MIDNIGHT GOLD"
+    + THIẾT KẾ LẠI TOÀN BỘ GIAO DIỆN (chỉ đổi màu/chất liệu/hiệu ứng — KHÔNG đổi layout, kích
+      thước, vị trí hay logic, nên MỌI TÍNH NĂNG giữ nguyên 100%):
+        • Bảng màu tối "Midnight Gold": nền 18,20,27 · thẻ 26,29,38 · viền mảnh 52,58,74 ·
+          chữ chính 233,237,245 · chữ phụ 150,158,176 · accent vàng chuối 255,196,61 -> cam
+          255,132,62. Giữ NGUYÊN tên khóa cũ (C.BG/C.DARK/C.WHITE/C.GREEN/...) nên hàng trăm
+          chỗ đang dùng C.XXX không phải sửa (C.DARK nay là màu CHỮ vì nền đã tối).
+        • Cửa sổ: bo 14px, nền đổ khối dọc (UIGradient), viền 1.4px, họa tiết nền ánh vàng rất
+          nhẹ. Thanh tiêu đề có chữ gradient vàng->trắng sữa + vạch accent chạy dọc đáy + pill
+          phiên bản "v4.5 · PRO".
+        • Nút 🍌 nổi: gradient vàng->cam, chữ đậm, viền cam, quầng sáng "thở" phía sau (tự bám
+          theo khi kéo nút đi — không dùng ảnh/asset ngoài).
+        • Thanh tab: pill ghost (trong suốt, chữ mờ) -> tab đang mở nổi nền + chữ vàng + vạch
+          accent 3px trượt theo (vạch là CON của nút nên không bị UIListLayout xô).
+        • Nút bấm: nền đặc, bo 8px, viền sáng hơn nền một bậc, đổ khối nhẹ, chữ TỰ chọn đậm/sáng
+          theo nền (không còn chữ trắng chìm trên nền vàng/xanh lá), hover sáng lên + nhấn đậm lại.
+        • Ô nhập liệu: viền mảnh, có VÒNG SÁNG VÀNG khi gõ (focus ring).
+        • Chữ dùng họ font GothamSSo (sắc, hiện đại) nhưng GIỮ nguyên độ đậm đã chọn.
+        • Scrollbar mảnh 3px màu tối. Mở menu có hiệu ứng nở nhẹ 0.2s (kéo/nới khung là hủy ngay).
+        • Các công tắc đổi màu lúc chạy (🧩/🕵/🪟/🎯/💜) nay đổi màu KÈM chữ tương phản (D.SetBg).
+        • Sửa luôn: đóng menu bằng nút ✕ trước đây KHÔNG trả input cho game (chỉ nút 🍌 mới trả).
     + SỬA (bản này): 3 nút ⚡ Script Nhanh ở tab 🛠 Hỗ Trợ (Dex Explorer, Infinite Yield,
       SimpleSpy) bấm chạy thì GUI KHÔNG hiện ra màn hình chính mà bị đưa vào menu (v4.4h lỡ
       "đậu" chúng vào tab 🧩 GUI Ngoài). Đây là CÔNG CỤ CỬA SỔ RIÊNG — phải nằm ngoài màn hình
@@ -168,39 +188,278 @@ end
 pcall(function() RunService:UnbindFromRenderStep("Fly") end)
 pcall(function() RunService:UnbindFromRenderStep("Carpet") end)
 
+-- ==================== v4.5: HỆ MÀU "MIDNIGHT GOLD" — giao diện tối, hiện đại ====================
+-- CHỈ đổi màu/chất liệu, KHÔNG đổi layout hay logic -> mọi tính năng giữ nguyên 100%.
+-- Tên khóa cũ được GIỮ NGUYÊN (WHITE/DARK/GRAY/GREEN/BLUE/RED/... /BG) để hàng trăm chỗ
+-- đang dùng C.XXX không phải sửa. Lưu ý duy nhất: nền đã chuyển sang TỐI nên
+--   • C.BG   = nền cửa sổ (trước là sáng 240,242,248 -> nay 18,20,27)
+--   • C.DARK = MÀU CHỮ CHÍNH (trước là chữ đậm 40,40,45 trên nền sáng -> nay chữ sáng)
+--     (đã kiểm tra: C.DARK chỉ được dùng cho TextColor3, không nơi nào dùng làm nền/viền)
 local C = {
-    WHITE = Color3.fromRGB(255, 255, 255),
-    DARK = Color3.fromRGB(40, 40, 45),
-    GRAY = Color3.fromRGB(110, 115, 125),
-    GREEN = Color3.fromRGB(0, 170, 90),
-    BLUE = Color3.fromRGB(0, 130, 220),
-    RED = Color3.fromRGB(220, 60, 60),
-    YELLOW = Color3.fromRGB(255, 200, 0),
-    PURPLE = Color3.fromRGB(160, 60, 255),
-    ORANGE = Color3.fromRGB(220, 130, 50),
-    PINK = Color3.fromRGB(230, 100, 180),
-    BG = Color3.fromRGB(240, 242, 248),
+    WHITE  = Color3.fromRGB(255, 255, 255),
+    DARK   = Color3.fromRGB(233, 237, 245),   -- chữ chính trên nền tối
+    GRAY   = Color3.fromRGB(124, 132, 150),   -- nút tắt / chữ phụ
+    GREEN  = Color3.fromRGB(38, 194, 118),
+    BLUE   = Color3.fromRGB(72, 148, 248),
+    RED    = Color3.fromRGB(242, 86, 94),
+    YELLOW = Color3.fromRGB(255, 205, 64),
+    PURPLE = Color3.fromRGB(172, 105, 255),
+    ORANGE = Color3.fromRGB(245, 152, 66),
+    PINK   = Color3.fromRGB(242, 122, 185),
+    BG     = Color3.fromRGB(18, 20, 27),      -- nền cửa sổ chính
+
+    -- token thiết kế mới (v4.5)
+    INK      = Color3.fromRGB(16, 18, 24),    -- chữ ĐẬM dùng trên nền vàng/cam/sáng
+    SURFACE  = Color3.fromRGB(26, 29, 38),    -- thẻ, ô nhập liệu
+    SURFACE2 = Color3.fromRGB(34, 38, 50),    -- panel, dòng hover, thanh tiêu đề
+    SURFACE3 = Color3.fromRGB(46, 51, 66),    -- viền sáng, scrollbar
+    BORDER   = Color3.fromRGB(52, 58, 74),    -- viền mảnh 1px
+    MUTED    = Color3.fromRGB(150, 158, 176), -- chữ phụ
+    ACCENT   = Color3.fromRGB(255, 196, 61),  -- vàng chuối (màu nhận diện hub)
+    ACCENT2  = Color3.fromRGB(255, 132, 62),  -- cam (đuôi gradient)
 }
 
 local function New(cls, props, parent)
     local obj = Instance.new(cls)
+    -- v4.5: phong cách nền cho MỌI đối tượng (props truyền vào vẫn được ghi đè sau -> ưu tiên hơn)
+    pcall(function()
+        if cls == "Frame" or cls == "ScrollingFrame" or cls == "TextButton"
+           or cls == "TextLabel" or cls == "TextBox" or cls == "ImageButton" then
+            obj.BorderSizePixel = 0          -- phẳng, không viền 1px kiểu cũ
+        end
+        if cls == "ScrollingFrame" then
+            obj.ScrollBarThickness = 3       -- scrollbar mảnh kiểu hiện đại
+            obj.ScrollBarImageColor3 = Color3.fromRGB(46, 51, 66)
+            obj.ScrollBarImageTransparency = 0.2
+        end
+    end)
     for k, v in pairs(props or {}) do
         obj[k] = v
     end
     if parent then obj.Parent = parent end
+    -- v4.5: chữ dùng họ font GothamSSo (sắc, hiện đại hơn) nhưng GIỮ nguyên độ đậm đã chọn
+    pcall(function()
+        if cls == "TextButton" or cls == "TextLabel" or cls == "TextBox" then
+            local w = Enum.FontWeight.Medium
+            local f = obj.Font
+            if f == Enum.Font.GothamBold or f == Enum.Font.GothamBlack then
+                w = Enum.FontWeight.Bold
+            elseif f == Enum.Font.GothamSemibold then
+                w = Enum.FontWeight.SemiBold
+            elseif f == Enum.Font.Gotham or f == Enum.Font.GothamLight or f == Enum.Font.GothamItalic then
+                w = Enum.FontWeight.Regular
+            end
+            obj.FontFace = Font.new("rbxasset://fonts/families/GothamSSo.json", w)
+        end
+    end)
+    -- v4.5: ô nhập liệu có "vòng sáng" khi gõ (focus ring) — chỉ đổi màu viền, không đổi layout
+    pcall(function()
+        if cls == "TextBox" then
+            -- LƯU Ý: KHÔNG gọi Tween() ở đây — hàm Tween khai báo SAU New(), nếu gọi sẽ bị
+            -- biên dịch thành GLOBAL nil (lỗi runtime khi người dùng bấm vào ô nhập liệu).
+            trackConn(obj.Focused:Connect(function()
+                local st = obj:FindFirstChildOfClass("UIStroke")
+                if not st then   -- ô chưa có viền thì tạo lúc được focus (không tạo thừa lúc dựng UI)
+                    st = New("UIStroke", {
+                        Thickness = 1, Transparency = 0.05,
+                        ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+                    }, obj)
+                end
+                TweenService:Create(st, TweenInfo.new(0.18),
+                    {Color = Color3.fromRGB(255, 196, 61), Transparency = 0.05}):Play()
+            end))
+            trackConn(obj.FocusLost:Connect(function()
+                local st = obj:FindFirstChildOfClass("UIStroke")
+                if st then
+                    TweenService:Create(st, TweenInfo.new(0.25),
+                        {Color = Color3.fromRGB(52, 58, 74), Transparency = 0.3}):Play()
+                end
+            end))
+        end
+    end)
+    -- v4.5: TỰ CÂN BẰNG TƯƠNG PHẢN. Bảng màu nay có mấy màu sáng (vàng/cam/xanh lá) nên chữ
+    -- trắng đặt lên đó sẽ khó đọc. Chỉ "cứu" đúng cặp: nền SÁNG + chữ TRẮNG + nền không trong suốt
+    -- (nút "ghost" nền trong suốt thì giữ nguyên màu chữ mà code đã chọn). Tính luminance tại chỗ
+    -- để KHÔNG phải gọi D.BestText (D khai báo sau New -> gọi sẽ thành global nil).
+    pcall(function()
+        if (cls == "TextButton" or cls == "TextLabel") and props
+           and props.BackgroundColor3 ~= nil and props.TextColor3 ~= nil
+           and (props.BackgroundTransparency or 0) < 0.5 then
+            local bg = props.BackgroundColor3
+            if typeof(bg) == "Color3" then
+                local lum = 0.2126 * bg.R + 0.7152 * bg.G + 0.0722 * bg.B
+                if lum > 0.6 and props.TextColor3 == Color3.fromRGB(255, 255, 255) then
+                    obj.TextColor3 = Color3.fromRGB(16, 18, 24)
+                end
+            end
+        end
+    end)
     return obj
 end
 
 local function Corner(p, r)
-    return New("UICorner", {CornerRadius = r or UDim.new(0, 8)}, p)
+    return New("UICorner", {CornerRadius = r or UDim.new(0, 10)}, p)   -- v4.5: bo 10px (trước 8px)
 end
 
 local function Stroke(p, c, t)
-    return New("UIStroke", {Color = c or Color3.fromRGB(170, 175, 190), Thickness = t or 1.2}, p)
+    return New("UIStroke", {
+        Color = c or Color3.fromRGB(52, 58, 74),        -- v4.5: viền mảnh màu tối, không còn viền xám sáng
+        Thickness = t or 1,
+        Transparency = 0.25,
+        ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+    }, p)
 end
 
 local function Tween(o, p, d, e)
     TweenService:Create(o, TweenInfo.new(d or 1.5, e or Enum.EasingStyle.Quad), p):Play()
+end
+
+-- ============================================================================
+-- v4.5: BỘ CÔNG CỤ THIẾT KẾ (gom vào 1 bảng `D` để KHÔNG tốn thêm biến local cấp chunk —
+-- main chunk của file này đã sát trần 200 local của Luau).
+-- ============================================================================
+local D = {}
+
+-- Chữ/viền nên sáng hay đậm trên nền `bg`? (tự động tương phản, tránh chữ chìm)
+function D.BestText(bg)
+    if typeof(bg) ~= "Color3" then return C.WHITE end
+    local lum = 0.2126 * bg.R + 0.7152 * bg.G + 0.0722 * bg.B
+    return (lum > 0.6) and C.INK or C.WHITE
+end
+
+-- Viền hơi sáng hơn nền một chút (đủ tách khối mà không gắt)
+function D.Edge(bg)
+    if typeof(bg) ~= "Color3" then return C.BORDER end
+    return Color3.new(
+        math.min(1, bg.R + 0.09), math.min(1, bg.G + 0.09), math.min(1, bg.B + 0.11))
+end
+
+-- Lấy (hoặc tạo) UIGradient của đối tượng — gọi lại BAO NHIÊU LẦN cũng chỉ có 1 gradient,
+-- không rò instance như kiểu New("UIGradient", ...) mỗi lần.
+function D.Grad(obj)
+    local g = obj:FindFirstChildOfClass("UIGradient")
+    if not g then
+        g = New("UIGradient", {Color = ColorSequence.new(Color3.new(1,1,1), Color3.new(1,1,1))}, obj)
+    end
+    return g
+end
+
+-- Tô gradient THẬT (đổi luôn BackgroundColor3 sang trắng để màu gradient lên đúng)
+function D.Paint(obj, c1, c2, rotation)
+    pcall(function()
+        obj.BackgroundColor3 = Color3.new(1, 1, 1)
+        local g = D.Grad(obj)
+        g.Color = ColorSequence.new(c1, c2 or c1)
+        g.Rotation = rotation or 90
+    end)
+    return obj
+end
+
+-- Đổ bóng nhẹ GIỮA NGUYÊN màu nền (gradient nhân với BackgroundColor3) — tạo chiều sâu
+function D.Shade(obj, k1, k2, rotation)
+    pcall(function()
+        local g = D.Grad(obj)
+        g.Color = ColorSequence.new(k1 or Color3.new(1.0, 1.0, 1.0), k2 or Color3.new(0.86, 0.87, 0.9))
+        g.Rotation = rotation or 90
+    end)
+    return obj
+end
+
+-- Chữ gradient (dùng cho tiêu đề)
+function D.PaintText(obj, c1, c2)
+    pcall(function()
+        obj.TextColor3 = Color3.new(1, 1, 1)
+        local g = D.Grad(obj)
+        g.Color = ColorSequence.new(c1, c2 or c1)
+        g.Rotation = 0
+    end)
+    return obj
+end
+
+-- Hiệu ứng hover/nhấn cho nút: sáng lên khi rê chuột, đậm lại khi nhấn (không đổi Size -> không xô layout)
+function D.Tactile(btn, baseTrans)
+    baseTrans = baseTrans or 0.08
+    pcall(function()
+        trackConn(btn.MouseEnter:Connect(function()
+            Tween(btn, {BackgroundTransparency = math.max(0, baseTrans - 0.06)}, 0.16)
+        end))
+        trackConn(btn.MouseLeave:Connect(function()
+            Tween(btn, {BackgroundTransparency = baseTrans}, 0.2)
+        end))
+        trackConn(btn.MouseButton1Down:Connect(function()
+            Tween(btn, {BackgroundTransparency = math.min(1, baseTrans + 0.12)}, 0.08)
+        end))
+        trackConn(btn.MouseButton1Up:Connect(function()
+            Tween(btn, {BackgroundTransparency = baseTrans}, 0.14)
+        end))
+    end)
+    return btn
+end
+
+-- Nút chữ (nền trong suốt) đổi màu chữ khi rê chuột — dùng cho ✕ / 🔒 trên thanh tiêu đề
+function D.HoverText(btn, overColor, downColor)
+    pcall(function()
+        local base = btn.TextColor3
+        trackConn(btn.MouseEnter:Connect(function() Tween(btn, {TextColor3 = overColor or C.WHITE}, 0.15) end))
+        trackConn(btn.MouseLeave:Connect(function() Tween(btn, {TextColor3 = base}, 0.2) end))
+        trackConn(btn.MouseButton1Down:Connect(function()
+            Tween(btn, {TextColor3 = downColor or overColor or C.WHITE}, 0.08)
+        end))
+    end)
+    return btn
+end
+
+-- Quầng sáng nhẹ phía SAU đối tượng (không cần ảnh/asset ngoài): 1 Frame anh em to hơn vài px,
+-- trong suốt gần hết, và tự bám theo Position khi đối tượng bị kéo đi.
+function D.Glow(obj, color, pad, trans)
+    local glow = nil
+    pcall(function()
+        if not obj or not obj.Parent then return end
+        pad = pad or 7
+        local function posOf()
+            local pp = obj.Position
+            return UDim2.new(pp.X.Scale, pp.X.Offset - pad, pp.Y.Scale, pp.Y.Offset - pad)
+        end
+        glow = New("Frame", {
+            Name = "BC_Glow",
+            Size = UDim2.new(1, pad * 2, 1, pad * 2),
+            Position = posOf(),
+            BackgroundColor3 = color or C.ACCENT,
+            BackgroundTransparency = trans or 0.86,
+            BorderSizePixel = 0,
+            ZIndex = (obj.ZIndex or 1) - 1,
+        }, obj.Parent)
+        Corner(glow, UDim.new(1, 0))
+        trackConn(obj:GetPropertyChangedSignal("Position"):Connect(function()
+            pcall(function() glow.Position = posOf() end)
+        end))
+    end)
+    return glow
+end
+
+-- Đổi màu nền nút LÚC CHẠY (các công tắc BẬT/TẮT) mà vẫn giữ chữ tương phản + viền ăn theo.
+-- Trước đây code chỉ gán BackgroundColor3 nên khi đổi sang màu sáng (vàng/xanh lá) thì chữ trắng
+-- thành khó đọc; hoặc ngược lại: nền xám mà chữ đậm.
+function D.SetBg(obj, color, trans)
+    pcall(function()
+        if not obj then return end
+        obj.BackgroundColor3 = color
+        if trans ~= nil then obj.BackgroundTransparency = trans end
+        if obj:IsA("TextButton") or obj:IsA("TextLabel") then
+            obj.TextColor3 = D.BestText(color)
+        end
+        local st = obj:FindFirstChildOfClass("UIStroke")
+        if st then st.Color = D.Edge(color) end
+    end)
+    return obj
+end
+
+-- Nhịp thở (tween lặp vô hạn, tự đảo chiều) — chỉ dùng cho BackgroundTransparency của quầng sáng
+function D.Breathe(obj, props, dur)
+    pcall(function()
+        local ti = TweenInfo.new(dur or 1.9, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true)
+        TweenService:Create(obj, ti, props):Play()
+    end)
 end
 
 -- ============================================================================
@@ -261,29 +520,37 @@ local togBtn = New("TextButton", {
     Size=UDim2.new(0,48,0,48),
     Position=UDim2.new(1,-60,1,-60),
     Text="🍌",
-    BackgroundColor3=C.WHITE,
-    BackgroundTransparency=0.1,
-    TextColor3=C.DARK,
+    BackgroundColor3=C.ACCENT,
+    BackgroundTransparency=0.03,
+    TextColor3=C.INK,
     Font=Enum.Font.GothamBold,
     TextSize=24,
     BorderSizePixel=0,
     ZIndex=1000,
 }, gui)
 Corner(togBtn, UDim.new(1,0))
-Stroke(togBtn, C.BLUE, 2)
+Stroke(togBtn, C.ACCENT2, 1.6)
+-- v4.5: nút chuối vàng->cam + quầng sáng "thở" phía sau (không dùng ảnh/asset ngoài)
+D.Paint(togBtn, C.ACCENT, C.ACCENT2, 135)
+D.Tactile(togBtn, 0.03)
+pcall(function()
+    local glow = D.Glow(togBtn, C.ACCENT, 7, 0.88)
+    if glow then D.Breathe(glow, {BackgroundTransparency = 0.97}, 2.1) end
+end)
 
 local main = New("Frame", {
     Size=UDim2.new(0,540,0,340),
     Position=UDim2.new(0.5,-270,0.5,-170),
-    BackgroundColor3=Color3.fromRGB(235, 238, 245),
-    BackgroundTransparency=0.25,
+    BackgroundColor3=C.BG,
+    BackgroundTransparency=0.02,   -- v4.5: gần đục để chữ trên nền tối đọc rõ (trước 0.25)
     BorderSizePixel=0,
     Visible=false,
     ClipsDescendants=false,
     ZIndex=2,
 }, gui)
-Corner(main, UDim.new(0,10))
-Stroke(main, Color3.fromRGB(180,185,200), 2)
+Corner(main, UDim.new(0,14))
+Stroke(main, C.BORDER, 1.4)
+D.Shade(main, Color3.fromRGB(255,255,255), Color3.fromRGB(196,199,210), 90)   -- sâu hơn ở đáy
 
 -- ===== HIT-TEST KHÔNG PHỤ THUỘC VÀO PARENT CỦA GUI =====
 -- PlayerGui:GetGuiObjectsAtPosition() CHỈ quét PlayerGui. Khi hub nằm trong gethui()/CoreGui
@@ -329,39 +596,60 @@ local bgPattern = New("ImageLabel", {
     Image = "rbxassetid://9822602710",
     ScaleType = Enum.ScaleType.Tile,
     TileSize = UDim2.new(0, 20, 0, 20),
-    ImageTransparency = 0.82,
-    ImageColor3 = Color3.fromRGB(150, 160, 185),
+    ImageTransparency = 0.94,                        -- v4.5: chỉ còn là chất liệu rất nhẹ
+    ImageColor3 = Color3.fromRGB(255, 196, 61),      -- ánh vàng theo màu nhận diện
     ZIndex = 2,
 }, main)
 Corner(bgPattern, UDim.new(0, 10))
 
+-- v4.5: thanh tiêu đề GIỮ NGUYÊN chiều cao 30px (tabBar/contentArea đang neo theo 30px,
+-- đổi chiều cao là xô toàn bộ layout) — chỉ đổi chất liệu: nền tối, chữ gradient, vạch accent.
 local titleBar = New("Frame", {
     Size=UDim2.new(1,0,0,30),
-    BackgroundColor3=Color3.fromRGB(225,230,240),
-    BackgroundTransparency=0.2,
+    BackgroundColor3=C.SURFACE2,
+    BackgroundTransparency=0.04,
     BorderSizePixel=0,
     ZIndex=3,
 }, main)
-Corner(titleBar, UDim.new(0,10))
+Corner(titleBar, UDim.new(0,14))
+D.Shade(titleBar, Color3.fromRGB(255,255,255), Color3.fromRGB(168,172,184), 90)
 
-New("TextLabel", {
+-- vạch accent (vàng -> cam) chạy dọc đáy thanh tiêu đề
+D.Paint(New("Frame", {
+    Name="TitleAccent", Size=UDim2.new(1,-2,0,2), Position=UDim2.new(0,1,1,-1),
+    BackgroundColor3=C.ACCENT, BorderSizePixel=0, ZIndex=5,
+}, titleBar), C.ACCENT, C.ACCENT2, 0)
+
+D.PaintText(New("TextLabel", {
     Size=UDim2.new(1,-90,1,0),
     Position=UDim2.new(0,12,0,0),
-    Text="🍌 Banana Cat Executor Hub v4.4i",
+    Text="🍌 Banana Cat Hub",
     BackgroundTransparency=1,
     TextColor3=C.DARK,
     Font=Enum.Font.GothamBold,
     TextSize=13,
     TextXAlignment=Enum.TextXAlignment.Left,
     ZIndex=4,
+}, titleBar), C.ACCENT, Color3.fromRGB(255, 243, 214))   -- chữ gradient vàng -> trắng sữa
+
+-- pill phiên bản (v4.5) — thông tin phiên bản tách khỏi tiêu đề cho gọn, sang
+D.verPill = New("Frame", {
+    Name="VersionPill", Size=UDim2.new(0,62,0,16), Position=UDim2.new(0,158,0,7),
+    BackgroundColor3=C.SURFACE3, BackgroundTransparency=0.35, BorderSizePixel=0, ZIndex=5,
 }, titleBar)
+Corner(D.verPill, UDim.new(1,0))
+Stroke(D.verPill, C.ACCENT, 1)
+New("TextLabel", {
+    Size=UDim2.new(1,0,1,0), Text="v4.5 · PRO", BackgroundTransparency=1,
+    TextColor3=C.ACCENT, Font=Enum.Font.GothamBold, TextSize=8, ZIndex=6,
+}, D.verPill)
 
 local dragLockBtn = New("TextButton", {
     Size=UDim2.new(0,30,0,30),
     Position=UDim2.new(1,-64,0,0),
     Text="🔒",
     BackgroundTransparency=1,
-    TextColor3=Color3.fromRGB(120,120,130),
+    TextColor3=C.MUTED,
     Font=Enum.Font.GothamBold,
     TextSize=15,
     BorderSizePixel=0,
@@ -373,12 +661,15 @@ local closeBtn = New("TextButton", {
     Position=UDim2.new(1,-32,0,0),
     Text="✕",
     BackgroundTransparency=1,
-    TextColor3=Color3.fromRGB(120,120,130),
+    TextColor3=C.MUTED,
     Font=Enum.Font.GothamBold,
     TextSize=15,
     BorderSizePixel=0,
     ZIndex=4,
 }, titleBar)
+-- v4.5: hover đổi màu (✕ đỏ, 🔒 vàng) — chỉ đổi TextColor3, không đụng layout
+D.HoverText(closeBtn, C.RED, C.RED)
+D.HoverText(dragLockBtn, C.ACCENT, C.ACCENT)
 
 local minW, minH = 440, 260
 
@@ -397,6 +688,7 @@ local function SetupResizeHandle(btn, cornerType)
     local resizing, sizeStart, posStart, inputStart
     trackConn(btn.InputBegan:Connect(function(i)
         if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then
+            pcall(function() if D.openTween then D.openTween:Cancel() D.openTween = nil end end)  -- v4.5
             resizing=true
             sizeStart=main.Size
             posStart=main.Position
@@ -468,12 +760,19 @@ local tabContent = {}
 local tabBar = New("ScrollingFrame", {
     Size=UDim2.new(0,105,1,-30),
     Position=UDim2.new(1,-105,0,30),
-    BackgroundColor3=Color3.fromRGB(225,230,240),
-    BackgroundTransparency=0.3,
+    BackgroundColor3=C.SURFACE,
+    BackgroundTransparency=0.35,
     BorderSizePixel=0,
     ZIndex=3,
     ScrollBarThickness=3,
     CanvasSize=UDim2.new(0,0,0,0),
+}, main)
+
+-- v4.5: đường kẻ 1px tách thanh tab khỏi vùng nội dung. PHẢI neo vào `main` chứ không neo vào
+-- tabBar: tabBar có UIListLayout, thêm con vào đó sẽ xô vị trí toàn bộ nút tab.
+New("Frame", {
+    Name="TabRailDivider", Size=UDim2.new(0,1,1,-30), Position=UDim2.new(1,-105,0,30),
+    BackgroundColor3=C.BORDER, BackgroundTransparency=0.3, BorderSizePixel=0, ZIndex=4,
 }, main)
 
 New("UIListLayout", {
@@ -498,14 +797,32 @@ local activeTab = nil
 local function SwitchTab(index)
     ReleaseHubFocus()   -- v4.4b: đổi tab mà để TextBox còn focus là game chặn input (không đi/không bắn)
     for _, t in ipairs(tabContent) do t.Visible = false end
+    -- v4.5: tab CHƯA mở = pill trong suốt + chữ mờ; tab ĐANG mở = pill nổi + chữ vàng + vạch
+    -- accent dọc bên trái. Logic cũ giữ nguyên: chỉ đổi Visible của tabContent và gán activeTab.
     for _, b in ipairs(tabs) do
-        b.BackgroundColor3 = C.BG
-        b.BackgroundTransparency = 0.3
+        b.BackgroundColor3 = C.SURFACE2
+        b.BackgroundTransparency = 1
+        b.TextColor3 = C.MUTED
+        local bar = b:FindFirstChild("BC_Bar")
+        if bar then bar.Visible = false end
     end
     if tabContent[index] and tabs[index] then
         tabContent[index].Visible = true
-        tabs[index].BackgroundColor3 = C.BLUE
-        tabs[index].BackgroundTransparency = 0.2
+        local b = tabs[index]
+        b.BackgroundColor3 = C.SURFACE2
+        b.BackgroundTransparency = 0.1
+        b.TextColor3 = C.ACCENT
+        -- vạch accent là CON của nút tab nên tự trượt theo nút, và KHÔNG nằm trong UIListLayout
+        -- của tabBar (neo vào tabBar là bị layout xếp chỗ -> xô toàn bộ nút tab)
+        local bar = b:FindFirstChild("BC_Bar")
+        if not bar then
+            bar = New("Frame", {
+                Name = "BC_Bar", Size = UDim2.new(0, 3, 1, -12), Position = UDim2.new(0, 2, 0, 6),
+                BackgroundColor3 = C.ACCENT, BorderSizePixel = 0, ZIndex = 6,
+            }, b)
+            Corner(bar, UDim.new(1, 0))
+        end
+        bar.Visible = true
         activeTab = tabContent[index]
     end
     BcFit()   -- v4.4c: tab vừa hiện -> đo lại để GUI nằm vừa đúng ô của tab
@@ -515,17 +832,27 @@ local function AddTab(name, icon, order, customContent)
     local btn = New("TextButton", {
         Size=UDim2.new(1,-8,0,30),
         Text=icon.." "..name,
-        BackgroundColor3=C.BG,
-        BackgroundTransparency=0.3,
-        TextColor3=C.DARK,
+        BackgroundColor3=C.SURFACE2,      -- v4.5: pill ghost (SwitchTab tô màu khi tab mở)
+        BackgroundTransparency=1,
+        TextColor3=C.MUTED,
         Font=Enum.Font.GothamBold,
-        TextSize=9,
+        TextSize=10,
         BorderSizePixel=0,
         LayoutOrder=order,
         TextXAlignment=Enum.TextXAlignment.Left,
         ZIndex=4,
     }, tabBar)
-    Corner(btn, UDim.new(0,6))
+    Corner(btn, UDim.new(0,8))            -- v4.5: bo 8px cho pill
+    -- v4.5: rê chuột vào tab chưa mở thì pill hiện nhẹ. Tab ĐANG mở (chữ vàng) thì không đụng,
+    -- để SwitchTab toàn quyền quyết định màu -> không đánh nhau giữa tween và trạng thái tab.
+    pcall(function()
+        trackConn(btn.MouseEnter:Connect(function()
+            if btn.BackgroundTransparency > 0.5 then Tween(btn, {BackgroundTransparency = 0.62}, 0.16) end
+        end))
+        trackConn(btn.MouseLeave:Connect(function()
+            if btn.TextColor3 ~= C.ACCENT then Tween(btn, {BackgroundTransparency = 1}, 0.2) end
+        end))
+    end)
 
     local sf
     if customContent then
@@ -538,7 +865,7 @@ local function AddTab(name, icon, order, customContent)
             BackgroundTransparency=1,
             BorderSizePixel=0,
             ScrollBarThickness=5,
-            ScrollBarImageColor3=Color3.fromRGB(120,120,140),
+            ScrollBarImageColor3=Color3.fromRGB(70, 77, 95),
             ClipsDescendants=true,
             CanvasSize=UDim2.new(0,0,0,0),
             Visible=false,
@@ -937,23 +1264,31 @@ local function RunCode(code, name, ind, times, delay, noPark)
 end
 
 local function Label(parent, text, y)
+    -- v4.5: nhãn toàn ký tự "━" là đường phân cách -> tô màu viền tối cho tinh tế (trước là chữ xám)
+    local isRule = (tostring(text):find("━") ~= nil)
     return New("TextLabel", {
         Size=UDim2.new(1,-16,0,14), Position=UDim2.new(0,8,0,y or 0),
-        Text=text, BackgroundTransparency=1, TextColor3=Color3.fromRGB(60,60,60),
+        Text=text, BackgroundTransparency=1,
+        TextColor3=(isRule and C.BORDER or C.MUTED),   -- v4.5: chữ phụ / đường kẻ trên nền tối
         Font=Enum.Font.GothamMedium, TextSize=10, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=6,
     }, parent)
 end
 
+-- v4.5: nút kiểu mới — nền đặc (không còn trong suốt 20%), bo 8px, viền sáng hơn nền một bậc,
+-- đổ khối nhẹ bằng UIGradient, chữ TỰ chọn đậm/sáng theo nền, có phản hồi hover + nhấn.
+-- GIỮ NGUYÊN chữ ký hàm (parent, text, x, y, w, h, color) và đối tượng trả về -> mọi nơi gọi
+-- Button(...) không phải sửa, code gán btn.Text / btn.BackgroundColor3 vẫn chạy như cũ.
 local function Button(parent, text, x, y, w, h, color)
+    local base = color or C.SURFACE3
     local btn = New("TextButton", {
         Size=UDim2.new(0,w or 100,0,h or 24), Position=UDim2.new(0,x or 8,0,y or 0),
-        Text=text, BackgroundColor3=color or C.GRAY, BackgroundTransparency=0.2,
-        TextColor3=C.WHITE, Font=Enum.Font.GothamBold, TextSize=10, BorderSizePixel=0, ZIndex=6,
+        Text=text, BackgroundColor3=base, BackgroundTransparency=0.08,
+        TextColor3=D.BestText(base), Font=Enum.Font.GothamBold, TextSize=10, BorderSizePixel=0, ZIndex=6,
     }, parent)
-    Corner(btn, UDim.new(0,5))
-    Stroke(btn, color and color:Lerp(Color3.new(0,0,0),0.4) or nil, 1)
-    btn.MouseEnter:Connect(function() Tween(btn, {BackgroundTransparency=0.05}, 0.2) end)
-    btn.MouseLeave:Connect(function() Tween(btn, {BackgroundTransparency=0.2}, 0.2) end)
+    Corner(btn, UDim.new(0,8))
+    Stroke(btn, D.Edge(base), 1)
+    D.Shade(btn, Color3.fromRGB(255,255,255), Color3.fromRGB(206,209,220), 90)
+    D.Tactile(btn, 0.08)
     return btn
 end
 
@@ -966,8 +1301,8 @@ y = y + 14
 
 local nameIn = New("TextBox", {
     Size=UDim2.new(1,-16,0,26), Position=UDim2.new(0,8,0,y), Text="",
-    PlaceholderText="Nhập tên script...", PlaceholderColor3=Color3.fromRGB(160,160,160),
-    BackgroundColor3=Color3.fromRGB(255,255,255), BackgroundTransparency=0, TextColor3=Color3.fromRGB(20,20,20),
+    PlaceholderText="Nhập tên script...", PlaceholderColor3=Color3.fromRGB(122, 130, 148),
+    BackgroundColor3=Color3.fromRGB(26, 29, 38), BackgroundTransparency=0, TextColor3=Color3.fromRGB(233, 237, 245),
     Font=Enum.Font.GothamMedium, TextSize=12, BorderSizePixel=0, ClearTextOnFocus=false,
     Active=true, Selectable=true, ZIndex=10, TextXAlignment=Enum.TextXAlignment.Left,
 }, codeTab)
@@ -981,8 +1316,8 @@ y = y + 14
 
 local codeIn = New("TextBox", {
     Size=UDim2.new(1,-16,0,80), Position=UDim2.new(0,8,0,y), Text="",
-    PlaceholderText="-- Nhập code Lua tại đây...", PlaceholderColor3=Color3.fromRGB(160,160,160),
-    BackgroundColor3=Color3.fromRGB(245,245,255), BackgroundTransparency=0, TextColor3=Color3.fromRGB(20,20,20),
+    PlaceholderText="-- Nhập code Lua tại đây...", PlaceholderColor3=Color3.fromRGB(122, 130, 148),
+    BackgroundColor3=Color3.fromRGB(28, 31, 41), BackgroundTransparency=0, TextColor3=Color3.fromRGB(233, 237, 245),
     Font=Enum.Font.Code, TextSize=11, BorderSizePixel=0, ClearTextOnFocus=false,
     MultiLine=true, TextWrapped=true, TextXAlignment=Enum.TextXAlignment.Left, TextYAlignment=Enum.TextYAlignment.Top,
     Active=true, Selectable=true, ZIndex=10,
@@ -998,8 +1333,8 @@ Label(codeTab, "Số lần lặp:", y)
 
 local repIn = New("TextBox", {
     Size=UDim2.new(0,55,0,24), Position=UDim2.new(0,8,0,y+12), Text="1",
-    PlaceholderColor3=Color3.fromRGB(160,160,160), BackgroundColor3=Color3.fromRGB(255,255,255), BackgroundTransparency=0,
-    TextColor3=Color3.fromRGB(20,20,20), Font=Enum.Font.GothamMedium, TextSize=12, BorderSizePixel=0,
+    PlaceholderColor3=Color3.fromRGB(122, 130, 148), BackgroundColor3=Color3.fromRGB(26, 29, 38), BackgroundTransparency=0,
+    TextColor3=Color3.fromRGB(233, 237, 245), Font=Enum.Font.GothamMedium, TextSize=12, BorderSizePixel=0,
     ClearTextOnFocus=false, Active=true, Selectable=true, ZIndex=10,
 }, codeTab)
 Corner(repIn, UDim.new(0,5))
@@ -1009,8 +1344,8 @@ Label(codeTab, "Thời gian chờ:", y+36)
 
 local delIn = New("TextBox", {
     Size=UDim2.new(0,55,0,24), Position=UDim2.new(0,8,0,y+50), Text="0",
-    PlaceholderColor3=Color3.fromRGB(160,160,160), BackgroundColor3=Color3.fromRGB(255,255,255), BackgroundTransparency=0,
-    TextColor3=Color3.fromRGB(20,20,20), Font=Enum.Font.GothamMedium, TextSize=12, BorderSizePixel=0,
+    PlaceholderColor3=Color3.fromRGB(122, 130, 148), BackgroundColor3=Color3.fromRGB(26, 29, 38), BackgroundTransparency=0,
+    TextColor3=Color3.fromRGB(233, 237, 245), Font=Enum.Font.GothamMedium, TextSize=12, BorderSizePixel=0,
     ClearTextOnFocus=false, Active=true, Selectable=true, ZIndex=10,
 }, codeTab)
 Corner(delIn, UDim.new(0,5))
@@ -1018,25 +1353,25 @@ Stroke(delIn, Color3.fromRGB(180,180,200), 1.2)
 
 local unitBtn = New("TextButton", {
     Size=UDim2.new(0,55,0,24), Position=UDim2.new(0,75,0,y+50), Text="Giây ▾",
-    BackgroundColor3=Color3.fromRGB(255,255,255), BackgroundTransparency=0, TextColor3=C.DARK,
+    BackgroundColor3=Color3.fromRGB(26, 29, 38), BackgroundTransparency=0, TextColor3=C.DARK,
     Font=Enum.Font.GothamBold, TextSize=9, BorderSizePixel=0, ZIndex=10,
 }, codeTab)
 Corner(unitBtn,UDim.new(0,4)); Stroke(unitBtn)
 
 local ddFrame = New("Frame", {
     Size=UDim2.new(0,55,0,48), Position=UDim2.new(0,75,0,y+74),
-    BackgroundColor3=Color3.fromRGB(255,255,255), BackgroundTransparency=0, BorderSizePixel=0, Visible=false, ZIndex=15,
+    BackgroundColor3=Color3.fromRGB(26, 29, 38), BackgroundTransparency=0, BorderSizePixel=0, Visible=false, ZIndex=15,
 }, codeTab)
 Corner(ddFrame,UDim.new(0,4)); Stroke(ddFrame)
 
 local secOpt = New("TextButton", {
-    Size=UDim2.new(1,0,0,24), Text="Giây", BackgroundColor3=Color3.fromRGB(245,245,245),
+    Size=UDim2.new(1,0,0,24), Text="Giây", BackgroundColor3=Color3.fromRGB(28, 31, 41),
     BackgroundTransparency=0, TextColor3=C.DARK, Font=Enum.Font.GothamBold, TextSize=9, BorderSizePixel=0, ZIndex=16,
 }, ddFrame)
 
 local minOpt = New("TextButton", {
     Size=UDim2.new(1,0,0,24), Position=UDim2.new(0,0,0,24), Text="Phút",
-    BackgroundColor3=Color3.fromRGB(245,245,245), BackgroundTransparency=0, TextColor3=C.DARK,
+    BackgroundColor3=Color3.fromRGB(28, 31, 41), BackgroundTransparency=0, TextColor3=C.DARK,
     Font=Enum.Font.GothamBold, TextSize=9, BorderSizePixel=0, ZIndex=16,
 }, ddFrame)
 
@@ -1063,7 +1398,7 @@ local saveBtn = Button(codeTab, "💾 Lưu Vào Danh Sách", 8, y, 160, 26, C.BL
 y = y + 32
 
 local statusLbl = Label(codeTab, "", y)
-statusLbl.TextColor3=Color3.fromRGB(220,170,0); statusLbl.TextSize=9; statusLbl.ZIndex=6
+statusLbl.TextColor3=Color3.fromRGB(255, 205, 64); statusLbl.TextSize=9; statusLbl.ZIndex=6
 y = y + 14
 
 local countLbl = Label(codeTab, "🔄 Tổng số lần đã chạy: 0", y)
@@ -1129,8 +1464,8 @@ sy = sy + 18
 
 local searchIn = New("TextBox", {
     Size=UDim2.new(1,-16,0,26), Position=UDim2.new(0,8,0,sy), Text="",
-    PlaceholderText="🔍 Tìm kiếm script...", PlaceholderColor3=Color3.fromRGB(160,160,160),
-    BackgroundColor3=Color3.fromRGB(255,255,255), BackgroundTransparency=0, TextColor3=Color3.fromRGB(20,20,20),
+    PlaceholderText="🔍 Tìm kiếm script...", PlaceholderColor3=Color3.fromRGB(122, 130, 148),
+    BackgroundColor3=Color3.fromRGB(26, 29, 38), BackgroundTransparency=0, TextColor3=Color3.fromRGB(233, 237, 245),
     Font=Enum.Font.GothamMedium, TextSize=12, BorderSizePixel=0, ClearTextOnFocus=false,
     Active=true, Selectable=true, ZIndex=10, TextXAlignment=Enum.TextXAlignment.Left,
 }, savedCodeTab)
@@ -1162,14 +1497,14 @@ Store.refreshStatus = function()
     if not Store.statusLbl or not Store.statusLbl.Parent then return end
     local ns, nw, nf = #scripts, #waypoints, #featureTabs
     if Store.lastError then
-        Store.statusLbl.TextColor3 = Color3.fromRGB(220,120,60)
+        Store.statusLbl.TextColor3=Color3.fromRGB(255, 160, 90)
         Store.statusLbl.Text = string.format("⚠️ %d script · %d WP · %d tab — %s", ns, nw, nf, Store.lastError)
     elseif Store.mode == "file" then
-        Store.statusLbl.TextColor3 = Color3.fromRGB(0,150,80)
+        Store.statusLbl.TextColor3=Color3.fromRGB(58, 214, 140)
         Store.statusLbl.Text = string.format("💾 %d script · %d WP · %d tab · %s%s", ns, nw, nf, Store.SAVE_FILE,
             Store.lastSavedAt and (" · lưu lúc " .. Store.lastSavedAt) or "")
     elseif Store.mode == "memory" then
-        Store.statusLbl.TextColor3 = Color3.fromRGB(220,170,0)
+        Store.statusLbl.TextColor3=Color3.fromRGB(255, 205, 64)
         Store.statusLbl.Text = string.format("⚠️ %d script · %d WP · %d tab — chỉ giữ trong phiên chơi này (executor thiếu writefile)", ns, nw, nf)
     elseif Store.mode == "empty" then
         Store.statusLbl.TextColor3 = C.GRAY
@@ -1232,7 +1567,7 @@ RebuildScripts = function()
         local rowH = isExpanded and 160 or 42
 
         local row = New("Frame", {
-            Size=UDim2.new(1,0,0,rowH), BackgroundColor3=Color3.fromRGB(255,255,255),
+            Size=UDim2.new(1,0,0,rowH), BackgroundColor3=Color3.fromRGB(26, 29, 38),
             BackgroundTransparency=0.1, BorderSizePixel=0, ZIndex=6,
             ClipsDescendants=true,
         }, scriptList)
@@ -1241,7 +1576,7 @@ RebuildScripts = function()
         local arrowBtn = New("TextButton", {
             Size=UDim2.new(0,24,0,24), Position=UDim2.new(0,6,0,9),
             Text=isExpanded and "▲" or "▼",
-            BackgroundColor3=Color3.fromRGB(220,225,240), BackgroundTransparency=0,
+            BackgroundColor3=Color3.fromRGB(32, 36, 47), BackgroundTransparency=0,
             TextColor3=C.BLUE, Font=Enum.Font.GothamBold, TextSize=10, BorderSizePixel=0, ZIndex=8,
         }, row)
         Corner(arrowBtn, UDim.new(0,4))
@@ -1270,7 +1605,7 @@ RebuildScripts = function()
         if isExpanded then
             local codeBoxFrame = New("ScrollingFrame", {
                 Size=UDim2.new(1,-12,0,82), Position=UDim2.new(0,6,0,42),
-                BackgroundColor3=Color3.fromRGB(240,242,250), BackgroundTransparency=0,
+                BackgroundColor3=Color3.fromRGB(24, 27, 35), BackgroundTransparency=0,
                 BorderSizePixel=0, ZIndex=8, ScrollBarThickness=4,
                 CanvasSize=UDim2.new(0,0,0,0),
                 AutomaticCanvasSize=Enum.AutomaticSize.Y,
@@ -1286,7 +1621,7 @@ RebuildScripts = function()
                 -- va sinh dung thanh cuon. Ban cu dung Size=(1,-8,1,-8) => cao = 0 => khong cuon duoc.
                 Size=UDim2.new(1,-8,0,0), Position=UDim2.new(0,4,0,4),
                 AutomaticSize=Enum.AutomaticSize.Y,
-                Text=d.code, TextColor3=Color3.fromRGB(30,30,30), BackgroundTransparency=1,
+                Text=d.code, TextColor3=Color3.fromRGB(226, 230, 240), BackgroundTransparency=1,
                 Font=Enum.Font.Code, TextSize=10, TextXAlignment=Enum.TextXAlignment.Left,
                 TextYAlignment=Enum.TextYAlignment.Top, MultiLine=true, TextWrapped=true,
                 ClearTextOnFocus=false, TextEditable=false, Active=true, ZIndex=9,
@@ -1373,9 +1708,9 @@ Label(supportTab, "⚡ Script Nhanh - Nhấn để chạy ngay", posY)
 posY = posY + 16
 
 local quickScripts = {
-    {n="Dex Explorer", d="Mở Dex Explorer", c=[[loadstring(game:HttpGet("https://raw.githubusercontent.com/infyiff/backup/main/dex.lua"))()]], cl=Color3.fromRGB(50,120,200)},
+    {n="Dex Explorer", d="Mở Dex Explorer", c=[[loadstring(game:HttpGet("https://raw.githubusercontent.com/infyiff/backup/main/dex.lua"))()]], cl=Color3.fromRGB(72, 148, 248)},
     {n="Infinite Yield", d="Admin Commands", c=[[loadstring(game:HttpGet("https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source"))()]], cl=C.PURPLE},
-    {n="SimpleSpy v3", d="Theo dõi RemoteEvent & RemoteFunction", c=[[loadstring(game:HttpGet("https://raw.githubusercontent.com/ex-serum/SimpleSpy/main/SimpleSpy.lua"))()]], cl=Color3.fromRGB(0,150,80)},
+    {n="SimpleSpy v3", d="Theo dõi RemoteEvent & RemoteFunction", c=[[loadstring(game:HttpGet("https://raw.githubusercontent.com/ex-serum/SimpleSpy/main/SimpleSpy.lua"))()]], cl=Color3.fromRGB(38, 194, 118)},
 }
 
 for _, s in ipairs(quickScripts) do
@@ -1954,10 +2289,10 @@ objectAnalyzeBtn.Activated:Connect(function()
     analyzeObjectEnabled = not analyzeObjectEnabled
     if analyzeObjectEnabled then
         objectAnalyzeBtn.Text = "🎯 Phân Tích Vật: BẬT"
-        objectAnalyzeBtn.BackgroundColor3 = C.GREEN
+        D.SetBg(objectAnalyzeBtn, C.GREEN)   -- v4.5: đổi màu kèm chữ tương phản
     else
         objectAnalyzeBtn.Text = "🎯 Phân Tích Vật: TẮT"
-        objectAnalyzeBtn.BackgroundColor3 = C.GRAY
+        D.SetBg(objectAnalyzeBtn, C.GRAY)
         RemoveCurrentHighlight()
     end
 end)
@@ -1966,10 +2301,10 @@ highlightToggleBtn.Activated:Connect(function()
     highlightEnabled = not highlightEnabled
     if highlightEnabled then
         highlightToggleBtn.Text = "💜 Highlight Tím: BẬT"
-        highlightToggleBtn.BackgroundColor3 = C.PURPLE
+        D.SetBg(highlightToggleBtn, C.PURPLE)
     else
         highlightToggleBtn.Text = "💜 Highlight Tím: TẮT"
-        highlightToggleBtn.BackgroundColor3 = C.GRAY
+        D.SetBg(highlightToggleBtn, C.GRAY)
         RemoveCurrentHighlight()
     end
 end)
@@ -2035,9 +2370,9 @@ posY = posY + 14
 Label(supportTab, "X:", posY)
 local tpXIn = New("TextBox", {
     Size=UDim2.new(0,70,0,24), Position=UDim2.new(0,20,0,posY-2), Text="0",
-    PlaceholderColor3=Color3.fromRGB(160,160,160),
-    BackgroundColor3=Color3.fromRGB(255,255,255), BackgroundTransparency=0,
-    TextColor3=Color3.fromRGB(20,20,20), Font=Enum.Font.Code, TextSize=11,
+    PlaceholderColor3=Color3.fromRGB(122, 130, 148),
+    BackgroundColor3=Color3.fromRGB(26, 29, 38), BackgroundTransparency=0,
+    TextColor3=Color3.fromRGB(233, 237, 245), Font=Enum.Font.Code, TextSize=11,
     BorderSizePixel=0, ClearTextOnFocus=false, Active=true, Selectable=true, ZIndex=10,
 }, supportTab)
 Corner(tpXIn, UDim.new(0,4)); Stroke(tpXIn, Color3.fromRGB(255,100,100), 1.2)
@@ -2045,9 +2380,9 @@ Corner(tpXIn, UDim.new(0,4)); Stroke(tpXIn, Color3.fromRGB(255,100,100), 1.2)
 Label(supportTab, "Y:", posY)
 local tpYIn = New("TextBox", {
     Size=UDim2.new(0,70,0,24), Position=UDim2.new(0,110,0,posY-2), Text="0",
-    PlaceholderColor3=Color3.fromRGB(160,160,160),
-    BackgroundColor3=Color3.fromRGB(255,255,255), BackgroundTransparency=0,
-    TextColor3=Color3.fromRGB(20,20,20), Font=Enum.Font.Code, TextSize=11,
+    PlaceholderColor3=Color3.fromRGB(122, 130, 148),
+    BackgroundColor3=Color3.fromRGB(26, 29, 38), BackgroundTransparency=0,
+    TextColor3=Color3.fromRGB(233, 237, 245), Font=Enum.Font.Code, TextSize=11,
     BorderSizePixel=0, ClearTextOnFocus=false, Active=true, Selectable=true, ZIndex=10,
 }, supportTab)
 Corner(tpYIn, UDim.new(0,4)); Stroke(tpYIn, Color3.fromRGB(100,255,100), 1.2)
@@ -2055,9 +2390,9 @@ Corner(tpYIn, UDim.new(0,4)); Stroke(tpYIn, Color3.fromRGB(100,255,100), 1.2)
 Label(supportTab, "Z:", posY)
 local tpZIn = New("TextBox", {
     Size=UDim2.new(0,70,0,24), Position=UDim2.new(0,200,0,posY-2), Text="0",
-    PlaceholderColor3=Color3.fromRGB(160,160,160),
-    BackgroundColor3=Color3.fromRGB(255,255,255), BackgroundTransparency=0,
-    TextColor3=Color3.fromRGB(20,20,20), Font=Enum.Font.Code, TextSize=11,
+    PlaceholderColor3=Color3.fromRGB(122, 130, 148),
+    BackgroundColor3=Color3.fromRGB(26, 29, 38), BackgroundTransparency=0,
+    TextColor3=Color3.fromRGB(233, 237, 245), Font=Enum.Font.Code, TextSize=11,
     BorderSizePixel=0, ClearTextOnFocus=false, Active=true, Selectable=true, ZIndex=10,
 }, supportTab)
 Corner(tpZIn, UDim.new(0,4)); Stroke(tpZIn, Color3.fromRGB(100,150,255), 1.2)
@@ -2099,9 +2434,9 @@ posY = posY + 14
 local wpNameIn = New("TextBox", {
     Size=UDim2.new(1,-130,0,24), Position=UDim2.new(0,8,0,posY), Text="",
     PlaceholderText="Tên waypoint...",
-    PlaceholderColor3=Color3.fromRGB(160,160,160),
-    BackgroundColor3=Color3.fromRGB(255,255,255), BackgroundTransparency=0,
-    TextColor3=Color3.fromRGB(20,20,20), Font=Enum.Font.GothamMedium, TextSize=11,
+    PlaceholderColor3=Color3.fromRGB(122, 130, 148),
+    BackgroundColor3=Color3.fromRGB(26, 29, 38), BackgroundTransparency=0,
+    TextColor3=Color3.fromRGB(233, 237, 245), Font=Enum.Font.GothamMedium, TextSize=11,
     BorderSizePixel=0, ClearTextOnFocus=false, Active=true, Selectable=true, ZIndex=10,
 }, supportTab)
 Corner(wpNameIn, UDim.new(0,4)); Stroke(wpNameIn, Color3.fromRGB(180,180,200), 1.2)
@@ -2155,7 +2490,7 @@ RebuildWaypoints = function()
     for i, wp in ipairs(waypoints) do
         local row = New("Frame", {
             Size=UDim2.new(1,0,0,30),
-            BackgroundColor3=Color3.fromRGB(255,255,255),
+            BackgroundColor3=Color3.fromRGB(26, 29, 38),
             BackgroundTransparency=0.1, BorderSizePixel=0, ZIndex=6,
         }, wpListFrame)
         Corner(row, UDim.new(0,5)); Stroke(row)
@@ -2215,7 +2550,7 @@ aiTab.ElasticBehavior = Enum.ElasticBehavior.Never
 aiTab.AutomaticCanvasSize = Enum.AutomaticSize.Y
 aiTab.CanvasSize = UDim2.new(0, 0, 0, 0)
 aiTab.ScrollBarThickness = 5
-aiTab.ScrollBarImageColor3 = Color3.fromRGB(100, 120, 180)
+aiTab.ScrollBarImageColor3=Color3.fromRGB(88, 108, 166)
 
 local aiBG = New("Frame", {
     Size=UDim2.new(1, 0, 0, 0),
@@ -2305,7 +2640,7 @@ local statusText = New("TextLabel", {
     Position=UDim2.new(0,70,0,30),
     Text="Đang hoạt động",
     BackgroundTransparency=1,
-    TextColor3=Color3.fromRGB(140, 200, 160),
+    TextColor3=Color3.fromRGB(150, 222, 182),
     Font=Enum.Font.GothamMedium,
     TextSize=10,
     TextXAlignment=Enum.TextXAlignment.Left,
@@ -2340,7 +2675,7 @@ local apiKeyIn = New("TextBox", {
     Position=UDim2.new(0,10,0,24),
     Text="",
     PlaceholderText="Dán API key Gemini vào đây...",
-    PlaceholderColor3=Color3.fromRGB(90, 95, 110),
+    PlaceholderColor3=Color3.fromRGB(110, 118, 136),
     BackgroundColor3=Color3.fromRGB(15, 17, 22),
     BackgroundTransparency=0,
     TextColor3=Color3.fromRGB(230, 235, 245),
@@ -2361,7 +2696,7 @@ local saveKeyBtn = New("TextButton", {
     Size=UDim2.new(0,70,0,22),
     Position=UDim2.new(0,10,0,56),
     Text="💾 Lưu",
-    BackgroundColor3=Color3.fromRGB(50, 120, 220),
+    BackgroundColor3=Color3.fromRGB(72, 148, 248),
     BackgroundTransparency=0,
     TextColor3=C.WHITE,
     Font=Enum.Font.GothamBold,
@@ -2375,7 +2710,7 @@ local clearKeyBtn = New("TextButton", {
     Size=UDim2.new(0,70,0,22),
     Position=UDim2.new(0,86,0,56),
     Text="🗑 Xóa",
-    BackgroundColor3=Color3.fromRGB(180, 60, 60),
+    BackgroundColor3=Color3.fromRGB(226, 86, 92),
     BackgroundTransparency=0,
     TextColor3=C.WHITE,
     Font=Enum.Font.GothamBold,
@@ -2389,7 +2724,7 @@ local toggleKeyBtn = New("TextButton", {
     Size=UDim2.new(0,70,0,22),
     Position=UDim2.new(0,162,0,56),
     Text="👁 Hiện",
-    BackgroundColor3=Color3.fromRGB(180, 120, 40),
+    BackgroundColor3=Color3.fromRGB(240, 160, 70),
     BackgroundTransparency=0,
     TextColor3=C.WHITE,
     Font=Enum.Font.GothamBold,
@@ -2404,7 +2739,7 @@ local keyStatus = New("TextLabel", {
     Position=UDim2.new(0,238,0,60),
     Text="",
     BackgroundTransparency=1,
-    TextColor3=Color3.fromRGB(140, 200, 160),
+    TextColor3=Color3.fromRGB(150, 222, 182),
     Font=Enum.Font.GothamMedium,
     TextSize=9,
     TextXAlignment=Enum.TextXAlignment.Left,
@@ -2430,7 +2765,7 @@ local chatScroll = New("ScrollingFrame", {
     BorderSizePixel=0,
     ZIndex=7,
     ScrollBarThickness=4,
-    ScrollBarImageColor3=Color3.fromRGB(80, 100, 150),
+    ScrollBarImageColor3=Color3.fromRGB(74, 92, 140),
     CanvasSize=UDim2.new(0,0,0,0),
     AutomaticCanvasSize=Enum.AutomaticSize.Y,
     ScrollingDirection=Enum.ScrollingDirection.Y,
@@ -2621,7 +2956,7 @@ local questionIn = New("TextBox", {
     Position=UDim2.new(0,8,0,5),
     Text="",
     PlaceholderText="Nhập câu hỏi...",
-    PlaceholderColor3=Color3.fromRGB(90, 95, 110),
+    PlaceholderColor3=Color3.fromRGB(110, 118, 136),
     BackgroundColor3=Color3.fromRGB(15, 17, 22),
     BackgroundTransparency=0,
     TextColor3=Color3.fromRGB(230, 235, 245),
@@ -2640,7 +2975,7 @@ local sendBtn = New("TextButton", {
     Size=UDim2.new(0,54,1,-10),
     Position=UDim2.new(1,-62,0,5),
     Text="➤",
-    BackgroundColor3=Color3.fromRGB(50, 120, 220),
+    BackgroundColor3=Color3.fromRGB(72, 148, 248),
     BackgroundTransparency=0,
     TextColor3=C.WHITE,
     Font=Enum.Font.GothamBold,
@@ -2666,7 +3001,7 @@ New("UIListLayout", {
 local copyAnswerBtn = New("TextButton", {
     Size=UDim2.new(0,120,1,0),
     Text="📋 Copy chat",
-    BackgroundColor3=Color3.fromRGB(50, 120, 220),
+    BackgroundColor3=Color3.fromRGB(72, 148, 248),
     BackgroundTransparency=0,
     TextColor3=C.WHITE,
     Font=Enum.Font.GothamBold,
@@ -2679,7 +3014,7 @@ Corner(copyAnswerBtn, UDim.new(0,6))
 local continueBtn = New("TextButton", {
     Size=UDim2.new(0,120,1,0),
     Text="▶ Viết tiếp",
-    BackgroundColor3=Color3.fromRGB(180, 120, 40),
+    BackgroundColor3=Color3.fromRGB(240, 160, 70),
     BackgroundTransparency=0,
     TextColor3=C.WHITE,
     Font=Enum.Font.GothamBold,
@@ -2692,7 +3027,7 @@ Corner(continueBtn, UDim.new(0,6))
 local clearChatBtn = New("TextButton", {
     Size=UDim2.new(0,120,1,0),
     Text="🧹 Xóa chat",
-    BackgroundColor3=Color3.fromRGB(180, 60, 60),
+    BackgroundColor3=Color3.fromRGB(226, 86, 92),
     BackgroundTransparency=0,
     TextColor3=C.WHITE,
     Font=Enum.Font.GothamBold,
@@ -3488,7 +3823,7 @@ function S.FitToTab(obj, nm)
 end
 
 _G.BananaCatHubAPI = {
-    Version = "4.4i",
+    Version = "4.5",
     HubGui = gui,     -- v4.4e: sửa lỗi cũ — biến tên là `gui`, không phải `hubGui` (trước đây là nil)
     Main = main,
     -- gọi bằng dấu hai chấm: API:TabArea("Tên Tab")  ->  Vector2 khổ vùng nội dung của tab
@@ -4881,7 +5216,7 @@ local function CreateFeatureTab(name, icon, codeContent)
         BackgroundTransparency=1,
         BorderSizePixel=0,
         ScrollBarThickness=5,
-        ScrollBarImageColor3=Color3.fromRGB(120,120,140),
+        ScrollBarImageColor3=Color3.fromRGB(70, 77, 95),
         ClipsDescendants=true,
         CanvasSize=UDim2.new(0,0,0,0),
         Visible=false,
@@ -4894,17 +5229,27 @@ local function CreateFeatureTab(name, icon, codeContent)
     local btn = New("TextButton", {
         Size=UDim2.new(1,-8,0,30),
         Text=icon.." "..name,
-        BackgroundColor3=C.BG,
-        BackgroundTransparency=0.3,
-        TextColor3=C.DARK,
+        BackgroundColor3=C.SURFACE2,      -- v4.5: pill ghost (SwitchTab tô màu khi tab mở)
+        BackgroundTransparency=1,
+        TextColor3=C.MUTED,
         Font=Enum.Font.GothamBold,
-        TextSize=9,
+        TextSize=10,
         BorderSizePixel=0,
         LayoutOrder=featureTabIndex + #featureTabs,
         TextXAlignment=Enum.TextXAlignment.Left,
         ZIndex=4,
     }, tabBar)
-    Corner(btn, UDim.new(0,6))
+    Corner(btn, UDim.new(0,8))            -- v4.5: bo 8px cho pill
+    -- v4.5: rê chuột vào tab chưa mở thì pill hiện nhẹ. Tab ĐANG mở (chữ vàng) thì không đụng,
+    -- để SwitchTab toàn quyền quyết định màu -> không đánh nhau giữa tween và trạng thái tab.
+    pcall(function()
+        trackConn(btn.MouseEnter:Connect(function()
+            if btn.BackgroundTransparency > 0.5 then Tween(btn, {BackgroundTransparency = 0.62}, 0.16) end
+        end))
+        trackConn(btn.MouseLeave:Connect(function()
+            if btn.TextColor3 ~= C.ACCENT then Tween(btn, {BackgroundTransparency = 1}, 0.2) end
+        end))
+    end)
 
     -- tra cuu index dong (xem giai thich o AddTab)
     btn.Activated:Connect(function()
@@ -5000,7 +5345,7 @@ local function CreateFeatureTab(name, icon, codeContent)
     local fStatus = New("TextLabel", {
         -- co giãn theo khung: từ 316px đến nút ✕ (trừ 46+6=52px từ phải)
         Size=UDim2.new(1,-52-316,0,26), Position=UDim2.new(0,316,0,5),
-        Text="", BackgroundTransparency=1, TextColor3=Color3.fromRGB(220,170,0),
+        Text="", BackgroundTransparency=1, TextColor3=Color3.fromRGB(255, 205, 64),
         Font=Enum.Font.GothamMedium, TextSize=8, TextXAlignment=Enum.TextXAlignment.Left,
         TextTruncate=Enum.TextTruncate.AtEnd, ZIndex=21,
     }, toolbar)
@@ -5020,9 +5365,9 @@ local function CreateFeatureTab(name, icon, codeContent)
         Size=UDim2.new(1,-16,1,-70), Position=UDim2.new(0,8,0,8),
         Text=codeContent,
         PlaceholderText="Dán script hoàn chỉnh HOẶC link raw vào đây...\nScript có thể tạo GUI riêng, GUI đó sẽ được nhúng vào tab này.",
-        PlaceholderColor3=Color3.fromRGB(160,160,160),
-        BackgroundColor3=Color3.fromRGB(255,255,255), BackgroundTransparency=0,
-        TextColor3=Color3.fromRGB(20,20,20),
+        PlaceholderColor3=Color3.fromRGB(122, 130, 148),
+        BackgroundColor3=Color3.fromRGB(26, 29, 38), BackgroundTransparency=0,
+        TextColor3=Color3.fromRGB(233, 237, 245),
         Font=Enum.Font.Code, TextSize=11, BorderSizePixel=0, ClearTextOnFocus=false,
         MultiLine=true, TextWrapped=true, TextXAlignment=Enum.TextXAlignment.Left, TextYAlignment=Enum.TextYAlignment.Top,
         Active=true, Selectable=true, ZIndex=31,
@@ -5159,8 +5504,8 @@ cy = cy + 14
 local featureNameIn = New("TextBox", {
     Size=UDim2.new(1,-16,0,26), Position=UDim2.new(0,8,0,cy), Text="",
     PlaceholderText="VD: Auto Farm, Fly, Speed...",
-    PlaceholderColor3=Color3.fromRGB(160,160,160),
-    BackgroundColor3=Color3.fromRGB(255,255,255), BackgroundTransparency=0, TextColor3=Color3.fromRGB(20,20,20),
+    PlaceholderColor3=Color3.fromRGB(122, 130, 148),
+    BackgroundColor3=Color3.fromRGB(26, 29, 38), BackgroundTransparency=0, TextColor3=Color3.fromRGB(233, 237, 245),
     Font=Enum.Font.GothamMedium, TextSize=12, BorderSizePixel=0, ClearTextOnFocus=false,
     Active=true, Selectable=true, ZIndex=10, TextXAlignment=Enum.TextXAlignment.Left,
 }, createFeatureTab)
@@ -5174,8 +5519,8 @@ cy = cy + 14
 
 local featureIconIn = New("TextBox", {
     Size=UDim2.new(0,60,0,26), Position=UDim2.new(0,8,0,cy), Text="⚙️",
-    PlaceholderColor3=Color3.fromRGB(160,160,160),
-    BackgroundColor3=Color3.fromRGB(255,255,255), BackgroundTransparency=0, TextColor3=Color3.fromRGB(20,20,20),
+    PlaceholderColor3=Color3.fromRGB(122, 130, 148),
+    BackgroundColor3=Color3.fromRGB(26, 29, 38), BackgroundTransparency=0, TextColor3=Color3.fromRGB(233, 237, 245),
     Font=Enum.Font.GothamBold, TextSize=14, BorderSizePixel=0, ClearTextOnFocus=false,
     Active=true, Selectable=true, ZIndex=10,
 }, createFeatureTab)
@@ -5189,8 +5534,8 @@ cy = cy + 14
 local featureCodeIn = New("TextBox", {
     Size=UDim2.new(1,-16,0,140), Position=UDim2.new(0,8,0,cy), Text="",
     PlaceholderText="Dán script hoặc link raw (https://...) vào đây...\nScript có thể tạo ScreenGui riêng, GUI đó sẽ được nhúng vào tab.",
-    PlaceholderColor3=Color3.fromRGB(160,160,160),
-    BackgroundColor3=Color3.fromRGB(245,245,255), BackgroundTransparency=0, TextColor3=Color3.fromRGB(20,20,20),
+    PlaceholderColor3=Color3.fromRGB(122, 130, 148),
+    BackgroundColor3=Color3.fromRGB(28, 31, 41), BackgroundTransparency=0, TextColor3=Color3.fromRGB(233, 237, 245),
     Font=Enum.Font.Code, TextSize=11, BorderSizePixel=0, ClearTextOnFocus=false,
     MultiLine=true, TextWrapped=true, TextXAlignment=Enum.TextXAlignment.Left, TextYAlignment=Enum.TextYAlignment.Top,
     Active=true, Selectable=true, ZIndex=10,
@@ -5240,15 +5585,15 @@ cy = cy + 32
 S.SyncEmbedToggles = function()
     pcall(function()
         embedToggleBtn.Text = S.embedEnabled and "🧩 Nhúng vào Tab: BẬT" or "🧩 Nhúng vào Tab: TẮT"
-        embedToggleBtn.BackgroundColor3 = S.embedEnabled and C.GREEN or C.GRAY
+        D.SetBg(embedToggleBtn, S.embedEnabled and C.GREEN or C.GRAY)   -- v4.5
         guessToggleBtn.Text = (S.embedGuessNew == true) and "🕵 Đoán GUI trễ: BẬT" or "🕵 Đoán GUI trễ: TẮT"
-        guessToggleBtn.BackgroundColor3 = (S.embedGuessNew == true) and C.ORANGE or C.GRAY
+        D.SetBg(guessToggleBtn, (S.embedGuessNew == true) and C.ORANGE or C.GRAY)   -- v4.5
         -- v4.4i: nút 🪟 (có thể chưa tồn tại khi hàm này được gọi lần đầu lúc khởi động)
         if S.parkToggleBtn then
             local on = (S.parkCodeGuis ~= false)
             S.parkToggleBtn.Text = on and "🪟 GUI chạy ở tab 💻 Code → đưa vào menu: BẬT"
                                      or "🪟 GUI chạy ở tab 💻 Code → để ngoài màn hình: TẮT"
-            S.parkToggleBtn.BackgroundColor3 = on and C.GREEN or C.GRAY
+            D.SetBg(S.parkToggleBtn, on and C.GREEN or C.GRAY)
         end
     end)
 end
@@ -5264,11 +5609,11 @@ embedToggleBtn.Activated:Connect(function()
     S.embedEnabled = not S.embedEnabled
     if S.embedEnabled then
         embedToggleBtn.Text = "🧩 Nhúng vào Tab: BẬT"
-        embedToggleBtn.BackgroundColor3 = C.GREEN
+        D.SetBg(embedToggleBtn, C.GREEN)
         createStatus.Text = "🧩 BẬT: GUI của script được mượn vào tab. Bấm ✕ trên tab để trả về như cũ."
     else
         embedToggleBtn.Text = "🧩 Nhúng vào Tab: TẮT"
-        embedToggleBtn.BackgroundColor3 = C.GRAY
+        D.SetBg(embedToggleBtn, C.GRAY)
         -- TẮT = hoàn tác ngay mọi thứ đang nhúng: hub không còn đụng vào GUI nào -> input của
         -- game (quay chuột, bắn, nút HUD) trở lại bình thường 100%.
         for _, ft in ipairs(featureTabs) do
@@ -5286,12 +5631,12 @@ guessToggleBtn.Activated:Connect(function()
     S.embedGuessNew = not (S.embedGuessNew == true)
     if S.embedGuessNew then
         guessToggleBtn.Text = "🕵 Đoán GUI trễ: BẬT"
-        guessToggleBtn.BackgroundColor3 = C.ORANGE
+        D.SetBg(guessToggleBtn, C.ORANGE)
         createStatus.Text = "🕵 BẬT: script tạo GUI trễ (sau HttpGet/task.wait) sẽ được nhúng — tiện hơn"
             .. " nhưng nếu game cũng vừa mở UI đúng lúc thì UI đó có thể bị mượn vào tab (bấm ✕ để trả)."
     else
         guessToggleBtn.Text = "🕵 Đoán GUI trễ: TẮT"
-        guessToggleBtn.BackgroundColor3 = C.GRAY
+        D.SetBg(guessToggleBtn, C.GRAY)
         createStatus.Text = "🛡 An toàn nhất: chỉ nhúng GUI mà hub chắc chắn là của script."
             .. " Script tạo GUI trễ sẽ chạy bình thường ngoài màn hình, không bị nhúng."
     end
@@ -5556,7 +5901,7 @@ local function RebuildFeatureList()
     local totalH = 0
     for i, ft in ipairs(featureTabs) do
         local row = New("Frame", {
-            Size=UDim2.new(1,0,0,32), BackgroundColor3=Color3.fromRGB(255,255,255),
+            Size=UDim2.new(1,0,0,32), BackgroundColor3=Color3.fromRGB(26, 29, 38),
             BackgroundTransparency=0.1, BorderSizePixel=0, ZIndex=6,
         }, featureListFrame)
         Corner(row, UDim.new(0,5)); Stroke(row)
@@ -5718,26 +6063,49 @@ local function ToggleMainFrame()
     main.Visible = not main.Visible
     togBtn.Text = main.Visible and "✕" or "🍌"
     if not main.Visible then ReleaseHubFocus() end   -- v4.4b: đóng menu là phải trả input cho game
+    -- v4.5: mở menu thì khung "nở" nhẹ 94% -> 100% (GIỮ NGUYÊN TÂM), đóng thì tắt ngay cho dứt
+    -- khoát. Size/Position được đọc TẠI THỜI ĐIỂM MỞ nên người dùng vừa kéo/nới khung xong vẫn
+    -- đúng (không lưu trạng thái cũ -> không thể lệch). Kéo/nới trong 0.2s đầu thì tween bị hủy.
+    if main.Visible then
+        pcall(function()
+            if D.openTween then D.openTween:Cancel() end
+            local ts, tp = main.Size, main.Position
+            main.Size = UDim2.new(ts.X.Scale, math.max(160, ts.X.Offset - 24),
+                                  ts.Y.Scale, math.max(110, ts.Y.Offset - 16))
+            main.Position = UDim2.new(tp.X.Scale, tp.X.Offset + 12, tp.Y.Scale, tp.Y.Offset + 8)
+            D.openTween = TweenService:Create(main,
+                TweenInfo.new(0.2, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
+                {Size = ts, Position = tp})
+            D.openTween:Play()
+            D.openTween.Completed:Connect(function()
+                D.openTween = nil
+                pcall(BcFit)   -- đo lại để GUI đang nhúng vừa đúng ô tab
+            end)
+        end)
+    end
 end
 
 closeBtn.Activated:Connect(function()
+    pcall(function() if D.openTween then D.openTween:Cancel() D.openTween = nil end end)
     main.Visible = false
     togBtn.Text = "🍌"
+    ReleaseHubFocus()   -- v4.5: đóng bằng ✕ cũng phải trả input cho game (trước đây chỉ có nút 🍌 làm)
 end)
 
 dragLockBtn.Activated:Connect(function()
     S.dragMenu = not S.dragMenu
     if S.dragMenu then
         dragLockBtn.Text = "🔓"
-        dragLockBtn.TextColor3 = C.BLUE
+        dragLockBtn.TextColor3 = C.ACCENT   -- v4.5: vàng accent thay vì xanh
     else
         dragLockBtn.Text = "🔒"
-        dragLockBtn.TextColor3 = Color3.fromRGB(120,120,130)
+        dragLockBtn.TextColor3 = C.MUTED
     end
 end)
 
 trackConn(titleBar.InputBegan:Connect(function(i)
     if S.dragMenu and (i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch) then
+        pcall(function() if D.openTween then D.openTween:Cancel() D.openTween = nil end end)  -- v4.5
         S.dragging=true
         S.dragStart=i.Position
         S.startPos=main.Position
@@ -5810,7 +6178,7 @@ main.Visible = true
 togBtn.Text = "✕"
 
 print(string.format(
-    "✅ Banana Cat Hub v4.4i — sẵn sàng! Đã nạp lại %d script + %d waypoint + %d tab tính năng từ bộ nhớ (chế độ: %s%s)",
+    "✅ Banana Cat Hub v4.5 — sẵn sàng! Đã nạp lại %d script + %d waypoint + %d tab tính năng từ bộ nhớ (chế độ: %s%s)",
     Store.loadedScripts, Store.loadedWp, #Store.loadedFeatures, Store.mode,
     Store.lastError and (" | ⚠️ " .. Store.lastError) or ""
 ))

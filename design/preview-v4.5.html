@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Banana Cat Hub v4.5 — xem trước giao diện "Midnight Gold"</title>
+<style>
+  /* ========= TOKEN LẤY ĐÚNG TỪ script.js (bảng C + D) ========= */
+  :root{
+    --bg:#12141b;          /* C.BG     (18,20,27)  */
+    --surface:#1a1d26;     /* C.SURFACE(26,29,38)  */
+    --surface2:#222632;    /* C.SURFACE2(34,38,50) */
+    --surface3:#2e3342;    /* C.SURFACE3(46,51,66) */
+    --border:#343a4a;      /* C.BORDER (52,58,74)  */
+    --text:#e9edf5;        /* C.DARK   (233,237,245) */
+    --muted:#969eb0;       /* C.MUTED  (150,158,176) */
+    --gray:#7c8496;        /* C.GRAY   (124,132,150) */
+    --ink:#101218;         /* C.INK    (16,18,24)  */
+    --accent:#ffc43d;      /* C.ACCENT (255,196,61)*/
+    --accent2:#ff843e;     /* C.ACCENT2(255,132,62)*/
+    --green:#26c276; --blue:#4894f8; --red:#f2565e; --yellow:#ffcd40;
+    --purple:#ac69ff; --orange:#f59842; --pink:#f27ab9;
+    --ink-bg:#0f1116;      /* ô code (15,17,22) */
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; min-height:100vh; padding:28px 20px 60px;
+    background:radial-gradient(1200px 700px at 20% -10%, #1b2030 0%, #0b0d12 55%, #07080b 100%);
+    font-family:"Gotham SSo","Segoe UI",system-ui,-apple-system,sans-serif;
+    color:var(--text); display:flex; flex-wrap:wrap; gap:26px; justify-content:center; align-items:flex-start;
+  }
+  h1{font-size:17px;margin:0 0 4px;letter-spacing:.2px}
+  h1 span{background:linear-gradient(90deg,var(--accent),#fff3d6);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .sub{color:var(--muted);font-size:11.5px;margin:0 0 18px;max-width:640px;line-height:1.65}
+  .note{font-size:10.5px;color:var(--gray);border:1px dashed var(--border);border-radius:10px;padding:8px 10px;max-width:640px;margin-bottom:18px;line-height:1.6}
+
+  /* ========= CỬA SỔ HUB: 540x340, bo 14, viền 1.4 ========= */
+  .win{
+    width:540px;height:340px;border-radius:14px;position:relative;overflow:hidden;
+    background:linear-gradient(180deg,#151821 0%,#0e1015 100%);
+    border:1.4px solid var(--border);
+    box-shadow:0 24px 60px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.02) inset;
+    transition:transform .2s cubic-bezier(.22,1,.36,1), opacity .2s;
+  }
+  .win.closed{transform:scale(.955);opacity:0;pointer-events:none}
+
+  /* ---- thanh tiêu đề 30px ---- */
+  .title{
+    height:30px;position:relative;display:flex;align-items:center;
+    background:linear-gradient(180deg,#262b38 0%,#191d26 100%);
+  }
+  .title:after{ /* vạch accent vàng->cam dọc đáy */
+    content:"";position:absolute;left:1px;right:1px;bottom:0;height:2px;
+    background:linear-gradient(90deg,var(--accent),var(--accent2));
+  }
+  .title h2{
+    margin:0 0 0 12px;font-size:13px;font-weight:700;letter-spacing:.2px;
+    background:linear-gradient(90deg,var(--accent),#fff3d6);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+  }
+  .pill{
+    position:absolute;left:158px;top:7px;width:62px;height:16px;border-radius:999px;
+    background:rgba(46,51,66,.65);border:1px solid rgba(255,196,61,.75);
+    color:var(--accent);font-size:8px;font-weight:700;display:flex;align-items:center;justify-content:center;
+  }
+  .wbtns{position:absolute;right:2px;top:0;display:flex}
+  .wbtn{width:30px;height:30px;background:none;border:0;color:var(--muted);font-size:14px;font-weight:700;cursor:pointer;transition:color .15s}
+  .wbtn.lock:hover{color:var(--accent)} .wbtn.close:hover{color:var(--red)}
+
+  /* ---- thân: nội dung trái + thanh tab phải 105px ---- */
+  .body{display:flex;height:310px}
+  .content{width:435px;height:310px;overflow-y:auto;padding:8px 8px 14px;scrollbar-width:thin;scrollbar-color:var(--surface3) transparent}
+  .content::-webkit-scrollbar{width:3px}
+  .content::-webkit-scrollbar-thumb{background:var(--surface3);border-radius:3px}
+  .rail{
+    width:105px;height:310px;background:rgba(26,29,38,.65);border-left:1px solid var(--border);
+    overflow-y:auto;padding:6px 0 6px 4px;scrollbar-width:thin;scrollbar-color:var(--surface3) transparent;
+  }
+  .rail::-webkit-scrollbar{width:3px}.rail::-webkit-scrollbar-thumb{background:var(--surface3);border-radius:3px}
+
+  /* ---- tab dạng pill + vạch accent ---- */
+  .tab{
+    width:97px;height:30px;border-radius:8px;border:0;background:transparent;color:var(--muted);
+    font-size:10px;font-weight:700;text-align:left;padding:0 6px 0 9px;margin-bottom:4px;cursor:pointer;
+    position:relative;transition:background .16s,color .16s;white-space:nowrap;overflow:hidden;
+  }
+  .tab:hover{background:rgba(34,38,50,.38)}
+  .tab.on{background:rgba(34,38,50,.9);color:var(--accent)}
+  .tab.on:before{content:"";position:absolute;left:2px;top:6px;bottom:6px;width:3px;border-radius:999px;background:var(--accent)}
+
+  /* ---- nhãn / đường phân cách ---- */
+  .lb{font-size:10px;color:var(--muted);margin:6px 0 4px 2px;font-weight:500}
+  .rule{height:1px;background:var(--border);opacity:.9;margin:9px 2px;border:0}
+  .hint{font-size:9px;color:var(--gray);margin:5px 0 0 2px;line-height:1.55}
+
+  /* ---- ô nhập liệu + vòng sáng khi gõ ---- */
+  .inp{
+    width:100%;height:26px;border-radius:10px;background:var(--surface);border:1px solid var(--border);
+    color:var(--text);font-size:10px;padding:0 9px;outline:0;transition:border-color .18s,box-shadow .18s;font-family:inherit;
+  }
+  .inp::placeholder{color:#7a8294}
+  .inp:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(255,196,61,.13)}
+  textarea.inp{height:104px;padding:7px 9px;resize:none;line-height:1.55;background:var(--ink-bg);
+    font-family:ui-monospace,"Cascadia Code",Consolas,monospace;font-size:10px;color:#e6ebf5}
+
+  /* ---- nút: nền đặc, bo 8, viền sáng hơn nền 1 bậc, đổ khối nhẹ, hover/nhấn ---- */
+  .btn{
+    height:26px;border-radius:8px;border:1px solid rgba(255,255,255,.14);cursor:pointer;
+    font-size:10px;font-weight:700;font-family:inherit;padding:0 10px;color:#fff;position:relative;
+    background-image:linear-gradient(180deg,rgba(255,255,255,.14),rgba(255,255,255,0));
+    transition:filter .16s, transform .08s;
+  }
+  .btn:hover{filter:brightness(1.12)} .btn:active{filter:brightness(.92);transform:translateY(.5px)}
+  .btn.gold{background-color:var(--accent);color:var(--ink);border-color:rgba(255,255,255,.28)}
+  .btn.green{background-color:var(--green);color:var(--ink);border-color:rgba(255,255,255,.22)}
+  .btn.orange{background-color:var(--orange);color:var(--ink);border-color:rgba(255,255,255,.22)}
+  .btn.yellow{background-color:var(--yellow);color:var(--ink);border-color:rgba(255,255,255,.22)}
+  .btn.blue{background-color:var(--blue)} .btn.red{background-color:var(--red)}
+  .btn.purple{background-color:var(--purple)} .btn.gray{background-color:var(--gray)}
+  .btn.dark{background-color:var(--surface3);color:var(--text)}
+  .row{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+  .row .btn{height:28px}
+  .wide{width:100%}
+
+  /* ---- thẻ/dòng trong danh sách ---- */
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:7px 9px;margin-top:6px}
+  .card .t{font-size:10px;font-weight:700;color:var(--text)}
+  .card .d{font-size:9px;color:var(--muted);margin-top:2px;line-height:1.5}
+  .quick{display:flex;align-items:center;justify-content:space-between;border-radius:9px;padding:6px 9px;margin-top:5px;
+    border:1px solid rgba(255,255,255,.12);background-image:linear-gradient(180deg,rgba(255,255,255,.13),rgba(255,255,255,0));cursor:pointer}
+  .quick:hover{filter:brightness(1.12)}
+  .quick b{font-size:10px;color:#fff}.quick span{display:block;font-size:8.5px;color:rgba(255,255,255,.78);margin-top:1px}
+  .q1{background-color:#4894f8}.q2{background-color:var(--purple)}.q3{background-color:#26c276}
+
+  /* ---- nút 🍌 nổi: gradient 135deg + quầng sáng thở ---- */
+  .fab{
+    position:fixed;right:26px;bottom:26px;width:48px;height:48px;border-radius:999px;border:1.6px solid var(--accent2);
+    background:linear-gradient(135deg,var(--accent),var(--accent2));color:var(--ink);font-size:22px;cursor:pointer;
+    z-index:50;transition:filter .16s, transform .12s;
+  }
+  .fab:hover{filter:brightness(1.08)} .fab:active{transform:scale(.96)}
+  .glow{position:fixed;right:19px;bottom:19px;width:62px;height:62px;border-radius:999px;background:var(--accent);
+    filter:blur(9px);opacity:.14;z-index:49;animation:breathe 2.1s ease-in-out infinite alternate;pointer-events:none}
+  @keyframes breathe{from{opacity:.14}to{opacity:.05}}
+
+  /* ---- bảng token ---- */
+  .panel{width:330px}
+  .sw{display:flex;align-items:center;gap:8px;margin:5px 0;font-size:10px;color:var(--muted)}
+  .chip{width:26px;height:18px;border-radius:5px;border:1px solid rgba(255,255,255,.14);flex:0 0 auto}
+  .cardbox{background:rgba(26,29,38,.6);border:1px solid var(--border);border-radius:12px;padding:12px 13px;margin-bottom:14px}
+  .cardbox h3{margin:0 0 8px;font-size:11px;color:var(--accent);letter-spacing:.3px;text-transform:uppercase}
+  ul{margin:0;padding-left:16px;font-size:10.5px;color:var(--muted);line-height:1.75}
+  code{background:var(--ink-bg);border:1px solid var(--border);border-radius:5px;padding:1px 4px;font-size:9.5px;color:#ffd47a}
+  .hide{display:none}
+</style>
+</head>
+<body>
+  <div>
+    <h1>🍌 Banana Cat Hub <span>v4.5 — "Midnight Gold"</span></h1>
+    <p class="sub">Xem trước giao diện mới. Bấm các tab, rê chuột vào nút, bấm vào ô nhập liệu (vòng sáng vàng),
+      và bấm nút 🍌 ở góc phải bên dưới để xem hiệu ứng mở/đóng cửa sổ.</p>
+    <div class="note">⚠️ Đây là <b>bản mock bằng HTML</b> dựng theo đúng số đo &amp; mã màu trong <code>script.js</code>
+      (540×340px, tiêu đề 30px, thanh tab 105px, bo 14/10/8px, viền 1–1.4px, accent <code>#FFC43D → #FF843E</code>),
+      để bạn duyệt thiết kế trước. Trong Roblox sẽ render bằng UIGradient/UIStroke/Font GothamSSo — chất liệu có thể
+      khác biệt nhỏ nhưng bố cục &amp; màu y như vậy. <b>Không đổi layout/kích thước/logic</b> nên mọi tính năng giữ nguyên.</div>
+
+    <!-- ================= CỬA SỔ HUB ================= -->
+    <div class="win" id="win">
+      <div class="title">
+        <h2>🍌 Banana Cat Hub</h2>
+        <div class="pill">v4.5 · PRO</div>
+        <div class="wbtns">
+          <button class="wbtn lock" title="Khóa/mở kéo menu">🔒</button>
+          <button class="wbtn close" onclick="toggleWin()" title="Đóng menu">✕</button>
+        </div>
+      </div>
+      <div class="body">
+        <div class="content">
+          <!-- TAB 1: CODE -->
+          <section data-tab="code">
+            <div class="lb">💻 Nhập Code Tùy Chỉnh</div>
+            <div class="lb">👤 Tên Script</div>
+            <input class="inp" placeholder="Nhập tên script...">
+            <div class="lb">📝 Code</div>
+            <textarea class="inp" placeholder='Dán code vào đây, ví dụ:&#10;loadstring(game:HttpGet("https://..."))()'></textarea>
+            <div class="row">
+              <button class="btn green" style="width:140px">▶ Chạy Code</button>
+              <button class="btn red" style="width:70px">⏹ Dừng</button>
+              <button class="btn blue" style="width:100px">💾 Lưu Script</button>
+              <button class="btn purple" style="width:96px">🔄 Nạp lại</button>
+            </div>
+            <div class="hint">✅ Hoàn thành! · 🧩 đã đưa 1 GUI vào tab "GUI Ngoài" (bấm ↩ để trả về màn hình game)</div>
+          </section>
+
+          <!-- TAB 2: CODE ĐÃ LƯU -->
+          <section data-tab="saved" class="hide">
+            <div class="lb">💾 Script Đã Lưu</div>
+            <input class="inp" placeholder="🔍 Tìm script...">
+            <div class="card">
+              <div class="t">⚡ Auto Farm v2</div>
+              <div class="d">Lưu lúc 20:14 · 128 dòng</div>
+              <div class="row">
+                <button class="btn green" style="width:74px">▶ Chạy</button>
+                <button class="btn blue" style="width:104px">📋 Sao Chép Code</button>
+                <button class="btn red" style="width:62px">🗑 Xóa</button>
+              </div>
+            </div>
+            <div class="card">
+              <div class="t">🎯 ESP + Niêm tâm</div>
+              <div class="d">Lưu lúc 19:02 · 76 dòng</div>
+              <div class="row">
+                <button class="btn green" style="width:74px">▶ Chạy</button>
+                <button class="btn blue" style="width:104px">📋 Sao Chép Code</button>
+                <button class="btn red" style="width:62px">🗑 Xóa</button>
+              </div>
+            </div>
+          </section>
+
+          <!-- TAB 3: HỖ TRỢ -->
+          <section data-tab="support" class="hide">
+            <div class="lb">⚡ Script Nhanh - Nhấn để chạy ngay</div>
+            <div class="quick q1"><div><b>Dex Explorer</b><span>Mở Dex Explorer</span></div><span style="font-size:12px">🧰</span></div>
+            <div class="quick q2"><div><b>Infinite Yield</b><span>Admin Commands</span></div><span style="font-size:12px">🛡</span></div>
+            <div class="quick q3"><div><b>SimpleSpy v3</b><span>Theo dõi RemoteEvent &amp; RemoteFunction</span></div><span style="font-size:12px">📡</span></div>
+            <div class="hint">🪟 GUI của 3 nút này <b>luôn ở NGOÀI màn hình game</b> (công cụ cửa sổ riêng) — hub không đưa vào menu.</div>
+            <hr class="rule">
+            <div class="lb">📍 Phân Tích Tọa Độ</div>
+            <div class="row">
+              <button class="btn green wide">🎯 Phân Tích Vật: BẬT</button>
+              <button class="btn purple wide">💜 Highlight Tím: TẮT</button>
+            </div>
+          </section>
+
+          <!-- TAB 5: TẠO TÍNH NĂNG -->
+          <section data-tab="create" class="hide">
+            <div class="lb">➕ Tạo Tab Tính Năng Riêng</div>
+            <div class="row">
+              <input class="inp" style="width:180px" placeholder="Tên tính năng...">
+              <input class="inp" style="width:60px" placeholder="⚙️">
+            </div>
+            <textarea class="inp" style="height:70px" placeholder="Dán code tính năng vào đây..."></textarea>
+            <div class="row">
+              <button class="btn blue" style="width:180px;height:28px">➕ Tạo Tab Tính Năng</button>
+              <button class="btn orange" style="width:100px;height:28px">🧹 Xóa Form</button>
+              <button class="btn green" style="width:122px;height:28px">🧩 Nhúng vào Tab: BẬT</button>
+            </div>
+            <div class="row">
+              <button class="btn gray" style="width:150px">🕵 Đoán GUI trễ: TẮT</button>
+              <button class="btn purple" style="width:262px">📏 Code Tự Co Giãn (an toàn, Auto-Lưu)</button>
+            </div>
+            <div class="row"><button class="btn red wide" style="height:24px">🖱 Kẹt chuột / không bấm được? Bấm đây</button></div>
+            <div class="row"><button class="btn blue wide">📋 Copy Code Mẫu Cho AI (menu + niêm tâm)</button></div>
+            <div class="row"><button class="btn blue wide">🔁 Cứu GUI: nhúng lại GUI của tab ĐANG MỞ vào menu</button></div>
+            <div class="row"><button class="btn green wide">🪟 GUI chạy ở tab 💻 Code → đưa vào menu: BẬT</button></div>
+            <div class="hint" style="color:var(--yellow)">✅ Đã tạo tab: Auto Farm (đã lưu)</div>
+          </section>
+
+          <!-- TAB TÍNH NĂNG (đã tạo) -->
+          <section data-tab="feat" class="hide">
+            <div class="lb">⚙️ Auto Farm — tab tính năng của bạn</div>
+            <div class="card" style="height:150px;display:flex;align-items:center;justify-content:center;background:var(--ink-bg)">
+              <div style="text-align:center">
+                <div style="font-size:11px;color:var(--accent);font-weight:700">🧩 GUI của script đã nằm TRONG tab</div>
+                <div class="hint">host nhúng (Embedded_…) · bấm ✕ trên tab để trả GUI về màn hình game</div>
+              </div>
+            </div>
+            <div class="row">
+              <button class="btn green" style="width:120px">▶ Chạy Script</button>
+              <button class="btn dark" style="width:120px">↩ Trả GUI về game</button>
+              <button class="btn red" style="width:90px">🗑 Xóa tab</button>
+            </div>
+            <div class="hint">✅ xong · 1 GUI đã nhúng vào tab (bấm ✕ để trả về màn hình game)</div>
+          </section>
+
+          <!-- TAB 🧩 GUI NGOÀI (mới ở v4.4h) -->
+          <section data-tab="park" class="hide">
+            <div class="row" style="margin:0 0 6px">
+              <div class="hint" style="margin:0;flex:1">🧩 GUI do script chạy ở tab 💻 Code tạo ra — hub đưa vào đây.
+                Bấm ↩ để trả về màn hình game. (Dex/IY/SimpleSpy KHÔNG bao giờ vào đây.)</div>
+              <button class="btn red" style="width:124px;height:24px">↩ Trả tất cả về game</button>
+            </div>
+            <div class="card" style="height:120px;background:var(--ink-bg);display:flex;align-items:center;justify-content:center;position:relative">
+              <button class="btn dark" style="position:absolute;right:4px;top:2px;width:110px;height:20px;font-size:9px">↩ Trả về game</button>
+              <div style="font-size:10.5px;color:var(--muted)">ô đậu GUI #1 — “MyFeatureGui”</div>
+            </div>
+          </section>
+        </div>
+
+        <div class="rail" id="rail">
+          <button class="tab on" data-go="code">💻 Code</button>
+          <button class="tab" data-go="saved">💾 Code Đã Lưu</button>
+          <button class="tab" data-go="support">🛠 Hỗ Trợ</button>
+          <button class="tab" data-go="create">➕ Tạo Tính Năng</button>
+          <button class="tab" data-go="feat">⚙️ Auto Farm</button>
+          <button class="tab" data-go="park">🧩 GUI Ngoài (1)</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= BẢNG THIẾT KẾ ================= -->
+  <div class="panel">
+    <div class="cardbox">
+      <h3>Bảng màu Midnight Gold</h3>
+      <div class="sw"><span class="chip" style="background:#12141b"></span> C.BG · nền cửa sổ <code>18,20,27</code></div>
+      <div class="sw"><span class="chip" style="background:#1a1d26"></span> C.SURFACE · thẻ/ô nhập <code>26,29,38</code></div>
+      <div class="sw"><span class="chip" style="background:#222632"></span> C.SURFACE2 · panel/tiêu đề <code>34,38,50</code></div>
+      <div class="sw"><span class="chip" style="background:#2e3342"></span> C.SURFACE3 · scrollbar <code>46,51,66</code></div>
+      <div class="sw"><span class="chip" style="background:#343a4a"></span> C.BORDER · viền mảnh <code>52,58,74</code></div>
+      <div class="sw"><span class="chip" style="background:#e9edf5"></span> C.DARK · chữ chính <code>233,237,245</code></div>
+      <div class="sw"><span class="chip" style="background:#969eb0"></span> C.MUTED · chữ phụ <code>150,158,176</code></div>
+      <div class="sw"><span class="chip" style="background:linear-gradient(90deg,#ffc43d,#ff843e)"></span> C.ACCENT → ACCENT2 <code>255,196,61 → 255,132,62</code></div>
+      <div class="sw"><span class="chip" style="background:#26c276"></span> GREEN <code>38,194,118</code></div>
+      <div class="sw"><span class="chip" style="background:#4894f8"></span> BLUE <code>72,148,248</code></div>
+      <div class="sw"><span class="chip" style="background:#f2565e"></span> RED <code>242,86,94</code></div>
+      <div class="sw"><span class="chip" style="background:#ac69ff"></span> PURPLE <code>172,105,255</code></div>
+    </div>
+    <div class="cardbox">
+      <h3>Đã nâng cấp những gì</h3>
+      <ul>
+        <li>Nền tối + accent vàng‑cam, viền mảnh 1–1.4px (bỏ viền xám sáng kiểu cũ)</li>
+        <li>Tiêu đề chữ gradient, vạch accent dưới thanh tiêu đề, pill phiên bản</li>
+        <li>Tab dạng pill: chưa mở = trong suốt/chữ mờ, đang mở = nổi nền + chữ vàng + vạch 3px; hover hiện nhẹ</li>
+        <li>Nút: nền đặc, đổ khối nhẹ, viền sáng hơn nền 1 bậc, hover sáng lên + nhấn đậm lại</li>
+        <li>Chữ <b>tự chọn đậm/sáng theo nền</b> (hết cảnh chữ trắng chìm trên nền vàng/xanh lá)</li>
+        <li>Ô nhập liệu có <b>vòng sáng vàng</b> khi gõ (focus ring)</li>
+        <li>Font GothamSSo giữ nguyên độ đậm · scrollbar mảnh 3px</li>
+        <li>Nút 🍌 nổi: gradient vàng‑cam + quầng sáng "thở", tự bám theo khi kéo</li>
+        <li>Mở menu có hiệu ứng nở nhẹ 0.2s (kéo/nới khung là hủy ngay)</li>
+        <li>Đường phân cách "━━━" thành kẻ mảnh màu viền (tinh tế hơn)</li>
+      </ul>
+    </div>
+    <div class="cardbox">
+      <h3>An toàn tính năng</h3>
+      <ul>
+        <li><b>Không đổi</b> layout/kích thước/vị trí/logic — chỉ đổi màu, chất liệu, hiệu ứng</li>
+        <li>Giữ nguyên tên khóa màu cũ (<code>C.BG</code>, <code>C.DARK</code>, …) nên hàng trăm chỗ dùng <code>C.XXX</code> không phải sửa</li>
+        <li>Không thêm asset/ảnh ngoài (mọi hiệu ứng bằng UIGradient/UIStroke)</li>
+        <li>Không tốn thêm biến local cấp chunk: <b>188/200</b> (chỉ thêm 1 bảng <code>D</code>)</li>
+        <li>85/85 test logic vẫn PASS · syntax OK · <code>end</code> cân bằng · CRLF 100%</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="glow"></div>
+  <button class="fab" id="fab" onclick="toggleWin()">🍌</button>
+
+<script>
+  const tabs=[...document.querySelectorAll('.tab')];
+  const secs=[...document.querySelectorAll('section[data-tab]')];
+  tabs.forEach(t=>t.addEventListener('click',()=>{
+    tabs.forEach(x=>x.classList.remove('on')); t.classList.add('on');
+    secs.forEach(s=>s.classList.toggle('hide', s.dataset.tab!==t.dataset.go));
+  }));
+  const win=document.getElementById('win'), fab=document.getElementById('fab');
+  function toggleWin(){
+    const open=win.classList.toggle('closed');
+    fab.textContent=open?'🍌':'✕';
+  }
+  win.classList.remove('closed'); fab.textContent='✕';
+</script>
+</body>
+</html>

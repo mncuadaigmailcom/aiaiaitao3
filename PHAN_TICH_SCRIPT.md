@@ -557,6 +557,94 @@ vẫn giữ nguyên **8/8** cho bản mới — không có hồi quy nào.
 
 ---
 
+## 🎨 Cập nhật 2026-09-13 (lần 4) — bản **v4.5**: thiết kế lại giao diện "MIDNIGHT GOLD"
+
+Yêu cầu: *"các tính năng đã ổn định, thiết kế lại menu script cho hiện đại và đẳng cấp hơn,
+nhớ là không làm mất tính năng"*.
+
+**Nguyên tắc bất di bất dịch của lần sửa này:** chỉ đổi **màu sắc – chất liệu – hiệu ứng**,
+**KHÔNG đổi** layout, kích thước, vị trí, tên đối tượng hay bất kỳ dòng logic nào. Vì vậy mọi tính
+năng (nhúng GUI, tab tính năng, waypoint, AI, crosshair, lưu/nạp, 🔁 Cứu GUI, 🧩/🕵/🪟…) giữ nguyên 100%.
+
+### 1. Bảng màu mới — giữ nguyên TÊN KHÓA cũ
+
+| khóa | trước (nền sáng) | nay (nền tối) | vai trò |
+|---|---|---|---|
+| `C.BG` | `240,242,248` | **`18,20,27`** | nền cửa sổ |
+| `C.DARK` | `40,40,45` (chữ đậm) | **`233,237,245`** (chữ sáng) | màu chữ chính |
+| `C.GRAY` | `110,115,125` | `124,132,150` | nút tắt / chữ phụ |
+| `C.GREEN/BLUE/RED/YELLOW/PURPLE/ORANGE/PINK` | tông trầm | tông sáng hơn cho nền tối | trạng thái |
+| **mới** `C.SURFACE / SURFACE2 / SURFACE3` | — | `26,29,38` / `34,38,50` / `46,51,66` | thẻ, panel, thanh tiêu đề |
+| **mới** `C.BORDER / C.MUTED / C.INK` | — | `52,58,74` / `150,158,176` / `16,18,24` | viền, chữ phụ, chữ trên nền vàng |
+| **mới** `C.ACCENT / C.ACCENT2` | — | **`255,196,61` → `255,132,62`** | vàng chuối → cam (màu nhận diện) |
+
+Giữ nguyên tên khóa cũ để **hàng trăm chỗ đang dùng `C.XXX` không phải sửa**. Đã kiểm tra trước khi
+đổi: `C.DARK` **chỉ** được dùng làm `TextColor3` (không nơi nào dùng làm nền/viền) nên việc nó trở
+thành "chữ sáng" là an toàn; `C.BG` chỉ dùng làm nền.
+
+### 2. Bộ công cụ thiết kế `D` (1 biến local duy nhất)
+
+Main chunk đã sát trần 200 local của Luau, nên **toàn bộ helper mới được gom vào 1 bảng `D`**
+(local cấp chunk tăng đúng **1**: 187 → **188/200**).
+
+| hàm | tác dụng |
+|---|---|
+| `D.BestText(bg)` | chọn chữ **đậm (INK)** hay **trắng** theo độ sáng nền (ngưỡng 0.6) |
+| `D.Edge(bg)` | viền sáng hơn nền ~9% — tách khối mà không gắt |
+| `D.Grad(obj)` | lấy/tạo **1** UIGradient duy nhất (gọi lại không chồng thêm → không rò instance) |
+| `D.Paint / D.Shade / D.PaintText` | tô gradient thật / đổ khối giữ màu nền / chữ gradient |
+| `D.Tactile(btn)` | hover sáng lên + nhấn đậm lại (**không đổi Size** → không xô layout) |
+| `D.HoverText(btn)` | nút "ghost" đổi màu chữ khi rê (✕ → đỏ, 🔒 → vàng) |
+| `D.Glow(obj)` | quầng sáng sau nút 🍌, **tự bám theo Position** khi kéo nút đi |
+| `D.Breathe(obj)` | tween lặp vô hạn tự đảo (nhịp thở của quầng sáng) |
+| `D.SetBg(obj,color)` | đổi màu nút **lúc chạy** kèm chữ tương phản + viền ăn theo |
+
+### 3. Những gì mắt người dùng sẽ thấy khác
+
+- **Cửa sổ:** nền tối đổ khối dọc, bo **14px**, viền 1.4px, họa tiết nền ánh vàng rất nhẹ (0.94).
+- **Thanh tiêu đề:** chữ gradient vàng → trắng sữa, **vạch accent 2px** chạy dọc đáy, **pill `v4.5 · PRO`**;
+  tiêu đề gọn lại thành `🍌 Banana Cat Hub` (phiên bản nằm ở pill). Chiều cao **vẫn 30px**
+  (tabBar/contentArea đang neo theo 30px — đổi là xô toàn bộ layout).
+- **Thanh tab:** pill ghost (trong suốt, chữ mờ, hover hiện nhẹ) → tab đang mở nổi nền + **chữ vàng**
+  + **vạch accent 3px**. Vạch là **con của nút tab** nên tự trượt theo và **không bị UIListLayout xô**
+  (nếu neo vào `tabBar` thì sẽ bị layout xếp chỗ → lệch toàn bộ nút tab).
+- **Nút bấm:** nền đặc (bỏ trong suốt 20%), bo 8px, viền sáng hơn nền một bậc, đổ khối nhẹ,
+  hover/nhấn có phản hồi. `Button()` **giữ nguyên chữ ký** `(parent, text, x, y, w, h, color)`.
+- **Chữ tự tương phản:** `New()` tự "cứu" cặp *nền sáng + chữ trắng* → chữ đậm. Nhờ vậy không còn
+  cảnh chữ trắng chìm trên nút vàng/xanh lá. Nút ghost (nền trong suốt) **không bị đụng tới**.
+- **Ô nhập liệu:** viền mảnh + **vòng sáng vàng khi gõ** (tự tạo UIStroke lúc focus nếu ô chưa có).
+- **Font:** chuyển sang họ **GothamSSo** nhưng **giữ đúng độ đậm** đã chọn (Bold → Bold, Medium → Medium).
+- **Scrollbar** mảnh 3px màu tối; **đường phân cách "━━━"** thành kẻ mảnh màu viền.
+- **Nút 🍌 nổi:** gradient vàng→cam 135°, chữ đậm, quầng sáng **thở** 2.1s, tự bám theo khi kéo.
+- **Mở menu** có hiệu ứng nở 0.2s (giữ nguyên tâm; đọc Size/Position **tại thời điểm mở** nên không
+  bao giờ lệch với kích thước người dùng vừa nới; kéo/nới trong lúc tween chạy thì **hủy tween ngay**).
+- 71 màu hard-code kiểu nền sáng được **remap có kiểm soát** sang tông tối; **GIỮ NGUYÊN** màu trắng
+  của crosshair/overlay ngoài màn hình (dòng `dot.BackgroundColor3`, `f.BackgroundColor3` vùng BC_Dot/BC_Line).
+
+### 4. Kiểm chứng (không phải "đổi màu rồi cầu nguyện")
+
+| hạng mục | cách kiểm | kết quả |
+|---|---|---|
+| Logic không đổi | chạy lại 4 bộ test (unit 21, e2e tab Tính Năng 15, e2e tab Code 25, no-park 24) | **85/85 PASS** |
+| Không hồi quy fix cũ | bảng so 3 phiên bản trên 8 kịch bản | **8/8** (v4.4f 2/8, v4.4g 5/8) |
+| Chữ không bị chìm | **audit tương phản WCAG** tự động trên toàn file: 21 cặp chữ/nền màu + mọi màu chữ ghost + 28 màu chữ hard-code, đo trên cả 4 nền tối | tất cả **≥ 3.0:1** (thấp nhất 3.36:1; riêng `C.INK` chỉ dùng trên nút vàng → 7.9:1) |
+| Không phá trần local Luau | đếm local cấp chunk | **188/200** |
+| Cú pháp / cấu trúc | compile Lua 5.x + đếm khối `if/do/function … end` | **OK**, depth cuối = 0 |
+| Line endings / version | đếm CRLF, đối chiếu 4 chỗ khai báo version | **CRLF 100%** (6.147/0), version `4.5` |
+| Không tham chiếu ngược (forward-ref) | soi `New/Corner/Stroke` có gọi hàm khai báo **sau** nó không | phát hiện & sửa 1 lỗi (`New` gọi `Tween` → sẽ thành global nil khi focus ô nhập liệu) |
+
+**Bản xem trước giao diện:** `design/preview-v4.5.html` — mock HTML dựng theo đúng số đo & mã màu
+trong `script.js` (540×340, tiêu đề 30px, thanh tab 105px, bo 14/10/8, accent `#FFC43D → #FF843E`),
+bấm tab / rê nút / bấm ô nhập / bấm 🍌 được. Đây là bản duyệt thiết kế, không phải file chạy trong game.
+
+### 5. Nếu muốn đổi phong cách khác
+
+Mọi màu nằm gọn trong **bảng `C`** (đầu file) — đổi 15 giá trị `Color3.fromRGB` ở đó là cả hub đổi
+tông (ví dụ tím‑xanh "Neon", hoặc nền sáng trở lại). Không cần sửa chỗ nào khác vì toàn bộ UI đã
+đọc qua `C.*` và các helper `D.*`.
+
+---
+
 ## 9. Kết luận một câu
 
 Đây là một hub executor **được viết bởi người hiểu rất rõ những "nỗi đau" thực tế của Roblox UI** (focus,
