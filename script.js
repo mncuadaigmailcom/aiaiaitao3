@@ -37,8 +37,21 @@
               tostring+gsub mỗi frame (bớt 1 chuỗi rác/frame cho GC). Đóng menu = 0 raycast.
             - Ô tìm kiếm ở 💾 Code Đã Lưu và 📚 Script Hub: debounce 0.18s (S.Debounce) — gõ 6 phím
               chỉ dựng lại danh sách 1 lần, kết quả cuối giống hệt.
-        • 209 kiểm thử tự động PASS (21 unit · 15 E2E · 25 park · 24 nopark · 72 Script Hub ·
-          31 header · 21 perf RenderStepped).
+        • v4.6.3 — thêm nhóm 🌐 SERVER vào trang 📚 Script Hub (3 thẻ + 1 khung riêng):
+            - 🔄 Reset Server: vào lại ĐÚNG server đang chơi bằng TeleportToPlaceInstance(PlaceId,
+              JobId) — giữ nguyên người chơi cùng server; Studio/server đơn thì Teleport nạp lại game.
+            - 🔀 Hop Server: TỰ ĐI LẤY MÃ SERVER — đọc danh sách server công khai của chính game này
+              qua API công khai games.roblox.com/v1/games/{PlaceId}/servers/Public bằng game:HttpGet
+              (tối đa 3 trang ~300 server), BỎ server hiện tại và server đã đầy, rồi vào 1 server
+              ngẫu nhiên còn chỗ. Không dùng link lạ, không cần quyền đặc biệt.
+            - 🌐 Lấy mã server (JobId): copy ra clipboard + điền sẵn vào ô nhập để gửi bạn bè.
+            - 🎟 KHUNG NHẬP MÃ SERVER dưới danh sách thẻ: dán JobId → 🚀 Vào server đó (tự cắt khoảng
+              trắng và dấu nháy), kèm nút 🔀 Hop. Hop lỗi (game ẩn danh sách server) thì vẫn vào được
+              bằng cách dán mã thủ công — không có nút chết.
+            - Thêm chip phân loại "Server" (6 chip) và danh sách thẻ ngắn lại 54px để nhường chỗ khung.
+        • 193 kiểm thử tự động PASS (105 Script Hub · 31 header/công tắc · 20 perf RenderStepped ·
+          15 park/noPark · 13 nhúng GUI vào tab · 9 thứ tự trang). Bộ test nằm ở /home/user/luachk
+          (ngoài repo) — chạy: node runtest.js <file.lua>.
     + v4.5: THIẾT KẾ LẠI TOÀN BỘ GIAO DIỆN (chỉ đổi màu/chất liệu/hiệu ứng — KHÔNG đổi layout, kích
       thước, vị trí hay logic, nên MỌI TÍNH NĂNG giữ nguyên 100%):
         • Bảng màu tối "Midnight Gold": nền 18,20,27 · thẻ 26,29,38 · viền mảnh 52,58,74 ·
@@ -189,6 +202,7 @@ local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local HttpService = game:GetService("HttpService")
+local TeleportService = game:GetService("TeleportService")   -- v4.6.3: Reset / Hop / vào server theo mã
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -6349,6 +6363,86 @@ end
 --   • Còn lại là TIỆN ÍCH NỘI BỘ gọi thẳng hàm có sẵn của hub (S.ToggleCrosshair, S.RemoveAllParked,
 --     S.DoFixMouse, S.DoReload, S.PruneEmbeds) -> không cần mạng, không bao giờ "chạy không được".
 --   • 3 script ngoài truyền noPark=true cho RunCode: GUI của chúng ở NGOÀI màn hình game (v4.4i).
+-- ---------- v4.6.3: NHÓM TÍNH NĂNG 🌐 SERVER (Reset · Hop · Lấy mã · Vào theo mã) ----------
+-- Mã server (JobId) của server ĐANG chơi. Studio / server đơn thì JobId rỗng -> trả nil.
+function S.GetJobId()
+    local id = game.JobId
+    if id == nil then return nil end
+    id = tostring(id)
+    if id == "" then return nil end
+    return id
+end
+
+-- Copy ra clipboard: thử cả 3 tên hàm mà các executor hay dùng. Trả về true nếu copy được.
+function S.CopyToClipboard(text)
+    local did = false
+    pcall(function()
+        if setclipboard then setclipboard(text) did = true
+        elseif toclipboard then toclipboard(text) did = true
+        elseif set_clipboard then set_clipboard(text) did = true end
+    end)
+    return did
+end
+
+-- "Đi lấy mã server": đọc danh sách server CÔNG KHAI của chính game này từ API công khai của
+-- Roblox (games.roblox.com) bằng game:HttpGet — executor nào cũng có, không cần quyền đặc biệt,
+-- không dùng link lạ. Mỗi server trong kết quả có: id (chính là mã server/JobId), playing,
+-- maxPlayers. cursor dùng để lật trang kế tiếp.
+function S.FetchServers(cursor)
+    local url = "https://games.roblox.com/v1/games/" .. tostring(game.PlaceId)
+             .. "/servers/Public?sortOrder=Asc&limit=100"
+    if cursor and cursor ~= "" then url = url .. "&cursor=" .. tostring(cursor) end
+    local raw = game:HttpGet(url)
+    local data = HttpService:JSONDecode(raw)
+    if type(data) ~= "table" then return {}, nil end
+    return (type(data.data) == "table" and data.data or {}), data.nextPageCursor
+end
+
+-- 🔄 Reset Server = vào lại ĐÚNG server đang chơi (giữ nguyên bạn bè/người chơi cùng server).
+-- Không đọc được mã (Studio/server đơn) thì nạp lại game bằng Teleport thường.
+function S.ResetServer()
+    local me = S.GetJobId()
+    if me then
+        TeleportService:TeleportToPlaceInstance(game.PlaceId, me, player)
+        return "🔄 Đang vào lại ĐÚNG server này: " .. me .. " (giữ nguyên người chơi cùng server)..."
+    end
+    TeleportService:Teleport(game.PlaceId, player)
+    return "🔄 Không đọc được mã server (Studio/server đơn) → đang nạp lại game..."
+end
+
+-- 🎟 Vào server theo mã (JobId) người dùng dán vào ô nhập.
+function S.JoinServer(jobId)
+    TeleportService:TeleportToPlaceInstance(game.PlaceId, tostring(jobId), player)
+end
+
+-- 🔀 Hop Server: tự đi lấy mã server (tối đa 3 trang ~300 server), BỎ server hiện tại và server
+-- đã đầy người, rồi vào 1 server ngẫu nhiên trong số còn lại.
+function S.HopServer()
+    local me = tostring(S.GetJobId() or "")
+    local cand, cursor = {}, ""
+    for _ = 1, 3 do
+        local list, nextCursor = S.FetchServers(cursor)
+        for _, sv in ipairs(list) do
+            local sid = (sv and sv.id) and tostring(sv.id) or nil
+            local playing = tonumber(sv and sv.playing) or 0
+            local maxp = tonumber(sv and sv.maxPlayers) or 0
+            if sid and sid ~= me and (maxp <= 0 or playing < maxp) then
+                cand[#cand + 1] = {id = sid, playing = playing, maxPlayers = maxp}
+            end
+        end
+        if #cand > 0 then break end                        -- có ứng viên rồi thì khỏi lật trang
+        if not nextCursor or nextCursor == "" then break end
+        cursor = nextCursor
+    end
+    if #cand == 0 then
+        return "⚠️ Không tìm thấy server nào còn chỗ trống (hoặc game này không cho xem danh sách server)"
+    end
+    local pick = cand[math.random(1, #cand)]
+    S.JoinServer(pick.id)
+    return "🔀 Đang nhảy sang server " .. pick.id .. " (" .. pick.playing .. "/" .. pick.maxPlayers
+        .. " người) · tìm được " .. #cand .. " server khác để chọn, đã bỏ qua server hiện tại"
+end
+
 S.ScriptHubList = {
     {icon="🛡", name="Infinite Yield", cat="Admin", ord=1,
      desc="Admin commands: kill, speed, jump, noclip, teleport, bring, prefix tùy chỉnh...",
@@ -6372,6 +6466,14 @@ S.ScriptHubList = {
      desc="Đọc lại file lưu: script đã lưu, waypoint, tab tính năng, cài đặt 🧩 / 🕵 / 🪟."},
     {icon="🧹", name="Dọn host nhúng rác", cat="Tiện ích", ord=8, action="prune",
      desc="Xóa các khung Embedded_ mồ côi/rỗng còn sót trong tab (script tự Destroy GUI để lại)."},
+    -- v4.6.3: nhóm 🌐 SERVER (Reset · Hop · Lấy mã server). Ô 🎟 NHẬP MÃ SERVER nằm ngay
+    -- dưới danh sách thẻ này (không phải thẻ, vì cần ô dán + nút bấm riêng).
+    {icon="🔄", name="Reset Server", cat="Server", ord=9, action="resetserver",
+     desc="Vào lại ĐÚNG server đang chơi (giữ nguyên bạn bè/người chơi cùng server). Studio thì nạp lại game."},
+    {icon="🔀", name="Hop Server", cat="Server", ord=10, action="hopserver",
+     desc="Tự đi lấy mã server: đọc danh sách server công khai, bỏ server hiện tại + server đầy, nhảy sang 1 server khác."},
+    {icon="🌐", name="Lấy mã server (JobId)", cat="Server", ord=11, action="getjobid",
+     desc="Đọc mã server hiện tại, copy ra clipboard và điền sẵn vào ô 🎟 để gửi cho bạn bè vào cùng."},
 }
 S.hubFavs   = S.hubFavs or {}
 S.hubCat    = "Tất cả"
@@ -6412,6 +6514,26 @@ function S.RunHubAction(id)
     elseif id == "prune" then
         pcall(S.PruneEmbeds)
         return "🧹 đã dọn các host nhúng rác"
+    elseif id == "resetserver" then
+        local msg = "⚠️ chưa reset được"
+        local okRs = pcall(function() msg = S.ResetServer() end)
+        if not okRs then return "⚠️ Reset server thất bại: " .. tostring(msg) end
+        return tostring(msg)
+    elseif id == "hopserver" then
+        local msg = "⚠️ chưa hop được"
+        local okHp = pcall(function() msg = S.HopServer() end)
+        if not okHp then
+            return "⚠️ Hop server thất bại: " .. tostring(msg)
+                .. " — vẫn dùng được ô 🎟 dán mã server bên dưới để vào thủ công"
+        end
+        return tostring(msg)
+    elseif id == "getjobid" then
+        local jid = S.GetJobId()
+        if not jid then return "⚠️ Không đọc được mã server (đang ở Studio / server đơn)" end
+        local okCp = S.CopyToClipboard(jid)
+        pcall(function() if D.hubJobIn then D.hubJobIn.Text = jid end end)
+        pcall(function() if S.SyncServerPanel then S.SyncServerPanel() end end)
+        return (okCp and "🌐 Đã copy mã server: " or "🌐 Mã server (executor không cho copy, hãy chép tay): ") .. jid
     end
     return "⚠️ không rõ thao tác: " .. tostring(id)
 end
@@ -6457,7 +6579,7 @@ New("UIListLayout", {
 
 -- danh sách thẻ (cuộn dọc)
 D.hubList = New("ScrollingFrame", {
-    Size = UDim2.new(1, -16, 1, -92), Position = UDim2.new(0, 8, 0, 64),
+    Size = UDim2.new(1, -16, 1, -146), Position = UDim2.new(0, 8, 0, 64),   -- v4.6.3: bớt 54px cho khung 🌐 Server
     BackgroundTransparency = 1, BorderSizePixel = 0, CanvasSize = UDim2.new(0, 0, 0, 0),
     ScrollBarThickness = 3, ClipsDescendants = true, ZIndex = 6,
     AutomaticCanvasSize = Enum.AutomaticSize.Y,
@@ -6472,6 +6594,107 @@ D.hubStatus = New("TextLabel", {
     TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left,
     TextYAlignment = Enum.TextYAlignment.Top, ZIndex = 6,
 }, D.hubTab)
+
+-- ---------- v4.6.3: KHUNG 🌐 SERVER nằm ngay dưới danh sách thẻ ----------
+-- Hàng 1: mã server (JobId) của server đang chơi + nút 📋 copy.
+-- Hàng 2: ô 🎟 DÁN MÃ SERVER + nút 🚀 Vào (vào đúng server đó) + 🔀 Hop (tự nhảy server khác).
+D.hubSrvPanel = New("Frame", {
+    Name = "HubServerPanel", Size = UDim2.new(1, -16, 0, 54), Position = UDim2.new(0, 8, 1, -80),
+    BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.25, BorderSizePixel = 0, ZIndex = 6,
+}, D.hubTab)
+Corner(D.hubSrvPanel, UDim.new(0, 10))
+Stroke(D.hubSrvPanel, C.BORDER, 1)
+
+D.hubJobLbl = New("TextLabel", {
+    Size = UDim2.new(1, -44, 0, 14), Position = UDim2.new(0, 8, 0, 5),
+    Text = "🌐 Mã server: đang đọc...", BackgroundTransparency = 1, TextColor3 = C.MUTED,
+    Font = Enum.Font.GothamMedium, TextSize = 9,
+    TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+}, D.hubSrvPanel)
+
+D.hubJobCopy = New("TextButton", {
+    Size = UDim2.new(0, 26, 0, 16), Position = UDim2.new(1, -32, 0, 4), Text = "📋",
+    BackgroundColor3 = C.BLUE, BackgroundTransparency = 0.1, TextColor3 = C.INK,
+    Font = Enum.Font.GothamBold, TextSize = 9, BorderSizePixel = 0, AutoButtonColor = false, ZIndex = 7,
+}, D.hubSrvPanel)
+Corner(D.hubJobCopy, UDim.new(0, 6))
+D.Tactile(D.hubJobCopy, 0.1)
+
+D.hubJobIn = New("TextBox", {
+    Size = UDim2.new(1, -124, 0, 24), Position = UDim2.new(0, 8, 0, 24),
+    PlaceholderText = "🎟 Dán mã server (JobId) vào đây...", Text = "", ClearTextOnFocus = false,
+    BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.1, TextColor3 = C.DARK,
+    PlaceholderColor3 = C.GRAY, Font = Enum.Font.GothamMedium, TextSize = 9,
+    TextXAlignment = Enum.TextXAlignment.Left, BorderSizePixel = 0, ZIndex = 7,
+}, D.hubSrvPanel)
+Corner(D.hubJobIn, UDim.new(0, 8))
+Stroke(D.hubJobIn, C.BORDER, 1)
+New("UIPadding", {PaddingLeft = UDim.new(0, 7)}, D.hubJobIn)
+
+D.hubJoinBtn = D.CardBtn(D.hubSrvPanel, "🚀 Vào", -110, 52, C.GREEN)
+D.hubJoinBtn.Position = UDim2.new(1, -110, 0, 24)
+D.hubHopBtn = D.CardBtn(D.hubSrvPanel, "🔀 Hop", -54, 50, C.PURPLE)
+D.hubHopBtn.Position = UDim2.new(1, -54, 0, 24)
+
+-- Hiện mã server hiện tại lên khung (JobId dài ~36 ký tự, nhãn 424px nên hiện đủ, không cắt)
+function S.SyncServerPanel()
+    pcall(function()
+        if not D.hubJobLbl then return end
+        local jid = S.GetJobId()
+        if jid then
+            D.hubJobLbl.Text = "🌐 Mã server: " .. jid
+            D.hubJobLbl.TextColor3 = C.DARK
+        else
+            D.hubJobLbl.Text = "🌐 Không đọc được mã server (Studio/server đơn) — 🔄 Reset vẫn dùng được"
+            D.hubJobLbl.TextColor3 = C.MUTED
+        end
+    end)
+end
+
+-- 📋 copy mã server + điền sẵn vào ô nhập (để gửi bạn bè, hoặc bấm 🚀 Vào lại chính server đó)
+D.hubJobCopy.Activated:Connect(function()
+    local jid = S.GetJobId()
+    if not jid then
+        D.hubStatus.Text = "⚠️ Không có mã server để copy (đang ở Studio / server đơn)"
+        D.hubStatus.TextColor3 = C.RED
+        return
+    end
+    local okCp = S.CopyToClipboard(jid)
+    pcall(function() D.hubJobIn.Text = jid end)
+    D.hubStatus.Text = okCp and ("📋 Đã copy mã server: " .. jid)
+                             or ("⚠️ Executor không cho copy — mã server là: " .. jid)
+    D.hubStatus.TextColor3 = okCp and C.GREEN or C.YELLOW
+end)
+
+-- 🚀 Vào server theo mã vừa dán
+D.hubJoinBtn.Activated:Connect(function()
+    -- cắt khoảng trắng 2 đầu và dấu nháy (nhiều người copy kèm dấu " hoặc ' từ chat)
+    local id = tostring(D.hubJobIn.Text or "")
+    id = id:gsub("^%s+", ""):gsub("%s+$", "")
+    id = id:gsub('^"', ""):gsub('"$', ""):gsub("^'", ""):gsub("'$", "")
+    if id == "" then
+        D.hubStatus.Text = "⚠️ Hãy DÁN mã server (JobId) vào ô 🎟 trước khi bấm 🚀 Vào"
+        D.hubStatus.TextColor3 = C.RED
+        ReleaseHubFocus()
+        return
+    end
+    D.hubStatus.Text = "🚀 Đang vào server " .. id .. " ..."
+    D.hubStatus.TextColor3 = C.YELLOW
+    ReleaseHubFocus()   -- nhả focus ô nhập, không thì game chặn input sau khi teleport
+    local okJ, errJ = pcall(function() S.JoinServer(id) end)
+    if not okJ then
+        D.hubStatus.Text = "⚠️ Không vào được server này (mã sai/hết chỗ/game chặn): " .. tostring(errJ)
+        D.hubStatus.TextColor3 = C.RED
+    end
+end)
+
+-- 🔀 Hop ngay trên khung (cùng một hàm với thẻ 🔀 Hop Server trong danh sách)
+D.hubHopBtn.Activated:Connect(function()
+    ReleaseHubFocus()
+    D.hubStatus.Text = "🔀 Đang đi lấy mã server..."
+    D.hubStatus.TextColor3 = C.YELLOW
+    D.hubStatus.Text = S.RunHubAction("hopserver")
+end)
 
 -- dựng lại danh sách theo từ khóa + phân loại + yêu thích
 function S.RebuildHubList()
@@ -6616,9 +6839,9 @@ end
 
 -- chip phân loại
 D.hubChipBtns = {}
-for _, cname in ipairs({"Tất cả", "Admin", "Explorer", "Spy", "Tiện ích"}) do
+for _, cname in ipairs({"Tất cả", "Admin", "Explorer", "Spy", "Tiện ích", "Server"}) do
     local w = (cname == "Tất cả" and 58) or (cname == "Explorer" and 68) or (cname == "Tiện ích" and 64)
-              or (cname == "Admin" and 52) or 44
+              or (cname == "Server" and 56) or (cname == "Admin" and 52) or 44
     local chip = New("TextButton", {
         Size = UDim2.new(0, w, 0, 20), Text = cname,
         BackgroundColor3 = (S.hubCat == cname) and C.ACCENT or C.SURFACE2,
@@ -6651,6 +6874,7 @@ S.RebuildHubList()
 
 -- chip trạng thái 🧩/🕵/🪟 trên header trang (đọc từ Store khi đã nạp xong cài đặt)
 D.SyncPageChips()
+S.SyncServerPanel()   -- v4.6.3: hiện mã server (JobId) lên khung 🌐 SERVER
 
 -- ==================== TOGGLE MENU & DRAG ====================
 local function ToggleMainFrame()

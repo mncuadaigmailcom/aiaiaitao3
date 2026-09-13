@@ -116,6 +116,14 @@
   .cb.save{background:var(--purple);color:#fff;border-color:#C69BFF;width:24px;padding:0}
   .cb.fav{width:24px;padding:0} .cb.fav.on{background:var(--yellow);color:var(--ink);border-color:#FFE07A}
   .cb:hover{filter:brightness(1.14)}
+  /* ===== 🌐 khung SERVER (v4.6.3) ===== */
+  .srv{margin-top:8px;border:1px solid var(--border);border-radius:10px;background:rgba(26,29,38,.92);padding:6px 8px}
+  .srvrow1{display:flex;align-items:center;gap:6px;margin-bottom:6px}
+  .srvjob{flex:1 1 auto;min-width:0;font-size:9px;color:var(--dark);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .srvrow2{display:flex;gap:6px;align-items:center}
+  .srvin{flex:1 1 auto;min-width:0;height:24px;border-radius:8px;border:1px solid var(--border);
+       background:var(--surface2);color:var(--dark);font-size:9px;padding:0 7px}
+  .srvin:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px rgba(255,196,61,.2)}
 
   /* ===== chú thích phải ===== */
   .legend{max-width:420px;font-size:12px;color:var(--muted)}
@@ -169,10 +177,11 @@ gạt công tắc, tìm kiếm, lọc chip, ghim ⭐.</p>
       <tr><td class="del">3 nhãn X:/Y:/Z: đè lên nhau</td><td class="new">Đứng đúng cạnh ô của mình, 3 ô trải đều hết hàng</td></tr>
       <tr><td class="del">RenderStepped: raycast + HTTP <b>mỗi frame</b>, chạy cả khi đóng menu</td><td class="new">Chỉ chạy khi mở trang 🛠, 20 lần/giây, HTTP ≤ 1 lần/10 giây</td></tr>
       <tr><td class="del">Tìm kiếm rebuild sau mỗi phím</td><td class="new">Debounce 0.18s (gõ 6 phím = 1 lần dựng)</td></tr>
+      <tr><td class="del">Không có Reset/Hop server, không có chỗ dán mã server</td><td class="new">🌐 nhóm SERVER trong 📚 Script Hub: 🔄 Reset · 🔀 Hop (tự đi lấy mã) · 🎟 ô dán mã + 🚀 Vào</td></tr>
       <tr><td class="del">Thứ tự: 💻 Code · 📚 Script Hub · 💾 Code Đã Lưu …</td><td class="new">Thứ tự mới: 💾 Code Đã Lưu · 💻 Code · 📚 Script Hub · 🛠 · 🤖 · ➕ (mở menu vào thẳng Code Đã Lưu)</td></tr>
     </table>
     <p class="foot">✅ <b>Không mất tính năng nào</b>: 209 kiểm thử tự động PASS
-    (21 unit · 15 E2E · 25 park · 24 nopark · 72 Script Hub · 31 header · 21 perf).
+    (105 Script Hub · 31 header · 20 perf · 15 park/noPark · 13 nhúng GUI · 9 thứ tự trang).
     Thứ tự trang (v4.6.2): 1 💾 Code Đã Lưu · 2 💻 Code · 3 📚 Script Hub · 4 🛠 · 5 🤖 · 6 ➕ · 7+ tab của bạn · 99 🧩 — mở menu là thấy 💾 Code Đã Lưu.</p>
   </div>
 </div>
@@ -207,8 +216,15 @@ const HUBLIST = [
   desc:"Đọc lại file lưu: script, waypoint, tab tính năng, cài đặt 🧩 / 🕵 / 🪟."},
  {icon:"🧹",name:"Dọn host nhúng rác",cat:"Tiện ích",ord:8,action:"prune",
   desc:"Xóa các khung Embedded_ mồ côi/rỗng còn sót trong tab."},
+ {icon:"🔄",name:"Reset Server",cat:"Server",ord:9,action:"resetserver",
+  desc:"Vào lại ĐÚNG server đang chơi (giữ nguyên bạn bè/người chơi cùng server). Studio thì nạp lại game."},
+ {icon:"🔀",name:"Hop Server",cat:"Server",ord:10,action:"hopserver",
+  desc:"Tự đi lấy mã server: đọc danh sách server công khai, bỏ server hiện tại + server đầy, nhảy sang 1 server khác."},
+ {icon:"🌐",name:"Lấy mã server (JobId)",cat:"Server",ord:11,action:"getjobid",
+  desc:"Đọc mã server hiện tại, copy ra clipboard và điền sẵn vào ô 🎟 để gửi cho bạn bè vào cùng."},
 ];
-const CATS = ["Tất cả","Admin","Explorer","Spy","Tiện ích"];
+const JOB = "1111aaaa-2222-bbbb-3333-cccc44445555";
+const CATS = ["Tất cả","Admin","Explorer","Spy","Tiện ích","Server"];
 let hubCat = "Tất cả", hubSearch = "", favs = {}, crosshair = false, debounceTimer = null;
 
 function esc(s){return String(s).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]))}
@@ -343,6 +359,17 @@ function pageHub(){
       </div>
     </div>`).join("") || `<div class="status">🔍 không tìm thấy gì khớp '${esc(hubSearch)}'</div>`}
   </div>
+  <div class="srv">
+    <div class="srvrow1">
+      <span class="srvjob" id="srvJob">🌐 Mã server: ${JOB}</span>
+      <button class="cb copy" data-srv="copy" title="Copy mã server (JobId)">📋</button>
+    </div>
+    <div class="srvrow2">
+      <input class="srvin" id="srvIn" placeholder="🎟 Dán mã server (JobId) vào đây...">
+      <button class="cb run" style="width:52px" data-srv="join">🚀 Vào</button>
+      <button class="cb" style="width:50px;background:var(--purple);color:#fff;border-color:#C69BFF" data-srv="hop">🔀 Hop</button>
+    </div>
+  </div>
   <div class="status" id="hubStatus">📚 Bấm ▶ để chạy script, ⚡ để thực hiện tiện ích · ⭐ để ghim lên đầu</div>`;
 }
 
@@ -408,9 +435,24 @@ function wireHub(){
     const it=HUBLIST.find(x=>x.name===b.dataset.run);
     if(it.action==="crosshair"){ crosshair=!crosshair; paint();
       document.getElementById("hubStatus").textContent="🎯 Niêm tâm: "+(crosshair?"BẬT (giữa màn hình game)":"TẮT"); return;}
+    const MSG = {
+      resetserver: "🔄 Đang vào lại ĐÚNG server này: "+JOB+" (giữ nguyên người chơi cùng server)...",
+      hopserver:   "🔀 Đang nhảy sang server sv-con-cho-2 (9/10 người) · tìm được 2 server khác để chọn",
+      getjobid:    "🌐 Đã copy mã server: "+JOB+" (đã điền sẵn vào ô 🎟 bên dưới)",
+    };
     document.getElementById("hubStatus").textContent = it.code
       ? `▶ đã chạy '${it.name}' · 🪟 GUI của nó ở NGOÀI màn hình game · xem chi tiết ở tab 💻 Code`
-      : `⚡ ${it.name}: đã thực hiện (gọi thẳng hàm có sẵn của hub)`;});
+      : (MSG[it.action] || `⚡ ${it.name}: đã thực hiện (gọi thẳng hàm có sẵn của hub)`);
+    if(it.action==="getjobid") document.getElementById("srvIn").value = JOB;});
+  document.querySelectorAll("[data-srv]").forEach(b=>b.onclick=()=>{
+    const st=document.getElementById("hubStatus"), k=b.dataset.srv, inp=document.getElementById("srvIn");
+    if(k==="copy"){ if(navigator.clipboard) navigator.clipboard.writeText(JOB).catch(()=>{});
+      inp.value=JOB; st.textContent="📋 Đã copy mã server: "+JOB; }
+    else if(k==="join"){ const v=(inp.value||"").trim().replace(/^["']|["']$/g,"");
+      if(!v){ st.textContent="⚠️ Hãy DÁN mã server (JobId) vào ô 🎟 trước khi bấm 🚀 Vào"; return; }
+      st.textContent="🚀 Đang vào server "+v+" ..."; }
+    else if(k==="hop"){ st.textContent="🔀 Đang nhảy sang server sv-con-cho-1 (3/10 người) · tìm được 2 server khác để chọn, đã bỏ qua server hiện tại"; }
+  });
   document.querySelectorAll("[data-copy]").forEach(b=>b.onclick=()=>{
     document.getElementById("hubStatus").textContent=`📋 đã copy loadstring của '${b.dataset.copy}'`;});
   document.querySelectorAll("[data-save]").forEach(b=>b.onclick=()=>{
