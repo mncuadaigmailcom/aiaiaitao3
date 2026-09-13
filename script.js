@@ -1,5 +1,14 @@
 --[[
-    🍌 Banana Cat Hub v4.4d — FULL CODE
+    🍌 Banana Cat Hub v4.4e — FULL CODE
+    + THÊM: nút 🎯 "Tâm" trên mỗi tab tính năng — bấm là có vòng tròn niêm tâm ở GIỮA
+           MÀN HÌNH GAME (ngoài menu, ScreenGui riêng, luôn trên cùng). Bấm lại để tắt.
+    + THÊM: code mẫu (📋 Copy Code Mẫu Cho AI) giờ có sẵn khối EXTERNAL OVERLAY hướng dẫn
+           viết ESP/crosshair/HUD nằm ngoài khung menu — gửi cho người khác/AI cũng biết
+           cách tạo vòng tròn/đường kẻ/bảng thông tin trên màn hình mà KHÔNG bị hub ép
+           vào trong ô tab (đánh dấu ScreenGui bằng BCHub_External=true).
+    + THÊM: API:ExternalGui() / API:Crosshair() cho script tính năng can thiệp bên ngoài.
+    + SỬA: _G.BananaCatHubAPI.HubGui trước đây ghi thành biến `hubGui` không tồn tại
+           -> trả về nil; nay trả đúng GUI của hub.
     + SỬA (QUAN TRỌNG — đúng cái bạn gặp): "TẠO TÍNH NĂNG → ▶ Chạy Script" làm bạn
            KHÔNG quay chuột / KHÔNG bắn được và làm LỖI vài nút của game. 3 nguyên nhân:
              • TextBox của hub còn focus -> Roblox chặn input người chơi. Giờ hub tự nhả focus
@@ -68,6 +77,14 @@ if _G.BananaCatHub_Connections then
     end
 end
 _G.BananaCatHub_Connections = {}
+
+-- Dọn crosshair/menu cũ nếu script bị chạy lại (tránh đè 2 vòng tròn / 2 menu)
+for _, parent in ipairs({targetGui, playerGui, game:GetService("CoreGui")}) do
+    pcall(function()
+        local old = parent:FindFirstChild("BananaCatHub_Crosshair")
+        if old then old:Destroy() end
+    end)
+end
 
 local function trackConn(conn)
     table.insert(_G.BananaCatHub_Connections, conn)
@@ -256,7 +273,7 @@ Corner(titleBar, UDim.new(0,10))
 New("TextLabel", {
     Size=UDim2.new(1,-90,1,0),
     Position=UDim2.new(0,12,0,0),
-    Text="🍌 Banana Cat Executor Hub v4.4d",
+    Text="🍌 Banana Cat Executor Hub v4.4e",
     BackgroundTransparency=1,
     TextColor3=C.DARK,
     Font=Enum.Font.GothamBold,
@@ -3263,8 +3280,8 @@ function S.FitToTab(obj, nm)
 end
 
 _G.BananaCatHubAPI = {
-    Version = "4.4d",
-    HubGui = hubGui,
+    Version = "4.4e",
+    HubGui = gui,     -- v4.4e: sửa lỗi cũ — biến tên là `gui`, không phải `hubGui` (trước đây là nil)
     Main = main,
     -- gọi bằng dấu hai chấm: API:TabArea("Tên Tab")  ->  Vector2 khổ vùng nội dung của tab
     TabArea = function(self, nm) return S.TabArea(nm) end,
@@ -3280,6 +3297,28 @@ _G.BananaCatHubAPI = {
     end,
     MakeTemplate = function(self, nm, icon) return S.FeatureTemplate(nm, icon) end,
     ReleaseFocus = function(self) pcall(ReleaseHubFocus) end,
+    -- v4.4e: API cho external overlay / crosshair
+    ExternalGui = function(self, props)
+        -- Tạo ScreenGui nằm NGOÀI tab (không bị nhúng) dùng cho ESP/crosshair/bảng HUD.
+        -- props: {Name, DisplayOrder, IgnoreGuiInset}
+        props = props or {}
+        local g = Instance.new("ScreenGui")
+        g.Name = props.Name or ("BC_External_" .. tostring(math.random(10000, 99999)))
+        g.IgnoreGuiInset = props.IgnoreGuiInset ~= false
+        g.ResetOnSpawn = false
+        g.ZIndexBehavior = Enum.ZIndexBehavior.Global
+        g.DisplayOrder = tonumber(props.DisplayOrder) or 9000
+        g:SetAttribute("BCHub_External", true) -- báo cho hub biết đừng nhúng GUI này
+        g.Parent = (gethui and gethui()) or game:GetService("CoreGui")
+                    or (player and player:WaitForChild("PlayerGui"))
+        return g
+    end,
+    Crosshair = function(self, on)
+        -- true/false = bật/tắt; gọi không tham số = toggle; trả về trạng thái hiện tại
+        if on == nil then return S.ToggleCrosshair() end
+        S.SetCrosshair(on and true or false)
+        return S.crosshairOn
+    end,
 }
 
 -- ===== FEATURE TEMPLATE (bắt đầu) ==========================
@@ -3299,9 +3338,16 @@ function S.FeatureTemplate(nm, icon, stamp)
 --   2) KHÔNG đổi tên các biến: gui, root, panel, bcToggle, bcStatus, bcEnabled,
 --      bcClose, BC. Hub (và người dán) dựa vào tên đó để nhúng + hoàn tác.
 --      Muốn đóng tính năng từ code của bạn: bcClose()  (hoặc _G.BC_FEATURES[tên].Close()).
---   3) CHỈ dùng đúng 1 ScreenGui đã tạo ở đây. Widget mới phải là CON của
---      `panel` (danh sách cài đặt) hoặc của `root` (tiêu đề, nút). KHÔNG tạo
---      ScreenGui thứ hai, KHÔNG Destroy/ẩn GUI của game.
+--   3) MẶC ĐỊNH CHỈ dùng đúng 1 ScreenGui (gui) đã tạo ở đây cho phần nhúng trong
+--      tab. Widget bên trong tab phải là CON của `panel` hoặc `root`.
+--      NGOẠI LỆ (quan trọng cho tính năng can thiệp ngoài màn hình): bạn được phép
+--      tạo ScreenGui thứ hai cho EXTERNAL OVERLAY (crosshair / ESP / bảng HUD nằm
+--      trên màn hình game, NGOÀI menu). Khi tạo, PHẢI:
+--        a) đặt trong gethui()/CoreGui/PlayerGui (KHÔNG được parent vào root/panel),
+--        b) gọi extGui:SetAttribute("BCHub_External", true) để hub KHÔNG nhúng nó
+--           vào trong ô tab (không thì overlay bị kéo vào menu = hỏng).
+--        c) nếu có API hub thì dùng API:ExternalGui({...}) cho tiện.
+--      KHÔNG Destroy/ẩn GUI của game.
 --   4) CỨ viết Size/Position bằng pixel theo khổ 620x384 (offset bình thường).
 --      Banana Cat Hub TỰ động nhân đồng đều mọi offset (Size, Position,
 --      UICorner, UIPadding, UIStroke, TextSize) theo kích thước thật của ô tab,
@@ -3476,6 +3522,59 @@ end
 bcToggle = bcButton(BC.Icon .. "  Bật " .. BC.Name)
 -- VD thêm cài đặt: local speed = bcButton("Tốc độ: 1x")   -- người viết thay/sao dòng này
 
+-- ---------- EXTERNAL OVERLAY (vòng tròn niêm tâm / ESP / HUD ngoài màn hình) ------
+-- Phần này chạy TRÊN MÀN HÌNH GAME, KHÔNG bị kéo vào trong khung menu. Xóa đi nếu
+-- tính năng của bạn không cần can thiệp ngoài màn hình.
+local function bcMakeExternalGui(name, order)
+    -- Ưu tiên dùng API hub (nó đã đánh dấu sẵn BCHub_External + đúng parent an toàn),
+    -- nếu không thì tự tạo để script vẫn chạy được khi không có hub.
+    local ext
+    local ok, API = pcall(function() return _G.BananaCatHubAPI end)
+    if ok and API and API.ExternalGui then
+        ext = API:ExternalGui({Name = name, DisplayOrder = order})
+    else
+        ext = Instance.new("ScreenGui")
+        ext.Name = name
+        ext.IgnoreGuiInset = true
+        ext.ResetOnSpawn = false
+        ext.ZIndexBehavior = Enum.ZIndexBehavior.Global
+        ext.DisplayOrder = order or 9500
+        ext:SetAttribute("BCHub_External", true)
+        local pg2 = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
+        local hui = (gethui and gethui()) or game:GetService("CoreGui") or pg2
+        ext.Parent = hui
+    end
+    return ext
+end
+
+local extGui = nil            -- ScreenGui overlay ngoài màn hình (được tạo khi bật tính năng)
+local extCrossOn = false
+local function bcToggleCross()
+    if not extGui then return end
+    extCrossOn = not extCrossOn
+    local ring = extGui:FindFirstChild("BC_Ring")
+    local dot  = extGui:FindFirstChild("BC_Dot")
+    if ring then ring.Visible = extCrossOn end
+    if dot  then dot.Visible  = extCrossOn end
+    -- báo cho hub biết (để các tab khác đồng bộ trạng thái nút 🎯, nếu muốn)
+    pcall(function()
+        if _G.BananaCatHubAPI and _G.BananaCatHubAPI.Crosshair then
+            -- không tự ý bật crosshair toàn cục, chỉ bật local cái của tính năng này
+        end
+    end)
+end
+
+-- Nút bật/tắt VÒNG TRÒN NIÊM TÂM ở giữa màn hình (ngay trong panel của tab)
+local bcCrossBtn = bcButton("🎯  Niêm tâm: TẮT", Color3.fromRGB(160, 60, 255))
+
+-- Khi bấm nút 🎯 của hub (crosshair toàn cục), có thể bắt tín hiệu tùy thích
+-- (vd: thêm chữ/thanh máu quanh vòng tròn). Để nguyên hoặc xóa nếu không cần.
+pcall(function()
+    if _G.BananaCatHubAPI and _G.BananaCatHubAPI.OnResize then
+        -- hook khác nếu cần
+    end
+end)
+
 ]==]
     local foot = [==[
 -- ---------- đóng / trả GUI (KHÔNG xóa khối này) ----------------------------
@@ -3503,21 +3602,83 @@ _G.BC_FEATURES[BC.Name] = { name = BC.Name, Close = bcClose, Gui = gui, Root = r
 -- >>> THAY TOÀN BỘ KHỐI NÀY BẰNG THUẬT TOÁN THẬT CỦA TÍNH NĂNG <<<
 -- Quy tắc: mọi vòng lặp phải có task.wait(); mọi thao tác với nhân vật/game
 -- đặt trong pcall; tôn trọng cờ bcEnabled (bấm nút là phải dừng được ngay).
+
+bcOn(bcCrossBtn, "MouseButton1Click", function()
+    if not bcEnabled then
+        -- phải bật tính năng trước (vòng lặp phải sống mới cập nhật overlay)
+        bcToggle:Activate()
+        task.wait(0.1)
+    end
+    bcToggleCross()
+    bcCrossBtn.Text = extCrossOn and "🎯  Niêm tâm: BẬT" or "🎯  Niêm tâm: TẮT"
+end)
+
 bcOn(bcToggle, "MouseButton1Click", function()
     bcEnabled = not bcEnabled
     bcToggle.Text = (bcEnabled and "⏹  Tắt " or BC.Icon .. "  Bật ") .. BC.Name
     bcStatus.Text = bcEnabled and "Đang chạy…" or "Tắt"
     if bcEnabled then
+        -- ---- TẠO EXTERNAL OVERLAY (vòng tròn niêm tâm ở GIỮA MÀN HÌNH GAME) ----
+        if not extGui or not extGui.Parent then
+            extGui = bcMakeExternalGui(BC.Name .. "_Ext", 9500)
+
+            local ring = Instance.new("Frame")
+            ring.Name = "BC_Ring"
+            ring.Size = UDim2.new(0, 32, 0, 32)
+            ring.Position = UDim2.new(0.5, -16, 0.5, -16)
+            ring.BackgroundTransparency = 1
+            ring.BorderSizePixel = 0
+            ring.AnchorPoint = Vector2.new(0.5, 0.5)
+            ring.Visible = false
+            ring.Parent = extGui
+            local rc = Instance.new("UICorner"); rc.CornerRadius = UDim.new(1, 0); rc.Parent = ring
+            local rs = Instance.new("UIStroke"); rs.Thickness = 1.5; rs.Color = Color3.fromRGB(255,255,255); rs.Parent = ring
+
+            local dot = Instance.new("Frame")
+            dot.Name = "BC_Dot"
+            dot.Size = UDim2.new(0, 3, 0, 3)
+            dot.Position = UDim2.new(0.5, -2, 0.5, -2)
+            dot.BackgroundColor3 = Color3.fromRGB(255,255,255)
+            dot.BorderSizePixel = 0
+            dot.AnchorPoint = Vector2.new(0.5, 0.5)
+            dot.Visible = false
+            dot.Parent = extGui
+            local dc = Instance.new("UICorner"); dc.CornerRadius = UDim.new(1, 0); dc.Parent = dot
+
+            -- Thêm 4 nét ngắn 4 phía (xoá đi nếu chỉ muốn vòng tròn đơn thuần)
+            local gap, ll = 22, 10
+            local function ln(w, h, x, y)
+                local f = Instance.new("Frame")
+                f.Size = UDim2.new(0,w,0,h); f.Position = UDim2.new(0.5,x,0.5,y)
+                f.BackgroundColor3 = Color3.fromRGB(255,255,255); f.BorderSizePixel = 0
+                f.AnchorPoint = Vector2.new(0.5,0.5); f.BackgroundTransparency = 0.2
+                f.Name = "BC_Line"; f.Parent = extGui
+            end
+            ln(2, ll, -1, -gap - ll/2)
+            ln(2, ll, -1,  gap + ll/2)
+            ln(ll, 2, -gap - ll/2, -1)
+            ln(ll, 2,  gap + ll/2, -1)
+        end
+
         table.insert(bcConns, task.spawn(function()
             while bcEnabled do
                 task.wait(0.2)
                 pcall(function()
+                    -- >>> ĐẶT CODE TÍNH NĂNG Ở ĐÂY <<<
                     -- VÍ DỤ (xóa và viết code thật ở đây):
                     -- local char = player.Character
                     -- local hrp = char and char:FindFirstChild("HumanoidRootPart")
+                    -- extGui.BC_Ring.Visible = extCrossOn  (điều khiển vòng tròn bằng bcCrossBtn)
+                    -- Muốn vẽ ESP/dòng kẻ: thêm Frame/Lua (Drawing) vào extGui ở đây
                 end)
             end
         end))
+    else
+        -- Tắt tính năng -> dọn external overlay (tránh sót vòng tròn trên màn hình)
+        extCrossOn = false
+        pcall(function() if extGui then extGui:Destroy() end end)
+        extGui = nil
+        bcCrossBtn.Text = "🎯  Niêm tâm: TẮT"
     end
 end)
 -- ========================================================================
@@ -3583,6 +3744,11 @@ function S.EmbedGui(scr, containerFrame)
     if not containerFrame or not containerFrame.Parent then return nil end
     -- không bao giờ nhúng chính GUI của hub (tự nuốt menu của mình = treo UI)
     if scr == gui or scr:IsDescendantOf(gui) then return nil end
+    -- v4.4e: GUI có attribute BCHub_External=true là overlay (crosshair/ESP/bảng thống kê
+    -- ngoài màn hình) — KHÔNG được mượn vào tab, phải để nguyên ở PlayerGui/targetGui.
+    local isExt = false
+    pcall(function() isExt = (scr:GetAttribute("BCHub_External") == true) end)
+    if isExt then return nil end
 
     local hostName = "Embedded_"..scr.Name
     for _, ex in ipairs(containerFrame:GetChildren()) do
@@ -3627,6 +3793,108 @@ function S.EmbedGui(scr, containerFrame)
     task.delay(0.08, function() pcall(function() S.FitEmbedded(entry) end) end)
     task.delay(0.4,  function() pcall(function() S.FitEmbedded(entry) end) end)
     return host
+end
+
+-- ==================== CROSSHAIR / NIÊM TÂM TOÀN CỤC ====================
+-- Vòng tròn ở giữa màn hình (ngoài menu), dùng cho mọi tab tính năng. Script tính năng cũng
+-- có thể tạo external GUI riêng (xem template) nhưng crosshair mặc định này dùng chung để
+-- bật/tắt nhanh bằng nút 🎯 trên toolbar của từng tab.
+S.crosshairGui   = nil
+S.crosshairBtns  = {}    -- danh sách nút 🎯 trên các tab để cập nhật text đồng loạt
+S.crosshairOn    = false
+S.crosshairColor = Color3.fromRGB(255, 255, 255)
+S.crosshairSize  = 32
+
+function S._buildCrosshair()
+    if S.crosshairGui and S.crosshairGui.Parent then return S.crosshairGui end
+    local g = New("ScreenGui", {
+        Name = "BananaCatHub_Crosshair",
+        IgnoreGuiInset = true,
+        ResetOnSpawn = false,
+        ZIndexBehavior = Enum.ZIndexBehavior.Global,
+        DisplayOrder = 9999,
+    }, targetGui)
+    g:SetAttribute("BCHub_External", true)
+
+    -- Vòng tròn ngoài
+    local ring = New("Frame", {
+        Name = "Ring",
+        Size = UDim2.new(0, S.crosshairSize, 0, S.crosshairSize),
+        Position = UDim2.new(0.5, -S.crosshairSize/2, 0.5, -S.crosshairSize/2),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        AnchorPoint = Vector2.new(0.5, 0.5),
+    }, g)
+    New("UICorner", {CornerRadius = UDim.new(1, 0)}, ring)
+    New("UIStroke", {Thickness = 1.5, Color = S.crosshairColor, Transparency = 0.1}, ring)
+
+    -- Chấm ở tâm
+    local dot = New("Frame", {
+        Name = "Dot",
+        Size = UDim2.new(0, 3, 0, 3),
+        Position = UDim2.new(0.5, -2, 0.5, -2),
+        BackgroundColor3 = S.crosshairColor,
+        BorderSizePixel = 0,
+        AnchorPoint = Vector2.new(0.5, 0.5),
+    }, g)
+    New("UICorner", {CornerRadius = UDim.new(1, 0)}, dot)
+
+    -- 4 nét ngắn 4 phía (cách vòng tròn 6px, dài 10px)
+    local gap = S.crosshairSize/2 + 6
+    local lineLen = 10
+    local function line(name, w, h, x, y)
+        local ln = New("Frame", {
+            Name = name, Size = UDim2.new(0, w, 0, h),
+            Position = UDim2.new(0.5, x, 0.5, y),
+            BackgroundColor3 = S.crosshairColor, BorderSizePixel = 0,
+            AnchorPoint = Vector2.new(0.5, 0.5), BackgroundTransparency = 0.15,
+        }, g)
+        return ln
+    end
+    line("Top",    2, lineLen, -1, -gap - lineLen/2)
+    line("Bottom", 2, lineLen, -1,  gap + lineLen/2)
+    line("Left",   lineLen, 2, -gap - lineLen/2, -1)
+    line("Right",  lineLen, 2,  gap + lineLen/2, -1)
+
+    S.crosshairGui = g
+    return g
+end
+
+function S.SetCrosshair(on)
+    S.crosshairOn = (on == true)
+    if S.crosshairOn then
+        S._buildCrosshair()
+        if S.crosshairGui then S.crosshairGui.Enabled = true end
+    else
+        if S.crosshairGui then S.crosshairGui.Enabled = false end
+    end
+    for _, b in ipairs(S.crosshairBtns) do
+        pcall(function()
+            if b and b.Parent then
+                b.Text = S.crosshairOn and "🎯 Tâm: BẬT" or "🎯 Tâm"
+                b.BackgroundColor3 = S.crosshairOn and Color3.fromRGB(180, 80, 220) or C.PURPLE
+            end
+        end)
+    end
+end
+
+function S.ToggleCrosshair()
+    S.SetCrosshair(not S.crosshairOn)
+    return S.crosshairOn
+end
+
+-- Đăng ký nút 🎯 trên 1 tab tính năng để hub tự cập nhật text khi crosshair đổi trạng thái
+function S.RegisterCrosshairBtn(btn)
+    if not btn then return end
+    table.insert(S.crosshairBtns, btn)
+    -- đồng bộ text ban đầu
+    pcall(function()
+        btn.Text = S.crosshairOn and "🎯 Tâm: BẬT" or "🎯 Tâm"
+        btn.BackgroundColor3 = S.crosshairOn and Color3.fromRGB(180, 80, 220) or C.PURPLE
+    end)
+    btn.Activated:Connect(function()
+        S.ToggleCrosshair()
+    end)
 end
 
 local function RunFeatureScript(code, name, containerFrame, indicator, statusLabel)
@@ -3819,26 +4087,38 @@ local function CreateFeatureTab(name, icon, codeContent)
     Corner(toolbar, UDim.new(0,6))
     Stroke(toolbar, Color3.fromRGB(180,185,200), 1)
 
+    -- Bố cục toolbar (tổng nội dung ~429px cho khung 435px):
+    --   Chạy Script (90px @6) | Chép Code (84px @100) | Sửa (52px @188)
+    --   | 🎯 Tâm (68px @244) | [trạng thái co giãn] (Scale fill từ 316 → -56) | ✕ (40px @-46)
     local runFeatureBtn = New("TextButton", {
-        Size=UDim2.new(0,110,0,26), Position=UDim2.new(0,6,0,5),
+        Size=UDim2.new(0,90,0,26), Position=UDim2.new(0,6,0,5),
         Text="▶ Chạy Script", BackgroundColor3=C.GREEN, BackgroundTransparency=0.1,
-        TextColor3=C.WHITE, Font=Enum.Font.GothamBold, TextSize=10, BorderSizePixel=0, ZIndex=21,
+        TextColor3=C.WHITE, Font=Enum.Font.GothamBold, TextSize=9, BorderSizePixel=0, ZIndex=21,
     }, toolbar)
     Corner(runFeatureBtn, UDim.new(0,5))
 
     local saveFeatureBtn = New("TextButton", {
-        Size=UDim2.new(0,110,0,26), Position=UDim2.new(0,122,0,5),
-        Text="📤 Chép sang Code", BackgroundColor3=C.BLUE, BackgroundTransparency=0.1,
-        TextColor3=C.WHITE, Font=Enum.Font.GothamBold, TextSize=10, BorderSizePixel=0, ZIndex=21,
+        Size=UDim2.new(0,84,0,26), Position=UDim2.new(0,100,0,5),
+        Text="📤 Chép Code", BackgroundColor3=C.BLUE, BackgroundTransparency=0.1,
+        TextColor3=C.WHITE, Font=Enum.Font.GothamBold, TextSize=9, BorderSizePixel=0, ZIndex=21,
     }, toolbar)
     Corner(saveFeatureBtn, UDim.new(0,5))
 
     local editFeatureBtn = New("TextButton", {
-        Size=UDim2.new(0,80,0,26), Position=UDim2.new(0,238,0,5),
+        Size=UDim2.new(0,52,0,26), Position=UDim2.new(0,188,0,5),
         Text="✏️ Sửa", BackgroundColor3=C.ORANGE, BackgroundTransparency=0.1,
         TextColor3=C.WHITE, Font=Enum.Font.GothamBold, TextSize=10, BorderSizePixel=0, ZIndex=21,
     }, toolbar)
     Corner(editFeatureBtn, UDim.new(0,5))
+
+    -- v4.4e: nút 🎯 bật/tắt vòng tròn niêm tâm ở GIỮA MÀN HÌNH GAME (ngoài menu)
+    local crosshairBtn = New("TextButton", {
+        Size=UDim2.new(0,68,0,26), Position=UDim2.new(0,244,0,5),
+        Text="🎯 Tâm", BackgroundColor3=C.PURPLE, BackgroundTransparency=0.1,
+        TextColor3=C.WHITE, Font=Enum.Font.GothamBold, TextSize=9, BorderSizePixel=0, ZIndex=21,
+    }, toolbar)
+    Corner(crosshairBtn, UDim.new(0,5))
+    S.RegisterCrosshairBtn(crosshairBtn)
 
     local closeFeatureBtn = New("TextButton", {
         Size=UDim2.new(0,40,0,26), Position=UDim2.new(1,-46,0,5),
@@ -3848,9 +4128,11 @@ local function CreateFeatureTab(name, icon, codeContent)
     Corner(closeFeatureBtn, UDim.new(0,5))
 
     local fStatus = New("TextLabel", {
-        Size=UDim2.new(0,180,0,26), Position=UDim2.new(0,324,0,5),
+        -- co giãn theo khung: từ 316px đến nút ✕ (trừ 46+6=52px từ phải)
+        Size=UDim2.new(1,-52-316,0,26), Position=UDim2.new(0,316,0,5),
         Text="", BackgroundTransparency=1, TextColor3=Color3.fromRGB(220,170,0),
-        Font=Enum.Font.GothamMedium, TextSize=9, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=21,
+        Font=Enum.Font.GothamMedium, TextSize=8, TextXAlignment=Enum.TextXAlignment.Left,
+        TextTruncate=Enum.TextTruncate.AtEnd, ZIndex=21,
     }, toolbar)
 
     local editorFrame = New("Frame", {
@@ -4058,9 +4340,11 @@ local grabSizeCodeBtn = Button(createFeatureTab, "📏 Code Tự Co Giãn (an to
 cy = cy + 34
 local fixMouseBtn = Button(createFeatureTab, "🖱 Kẹt chuột / không bấm được? Bấm đây", 8, cy, 418, 24, C.RED)
 cy = cy + 30
--- v4.4d: sinh CODE MẪU có "hợp đồng kích thước" -> đưa cho người khác/AI viết tiếp là
--- script thành phẩm tự vừa ô tab của menu (và theo khi kéo menu to/nhỏ), chạy được ngay.
-local copyTemplateBtn = Button(createFeatureTab, "📋 Copy Code Mẫu Cho AI (tự vừa size menu)", 8, cy, 418, 26, C.BLUE)
+-- v4.4e: CODE MẪU mới có sẵn (1) "hợp đồng kích thước" để GUI tự vừa ô tab khi
+-- người khác chạy, (2) khối EXTERNAL OVERLAY + nút 🎯 niêm tâm ở GIỮA MÀN HÌNH
+-- GAME (không bị hub kéo vào trong khung menu) làm ví dụ cho AI/người nhận viết
+-- tiếp các tính năng can thiệp ngoài màn hình (ESP/HUD/crosshair).
+local copyTemplateBtn = Button(createFeatureTab, "📋 Copy Code Mẫu Cho AI (menu + niêm tâm)", 8, cy, 418, 26, C.BLUE)
 cy = cy + 32
 
 local createStatus = Label(createFeatureTab, "", cy)
@@ -4561,7 +4845,7 @@ main.Visible = true
 togBtn.Text = "✕"
 
 print(string.format(
-    "✅ Banana Cat Hub v4.4d — sẵn sàng! Đã nạp lại %d script + %d waypoint + %d tab tính năng từ bộ nhớ (chế độ: %s%s)",
+    "✅ Banana Cat Hub v4.4e — sẵn sàng! Đã nạp lại %d script + %d waypoint + %d tab tính năng từ bộ nhớ (chế độ: %s%s)",
     Store.loadedScripts, Store.loadedWp, #Store.loadedFeatures, Store.mode,
     Store.lastError and (" | ⚠️ " .. Store.lastError) or ""
 ))
