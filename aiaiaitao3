@@ -1,5 +1,26 @@
 --[[
-    🍌 Banana Cat Hub v4.4a — FULL CODE
+    🍌 Banana Cat Hub v4.4b — FULL CODE
+    + SỬA: BẤM "▶ CHẠY SCRIPT" TRONG TAB TÍNH NĂNG BỊ "LỖI"/TREO — nguyên nhân: script
+           được gọi ĐỒNG BỘ ngay trong handler của nút bấm, mà script dạng Auto Farm /
+           Fly / Speed gần như luôn kết thúc bằng `while true do task.wait() end`
+           => hàm không bao giờ return => status kẹt "⏳ Đang thực thi..." vĩnh viễn,
+              GUI không bao giờ được nhúng (tab trống trơn), thread nút bấm bị chiếm cứng.
+           Giờ script chạy trên thread riêng (task.spawn), vòng quét GUI chạy song song.
+    + SỬA: Lỗi bị cắt cụt không đọc được — nhãn status chỉ rộng 180px nên thông báo
+           "[string ...]:237: ')' expected near 'end'" bị cắt còn "❌ Lỗi: [string "--".
+           Giờ có PANEL LỖI RIÊNG hiện nguyên văn, cuộn được, chọn/copy được.
+    + SỬA: GUI nhúng bị vỡ thành một đống — hàm dãn kích thước đệ quy ép
+           Size=(1,0,1,0) + Position=(0,0,0,0) lên MỌI Frame con cháu, khiến sidebar /
+           panel / nút chồng hết lên nhau ở góc trên-trái. Giờ mặc định chỉ dãn cấp
+           ROOT, giữ nguyên layout gốc. Cần hành vi cũ thì bật "📐 Dãn sâu GUI nhúng".
+    + SỬA: Quét GUI mới có thể "bắt cóc" nhầm HUD/chat/backpack của chính trò chơi
+           (cửa sổ quét 2,4s và không loại trừ UI core). Giờ cửa sổ còn tối đa 1s,
+           dừng ngay khi thấy GUI, và bỏ qua danh sách GUI core của Roblox.
+    + SỬA: Bấm liên tục "▶ Chạy Script" chạy chồng nhiều bản script cùng lúc (thêm khoá).
+    + SỬA: _G.BananaCatHub_EmbedHosts phình vô hạn theo số lần bấm Chạy (dọn host đã chết).
+    + SỬA: Chữ ở nhãn status tràn đè lên nút ✕ (thêm TextTruncate).
+    + THÊM: trạng thái báo đúng sự thật — "🟢 Đang chạy nền..." khi script còn vòng lặp
+           (không phải lỗi), "✅ Đã nhúng N GUI vào tab" khi bắt được GUI.
     + SỬA: "TẠO TÍNH NĂNG" giờ cũng ĐƯỢC LƯU XUỐNG ĐĨA — tab tính năng bạn tạo
            thoát game vào lại VẪN CÒN, nằm đúng trong mục "Danh Sách Tab Tính Năng Đã Tạo"
            (trước đây nó biến mất, nên phải chép sang tab Code để giữ -> lưu nhầm chỗ)
@@ -193,7 +214,7 @@ Corner(titleBar, UDim.new(0,10))
 New("TextLabel", {
     Size=UDim2.new(1,-90,1,0),
     Position=UDim2.new(0,12,0,0),
-    Text="🍌 Banana Cat Executor Hub v4.4a",
+    Text="🍌 Banana Cat Executor Hub v4.4b",
     BackgroundTransparency=1,
     TextColor3=C.DARK,
     Font=Enum.Font.GothamBold,
@@ -443,6 +464,9 @@ Store.loadedScripts  = 0
 Store.loadedWp       = 0
 Store.loadedFeatures = {}     -- dữ liệu thô đọc từ đĩa; TAB5 sẽ dựng thành tab thật
 Store.restoreFeatures = nil   -- TAB5 gán hàm dựng lại tab tính năng vào đây
+Store.deepStretch    = false    -- false = giữ layout gốc của GUI nhúng (an toàn)
+                                -- true  = ép MỌI Frame con cháu dãn full (hành vi v4.3, dễ vỡ layout)
+Store.stretchToggleBtn = nil
 Store.statusLbl      = nil      -- tab "Code Đã Lưu" gán nhãn trạng thái vào đây
 Store.reloadBtn      = nil
 Store._scheduled     = false
@@ -542,7 +566,10 @@ function Store.serialize()
             code = tostring(f.code or ""),
         })
     end
-    return {version = Store.SAVE_VERSION, scripts = sOut, waypoints = wOut, features = fOut}
+    return {
+        version = Store.SAVE_VERSION, scripts = sOut, waypoints = wOut, features = fOut,
+        deepStretch = (Store.deepStretch == true),
+    }
 end
 
 -- Ghi ngay (đồng bộ). Trả về true/false.
@@ -615,6 +642,7 @@ function Store.load()
 
     scripts   = sOut
     waypoints = wOut
+    Store.deepStretch = (data.deepStretch == true)
     Store.loadedFeatures = fOut
     Store.loadedScripts, Store.loadedWp = #sOut, #wOut
 end
@@ -2731,6 +2759,17 @@ local function NormalizeCode(c)
     return c
 end
 
+-- GUI của CHÍNH Roblox nằm trong CoreGui. KHÔNG BAO GIỜ được "nhúng" mấy cái này vào hub,
+-- nếu không sẽ phá HUD / chat / backpack / thông báo của trò chơi.
+local CORE_GUI_SKIP = {
+    RobloxGui = true, TopBarIconController = true, Chat = true, ExperienceChat = true,
+    Backpack = true, PlayerList = true, VoiceChat = true, VoiceChatExperienceUI = true,
+    RthroNotifications = true, RobloxPromptGui = true, CoreScriptErrorReporting = true,
+    PurchasePrompt = true, LoadingScreen = true, LoadingUI = true, ReportAbuseMenu = true,
+    AvatarContextMenu = true, Notifications = true, ScreenGuiOverlay = true,
+    VRMaster = true, PlayerEmotesUI = true, SelfView = true, MicControl = true,
+}
+
 local function ScanNewGuis(beforeGuis)
     local found = {}
     local function scan(container)
@@ -2738,7 +2777,9 @@ local function ScanNewGuis(beforeGuis)
         for _, g in ipairs(container:GetChildren()) do
             if not beforeGuis[g] then
                 beforeGuis[g] = true
-                table.insert(found, g)
+                if not CORE_GUI_SKIP[g.Name] then
+                    table.insert(found, g)
+                end
             end
         end
     end
@@ -2751,7 +2792,13 @@ local function ScanNewGuis(beforeGuis)
     return found
 end
 
-local function ForceStretchToParent(obj)
+-- MẶC ĐỊNH CHỈ XỬ LÝ ĐÚNG OBJECT ĐƯỢC ĐƯA VÀO, KHÔNG ĐỆ QUY XUỐNG CON CHÁU.
+-- Bản v4.3/v4.4 đệ quy toàn cây và ép Size=(1,0,1,0) + Position=(0,0,0,0) lên MỌI
+-- Frame/ScrollingFrame/CanvasGroup -> sidebar, panel, nút của GUI nhúng bị chồng hết
+-- lên nhau ở góc trên-trái thành một đống không bấm được. Đó là lý do "chạy tính năng
+-- xong thấy GUI vỡ/lỗi". Muốn lấy lại hành vi cũ thì bật Store.deepStretch.
+local function ForceStretchToParent(obj, deep)
+    if deep == nil then deep = (Store.deepStretch == true) end
     if not obj then return end
     pcall(function()
         if obj:IsA("GuiObject") then
@@ -2766,44 +2813,92 @@ local function ForceStretchToParent(obj)
             end
         end
     end)
-    for _, child in ipairs(obj:GetChildren()) do
-        ForceStretchToParent(child)
+    if deep then
+        for _, child in ipairs(obj:GetChildren()) do
+            ForceStretchToParent(child, deep)
+        end
     end
 end
 
-local function RunFeatureScript(code, name, containerFrame, indicator, statusLabel)
-    if #code == 0 then
-        if statusLabel then statusLabel.Text = "⚠️ Vui lòng nhập code!" end
+local function RunFeatureScript(code, name, containerFrame, indicator, statusLabel, onError, onDone)
+    -- onError(title, msg) : hiển thị lỗi ĐẦY ĐỦ (fStatus chỉ 180px nên bị cắt cụt)
+    -- onDone()            : báo đã xong, để nút "Chạy Script" bỏ khoá chống bấm đúp
+    local function setStatus(text, color)
+        if statusLabel then statusLabel.Text = text end
+        if indicator and color then indicator.BackgroundColor3 = color end
+    end
+    local function finish()
+        if onDone then pcall(onDone) end
+    end
+
+    if type(code) ~= "string" or #code == 0 then
+        setStatus("⚠️ Vui lòng nhập code!", C.GRAY)
+        finish()
         return false, "empty"
     end
 
     code = NormalizeCode(code)
+    setStatus("⏳ Đang biên dịch...", C.RED)
 
-    if indicator then indicator.BackgroundColor3 = C.RED end
-    if statusLabel then statusLabel.Text = "⏳ Đang thực thi..." end
+    -- ===== 1) BIÊN DỊCH TRƯỚC, NGOÀI MỌI THREAD =====
+    -- Bản cũ nhét loadstring vào trong pcall rồi error() lại, nên lỗi cú pháp bị bọc
+    -- thêm một lớp và bị cắt cụt trên fStatus -> người dùng không biết lỗi ở đâu.
+    local fn, lerr = loadstring(code)
+    if not fn then
+        setStatus("❌ Lỗi cú pháp — xem chi tiết", C.RED)
+        warn("[BananaCatHub] loadstring thất bại: " .. tostring(lerr))
+        if onError then
+            pcall(onError, "❌ Lỗi cú pháp — script \"" .. tostring(name) .. "\" không biên dịch được",
+                  tostring(lerr) .. "\n\n(Check lại: thiếu end / dấu ngoặc, string chưa đóng, "
+                  .. "dán code bị mất dòng, hoặc executor không hỗ trợ cú pháp đó.)")
+        end
+        finish()
+        return false, tostring(lerr)
+    end
 
-    local ok, err = pcall(function()
-        local fn, lerr = loadstring(code)
-        if not fn then error("loadstring thất bại: "..tostring(lerr)) end
+    -- ===== 2) CHỤP ẢNH GUI TRƯỚC KHI CHẠY =====
+    local beforeGuis = {}
+    local function snap(container)
+        if not container then return end
+        for _, g in ipairs(container:GetChildren()) do beforeGuis[g] = true end
+    end
+    snap(playerGui)
+    snap(targetGui)
+    pcall(function()
+        local cg = game:GetService("CoreGui")
+        if cg and cg ~= targetGui then snap(cg) end
+    end)
 
-        local beforeGuis = {}
-        for _, g in ipairs(playerGui:GetChildren()) do beforeGuis[g] = true end
-        for _, g in ipairs(targetGui:GetChildren()) do beforeGuis[g] = true end
-        pcall(function()
-            local cg = game:GetService("CoreGui")
-            if cg and cg ~= targetGui then
-                for _, g in ipairs(cg:GetChildren()) do beforeGuis[g] = true end
-            end
-        end)
+    setStatus("⏳ Đang thực thi...", C.RED)
 
-        fn()
+    -- ===== 3) CHẠY SCRIPT TRÊN THREAD RIÊNG — ĐÂY LÀ BUG CHÍNH =====
+    -- Bản cũ gọi fn() ĐỒNG BỘ ngay trong handler của nút bấm, rồi mới tới vòng quét GUI.
+    -- Mà script dạng "Auto Farm / Fly / Speed" (đúng mấy cái ô code gợi ý) gần như LUÔN
+    -- kết thúc bằng `while true do task.wait(1) ... end` => fn() KHÔNG BAO GIỜ return.
+    -- Hậu quả: status kẹt "⏳ Đang thực thi..." vĩnh viễn, GUI không bao giờ được nhúng
+    -- (tab trống trơn => tưởng là "lỗi"), và thread của nút bấm bị chiếm cứng.
+    local scriptErr, scriptDone = nil, false
+    task.spawn(function()
+        local okRun, errRun = pcall(fn)
+        scriptDone = true
+        if not okRun then
+            scriptErr = errRun
+            warn("[BananaCatHub] Feature script error: " .. tostring(errRun))
+        end
+    end)
 
+    -- ===== 4) QUÉT + NHÚNG GUI, CHẠY SONG SONG VỚI SCRIPT =====
+    task.spawn(function()
         local newGuis = {}
-        for i = 1, 12 do
-            task.wait(0.2)
+        -- Cửa sổ rút từ 12 x 0.2s (2,4s) xuống tối đa 20 x 0.05s (1s): cửa sổ càng dài
+        -- thì càng dễ "bắt cóc" nhầm GUI mà chính trò chơi vừa dựng trong lúc đó.
+        for i = 1, 20 do
+            task.wait(0.05)
             local found = ScanNewGuis(beforeGuis)
             for _, g in ipairs(found) do table.insert(newGuis, g) end
-            if #newGuis > 0 then break end
+            if #newGuis > 0 or scriptErr then break end
+            -- script đã return: nán thêm ~0.2s cho kịp GUI do task.spawn bên trong tạo
+            if scriptDone and i >= 4 then break end
         end
 
         for _, g in ipairs(newGuis) do
@@ -2829,7 +2924,11 @@ local function RunFeatureScript(code, name, containerFrame, indicator, statusLab
                 end
                 pcall(function() g:Destroy() end)
 
-                ForceStretchToParent(host)
+                -- Chỉ dãn cấp ROOT của GUI nhúng, giữ nguyên layout bên trong.
+                -- (Muốn hành vi cũ ép-deep-toàn-cây thì bật "📐 Dãn sâu GUI nhúng".)
+                for _, child in ipairs(host:GetChildren()) do
+                    ForceStretchToParent(child)
+                end
 
                 if not _G.BananaCatHub_EmbedHosts then
                     _G.BananaCatHub_EmbedHosts = {}
@@ -2843,18 +2942,25 @@ local function RunFeatureScript(code, name, containerFrame, indicator, statusLab
                 end)
             end
         end
+
+        -- ===== 5) BÁO TRẠNG THÁI THẬT =====
+        if scriptErr then
+            setStatus("❌ Lỗi khi chạy — xem chi tiết", C.RED)
+            if onError then
+                pcall(onError, "❌ Lỗi khi chạy script \"" .. tostring(name) .. "\"", tostring(scriptErr))
+            end
+        elseif #newGuis > 0 then
+            setStatus("✅ Đã nhúng " .. #newGuis .. " GUI vào tab", C.GREEN)
+        elseif scriptDone then
+            setStatus("✅ Hoàn thành!", C.GREEN)
+        else
+            -- Script còn đang chạy vòng lặp ở nền => KHÔNG phải lỗi, nói rõ ra
+            setStatus("🟢 Đang chạy nền...", C.GREEN)
+        end
+        finish()
     end)
 
-    if ok then
-        if indicator then indicator.BackgroundColor3 = C.GREEN end
-        if statusLabel then statusLabel.Text = "✅ Hoàn thành!" end
-        return true
-    else
-        if indicator then indicator.BackgroundColor3 = C.RED end
-        if statusLabel then statusLabel.Text = "❌ Lỗi: "..tostring(err) end
-        warn("[BananaCatHub] Feature script error:", err)
-        return false, err
-    end
+    return true, nil
 end
 
 local function CreateFeatureTab(name, icon, codeContent)
@@ -2966,9 +3072,13 @@ local function CreateFeatureTab(name, icon, codeContent)
     Corner(closeFeatureBtn, UDim.new(0,5))
 
     local fStatus = New("TextLabel", {
+        Name="FeatureStatus",
         Size=UDim2.new(0,180,0,26), Position=UDim2.new(0,324,0,5),
         Text="", BackgroundTransparency=1, TextColor3=Color3.fromRGB(220,170,0),
         Font=Enum.Font.GothamMedium, TextSize=9, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=21,
+        -- Label chỉ rộng 180px mà không đặt TextTruncate => chữ dài TRÀN đè lên nút ✕.
+        -- Cắt ở cuối chuỗi; nội dung đầy đủ nằm trong panel lỗi bên dưới.
+        TextTruncate=Enum.TextTruncate.AtEnd,
     }, toolbar)
 
     local editorFrame = New("Frame", {
@@ -3010,16 +3120,95 @@ local function CreateFeatureTab(name, icon, codeContent)
     }, editorFrame)
     Corner(cancelEditBtn, UDim.new(0,5))
 
+    -- ===== PANEL HIỂN THỊ LỖI ĐẦY ĐỦ =====
+    -- fStatus chỉ 180px nên một lỗi kiểu
+    --     [string "-- Auto Farm"]:237: ')' expected near 'end'
+    -- bị cắt còn "❌ Lỗi: [string "--" => người dùng không tài nào biết lỗi gì.
+    -- Panel này hiện NGUYÊN VĂN, cuộn được, chọn/copy được.
+    local errorFrame = New("Frame", {
+        Name="FeatureErrorPanel",
+        Size=UDim2.new(1,0,1,-36), Position=UDim2.new(0,0,0,0),
+        BackgroundColor3=Color3.fromRGB(38,20,24), BackgroundTransparency=0.02,
+        BorderSizePixel=0, ZIndex=60, Visible=false, Active=true,
+    }, sf)
+    Corner(errorFrame, UDim.new(0,6))
+    Stroke(errorFrame, Color3.fromRGB(220,90,90), 1.5)
+
+    local errorTitle = New("TextLabel", {
+        Name="FeatureErrorTitle",
+        Size=UDim2.new(1,-92,0,24), Position=UDim2.new(0,8,0,6),
+        Text="❌ Lỗi", BackgroundTransparency=1, TextColor3=Color3.fromRGB(255,150,150),
+        Font=Enum.Font.GothamBold, TextSize=12,
+        TextXAlignment=Enum.TextXAlignment.Left, TextTruncate=Enum.TextTruncate.AtEnd, ZIndex=61,
+    }, errorFrame)
+
+    local errorCloseBtn = New("TextButton", {
+        Size=UDim2.new(0,72,0,24), Position=UDim2.new(1,-80,0,6),
+        Text="✕ Đóng", BackgroundColor3=C.RED, BackgroundTransparency=0.1,
+        TextColor3=C.WHITE, Font=Enum.Font.GothamBold, TextSize=10, BorderSizePixel=0, ZIndex=61,
+    }, errorFrame)
+    Corner(errorCloseBtn, UDim.new(0,5))
+
+    local errorScroll = New("ScrollingFrame", {
+        Size=UDim2.new(1,-16,1,-44), Position=UDim2.new(0,8,0,36),
+        BackgroundColor3=Color3.fromRGB(20,12,14), BackgroundTransparency=0,
+        BorderSizePixel=0, ScrollBarThickness=6,
+        ScrollBarImageColor3=Color3.fromRGB(180,90,90),
+        CanvasSize=UDim2.new(0,0,0,0), AutomaticCanvasSize=Enum.AutomaticCanvasSize.Y,
+        ClipsDescendants=true, ZIndex=61,
+    }, errorFrame)
+    Corner(errorScroll, UDim.new(0,5))
+
+    local errorBox = New("TextBox", {
+        Name="FeatureErrorBox",
+        Size=UDim2.new(1,-12,0,20), Position=UDim2.new(0,6,0,6),
+        Text="", BackgroundTransparency=1, TextColor3=Color3.fromRGB(255,220,220),
+        Font=Enum.Font.Code, TextSize=11, ClearTextOnFocus=false, ReadOnly=true,
+        MultiLine=true, TextWrapped=true, AutomaticSize=Enum.AutomaticSize.Y,
+        TextXAlignment=Enum.TextXAlignment.Left, TextYAlignment=Enum.TextYAlignment.Top,
+        Active=true, Selectable=true, ZIndex=62,
+    }, errorScroll)
+
+    local function ShowError(title, msg)
+        errorTitle.Text = tostring(title or "❌ Lỗi")
+        errorBox.Text = tostring(msg or "(không có thông báo lỗi)")
+        errorFrame.Visible = true
+        if editorFrame then editorFrame.Visible = false end
+    end
+    errorCloseBtn.Activated:Connect(function() errorFrame.Visible = false end)
+
     local function ClearHost()
+        local killed = {}
         for _, child in ipairs(embedHost:GetChildren()) do
+            killed[child] = true
             pcall(function() child:Destroy() end)
+        end
+        -- Bản cũ quên dọn _G.BananaCatHub_EmbedHosts: mảng này phình vô hạn theo số lần
+        -- bấm "Chạy Script", và vòng lặp resize cứ phải duyệt qua toàn bộ host đã chết.
+        if _G.BananaCatHub_EmbedHosts then
+            local kept = {}
+            for _, h in ipairs(_G.BananaCatHub_EmbedHosts) do
+                if h and h.Parent and not killed[h] then table.insert(kept, h) end
+            end
+            _G.BananaCatHub_EmbedHosts = kept
         end
     end
 
+    -- Khoá chống bấm đúp: mỗi lần bấm là một lần ClearHost + loadstring + spawn,
+    -- bấm liên tục sẽ chạy chồng nhiều bản script cùng lúc.
+    local featureRunning = false
+
     runFeatureBtn.Activated:Connect(function()
+        if featureRunning then
+            fStatus.Text = "⏳ Đang chạy, chờ chút..."
+            return
+        end
+        featureRunning = true
+        errorFrame.Visible = false
         ClearHost()
         fStatus.Text = "⏳ Đang chạy..."
-        RunFeatureScript(codeContent, name, embedHost, runFeatureBtn, fStatus)
+        RunFeatureScript(codeContent, name, embedHost, runFeatureBtn, fStatus,
+            ShowError, function() featureRunning = false end)
     end)
 
     saveFeatureBtn.Activated:Connect(function()
@@ -3051,6 +3240,7 @@ local function CreateFeatureTab(name, icon, codeContent)
 
     editFeatureBtn.Activated:Connect(function()
         editorBox.Text = codeContent
+        errorFrame.Visible = false
         editorFrame.Visible = true
     end)
 
@@ -3087,7 +3277,9 @@ task.spawn(function()
                     if host and host.Parent then
                         pcall(function()
                             host.Size = UDim2.new(1, 0, 1, 0)
-                            ForceStretchToParent(host)
+                            for _, ch in ipairs(host:GetChildren()) do
+                                ForceStretchToParent(ch)
+                            end
                         end)
                     end
                 end
@@ -3163,9 +3355,38 @@ cy = cy + 34
 local grabSizeCodeBtn = Button(createFeatureTab, "📏 Lấy Code Kích Thước (Auto-Lưu)", 8, cy, 280, 26, C.PURPLE)
 cy = cy + 32
 
+-- Công tắc lấy lại hành vi "dãn sâu toàn cây" của v4.3 cho ai thật sự cần nó.
+-- Mặc định TẮT: ép Size/Position đệ quy lên MỌI Frame con là nguyên nhân khiến
+-- GUI nhúng bị chồng thành một đống sau khi bấm "▶ Chạy Script".
+-- Gán vào Store.* để không tốn thêm một slot local của main chunk (giới hạn 200).
+Store.stretchToggleBtn = Button(createFeatureTab, "📐 Dãn sâu GUI nhúng: TẮT", 8, cy, 220, 26, C.GRAY)
+if Store.deepStretch then   -- đồng bộ nhãn với giá trị vừa nạp từ đĩa
+    Store.stretchToggleBtn.Text = "📐 Dãn sâu GUI nhúng: BẬT"
+    Store.stretchToggleBtn.BackgroundColor3 = C.ORANGE
+end
+cy = cy + 32
+Label(createFeatureTab, "TẮT = giữ nguyên layout gốc của GUI nhúng (khuyên dùng).", cy)
+cy = cy + 12
+Label(createFeatureTab, "BẬT = ép mọi Frame con dãn full khung (hành vi cũ v4.3).", cy)
+cy = cy + 18
+
 local createStatus = Label(createFeatureTab, "", cy)
 createStatus.TextColor3=C.YELLOW; createStatus.TextSize=9; createStatus.ZIndex=6
 cy = cy + 14
+
+Store.stretchToggleBtn.Activated:Connect(function()
+    Store.deepStretch = not Store.deepStretch
+    if Store.deepStretch then
+        Store.stretchToggleBtn.Text = "📐 Dãn sâu GUI nhúng: BẬT"
+        Store.stretchToggleBtn.BackgroundColor3 = C.ORANGE
+        createStatus.Text = "⚠️ Dãn sâu BẬT — GUI nhúng có thể vỡ layout."
+    else
+        Store.stretchToggleBtn.Text = "📐 Dãn sâu GUI nhúng: TẮT"
+        Store.stretchToggleBtn.BackgroundColor3 = C.GRAY
+        createStatus.Text = "✅ Dãn sâu TẮT — giữ layout gốc của GUI."
+    end
+    Store.saveSoon()
+end)
 
 grabSizeCodeBtn.Activated:Connect(function()
     local currentCode = featureCodeIn.Text
@@ -3504,7 +3725,7 @@ main.Visible = true
 togBtn.Text = "✕"
 
 print(string.format(
-    "✅ Banana Cat Hub v4.4a — sẵn sàng! Đã nạp lại %d script + %d waypoint + %d tab tính năng từ bộ nhớ (chế độ: %s%s)",
+    "✅ Banana Cat Hub v4.4b — sẵn sàng! Đã nạp lại %d script + %d waypoint + %d tab tính năng từ bộ nhớ (chế độ: %s%s)",
     Store.loadedScripts, Store.loadedWp, #Store.loadedFeatures, Store.mode,
     Store.lastError and (" | ⚠️ " .. Store.lastError) or ""
 ))
