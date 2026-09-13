@@ -12,13 +12,31 @@ Vector2 = {new = function(x, y) return V2(x, y) end}
 Vector3 = {new = function(x, y, z) return {X = x or 0, Y = y or 0, Z = z or 0} end}
 math.clamp = function(v, lo, hi) if v < lo then return lo elseif v > hi then return hi end return v end
 
+------------------------------------------------------------------ mini layout engine (để test được chuyện co giãn)
+local VIEW_W, VIEW_H = 1280, 720
+local function absRect(o)
+    local par = rawget(o, "_parent")
+    local px, py, pw, ph = 0, 0, VIEW_W, VIEW_H
+    if par then
+        local r = absRect(par)
+        px, py, pw, ph = r.x, r.y, r.w, r.h
+    end
+    local pos, sz = o.Position, o.Size
+    local w = (sz.X.Scale or 0) * pw + (sz.X.Offset or 0)
+    local h = (sz.Y.Scale or 0) * ph + (sz.Y.Offset or 0)
+    local x = px + (pos.X.Scale or 0) * pw + (pos.X.Offset or 0)
+    local y = py + (pos.Y.Scale or 0) * ph + (pos.Y.Offset or 0)
+    local ap = rawget(o, "AnchorPoint") or o.AnchorPoint
+    if ap and type(ap) == "table" then x, y = x - (ap.X or 0) * w, y - (ap.Y or 0) * h end
+    return { x = x, y = y, w = w, h = h }
+end
+
 ------------------------------------------------------------------ Instance giả
 local function makeObj(cls, name)
     local o = {
         ClassName = cls, Name = name or cls, _children = {},
         _attrs = {}, _signals = {}, _defaults = {
             Visible = true, Enabled = true,
-            AbsolutePosition = V2(0, 0), AbsoluteSize = V2(100, 100),
             Size = UDim2.new(0, 100, 0, 100), Position = UDim2.new(0, 0, 0, 0),
         },
     }
@@ -88,6 +106,8 @@ local function makeObj(cls, name)
     return setmetatable(o, {
         __index = function(t, k)
             if k == "Parent" then return rawget(t, "_parent") end
+            if k == "AbsolutePosition" then local r = absRect(t) return V2(r.x, r.y) end
+            if k == "AbsoluteSize" then local r = absRect(t) return V2(r.w, r.h) end
             local v = rawget(t, k)
             if v ~= nil then return v end
             return t._defaults and t._defaults[k]
@@ -126,7 +146,7 @@ local coreGui = makeObj("CoreGui", "CoreGui")
 gui = makeObj("ScreenGui", "ExMenu")           -- ScreenGui của hub (block check `scr == gui`)
 local hubMain = makeObj("Frame", "Main")
 hubMain.Parent = gui
-hubMain.AbsolutePosition, hubMain.AbsoluteSize = V2(100, 100), V2(435, 304)
+hubMain.Position, hubMain.Size = UDim2.new(0, 100, 0, 100), UDim2.new(0, 620, 0, 420)
 targetGui = playerGui
 
 game = makeObj("DataModel", "game")
@@ -140,6 +160,14 @@ function game:GetService(n)
 end
 ReleaseHubFocus = function() end
 
+------------------------------------------------------------------ task stub (hub có dùng task.delay cho re-fit)
+task = {
+    delay = function(_, fn) return fn end,     -- không chạy lại: test gọi SyncAllEmbeds trực tiếp
+    spawn = function(fn) if type(fn) == "function" then pcall(fn) end end,
+    defer = function(fn) if type(fn) == "function" then pcall(fn) end end,
+    wait = function() return 0 end,
+}
+
 ------------------------------------------------------------------ nạp code THẬT từ hub
 HUBGUI = gui
 local HUB = assert(load(EMBED_SRC, "embed_block", "t", _G))
@@ -152,22 +180,54 @@ local function check(name, cond, extra)
     else fail = fail + 1; print("  ❌ " .. name .. (extra and ("   << " .. tostring(extra)) or "")) end
 end
 local function tabArea()
-    local sf = makeObj("ScrollingFrame", "Tab"); sf.Parent = gui
-    local host = makeObj("Frame", "ScriptHost"); host.Parent = sf
-    host.AbsoluteSize = V2(435, 304)
-    return host
+    -- mô hình thật: tabContent (ScrollingFrame) nằm trong main, embedHost phủ tab
+    local sf = makeObj("ScrollingFrame", "Tab")
+    sf.Position, sf.Size = UDim2.new(0, 0, 0, 36), UDim2.new(1, 0, 1, -36)
+    sf.Parent = hubMain
+    local host = makeObj("Frame", "ScriptHost")
+    host.Position, host.Size = UDim2.new(0, 0, 0, 0), UDim2.new(1, 0, 1, 0)
+    host.Parent = sf
+    return host, sf
+end
+-- khung nội dung thật của tab (để test "nội dung có nằm trong tab không")
+local function contentRect(host)
+    local minX, minY, maxX, maxY = math.huge, math.huge, -math.huge, -math.huge
+    local n = 0
+    for _, ch in ipairs(host:GetChildren()) do
+        if ch:IsA("GuiObject") then
+            local r = absRect(ch)
+            minX, minY = math.min(minX, r.x), math.min(minY, r.y)
+            maxX, maxY = math.max(maxX, r.x + r.w), math.max(maxY, r.y + r.h)
+            n = n + 1
+        end
+    end
+    if n == 0 then return nil end
+    return { x = minX, y = minY, w = maxX - minX, h = maxY - minY }
+end
+local function insideTab(host)
+    local hr = absRect(host)
+    local cr = contentRect(host)
+    if not cr then return false end
+    return cr.x >= hr.x - 1 and cr.y >= hr.y - 1
+        and cr.x + cr.w <= hr.x + hr.w + 1
+        and cr.y + cr.h <= hr.y + hr.h + 1
 end
 local function featGui(nFrames, nm)
     local g = REAL_NEW("ScreenGui"); g.Name = nm or "MyFeature"; g.Parent = playerGui
     for i = 1, nFrames do
         local f = REAL_NEW("Frame"); f.Name = "F" .. i
-        f.Position = UDim2.new(0, 10 * i, 0, 20 * i)
-        f.Size = UDim2.new(0, 300, 0, 200)
+        f.Position = UDim2.new(0, 400, 0, 150)   -- hard-code, lệch hẳn khỏi góc
+        f.Size = UDim2.new(0, 300, 0, 200)        -- nhỏ hơn tab -> bản 4.4b để lọt thỏm
         f.Parent = g
         local inner = REAL_NEW("Frame"); inner.Name = "Inner" .. i
         inner.Position = UDim2.new(0, 4, 0, 4)
         inner.Size = UDim2.new(0, 120, 0, 30)
         inner.Parent = f
+        local lbl = REAL_NEW("TextLabel"); lbl.Name = "Title" .. i
+        lbl.Position = UDim2.new(0, 8, 0, 8)
+        lbl.Size = UDim2.new(1, -16, 0, 24)
+        lbl.TextSize = 12
+        lbl.Parent = f
     end
     return g
 end
@@ -184,24 +244,59 @@ check("host tên Embedded_MyFeature", embedded and embedded.Name == "Embedded_My
 check("2 frame con được mượn sang host", #embedded._children >= 2, #embedded._children)
 check("ScreenGui GỐC không bị Destroy", g._destroyed ~= true)
 check("ScreenGui GỐC vẫn ở PlayerGui", g.Parent == playerGui)
-check("Position/Size frame con KHÔNG bị đổi", root.Position == origPos and root.Size == origSize)
 check("layout lồng nhau còn nguyên (Inner1 vẫn là con F1)",
     root._children[1] ~= nil and root._children[1].Name == "Inner1")
 check("registry có đúng 1 entry", #S.embeds == 1, #S.embeds)
 
-print("[1b] host tự co giãn theo tab, không tạo UIScale trùng")
-check("host.Size phủ tab (Scale=1)", embedded.Size.X.Scale == 1)
-local us = embedded:FindFirstChild("BananaCatFitScale")
-check("có UIScale BananaCatFitScale", us ~= nil)
-check("scale CHỈ co (0.35 <= s <= 1) -> không tràn tab", us and us.Scale >= 0.35 and us.Scale <= 1, us and us.Scale)
-check("host ClipsDescendants=true (phần tràn không nhận click)", embedded.ClipsDescendants == true)
-local function countUs()
-    local n = 0
-    for _, c in ipairs(embedded._children) do if c.Name == "BananaCatFitScale" then n = n + 1 end end
-    return n
-end
-S.FitEmbedded(embedded, g); S.FitEmbedded(embedded, g)
-check("gọi lại không tạo UIScale thứ 2", countUs() == 1, countUs())
+print("[1b] v4.4c FIT: GUI phải LLEN BẰNG ô tab và không được tràn ra ngoài")
+check("host.Size phủ tab (Scale=1)", embedded.Size.X.Scale == 1 and embedded.Size.Y.Scale == 1)
+check("host.ClipsDescendants=true (phần dư không nhận click)", embedded.ClipsDescendants == true)
+check("GUI 300x200 được PHÓNG TO (bản 4.4b để lọt thỏm)", root.Size.X.Offset > 300, root.Size.X.Offset)
+local ratio = root.Size.X.Offset / root.Size.Y.Offset
+check("tỉ lệ ngang/dọc giữ nguyên -> không méo hình",
+    math.abs(ratio - 300 / 200) < 0.03, ratio)
+check("TextSize cũng scale theo (chữ không bị teo tương đối)",
+    root._children[2].TextSize > 12, root._children[2].TextSize)
+check("Padding/UIStroke/inner scale đều: Inner1 rộng gấp đôi gốc",
+    root._children[1].Size.X.Offset > 120, root._children[1].Size.X.Offset)
+check("nội dung nằm trọn trong ô tab (không nuốt click ngoài tab)", insideTab(embedded))
+local cr0 = contentRect(embedded)
+-- hub chừa viền 6px có chủ đích (aw/ah = khổ tab - 6) -> "llen" là trong vòng 6px đó
+check("nội dung llen ô tab (chừa viền 6px theo thiết kế)",
+    math.abs(cr0.h - (absRect(host.Parent).h - 6)) <= 2, cr0.h .. " vs " .. (absRect(host.Parent).h - 6))
+S.SyncAllEmbeds(); S.SyncAllEmbeds()
+local cr1 = contentRect(embedded)
+check("fit lại nhiều lần KHÔNG cộng dồn scale (idempotent)",
+    math.abs(cr1.w - cr0.w) <= 1 and math.abs(cr1.h - cr0.h) <= 1, (cr1.w - cr0.w))
+
+print("[1c] kéo menu to/nhỏ -> GUI của tab co giãn theo")
+local h0 = cr1.h
+hubMain.Size = UDim2.new(0, 900, 0, 620)
+S.SyncAllEmbeds()
+local cr2 = contentRect(embedded)
+check("menu to ra -> GUI to theo", cr2.h > h0 + 10, h0 .. " -> " .. cr2.h)
+check("vẫn trong tab sau khi to ra", insideTab(embedded))
+hubMain.Size = UDim2.new(0, 460, 0, 280)
+S.SyncAllEmbeds()
+local cr3 = contentRect(embedded)
+check("menu nhỏ lại -> GUI co lại", cr3.h < cr2.h - 10, cr2.h .. " -> " .. cr3.h)
+check("vẫn trong tab sau khi nhỏ lại", insideTab(embedded))
+hubMain.Size = UDim2.new(0, 620, 0, 420)
+S.SyncAllEmbeds()
+
+print("[1d] GUI đã full-screen (1,0,1,0): không bị biến dạng, không lặp vô hạn")
+local host3 = tabArea()
+local g3 = REAL_NEW("ScreenGui"); g3.Name = "FullGui"; g3.Parent = playerGui
+local fr = REAL_NEW("Frame"); fr.Parent = g3
+fr.Position, fr.Size = UDim2.new(0, 0, 0, 0), UDim2.new(1, 0, 1, 0)
+local emb3 = S.EmbedGui(g3, host3)
+check("Size vẫn là (1,0,1,0)", fr.Size.X.Scale == 1 and fr.Size.X.Offset == 0,
+    fr.Size.X.Scale .. "," .. fr.Size.X.Offset)
+check("Position vẫn (0,0,0,0)", fr.Position.X.Offset == 0 and fr.Position.Y.Offset == 0)
+check("vừa khít tab, không tràn", insideTab(emb3))
+S.SyncAllEmbeds()
+check("fit lặp lại vẫn không tràn", insideTab(emb3))
+S.ClearEmbedsUnder(host3)
 
 ------------------------------------------------------------------ 2
 print("[2] script tự tắt GUI -> host ẩn theo (bản cũ không làm được)")
@@ -215,8 +310,10 @@ print("[3] S.ClearEmbedsUnder — trả GUI về NGUYÊN TRẠNG")
 local n = S.ClearEmbedsUnder(host)
 check("trả về 1 GUI", n == 1, n)
 check("frame con về lại ScreenGui gốc", root.Parent == g)
-check("Position gốc khôi phục", root.Position == origPos)
+check("Position gốc khôi phục (đã scale khi nhúng -> phải trả về đúng)", root.Position == origPos)
 check("Size gốc khôi phục", root.Size == origSize)
+check("TextSize gốc khôi phục", root._children[2].TextSize == 12, root._children[2].TextSize)
+check("Inner gốc khôi phục", root._children[1].Size.X.Offset == 120, root._children[1].Size.X.Offset)
 check("host bị xóa khỏi tab", #host._children == 0, #host._children)
 check("registry rỗng", #S.embeds == 0)
 check("script vẫn dùng được GUI của nó", g.Parent == playerGui and g._destroyed ~= true)

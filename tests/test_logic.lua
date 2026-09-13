@@ -192,22 +192,55 @@ check("đoạn giữa là code", segs[2] and segs[2].type == "code" and segs[2].
 local open1 = ParseSegments("```lua\nlocal a = 1")
 check("code block chưa đóng vẫn xử lý được", #open1 == 1 and open1[1].type == "code", #open1)
 
--- ============ 4) mô phỏng luồng embed/restore (logic thuần, không Roblox) ============
-print("[4] logic FitEmbedded: clamp scale + bounding box")
--- bản sao đúng công thức trong S.FitEmbedded (chỉ CO, không phóng to, clamp 0.35)
-local function fit(availW, availH, baseW, baseH)
-    local aw, ah = availW - 8, availH - 8
-    if aw < 40 or ah < 40 then return nil end
-    if baseW <= 0 or baseH <= 0 then baseW, baseH = aw, ah end
-    local sc = math.min(1, aw / baseW, ah / baseH)
-    if sc < 0.35 then sc = 0.35 elseif sc > 1 then sc = 1 end
-    return sc
+-- ============ 4) công thức FIT v4.4c: scale đều toàn subtree ============
+print("[4] FitEmbedded: scale đều 2 chiều (vừa khít vùng tab)")
+local UDim2 = { new = function(xs, xo, ys, yo)
+    return { X = { Scale = xs, Offset = xo }, Y = { Scale = ys, Offset = yo } }
+end }
+local UDim = { new = function(sc, off) return { Scale = sc, Offset = off } end }
+if not math.clamp then   -- fengari là Lua 5.3, không có math.clamp của Luau
+    math.clamp = function(v, lo, hi) if v < lo then return lo elseif v > hi then return hi end return v end
 end
-check("GUI nhỏ hơn tab -> scale 1 (không phóng to, không tràn khung)", fit(435, 304, 300, 200) == 1)
-check("GUI 4000x3000 -> co về clamp 0.35", fit(435, 304, 4000, 3000) == 0.35, fit(435, 304, 4000, 3000))
-check("scale không bao giờ > 1 (đảm bảo không tràn tab -> không nuốt click)",
-    fit(1200, 900, 300, 200) == 1 and fit(435, 304, 30, 20) == 1)
-check("tab quá nhỏ -> nil (không làm gì)", fit(30, 20, 300, 200) == nil)
+-- bản sao công thức trong khối "===== FIT" của hub; test_embed.lua test bản trích xuất THẬT
+local function mulUDim(u, k)
+    return UDim2.new(u.X.Scale, math.floor(u.X.Offset * k + 0.5),
+                     u.Y.Scale, math.floor(u.Y.Offset * k + 0.5))
+end
+local function fit(baseW, baseH, areaW, areaH)
+    local aw, ah = areaW - 6, areaH - 6
+    if aw < 40 or ah < 40 then return nil end
+    if baseW <= 0 or baseH <= 0 then return nil end
+    return math.clamp(math.min(aw / baseW, ah / baseH), 0.35, 3.0)
+end
+local ok4, err4 = pcall(function()
+    -- nhân Offset nhưng GIỮ Scale -> layout tương đối không bị phá
+    local u = mulUDim(UDim2.new(0, 100, 0.25, 40), 2)
+    assert(u.X.Offset == 200 and u.Y.Scale == 0.25 and u.Y.Offset == 80, "mulUDim sai")
+    -- GUI 300x200 trong tab 620x384 -> PHÓNG TO ~1.9 lần cho llen bằng menu
+    local s = fit(300, 200, 620, 384)
+    assert(s > 1.8 and s < 1.95, "GUI bé phải được phóng to, s="..tostring(s))
+    -- chọn tỉ lệ nhỏ hơn trong 2 trục -> không méo hình
+    assert(math.abs(fit(300, 100, 620, 384) - 614/300) < 0.01, "chọn trục chật hơn")
+    -- GUI to hơn menu -> co lại
+    assert(fit(4000, 3000, 620, 384) == 0.35, "GUI khổng lồ -> clamp 0.35")
+    -- 1000x1000 trong tab 620x384 -> 378/1000 = 0.378 (vừa khít chiều cao, chưa chạm clamp)
+    local s3 = fit(1000, 1000, 620, 384)
+    assert(math.abs(s3 - 0.378) < 0.002, "co vua khit, s="..tostring(s3))
+    -- 2000x2000 -> 0.189 nhưng clamp giữ 0.35 (không để GUI biến mất hẳn)
+    assert(fit(2000, 2000, 620, 384) == 0.35, "clamp giữ GUI khổng lồ còn nhìn thấy")
+    -- đã vừa sẵn -> s = 1, không sửa gì
+    assert(math.abs(fit(614, 378, 620, 384) - 1) < 0.002, "đã vừa thì giữ nguyên")
+    -- clamp 2 phía
+    assert(fit(1, 1, 620, 384) == 3.0, "clamp max 3.0")
+    assert(fit(99999, 99999, 620, 384) == 0.35, "clamp min 0.35")
+    -- tab quá nhỏ -> không làm gì
+    assert(fit(300, 200, 20, 20) == nil, "tab quá nhỏ -> nil")
+    -- GUI full-screen (1,0,1,0) bất biến -> không bị biến dạng
+    local full = mulUDim(UDim2.new(1, 0, 1, 0), 1.9)
+    assert(full.X.Scale == 1 and full.X.Offset == 0, "UDim2 (1,0,1,0) bất biến")
+end)
+check("FitEmbedded: scale đều 2 chiều (vừa khít vùng tab)", ok4, err4)
+
 
 print(string.format("\n=> %d pass / %d fail", pass, fail))
 if fail > 0 then error("CÓ TEST FAIL") end

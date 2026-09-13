@@ -3,6 +3,9 @@
 const { lauxlib, lualib, lua, to_luastring } = require("fengari");
 const fs = require("fs");
 const path = require("path");
+const { execFileSync } = require("child_process");
+try { execFileSync("python3", [path.join(__dirname, "extract_blocks.py")], { cwd: __dirname, stdio: "ignore" }); }
+catch (e) { console.error("extract_blocks.py thất bại: " + e.message); process.exit(2); }
 const blockFile = path.join(__dirname, ".build", "embed_block.lua");
 if (!fs.existsSync(blockFile)) {
   console.error("thiếu .build/embed_block.lua — chạy: python3 tests/extract_blocks.py");

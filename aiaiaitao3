@@ -1,5 +1,5 @@
 --[[
-    🍌 Banana Cat Hub v4.4b — FULL CODE
+    🍌 Banana Cat Hub v4.4c — FULL CODE
     + SỬA (QUAN TRỌNG — đúng cái bạn gặp): "TẠO TÍNH NĂNG → ▶ Chạy Script" làm bạn
            KHÔNG quay chuột / KHÔNG bắn được và làm LỖI vài nút của game. 3 nguyên nhân:
              • TextBox của hub còn focus -> Roblox chặn input người chơi. Giờ hub tự nhả focus
@@ -126,6 +126,17 @@ end
 --      `gui.Enabled`/`gui:Destroy()` của nó không còn tác dụng.
 --      -> biết chính xác GUI nào là của script (hook Instance.new), không quét CoreGui,
 --         không Destroy GUI gốc, thêm nút 🧩 BẬT/TẮT nhúng và ✕ trả GUI về nguyên trạng.
+-- v4.4c — SỬA "menu tính năng không cùng kích thước menu chính"
+--   Bản 4.4b chỉ CO GUI (clamp <= 1) nên GUI hard-code nhỏ (vd 300x200) nằm lọt thỏm trong
+--   tab 620x384 thay vì llen bằng menu. Nay S.FitEmbedded đo bounding box nội dung rồi NHÂN
+--   ĐỒNG ĐỀU mọi Offset (Size/Position/UICorner/UIPadding/UIStroke/TextSize) của cả subtree
+--   lên cùng 1 hệ số s = min(khổ tab / nội dung), clamp [0.35, 3.0] -> vừa PÓNG TO được,
+--   vừa co lại được, mà tỉ lệ giữa các phần tử không đổi (không méo, không ép Size=(1,0,1,0)).
+--   Sau đó tịnh tiến khung nội dung về góc tab + canh giữa; phần thừa bị ClipsDescendants chặn.
+--   Vì s tính từ bounding box nên nội dung LUÔN nằm trong ô tab -> không thể tràn ra nuốt click
+--   của game (đúng cái lỗi của 4.4a). Mọi giá trị gốc được chụp lại (entry.snap) và trả nguyên
+--   trạng khi ✕ / 🧩 TẮT / xoá tab. Kéo corner menu hay đổi tab -> BcFit() re-fit (debounce
+--   0.05s) nên GUI của tab luôn "bằng kích thước menu chính" theo thời gian thực.
 -- ============================================================================
 local function ReleaseHubFocus()
     pcall(function()
@@ -237,7 +248,7 @@ Corner(titleBar, UDim.new(0,10))
 New("TextLabel", {
     Size=UDim2.new(1,-90,1,0),
     Position=UDim2.new(0,12,0,0),
-    Text="🍌 Banana Cat Executor Hub v4.4b",
+    Text="🍌 Banana Cat Executor Hub v4.4c",
     BackgroundTransparency=1,
     TextColor3=C.DARK,
     Font=Enum.Font.GothamBold,
@@ -271,6 +282,17 @@ local closeBtn = New("TextButton", {
 }, titleBar)
 
 local minW, minH = 440, 260
+
+-- v4.4c: "menu kéo to/nhỏ -> GUI của tab co giãn theo". Khu S.* được khai báo phía dưới nên
+-- ở đây chỉ gọi qua hook _G; BcFit() tự debounce để không chạy mỗi frame khi đang drag.
+function BcFit()
+    local fn = _G.BananaCatHub_SyncEmbeds
+    if type(fn) ~= "function" then return end
+    local ok, now = pcall(os.clock)
+    if ok and _G.BcFitLast and now - _G.BcFitLast < 0.05 then return end
+    _G.BcFitLast = ok and now or 0
+    task.defer(fn)
+end
 
 local function SetupResizeHandle(btn, cornerType)
     local resizing, sizeStart, posStart, inputStart
@@ -387,6 +409,7 @@ local function SwitchTab(index)
         tabs[index].BackgroundTransparency = 0.2
         activeTab = tabContent[index]
     end
+    BcFit()   -- v4.4c: tab vừa hiện -> đo lại để GUI nằm vừa đúng ô của tab
 end
 
 local function AddTab(name, icon, order, customContent)
@@ -2964,9 +2987,11 @@ end
 
 -- Trả toàn bộ frame con về ScreenGui gốc + khôi phục Position/Size -> GUI y như lúc chưa nhúng
 function S.RestoreEmbed(entry)
-    -- CHỈ trả Parent. hub chưa bao giờ sửa Position/Size của frame con (xem ForceStretchToParent
-    -- root-only) nên ghi ngược lại origPos/origSize chỉ tổ PHÁ những gì script đã tự đổi
-    -- sau khi nhúng (vd script tự đổi kích thước panel).
+    -- 1) khôi phục mọi giá trị mà hub đã scale (Position/Size/TextSize/UIPadding/...)
+    pcall(function() S.RestoreSnap(entry) end)
+    entry.snap = nil
+    -- 2) rồi mới trả Parent các frame con về ScreenGui gốc. Sau bước 1, Size/Position của chúng
+    --    đã là bản gốc do script đó dùng, nên không cần (và không nên) ghi đè thêm lần nữa.
     for _, rec in ipairs(entry.recs or {}) do
         pcall(function()
             if rec.obj and rec.origParent then
@@ -2993,57 +3018,192 @@ function S.PruneEmbeds()
     end
 end
 
--- Co/giãn vừa khít vùng tab: Scale = tỉ lệ min(chiếu rộng tab/chiều rộng GUI, cao/cao).
--- Đây là thứ thay cho ForceStretch: menu kéo to -> GUI to theo, nhưng layout trong GUI KHÔNG bị phá.
-function S.FitEmbedded(host, gui)
-    if not host or not host.Parent then return end
-    local area = host.Parent                     -- embedHost / containerFrame
-    local aw, ah = area.AbsoluteSize.X - 8, area.AbsoluteSize.Y - 8
-    if aw < 40 or ah < 40 then return end
-    local bw, bh = host:GetAttribute("BaseW") or 0, host:GetAttribute("BaseH") or 0
-    if bw <= 0 or bh <= 0 then
-        -- đo bounding box các frame con để biết "size thật" của GUI
-        local minX, minY, maxX, maxY = math.huge, math.huge, -math.huge, -math.huge
-        local n = 0
-        for _, ch in ipairs(host:GetChildren()) do
-            if ch:IsA("GuiObject") then
-                local p, s2 = ch.AbsolutePosition, ch.AbsoluteSize
+-- ===== FIT: co/giãn GUI của tab cho VỪA KHÍT vùng tab =====
+-- Cách làm: nhân ĐỒNG ĐỀU mọi Offset (Size + Position + UICorner/UIPadding/UIStroke + TextSize)
+-- của cả subtree lên cùng 1 hệ số s, rồi tịnh tiến khung nội dung về góc tab (canh giữa nếu còn
+-- chỗ trống). KHÔNG có chuyện "ép Size=(1,0,1,0)" từng frame như bản 4.4a -> layout tương đối
+-- được giữ nguyên (tỉ lệ giữa các phần tử không đổi), chỉ to/nhỏ theo menu chính.
+-- Vì s được tính từ bounding box nên nội dung sau khi fit NẰM TRONG tab -> không thể tràn ra
+-- ngoài và nuốt click của game (điểm mà bản 4.4a làm ngược).
+
+local function mulUDim(u, k)
+    return UDim2.new(u.X.Scale, math.floor(u.X.Offset * k + 0.5),
+                     u.Y.Scale, math.floor(u.Y.Offset * k + 0.5))
+end
+local function mulUDimShift(u, k, dx, dy)
+    return UDim2.new(u.X.Scale, math.floor(u.X.Offset * k + 0.5) + dx,
+                     u.Y.Scale, math.floor(u.Y.Offset * k + 0.5) + dy)
+end
+local function mulDim(u, k)
+    return UDim.new(u.Scale, math.floor(u.Offset * k + 0.5))
+end
+
+-- Đo khung bao của các frame con trực tiếp của host (toạ độ tuyệt đối -> tính theo host)
+function S.MeasureHost(host)
+    local hx, hy = host.AbsolutePosition.X, host.AbsolutePosition.Y
+    local minX, minY, maxX, maxY = math.huge, math.huge, -math.huge, -math.huge
+    local n = 0
+    for _, ch in ipairs(host:GetChildren()) do
+        if ch:IsA("GuiObject") and ch.Visible ~= false then
+            local p, sz = ch.AbsolutePosition, ch.AbsoluteSize
+            if p and sz then
                 minX = math.min(minX, p.X); minY = math.min(minY, p.Y)
-                maxX = math.max(maxX, p.X + s2.X); maxY = math.max(maxY, p.Y + s2.Y)
-                n += 1
+                maxX = math.max(maxX, p.X + sz.X); maxY = math.max(maxY, p.Y + sz.Y)
+                n = n + 1
             end
         end
-        if n > 0 and maxX > minX and maxY > minY then
-            bw, bh = maxX - minX, maxY - minY
-        else
-            bw, bh = aw, ah
+    end
+    if n == 0 or maxX <= minX or maxY <= minY then return nil end
+    return { x = minX - hx, y = minY - hy, w = maxX - minX, h = maxY - minY }
+end
+
+-- Chụp lại mọi giá trị gốc của subtree (để trả về NGUYÊN TRẠNG khi rút khỏi tab)
+function S.SnapSubtree(list, node, isTop)
+    for _, c in ipairs(node:GetChildren()) do
+        if c:IsA("GuiObject") then
+            list[#list+1] = {
+                obj = c, top = isTop or nil,
+                Position = c.Position, Size = c.Size,
+                TextSize = ((c.TextSize and c.TextSize > 0) and not c.TextScaled) and c.TextSize or nil,
+            }
+            S.SnapSubtree(list, c, false)
+        elseif c:IsA("UICorner") then
+            list[#list+1] = { obj = c, CornerRadius = c.CornerRadius }
+        elseif c:IsA("UIPadding") then
+            list[#list+1] = { obj = c,
+                PadT = c.PaddingTop, PadB = c.PaddingBottom,
+                PadL = c.PaddingLeft, PadR = c.PaddingRight }
+        elseif c:IsA("UIStroke") then
+            list[#list+1] = { obj = c, Thick = c.Thickness }
         end
-        host:SetAttribute("BaseW", bw)
-        host:SetAttribute("BaseH", bh)
     end
-    -- CHỈ co (không phóng to): scale <= 1 -> host không bao giờ lớn hơn tab,
-    -- kết hợp ClipsDescendants=true nên phần tràn khung vừa vô hình vừa KHÔNG nhận click.
-    -- Đây là điều bản 4.4a làm ngược (ép frame thành full-màn-hình -> nuốt chuột của game).
-    local scale = math.clamp(math.min(1, aw / bw, ah / bh), 0.35, 1)
-    local us = host:FindFirstChild("BananaCatFitScale")
-    if not us then
-        us = Instance.new("UIScale")
-        us.Name = "BananaCatFitScale"
-        us.Parent = host
+end
+
+function S.RestoreSnap(entry)
+    if not entry.snap then return end
+    for _, rec in ipairs(entry.snap) do
+        local o = rec.obj
+        if o and o.Parent then
+            pcall(function()
+                if rec.Position then o.Position = rec.Position end
+                if rec.Size then o.Size = rec.Size end
+                if rec.TextSize then o.TextSize = rec.TextSize end
+                if rec.CornerRadius then o.CornerRadius = rec.CornerRadius end
+                if rec.PadT then
+                    o.PaddingTop, o.PaddingBottom = rec.PadT, rec.PadB
+                    o.PaddingLeft, o.PaddingRight = rec.PadL, rec.PadR
+                end
+                if rec.Thick then o.Thickness = rec.Thick end
+            end)
+        end
     end
-    us.Scale = scale
+end
+
+function S.FitEmbedded(entry)
+    local host, gui = entry.host, entry.gui
+    if not host or not host.Parent then return end
+    local area = host.Parent                      -- embedHost trong tab
+    local aw = area.AbsoluteSize.X - 6
+    local ah = area.AbsoluteSize.Y - 6
+    if aw < 40 or ah < 40 then return end
+
     pcall(function()
         host.Size = UDim2.new(1, 0, 1, 0)
         host.Position = UDim2.new(0, 0, 0, 0)
-        host.ClipsDescendants = true
+        host.BackgroundTransparency = 1
+        host.ClipsDescendants = true              -- phần dư (nếu có) vừa vô hình vừa không nhận click
     end)
-    return scale
+
+    if not entry.snap then
+        entry.snap = {}
+        S.SnapSubtree(entry.snap, host, true)
+        if #entry.snap == 0 then return end
+    end
+
+    -- 1) đưa về mốc gốc (idempotent: gọi lại sau khi kéo to menu không cộng dồn scale)
+    S.RestoreSnap(entry)
+    local base = S.MeasureHost(host)
+    if not base then return end
+
+    -- 2) hệ số vừa khít: cho phép PHÓNG TO (GUI bé cũng llen bằng menu) lẫn co lại
+    local s = math.clamp(math.min(aw / base.w, ah / base.h), 0.35, 3.0)
+
+    local function apply(k)
+        for _, rec in ipairs(entry.snap) do
+            local o = rec.obj
+            if o and o.Parent then
+                pcall(function()
+                    if rec.Size then o.Size = mulUDim(rec.Size, k) end
+                    if rec.Position then
+                        if rec.top then
+                            o.Position = mulUDimShift(rec.Position, k, rec.dx or 0, rec.dy or 0)
+                        else
+                            o.Position = mulUDim(rec.Position, k)
+                        end
+                    end
+                    if rec.TextSize then o.TextSize = math.max(8, math.floor(rec.TextSize * k + 0.5)) end
+                    if rec.CornerRadius then
+                        o.CornerRadius = UDim.new(rec.CornerRadius.Scale,
+                            math.floor(rec.CornerRadius.Offset * k + 0.5))
+                    end
+                    if rec.PadT then
+                        o.PaddingTop    = mulDim(rec.PadT, k)
+                        o.PaddingBottom = mulDim(rec.PadB, k)
+                        o.PaddingLeft   = mulDim(rec.PadL, k)
+                        o.PaddingRight  = mulDim(rec.PadR, k)
+                    end
+                    if rec.Thick then o.Thickness = math.max(1, rec.Thick * k) end
+                end)
+            end
+        end
+    end
+
+    -- 3) canh chỉnh: kéo khung nội dung về góc tab, canh giữa nếu vẫn còn chỗ
+    --    (tries: GUI thuần Scale (1,0,1,0) sẽ không đổi gì khi thu -> phải chặn vòng lặp)
+    local hw, hh = area.AbsoluteSize.X, area.AbsoluteSize.Y
+    local function align(k, tries)
+        apply(k)
+        local m = S.MeasureHost(host)
+        if not m then return k end
+        local dx = math.floor(-m.x + math.max(0, (aw - m.w) / 2) + 0.5)
+        local dy = math.floor(-m.y + math.max(0, (ah - m.h) / 2) + 0.5)
+        if math.abs(dx) > 0.5 or math.abs(dy) > 0.5 then
+            for _, rec in ipairs(entry.snap) do
+                if rec.top then rec.dx, rec.dy = (rec.dx or 0) + dx, (rec.dy or 0) + dy end
+            end
+            apply(k)
+            m = S.MeasureHost(host) or m
+        end
+        -- 4) dây an toàn: nội dung TRÀN KHỔ HOST (không phải tràn vùng đã chừa 6px)
+        --    thì thu thêm 1 nấc; tối đa 2 lần để không bao giờ lặp vô hạn.
+        if m and tries < 2 and (m.w > hw + 1 or m.h > hh + 1) then
+            local k2 = k * math.min(hw / m.w, hh / m.h)
+            if k2 < k * 0.98 then
+                for _, rec in ipairs(entry.snap) do rec.dx, rec.dy = 0, 0 end
+                return align(math.max(k2, 0.15), tries + 1)
+            end
+        end
+        return k
+    end
+
+    s = align(s, 0)
+    entry.fitScale = s
+    return s
 end
+
+-- Nối vào hook BcFit() (khu SetupResizeHandle). Bất cứ lần nào menu đổi kích thước,
+-- mọi GUI đang nhúng đều được đo và co giãn lại cho vừa vùng tab.
+_G.BananaCatHub_SyncEmbeds = function()
+    pcall(S.SyncAllEmbeds)
+end
+pcall(function()
+    trackConn(main:GetPropertyChangedSignal("Size"):Connect(function() BcFit() end))
+end)
 
 function S.SyncAllEmbeds()
     for _, e in ipairs(S.embeds) do
         if e.host and e.host.Parent then
-            pcall(function() S.FitEmbedded(e.host, e.gui) end)
+            pcall(function() S.FitEmbedded(e) end)
         end
     end
 end
@@ -3115,9 +3275,12 @@ function S.EmbedGui(scr, containerFrame)
         pcall(function() rec.obj.Parent = host end)
     end
 
-    ForceStretchToParent(host)          -- root only
-    S.RegisterEmbed(host, scr, recs)
-    S.FitEmbedded(host, scr)
+    ForceStretchToParent(host)          -- root only (an toàn cho mấy frame con)
+    local entry = S.RegisterEmbed(host, scr, recs)
+    pcall(function() S.FitEmbedded(entry) end)
+    -- AbsolutePosition/Size của frame vừa đổi cha chỉ đúng sau 1 render step => đo lại 2 lần
+    task.delay(0.08, function() pcall(function() S.FitEmbedded(entry) end) end)
+    task.delay(0.4,  function() pcall(function() S.FitEmbedded(entry) end) end)
     return host
 end
 

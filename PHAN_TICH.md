@@ -6,11 +6,16 @@
 
 ---
 
-## ✅ ĐÃ SỬA TRONG BẢN NÀY (v4.4b) — nhật ký thay đổi
+## ✅ ĐÃ SỬA TRONG BẢN NÀY (v4.4b → v4.4c) — nhật ký thay đổi
 
 Bối cảnh sửa: người dùng báo **"dùng Tạo Tính Năng → bấm ▶ Chạy Script rồi không kéo màn hình lên
 và không bắn được, vài nút của game bị lỗi"**. Ba nguyên nhân đã xác định và sửa, cộng thêm vài
 lỗi P0/P1 đã liệt kê ở dưới.
+
+**v4.4c — "bấm ▶ Chạy Script xong menu tính năng không cùng kích thước menu chính"**: bản 4.4b
+sửa lỗi nuốt click bằng cách *chỉ co* (`scale ≤ 1`), hệ quả là GUI hard-code nhỏ (300×200…) nằm
+lọt thỏm góc tab. v4.4c thay cơ chế đó bằng **scale đều vừa khít 2 chiều** (dòng 5) — vẫn không
+đệ quy ép Size, vẫn hoàn tác được, và vẫn không thể tràn ra ngoài tab.
 
 | # | Thay đổi | Vị trí |
 |---|---|---|
@@ -18,7 +23,7 @@ lỗi P0/P1 đã liệt kê ở dưới.
 | 2 | **`ForceStretchToParent` không còn đệ quy** — chỉ chỉnh root (`maxDepth` mặc định 0). Bản cũ ép *mọi* Frame (kể cả của game) về `Size=(1,0,1,0)`+`Position=(0,0)` → frame trong suốt full-màn-hình nuốt click, sập layout lồng nhau | khối v4.4b trong TAB5 |
 | 3 | **`ScanNewGuis` không còn quét CoreGui**, bỏ qua UI hệ thống/game theo `GAME_OWNED_GUI_NAMES`, và chỉ "đoán" GUI lạ trong 0.6s đầu + khi bật 🕵 (mặc định **TẮT**) → **hết cảnh GUI của game bị bốc sang tab** | TAB5 |
 | 4 | **Không Destroy ScreenGui gốc** khi nhúng; hub "mượn" frame con và **lưu origParent** → bấm ✕ / đổi code / xoá tab là **trả GUI về nguyên trạng**. Kèm phản chiếu `gui.Enabled`/`Parent`/`Destroying` nên toggle của script được nhúng còn tác dụng | `S.EmbedGui`/`S.RestoreEmbed`/`S.ClearEmbedsUnder` |
-| 5 | **Tự co giãn theo menu bằng `UIScale` trên host** (chỉ co, clamp `[0.35, 1]`, `ClipsDescendants=true`) thay cho việc đè Size từng frame → menu to ra GUI to theo mà layout không vỡ, và **không bao giờ tràn ra ngoài tab** (không nuốt click) | `S.FitEmbedded` |
+| 5 | **(v4.4c) Tự co giãn theo menu bằng phép scale ĐỀU toàn subtree**: đo bounding box nội dung, tính `s = min(khổ tab / nội dung)` (clamp `[0.35, 3.0]`), nhân **mọi Offset** (Size/Position/UICorner/UIPadding/UIStroke/TextSize) cùng một hệ số rồi tịnh tiến về góc tab + canh giữa, `ClipsDescendants=true`. **GUI nhỏ được PÓNG TO lên llen bằng ô tab, GUI to thì co lại** — tỉ lệ giữa các phần tử không đổi nên không méo, không ép `Size=(1,0,1,0)`; và vì `s` đo từ bounding box nên nội dung **luôn nằm trong tab** → không nuốt click. Ảnh chụp giá trị gốc (`entry.snap`) được trả lại nguyên trạng khi ✕/🧩 TẮT/xoá tab; kéo corner menu hoặc đổi tab là re-fit ngay (`BcFit`, debounce 0.05s) | `S.FitEmbedded`, `S.MeasureHost`, `S.SnapSubtree`, `S.RestoreSnap`, `BcFit` |
 | 6 | **Nút mới 🧩 "Nhúng vào Tab: BẬT/TẮT"** — TẮT = hub không đụng GUI nào, script chạy y như ngoài menu (lối thoát khi script tự chiếm chuột) | TAB5 |
 | 7 | **Nút mới 🕵 "Đoán GUI trễ"** (bật khi script tạo GUI sau `task.wait`) và **🖱 "Kẹt chuột? Bấm đây"** = trả GUI + nhả focus + đặt lại `MouseBehavior` | TAB5 |
 | 8 | **Nút 📏 "Lấy Code Kích Thước"** sinh wrapper mới **chỉ đụng GUI của chính script** (hook `Instance.new`), **không còn ghi đè code trong ô nhập**; và `S.SanitizeCode` **tự vô hại hoá** wrapper độc hại đã lưu trong `banana_cat_saved.json` khi nạp | `grabSizeCodeBtn`, `S.SanitizeCode`, `Store.load`, `ExecOnce`, `NormalizeCode` |
