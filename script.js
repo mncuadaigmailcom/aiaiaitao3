@@ -1,5 +1,27 @@
 --[[
-    🍌 Banana Cat Hub v4.4f — FULL CODE
+    🍌 Banana Cat Hub v4.4g — FULL CODE
+    + SỬA (đúng lỗi hay gặp): TẠO TÍNH NĂNG -> bấm ▶ Chạy Script thì GUI nằm TRONG menu,
+      nhưng THOÁT GAME VÀO LẠI -> bấm ▶ thì GUI KHÔNG vào menu nữa. 3 nguyên nhân đã vá:
+        • Bản cũ chỉ nhận ScreenGui tạo ĐÚNG luồng (coroutine) của người bấm nút. Script dựng
+          GUI trong task.spawn / task.delay / sau HttpGet -> hub coi là "không phải của mình".
+          Nay ghi nhận MỌI ScreenGui sinh ra trong lúc hook còn sống + chấm điểm tin cậy.
+        • Bản cũ thấy ScreenGui là nhúng NGAY, trong khi script thường tạo ScreenGui trước rồi
+          mới thêm frame con sau -> đếm 0 frame con -> hủy host -> "không nhúng gì cả".
+          Nay CHỜ GUI "chín" (có ít nhất 1 frame con) tối đa 3 giây rồi mới nhúng.
+        • Bản cũ quá 2.4s là bỏ cuộc. Nay giữ hook 7s, THỬ LẠI ở 0.6/1.8/4/7s, TỰ nhúng lại
+          khi bạn MỞ tab tính năng, và thêm nút 🔁 "Cứu GUI" ở tab Tạo Tính Năng (nhúng bằng tay).
+    + THÊM: 🧩 "Nhúng vào Tab" và 🕵 "Đoán GUI trễ" giờ ĐƯỢC LƯU XUỐNG ĐĨA (mục settings trong
+      banana_cat_saved.json, save version 3) -> thoát game vào lại vẫn giữ đúng trạng thái cũ.
+    + SỬA: "🔄 Nạp lại" / khôi phục tab lúc vào game có thể làm MẤT GUI đang nhúng (destroy frame
+      của tab mà không trả GUI về ScreenGui gốc trước) -> nay trả về nguyên trạng rồi mới dỡ.
+    + SỬA: khi gỡ hook Instance.new, bản cũ ghi đè thẳng nên làm MẤT hook của script khác
+      -> nay chỉ gỡ khi hook của hub còn nằm trên cùng (giữ nguyên chain).
+    + SỬA: _G.BananaCatHubAPI.Version kẹt ở "4.4e" trong khi hub đã là 4.4f -> nay đồng bộ 4.4g.
+    + GIỮ NGUYÊN toàn bộ tính năng cũ: Code / Code Đã Lưu / Hỗ Trợ (phân tích vật thể bằng chuột
+      phải + long-press mobile, highlight tím, tọa độ, waypoint, teleport) / AI AI (Gemini) /
+      Tạo Tính Năng (nhúng GUI, code mẫu, crosshair, chế độ an toàn 🧩 TẮT).
+    ---------------------------------------------------------------------------
+    (lịch sử cũ) v4.4f:
     + SỬA "Phân Tích Vật Thể" (TRỌNG TÂM của bản này):
         • Đổi cách chọn vật sang CHUỘT PHẢI (lệt) — chuột trái đi bắn/kéo/mở menu bình thường,
           KHÔNG còn bị chiếm input hay tự chọn vật khi bạn bấm lộn.
@@ -286,7 +308,7 @@ Corner(titleBar, UDim.new(0,10))
 New("TextLabel", {
     Size=UDim2.new(1,-90,1,0),
     Position=UDim2.new(0,12,0,0),
-    Text="🍌 Banana Cat Executor Hub v4.4f",
+    Text="🍌 Banana Cat Executor Hub v4.4g",
     BackgroundTransparency=1,
     TextColor3=C.DARK,
     Font=Enum.Font.GothamBold,
@@ -560,7 +582,7 @@ local runActive = false       -- cờ trạng thái chạy (không dựa vào cu
 local Store = {}
 
 Store.SAVE_FILE      = "banana_cat_saved.json"
-Store.SAVE_VERSION   = 2
+Store.SAVE_VERSION   = 3
 Store.mode           = "none"   -- "file" | "memory" | "empty" | "none"
 Store.lastError      = nil
 Store.lastSavedAt    = nil
@@ -675,7 +697,18 @@ function Store.serialize()
             code = tostring(f.code or ""),
         })
     end
-    return {version = Store.SAVE_VERSION, scripts = sOut, waypoints = wOut, features = fOut}
+    -- v4.4g: lưu cả 2 công tắc nhúng. Trước đây chúng KHÔNG được lưu -> thoát game vào lại
+    -- 🧩/🕵 nhảy về mặc định (một phần lý do "vào lại game bấm ▶ mà GUI không vào menu").
+    return {
+        version   = Store.SAVE_VERSION,
+        scripts   = sOut,
+        waypoints = wOut,
+        features  = fOut,
+        settings  = {
+            embedEnabled  = (S.embedEnabled == true),
+            embedGuessNew = (S.embedGuessNew == true),
+        },
+    }
 end
 
 -- Ghi ngay (đồng bộ). Trả về true/false.
@@ -712,6 +745,12 @@ function Store.load()
         Store.lastError = string.format(
             "File lưu là version %d, script này chỉ hiểu tới v%d — một số mục có thể không nạp",
             fileVer, Store.SAVE_VERSION)
+    end
+
+    -- v4.4g: nạp lại 2 công tắc nhúng (file cũ chưa có mục settings thì giữ mặc định)
+    if type(data.settings) == "table" then
+        S.embedEnabled  = (data.settings.embedEnabled ~= false)
+        S.embedGuessNew = (data.settings.embedGuessNew == true)
     end
 
     local sOut = {}
@@ -3355,7 +3394,7 @@ function S.FitToTab(obj, nm)
 end
 
 _G.BananaCatHubAPI = {
-    Version = "4.4e",
+    Version = "4.4g",
     HubGui = gui,     -- v4.4e: sửa lỗi cũ — biến tên là `gui`, không phải `hubGui` (trước đây là nil)
     Main = main,
     -- gọi bằng dấu hai chấm: API:TabArea("Tên Tab")  ->  Vector2 khổ vùng nội dung của tab
@@ -3972,6 +4011,246 @@ function S.RegisterCrosshairBtn(btn)
     end)
 end
 
+-- ============ v4.4g: PHÁT HIỆN + NHÚNG GUI CỦA SCRIPT TÍNH NĂNG (làm lại toàn bộ) ============
+-- LỖI CŨ (đúng hiện tượng "thoát game vào lại, bấm ▶ Chạy Script thì GUI KHÔNG nằm trong menu"):
+--   1) Bản cũ CHỈ nhận ScreenGui tạo đúng coroutine của người bấm nút (`coroutine.running()==myCo`).
+--      Script dựng GUI trong task.spawn / task.delay / sau HttpGet -> hub coi như "không phải của
+--      mình" -> KHÔNG nhúng. Phiên đầu ăn may đúng luồng, vào lại game lệch luồng một chút là trượt.
+--   2) Thấy ScreenGui là nhúng NGAY, trong khi script thường tạo ScreenGui trước rồi mới thêm
+--      frame con sau -> S.EmbedGui đếm 0 frame con -> hủy host -> coi như "không nhúng gì cả".
+--   3) Quá 2.4s là gỡ hook và KHÔNG có lần thử lại nào -> GUI sinh trễ vĩnh viễn nằm ngoài menu.
+-- BẢN NÀY:
+--   • ghi nhận MỌI ScreenGui sinh ra trong lúc hook còn sống, có CHẤM ĐIỂM tin cậy
+--     (certain = đúng luồng của ta · duringRun = sinh ra lúc script ta đang chạy · age = bao lâu)
+--   • CHỜ GUI "chín" (có ít nhất 1 frame con) rồi mới nhúng
+--   • THỬ LẠI nhiều lần sau khi chạy (0.6s / 1.8s / 4s / 7s), nhãn trạng thái tự cập nhật
+--   • TỰ nhúng lại khi bạn MỞ tab tính năng đó
+--   • nút 🔁 "Cứu GUI" ở tab 5 để nhúng bằng tay (có quét GUI "lạ" đang nằm ngoài menu)
+-- Tất cả gắn vào bảng S (KHÔNG thêm local cấp chunk: main chunk đã 187/200 slot của Luau).
+S.EMBED_TRY_DELAYS    = {0.6, 1.8, 4, 7}  -- các mốc thử nhúng lại sau khi bấm ▶
+S.EMBED_HOOK_GRACE    = 7                 -- giữ hook Instance.new bấy nhiêu giây (bắt GUI sinh trễ)
+S.EMBED_PROBABLE_AGE  = 5                 -- GUI "không chắc chắn" chỉ nhận nếu sinh trong 5s đầu
+S.EMBED_CHILD_WAIT    = 15                -- số lần chờ GUI "chín" (mỗi lần 0.2s = tối đa 3s)
+S.activeHook = nil                        -- chỉ 1 hook sống tại 1 thời điểm (tránh đè hook script khác)
+
+-- Một ScreenGui có đủ điều kiện để "mượn" vào tab không? -> (true) hoặc (false, lý do)
+function S.IsEmbeddable(g, containerFrame)
+    if not g then return false, "không có GUI" end
+    if not g.Parent then return false, "GUI chưa có Parent (script chưa gắn lên màn hình)" end
+    if not (g:IsA("ScreenGui") or g:IsA("Folder")) then return false, "không phải ScreenGui/Folder" end
+    if g == gui or g:IsDescendantOf(gui) then return false, "là GUI của chính hub" end
+    if g.Name == "ExMenu" or GAME_OWNED_GUI_NAMES[g.Name] then
+        return false, "là GUI của game/hệ thống (" .. tostring(g.Name) .. ")"
+    end
+    local isExt = false
+    pcall(function() isExt = (g:GetAttribute("BCHub_External") == true) end)
+    if isExt then return false, "là overlay ngoài màn hình (BCHub_External)" end
+    if containerFrame and g:IsDescendantOf(containerFrame) then return false, "đã nằm trong tab rồi" end
+    for _, e in ipairs(S.embeds) do
+        if e.gui == g then return false, "đã được nhúng ở tab khác" end
+    end
+    -- phải có ít nhất 1 frame con: script tạo ScreenGui trước, thêm con sau -> chờ, đừng nhúng non
+    local hasChild = false
+    for _, c in ipairs(g:GetChildren()) do
+        if c:IsA("GuiObject") then hasChild = true break end
+    end
+    if not hasChild then return false, "chưa có frame con (script còn đang dựng GUI)" end
+    return true
+end
+
+-- Hook Instance.new trong lúc chạy script tính năng.
+-- Trả về: unhook(), records = {{inst, certain, duringRun, age, embedded, why}, ...}, state
+function S.HookInstanceNew()
+    -- gỡ hook của lần chạy trước (nếu còn sống) để không chồng chain lên hook của script khác
+    if S.activeHook then pcall(S.activeHook) end
+    S.activeHook = nil
+
+    local records = {}
+    local st = {hooked = false, realNew = nil, ours = nil, inRun = true, graceUntil = nil, t0 = os.clock()}
+    local myCo = coroutine.running()
+
+    local function unhook()
+        if not st.hooked then return end
+        st.hooked = false
+        -- CHỈ gỡ khi hook của ta vẫn nằm trên cùng. Nếu script khác đã hook chồng lên thì để
+        -- nguyên (hook của ta thành lớp trung gian trơ, không ghi nhận gì thêm). Bản cũ ghi thẳng
+        -- Instance.new = realNew nên ĐÈ MẤT hook của script khác đang chạy song song.
+        pcall(function()
+            if Instance.new == st.ours then Instance.new = st.realNew end
+        end)
+        if S.activeHook == unhook then S.activeHook = nil end
+    end
+
+    pcall(function()
+        st.realNew = Instance.new
+        st.ours = function(cls, ...)
+            local inst = st.realNew(cls, ...)
+            if st.hooked and cls == "ScreenGui" then
+                local now = os.clock()
+                records[#records + 1] = {
+                    inst      = inst,
+                    certain   = (coroutine.running() == myCo),
+                    duringRun = (st.inRun == true) or (st.graceUntil ~= nil and now < st.graceUntil),
+                    age       = now - st.t0,
+                    embedded  = false,
+                }
+            end
+            return inst
+        end
+        Instance.new = st.ours
+        st.hooked = true
+    end)
+
+    S.activeHook = unhook
+    return unhook, records, st
+end
+
+-- Nhúng các GUI đã ghi nhận. mode:
+--   "strict" = chỉ GUI đúng luồng của ta
+--   "run"    = + GUI sinh ra trong lúc script ta đang chạy (kể cả task.spawn của chính nó)
+--   "any"    = + GUI sinh trễ trong S.EMBED_PROBABLE_AGE giây đầu
+--   "all"    = mọi GUI đã ghi nhận (chỉ dùng cho hành động explicitly của người dùng)
+-- Trả về (số GUI nhúng được, lý do bỏ qua gần nhất)
+function S.EmbedRecorded(records, containerFrame, mode)
+    if type(records) ~= "table" or #records == 0 then return 0, nil end
+    if not containerFrame or not containerFrame.Parent then return 0, "tab đã bị đóng" end
+    if not S.embedEnabled then return 0, "🧩 nhúng đang TẮT" end
+    mode = mode or "run"
+
+    local order = {}
+    for _, r in ipairs(records) do
+        if r and r.inst and not r.embedded then order[#order + 1] = r end
+    end
+    local function score(r)
+        if r.certain then return 3 end
+        if r.duringRun then return 2 end
+        return 1
+    end
+    table.sort(order, function(a, b) return score(a) > score(b) end)
+
+    local done, whyTop = 0, nil
+    for _, r in ipairs(order) do
+        local accept = false
+        if mode == "all" then
+            accept = true
+        elseif r.certain then
+            accept = true
+        elseif r.duringRun and mode ~= "strict" then
+            accept = true
+        elseif mode == "any" and (r.age or 0) <= S.EMBED_PROBABLE_AGE then
+            accept = true
+        end
+        if accept then
+            local okE, why = S.IsEmbeddable(r.inst, containerFrame)
+            if okE then
+                if S.EmbedGui(r.inst, containerFrame) then
+                    r.embedded = true
+                    r.why = nil
+                    done += 1
+                else
+                    r.why = "S.EmbedGui từ chối"
+                    whyTop = r.why
+                end
+            else
+                r.why = why
+                if why then whyTop = why end
+            end
+        end
+    end
+    return done, whyTop
+end
+
+function S.FindFeatureByHost(host)
+    if not host then return nil end
+    for _, ft in ipairs(featureTabs) do
+        if ft.frame and ft.frame.Parent and ft.frame:FindFirstChild("ScriptHost") == host then return ft end
+    end
+    return nil
+end
+
+function S.FindActiveFeature()
+    for _, ft in ipairs(featureTabs) do
+        if ft.frame == activeTab then return ft end
+    end
+    return nil
+end
+
+-- Quét mọi ScreenGui "lạ" đang nằm NGOÀI menu và nhúng vào tab. CHỈ gọi khi người dùng bấm nút 🔁
+-- (hub không tự đoán bừa để không ăn nhầm UI của game). Vẫn lọc qua S.IsEmbeddable, và bấm ✕
+-- trên tab là trả GUI về nguyên trạng.
+function S.RescueScan(ft, host)
+    host = host or (ft and ft.frame and ft.frame:FindFirstChild("ScriptHost"))
+    if not host or not host.Parent then return 0 end
+    if not S.embedEnabled then return 0 end
+    local containers = {playerGui}
+    if targetGui ~= playerGui then containers[#containers + 1] = targetGui end
+    pcall(function()
+        local cg = game:GetService("CoreGui")
+        if cg then containers[#containers + 1] = cg end
+    end)
+    local seen, n = {}, 0
+    for _, ctn in ipairs(containers) do
+        pcall(function()
+            for _, g in ipairs(ctn:GetChildren()) do
+                if n < 3 and not seen[g] then
+                    seen[g] = true
+                    local okE = S.IsEmbeddable(g, host)
+                    if okE and S.EmbedGui(g, host) then
+                        n += 1
+                        if ft then
+                            ft.records = ft.records or {}
+                            ft.records[#ft.records + 1] =
+                                {inst = g, certain = false, duringRun = true, age = 0, embedded = true}
+                        end
+                    end
+                end
+            end
+        end)
+        if n >= 3 then break end
+    end
+    return n
+end
+
+-- Nhúng lại cho 1 tab tính năng (dùng GUI đã ghi nhận lúc bấm ▶; allowScan = cho phép quét bằng tay)
+function S.ReembedFeature(ft, allowScan)
+    if not ft or not ft.frame or not ft.frame.Parent then return 0, "tab không còn tồn tại" end
+    if not S.embedEnabled then return 0, "🧩 nhúng đang TẮT" end
+    local host = ft.frame:FindFirstChild("ScriptHost")
+    if not host then return 0, "tab thiếu ScriptHost" end
+    -- tab đã có GUI nhúng rồi thì thôi (tránh nhúng trùng 2 bản)
+    for _, e in ipairs(S.embeds) do
+        if e.host and e.host.Parent == host then return 0, "tab đã có GUI nhúng sẵn" end
+    end
+    local n, why = S.EmbedRecorded(ft.records, host, "all")
+    if n > 0 then return n end
+    if allowScan == true then
+        local m = S.RescueScan(ft, host)
+        if m > 0 then return m end
+        why = "không tìm thấy GUI nào nằm ngoài menu để nhúng"
+    end
+    if not why then
+        why = (ft.records and #ft.records > 0)
+            and (ft.lastWhy or "GUI chưa sẵn sàng để nhúng")
+            or  "chưa ghi nhận được GUI nào lúc chạy script (script có tạo ScreenGui không?)"
+    end
+    return 0, why
+end
+
+-- Mở tab tính năng -> nếu lần chạy trước GUI bị "rớt" ngoài menu thì TỰ nhúng lại (không quét bừa)
+function S.OnFeatureTabOpened(ft)
+    if not ft or not ft.frame or not ft.frame.Parent then return end
+    local n = S.ReembedFeature(ft, false)
+    if n > 0 then
+        pcall(function()
+            if ft.status and ft.status.Parent then
+                ft.status.Text = string.format(
+                    "✅ vừa nhúng lại %d GUI vào tab (lần trước bị rớt ngoài menu) — bấm ✕ để trả về game", n)
+            end
+            if ft.indicator and ft.indicator.Parent then ft.indicator.BackgroundColor3 = C.GREEN end
+        end)
+    end
+end
+
 local function RunFeatureScript(code, name, containerFrame, indicator, statusLabel)
     if #code == 0 then
         if statusLabel then statusLabel.Text = "⚠️ Vui lòng nhập code!" end
@@ -3984,8 +4263,11 @@ local function RunFeatureScript(code, name, containerFrame, indicator, statusLab
     if statusLabel then statusLabel.Text = "⏳ Đang thực thi..." end
     ReleaseHubFocus()   -- v4.4b: đang dán code trong TextBox mà chạy luôn thì game vẫn "khóa" input
 
+    local ft = S.FindFeatureByHost(containerFrame)
+    if ft then ft.records = nil end   -- lần chạy mới -> bỏ danh sách GUI của lần chạy cũ
+
     local embedCount, lateCandidate = 0, 0
-    local featureUnhook = nil
+    local featureUnhook, records, lastWhy = nil, nil, nil
     local ok, err = pcall(function()
         local fn, lerr = loadstring(code)
         if not fn then error("loadstring thất bại: "..tostring(lerr)) end
@@ -3995,58 +4277,65 @@ local function RunFeatureScript(code, name, containerFrame, indicator, statusLab
         for _, g in ipairs(targetGui:GetChildren()) do beforeGuis[g] = true end
         -- CoreGui KHÔNG bị đụng tới nữa (trước đây vừa snapshot vừa scan -> dễ bốc UI của game)
 
-        -- Hook Instance.new để biết CHÍNH XÁC ScreenGui nào do script của tab này tạo.
+        -- v4.4g: hook Instance.new bản mới — ghi nhận MỌI luồng, có chấm điểm tin cậy + age.
         -- Gỡ hook ở mọi nhánh (kể cả khi code lỗi) — xem featureUnhook bên dưới.
-        local mine = {}
-        local realNew = Instance.new
-        local hooked = false
-        local myCo = coroutine.running()
-        pcall(function()
-            Instance.new = function(cls, ...)
-                local inst = realNew(cls, ...)
-                -- chỉ nhận GUI được tạo BỞI ĐÚNG thread của tab này: script khác (hoặc GUI của
-                -- game) tạo ScreenGui trong lúc hub đang chờ cũng KHÔNG bị gán nhầm cho ta.
-                if hooked and cls == "ScreenGui" and coroutine.running() == myCo then
-                    mine[#mine+1] = inst
-                end
-                return inst
-            end
-            hooked = true
-        end)
-        featureUnhook = function()
-            if hooked then
-                hooked = false
-                pcall(function() Instance.new = realNew end)
-            end
-        end
+        local unhook, recs, st = S.HookInstanceNew()
+        featureUnhook, records = unhook, recs
+        if ft then ft.records = recs end
 
         local fnOk, fnErr = pcall(fn)
 
-        -- Script tạo GUI trễ (sau task.wait / HttpGet) vẫn được chờ, nhưng:
-        --   * GUI mà hook bắt được (chắc chắn của ta): chờ tối đa 2.4s
-        --   * GUI "đoán" từ diff (rủi ro ăn nhầm UI của game): CHỈ trong 0.6s đầu && khi
-        --     người dùng bật 🕵. Đây là chỗ bản 4.4a làm ẩu (đoán suốt 2.4s) -> mất nút game.
-        local newGuis = {}
-        for i = 1, 12 do
-            local guessOK = (S.embedGuessNew == true) and (i <= 3)
-            local found = ScanNewGuis(beforeGuis, mine, guessOK)
-            for _, g in ipairs(found) do newGuis[#newGuis+1] = g end
-            if #newGuis > 0 then break end
+        -- Script đã chạy xong phần đồng bộ. Cho thêm 1s "ân hạn": GUI do task.spawn/task.delay
+        -- của CHÍNH nó tạo ra ngay sau đó vẫn được tính là "sinh ra trong lúc ta chạy".
+        st.inRun = false
+        st.graceUntil = os.clock() + 1.0
+
+        -- CHỜ GUI "CHÍN" rồi mới nhúng (bản cũ thấy ScreenGui là nhúng ngay -> script chưa kịp
+        -- thêm frame con -> S.EmbedGui đếm 0 frame con -> hủy host -> coi như KHÔNG nhúng gì).
+        -- GUI "đoán" (rủi ro ăn nhầm UI của game) chỉ được nhận khi người dùng bật 🕵.
+        local mode = (S.embedGuessNew == true) and "any" or "run"
+        for i = 1, S.EMBED_CHILD_WAIT do
+            local d, why = S.EmbedRecorded(recs, containerFrame, mode)
+            embedCount += d
+            if why then lastWhy = why end
+            if embedCount > 0 then break end
             task.wait(0.2)
         end
-        featureUnhook()
+
+        -- Đã nhúng được thì gỡ hook ngay; CHƯA được thì giữ hook thêm S.EMBED_HOOK_GRACE giây
+        -- để tiếp tục bắt GUI sinh trễ (đây là chỗ bản cũ bỏ cuộc sau 2.4s).
+        if embedCount > 0 then
+            unhook()
+        else
+            task.delay(S.EMBED_HOOK_GRACE, function() pcall(unhook) end)
+        end
+
         if not fnOk then error(fnErr) end
 
-        for _, g in ipairs(newGuis) do
-            if g:IsA("ScreenGui") or g:IsA("Folder") then
-                if S.EmbedGui(g, containerFrame) then embedCount += 1 end
-            end
+        -- v4.4g: THỬ LẠI NHIỀU LẦN sau khi chạy — script dựng GUI sau task.wait/HttpGet vẫn
+        -- được nhúng vào tab, và nhãn trạng thái tự cập nhật khi nhúng muộn thành công.
+        for _, dly in ipairs(S.EMBED_TRY_DELAYS) do
+            task.delay(dly, function()
+                if embedCount > 0 then return end
+                if not (containerFrame and containerFrame.Parent) then return end
+                if not S.embedEnabled then return end
+                local more = S.EmbedRecorded(recs, containerFrame, "any")
+                if more > 0 then
+                    embedCount += more
+                    pcall(function()
+                        if indicator and indicator.Parent then indicator.BackgroundColor3 = C.GREEN end
+                        if statusLabel and statusLabel.Parent then
+                            statusLabel.Text = string.format(
+                                "✅ xong · GUI sinh trễ đã được nhúng vào tab (%d) — bấm ✕ để trả về màn hình game",
+                                embedCount)
+                        end
+                    end)
+                end
+            end)
         end
-        -- GuiObject "rời" không còn bị bốc sang tab: đó thường là UI của game, động vào là lỗi nút.
 
-        -- Gợi ý đúng lúc: script CÓ tạo GUI nhưng GUI đó sinh quá trễ nên hub không chắc là
-        -- của nó -> nói người dùng bật 🕵 thay vì âm thầm bỏ qua (hoặc đoán ẩu như 4.4a).
-        if embedCount == 0 and not (S.embedGuessNew == true) and #mine == 0 then
+        -- Không nhúng được gì: đếm GUI "lạ" xuất hiện muộn để báo cho người dùng biết đường xử lý
+        if embedCount == 0 then
             local late = ScanNewGuis(beforeGuis, nil, true)
             local real = 0
             for _, g in ipairs(late) do
@@ -4056,7 +4345,13 @@ local function RunFeatureScript(code, name, containerFrame, indicator, statusLab
         end
     end)
 
-    if featureUnhook then pcall(featureUnhook) end
+    -- Lỗi giữa chừng cũng phải gỡ hook, không thì Instance.new của cả game bị giữ mãi
+    if featureUnhook and embedCount > 0 then pcall(featureUnhook) end
+    if ft then
+        ft.records   = records    -- giữ lại để MỞ tab / bấm 🔁 là nhúng tiếp được
+        ft.lastWhy   = lastWhy
+        ft.indicator = indicator
+    end
 
     if ok then
         if indicator then indicator.BackgroundColor3 = C.GREEN end
@@ -4064,29 +4359,34 @@ local function RunFeatureScript(code, name, containerFrame, indicator, statusLab
             if embedCount > 0 then
                 statusLabel.Text = string.format(
                     "✅ xong · %d GUI đã nhúng vào tab (bấm ✕ để trả về màn hình game)", embedCount)
-            elseif lateCandidate > 0 and not (S.embedGuessNew == true) then
+            elseif not S.embedEnabled then
+                statusLabel.Text = "✅ xong · 🧩 nhúng đang TẮT nên GUI nằm ngoài màn hình — BẬT lại rồi bấm ▶"
+            elseif lateCandidate > 0 then
                 statusLabel.Text = string.format(
-                    "✅ xong · GUI sinh trễ (%d) — bật 🕵 'Đoán GUI trễ' nếu muốn nhúng vào tab", lateCandidate)
-            elseif S.embedEnabled then
-                statusLabel.Text = "✅ xong · script không tạo GUI nào để nhúng (bình thường)"
+                    "✅ xong · GUI sinh trễ (%d) chưa nhúng được — MỞ lại tab này, hoặc bấm 🔁 'Cứu GUI' ở tab Tạo Tính Năng%s",
+                    lateCandidate, (S.embedGuessNew == true) and "" or " (hoặc bật 🕵 'Đoán GUI trễ')")
             else
-                statusLabel.Text = "✅ xong · nhúng đang TẮT, GUI nằm ngoài màn hình"
+                statusLabel.Text = "✅ xong · script không tạo GUI nào để nhúng (bình thường)"
+                    .. (lastWhy and (" · lý do: " .. tostring(lastWhy)) or "")
             end
         end
-        return true
+        return true, nil, records
     else
         if indicator then indicator.BackgroundColor3 = C.RED end
         if statusLabel then statusLabel.Text = "❌ Lỗi: "..tostring(err) end
         warn("[BananaCatHub] Feature script error:", err)
-        return false, err
+        return false, err, records
     end
 end
-
 local function CreateFeatureTab(name, icon, codeContent)
     if not name or #name == 0 then name = "Tính Năng " .. (#featureTabs + 1) end
     if not icon or #icon == 0 then icon = "⚙️" end
 
     codeContent = NormalizeCode(codeContent)
+
+    -- v4.4g: khai báo SỚM. Closure của nút tab (bên dưới) cần `featureData`; nếu để khai báo
+    -- muộn thì Lua biên dịch tên đó thành GLOBAL trong closure -> nil -> không tự nhúng lại được.
+    local featureData
 
     local sf = New("ScrollingFrame", {
         Size=UDim2.new(1,0,1,0),
@@ -4121,7 +4421,13 @@ local function CreateFeatureTab(name, icon, codeContent)
     -- tra cuu index dong (xem giai thich o AddTab)
     btn.Activated:Connect(function()
         for i, b in ipairs(tabs) do
-            if b == btn then SwitchTab(i); break end
+            if b == btn then
+                SwitchTab(i)
+                -- v4.4g: MỞ tab -> nếu lần bấm ▶ trước GUI bị "rớt" ngoài menu thì TỰ nhúng lại.
+                -- task.defer để tab kịp hiện + AbsoluteSize kịp đúng trước khi đo.
+                task.defer(function() S.OnFeatureTabOpened(featureData) end)
+                break
+            end
         end
     end)
 
@@ -4131,7 +4437,7 @@ local function CreateFeatureTab(name, icon, codeContent)
 
     local tabIdx = #tabs
 
-    local featureData = {
+    featureData = {
         name = name,
         icon = icon,
         code = codeContent,
@@ -4150,6 +4456,7 @@ local function CreateFeatureTab(name, icon, codeContent)
         Name = "ScriptHost",
         Visible = true,
     }, sf)
+    featureData.hostFrame = embedHost   -- v4.4g
 
     local toolbar = New("Frame", {
         Size = UDim2.new(1,0,0,36),
@@ -4209,6 +4516,7 @@ local function CreateFeatureTab(name, icon, codeContent)
         Font=Enum.Font.GothamMedium, TextSize=8, TextXAlignment=Enum.TextXAlignment.Left,
         TextTruncate=Enum.TextTruncate.AtEnd, ZIndex=21,
     }, toolbar)
+    featureData.status = fStatus   -- v4.4g: hub tự sửa nhãn khi nhúng trễ thành công
 
     local editorFrame = New("Frame", {
         Size=UDim2.new(1,0,1,-36),
@@ -4422,6 +4730,27 @@ cy = cy + 30
 local copyTemplateBtn = Button(createFeatureTab, "📋 Copy Code Mẫu Cho AI (menu + niêm tâm)", 8, cy, 418, 26, C.BLUE)
 cy = cy + 32
 
+-- v4.4g: NÚT CỨU GUI — nhúng lại GUI của tab tính năng ĐANG MỞ vào trong menu.
+-- Dùng khi: bấm ▶ Chạy Script xong mà GUI vẫn nằm ngoài màn hình (script tạo GUI quá trễ,
+-- tạo trong task.spawn/task.delay, hoặc hub lỡ bỏ qua). Nút này cũng QUÉT các ScreenGui "lạ"
+-- đang nằm ngoài (đã lọc: không phải của hub, không phải GUI hệ thống/game, không phải overlay
+-- BCHub_External, phải có frame con) — bấm ✕ trên tab là trả GUI về nguyên trạng.
+S.reembedBtn = Button(createFeatureTab,
+    "🔁 Cứu GUI: nhúng lại GUI của tab ĐANG MỞ vào menu", 8, cy, 418, 26, C.BLUE)
+cy = cy + 32
+
+-- v4.4g: 🧩 và 🕵 giờ ĐƯỢC LƯU XUỐNG ĐĨA (Store.serialize mục settings) -> vào lại game
+-- phải đồng bộ nhãn nút theo trạng thái đã nạp, không thì nút hiện "BẬT" trong khi đang TẮT.
+S.SyncEmbedToggles = function()
+    pcall(function()
+        embedToggleBtn.Text = S.embedEnabled and "🧩 Nhúng vào Tab: BẬT" or "🧩 Nhúng vào Tab: TẮT"
+        embedToggleBtn.BackgroundColor3 = S.embedEnabled and C.GREEN or C.GRAY
+        guessToggleBtn.Text = (S.embedGuessNew == true) and "🕵 Đoán GUI trễ: BẬT" or "🕵 Đoán GUI trễ: TẮT"
+        guessToggleBtn.BackgroundColor3 = (S.embedGuessNew == true) and C.ORANGE or C.GRAY
+    end)
+end
+S.SyncEmbedToggles()
+
 local createStatus = Label(createFeatureTab, "", cy)
 createStatus.TextColor3=C.YELLOW; createStatus.TextSize=9; createStatus.ZIndex=6
 cy = cy + 14
@@ -4446,6 +4775,8 @@ embedToggleBtn.Activated:Connect(function()
         S.PruneEmbeds()
         createStatus.Text = "🛡 Chế độ an toàn: hub không sửa GUI nào nữa. Muốn nhúng lại thì bấm BẬT."
     end
+    Store.saveSoon()   -- v4.4g: lưu trạng thái 🧩 xuống đĩa -> thoát game vào lại vẫn giữ
+    pcall(function() if Store.refreshStatus then Store.refreshStatus() end end)
 end)
 
 guessToggleBtn.Activated:Connect(function()
@@ -4461,6 +4792,7 @@ guessToggleBtn.Activated:Connect(function()
         createStatus.Text = "🛡 An toàn nhất: chỉ nhúng GUI mà hub chắc chắn là của script."
             .. " Script tạo GUI trễ sẽ chạy bình thường ngoài màn hình, không bị nhúng."
     end
+    Store.saveSoon()   -- v4.4g: lưu trạng thái 🕵 xuống đĩa
 end)
 
 grabSizeCodeBtn.Activated:Connect(function()
@@ -4584,6 +4916,40 @@ fixMouseBtn.Activated:Connect(function()
     done[#done+1] = "chuột về mặc định"
     createStatus.Text = "🖱 " .. table.concat(done, " · ")
         .. " — vẫn không được? 🧩 TẮT nhúng rồi bấm ▶ lại (lúc đó hub không đụng GUI nào)"
+end)
+
+S.reembedBtn.Activated:Connect(function()
+    ReleaseHubFocus()
+    local ft = S.FindActiveFeature()
+    if not ft then
+        createStatus.Text = "⚠️ Hãy MỞ tab tính năng cần cứu trước (bấm vào tab đó cho nó hiện ra) rồi hãy bấm 🔁."
+        return
+    end
+    if not S.embedEnabled then
+        createStatus.Text = "⚠️ 🧩 'Nhúng vào Tab' đang TẮT — BẬT lại rồi mới cứu GUI được."
+        return
+    end
+    createStatus.Text = "⏳ Đang tìm GUI của '" .. ft.name .. "' để nhúng lại vào menu..."
+    -- task.defer: việc đo AbsoluteSize/đổi Parent cần 1 nhịp render, không chặn nút bấm
+    task.defer(function()
+        local n, why = S.ReembedFeature(ft, true)
+        if n > 0 then
+            createStatus.Text = string.format(
+                "✅ Đã nhúng lại %d GUI vào tab '%s'. Nếu lỡ nhúng nhầm GUI khác, mở tab đó bấm ✕ để trả về.",
+                n, ft.name)
+            pcall(function()
+                if ft.status and ft.status.Parent then
+                    ft.status.Text = string.format("✅ đã nhúng lại %d GUI vào tab (nút 🔁 Cứu GUI)", n)
+                end
+                if ft.indicator and ft.indicator.Parent then ft.indicator.BackgroundColor3 = C.GREEN end
+            end)
+        else
+            createStatus.Text = "⚠️ Chưa nhúng được: " .. tostring(why or "không rõ lý do")
+                .. " · hãy bấm ▶ Chạy Script lại rồi CHỜ 7 giây (hub tự thử lại 4 lần), hoặc bật 🕵 'Đoán GUI trễ'."
+        end
+        print(string.format("[BananaCatHub] 🔁 Cứu GUI tab '%s': %d GUI đã nhúng%s",
+            tostring(ft.name), n, why and (" · lý do bỏ qua: " .. tostring(why)) or ""))
+    end)
 end)
 
 copyTemplateBtn.Activated:Connect(function()
@@ -4800,6 +5166,11 @@ Store.restoreFeatures = function()
             end
         end
         if activeTab == ft.frame then SwitchTab(1) end
+        -- v4.4g: TRẢ GUI đang nhúng về ScreenGui gốc TRƯỚC khi destroy frame của tab.
+        -- Bản cũ destroy luôn -> mấy frame con mà hub "mượn" bị Destroy theo -> script của người
+        -- dùng MẤT TRẮNG UI, không khôi phục được. (Nút xóa tab đã làm đúng bước này từ v4.4b.)
+        local hostFrame = ft.frame and ft.frame:FindFirstChild("ScriptHost")
+        if hostFrame then S.ClearEmbedsUnder(hostFrame) end
         pcall(function() ft.btn:Destroy() end)
         pcall(function() ft.frame:Destroy() end)
         table.remove(featureTabs, i)
@@ -4920,7 +5291,7 @@ main.Visible = true
 togBtn.Text = "✕"
 
 print(string.format(
-    "✅ Banana Cat Hub v4.4f — sẵn sàng! Đã nạp lại %d script + %d waypoint + %d tab tính năng từ bộ nhớ (chế độ: %s%s)",
+    "✅ Banana Cat Hub v4.4g — sẵn sàng! Đã nạp lại %d script + %d waypoint + %d tab tính năng từ bộ nhớ (chế độ: %s%s)",
     Store.loadedScripts, Store.loadedWp, #Store.loadedFeatures, Store.mode,
     Store.lastError and (" | ⚠️ " .. Store.lastError) or ""
 ))
