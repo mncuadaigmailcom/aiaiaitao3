@@ -6,11 +6,22 @@
 
 ---
 
-## ✅ ĐÃ SỬA TRONG BẢN NÀY (v4.4b → v4.4e) — nhật ký thay đổi
+## ✅ SỬA (v4.4b → v4.4f) — nhật ký thay đổi
 
 Bối cảnh sửa: người dùng báo **"dùng Tạo Tính Năng → bấm ▶ Chạy Script rồi không kéo màn hình lên
 và không bắn được, vài nút của game bị lỗi"**. Ba nguyên nhân đã xác định và sửa, cộng thêm vài
 lỗi P0/P1 đã liệt kê ở dưới.
+
+**v4.4f — “vòng tròn nằm trong menu hay ngoài màn hình?” → chọn được.** Thêm `OV.cfg.InMenu`
+trong code mẫu: `true` = vẽ vòng tròn niệm tâm + nút AIM **ngay trong menu** (không đụng màn hình
+game), `false` = vẽ **ngoài màn hình** qua overlay `BCOV_`. Có sẵn nút **“Vị trí: TRONG menu /
+NGOÀI màn hình (overlay)”** trong tab tính năng, và `_G.BC_FEATURES[tên].OV.cfg.InMenu = true` +
+`OV.apply()` cho code/AI đổi lúc chạy. `S.MakeScreenButton` tự nhận diện Gui là Frame (menu: không
+Draggable, phủ ngang, corner 6px) hay ScreenGui (màn hình: nút tròn, kéo thả).
+**SỬA BUG:** `MakeScreenButton():Destroy()` trước đây xóa **cả ScreenGui được truyền vào** thay vì
+chỉ cái nút ⇒ script mất sạch UI (test [13] bắt được); giờ chỉ Destroy overlay do hub tự tạo
+(`ownOverlay`). + mọi lời gọi API trong code mẫu bọc `pcall` + fallback tự vẽ (đã ghi là có nhưng
+bản 4.4e chưa kịp lưu, giờ đã chắc chắn nằm trong file).
 
 **v4.4e — OVERLAY: "vòng tròn niệm tâm / nút aim bị nhốt trong menu"**. Hub trước đây bốc MỌI
 ScreenGui mà script tạo vào tab, nên thứ cần nằm ngoài màn hình (crosshair, HUD, nút on-screen)
@@ -62,6 +73,8 @@ lọt thỏm góc tab. v4.4c thay cơ chế đó bằng **scale đều vừa kh�
 | 15 | **(v4.4d) Nút `📋 Copy Code Mẫu Cho AI (tự vừa size menu)`** — clipboard + lưu "Code Đã Lưu" + chỉ điền vào ô code khi trống | `copyTemplateBtn`, `S.FeatureTemplate` |
 | 16 | **(v4.4d) `_G.BananaCatHubAPI`** cho script bên ngoài: `TabArea(name)` / `OnResize(fn)` / `FeatureTabHost(name)` / `FitToTab(obj)` / `EmbedGui(gui)` / `ReleaseFocus()`; `main.Size` đổi → `S.NotifyResize()` bắn tới script, `BcFit()` re-fit GUI đang nhúng | khu `S.*` |
 | 18 | **(v4.4e) OVERLAY ngoài màn hình**: `S.IsOverlayGui` + bỏ qua trong `ScanNewGuis`; `NewOverlay`/`MakeCrosshair`/`MakeScreenButton`/`IsOverlay`/`CloseFeature` trong `_G.BananaCatHubAPI`; `✕`/`🗑` gọi `S.CloseFeature` | `S.IsOverlayGui`, `_G.BananaCatHubAPI`, `ClearHost`, `delBtn` |
+| 20 | **(v4.4f) `OV.cfg.InMenu`** — vòng tròn/nút niệm tâm chọn nằm **trong menu** hay **ngoài màn hình**; nút “Vị trí:…” trong tab; `MakeScreenButton` tự đổi kiểu theo cha được đưa vào | `S.FeatureTemplate`, `S.MakeScreenButton` |
+| 21 | **(v4.4f) SỬA BUG** `MakeScreenButton():Destroy()` xóa cả ScreenGui của người gọi → script mất UI; chỉ xóa overlay hub tự tạo | `S.MakeScreenButton` |
 | 19 | **(v4.4e)** code mẫu có khối **OVERLAY** (vòng tròn niệm tâm + nút AIM + cài đặt trong menu) + "HAI TẦNG GIAO DIỆN" + 5 công thức loại tính năng; API nào cũng bọc `pcall` + fallback tự vẽ | `S.FeatureTemplate` |
 | 17 | **(v4.4d)** `createFeatureTab.CanvasSize = cy + 40` → cuộn tới các nút cuối tab | cuối khối TAB5 |
 | 14 | **BUG-16**: host nhúng chết bị dọn (`S.PruneEmbeds`) + dọn luôn `_G.BananaCatHub_EmbedHosts` cũ → hết leak | TAB5 watcher |

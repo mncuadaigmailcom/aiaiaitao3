@@ -462,9 +462,14 @@ check("gọi API:MakeCrosshair nếu hub có", code:find("API and API.MakeCrossh
 check("gọi API:NewOverlay nếu hub có", code:find("API and API.NewOverlay") ~= nil)
 check("giải thích 2 tầng menu/overlay cho người nhận code",
     code:find("HAI TẦNG GIAO DIỆN") ~= nil and code:find("AIMBOT") == nil and code:find("Aimbot/FOV") ~= nil)
-check("khối OVERLAY gọi ovGui() chứ không parent vào root",
-    code:find("b.Parent = ovGui%(%)") ~= nil and code:find("box.Parent = ovGui%(%)") ~= nil)
+check("overlay item parent = ovTarget() (menu hay màn hình tùy cfg)",
+    code:find("box.Parent = ovTarget") ~= nil and code:find("b.Parent = ovTarget") ~= nil)
+check("ovTarget() trả root khi InMenu, ovGui() khi không",
+    code:find("if OV.cfg.InMenu then return root end") ~= nil and code:find("return ovGui()") ~= nil)
 check("bcClose() dọn cả overlay", code:find("if OV.gui then OV.gui:Destroy%(%)") ~= nil)
+check("chọn được TRONG menu / NGOÀI màn hình", code:find("InMenu") ~= nil
+    and code:find("Vị trí: NGO") ~= nil)
+check("registry exposing OV cho AI", code:find("OV = OV") ~= nil)
 local fn, cerr = load(code, "feature_template", "t", _G)
 check("code mẫu BIÊN DỊCH ĐƯỢC", fn ~= nil, cerr)
 
@@ -510,6 +515,32 @@ if fn then
     local aimBtn = ovGui and ovGui:FindFirstChild("BCAimBtn")
     check("nút AIM on-screen tồn tại", aimBtn ~= nil)
     check("nút AIM kéo thả được", aimBtn and aimBtn.Draggable == true)
+    -- đổi chế độ "nằm TRONG menu" qua registry (_G.BC_FEATURES[tên].OV)
+    local reg = _G.BC_FEATURES and _G.BC_FEATURES["Auto Farm"]
+    check("script đăng ký OV vào registry", reg and type(reg.OV) == "table")
+    if reg and reg.OV then
+        local chBefore = ovGui and ovGui:FindFirstChild("BCCrosshair")
+        check("mặc định: vòng tròn ở overlay ngoài màn hình", chBefore ~= nil)
+        reg.OV.cfg.InMenu = true
+        reg.OV.apply()
+        local inRoot = r2 and r2:FindFirstChild("BCCrosshair")
+        check("InMenu=true -> vòng tròn nằm TRONG menu (con của root)", inRoot ~= nil)
+        check("InMenu=true -> overlay không còn vòng tròn",
+            ovGui == nil or ovGui:FindFirstChild("BCCrosshair") == nil)
+        local pnl = r2 and r2:FindFirstChild("Panel")
+        local aimInMenu = r2 and (r2:FindFirstChild("BCAimBtn")
+            or (pnl and pnl:FindFirstChild("BCAimBtn")))
+        check("InMenu=true -> nút AIM nằm trong menu (root/panel)", aimInMenu ~= nil)
+        check("InMenu=true -> nút AIM không còn Draggable (không kéo lung tung)",
+            aimInMenu and aimInMenu.Draggable == false, aimInMenu and aimInMenu.Draggable)
+        reg.OV.cfg.InMenu = false
+        reg.OV.apply()
+        check("tắt InMenu -> vòng tròn ra lại overlay",
+            ovGui ~= nil and ovGui:FindFirstChild("BCCrosshair") ~= nil)
+        check("tắt InMenu -> root không còn vòng tròn",
+            r2 and r2:FindFirstChild("BCCrosshair") == nil)
+    end
+
     -- ScanNewGuis (bắt GUI để nhúng) phải LOẠI overlay, chỉ lấy gui menu
     local before = {}
     local mine = { featGui2, ovGui }
@@ -607,6 +638,12 @@ sb.Btn:_fire("InputBegan")
 sb.Btn:_fire("InputEnded")
 check("OnDown/OnUp có kết nối (không nổ)", downs + ups >= 0, "downs=" .. downs)
 sb:Destroy()
+local foreignGui = Instance.new("ScreenGui"); foreignGui.Name = "CallerGui"; foreignGui.Parent = playerGui
+local sb2 = S.MakeScreenButton({ Gui = foreignGui, Text = "X" })
+sb2:Destroy()
+check("Destroy KHÔNG xóa ScreenGui mà người gọi đưa vào (không mất UI của script)",
+    foreignGui.Parent == playerGui and foreignGui._destroyed ~= true)
+check("nhưng nút thì đã gỡ khỏi GUI đó", sb2.Btn.Parent == nil)
 check("Destroy dọn cả ScreenGui overlay", sb.Gui.Parent == nil)
 
 -- CloseFeature: hub gọi bcClose() của script khi bấm ✕ / xóa tab

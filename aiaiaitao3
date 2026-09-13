@@ -1,5 +1,5 @@
 --[[
-    🍌 Banana Cat Hub v4.4e — FULL CODE
+    🍌 Banana Cat Hub v4.4f — FULL CODE
     + SỬA (QUAN TRỌNG — đúng cái bạn gặp): "TẠO TÍNH NĂNG → ▶ Chạy Script" làm bạn
            KHÔNG quay chuột / KHÔNG bắn được và làm LỖI vài nút của game. 3 nguyên nhân:
              • TextBox của hub còn focus -> Roblox chặn input người chơi. Giờ hub tự nhả focus
@@ -156,6 +156,16 @@ end
 --   S.FeatureTemplate() giờ có thêm khối "OVERLAY" (vòng tròn + nút AIM + 4 nút cài đặt trong
 --   menu điều khiển overlay) và mục "HAI TẦNG GIAO DIỆN" + 5 công thức cho loại tính năng khác.
 --   Code mẫu KHÔNG tin API: mọi lời gọi API: đều bọc pcall + có đường tự vẽ dự phòng.
+-- v4.4f — chọn được VỊ TRÍ cho vòng tròn/nút niệm tâm + sửa bug có thể "ăn" UI của script
+--   1) Code mẫu có thêm OV.cfg.InMenu: true = vẽ vòng tròn + nút AIM NGAY TRONG menu
+--      (không can thiệp màn hình game), false = vẽ NGOÀI màn hình qua overlay BCOV_.
+--      Có sẵn nút "Vị trí: TRONG menu / NGOÀI màn hình (overlay)" trong tab tính năng, và
+--      _G.BC_FEATURES[tên].OV để AI/code khác đổi chế độ lúc chạy (OV.cfg.* rồi OV.apply()).
+--      S.MakeScreenButton tự nhận diện: Gui đưa vào là Frame (menu) -> không Draggable,
+--      size phủ ngang container, corner nhỏ; là ScreenGui -> nút tròn kéo thả giữa màn hình.
+--   2) BUG: MakeScreenButton(...):Destroy() xóa CẢ ScreenGui được truyền vào thay vì chỉ cái
+--      nút -> mất sạch UI của script (test [13] bắt được). Giờ chỉ Destroy ScreenGui do chính
+--      hub tạo (ownOverlay). Mọi lời gọi API trong code mẫu cũng đã bọc pcall + fallback tự vẽ.
 -- ============================================================================
 local function ReleaseHubFocus()
     pcall(function()
@@ -267,7 +277,7 @@ Corner(titleBar, UDim.new(0,10))
 New("TextLabel", {
     Size=UDim2.new(1,-90,1,0),
     Position=UDim2.new(0,12,0,0),
-    Text="🍌 Banana Cat Executor Hub v4.4e",
+    Text="🍌 Banana Cat Executor Hub v4.4f",
     BackgroundTransparency=1,
     TextColor3=C.DARK,
     Font=Enum.Font.GothamBold,
@@ -3277,7 +3287,7 @@ function S.FitToTab(obj, nm)
 end
 
 _G.BananaCatHubAPI = {
-    Version = "4.4e",
+    Version = "4.4f",
     HubGui = hubGui,
     Main = main,
     -- gọi bằng dấu hai chấm: API:TabArea("Tên Tab")  ->  Vector2 khổ vùng nội dung của tab
@@ -3345,6 +3355,9 @@ function S.FeatureTemplate(nm, icon, stamp)
 --      NGOÀI menu, trên màn hình game. Muốn hub KHÔNG kéo vào tab thì ScreenGui
 --      của nó PHẢI có tên bắt đầu "BCOV_" (hoặc SetAttribute("BananaCatOverlay",
 --      true)). Khối "OVERLAY" bên dưới đã làm sẵn, bạn chỉ việc dùng.
+--     Muốn vòng tròn + nút niệm tâm nằm LUÔN TRONG menu (không can thiệp màn hình game):
+--      bật OV.cfg.InMenu = true (nút "Vị trí:" trong menu đã làm sẵn), hoặc set
+--      _G.BC_FEATURES[tên].OV.cfg.InMenu = true rồi gọi OV.apply().
 --   Vẽ overlay bằng API hub nếu có: _G.BananaCatHubAPI:NewOverlay(tên),
 --      :MakeCrosshair(gui, {Style="circle", Radius=9, Gap=5, Thickness=2, Color=...})
 --      :MakeScreenButton({Text="AIM", OnDown=f, OnUp=f, OnClick=f})  -> kéo thả được.
@@ -3522,6 +3535,7 @@ local OV = { cfg = {
     Crosshair = true, Style = "circle", Radius = 9, Gap = 5, Thickness = 2,
     Color = Color3.fromRGB(90, 240, 130),
     Button = true, BtnText = "AIM", HoldOnly = true, FovOnly = true,
+    InMenu = false,      -- false = vẽ NGOÀI màn hình; true = nằm TRONG menu (không đụng game)
 } }
 OV.aimHeld = false
 
@@ -3529,8 +3543,11 @@ local function ovGui()
     if OV.gui and OV.gui.Parent then return OV.gui end
     local g
     pcall(function()
-        if API and API.NewOverlay then g = API:NewOverlay(BC.Name .. "_OV", 5) end
+        if not OV.cfg.InMenu and API and API.NewOverlay then
+            g = API:NewOverlay(BC.Name .. "_OV", 5)
+        end
     end)
+    if g and not g:IsA("ScreenGui") then g = nil end
     if not g then
         g = Instance.new("ScreenGui")
         g.Name = "BCOV_" .. BC.Name            -- BCOV_ = "đừng nhúng tao vào tab"
@@ -3545,14 +3562,24 @@ local function ovGui()
     return g
 end
 
+-- Cha của overlay-items: `root` (menu) hoặc ScreenGui BCOV_ (màn hình) -- tùy cfg.InMenu
+local function ovTarget()
+    if OV.cfg.InMenu then return root end
+    return ovGui()
+end
+
 -- Vòng tròn niệm tâm (dùng API của hub nếu có, không thì tự vẽ y hệt)
 local function ovMakeCrosshair()
     local c = OV.cfg
     if API and API.MakeCrosshair then
-        return API:MakeCrosshair(ovGui(), {
-            Style = c.Style, Radius = c.Radius, Gap = c.Gap,
-            Thickness = c.Thickness, Color = c.Color,
-        })
+        -- API của hub là code "của người khác" -> pcall, lỗi thì tự vẽ (script không bao giờ sập)
+        local ok, h = pcall(function()
+            return API:MakeCrosshair(ovTarget(), {
+                Style = c.Style, Radius = c.Radius, Gap = c.Gap,
+                Thickness = c.Thickness, Color = c.Color,
+            })
+        end)
+        if ok and h then return h end
     end
     local d = c.Radius * 2
     local box = Instance.new("Frame")
@@ -3562,7 +3589,7 @@ local function ovMakeCrosshair()
     box.Size = UDim2.new(0, d + c.Gap * 2, 0, d + c.Gap * 2)
     box.BackgroundTransparency = 1
     box.BorderSizePixel = 0
-    box.Parent = ovGui()
+    box.Parent = ovTarget()
     local ring = Instance.new("Frame")
     ring.Name = "Ring"
     ring.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -3596,13 +3623,16 @@ end
 local function ovMakeButton()
     local c = OV.cfg
     if API and API.MakeScreenButton then
-        return API:MakeScreenButton({
-            Gui = ovGui(), Name = "BCAimBtn", Text = c.BtnText, Size = 54,
-            OverlayName = BC.Name .. "_Btn",
-            OnDown = function() OV.aimHeld = true end,
-            OnUp = function() OV.aimHeld = false end,
-            OnClick = c.HoldOnly and nil or function(on) OV.aimHeld = on end,
-        })
+        local ok, h = pcall(function()
+            return API:MakeScreenButton({
+                Gui = ovTarget(), Name = "BCAimBtn", Text = c.BtnText, Size = 54,
+                OverlayName = BC.Name .. "_Btn",
+                OnDown = function() OV.aimHeld = true end,
+                OnUp = function() OV.aimHeld = false end,
+                OnClick = c.HoldOnly and nil or function(on) OV.aimHeld = on end,
+            })
+        end)
+        if ok and h then return h end
     end
     local b = Instance.new("TextButton")
     b.Name = "BCAimBtn"
@@ -3619,7 +3649,14 @@ local function ovMakeButton()
     b.AutoButtonColor = true
     b.Active = true
     b.Draggable = true            -- kéo đặt chỗ nào cũng được
-    b.Parent = ovGui()
+    b.Parent = ovTarget()
+    if OV.cfg.InMenu then
+        b.Draggable = false       -- trong menu thì nằm gọn trong panel, khỏi kéo
+        b.AnchorPoint = Vector2.new(0, 0)
+        b.Position = UDim2.new(0, 0, 0, 0)
+        b.Size = UDim2.new(1, 0, 0, 30)
+        b.Parent = panel
+    end
     local co = Instance.new("UICorner")
     co.CornerRadius = UDim.new(1, 0)
     co.Parent = b
@@ -3676,6 +3713,12 @@ bcSize.Activated:Connect(function()
     bcSize.Text = "Kính thước vòng tròn: " .. OV.cfg.Radius
     OV.apply()
 end)
+local bcPlace = bcButton("Vị trí: NGOÀI màn hình (overlay)")
+bcPlace.Activated:Connect(function()
+    OV.cfg.InMenu = not OV.cfg.InMenu
+    bcPlace.Text = OV.cfg.InMenu and "Vị trí: TRONG menu" or "Vị trí: NGOÀI màn hình (overlay)"
+    OV.apply()
+end)
 local bcBtn = bcButton("Nút AIM trên màn hình: BẬT")
 bcBtn.Activated:Connect(function()
     OV.cfg.Button = not OV.cfg.Button
@@ -3709,7 +3752,10 @@ bcOn(closeBtn, "MouseButton1Click", bcClose)
 
 -- Cho phép code khác (và AI) đóng/tắt tính năng mà không cần biến toàn cục trùng tên:
 _G.BC_FEATURES = _G.BC_FEATURES or {}
-_G.BC_FEATURES[BC.Name] = { name = BC.Name, Close = bcClose, Gui = gui, Root = root }
+-- Code khác/AI chỉnh overlay không cần biến toàn cục trùng tên:
+--   local e = _G.BC_FEATURES[BC.Name]; e.OV.cfg.InMenu = true; e.OV.apply()  -> vẽ TRONG menu
+--   e.OV.cfg.Crosshair = false; e.OV.apply()                                  -> ẩn vòng tròn
+_G.BC_FEATURES[BC.Name] = { name = BC.Name, Close = bcClose, Gui = gui, Root = root, OV = OV }
 
 -- =========================== FEATURE LOGIC ================================
 -- >>> THAY TOÀN BỘ KHỐI NÀY BẰNG THUẬT TOÁN THẬT CỦA TÍNH NĂNG <<<
@@ -3909,21 +3955,32 @@ end
 -- Nút nằm NGOÀI màn hình (kéo thả được), cho aim/hold-to-fire... ; onDown/onUp tùy chọn
 function S.MakeScreenButton(opts)
     opts = opts or {}
-    local ov = opts.Gui or S.NewOverlay(opts.OverlayName or "Btn", opts.DisplayOrder)
+    -- opts.Gui có thể là Frame của menu (khi người dùng muốn nút nằm TRONG menu) ->
+    -- không ép Draggable/Position giữa màn hình cho trường hợp đó.
+    local ownOverlay = (opts.Gui == nil)   -- chỉ được Destroy ScreenGui khi TA tạo ra nó
+    local intoMenu = false
+    local ov = opts.Gui
+    if ov then
+        local okI, isFrame = pcall(function() return ov:IsA("GuiObject") and not ov:IsA("ScreenGui") end)
+        intoMenu = (okI and isFrame) and true or false
+    end
+    if not ov then ov = S.NewOverlay(opts.OverlayName or "Btn", opts.DisplayOrder) end
     local size = tonumber(opts.Size) or 54
     local btn = New("TextButton", {
         Name = opts.Name or "BCBtn", Text = opts.Text or "AIM",
-        Size = UDim2.new(0, size, 0, size),
-        Position = opts.Position or UDim2.new(0.5, 24, 0.5, -size / 2),
-        AnchorPoint = Vector2.new(0.5, 0.5),
         BackgroundColor3 = opts.Color or Color3.fromRGB(30, 32, 44),
         BackgroundTransparency = tonumber(opts.Transparency) or 0.25,
         TextColor3 = opts.TextColor or Color3.fromRGB(255, 255, 255),
         Font = Enum.Font.GothamBold, TextSize = tonumber(opts.TextSize) or 13,
-        BorderSizePixel = 0, AutoButtonColor = true, Active = true, Draggable = true,
+        BorderSizePixel = 0, AutoButtonColor = true, Active = true,
+        Draggable = (opts.Draggable ~= false) and not intoMenu,
         Selectable = true,
+        Size = intoMenu and UDim2.new(1, 0, 0, size * 0.55) or UDim2.new(0, size, 0, size),
+        AnchorPoint = intoMenu and Vector2.new(0, 0) or Vector2.new(0.5, 0.5),
+        Position = intoMenu and UDim2.new(0, 0, 0, 0)
+            or (opts.Position or UDim2.new(0.5, 24, 0.5, -size / 2)),
     }, ov)
-    Corner(btn, UDim.new(1, 0))
+    Corner(btn, intoMenu and UDim.new(0, 6) or UDim.new(1, 0))
     Stroke(btn, opts.StrokeColor or Color3.fromRGB(120, 130, 160), 1.5)
 
     local h = { Btn = btn, Gui = ov, Held = false, Toggled = false }
@@ -3957,7 +4014,9 @@ function S.MakeScreenButton(opts)
     function h.SetText(self, t) pcall(function() self.Btn.Text = tostring(t) end) end
     function h.SetVisible(self, v) pcall(function() self.Btn.Visible = not not v end) end
     function h.Destroy(self)
-        pcall(function() self.Gui:Destroy() end)
+        pcall(function() self.Btn:Destroy() end)
+        -- QUAN TRỌNG: chưa bao giờ xóa ScreenGui mà script đưa cho mình (sẽ mất hết UI của họ)
+        if ownOverlay then pcall(function() self.Gui:Destroy() end) end
     end
     return h
 end
@@ -4965,7 +5024,7 @@ main.Visible = true
 togBtn.Text = "✕"
 
 print(string.format(
-    "✅ Banana Cat Hub v4.4e — sẵn sàng! Đã nạp lại %d script + %d waypoint + %d tab tính năng từ bộ nhớ (chế độ: %s%s)",
+    "✅ Banana Cat Hub v4.4f — sẵn sàng! Đã nạp lại %d script + %d waypoint + %d tab tính năng từ bộ nhớ (chế độ: %s%s)",
     Store.loadedScripts, Store.loadedWp, #Store.loadedFeatures, Store.mode,
     Store.lastError and (" | ⚠️ " .. Store.lastError) or ""
 ))
