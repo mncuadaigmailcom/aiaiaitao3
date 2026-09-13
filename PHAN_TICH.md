@@ -6,11 +6,21 @@
 
 ---
 
-## ✅ ĐÃ SỬA TRONG BẢN NÀY (v4.4b → v4.4c) — nhật ký thay đổi
+## ✅ ĐÃ SỬA TRONG BẢN NÀY (v4.4b → v4.4d) — nhật ký thay đổi
 
 Bối cảnh sửa: người dùng báo **"dùng Tạo Tính Năng → bấm ▶ Chạy Script rồi không kéo màn hình lên
 và không bắn được, vài nút của game bị lỗi"**. Ba nguyên nhân đã xác định và sửa, cộng thêm vài
 lỗi P0/P1 đã liệt kê ở dưới.
+
+**v4.4d — nút 📋 "Copy Code Mẫu Cho AI"**: bấm 1 nút trong "Tạo Tính Năng" là ra code mẫu đưa cho
+người khác/AI viết tiếp; dán lại rồi ▶ Chạy Script thì GUI **tự vừa ô tab** và **tự theo khi kéo
+menu dài/rộng** — kể cả khi người nhận code không biết gì về hub. Hub expose `_G.BananaCatHubAPI`
+(`TabArea`, `OnResize`, `FeatureTabHost`, `FitToTab`, `EmbedGui`, `ReleaseFocus`);
+`S.FeatureTemplate()` sinh code mẫu 220 dòng chạy được ngay, có khối **SIZE CONTRACT** (phủ khít
+container hub đưa khi được nhúng; bám khổ tab của hub khi chạy độc lập; fallback 55% màn hình theo
+tỉ lệ 620:384) + đăng ký `OnResize` và `bcClose()` ngắt connection nên không leak. Nút copy chỉ
+điền vào ô code khi ô đang trống (không làm mất code đang soạn) và lưu bản "Mẫu <tên>" vào Code Đã
+Lưu. + sửa tab "Tạo Tính Năng" `CanvasSize=0` nên các dòng dưới không cuộn tới được.
 
 **v4.4c — "bấm ▶ Chạy Script xong menu tính năng không cùng kích thước menu chính"**: bản 4.4b
 sửa lỗi nuốt click bằng cách *chỉ co* (`scale ≤ 1`), hệ quả là GUI hard-code nhỏ (300×200…) nằm
@@ -32,6 +42,9 @@ lọt thỏm góc tab. v4.4c thay cơ chế đó bằng **scale đều vừa kh�
 | 11 | **BUG-3**: `Store.load` kiểm tra `data.version` và cảnh báo nếu file mới hơn script | `Store.load` |
 | 12 | **BUG-13**: URL dán vào "Tạo Tính Năng" bị chặn nếu chứa `"`/ký tự điều khiển (tránh phá/chèn code vào chunk sinh ra) | `NormalizeCode` |
 | 13 | **BUG-8**: Tab "Code Đã Lưu" báo trạng thái chạy **ngay trên nút ▶ Chạy** (trước đây ghi sang nhãn của Tab 1 → không thấy gì) | TAB2 |
+| 15 | **(v4.4d) Nút `📋 Copy Code Mẫu Cho AI (tự vừa size menu)`** — clipboard + lưu "Code Đã Lưu" + chỉ điền vào ô code khi trống | `copyTemplateBtn`, `S.FeatureTemplate` |
+| 16 | **(v4.4d) `_G.BananaCatHubAPI`** cho script bên ngoài: `TabArea(name)` / `OnResize(fn)` / `FeatureTabHost(name)` / `FitToTab(obj)` / `EmbedGui(gui)` / `ReleaseFocus()`; `main.Size` đổi → `S.NotifyResize()` bắn tới script, `BcFit()` re-fit GUI đang nhúng | khu `S.*` |
+| 17 | **(v4.4d)** `createFeatureTab.CanvasSize = cy + 40` → cuộn tới các nút cuối tab | cuối khối TAB5 |
 | 14 | **BUG-16**: host nhúng chết bị dọn (`S.PruneEmbeds`) + dọn luôn `_G.BananaCatHub_EmbedHosts` cũ → hết leak | TAB5 watcher |
 
 **Chưa sửa (còn đó trong §4/§5/§6):** BUG-4 (history có thể bắt đầu bằng `role=model`), BUG-5
