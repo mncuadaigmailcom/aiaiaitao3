@@ -1,0 +1,15 @@
+{
+  "name": "banana-cat-hub-tests",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Test cú pháp + logic cho Banana Cat Hub (chạy ngoài Roblox bằng VM Lua + parser)",
+  "scripts": {
+    "extract": "python3 extract_blocks.py",
+    "syntax": "node check_syntax.js",
+    "test": "python3 extract_blocks.py && node check_syntax.js && node run_lua.js && node run_embed.js"
+  },
+  "dependencies": {
+    "fengari": "^0.1.7",
+    "luaparse": "^0.3.1"
+  }
+}

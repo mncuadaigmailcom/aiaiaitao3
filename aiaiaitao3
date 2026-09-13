@@ -1,5 +1,25 @@
 --[[
-    🍌 Banana Cat Hub v4.4a — FULL CODE
+    🍌 Banana Cat Hub v4.4b — FULL CODE
+    + SỬA (QUAN TRỌNG — đúng cái bạn gặp): "TẠO TÍNH NĂNG → ▶ Chạy Script" làm bạn
+           KHÔNG quay chuột / KHÔNG bắn được và làm LỖI vài nút của game. 3 nguyên nhân:
+             • TextBox của hub còn focus -> Roblox chặn input người chơi. Giờ hub tự nhả focus
+               mỗi khi chạy code / đổi tab / đóng menu.
+             • ForceStretchToParent ép Size=(1,0,1,0) lên TỪNG frame con (kể cả GUI của game)
+               -> frame trong suốt full-màn-hình nuốt click. Giờ CHỈ chỉnh root.
+             • ScanNewGuis bốc bừa ScreenGui "mới xuất hiện" (bao gồm GUI của game) rồi Destroy
+               -> mất nút game + script bị nhúng hỏng. Giờ: hook Instance.new để biết GUI nào
+               THỰC SỰ thuộc script, không quét CoreGui, không Destroy GUI gốc.
+    + THÊM: nút 🧩 "Nhúng vào Tab: BẬT/TẮT" — TẮT = hub không đụng gì tới GUI (chế độ an toàn)
+    + THÊM: ✕ trên tab tính năng giờ TRẢ GUI về nguyên trạng (Position/Size/Parent cũ), hết kiểu
+           "đóng tab là GUI của script bị hỏng luôn"
+    + THÊM: host nhúng tự co giãn theo kích thước menu bằng Scale tương đối (không còn phá layout)
+    + SỬA: "📏 Lấy Code Kích Thước" không còn quét CoreGui/PlayerGui (trước đây nó đè UI của game
+           và của script khác), không còn ghi đè code trong ô nhập; wrapper cũ đã lưu sẽ được
+           tự vô hại hoá khi nạp
+    + SỬA: "🔄 Nạp lại" không còn ghi đè file lưu (nguy cơ mất dữ liệu khi file JSON hỏng)
+           và có dựng lại danh sách Waypoint
+    ============================================================================
+    (lịch sử cũ) v4.4a:
     + SỬA: "TẠO TÍNH NĂNG" giờ cũng ĐƯỢC LƯU XUỐNG ĐĨA — tab tính năng bạn tạo
            thoát game vào lại VẪN CÒN, nằm đúng trong mục "Danh Sách Tab Tính Năng Đã Tạo"
            (trước đây nó biến mất, nên phải chép sang tab Code để giữ -> lưu nhầm chỗ)
@@ -90,6 +110,30 @@ end
 
 local function Tween(o, p, d, e)
     TweenService:Create(o, TweenInfo.new(d or 1.5, e or Enum.EasingStyle.Quad), p):Play()
+end
+
+-- ============================================================================
+-- v4.4b — SỬA LỖI "chạy tính năng xong không quay chuột / không bắn được"
+-- Nguyên nhân gốc (3 chỗ, đều được sửa ở dưới):
+--   1) TextBox của hub còn đang FOCUS. Khi có TextBox focused, PlayerModule mặc định của
+--      Roblox chặn toàn bộ input người chơi -> không đi, không quay chuột, không bắn.
+--      -> ReleaseHubFocus() được gọi trước mỗi lần chạy code / đổi tab / đóng menu.
+--   2) ForceStretchToParent ĐỆ QUY ép MỌI Frame (kể cả của game) về Size=(1,0,1,0) +
+--      Position=(0,0) -> một frame con trong suốt biến thành full-màn-hình và nuốt hết click.
+--      -> chuyển thành CHỈ xử lý root (maxDepth mặc định 0).
+--   3) ScanNewGuis "đoán bừa": hễ ScreenGui nào mới xuất hiện trong 2.4s là bốc con sang tab
+--      + Destroy ScreenGui gốc -> mất nút của game, và script được nhúng hỏng vì
+--      `gui.Enabled`/`gui:Destroy()` của nó không còn tác dụng.
+--      -> biết chính xác GUI nào là của script (hook Instance.new), không quét CoreGui,
+--         không Destroy GUI gốc, thêm nút 🧩 BẬT/TẮT nhúng và ✕ trả GUI về nguyên trạng.
+-- ============================================================================
+local function ReleaseHubFocus()
+    pcall(function()
+        local tb = UserInputService:GetFocusedTextBox()
+        if tb then tb:ReleaseFocus() end
+    end)
+    -- một số executor game-input vẫn bị giữ bởi ComboBox/TextBox đã Destroy
+    pcall(function() playerGui:ReleaseFocus() end)
 end
 
 if targetGui:FindFirstChild("ExMenu") then
@@ -193,7 +237,7 @@ Corner(titleBar, UDim.new(0,10))
 New("TextLabel", {
     Size=UDim2.new(1,-90,1,0),
     Position=UDim2.new(0,12,0,0),
-    Text="🍌 Banana Cat Executor Hub v4.4a",
+    Text="🍌 Banana Cat Executor Hub v4.4b",
     BackgroundTransparency=1,
     TextColor3=C.DARK,
     Font=Enum.Font.GothamBold,
@@ -331,6 +375,7 @@ local contentArea = New("Frame", {
 local activeTab = nil
 
 local function SwitchTab(index)
+    ReleaseHubFocus()   -- v4.4b: đổi tab mà để TextBox còn focus là game chặn input (không đi/không bắn)
     for _, t in ipairs(tabContent) do t.Visible = false end
     for _, b in ipairs(tabs) do
         b.BackgroundColor3 = C.BG
@@ -413,7 +458,27 @@ local S = {
     togDragStart = nil,
     togStartPos  = nil,
     togMoved     = false,
+    -- v4.4b: trạng thái của cơ chế nhúng GUI (đặt trong bảng để KHÔNG tốn slot local —
+    -- main chunk đang ở ~184/200, thêm local tự do là lỗi biên dịch "too many local variables")
+    embedEnabled = true,     -- tab 5 có nút 🧩 để tắt hoàn toàn việc nhúng
+    embedGuessNew = false,   -- 🕵 nhận cả ScreenGui "lạ" mới xuất hiện (mạnh hơn nhưng dễ ăn GUI game)
+    embeds       = {},       -- registry: {host, gui, recs={{child,origParent,origPos,origSize}}, conns={}}
 }
+
+-- v4.4b: vô hại hoá các wrapper "AUTO-GENERATED SIZE WRAPPER" đời cũ (v4.4a) đã bị lưu lại
+-- trong file JSON. Wrapper đó gọi _ForceStretch(g) lên MỌI ScreenGui trong CoreGui+PlayerGui
+-- -> đè layout của game. Chỉ cần cắt đúng lời gọi đó là cả khối trở thành no-op hợp lệ,
+-- code còn lại của người dùng không bị đụng tới.
+S.WRAP_MARK_OLD = "-- ===== AUTO-GENERATED SIZE WRAPPER"
+S.WRAP_MARK_NEW = "-- ===== AUTO-GENERATED FIT WRAPPER"
+function S.SanitizeCode(c)
+    if type(c) ~= "string" then return c end
+    if not c:find(S.WRAP_MARK_OLD, 1, true) then return c end
+    local out = (c:gsub(
+        "pcall%s*%(%s*function%s*%(%)%s*_ForceStretch%s*%(%s*g%s*%)%s*end%s*%)",
+        ""))
+    return out
+end
 
 local scripts = {}
 local waypoints = {}          -- khai báo sớm để khối lưu trữ bên dưới dùng được
@@ -443,6 +508,7 @@ Store.loadedScripts  = 0
 Store.loadedWp       = 0
 Store.loadedFeatures = {}     -- dữ liệu thô đọc từ đĩa; TAB5 sẽ dựng thành tab thật
 Store.restoreFeatures = nil   -- TAB5 gán hàm dựng lại tab tính năng vào đây
+Store.restoreWaypoints = nil  -- TAB3 gán RebuildWaypoints vào đây (TAB2 cần mà chưa tồn tại)
 Store.statusLbl      = nil      -- tab "Code Đã Lưu" gán nhãn trạng thái vào đây
 Store.reloadBtn      = nil
 Store._scheduled     = false
@@ -510,6 +576,12 @@ function Store.read()
         end
     end
     -- 2) fallback: dữ liệu _G của cùng phiên chơi (giữ được khi chạy lại script)
+    --    NGOẠI LỆ (v4.4b): nếu file TỒN TẠI mà giải mã lỗi thì KHÔNG fallback. Trước đây fallback
+    --    khiến Store.save() ghi dữ liệu cũ đè lên file còn có thể cứu bằng tay -> MẤT DỮ LIỆU.
+    if Store.lastError and Store.lastError:find("bị hỏng", 1, true) then
+        Store.mode = "none"
+        return nil
+    end
     if type(_G.BananaCatHub_SavedData) == "table" then
         Store.mode = "memory"
         return _G.BananaCatHub_SavedData
@@ -573,13 +645,21 @@ function Store.load()
         return
     end
 
+    -- v4.4b: file đời mới hơn script này -> cảnh báo, không im lặng nạp thiếu
+    local fileVer = tonumber(data.version) or 1
+    if fileVer > Store.SAVE_VERSION then
+        Store.lastError = string.format(
+            "File lưu là version %d, script này chỉ hiểu tới v%d — một số mục có thể không nạp",
+            fileVer, Store.SAVE_VERSION)
+    end
+
     local sOut = {}
     if type(data.scripts) == "table" then
         for _, s in ipairs(data.scripts) do
             if type(s) == "table" and type(s.code) == "string" and #s.code > 0 then
                 table.insert(sOut, {
                     name     = (type(s.name) == "string" and #s.name > 0) and s.name or ("Script " .. (#sOut + 1)),
-                    code     = s.code,
+                    code     = S.SanitizeCode(s.code),
                     expanded = (s.expanded == true),
                 })
             end
@@ -607,7 +687,7 @@ function Store.load()
                 table.insert(fOut, {
                     name = (type(f.name) == "string" and #f.name > 0) and f.name or ("Tính Năng " .. (#fOut + 1)),
                     icon = (type(f.icon) == "string" and #f.icon > 0) and f.icon or "⚙️",
-                    code = f.code,
+                    code = S.SanitizeCode(f.code),
                 })
             end
         end
@@ -623,6 +703,7 @@ Store.load()
 
 local function ExecOnce(code, name)
     if #name>0 then print("👤 Chạy bởi:", name) end
+    code = S.SanitizeCode(code)   -- v4.4b: cắt wrapper "tự dãn kích thước" độc hại của bản cũ
     return pcall(function()
         local fn, err = loadstring(code)
         if not fn then error(err) end
@@ -639,6 +720,7 @@ end
 
 local function RunCode(code, name, ind, times, delay)
     Cancel()
+    ReleaseHubFocus()   -- v4.4b: nhả focus TextBox, nếu không game chặn hết input (không đi/không bắn)
     if #code==0 then return false, "⚠️ Vui lòng nhập code!" end
     cancelled=false
     if ind then curIndicator=ind; ind.BackgroundColor3=C.RED end
@@ -911,8 +993,12 @@ Store.reloadBtn.Activated:Connect(function()
     -- hoặc bạn copy file banana_cat_saved.json từ máy/executor khác sang.
     Store.load()
     RebuildScripts()
+    -- v4.4b: Waypoint cũng phải dựng lại (trước đây thiếu: local RebuildWaypoints được khai
+    -- báo ở TAB3, SAU closure này, nên gọi thẳng ở đây sẽ thành global nil -> lỗi).
+    if Store.restoreWaypoints then pcall(Store.restoreWaypoints) end
     if Store.restoreFeatures then pcall(Store.restoreFeatures) end
-    Store.save()
+    -- v4.4b: BỎ Store.save() ở đây. Nạp lại là thao tác ĐỌC; lưu ngay sau đó sẽ ghi đè
+    -- file vừa đọc (đang muốn cứu) bằng dữ liệu trong RAM -> mất dữ liệu không cứu được.
     Store.reloadBtn.Text = "✅ Đã nạp"
     task.delay(1.4, function()
         if Store.reloadBtn and Store.reloadBtn.Parent then Store.reloadBtn.Text = "🔄 Nạp lại" end
@@ -1049,8 +1135,17 @@ RebuildScripts = function()
         end)
 
         runScriptBtn.Activated:Connect(function()
+            local prev = runScriptBtn.Text
             RunCode(d.code, d.name, runScriptBtn, 1, 0)
-            statusLbl.Text="⏳ Đang chạy: "..d.name
+            -- v4.4b: statusLbl thuộc TAB1 nên người dùng không nhìn thấy gì ở đây;
+            -- báo ngay trên nút cho chắc.
+            runScriptBtn.Text = "⏳ ..."
+            task.delay(0.9, function()
+                if runScriptBtn and runScriptBtn.Parent then runScriptBtn.Text = "✅ xong" end
+                task.delay(0.9, function()
+                    if runScriptBtn and runScriptBtn.Parent then runScriptBtn.Text = prev end
+                end)
+            end)
         end)
 
         delScriptBtn.Activated:Connect(function()
@@ -1840,6 +1935,8 @@ RebuildWaypoints = function()
         delBtn.Activated:Connect(function()
             table.remove(waypoints, i)
             RebuildWaypoints()
+-- v4.4b: cho nút "🔄 Nạp lại" ở TAB2 gọi được (đóng gói qua Store vì lý do scope đã note ở đó)
+Store.restoreWaypoints = RebuildWaypoints
             Store.saveSoon()
         end)
 
@@ -2724,35 +2821,71 @@ end)
 
 local function NormalizeCode(c)
     if type(c) ~= "string" then return "" end
-    c = c:gsub("^%s+", ""):gsub("%s+$", "")
+    c = S.SanitizeCode(c)   -- v4.4b: cắt wrapper "SIZE WRAPPER" cũ (nó đè layout GUI của game)
     if c:match("^https?://") then
+        -- CHẶN: URL có " hoặc xuống dòng sẽ phá vỡ (hoặc chèn code vào) chuỗi sinh ra bên dưới
+        if c:find('[%c"\\]', 1) then
+            warn("[BananaCatHub] Link không hợp lệ (chứa ký tự xuống dòng/\") -> dùng nguyên văn")
+            return c
+        end
         return 'loadstring(game:HttpGet("'..c..'"))()'
     end
     return c
 end
 
-local function ScanNewGuis(beforeGuis)
-    local found = {}
+-- v4.4b: chỉ lấy GUI ở PlayerGui của game + container của hub (KHÔNG quét CoreGui nữa —
+-- CoreGui là nơi game và script khác đựng UI; bốc nhầm GUI của game là MẤT NÚT BẮN/MENU).
+-- GUI "lạ" còn phải qua 2 điều kiện: có ít nhất 1 GuiObject con và tên không nằm trong danh
+-- sách UI hệ thống. GUI mà hook Instance.new bắt được (mine) luôn được nhận — đó mới là của ta.
+local GAME_OWNED_GUI_NAMES = {
+    Topbar = true, TopbarContainer = true, PlayerList = true, Chat = true,
+    Backpack = true, DevConsoleUI = true, ScriptInvitationUI = true,
+    FollowPromptUI = true, TouchControlsFrame = true, Main = true, ExMenu = true,
+    Notifications = true, PauseMenu = true, InGame = true, CoreGui = true,
+}
+
+-- allowGuess=false: CHỈ nhận GUI mà hook bắt được (an toàn tuyệt đối, không bao giờ ăn GUI game)
+-- allowGuess=true : nhận thêm ScreenGui mới xuất hiện ở PlayerGui (GUI script tạo trễ),
+--                   vẫn chặn tên hệ thống + không quét CoreGui.
+local function ScanNewGuis(beforeGuis, mine, allowGuess)
+    local found, seen = {}, {}
+    local function take(g)
+        if not g or seen[g] then return end
+        seen[g] = true
+        table.insert(found, g)
+    end
+    if mine then
+        for _, g in ipairs(mine) do
+            if g:IsA("ScreenGui") or g:IsA("Folder") then take(g) end
+        end
+    end
     local function scan(container)
         if not container then return end
         for _, g in ipairs(container:GetChildren()) do
             if not beforeGuis[g] then
                 beforeGuis[g] = true
-                table.insert(found, g)
+                if allowGuess and (g:IsA("ScreenGui") or g:IsA("Folder")) and not GAME_OWNED_GUI_NAMES[g.Name] then
+                    local hasGuiChild = false
+                    for _, c in ipairs(g:GetChildren()) do
+                        if c:IsA("GuiObject") then hasGuiChild = true break end
+                    end
+                    if hasGuiChild then take(g) end
+                end
             end
         end
     end
     scan(playerGui)
-    scan(targetGui)
-    pcall(function()
-        local cg = game:GetService("CoreGui")
-        if cg and cg ~= targetGui then scan(cg) end
-    end)
+    if targetGui ~= playerGui then scan(targetGui) end
     return found
 end
 
-local function ForceStretchToParent(obj)
+-- v4.4b: MẶC ĐỊNH CHỈ chỉnh CHÍNH nó (root). Bản cũ ĐỆ QUY vào mọi con và ép từng frame về
+-- Size=(1,0,1,0)+Position=(0,0) -> sập layout lồng nhau, và tệ hơn: một Frame trong suốt bé xíu
+-- trở thành full-màn-hình, Active, NUỐT hết click của game (không quay chuột/không bắn được).
+-- Muốn phục hồi kiểu cũ thì gọi ForceStretchToParent(obj, 99) — nhưng đừng.
+local function ForceStretchToParent(obj, maxDepth)
     if not obj then return end
+    maxDepth = maxDepth or 0
     pcall(function()
         if obj:IsA("GuiObject") then
             if obj:IsA("Frame") or obj:IsA("ScrollingFrame") or obj:IsA("CanvasGroup") then
@@ -2766,9 +2899,226 @@ local function ForceStretchToParent(obj)
             end
         end
     end)
+    if maxDepth <= 0 then return end
     for _, child in ipairs(obj:GetChildren()) do
-        ForceStretchToParent(child)
+        ForceStretchToParent(child, maxDepth - 1)
     end
+end
+
+-- ==================== NHÚNG GUI: ĐĂNG KÝ / TRẠNG THÁI / HOÀN TÁC ====================
+-- Mọi thứ gắn vào bảng S (không thêm local cấp cao nhất — đã ~184/200 slot).
+--
+-- Mô hình mới: GUI của script bạn chạy VẪN NẰM Y NGUYÊN chỗ cũ (PlayerGui), hub chỉ
+-- "mượn" các frame con của nó đặt vào tab, và GHI LẠI Position/Size/Parent gốc để trả về
+-- khi bạn bấm ✕. ScreenGui gốc KHÔNG bị Destroy nên `gui.Enabled`, `gui:Destroy()`,
+-- `gui.Parent = nil`... trong script của bạn còn tác dụng (hub bắt tín hiệu phản chiếu).
+function S.RegisterEmbed(host, gui, recs)
+    local entry = {host = host, gui = gui, recs = recs or {}, conns = {}}
+    -- mỗi connection pcall RIÊNG: Folder không có property Enabled -> nếu gom chung một pcall
+    -- thì connection cuối (Destroying) bị bỏ luôn, tab sẽ không tự dọn khi script Destroy GUI.
+    pcall(function()
+        entry.conns[#entry.conns+1] = gui:GetPropertyChangedSignal("Enabled"):Connect(function()
+            pcall(function() host.Visible = gui.Enabled end)
+        end)
+    end)
+    pcall(function()
+        entry.conns[#entry.conns+1] = gui:GetPropertyChangedSignal("Parent"):Connect(function()
+            pcall(function() host.Visible = (gui.Parent ~= nil) and gui.Enabled end)
+        end)
+    end)
+    -- script tự Destroy GUI -> hub dọn host, không để lại khung rỗng
+    pcall(function()
+        entry.conns[#entry.conns+1] = gui.Destroying:Connect(function()
+            S.DropEmbed(entry, true)
+        end)
+    end)
+    S.embeds[#S.embeds+1] = entry
+    return entry
+end
+
+function S.FindEmbedByHost(host)
+    for i, e in ipairs(S.embeds) do
+        if e.host == host then return e, i end
+    end
+    return nil
+end
+
+function S.RemoveEmbedAt(i)
+    local e = S.embeds[i]
+    if not e then return end
+    for _, c in ipairs(e.conns) do pcall(function() c:Disconnect() end) end
+    table.remove(S.embeds, i)
+    return e
+end
+
+-- Xóa host nhưng KHÔNG trả GUI về (dùng khi chính GUI đã bị Destroy)
+function S.DropEmbed(entry, keepQuiet)
+    for i, e in ipairs(S.embeds) do
+        if e == entry then S.RemoveEmbedAt(i); break end
+    end
+    pcall(function() if entry.host and entry.host.Parent then entry.host:Destroy() end end)
+    if not keepQuiet then
+        print("[BananaCatHub] Đã gỡ host nhúng khỏi tab")
+    end
+end
+
+-- Trả toàn bộ frame con về ScreenGui gốc + khôi phục Position/Size -> GUI y như lúc chưa nhúng
+function S.RestoreEmbed(entry)
+    -- CHỈ trả Parent. hub chưa bao giờ sửa Position/Size của frame con (xem ForceStretchToParent
+    -- root-only) nên ghi ngược lại origPos/origSize chỉ tổ PHÁ những gì script đã tự đổi
+    -- sau khi nhúng (vd script tự đổi kích thước panel).
+    for _, rec in ipairs(entry.recs or {}) do
+        pcall(function()
+            if rec.obj and rec.origParent then
+                rec.obj.Parent = rec.origParent
+            end
+        end)
+    end
+    for i, e in ipairs(S.embeds) do
+        if e == entry then S.RemoveEmbedAt(i); break end
+    end
+    pcall(function() if entry.host and entry.host.Parent then entry.host:Destroy() end end)
+end
+
+-- Dọn các entry đã chết (host/gui bị Destroy từ ngoài) — chống _G leak của bản cũ
+function S.PruneEmbeds()
+    for i = #S.embeds, 1, -1 do
+        local e = S.embeds[i]
+        local hostAlive = e.host and e.host.Parent
+        local guiAlive = e.gui and e.gui.Parent
+        if not hostAlive or not guiAlive then
+            if hostAlive then pcall(function() e.host:Destroy() end) end
+            S.RemoveEmbedAt(i)
+        end
+    end
+end
+
+-- Co/giãn vừa khít vùng tab: Scale = tỉ lệ min(chiếu rộng tab/chiều rộng GUI, cao/cao).
+-- Đây là thứ thay cho ForceStretch: menu kéo to -> GUI to theo, nhưng layout trong GUI KHÔNG bị phá.
+function S.FitEmbedded(host, gui)
+    if not host or not host.Parent then return end
+    local area = host.Parent                     -- embedHost / containerFrame
+    local aw, ah = area.AbsoluteSize.X - 8, area.AbsoluteSize.Y - 8
+    if aw < 40 or ah < 40 then return end
+    local bw, bh = host:GetAttribute("BaseW") or 0, host:GetAttribute("BaseH") or 0
+    if bw <= 0 or bh <= 0 then
+        -- đo bounding box các frame con để biết "size thật" của GUI
+        local minX, minY, maxX, maxY = math.huge, math.huge, -math.huge, -math.huge
+        local n = 0
+        for _, ch in ipairs(host:GetChildren()) do
+            if ch:IsA("GuiObject") then
+                local p, s2 = ch.AbsolutePosition, ch.AbsoluteSize
+                minX = math.min(minX, p.X); minY = math.min(minY, p.Y)
+                maxX = math.max(maxX, p.X + s2.X); maxY = math.max(maxY, p.Y + s2.Y)
+                n += 1
+            end
+        end
+        if n > 0 and maxX > minX and maxY > minY then
+            bw, bh = maxX - minX, maxY - minY
+        else
+            bw, bh = aw, ah
+        end
+        host:SetAttribute("BaseW", bw)
+        host:SetAttribute("BaseH", bh)
+    end
+    -- CHỈ co (không phóng to): scale <= 1 -> host không bao giờ lớn hơn tab,
+    -- kết hợp ClipsDescendants=true nên phần tràn khung vừa vô hình vừa KHÔNG nhận click.
+    -- Đây là điều bản 4.4a làm ngược (ép frame thành full-màn-hình -> nuốt chuột của game).
+    local scale = math.clamp(math.min(1, aw / bw, ah / bh), 0.35, 1)
+    local us = host:FindFirstChild("BananaCatFitScale")
+    if not us then
+        us = Instance.new("UIScale")
+        us.Name = "BananaCatFitScale"
+        us.Parent = host
+    end
+    us.Scale = scale
+    pcall(function()
+        host.Size = UDim2.new(1, 0, 1, 0)
+        host.Position = UDim2.new(0, 0, 0, 0)
+        host.ClipsDescendants = true
+    end)
+    return scale
+end
+
+function S.SyncAllEmbeds()
+    for _, e in ipairs(S.embeds) do
+        if e.host and e.host.Parent then
+            pcall(function() S.FitEmbedded(e.host, e.gui) end)
+        end
+    end
+end
+
+-- Dọn mọi host đang nằm trong 1 container (khi chạy lại script của tab / đóng tab / xóa tab)
+-- và TRẢ GUI về nguyên trạng. Đây là điểm khác biệt lớn nhất với bản cũ (bản cũ Destroy luôn).
+function S.ClearEmbedsUnder(containerFrame)
+    if not containerFrame then return 0 end
+    local n = 0
+    for i = #S.embeds, 1, -1 do
+        local e = S.embeds[i]
+        if e.host and e.host.Parent == containerFrame then
+            S.RestoreEmbed(e)
+            n += 1
+        end
+    end
+    -- host "rác" do tab này tạo ra nhưng không còn trong registry (vd. leftovers của bản v4.4a)
+    for _, child in ipairs(containerFrame:GetChildren()) do
+        if child.Name:sub(1, 9) == "Embedded_" then
+            pcall(function() child:Destroy() end)
+        end
+    end
+    return n
+end
+
+-- v4.4b: nhúng 1 ScreenGui/Folder vào containerFrame của tab. KHÔNG Destroy GUI gốc,
+-- KHÔNG sửa Size/Position frame con (chỉ đổi Parent) -> layout của script giữ nguyên 100%.
+-- Trả về host Frame để tab tự co giãn theo kích thước menu (xem S.FitEmbedded).
+function S.EmbedGui(scr, containerFrame)
+    if not S.embedEnabled then return nil end
+    if not scr or not scr.Parent then return nil end
+    if not containerFrame or not containerFrame.Parent then return nil end
+    -- không bao giờ nhúng chính GUI của hub (tự nuốt menu của mình = treo UI)
+    if scr == gui or scr:IsDescendantOf(gui) then return nil end
+
+    local hostName = "Embedded_"..scr.Name
+    for _, ex in ipairs(containerFrame:GetChildren()) do
+        if ex.Name == hostName then
+            local e = S.FindEmbedByHost(ex)
+            if e then
+                S.RestoreEmbed(e)
+            else
+                pcall(function() ex:Destroy() end)
+            end
+        end
+    end
+
+    local host = New("Frame", {
+        Size = UDim2.new(1,0,1,0),
+        Position = UDim2.new(0,0,0,0),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        ZIndex = 5,
+        Name = hostName,
+        ClipsDescendants = true,
+    }, containerFrame)
+
+    local recs = {}
+    for _, ch in ipairs(scr:GetChildren()) do
+        if ch:IsA("GuiObject") then
+            recs[#recs+1] = {obj = ch, origParent = scr, origPos = ch.Position, origSize = ch.Size}
+        end
+    end
+    if #recs == 0 then
+        pcall(function() host:Destroy() end)
+        return nil
+    end
+    for _, rec in ipairs(recs) do
+        pcall(function() rec.obj.Parent = host end)
+    end
+
+    ForceStretchToParent(host)          -- root only
+    S.RegisterEmbed(host, scr, recs)
+    S.FitEmbedded(host, scr)
+    return host
 end
 
 local function RunFeatureScript(code, name, containerFrame, indicator, statusLabel)
@@ -2781,7 +3131,10 @@ local function RunFeatureScript(code, name, containerFrame, indicator, statusLab
 
     if indicator then indicator.BackgroundColor3 = C.RED end
     if statusLabel then statusLabel.Text = "⏳ Đang thực thi..." end
+    ReleaseHubFocus()   -- v4.4b: đang dán code trong TextBox mà chạy luôn thì game vẫn "khóa" input
 
+    local embedCount, lateCandidate = 0, 0
+    local featureUnhook = nil
     local ok, err = pcall(function()
         local fn, lerr = loadstring(code)
         if not fn then error("loadstring thất bại: "..tostring(lerr)) end
@@ -2789,65 +3142,86 @@ local function RunFeatureScript(code, name, containerFrame, indicator, statusLab
         local beforeGuis = {}
         for _, g in ipairs(playerGui:GetChildren()) do beforeGuis[g] = true end
         for _, g in ipairs(targetGui:GetChildren()) do beforeGuis[g] = true end
+        -- CoreGui KHÔNG bị đụng tới nữa (trước đây vừa snapshot vừa scan -> dễ bốc UI của game)
+
+        -- Hook Instance.new để biết CHÍNH XÁC ScreenGui nào do script của tab này tạo.
+        -- Gỡ hook ở mọi nhánh (kể cả khi code lỗi) — xem featureUnhook bên dưới.
+        local mine = {}
+        local realNew = Instance.new
+        local hooked = false
+        local myCo = coroutine.running()
         pcall(function()
-            local cg = game:GetService("CoreGui")
-            if cg and cg ~= targetGui then
-                for _, g in ipairs(cg:GetChildren()) do beforeGuis[g] = true end
+            Instance.new = function(cls, ...)
+                local inst = realNew(cls, ...)
+                -- chỉ nhận GUI được tạo BỞI ĐÚNG thread của tab này: script khác (hoặc GUI của
+                -- game) tạo ScreenGui trong lúc hub đang chờ cũng KHÔNG bị gán nhầm cho ta.
+                if hooked and cls == "ScreenGui" and coroutine.running() == myCo then
+                    mine[#mine+1] = inst
+                end
+                return inst
             end
+            hooked = true
         end)
+        featureUnhook = function()
+            if hooked then
+                hooked = false
+                pcall(function() Instance.new = realNew end)
+            end
+        end
 
-        fn()
+        local fnOk, fnErr = pcall(fn)
 
+        -- Script tạo GUI trễ (sau task.wait / HttpGet) vẫn được chờ, nhưng:
+        --   * GUI mà hook bắt được (chắc chắn của ta): chờ tối đa 2.4s
+        --   * GUI "đoán" từ diff (rủi ro ăn nhầm UI của game): CHỈ trong 0.6s đầu && khi
+        --     người dùng bật 🕵. Đây là chỗ bản 4.4a làm ẩu (đoán suốt 2.4s) -> mất nút game.
         local newGuis = {}
         for i = 1, 12 do
-            task.wait(0.2)
-            local found = ScanNewGuis(beforeGuis)
-            for _, g in ipairs(found) do table.insert(newGuis, g) end
+            local guessOK = (S.embedGuessNew == true) and (i <= 3)
+            local found = ScanNewGuis(beforeGuis, mine, guessOK)
+            for _, g in ipairs(found) do newGuis[#newGuis+1] = g end
             if #newGuis > 0 then break end
+            task.wait(0.2)
         end
+        featureUnhook()
+        if not fnOk then error(fnErr) end
 
         for _, g in ipairs(newGuis) do
             if g:IsA("ScreenGui") or g:IsA("Folder") then
-                for _, existing in ipairs(containerFrame:GetChildren()) do
-                    if existing.Name == "Embedded_"..g.Name then
-                        existing:Destroy()
-                    end
-                end
-
-                local host = New("Frame", {
-                    Size = UDim2.new(1,0,1,0),
-                    Position = UDim2.new(0,0,0,0),
-                    BackgroundTransparency = 1,
-                    BorderSizePixel = 0,
-                    ZIndex = 5,
-                    Name = "Embedded_"..g.Name,
-                    ClipsDescendants = false,
-                }, containerFrame)
-
-                for _, child in ipairs(g:GetChildren()) do
-                    pcall(function() child.Parent = host end)
-                end
-                pcall(function() g:Destroy() end)
-
-                ForceStretchToParent(host)
-
-                if not _G.BananaCatHub_EmbedHosts then
-                    _G.BananaCatHub_EmbedHosts = {}
-                end
-                table.insert(_G.BananaCatHub_EmbedHosts, host)
-            elseif g:IsA("GuiObject") then
-                pcall(function()
-                    g.Parent = containerFrame
-                    g.ZIndex = 5
-                    ForceStretchToParent(g)
-                end)
+                if S.EmbedGui(g, containerFrame) then embedCount += 1 end
             end
+        end
+        -- GuiObject "rời" không còn bị bốc sang tab: đó thường là UI của game, động vào là lỗi nút.
+
+        -- Gợi ý đúng lúc: script CÓ tạo GUI nhưng GUI đó sinh quá trễ nên hub không chắc là
+        -- của nó -> nói người dùng bật 🕵 thay vì âm thầm bỏ qua (hoặc đoán ẩu như 4.4a).
+        if embedCount == 0 and not (S.embedGuessNew == true) and #mine == 0 then
+            local late = ScanNewGuis(beforeGuis, nil, true)
+            local real = 0
+            for _, g in ipairs(late) do
+                if g.Parent and not g:IsDescendantOf(containerFrame) then real += 1 end
+            end
+            if real > 0 then lateCandidate = real end
         end
     end)
 
+    if featureUnhook then pcall(featureUnhook) end
+
     if ok then
         if indicator then indicator.BackgroundColor3 = C.GREEN end
-        if statusLabel then statusLabel.Text = "✅ Hoàn thành!" end
+        if statusLabel then
+            if embedCount > 0 then
+                statusLabel.Text = string.format(
+                    "✅ xong · %d GUI đã nhúng vào tab (bấm ✕ để trả về màn hình game)", embedCount)
+            elseif lateCandidate > 0 and not (S.embedGuessNew == true) then
+                statusLabel.Text = string.format(
+                    "✅ xong · GUI sinh trễ (%d) — bật 🕵 'Đoán GUI trễ' nếu muốn nhúng vào tab", lateCandidate)
+            elseif S.embedEnabled then
+                statusLabel.Text = "✅ xong · script không tạo GUI nào để nhúng (bình thường)"
+            else
+                statusLabel.Text = "✅ xong · nhúng đang TẮT, GUI nằm ngoài màn hình"
+            end
+        end
         return true
     else
         if indicator then indicator.BackgroundColor3 = C.RED end
@@ -3010,10 +3384,11 @@ local function CreateFeatureTab(name, icon, codeContent)
     }, editorFrame)
     Corner(cancelEditBtn, UDim.new(0,5))
 
+    -- v4.4b: ClearHost không còn "phá sạch" — nó trả GUI của script về ScreenGui gốc
+    -- (Position/Size cũ) rồi mới xóa host, nên bấm Chạy lại / ✕ / đổi code không làm
+    -- script của bạn mất UI nữa.
     local function ClearHost()
-        for _, child in ipairs(embedHost:GetChildren()) do
-            pcall(function() child:Destroy() end)
-        end
+        S.ClearEmbedsUnder(embedHost)
     end
 
     runFeatureBtn.Activated:Connect(function()
@@ -3075,20 +3450,25 @@ local function CreateFeatureTab(name, icon, codeContent)
     return featureData
 end
 
+-- v4.4b: watcher resize. Bản cũ ép Size từng frame con mỗi lần kéo menu (nguồn gốc làm vỡ layout
+-- + nuốt click). Bản mới chỉ cập nhật UIScale của host -> GUI to/tho theo menu mà layout còn nguyên.
 task.spawn(function()
     task.wait(1)
     local lastSize = main.AbsoluteSize
     while main and main.Parent do
-        task.wait(0.1)
+        task.wait(0.15)
         if main.AbsoluteSize ~= lastSize then
             lastSize = main.AbsoluteSize
+            if #S.embeds > 0 then
+                S.SyncAllEmbeds()
+            end
+            S.PruneEmbeds()
+            -- dọn list _G do bản v4.4a để lại (nó lớn vô hạn vì không ai xoá phần tử đã chết)
             if _G.BananaCatHub_EmbedHosts then
-                for _, host in ipairs(_G.BananaCatHub_EmbedHosts) do
-                    if host and host.Parent then
-                        pcall(function()
-                            host.Size = UDim2.new(1, 0, 1, 0)
-                            ForceStretchToParent(host)
-                        end)
+                for i = #_G.BananaCatHub_EmbedHosts, 1, -1 do
+                    local host = _G.BananaCatHub_EmbedHosts[i]
+                    if not host or not host.Parent then
+                        table.remove(_G.BananaCatHub_EmbedHosts, i)
                     end
                 end
             end
@@ -3103,9 +3483,13 @@ Label(createFeatureTab, "➕ Tạo Tab Tính Năng Tích Hợp", cy)
 cy = cy + 16
 Label(createFeatureTab, "Dán NGUYÊN một script hoàn chỉnh HOẶC link raw.", cy)
 cy = cy + 14
-Label(createFeatureTab, "Script sẽ chạy trong tab, GUI sẽ được nhúng vào menu này.", cy)
+Label(createFeatureTab, "Script chạy trong tab; GUI của NÓ được nhúng vào menu (không đụng GUI game).", cy)
 cy = cy + 14
 Label(createFeatureTab, "💾 Tab tạo ra TỰ ĐỘNG được lưu — thoát game vào lại vẫn còn, khỏi cần bấm gì thêm.", cy)
+cy = cy + 14
+Label(createFeatureTab, "🧩 Bấm 🎯 Chạy Script xong nhớ bấm ✕ hoặc kéo menu to ra — hub tự nhả focus", cy)
+cy = cy + 14
+Label(createFeatureTab, "    để bạn quay chuột/bắn lại bình thường. Nếu script vẫn chiếm chuột: 🧩 TẮT nhúng.", cy)
 cy = cy + 18
 
 Label(createFeatureTab, "🏷️ Tên Tính Năng:", cy)
@@ -3160,12 +3544,53 @@ local createTabBtn = Button(createFeatureTab, "➕ Tạo Tab Tính Năng", 8, cy
 local clearFormBtn = Button(createFeatureTab, "🧹 Xóa Form", 196, cy, 100, 28, C.ORANGE)
 cy = cy + 34
 
-local grabSizeCodeBtn = Button(createFeatureTab, "📏 Lấy Code Kích Thước (Auto-Lưu)", 8, cy, 280, 26, C.PURPLE)
-cy = cy + 32
+local embedToggleBtn = Button(createFeatureTab, "🧩 Nhúng vào Tab: BẬT", 304, cy - 34, 122, 28, C.GREEN)
+local guessToggleBtn = Button(createFeatureTab, "🕵 Đoán GUI trễ: TẮT", 8, cy, 150, 26, C.GRAY)
+local grabSizeCodeBtn = Button(createFeatureTab, "📏 Code Tự Co Giãn (an toàn, Auto-Lưu)", 164, cy, 262, 26, C.PURPLE)
+cy = cy + 34
+local fixMouseBtn = Button(createFeatureTab, "🖱 Kẹt chuột / không bấm được? Bấm đây", 8, cy, 418, 24, C.RED)
+cy = cy + 30
 
 local createStatus = Label(createFeatureTab, "", cy)
 createStatus.TextColor3=C.YELLOW; createStatus.TextSize=9; createStatus.ZIndex=6
 cy = cy + 14
+
+-- (handler đặt ở ĐÂY vì createStatus phải nằm trong scope lúc compile closure —
+--  đặt sớm hơn thì Lua biên dịch `createStatus` thành GLOBAL và gán vào nil -> error)
+embedToggleBtn.Activated:Connect(function()
+    S.embedEnabled = not S.embedEnabled
+    if S.embedEnabled then
+        embedToggleBtn.Text = "🧩 Nhúng vào Tab: BẬT"
+        embedToggleBtn.BackgroundColor3 = C.GREEN
+        createStatus.Text = "🧩 BẬT: GUI của script được mượn vào tab. Bấm ✕ trên tab để trả về như cũ."
+    else
+        embedToggleBtn.Text = "🧩 Nhúng vào Tab: TẮT"
+        embedToggleBtn.BackgroundColor3 = C.GRAY
+        -- TẮT = hoàn tác ngay mọi thứ đang nhúng: hub không còn đụng vào GUI nào -> input của
+        -- game (quay chuột, bắn, nút HUD) trở lại bình thường 100%.
+        for _, ft in ipairs(featureTabs) do
+            local hostFrame = ft.frame and ft.frame:FindFirstChild("ScriptHost")
+            if hostFrame then S.ClearEmbedsUnder(hostFrame) end
+        end
+        S.PruneEmbeds()
+        createStatus.Text = "🛡 Chế độ an toàn: hub không sửa GUI nào nữa. Muốn nhúng lại thì bấm BẬT."
+    end
+end)
+
+guessToggleBtn.Activated:Connect(function()
+    S.embedGuessNew = not (S.embedGuessNew == true)
+    if S.embedGuessNew then
+        guessToggleBtn.Text = "🕵 Đoán GUI trễ: BẬT"
+        guessToggleBtn.BackgroundColor3 = C.ORANGE
+        createStatus.Text = "🕵 BẬT: script tạo GUI trễ (sau HttpGet/task.wait) sẽ được nhúng — tiện hơn"
+            .. " nhưng nếu game cũng vừa mở UI đúng lúc thì UI đó có thể bị mượn vào tab (bấm ✕ để trả)."
+    else
+        guessToggleBtn.Text = "🕵 Đoán GUI trễ: TẮT"
+        guessToggleBtn.BackgroundColor3 = C.GRAY
+        createStatus.Text = "🛡 An toàn nhất: chỉ nhúng GUI mà hub chắc chắn là của script."
+            .. " Script tạo GUI trễ sẽ chạy bình thường ngoài màn hình, không bị nhúng."
+    end
+end)
 
 grabSizeCodeBtn.Activated:Connect(function()
     local currentCode = featureCodeIn.Text
@@ -3174,39 +3599,73 @@ grabSizeCodeBtn.Activated:Connect(function()
         return
     end
 
+    -- v4.4b. Wrapper cũ của bản 4.4a QUÉT MỌI ScreenGui trong CoreGui + PlayerGui rồi ép
+    -- Size=(1,0,1,0)/Position=(0,0) lên TỪNG frame con -> đó chính là lý do "mấy nút của game
+    -- bị lỗi" và "không click/bắn được" (một frame trong suốt bị kéo full màn hình, Active,
+    -- nuốt hết input). Wrapper mới KHÔNG hề đụng GUI của game: nó chỉ
+    --   (1) hook Instance.new trong lúc script của bạn chạy -> biết GUI nào là CỦA BẠN,
+    --   (2) gắn UIScale vào root GUI của bạn để nó co giãn theo kích thước menu hub.
     local wrappedCode = [[
--- ===== AUTO-GENERATED SIZE WRAPPER =====
-local _AUTO_SIZE_WRAPPER = true
-
-local function _ForceStretch(obj)
-    if not obj then return end
-    pcall(function()
-        if obj:IsA("GuiObject") then
-            if obj:IsA("Frame") or obj:IsA("ScrollingFrame") or obj:IsA("CanvasGroup") then
-                obj.Size = UDim2.new(1, 0, 1, 0)
-                obj.Position = UDim2.new(0, 0, 0, 0)
-            end
-        end
-    end)
-    for _, c in ipairs(obj:GetChildren()) do
-        _ForceStretch(c)
+-- ===== AUTO-GENERATED FIT WRAPPER v4.4b =====
+-- An toàn: chỉ can thiệp GUI do CHÍNH script này tạo. Không quét CoreGui/PlayerGui.
+local _FIT_WRAPPER = true
+local _bcRealNew = Instance.new
+local _bcMine = {}
+local _bcHookOn = true
+pcall(function()
+    Instance.new = function(cls, ...)
+        local inst = _bcRealNew(cls, ...)
+        if _bcHookOn and cls == "ScreenGui" then _bcMine[#_bcMine + 1] = inst end
+        return inst
     end
-end
+end)
 
 ]] .. currentCode .. [[
 
+pcall(function() _bcHookOn = false; Instance.new = _bcRealNew end)
+
+-- Script có thể tạo GUI trễ (sau HttpGet/task.wait): giữ hook thêm vài giây
+task.delay(4, function()
+    pcall(function() _bcHookOn = false; Instance.new = _bcRealNew end)
+end)
 
 task.defer(function()
-    task.wait(0.5)
-    for _, g in ipairs(game:GetService("CoreGui"):GetChildren()) do
-        if g:IsA("ScreenGui") and g.Name ~= "ExMenu" then
-            pcall(function() _ForceStretch(g) end)
+    task.wait(0.4)
+    local hub = nil
+    pcall(function()
+        local hubGui = (gethui and gethui()) or game:GetService("Players").LocalPlayer:FindFirstChildOfClass("PlayerGui")
+        hub = hubGui and hubGui:FindFirstChild("ExMenu") and hubGui.ExMenu:FindFirstChildWhichIsA("Frame")
+        if not hub then
+            local pg = game:GetService("Players").LocalPlayer:FindFirstChildOfClass("PlayerGui")
+            hub = pg and pg:FindFirstChild("ExMenu") and pg.ExMenu:FindFirstChildWhichIsA("Frame")
         end
-    end
-    for _, g in ipairs(game.Players.LocalPlayer.PlayerGui:GetChildren()) do
-        if g:IsA("ScreenGui") and g.Name ~= "ExMenu" then
-            pcall(function() _ForceStretch(g) end)
-        end
+    end)
+    for _, g in ipairs(_bcMine) do
+        pcall(function()
+            if not g or not g.Parent then return end
+            local root = g:FindFirstChildWhichIsA("Frame")
+                or g:FindFirstChildWhichIsA("ScrollingFrame")
+                or g:FindFirstChildWhichIsA("GuiObject")
+            if not root then return end
+            -- chỉ can chỉnh khi GUI dùng kích thước hard-code (offset). GUI đã dùng Scale
+            -- (1,0,1,0) thì tự theo màn hình rồi, nhân UIScale lên nữa là TRÀN ra ngoài.
+            if root.Size and (root.Size.X.Scale ~= 0 or root.Size.Y.Scale ~= 0) then return end
+            local us = root:FindFirstChild("BananaCatFitScale")
+            if not us then
+                us = _bcRealNew("UIScale")
+                us.Name = "BananaCatFitScale"
+                us.Parent = root
+            end
+            if hub then
+                local function _bcSync()
+                    us.Scale = math.clamp(hub.AbsoluteSize.X / 540, 0.8, 1.6)
+                end
+                _bcSync()
+                hub:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+                    pcall(_bcSync)
+                end)
+            end
+        end)
     end
 end)
 ]]
@@ -3228,10 +3687,32 @@ end)
     if RebuildScripts then RebuildScripts() end
     Store.saveSoon()
 
-    featureCodeIn.Text = wrappedCode
-    featureNameIn.Text = "AutoSize_"..os.date("%H%M%S")
+    -- v4.4b: KHÔNG ghi đè ô code nữa (bản cũ làm MẤT code gốc của bạn trong tab).
+    createStatus.Text = "✅ Đã lưu bản tự co giãn vào tab 'Code Đã Lưu': "..saveName..
+        " · để tab tính năng co giãn theo menu thì KHÔNG cần bản này, hub tự làm khi bấm ▶ Chạy Script."
+end)
 
-    createStatus.Text = "✅ Đã lấy code kích thước! Đã lưu vào 'Code Đã Lưu' với tên: "..saveName
+-- Nút "cứu nguy": trả mọi GUI hub đang mượn về game + nhả focus + trả chuột về mặc định.
+-- Dùng khi bấm ▶ Chạy Script xong mà không quay chuột/bắn được (do CHÍNH script bạn dán chiếm,
+-- không phải do hub) — hub không can thiệp ngược lại script đó, chỉ trả input về cho game.
+fixMouseBtn.Activated:Connect(function()
+    local done = {}
+    ReleaseHubFocus()
+    done[#done+1] = "nhả focus"
+    local restored = 0
+    for _, ft in ipairs(featureTabs) do
+        local hostFrame = ft.frame and ft.frame:FindFirstChild("ScriptHost")
+        if hostFrame then restored = restored + S.ClearEmbedsUnder(hostFrame) end
+    end
+    if restored > 0 then done[#done+1] = "đã trả " .. restored .. " GUI về game" end
+    -- đồng bộ lại host với trạng thái Enabled thật của GUI (phòng khi lệch sau khi script toggle)
+    for _, e in ipairs(S.embeds) do
+        pcall(function() e.host.Visible = e.gui.Enabled end)
+    end
+    pcall(function() UserInputService.MouseBehavior = Enum.MouseBehavior.Default end)
+    done[#done+1] = "chuột về mặc định"
+    createStatus.Text = "🖱 " .. table.concat(done, " · ")
+        .. " — vẫn không được? 🧩 TẮT nhúng rồi bấm ▶ lại (lúc đó hub không đụng GUI nào)"
 end)
 
 Label(createFeatureTab, "━━━━━━━━━━━━━━━━━━━━━━", cy)
@@ -3300,6 +3781,10 @@ local function RebuildFeatureList()
             end
             if idx then
                 if activeTab == ft.frame then SwitchTab(1) end
+                -- v4.4b: trả GUI của script về ScreenGui gốc TRƯỚC khi xóa frame, nếu không
+                -- GUI đó mất cha là biến mất hẳn khỏi game (bản cũ để nguyên như vậy).
+                local hostFrame = ft.frame and ft.frame:FindFirstChild("ScriptHost")
+                if hostFrame then S.ClearEmbedsUnder(hostFrame) end
                 ft.btn:Destroy()
                 ft.frame:Destroy()
                 table.remove(tabs, idx)
@@ -3412,6 +3897,7 @@ end
 local function ToggleMainFrame()
     main.Visible = not main.Visible
     togBtn.Text = main.Visible and "✕" or "🍌"
+    if not main.Visible then ReleaseHubFocus() end   -- v4.4b: đóng menu là phải trả input cho game
 end
 
 closeBtn.Activated:Connect(function()
@@ -3504,7 +3990,7 @@ main.Visible = true
 togBtn.Text = "✕"
 
 print(string.format(
-    "✅ Banana Cat Hub v4.4a — sẵn sàng! Đã nạp lại %d script + %d waypoint + %d tab tính năng từ bộ nhớ (chế độ: %s%s)",
+    "✅ Banana Cat Hub v4.4b — sẵn sàng! Đã nạp lại %d script + %d waypoint + %d tab tính năng từ bộ nhớ (chế độ: %s%s)",
     Store.loadedScripts, Store.loadedWp, #Store.loadedFeatures, Store.mode,
     Store.lastError and (" | ⚠️ " .. Store.lastError) or ""
 ))
