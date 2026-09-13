@@ -3026,18 +3026,6 @@ end
 -- Vì s được tính từ bounding box nên nội dung sau khi fit NẰM TRONG tab -> không thể tràn ra
 -- ngoài và nuốt click của game (điểm mà bản 4.4a làm ngược).
 
-local function mulUDim(u, k)
-    return UDim2.new(u.X.Scale, math.floor(u.X.Offset * k + 0.5),
-                     u.Y.Scale, math.floor(u.Y.Offset * k + 0.5))
-end
-local function mulUDimShift(u, k, dx, dy)
-    return UDim2.new(u.X.Scale, math.floor(u.X.Offset * k + 0.5) + dx,
-                     u.Y.Scale, math.floor(u.Y.Offset * k + 0.5) + dy)
-end
-local function mulDim(u, k)
-    return UDim.new(u.Scale, math.floor(u.Offset * k + 0.5))
-end
-
 -- Đo khung bao của các frame con trực tiếp của host (toạ độ tuyệt đối -> tính theo host)
 function S.MeasureHost(host)
     local hx, hy = host.AbsolutePosition.X, host.AbsolutePosition.Y
@@ -3102,6 +3090,19 @@ end
 function S.FitEmbedded(entry)
     local host, gui = entry.host, entry.gui
     if not host or not host.Parent then return end
+    -- 3 helper này đặt TRONG hàm để không tốn slot local của main chunk (Luau ~200 slot/chunk)
+    local function mulUDim(u, k)
+        return UDim2.new(u.X.Scale, math.floor(u.X.Offset * k + 0.5),
+                         u.Y.Scale, math.floor(u.Y.Offset * k + 0.5))
+    end
+    local function mulUDimShift(u, k, dx, dy)
+        return UDim2.new(u.X.Scale, math.floor(u.X.Offset * k + 0.5) + dx,
+                         u.Y.Scale, math.floor(u.Y.Offset * k + 0.5) + dy)
+    end
+    local function mulDim(u, k)
+        return UDim.new(u.Scale, math.floor(u.Offset * k + 0.5))
+    end
+
     local area = host.Parent                      -- embedHost trong tab
     local aw = area.AbsoluteSize.X - 6
     local ah = area.AbsoluteSize.Y - 6
