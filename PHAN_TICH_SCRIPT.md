@@ -365,6 +365,138 @@ syntax toàn file **OK**; khối `if/do/function … end` **cân bằng**; **loc
 
 ---
 
+## ✅ Cập nhật 2026-09-13 (lần 2) — bản **v4.4h**: "GUI tính năng VẪN nằm ngoài menu"
+
+Phản ánh: sau bản v4.4g, GUI của script tính năng **vẫn nằm ngoài menu hub** — cả lần tạo đầu tiên
+lẫn sau khi thoát game vào lại. Điều tra ra **3 nguyên nhân**, trong đó 1 cái là regression do chính
+bản v4.4g gây ra và 1 cái là lỗ hổng thiết kế có từ đầu.
+
+### Nguyên nhân 1 — REGRESSION của v4.4g: lọc TÊN GUI áp dụng cho MỌI trường hợp
+
+`S.IsEmbeddable()` của v4.4g chặn mọi ScreenGui có tên nằm trong `GAME_OWNED_GUI_NAMES`
+(`Main, InGame, Notifications, Topbar, Chat, Backpack, ExMenu, …`). Nhưng chính template của hub lại
+đặt `gui.Name = BC.Name` (tên tính năng do người dùng đặt), và **rất nhiều script tự đặt tên ScreenGui
+là `Main`/`InGame`/`Notifications`**. Kết quả: GUI của script bị hub từ chối **oan** → nằm ngoài menu.
+Bản v4.4f chỉ lọc tên ở nhánh "đoán", nên ca này v4.4f lại chạy được — tức v4.4g làm hỏng.
+
+**Cách sửa:** chia mức tin cậy (trust) thay vì lọc tên vô điều kiện:
+
+| trust | khi nào | có bị lọc tên? |
+|---|---|---|
+| `certain` | hook bắt đúng luồng của người bấm ▶ | **không** (chỉ chặn tên UI hệ thống thật) |
+| `manual` | GUI sinh ra trong lúc script của tab chạy, hoặc người dùng bấm 🔁 | **không** (chỉ chặn tên UI hệ thống thật) |
+| `guess` | hub chỉ đoán từ diff-scan, không có tín hiệu sở hữu | có (chặn cả `Main/InGame/Notifications`) |
+
+Tên UI hệ thống thật của Roblox (`Topbar, TopbarContainer, PlayerList, Chat, Backpack, DevConsoleUI,
+ScriptInvitationUI, FollowPromptUI, TouchControlsFrame, PauseMenu, CoreGui, ExMenu`) thì **luôn** bị
+chặn ở mọi mức — nên không thể ăn nhầm UI của game (giữ đúng ràng buộc "không làm mất tính năng").
+
+### Nguyên nhân 2 — executor CHẶN ghi đè `Instance.new` → hub "mù", không biết GUI nào là của script
+
+Toàn bộ cơ chế nhận diện GUI dựa vào hook `Instance.new`. Nhiều executor (hoặc bản cập nhật chống
+hook) khiến phép gán đó **thất bại** → `mine`/`records` rỗng → hub không nhúng gì, mà nhãn còn báo
+"bình thường" nên không ai biết vì sao.
+
+**Cách sửa — 4 lớp, không lớp nào phụ thuộc lớp nào:**
+
+1. **Probe kiểm chứng hook:** sau khi gán, hub tự tạo thử một `ScreenGui` (không gắn Parent, hủy ngay)
+   để xác nhận lời gọi **thật sự đi qua** hàm của mình → `state.available`. Có executor cho gán nhưng
+   bỏ qua hook; trước đây hub không phân biệt được.
+2. **`hookfunction` dự phòng:** nếu gán thất bại và executor có `hookfunction` (Synapse/Xeno/Wave/Delta…)
+   thì hook bằng cách đó; khi gỡ thì **trả lại đúng hàm gốc** cho executor.
+3. **Watcher `ChildAdded`** trên `PlayerGui` / `gethui()` / `CoreGui` — lớp **không cần hook**: GUI được
+   script gắn lên màn hình **trong lúc script của tab đang chạy** thì gần như chắc chắn là của tab
+   (tín hiệu sở hữu theo *thời điểm*, mạnh không kém hook).
+4. **Quét diff an toàn** tự bật khi hook chết (`available == false`): chỉ nhận GUI **mới xuất hiện**,
+   **có frame con**, và **không mang tên UI hệ thống** → vẫn không bốc nhầm UI của game.
+
+### Nguyên nhân 3 — LỖ HỔNG THIẾT KẾ: chạy script ở tab 💻 Code thì KHÔNG BAO GIỜ nhúng GUI
+
+Hub có **hai** đường chạy script:
+
+| đường chạy | hàm | có nhúng GUI vào menu? |
+|---|---|---|
+| tab ➕ **Tạo Tính Năng** → ▶ Chạy Script | `RunFeatureScript` | có (đã sửa ở v4.4g/v4.4h) |
+| tab 💻 **Code** / 💾 **Code Đã Lưu** / 🛠 **Hỗ Trợ** → ▶ | `RunCode` → `ExecOnce` | **KHÔNG** (trước v4.4h) |
+
+Nghĩa là nếu người dùng dán script vào tab Code (hoặc chạy từ danh sách script đã lưu / tab Hỗ Trợ)
+thì GUI **luôn** nằm ngoài menu — lần đầu cũng như sau khi vào lại game. Đây rất có thể là ca đang gặp.
+
+**Cách sửa (thêm mới, không đụng hành vi cũ):** `RunCode` nay cũng chụp GUI — nhưng **chỉ ở lần chạy
+đầu tiên** rồi nhả hook ngay (không giữ hook suốt 1000 lần lặp, vừa nặng vừa dễ ăn nhầm UI game tạo
+ra về sau). GUI bắt được sẽ đậu vào tab mới **🧩 GUI Ngoài**:
+
+- tab chỉ được tạo **khi thật sự có GUI để đưa vào** (không tạo tab rỗng);
+- mỗi GUI một **ô riêng cao 240 px**, xếp dọc, kèm nút **↩ Trả về game** (gọi `S.ClearEmbedsUnder`
+  → trả frame con về ScreenGui gốc, khôi phục Position/Size, hủy host);
+- tối đa **2 GUI/lần chạy** (`S.PARK_MAX`) để không "nuốt" cả UI của game;
+- nhãn nút hiển thị số GUI đang đậu: `🧩 GUI Ngoài (2)`;
+- **tắt 🧩 "Nhúng GUI vào menu" là hành vi trở về đúng như cũ** (không hook, không tạo tab) —
+  đã có test kiểm chứng (P7).
+
+### Kèm theo: chẩn đoán ra console (F9)
+
+Mỗi lần bấm ▶ (cả tab Tính Năng lẫn tab Code) hub in một dòng:
+
+```
+[BananaCatHub] ▶ 'Auto Farm' · hook=OK (ghi đè Instance.new) · ghi nhận 2 GUI (chắc chắn 2, watcher 0, quét 0) · nhúng=BẬT · lý do cuối: — · đã nhúng: 1
+[BananaCatHub] 🔍 bỏ qua GUI 'Topbar' (hook, certain): là GUI của game/hệ thống (Topbar)
+```
+
+`hook=` cho biết ngay executor có chặn hook không (`OK` / `cài được nhưng KHÔNG ăn` / `BỊ CHẶN`),
+và **từng GUI bị bỏ qua kèm lý do** → hết cảnh "không nhúng mà không biết vì sao". Nhãn trạng thái
+trong tab cũng báo "⚠️ Executor CHẶN hook Instance.new — hub đã dùng chế độ quét dự phòng…".
+
+Ngoài ra:
+
+- thử nhúng lại tới **10 s** (`0.6/1.8/4/7/10`) thay vì 7 s, giữ hook+watcher **11 s**;
+- **chống rò connection khi hủy chạy:** `Cancel()` (nút ⏹ Dừng, hoặc bấm ▶ lần mới) nay gọi
+  `S.AbortRunCapture()` → gỡ hook `Instance.new` **và** `Disconnect` toàn bộ watcher `ChildAdded`
+  của lần chạy bị hủy. Trước đó mỗi lần hủy để lại 3 connection sống mãi (test P11/P12).
+
+### Kiểm chứng (Lua 5.x + Roblox API giả lập, chạy thật từng hàm của file)
+
+| bộ test | kết quả |
+|---|---|
+| unit (`S.IsEmbeddable`, hook, watcher, trust, park, gỡ hook…) | **21/21 PASS** |
+| end-to-end `RunFeatureScript` (10 kịch bản A–J) | **15/15 PASS** |
+| end-to-end `RunCode` → tab 🧩 GUI Ngoài (12 kịch bản P1–P12) | **25/25 PASS** |
+| **tổng** | **61/61 PASS** |
+
+So sánh **3 phiên bản** trên cùng 8 kịch bản (môi trường giả lập giống nhau):
+
+| kịch bản | v4.4f (main) | v4.4g | **v4.4h** |
+|---|---|---|---|
+| A. GUI tạo đồng bộ | ✅ | ✅ | ✅ |
+| B. ScreenGui trước, frame con sau 1 s (bất đồng bộ) | ❌ | ✅ | ✅ |
+| C. GUI dựng trong `task.delay(5s)` | ❌ | ✅ | ✅ |
+| D. GUI dựng trong `task.spawn` | ❌ | ✅ | ✅ |
+| E. GUI tên **`Main`** | ✅ | ❌ *(regression)* | ✅ |
+| F. **executor CHẶN hook** | ❌ | ❌ | ✅ |
+| G. chặn hook + GUI tên `Main` | ❌ | ❌ | ✅ |
+| H. không ăn nhầm `Topbar` của game | ⛔ *(nhúng nhầm!)* | ✅ | ✅ |
+| **kết quả** | **2/8** | **5/8** | **8/8** |
+
+Chú thích: ✅ nhúng đúng GUI · ❌ không nhúng được · ⛔ nhúng nhầm UI của game.
+
+**Toàn file sau khi sửa:** syntax **OK** (5.682 dòng) · khối `if/do/function … end` **cân bằng**
+(depth cuối = 0) · **local cấp chunk vẫn 187/200** (không thêm local nào — mọi thứ mới gắn vào bảng
+`S`; `local cap` nằm trong hàm `RunCode`) · line endings **CRLF 100%** (5.681 CRLF / 0 LF lẻ) ·
+version đồng bộ `4.4h` ở header, title bar, `_G.BananaCatHubAPI.Version` và log khởi động.
+
+### Nếu sau bản này GUI vẫn nằm ngoài menu
+
+Mở console (F9) rồi bấm ▶, và đọc dòng `[BananaCatHub] ▶ …`:
+
+- `hook=BỊ CHẶN` → hub đã tự chuyển sang watcher/quét; nếu vẫn không thấy GUI thì GUI đó do
+  **script khác** tạo hoặc được tạo **sau 11 s** → bấm 🔁 "Cứu GUI" ở tab Tạo Tính Năng.
+- `ghi nhận 0 GUI` → script **không tạo ScreenGui nào** (chỉ vẽ bằng Drawing/overlay, hoặc GUI của nó
+  là `Folder` nằm sâu trong `CoreGui`) → trường hợp này không có gì để nhúng, đúng như nhãn báo.
+- `🔍 bỏ qua GUI 'X': …` → đọc lý do; nếu lý do là "tên hay là UI của game" thì bật 🕵 "Đoán GUI trễ"
+  hoặc bấm 🔁 "Cứu GUI" (mức `manual` cho phép tên chung chung).
+
+---
+
 ## 9. Kết luận một câu
 
 Đây là một hub executor **được viết bởi người hiểu rất rõ những "nỗi đau" thực tế của Roblox UI** (focus,
