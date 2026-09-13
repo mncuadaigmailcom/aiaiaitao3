@@ -6,11 +6,28 @@
 
 ---
 
-## ✅ ĐÃ SỬA TRONG BẢN NÀY (v4.4b → v4.4d) — nhật ký thay đổi
+## ✅ ĐÃ SỬA TRONG BẢN NÀY (v4.4b → v4.4e) — nhật ký thay đổi
 
 Bối cảnh sửa: người dùng báo **"dùng Tạo Tính Năng → bấm ▶ Chạy Script rồi không kéo màn hình lên
 và không bắn được, vài nút của game bị lỗi"**. Ba nguyên nhân đã xác định và sửa, cộng thêm vài
 lỗi P0/P1 đã liệt kê ở dưới.
+
+**v4.4e — OVERLAY: "vòng tròn niệm tâm / nút aim bị nhốt trong menu"**. Hub trước đây bốc MỌI
+ScreenGui mà script tạo vào tab, nên thứ cần nằm ngoài màn hình (crosshair, HUD, nút on-screen)
+cũng bị nhét theo và không dùng được. Nay:
+- `S.IsOverlayGui(g)`: tên bắt đầu `BCOV_` **hoặc** `SetAttribute("BananaCatOverlay"/"BananaCatNoEmbed", true)`
+  **hoặc** có con tên `BananaCatOverlay` ⇒ hub **bỏ qua** khi tự bắt GUI (`ScanNewGuis`), GUI ở lại màn hình game;
+  người dùng vẫn có thể chủ động `API:EmbedGui(gui)` nếu muốn nhúng.
+- API mới: `NewOverlay(tên, order)`, `MakeCrosshair(gui, {Style,Radius,Gap,Thickness,Color})` (handle có
+  `SetVisible/SetColor/SetSize/Destroy`), `MakeScreenButton({Text,Size,OnClick,OnDown,OnUp})` (`Draggable=true`,
+  nhận cả giữ-nút lẫn bật/tắt), `IsOverlay(g)`, `CloseFeature(tên)`.
+- `✕` và `🗑` của tab tính năng gọi `S.CloseFeature(tên)` ⇒ chạy `bcClose()` script đã đăng ký ở
+  `_G.BC_FEATURES` ⇒ vòng tròn/nút on-screen bị dọn sạch, không bỏ lại trên màn hình.
+- Code mẫu (`S.FeatureTemplate`) có thêm khối **OVERLAY**: `ovGui()` + `BCAimBtn` + vòng tròn và 4 nút
+  cài đặt trong menu điều khiển overlay (BẬT/TẮT crosshair, kiểu circle/box/dot, kính thước, nút AIM),
+  mục "HAI TẦNG GIAO DIỆN" + 5 công thức (Aimbot/FOV, ESP/Tracer, AutoClicker, Watermark, drag) để
+  dùng cho nhiều loại tính năng. Mọi lời gọi API đều `pcall` + có fallback tự vẽ ⇒ không sập khi hub
+  cũ/khác không có API.
 
 **v4.4d — nút 📋 "Copy Code Mẫu Cho AI"**: bấm 1 nút trong "Tạo Tính Năng" là ra code mẫu đưa cho
 người khác/AI viết tiếp; dán lại rồi ▶ Chạy Script thì GUI **tự vừa ô tab** và **tự theo khi kéo
@@ -44,6 +61,8 @@ lọt thỏm góc tab. v4.4c thay cơ chế đó bằng **scale đều vừa kh�
 | 13 | **BUG-8**: Tab "Code Đã Lưu" báo trạng thái chạy **ngay trên nút ▶ Chạy** (trước đây ghi sang nhãn của Tab 1 → không thấy gì) | TAB2 |
 | 15 | **(v4.4d) Nút `📋 Copy Code Mẫu Cho AI (tự vừa size menu)`** — clipboard + lưu "Code Đã Lưu" + chỉ điền vào ô code khi trống | `copyTemplateBtn`, `S.FeatureTemplate` |
 | 16 | **(v4.4d) `_G.BananaCatHubAPI`** cho script bên ngoài: `TabArea(name)` / `OnResize(fn)` / `FeatureTabHost(name)` / `FitToTab(obj)` / `EmbedGui(gui)` / `ReleaseFocus()`; `main.Size` đổi → `S.NotifyResize()` bắn tới script, `BcFit()` re-fit GUI đang nhúng | khu `S.*` |
+| 18 | **(v4.4e) OVERLAY ngoài màn hình**: `S.IsOverlayGui` + bỏ qua trong `ScanNewGuis`; `NewOverlay`/`MakeCrosshair`/`MakeScreenButton`/`IsOverlay`/`CloseFeature` trong `_G.BananaCatHubAPI`; `✕`/`🗑` gọi `S.CloseFeature` | `S.IsOverlayGui`, `_G.BananaCatHubAPI`, `ClearHost`, `delBtn` |
+| 19 | **(v4.4e)** code mẫu có khối **OVERLAY** (vòng tròn niệm tâm + nút AIM + cài đặt trong menu) + "HAI TẦNG GIAO DIỆN" + 5 công thức loại tính năng; API nào cũng bọc `pcall` + fallback tự vẽ | `S.FeatureTemplate` |
 | 17 | **(v4.4d)** `createFeatureTab.CanvasSize = cy + 40` → cuộn tới các nút cuối tab | cuối khối TAB5 |
 | 14 | **BUG-16**: host nhúng chết bị dọn (`S.PruneEmbeds`) + dọn luôn `_G.BananaCatHub_EmbedHosts` cũ → hết leak | TAB5 watcher |
 

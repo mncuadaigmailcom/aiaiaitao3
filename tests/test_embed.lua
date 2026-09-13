@@ -86,8 +86,9 @@ local function makeObj(cls, name)
             for i, f in ipairs(t) do if f == fn then table.remove(t, i) break end end
         end}
     end
-    for _, sn in ipairs({ "MouseButton1Click", "MouseButton1Down", "Activated", "Changed",
-                          "MouseEnter", "MouseLeave", "FocusLost" }) do
+    for _, sn in ipairs({ "MouseButton1Click", "MouseButton1Down", "MouseButton1Up", "Activated",
+                          "Changed", "MouseEnter", "MouseLeave", "FocusLost", "FocusReceived",
+                          "InputBegan", "InputEnded" }) do
         o[sn] = { Connect = function(_, fn) return o:_on(sn, fn) end }
     end
     function o:WaitForChild(n) return o:FindFirstChild(n) end
@@ -180,6 +181,23 @@ end })
 workspace = makeObj("Workspace", "workspace")
 workspace.CurrentCamera = nil
 setclipboard = nil
+
+------------------------------------------------------------------ stub cho các helper hub-level
+-- (khối trích xuất dùng upvalue New/Corner/Stroke/trackConn của file hub)
+function Corner(o, r)
+    local c = Instance.new("UICorner")
+    if r then c.CornerRadius = r end
+    c.Parent = o
+    return c
+end
+function Stroke(o, col, th)
+    local st = Instance.new("UIStroke")
+    if col then st.Color = col end
+    if th then st.Thickness = th end
+    st.Parent = o
+    return st
+end
+function trackConn(c) return c end
 
 ------------------------------------------------------------------ task stub (hub có dùng task.delay cho re-fit)
 task = {
@@ -435,9 +453,18 @@ check("có khối SIZE CONTRACT", code:find("SIZE CONTRACT") ~= nil)
 check("có khối FEATURE LOGIC cho người viết", code:find("FEATURE LOGIC") ~= nil)
 check("dùng API hub nếu có", code:find("BananaCatHubAPI") ~= nil)
 local nGui = select(2, code:gsub('Instance%.new%("ScreenGui"%)', ''))
-check("chỉ tạo ĐÚNG 1 ScreenGui", nGui == 1, nGui)
+check("1 gui menu + 1 gui overlay = ĐÚNG 2 lần Instance.new(\"ScreenGui\")", nGui == 2, nGui)
 check("không quét PlayerGui/CoreGui bừa", not code:find('GetService%("CoreGui"%)'))
 check("nhắc CẤMwhile true thiếu wait", code:find("task%.wait") ~= nil)
+check("có khối OVERLAY ngoài màn hình", code:find("===== OVERLAY") ~= nil)
+check("overlay dùng tên BCOV_ để hub không nhúng", code:find("BCOV_") ~= nil)
+check("gọi API:MakeCrosshair nếu hub có", code:find("API and API.MakeCrosshair") ~= nil)
+check("gọi API:NewOverlay nếu hub có", code:find("API and API.NewOverlay") ~= nil)
+check("giải thích 2 tầng menu/overlay cho người nhận code",
+    code:find("HAI TẦNG GIAO DIỆN") ~= nil and code:find("AIMBOT") == nil and code:find("Aimbot/FOV") ~= nil)
+check("khối OVERLAY gọi ovGui() chứ không parent vào root",
+    code:find("b.Parent = ovGui%(%)") ~= nil and code:find("box.Parent = ovGui%(%)") ~= nil)
+check("bcClose() dọn cả overlay", code:find("if OV.gui then OV.gui:Destroy%(%)") ~= nil)
 local fn, cerr = load(code, "feature_template", "t", _G)
 check("code mẫu BIÊN DỊCH ĐƯỢC", fn ~= nil, cerr)
 
@@ -467,6 +494,30 @@ if fn then
         pnl and pnl.Position.X.Offset == 10 and pnl.Position.Y.Offset == 38,
         pnl and (pnl.Position.X.Offset .. "," .. pnl.Position.Y.Offset))
     hubMain.Size = UDim2.new(0, 620, 0, 420)
+
+    print("[11b] code mẫu tạo overlay NGOÀI menu và hub KHÔNG được nhúng nó vào tab")
+    local menuGuis = {}
+    for _, c in ipairs(playerGui:GetChildren()) do
+        if c:IsA("ScreenGui") then menuGuis[#menuGuis + 1] = c end
+    end
+    local ovGui
+    for _, c in ipairs(menuGuis) do if c.Name:sub(1, 5) == "BCOV_" then ovGui = c end end
+    check("có ScreenGui 'BCOV_Auto Farm' trong PlayerGui", ovGui ~= nil, ovGui and ovGui.Name)
+    check("ovGui nằm ở PlayerGui (không phải trong tab)", ovGui and ovGui.Parent == playerGui)
+    check("S.IsOverlayGui nhận ra overlay", S.IsOverlayGui(ovGui) == true)
+    check("S.IsOverlayGui KHÔNG nhận menu gui", S.IsOverlayGui(featGui2) == false)
+    check("crosshair đã vẽ trong overlay", ovGui and ovGui:FindFirstChild("BCCrosshair") ~= nil)
+    local aimBtn = ovGui and ovGui:FindFirstChild("BCAimBtn")
+    check("nút AIM on-screen tồn tại", aimBtn ~= nil)
+    check("nút AIM kéo thả được", aimBtn and aimBtn.Draggable == true)
+    -- ScanNewGuis (bắt GUI để nhúng) phải LOẠI overlay, chỉ lấy gui menu
+    local before = {}
+    local mine = { featGui2, ovGui }
+    local found = ScanNewGuis(before, mine, false)
+    check("ScanNewGuis chỉ nhận gui menu, bỏ overlay",
+        #found == 1 and found[1] == featGui2, #found)
+    -- overlay phải phủ toàn màn hình (không bị scale theo tab)
+    check("overlay IgnoreGuiInset=true", ovGui and ovGui.IgnoreGuiInset == true)
 end
 
 print("[12] code mẫu khi CÓ API: TabArea + OnResize được dùng, và phủ khít khi hub nhúng")
@@ -514,6 +565,67 @@ if fn then
         root3 and (root3.Size.X.Scale .. "," .. root3.Size.X.Offset))
     _G.BananaCatHubAPI = nil
 end
+
+------------------------------------------------------------------ 13
+print("[13] API overlay phía hub: NewOverlay / MakeCrosshair / MakeScreenButton / CloseFeature")
+local ov = S.NewOverlay("ManualTest", 7)
+check("tên bắt đầu BCOV_ (hub bỏ qua, không nhúng)", ov.Name:sub(1, 5) == "BCOV_", ov.Name)
+check("cha là PlayerGui (nằm ngoài menu)", ov.Parent == playerGui or ov.Parent == targetGui)
+check("IgnoreGuiInset để canh giữa đúng", ov.IgnoreGuiInset == true)
+check("S.IsOverlayGui = true (không bị bốc vào tab)", S.IsOverlayGui(ov) == true)
+check("attribute BananaCatOverlay được gắn", ov:GetAttribute("BananaCatOverlay") == true)
+
+local ch = S.MakeCrosshair(ov, { Style = "circle", Radius = 12, Gap = 4, Thickness = 2 })
+check("MakeCrosshair trả handle có Root", ch and ch.Root ~= nil)
+local ring = ch and ch.Root:FindFirstChild("Ring")
+check("có Ring (vòng tròn)", ring ~= nil)
+check("Ring 24x24 khi Radius=12", ring and ring.Size.X.Offset == 24 and ring.Size.Y.Offset == 24,
+    ring and (ring.Size.X.Offset .. "x" .. ring.Size.Y.Offset))
+check("Root = Ring + Gap*2 + Thickness", ch and ch.Root.Size.X.Offset == 24 + 8 + 2,
+    ch and ch.Root.Size.X.Offset)
+check("có UIStroke (nét vòng tròn)", ring and ring:FindFirstChildOfClass("UIStroke") ~= nil)
+check("có Dot ở tâm", ch and ch.Root:FindFirstChild("Dot") ~= nil)
+ch:SetSize(20)
+check("SetSize(20) đổi Ring thành 40", ring.Size.X.Offset == 40, ring.Size.X.Offset)
+ch:SetVisible(false)
+check("SetVisible(false) ẩn được", ch.Root.Visible == false)
+ch:Destroy()
+check("Destroy dọn Frame", ch.Root.Parent == nil)
+
+local clicks, downs, ups = 0, 0, 0
+local sb = S.MakeScreenButton({
+    Text = "AIM", Size = 60, OnClick = function() clicks = clicks + 1 end,
+    OnDown = function() downs = downs + 1 end, OnUp = function() ups = ups + 1 end,
+})
+check("MakeScreenButton tạo nút (mặc định BCBtn)", sb and sb.Btn ~= nil and sb.Btn.Name == "BCBtn")
+check("nút Draggable = kéo thả được", sb.Btn.Draggable == true)
+check("nút Active + Selectable (nhận click)", sb.Btn.Active == true and sb.Btn.Selectable == true)
+check("nút nằm trong overlay BCOV_", sb.Gui.Name:sub(1, 5) == "BCOV_")
+sb.Btn:_fire("Activated")
+check("OnClick chạy khi bấm", clicks == 1, clicks)
+sb.Btn:_fire("InputBegan")
+sb.Btn:_fire("InputEnded")
+check("OnDown/OnUp có kết nối (không nổ)", downs + ups >= 0, "downs=" .. downs)
+sb:Destroy()
+check("Destroy dọn cả ScreenGui overlay", sb.Gui.Parent == nil)
+
+-- CloseFeature: hub gọi bcClose() của script khi bấm ✕ / xóa tab
+local code2 = S.FeatureTemplate("Farm Test", "🌾", "t")
+local fn2 = assert(load(code2, "feature_tpl2", "t", _G))
+fn2()
+check("script tự đăng ký _G.BC_FEATURES[tên]", type(_G.BC_FEATURES) == "table"
+    and _G.BC_FEATURES["Farm Test"] ~= nil)
+check("CloseFeature tìm thấy và gọi được", S.CloseFeature("Farm Test") == true)
+check("CloseFeature xóa khỏi registry", _G.BC_FEATURES["Farm Test"] == nil)
+check("CloseFeature(tên lạ) trả false, không nổ", S.CloseFeature("Không Tồn Tại") == false)
+local afterClose = playerGui:FindFirstChild("Farm Test")
+check("menu gui bị tắt sau CloseFeature", afterClose == nil or afterClose.Enabled == false,
+    afterClose and afterClose.Enabled)
+local ovLeft
+for _, c in ipairs(playerGui:GetChildren()) do
+    if c.Name == "BCOV_Farm Test" then ovLeft = c end
+end
+check("overlay bị Destroy sau CloseFeature (không để lại vòng tròn)", ovLeft == nil)
 
 print(string.format("\n=> %d pass / %d fail", pass, fail))
 if fail > 0 then error("CÓ TEST FAIL") end

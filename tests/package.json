@@ -9,7 +9,7 @@
     "test": "python3 extract_blocks.py && node check_syntax.js && node run_lua.js && node run_embed.js"
   },
   "dependencies": {
-    "fengari": "^0.1.7",
+    "fengari": "^0.1.5",
     "luaparse": "^0.3.1"
   }
 }

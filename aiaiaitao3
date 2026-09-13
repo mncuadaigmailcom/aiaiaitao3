@@ -1,5 +1,5 @@
 --[[
-    🍌 Banana Cat Hub v4.4d — FULL CODE
+    🍌 Banana Cat Hub v4.4e — FULL CODE
     + SỬA (QUAN TRỌNG — đúng cái bạn gặp): "TẠO TÍNH NĂNG → ▶ Chạy Script" làm bạn
            KHÔNG quay chuột / KHÔNG bắn được và làm LỖI vài nút của game. 3 nguyên nhân:
              • TextBox của hub còn focus -> Roblox chặn input người chơi. Giờ hub tự nhả focus
@@ -145,6 +145,17 @@ end
 --      (chạy được ngay, tự canh size cả khi hub TẮT nhúng); nút 📋 trong "Tạo Tính Năng" copy
 --      clipboard + lưu vào Code Đã Lưu + chỉ điền vào ô code khi ô đang trống (không mất code).
 --   + sửa: tab "Tạo Tính Năng" có CanvasSize=0 nên mấy dòng dưới không cuộn tới được.
+-- v4.4e — OVERLAY: tính năng có thể vẽ Thứ NGOÀI màn hình (vòng tròn niệm tâm, nút AIM,
+--   HUD, watermark) mà hub KHÔNG kéo vào tab.
+--   Script chỉ cần: tên ScreenGui bắt đầu "BCOV_"  HOẶC SetAttribute("BananaCatOverlay", true)
+--   -> S.IsOverlayGui() = true -> ScanNewGuis bỏ qua (nó vẫn nằm trên màn hình game).
+--   API mới cho người nhận code mẫu: NewOverlay / MakeCrosshair(circle|box|dot, Radius, Gap,
+--   Thickness, Color, SetSize/SetColor/SetVisible) / MakeScreenButton(Draggable, OnClick/OnDown/
+--   OnUp) / IsOverlay / CloseFeature. Nút ✕ và 🗑 của tab tính năng gọi S.CloseFeature(tên) ->
+--   chạy bcClose() mà script đăng ký trong _G.BC_FEATURES -> dọn nốt vòng tròn/nút on-screen.
+--   S.FeatureTemplate() giờ có thêm khối "OVERLAY" (vòng tròn + nút AIM + 4 nút cài đặt trong
+--   menu điều khiển overlay) và mục "HAI TẦNG GIAO DIỆN" + 5 công thức cho loại tính năng khác.
+--   Code mẫu KHÔNG tin API: mọi lời gọi API: đều bọc pcall + có đường tự vẽ dự phòng.
 -- ============================================================================
 local function ReleaseHubFocus()
     pcall(function()
@@ -256,7 +267,7 @@ Corner(titleBar, UDim.new(0,10))
 New("TextLabel", {
     Size=UDim2.new(1,-90,1,0),
     Position=UDim2.new(0,12,0,0),
-    Text="🍌 Banana Cat Executor Hub v4.4d",
+    Text="🍌 Banana Cat Executor Hub v4.4e",
     BackgroundTransparency=1,
     TextColor3=C.DARK,
     Font=Enum.Font.GothamBold,
@@ -2882,6 +2893,9 @@ local function ScanNewGuis(beforeGuis, mine, allowGuess)
     local found, seen = {}, {}
     local function take(g)
         if not g or seen[g] then return end
+        -- v4.4e: GUI mà script đánh dấu "overlay" (crosshair/nút on-screen/HUD) thì KHÔNG bốc
+        -- vào tab — nó phải nằm ngoài màn hình mới dùng được. Xem S.IsOverlayGui.
+        if S.IsOverlayGui and S.IsOverlayGui(g) then return end
         seen[g] = true
         table.insert(found, g)
     end
@@ -3263,7 +3277,7 @@ function S.FitToTab(obj, nm)
 end
 
 _G.BananaCatHubAPI = {
-    Version = "4.4d",
+    Version = "4.4e",
     HubGui = hubGui,
     Main = main,
     -- gọi bằng dấu hai chấm: API:TabArea("Tên Tab")  ->  Vector2 khổ vùng nội dung của tab
@@ -3279,6 +3293,14 @@ _G.BananaCatHubAPI = {
         return S.EmbedGui(scr, host)
     end,
     MakeTemplate = function(self, nm, icon) return S.FeatureTemplate(nm, icon) end,
+    -- ===== OVERLAY: thứ muốn nằm NGOÀI màn hình (crosshair, nút aim, HUD...) =====
+    -- Hub sẽ KHÔNG kéo mấy GUI này vào tab (xem S.IsOverlayGui).
+    NewOverlay = function(self, nm, order) return S.NewOverlay(nm, order) end,
+    -- opts = {Style="circle"|"box"|"dot", Radius=9, Gap=5, Thickness=2, Color=Color3}
+    MakeCrosshair = function(self, ov, opts) return S.MakeCrosshair(ov, opts) end,
+    MakeScreenButton = function(self, opts) return S.MakeScreenButton(opts) end,
+    IsOverlay = function(self, g) return S.IsOverlayGui(g) end,
+    CloseFeature = function(self, nm) return S.CloseFeature(nm) end,
     ReleaseFocus = function(self) pcall(ReleaseHubFocus) end,
 }
 
@@ -3314,7 +3336,24 @@ function S.FeatureTemplate(nm, icon, stamp)
 --      nếu chưa được yêu cầu, viết _G bừa (dùng biến local), gethui/getgenv để
 --      sửa GUI của game. Dùng `pcall` quanh phần logic có thể lỗi.
 --   7) Cách test: mở menu -> tab "Tạo Tính Năng" -> dán code -> bấm ▶ Chạy Script.
---      Muốn trả GUI về nguyên trạng: bấm ✕ trên tab tính năng.
+--      Muốn trả GUI về nguyên trạng: bấm ✕ trên tab tính năng (hub gọi bcClose()).
+-- ---------------------------------------------------------------------------
+--  HAI TẦNG GIAO DIỆN (đọc kỹ để không bị "vòng tròn bị nhốt trong menu"):
+--   A) MENU/SETTINGS  -> là CON của `root`. Hub mượn nó ĐẶT VÀO TAB của menu và
+--      tự co giãn theo kích thước menu. Mọi thứ ở đây KHÔNG cần lo vị trí màn hình.
+--   B) OVERLAY (vòng tròn niệm tâm, nút AIM, HUD, watermark, box ESP...) -> nằm
+--      NGOÀI menu, trên màn hình game. Muốn hub KHÔNG kéo vào tab thì ScreenGui
+--      của nó PHẢI có tên bắt đầu "BCOV_" (hoặc SetAttribute("BananaCatOverlay",
+--      true)). Khối "OVERLAY" bên dưới đã làm sẵn, bạn chỉ việc dùng.
+--   Vẽ overlay bằng API hub nếu có: _G.BananaCatHubAPI:NewOverlay(tên),
+--      :MakeCrosshair(gui, {Style="circle", Radius=9, Gap=5, Thickness=2, Color=...})
+--      :MakeScreenButton({Text="AIM", OnDown=f, OnUp=f, OnClick=f})  -> kéo thả được.
+--   CÔNG THÁP cho các loại tính năng khác (chỉ đổi phần FEATURE LOGIC):
+--     • Aimbot/FOV    : dùng OV.fov (vòng tròn) + OV.button (giữ để aim) + bcEnabled
+--     • ESP/Tracer    : thêm Frame con vào OV.gui với Position = camera:WorldToViewportPoint(part)
+--     • AutoClicker   : OV.button.OnDown -> mouse1click(); vòng lặp có task.wait()
+--     • Watermark     : 1 TextLabel trong OV.gui, AnchorPoint (0,0), Position (8,8)
+--     • Drag-on-screen : mọi nút trong OV.gui đặt Draggable = true
 -- ===========================================================================
 
 local BC = { Name = "__BC_NAME__", Icon = "__BC_ICON__", DesignW = 620, DesignH = 384 }
@@ -3476,6 +3515,175 @@ end
 bcToggle = bcButton(BC.Icon .. "  Bật " .. BC.Name)
 -- VD thêm cài đặt: local speed = bcButton("Tốc độ: 1x")   -- người viết thay/sao dòng này
 
+-- ===== OVERLAY (nằm NGOÀI menu: vòng tròn niệm tâm + nút AIM on-screen) ======
+-- KHÔNG được parent mấy thứ này vào `root` (root là phần bị hub nhốt trong tab).
+-- ScreenGui overlay đặt tên bắt đầu "BCOV_" -> hub bỏ qua, không nhúng vào tab.
+local OV = { cfg = {
+    Crosshair = true, Style = "circle", Radius = 9, Gap = 5, Thickness = 2,
+    Color = Color3.fromRGB(90, 240, 130),
+    Button = true, BtnText = "AIM", HoldOnly = true, FovOnly = true,
+} }
+OV.aimHeld = false
+
+local function ovGui()
+    if OV.gui and OV.gui.Parent then return OV.gui end
+    local g
+    pcall(function()
+        if API and API.NewOverlay then g = API:NewOverlay(BC.Name .. "_OV", 5) end
+    end)
+    if not g then
+        g = Instance.new("ScreenGui")
+        g.Name = "BCOV_" .. BC.Name            -- BCOV_ = "đừng nhúng tao vào tab"
+        g.ResetOnSpawn = false
+        g.IgnoreGuiInset = true
+        g.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+        g.DisplayOrder = 5
+        g.Parent = pg
+        pcall(function() g:SetAttribute("BananaCatOverlay", true) end)
+    end
+    OV.gui = g
+    return g
+end
+
+-- Vòng tròn niệm tâm (dùng API của hub nếu có, không thì tự vẽ y hệt)
+local function ovMakeCrosshair()
+    local c = OV.cfg
+    if API and API.MakeCrosshair then
+        return API:MakeCrosshair(ovGui(), {
+            Style = c.Style, Radius = c.Radius, Gap = c.Gap,
+            Thickness = c.Thickness, Color = c.Color,
+        })
+    end
+    local d = c.Radius * 2
+    local box = Instance.new("Frame")
+    box.Name = "BCCrosshair"
+    box.AnchorPoint = Vector2.new(0.5, 0.5)
+    box.Position = UDim2.new(0.5, 0, 0.5, 0)
+    box.Size = UDim2.new(0, d + c.Gap * 2, 0, d + c.Gap * 2)
+    box.BackgroundTransparency = 1
+    box.BorderSizePixel = 0
+    box.Parent = ovGui()
+    local ring = Instance.new("Frame")
+    ring.Name = "Ring"
+    ring.AnchorPoint = Vector2.new(0.5, 0.5)
+    ring.Position = UDim2.new(0.5, 0, 0.5, 0)
+    ring.Size = UDim2.new(0, d, 0, d)
+    ring.BackgroundTransparency = 1
+    ring.BorderSizePixel = 0
+    ring.Parent = box
+    local co = Instance.new("UICorner")
+    co.CornerRadius = (c.Style == "box") and UDim.new(0, 0) or UDim.new(0, c.Radius)
+    co.Parent = ring
+    local st = Instance.new("UIStroke")
+    st.Color = c.Color
+    st.Thickness = c.Thickness
+    st.Parent = ring
+    local dot = Instance.new("Frame")
+    dot.Name = "Dot"
+    dot.AnchorPoint = Vector2.new(0.5, 0.5)
+    dot.Position = UDim2.new(0.5, 0, 0.5, 0)
+    dot.Size = UDim2.new(0, c.Thickness, 0, c.Thickness)
+    dot.BackgroundColor3 = c.Color
+    dot.BorderSizePixel = 0
+    dot.Parent = box
+    return {
+        Root = box,
+        SetVisible = function(self, v) pcall(function() self.Root.Visible = not not v end) end,
+        Destroy = function(self) pcall(function() self.Root:Destroy() end) end,
+    }
+end
+
+local function ovMakeButton()
+    local c = OV.cfg
+    if API and API.MakeScreenButton then
+        return API:MakeScreenButton({
+            Gui = ovGui(), Name = "BCAimBtn", Text = c.BtnText, Size = 54,
+            OverlayName = BC.Name .. "_Btn",
+            OnDown = function() OV.aimHeld = true end,
+            OnUp = function() OV.aimHeld = false end,
+            OnClick = c.HoldOnly and nil or function(on) OV.aimHeld = on end,
+        })
+    end
+    local b = Instance.new("TextButton")
+    b.Name = "BCAimBtn"
+    b.Size = UDim2.new(0, 54, 0, 54)
+    b.Position = UDim2.new(0.5, 34, 0.5, -27)
+    b.AnchorPoint = Vector2.new(0.5, 0.5)
+    b.BackgroundColor3 = Color3.fromRGB(30, 32, 44)
+    b.BackgroundTransparency = 0.25
+    b.Text = c.BtnText
+    b.Font = Enum.Font.GothamBold
+    b.TextSize = 13
+    b.TextColor3 = Color3.fromRGB(255, 255, 255)
+    b.BorderSizePixel = 0
+    b.AutoButtonColor = true
+    b.Active = true
+    b.Draggable = true            -- kéo đặt chỗ nào cũng được
+    b.Parent = ovGui()
+    local co = Instance.new("UICorner")
+    co.CornerRadius = UDim.new(1, 0)
+    co.Parent = b
+    b.InputBegan:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+            OV.aimHeld = true
+        end
+    end)
+    b.InputEnded:Connect(function() OV.aimHeld = false end)
+    return { Root = b, Gui = b.Parent,
+        SetVisible = function(self, v) pcall(function() self.Root.Visible = not not v end) end,
+        Destroy = function(self) pcall(function() self.Root:Destroy() end) end }
+end
+
+function OV.apply()
+    local c = OV.cfg
+    if c.Crosshair then
+        if OV.ch then OV.ch:Destroy() end
+        OV.ch = ovMakeCrosshair()
+    elseif OV.ch then
+        OV.ch:Destroy(); OV.ch = nil
+    end
+    if c.Button then
+        if OV.btn then OV.btn:Destroy() end
+        OV.btn = ovMakeButton()
+    elseif OV.btn then
+        OV.btn:Destroy(); OV.btn = nil
+    end
+end
+OV.apply()
+
+-- ---- nút cài đặt trong MENU, ảnh hưởng sang OVERLAY (đây là cầu nối 2 tầng) ----
+local function bcStyleBtn()
+    local styles = { "circle", "box", "dot" }
+    local i = 1
+    for k, v in ipairs(styles) do if v == OV.cfg.Style then i = k end end
+    i = i % #styles + 1
+    OV.cfg.Style = styles[i]
+    return "Kiểu niệm tâm: " .. styles[i]
+end
+local bcStyle = bcButton("Kiểu niệm tâm: circle")
+bcStyle.Activated:Connect(function()
+    bcStyle.Text = bcStyleBtn(); OV.apply()
+end)
+local bcCh = bcButton("Vòng tròn niệm tâm: BẬT")
+bcCh.Activated:Connect(function()
+    OV.cfg.Crosshair = not OV.cfg.Crosshair
+    bcCh.Text = "Vòng tròn niệm tâm: " .. (OV.cfg.Crosshair and "BẬT" or "TẮT")
+    OV.apply()
+end)
+local bcSize = bcButton("Kính thước vòng tròn: 9")
+bcSize.Activated:Connect(function()
+    OV.cfg.Radius = OV.cfg.Radius >= 22 and 6 or (OV.cfg.Radius + 4)
+    bcSize.Text = "Kính thước vòng tròn: " .. OV.cfg.Radius
+    OV.apply()
+end)
+local bcBtn = bcButton("Nút AIM trên màn hình: BẬT")
+bcBtn.Activated:Connect(function()
+    OV.cfg.Button = not OV.cfg.Button
+    bcBtn.Text = "Nút AIM trên màn hình: " .. (OV.cfg.Button and "BẬT" or "TẮT")
+    OV.apply()
+end)
+-- ===== END OVERLAY ==========================================================
+
 ]==]
     local foot = [==[
 -- ---------- đóng / trả GUI (KHÔNG xóa khối này) ----------------------------
@@ -3490,6 +3698,10 @@ local function bcClose()
     for _, c in ipairs(bcConns) do pcall(function() c:Disconnect() end) end
     for i = #bcConns, 1, -1 do bcConns[i] = nil end
     bcEnabled = false
+    -- dọn phần NGOÀI màn hình (vòng tròn / nút AIM) — không để lại trên game
+    pcall(function() if OV.ch then OV.ch:Destroy() OV.ch = nil end end)
+    pcall(function() if OV.btn then OV.btn:Destroy() OV.btn = nil end end)
+    pcall(function() if OV.gui then OV.gui:Destroy() OV.gui = nil end end)
     pcall(function() gui.Enabled = false end)
     task.delay(0.06, function() pcall(function() gui:Destroy() end) end)
 end
@@ -3515,6 +3727,12 @@ bcOn(bcToggle, "MouseButton1Click", function()
                     -- VÍ DỤ (xóa và viết code thật ở đây):
                     -- local char = player.Character
                     -- local hrp = char and char:FindFirstChild("HumanoidRootPart")
+                    --
+                    -- Muốn biết "người dùng đang giữ nút AIM ngoài màn hình không":
+                    local aiming = OV.aimHeld or not OV.cfg.HoldOnly
+                    -- FovOnly = chỉ hiện vòng tròn khi GIỮ nút; tắt thì hiện suốt
+                    local show = bcEnabled and ((not OV.cfg.FovOnly) or aiming)
+                    if OV.ch then OV.ch:SetVisible(show) end
                 end)
             end
         end))
@@ -3572,6 +3790,190 @@ function S.ClearEmbedsUnder(containerFrame)
         end
     end
     return n
+end
+
+-- ===== KHU VỰC: OVERLAY (thứ script muốn để NGOÀI màn hình, không nhúng vào tab) =====
+-- Cách để script "báo" cho hub: đặt tên ScreenGui bắt đầu "BCOV_" (ổn nhất, không cần
+-- API mới), hoặc SetAttribute("BananaCatNoEmbed", true) / ("BananaCatOverlay", true),
+-- hoặc có con tên "BananaCatOverlay". Hub chỉ BỎ QUA lúc tự bắt GUI; nếu người dùng
+-- chủ động gọi API:EmbedGui(gui) thì vẫn nhúng bình thường.
+function S.IsOverlayGui(g)
+    if not g then return false end
+    local ok, nm = pcall(function() return g.Name end)
+    if ok and type(nm) == "string" and nm:sub(1, 5) == "BCOV_" then return true end
+    for _, attr in ipairs({"BananaCatNoEmbed", "BananaCatOverlay"}) do
+        local o, v = pcall(function() return g:GetAttribute(attr) end)
+        if o and v == true then return true end
+    end
+    local o, v = pcall(function() return g:FindFirstChild("BananaCatOverlay") ~= nil end)
+    if o and v then return true end
+    return false
+end
+
+-- Tạo ScreenGui overlay giúp script (đúng chuẩn để hub không kéo vào tab).
+function S.NewOverlay(nm, order)
+    local g = New("ScreenGui", {
+        Name = "BCOV_" .. tostring(nm or "Overlay"),
+        ResetOnSpawn = false,
+        IgnoreGuiInset = true,
+        ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+        DisplayOrder = tonumber(order) or math.max(0, (gui.DisplayOrder or 10) - 1),
+    })
+    pcall(function() g:SetAttribute("BananaCatOverlay", true) end)
+    g.Parent = targetGui or playerGui
+    return g
+end
+
+-- Vòng tròn / chữ thập niệm tâm giữa màn hình (Scale được bằng Set* để menu chỉnh)
+function S.MakeCrosshair(ov, opts)
+    opts = opts or {}
+    if not ov then return nil end
+    local color  = opts.Color  or Color3.fromRGB(90, 240, 130)
+    local radius = math.max(2, tonumber(opts.Radius or opts.Size) or 9)   -- Radius = bán kính
+    local thick  = math.max(1, tonumber(opts.Thickness) or 2)
+    local gap    = math.max(0, tonumber(opts.Gap) or 5)
+    local style  = tostring(opts.Style or "circle")   -- circle | cross | dot | box
+    local d = radius * 2
+
+    local root = New("Frame", {
+        Name = "BCCrosshair", AnchorPoint = Vector2.new(0.5, 0.5),
+        Position = UDim2.new(0.5, 0, 0.5, 0), Size = UDim2.new(0, d + gap * 2 + thick, 0, d + gap * 2 + thick),
+        BackgroundTransparency = 1, BorderSizePixel = 0,
+    }, ov)
+
+    local parts = {}
+    if style == "circle" or style == "box" then
+        local ring = New("Frame", {
+            Name = "Ring", AnchorPoint = Vector2.new(0.5, 0.5),
+            Position = UDim2.new(0.5, 0, 0.5, 0), Size = UDim2.new(0, d, 0, d),
+            BackgroundTransparency = 1, BorderSizePixel = 0,
+        }, root)
+        if style == "circle" then Corner(ring, UDim.new(0, math.floor(radius))) end
+        parts[#parts+1] = Stroke(ring, color, thick)
+    elseif style == "cross" then
+        for i, sz in ipairs({
+            {X = UDim.new(0, thick), Y = UDim.new(1, 0)},       -- dọc
+            {X = UDim.new(1, 0), Y = UDim.new(0, thick)},       -- ngang
+        }) do
+            local line = New("Frame", {
+                Name = "Line" .. i, BackgroundColor3 = color, BorderSizePixel = 0,
+                Size = UDim2.new(sz.X, sz.Y), AnchorPoint = Vector2.new(0.5, 0.5),
+                Position = UDim2.new(0.5, 0, 0.5, 0),
+            }, root)
+            -- chừa khoảng trống giữa tâm (gap) bằng cách cắt 2 đầu: dùng 4 đoạn ngắn
+            line.Visible = false
+            for _, off in ipairs({{-1, 0}, {1, 0}, {0, -1}, {0, 1}}) do
+                local seg = New("Frame", {
+                    Name = "Seg", BackgroundColor3 = color, BorderSizePixel = 0,
+                    AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0),
+                    Size = (i == 1) and UDim2.new(0, thick, 0, radius) or UDim2.new(0, radius, 0, thick),
+                }, root)
+                seg.Position = UDim2.new(
+                    0.5 + off[1] * (gap / 2 + (i == 1 and 0 or radius / 2)),
+                    0, 0.5 + off[2] * (gap / 2 + (i == 1 and radius / 2 or 0)), 0)
+                parts[#parts+1] = seg
+            end
+        end
+    end
+    local dot = New("Frame", {
+        Name = "Dot", BackgroundColor3 = color, BorderSizePixel = 0,
+        AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0),
+        Size = UDim2.new(0, thick, 0, thick),
+    }, root)
+    Corner(dot, UDim.new(1, 0))
+
+    local h = { Root = root, Dot = dot, Parts = parts }
+    function h.SetVisible(self, v) pcall(function() self.Root.Visible = not not v end) end
+    function h.SetColor(self, c)
+        pcall(function() self.Dot.BackgroundColor3 = c end)
+        for _, p in ipairs(self.Parts) do
+            pcall(function() if p.IsA("UIStroke") then p.Color = c else p.BackgroundColor3 = c end end)
+        end
+    end
+    function h.SetSize(self, r)
+        r = math.max(2, tonumber(r) or 9)
+        pcall(function()
+            self.Root.Size = UDim2.new(0, r * 2 + gap * 2 + thick, 0, r * 2 + gap * 2 + thick)
+            local ring = self.Root:FindFirstChild("Ring")
+            if ring then
+                ring.Size = UDim2.new(0, r * 2, 0, r * 2)
+                local co = ring:FindFirstChildOfClass("UICorner")
+                if co then co.CornerRadius = UDim.new(0, math.floor(r)) end
+            end
+        end)
+    end
+    function h.Destroy(self) pcall(function() self.Root:Destroy() end) end
+    return h
+end
+
+-- Nút nằm NGOÀI màn hình (kéo thả được), cho aim/hold-to-fire... ; onDown/onUp tùy chọn
+function S.MakeScreenButton(opts)
+    opts = opts or {}
+    local ov = opts.Gui or S.NewOverlay(opts.OverlayName or "Btn", opts.DisplayOrder)
+    local size = tonumber(opts.Size) or 54
+    local btn = New("TextButton", {
+        Name = opts.Name or "BCBtn", Text = opts.Text or "AIM",
+        Size = UDim2.new(0, size, 0, size),
+        Position = opts.Position or UDim2.new(0.5, 24, 0.5, -size / 2),
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        BackgroundColor3 = opts.Color or Color3.fromRGB(30, 32, 44),
+        BackgroundTransparency = tonumber(opts.Transparency) or 0.25,
+        TextColor3 = opts.TextColor or Color3.fromRGB(255, 255, 255),
+        Font = Enum.Font.GothamBold, TextSize = tonumber(opts.TextSize) or 13,
+        BorderSizePixel = 0, AutoButtonColor = true, Active = true, Draggable = true,
+        Selectable = true,
+    }, ov)
+    Corner(btn, UDim.new(1, 0))
+    Stroke(btn, opts.StrokeColor or Color3.fromRGB(120, 130, 160), 1.5)
+
+    local h = { Btn = btn, Gui = ov, Held = false, Toggled = false }
+    if type(opts.OnClick) == "function" then
+        trackConn(btn.Activated:Connect(function()
+            h.Toggled = not h.Toggled
+            pcall(opts.OnClick, h.Toggled, btn)
+        end))
+    end
+    if type(opts.OnDown) == "function" or type(opts.OnUp) == "function" then
+        trackConn(btn.InputBegan:Connect(function(i)
+            if i.UserInputType == Enum.UserInputType.MouseButton1
+                or i.UserInputType == Enum.UserInputType.Touch then
+                h.Held = true
+                if type(opts.OnDown) == "function" then pcall(opts.OnDown, btn) end
+            end
+        end))
+        local function up(i)
+            if h.Held and (i.UserInputType == Enum.UserInputType.MouseButton1
+                or i.UserInputType == Enum.UserInputType.MouseButton2
+                or i.UserInputType == Enum.UserInputType.Touch) then
+                h.Held = false
+                if type(opts.OnUp) == "function" then pcall(opts.OnUp, btn) end
+            end
+        end
+        trackConn(btn.InputEnded:Connect(up))
+        if UserInputService then
+            pcall(function() trackConn(UserInputService.InputEnded:Connect(up)) end)  -- thả chuột ngoài nút cũng tính
+        end
+    end
+    function h.SetText(self, t) pcall(function() self.Btn.Text = tostring(t) end) end
+    function h.SetVisible(self, v) pcall(function() self.Btn.Visible = not not v end) end
+    function h.Destroy(self)
+        pcall(function() self.Gui:Destroy() end)
+    end
+    return h
+end
+
+-- Tab tính năng đóng/xóa -> gọi Close() mà code mẫu đã đăng ký (dọn cả overlay ngoài màn hình)
+function S.CloseFeature(nm)
+    if type(nm) ~= "string" or #nm == 0 then return false end
+    local reg = _G.BC_FEATURES
+    if type(reg) ~= "table" then return false end
+    local entry = reg[nm]
+    if type(entry) ~= "table" or type(entry.Close) ~= "function" then return false end
+    local ok = pcall(entry.Close, entry)
+    if ok then
+        pcall(function() reg[nm] = nil end)
+    end
+    return ok
 end
 
 -- v4.4b: nhúng 1 ScreenGui/Folder vào containerFrame của tab. KHÔNG Destroy GUI gốc,
@@ -3897,6 +4299,7 @@ local function CreateFeatureTab(name, icon, codeContent)
     -- script của bạn mất UI nữa.
     local function ClearHost()
         S.ClearEmbedsUnder(embedHost)
+        S.CloseFeature(featureData.name)   -- v4.4e: gọi bcClose() của script (dọn crosshair/HUD)
     end
 
     runFeatureBtn.Activated:Connect(function()
@@ -4352,6 +4755,7 @@ local function RebuildFeatureList()
                 -- GUI đó mất cha là biến mất hẳn khỏi game (bản cũ để nguyên như vậy).
                 local hostFrame = ft.frame and ft.frame:FindFirstChild("ScriptHost")
                 if hostFrame then S.ClearEmbedsUnder(hostFrame) end
+                S.CloseFeature(ft.name)   -- v4.4e: xóa tab là dọn cả overlay ngoài màn hình
                 ft.btn:Destroy()
                 ft.frame:Destroy()
                 table.remove(tabs, idx)
@@ -4561,7 +4965,7 @@ main.Visible = true
 togBtn.Text = "✕"
 
 print(string.format(
-    "✅ Banana Cat Hub v4.4d — sẵn sàng! Đã nạp lại %d script + %d waypoint + %d tab tính năng từ bộ nhớ (chế độ: %s%s)",
+    "✅ Banana Cat Hub v4.4e — sẵn sàng! Đã nạp lại %d script + %d waypoint + %d tab tính năng từ bộ nhớ (chế độ: %s%s)",
     Store.loadedScripts, Store.loadedWp, #Store.loadedFeatures, Store.mode,
     Store.lastError and (" | ⚠️ " .. Store.lastError) or ""
 ))
