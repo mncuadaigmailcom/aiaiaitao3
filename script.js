@@ -1,7 +1,20 @@
 --[[
-    🍌 Banana Cat Hub v4.4e — FULL CODE
-    + THÊM: nút 🎯 "Tâm" trên mỗi tab tính năng — bấm là có vòng tròn niêm tâm ở GIỮA
-           MÀN HÌNH GAME (ngoài menu, ScreenGui riêng, luôn trên cùng). Bấm lại để tắt.
+    🍌 Banana Cat Hub v4.4f — FULL CODE
+    + SỬA "Phân Tích Vật Thể" (TRỌNG TÂM của bản này):
+        • Đổi cách chọn vật sang CHUỘT PHẢI (lệt) — chuột trái đi bắn/kéo/mở menu bình thường,
+          KHÔNG còn bị chiếm input hay tự chọn vật khi bạn bấm lộn.
+        • Trên mobile: GIỮ NGÓN 0.4s tại vị trí muốn chọn = chuột phải (chạm nhẹ đi/kéo joystick
+          bình thường không bị bắt nhờ vào độ dịch >12px).
+        • Chống hit nhầm 3 lớp:
+            1) kiểm tra cả PlayerGui LẪN CoreGui (không còn raycast xuyên nút bắn/joystick
+               -> không còn "nhấn vào nút game mà chọn vật đằng sau")
+            2) tự nhận nút (GuiButton/Active) + các element đặc (transparency <0.5)
+            3) nếu raycast trượt (bầu trời) thì GIỮ NGUYÊN kết quả cũ + highlight cũ,
+               chỉ hiện thông báo 1s rồi trả lại nhãn cũ — không còn bị mất vật đang phân tích
+               khi rê chuột lướt qua không khí.
+        • Tăng tầm raycast 5000 → 10000 studs cho game mở thế giới.
+    + v4.4e: nút 🎯 "Tâm" trên mỗi tab tính năng — bật/tắt vòng tròn niêm tâm ở GIỮA
+           MÀN HÌNH GAME (ngoài menu, ScreenGui riêng, luôn trên cùng).
     + THÊM: code mẫu (📋 Copy Code Mẫu Cho AI) giờ có sẵn khối EXTERNAL OVERLAY hướng dẫn
            viết ESP/crosshair/HUD nằm ngoài khung menu — gửi cho người khác/AI cũng biết
            cách tạo vòng tròn/đường kẻ/bảng thông tin trên màn hình mà KHÔNG bị hub ép
@@ -273,7 +286,7 @@ Corner(titleBar, UDim.new(0,10))
 New("TextLabel", {
     Size=UDim2.new(1,-90,1,0),
     Position=UDim2.new(0,12,0,0),
-    Text="🍌 Banana Cat Executor Hub v4.4e",
+    Text="🍌 Banana Cat Executor Hub v4.4f",
     BackgroundTransparency=1,
     TextColor3=C.DARK,
     Font=Enum.Font.GothamBold,
@@ -1271,8 +1284,9 @@ local highlightToggleBtn = Button(supportTab, "💜 Highlight Tím: BẬT", 8, p
 local removeHighlightBtn = Button(supportTab, "❌ Xóa Highlight", 214, posY, 90, 26, C.RED)
 posY = posY + 32
 
-Label(supportTab, "💡 Bật 'Phân Tích' rồi click vào vật thể (tường, đất, part...)", posY)
-posY = posY + 16
+Label(supportTab, "💡 Bật rồi NHẤP CHUỘT PHẢI (lệt) vào vật thể để chọn (chuột trái vẫn bắn/đi bình thường)", posY)
+Label(supportTab, "    Click xuyên qua nút HUD/menu của game sẽ được tự động bỏ qua, không hit nhầm vật phía sau", posY+14)
+posY = posY + 30
 
 -- ===== PANEL HIỂN THỊ KẾT QUẢ VẬT THỂ =====
 local objResultPanel = New("Frame", {
@@ -1657,20 +1671,49 @@ local function GetFullPath(obj)
     return table.concat(parts, ".")
 end
 
-trackConn(UserInputService.InputBegan:Connect(function(input, gp)
-    if gp then return end
-    if not analyzeObjectEnabled then return end
-    if input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then
-        return
+-- v4.4e: tách logic chọn vật thành hàm riêng để dùng lại cho cả chuột phải và touch-hold.
+-- 3 lớp chống nhầm:
+--   1) bỏ qua nếu click trúng BẤT KỲ GUI nào (của hub, của game trong PlayerGui, của Roblox trong CoreGui)
+--   2) tăng tầm raycast lên 10000 studs + bỏ qua character của người chơi
+--   3) không tự đổi vật khi bạn click trượt: chỉ ghi nhận KHI raycast ra kết quả hợp lệ
+local function PickObjectAt(mousePos, isRightClick)
+    local x, y = mousePos.X, mousePos.Y
+
+    -- LỚP 1: có GUI nào nằm dưới con trỏ thì KHÔNG raycast -> không hit nhầm vật phía sau nút game
+    local blocked = false
+    -- a) GUI của hub
+    if Hit.onHub(x, y) then
+        return   -- click phải trên hub thì bỏ qua tuyệt đối
     end
+    -- b) GUI của game trong PlayerGui (joystick, nút bắn, chat, inventory...)
+    local ok, objs = pcall(function() return playerGui:GetGuiObjectsAtPosition(x, y) end)
+    if ok and type(objs) == "table" and #objs > 0 then
+        for _, o in ipairs(objs) do
+            if o:IsA("GuiButton") or o.Active then
+                blocked = true; break
+            end
+            local bgOk, bg = pcall(function() return o.BackgroundTransparency end)
+            local t = bgOk and bg or 1
+            if (o:IsA("TextBox") or o:IsA("ImageLabel") or o:IsA("TextLabel") or o:IsA("Frame"))
+               and t < 0.5 then
+                blocked = true; break
+            end
+        end
+    end
+    -- c) GUI hệ thống trong CoreGui (menu Roblox, leaderboard, esc...)
+    if not blocked then
+        local coreGui = game:GetService("CoreGui")
+        local ok2, objs2 = pcall(function() return coreGui:GetGuiObjectsAtPosition(x, y) end)
+        if ok2 and type(objs2) == "table" and #objs2 > 0 then
+            for _, o in ipairs(objs2) do
+                if o:IsA("GuiButton") or o.Active then blocked = true; break end
+            end
+        end
+    end
+    if blocked then return end
 
-    -- Hit.onHub thay cho GetGuiObjectsAtPosition: hub nằm trong gethui()/CoreGui nên API cũ
-    -- không nhìn thấy -> guard cũ là code chết, click nút trong menu vẫn raycast ra vật thể sau lưng.
-    if Hit.onHub(input.Position.X, input.Position.Y) then return end
-
-    local mousePos = input.Position
-    local unitRay = camera:ViewportPointToRay(mousePos.X, mousePos.Y)
-
+    -- LỚP 2: raycast chính xác hơn
+    local unitRay = camera:ViewportPointToRay(x, y)
     local params = RaycastParams.new()
     params.FilterType = Enum.RaycastFilterType.Exclude
     local filterList = {}
@@ -1679,7 +1722,8 @@ trackConn(UserInputService.InputBegan:Connect(function(input, gp)
     params.FilterDescendantsInstances = filterList
     params.IgnoreWater = false
 
-    local result = workspace:Raycast(unitRay.Origin, unitRay.Direction * 5000, params)
+    local result = workspace:Raycast(unitRay.Origin, unitRay.Direction * 10000, params)
+    objResultPanel.Visible = true
 
     if result and result.Instance then
         local inst = result.Instance
@@ -1687,7 +1731,6 @@ trackConn(UserInputService.InputBegan:Connect(function(input, gp)
         local hitNormal = result.Normal
         local hitMat = result.Material
 
-        objResultPanel.Visible = true
         objNameLbl.Text = "Name: "..inst.Name
         objClassLbl.Text = "Class: "..inst.ClassName
         objPosLbl.Text = string.format("Position: %.3f, %.3f, %.3f", hitPos.X, hitPos.Y, hitPos.Z)
@@ -1708,10 +1751,7 @@ trackConn(UserInputService.InputBegan:Connect(function(input, gp)
             objColorLbl.Text = string.format("Color: R=%d G=%d B=%d",
                 math.floor(color.R*255), math.floor(color.G*255), math.floor(color.B*255))
 
-            -- Tạo highlight tím nếu bật
-            if highlightEnabled then
-                CreateHighlight(inst)
-            end
+            if highlightEnabled then CreateHighlight(inst) end
         else
             objSizeLbl.Text = "Size: N/A (không phải BasePart)"
             objRotLbl.Text = "Rotation: N/A"
@@ -1722,33 +1762,68 @@ trackConn(UserInputService.InputBegan:Connect(function(input, gp)
         end
 
         objPathLbl.Text = "Path: "..GetFullPath(inst)
-
         objResultPanel:SetAttribute("LastHitPos", tostring(hitPos))
         objResultPanel:SetAttribute("LastPath", GetFullPath(inst))
         objResultPanel:SetAttribute("LastNormal", tostring(hitNormal))
         objResultPanel:SetAttribute("LastMaterial", tostring(hitMat))
     else
-        objResultPanel.Visible = true
-        objNameLbl.Text = "Name: (không hit gì)"
-        objClassLbl.Text = "Class: N/A"
-        objPosLbl.Text = "Position: N/A"
-        objSizeLbl.Text = "Size: N/A"
-        objRotLbl.Text = "Rotation: N/A"
-        objLookLbl.Text = "Look: N/A"
-        objMatLbl.Text = "Material: N/A"
-        objColorLbl.Text = "Color: N/A"
-        objPathLbl.Text = "Path: N/A"
-        RemoveCurrentHighlight()
+        -- LỚP 3: click vào khoảng không (bầu trời) -> KHÔNG thay đổi gì ngoài thông báo nhất thời,
+        -- kết quả cũ (name/path/highlight) vẫn được giữ nguyên để bạn còn copy / nhìn thấy.
+        local prevName = objNameLbl.Text
+        objNameLbl.Text = "⚠️ Không hit gì — giữ vật đang chọn"
+        task.delay(1.0, function()
+            if objNameLbl and objNameLbl.Parent and objNameLbl.Text == "⚠️ Không hit gì — giữ vật đang chọn" then
+                objNameLbl.Text = prevName
+            end
+        end)
+    end
+end
+
+trackConn(UserInputService.InputBegan:Connect(function(input, gp)
+    if gp then return end   -- Roblox đã xử lý input này (nút GUI / TextBox focus)
+    if not analyzeObjectEnabled then return end
+
+    -- v4.4e: CHỈ dùng CHUỘT PHẢI để chọn vật. Chuột trái / chạm nhẹ đi bắn bình thường.
+    -- Trên mobile không có chuột phải -> giữ ngón 0.4s (long-press) = "chuột phải"
+    if input.UserInputType == Enum.UserInputType.MouseButton2 then
+        PickObjectAt(input.Position, true)
+        return
+    end
+
+    if input.UserInputType == Enum.UserInputType.Touch then
+        local startTick = tick()
+        local startPos = input.Position
+        local holdConn, moveConn
+        holdConn = UserInputService.InputEnded:Connect(function(e)
+            if e == input then
+                holdConn:Disconnect()
+                if moveConn then moveConn:Disconnect() end
+                if tick() - startTick >= 0.4 then
+                    task.spawn(function() PickObjectAt(input.Position, false) end)
+                end
+            end
+        end)
+        moveConn = UserInputService.InputChanged:Connect(function(e)
+            if e == input then
+                local d = (e.Position - startPos).Magnitude
+                if d > 12 then
+                    -- ngón di chuyển quá xa -> đó là kéo joystick/chạm vuốt, không phải long-press
+                    holdConn:Disconnect()
+                    moveConn:Disconnect()
+                end
+            end
+        end)
+        return
     end
 end))
 
 objectAnalyzeBtn.Activated:Connect(function()
     analyzeObjectEnabled = not analyzeObjectEnabled
     if analyzeObjectEnabled then
-        objectAnalyzeBtn.Text = "🎯 Phân Tích Vật Thể: BẬT"
+        objectAnalyzeBtn.Text = "🎯 Phân Tích Vật: BẬT"
         objectAnalyzeBtn.BackgroundColor3 = C.GREEN
     else
-        objectAnalyzeBtn.Text = "🎯 Phân Tích Vật Thể: TẮT"
+        objectAnalyzeBtn.Text = "🎯 Phân Tích Vật: TẮT"
         objectAnalyzeBtn.BackgroundColor3 = C.GRAY
         RemoveCurrentHighlight()
     end
@@ -4845,7 +4920,7 @@ main.Visible = true
 togBtn.Text = "✕"
 
 print(string.format(
-    "✅ Banana Cat Hub v4.4e — sẵn sàng! Đã nạp lại %d script + %d waypoint + %d tab tính năng từ bộ nhớ (chế độ: %s%s)",
+    "✅ Banana Cat Hub v4.4f — sẵn sàng! Đã nạp lại %d script + %d waypoint + %d tab tính năng từ bộ nhớ (chế độ: %s%s)",
     Store.loadedScripts, Store.loadedWp, #Store.loadedFeatures, Store.mode,
     Store.lastError and (" | ⚠️ " .. Store.lastError) or ""
 ))
