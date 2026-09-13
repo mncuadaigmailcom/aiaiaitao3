@@ -570,3 +570,166 @@ Kiểm tra tĩnh lại lần cuối trên file đã vá:
    - 🟠 `⚠️ ... <lý do>` → đọc lý do cụ thể (file hỏng, ghi thất bại…)
 4. Muốn biết chắc đang chạy bản mới: tiêu đề menu phải là **`🍌 Banana Cat Executor Hub v4.4`**,
    và console in ra dòng `✅ Banana Cat Hub v4.4 — sẵn sàng! Đã nạp lại N script + M waypoint...`.
+
+---
+
+# 🔧 PHỤ LỤC 2 — v4.4a: LƯU CẢ "TẠO TÍNH NĂNG" (bổ sung sau phản ánh)
+
+## A. Phản ánh
+
+> *"sao nhấn tạo tính năng, mình tạo tính năng rồi là phải lưu vào phần tạo tính năng,
+> chứ sao lại lưu vào phần code vậy bạn"*
+
+Chính xác. Đây là **cùng lớp lỗi F14 mà bản vá v4.4 bỏ sót**.
+
+## B. Hai vấn đề riêng biệt
+
+**Vấn đề 1 — `featureTabs` chưa từng được lưu.** Bản v4.4 chỉ serialize `scripts` + `waypoints`:
+
+```lua
+return {version = Store.SAVE_VERSION, scripts = sOut, waypoints = wOut}   -- ← thiếu features
+```
+
+Trong khi tab tính năng sống ở một danh sách hoàn toàn khác:
+
+```lua
+local featureTabs = {}   -- chỉ nằm trong RAM, không bao giờ được ghi
+```
+
+→ Tạo tab tính năng xong, thoát game vào lại là **mất sạch**, mục
+*"📋 Danh Sách Tab Tính Năng Đã Tạo"* trống trơn.
+
+**Vấn đề 2 — nút `💾 Lưu Vào DS` gây hiểu nhầm.** Bên trong mỗi tab tính năng có nút này,
+và nó `table.insert(scripts, ...)` — tức nhét code vào danh sách của tab **"Code Đã Lưu"**.
+Vì tab tính năng không tự lưu, đây là **nút "Lưu" duy nhất mà người dùng nhìn thấy** →
+ai cũng bấm, và tính năng bị đẩy sang khu Code. Đó chính xác là hiện tượng được phản ánh.
+
+Nút đó **không sai** (chép một bản sang Code để tiện quản lý là hữu ích), nhưng **tên nó sai**
+và **nó không được là cách duy nhất để giữ tính năng**.
+
+## C. Cách sửa
+
+### 1. Lưu tab tính năng đúng chỗ của nó
+
+`Store.serialize()` giờ ghi thêm nhánh `features`:
+
+```lua
+return {version = Store.SAVE_VERSION, scripts = sOut, waypoints = wOut, features = fOut}
+```
+
+mỗi phần tử là `{name, icon, code}` (bỏ `btn`/`frame` vì là GUI object, không serialize được).
+
+`Store.load()` nạp vào **`Store.loadedFeatures`** dưới dạng *dữ liệu thô* — chưa dựng tab ngay,
+vì `CreateFeatureTab()` mãi tới TAB 5 mới tồn tại. Việc dựng thật do **`Store.restoreFeatures()`**
+(định nghĩa ở cuối TAB 5) đảm nhiệm: dỡ toàn bộ tab tính năng hiện có → dựng lại từ đĩa →
+đồng bộ `LayoutOrder` + `tabBar.CanvasSize` → `RebuildFeatureList()`.
+
+Nối `Store.saveSoon()` vào **3 điểm** thay đổi `featureTabs`:
+
+| # | Hành động | Vị trí |
+|---|---|---|
+| 8 | `➕ Tạo Tab Tính Năng` | `createTabBtn` |
+| 9 | `✏️ Sửa` → `✅ Áp Dụng` (đổi code của tab) | `applyEditBtn` |
+| 10 | `🗑` xóa tab tính năng | `delBtn` trong `RebuildFeatureList` |
+
+> Tab khôi phục **không tự chạy script** — giống hệt hành vi khi tạo mới. Nghĩa là mã remote
+> (`loadstring(game:HttpGet(...))`) **không bị thực thi lại một cách âm thầm** lúc vào game.
+
+### 2. Đổi tên nút cho đúng nghĩa
+
+| Trước | Sau |
+|---|---|
+| `💾 Lưu Vào DS` | **`📤 Chép sang Code`** |
+| `✅ Đã lưu!` | `✅ Đã chép sang tab Code!` |
+
+Chức năng **giữ nguyên 100%** (vẫn `table.insert(scripts, ...)`), chỉ đổi nhãn để không ai
+tưởng đó là cách lưu tính năng. Kèm comment trong mã nói rõ đây là bản chép, không phải bản lưu.
+
+### 3. Sửa khai báo che biến (shadowing)
+
+`local featureTabs = {}` / `local featureTabIndex = 5` được **chuyển lên đầu file**
+(cạnh `scripts`/`waypoints`). Lý do: `Store.serialize()` và nhãn trạng thái ở TAB 2 nằm
+**trước** TAB 5 trong file — nếu để khai báo ở TAB 5 thì hai chỗ đó sẽ tham chiếu tới
+**biến global `featureTabs` (nil)** chứ không phải biến local, và dữ liệu không bao giờ được ghi.
+Đúng cùng một cái bẫy đã gặp với `waypoints` ở v4.4.
+
+### 4. Nhãn trạng thái đếm thêm số tab
+
+`💾 3 script · 2 WP · 1 tab · banana_cat_saved.json · lưu lúc 14:32:05`
+
+### 5. Lỗi phát hiện thêm trong lúc làm (đã sửa)
+
+`Store.refreshStatus()` **không được gọi sau khi khôi phục tab**, nên nhãn ở TAB 2 hiện
+`· 0 tab ·` dù tab đã được dựng lại — vì nhãn đó được dựng từ trước khi TAB 5 chạy.
+Đã thêm lời gọi `refreshStatus()` ở cuối `Store.restoreFeatures()`.
+
+> Lỗi này được tìm ra nhờ một **test pass giả**: test cũ chỉ tìm nhãn chứa chuỗi `"1 tab"`,
+> và nó khớp nhầm sang nhãn `createStatus` = `💾 Đã khôi phục 1 tab tính năng từ bộ nhớ`.
+> Test đã được siết lại thành soi đúng nhãn chứa `"script ·"` rồi mới kiểm tra `"· 1 tab ·"`.
+
+### 6. Nút `🔄 Nạp lại` cũng khôi phục tab tính năng
+
+Thêm `if Store.restoreFeatures then pcall(Store.restoreFeatures) end` vào handler,
+để "nạp lại" có nghĩa như nhau cho cả 3 loại dữ liệu.
+
+## D. Số liệu sau v4.4a
+
+| Chỉ số | v4.3 gốc | v4.4 | v4.4a |
+|---|---|---|---|
+| Số dòng | 3.074 | 3.425 | **3.512** |
+| Parse AST | ✅ | ✅ | ✅ **0 lỗi** |
+| **Local cấp cao nhất / 200** | 189 | 183 | **183** ✅ |
+| Upvalue tối đa / 60 | — | 22 | **22** ✅ |
+| Loại dữ liệu được lưu | 1 (API key) | 3 | **4** (script, waypoint, **tab tính năng**, API key) |
+| Điểm ghi `Store.saveSoon()` | 0 | 7 | **10** |
+
+Việc chuyển `featureTabs`/`featureTabIndex` lên đầu file là **net 0 local** (di chuyển, không thêm),
+nên vẫn giữ được 183/200 — còn dư 17 slot.
+
+## E. Kết quả test (bộ test mở rộng lên 54)
+
+| Bộ test | v4.3 (gốc) | v4.4a |
+|---|---|---|
+| **TEST 1** — khởi động, 5 tab, lưu script, ghi file, chạy code | 9/13 | **16/16** ✅ |
+| **TEST 3** — hồi quy + tab tính năng + waypoint + API key + tìm kiếm | 14/24 | **26/26** ✅ |
+| **TEST 2** — rejoin sau khi lưu 1 script | 1/3 | **3/3** ✅ |
+| **TEST 4** — rejoin sau khi xóa script + lưu waypoint + tạo/xóa tab tính năng | 3/7 | **9/9** ✅ |
+| **TỔNG** | **❌ 34/54 (20 FAIL)** | **✅ 54/54 ALL PASS** |
+
+Test mới, đúng vào vấn đề được phản ánh:
+
+```
+A8  ⭐⭐ 2 TAB TINH NĂNG được ghi xuống file (không phải chỉ Code)   v4.3 ❌  →  v4.4a ✅
+A9  feature lưu đúng tên + icon + code                              v4.3 ❌  →  v4.4a ✅
+A10 ⭐ xóa tab tính năng -> file cập nhật (còn 1 feature)           v4.3 ❌  →  v4.4a ✅
+A11 feature còn lại trong file là Feature B                         v4.3 ❌  →  v4.4a ✅
+A12 nút đổi tên thành '📤 Chép sang Code'                           v4.3 ❌  →  v4.4a ✅
+P5  ⭐⭐ TAB TÍNH NĂNG 'Feature B' VẪN CÒN sau khi rejoin            v4.3 ❌  →  v4.4a ✅
+P6  tab 'Feature A' (đã xóa) không sống lại                         v4.3 ✅  →  v4.4a ✅
+P7  nhãn TRẠNG THÁI LƯU đếm đúng số tab ('· 1 tab ·')               v4.3 ❌  →  v4.4a ✅
+P8  bấm vào tab được khôi phục -> mở đúng, highlight xanh           (skip)   →  v4.4a ✅
+P9  code của tab được khôi phục vẫn còn trong editor                (skip)   →  v4.4a ✅
+```
+
+Log lần chạy v4.4a:
+
+```
+✅ Banana Cat Hub v4.4a — sẵn sàng! Đã nạp lại 0 script + 1 waypoint + 1 tab tính năng từ bộ nhớ (chế độ: file)
+
+--- giả lập thoát game, vào lại ---
+  ✅ P5 ⭐⭐ TAB TÍNH NĂNG 'Feature B' VẪN CÒN sau khi rejoin
+  ✅ P9 code của tab được khôi phục vẫn còn trong editor
+  Nội dung nhãn: 💾 0 script · 1 WP · 1 tab · banana_cat_saved.json
+```
+
+Và toàn bộ test cũ của v4.4 **vẫn pass** — không có hồi quy.
+
+## F. Hành vi mới bạn sẽ thấy
+
+1. Bấm `➕ Tạo Tab Tính Năng` → status hiện `✅ Đã tạo tab: <tên> (đã lưu)`.
+2. Thoát game, vào lại → tab **vẫn nằm trong thanh tab** và vẫn có tên trong
+   *"📋 Danh Sách Tab Tính Năng Đã Tạo"*. Bấm vào là mở được, code vẫn còn trong `✏️ Sửa`.
+3. Tab khôi phục **chưa tự chạy** — bấm `▶ Chạy Script` khi nào bạn muốn (giống hệt lúc tạo mới).
+4. Muốn chép code của tab sang khu Code để tiện tìm kiếm → bấm `📤 Chép sang Code`.
+   Đây là **bản chép**, bản chính vẫn là tab tính năng.
+5. Nhãn ở tab **Code Đã Lưu** cho biết tổng: `💾 N script · M WP · K tab · <file> · lưu lúc <giờ>`.

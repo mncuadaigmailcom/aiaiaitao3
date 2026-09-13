@@ -1,5 +1,12 @@
 --[[
-    🍌 Banana Cat Hub v4.4 — FULL CODE
+    🍌 Banana Cat Hub v4.4a — FULL CODE
+    + SỬA: "TẠO TÍNH NĂNG" giờ cũng ĐƯỢC LƯU XUỐNG ĐĨA — tab tính năng bạn tạo
+           thoát game vào lại VẪN CÒN, nằm đúng trong mục "Danh Sách Tab Tính Năng Đã Tạo"
+           (trước đây nó biến mất, nên phải chép sang tab Code để giữ -> lưu nhầm chỗ)
+    + ĐỔI: nút "💾 Lưu Vào DS" trong tab tính năng -> "📤 Chép sang Code" cho rõ nghĩa:
+           nó CHÉP MỘT BẢN sang tab Code Đã Lưu, không phải là cách lưu tính năng
+    + THÊM: sửa code trong tab tính năng (✏️ Áp Dụng) cũng được lưu
+    + THÊM: nhãn trạng thái ở tab Code Đã Lưu hiện thêm số tab tính năng
     + SỬA: "Code Đã Lưu" + "Waypoint" giờ ĐƯỢC LƯU XUỐNG ĐĨA (file banana_cat_saved.json)
            -> thoát game / vào lại / chạy lại script VẪN CÒN NGUYÊN dữ liệu
            -> có nhãn trạng thái lưu + nút "🔄 Nạp lại" ở tab Code Đã Lưu
@@ -186,7 +193,7 @@ Corner(titleBar, UDim.new(0,10))
 New("TextLabel", {
     Size=UDim2.new(1,-90,1,0),
     Position=UDim2.new(0,12,0,0),
-    Text="🍌 Banana Cat Executor Hub v4.4",
+    Text="🍌 Banana Cat Executor Hub v4.4a",
     BackgroundTransparency=1,
     TextColor3=C.DARK,
     Font=Enum.Font.GothamBold,
@@ -410,6 +417,8 @@ local S = {
 
 local scripts = {}
 local waypoints = {}          -- khai báo sớm để khối lưu trữ bên dưới dùng được
+local featureTabs = {}        -- nt: khai báo sớm để Store.serialize() và nhãn trạng thái dùng được
+local featureTabIndex = 5
 local totalRuns, cancelled = 0, false
 local curThread, curIndicator = nil, nil
 local runActive = false       -- cờ trạng thái chạy (không dựa vào curThread nữa)
@@ -432,6 +441,8 @@ Store.lastSavedAt    = nil
 Store.saveCount      = 0
 Store.loadedScripts  = 0
 Store.loadedWp       = 0
+Store.loadedFeatures = {}     -- dữ liệu thô đọc từ đĩa; TAB5 sẽ dựng thành tab thật
+Store.restoreFeatures = nil   -- TAB5 gán hàm dựng lại tab tính năng vào đây
 Store.statusLbl      = nil      -- tab "Code Đã Lưu" gán nhãn trạng thái vào đây
 Store.reloadBtn      = nil
 Store._scheduled     = false
@@ -523,7 +534,15 @@ function Store.serialize()
             table.insert(wOut, {name = tostring(w.name or ""), x = pos.X, y = pos.Y, z = pos.Z})
         end
     end
-    return {version = Store.SAVE_VERSION, scripts = sOut, waypoints = wOut}
+    local fOut = {}
+    for _, f in ipairs(featureTabs) do
+        table.insert(fOut, {
+            name = tostring(f.name or ""),
+            icon = tostring(f.icon or "⚙️"),
+            code = tostring(f.code or ""),
+        })
+    end
+    return {version = Store.SAVE_VERSION, scripts = sOut, waypoints = wOut, features = fOut}
 end
 
 -- Ghi ngay (đồng bộ). Trả về true/false.
@@ -550,6 +569,7 @@ function Store.load()
     if type(data) ~= "table" then
         Store.mode = Store.canWrite() and "empty" or "none"
         Store.loadedScripts, Store.loadedWp = 0, 0
+        Store.loadedFeatures = {}
         return
     end
 
@@ -578,8 +598,24 @@ function Store.load()
         end
     end
 
+    -- Tab tính năng: chỉ nạp DỮ LIỆU THÔ ở đây. Không dựng tab được vì hàm
+    -- CreateFeatureTab() mãi tới TAB5 mới tồn tại -> Store.restoreFeatures() làm việc đó.
+    local fOut = {}
+    if type(data.features) == "table" then
+        for _, f in ipairs(data.features) do
+            if type(f) == "table" and type(f.code) == "string" and #f.code > 0 then
+                table.insert(fOut, {
+                    name = (type(f.name) == "string" and #f.name > 0) and f.name or ("Tính Năng " .. (#fOut + 1)),
+                    icon = (type(f.icon) == "string" and #f.icon > 0) and f.icon or "⚙️",
+                    code = f.code,
+                })
+            end
+        end
+    end
+
     scripts   = sOut
     waypoints = wOut
+    Store.loadedFeatures = fOut
     Store.loadedScripts, Store.loadedWp = #sOut, #wOut
 end
 
@@ -850,17 +886,17 @@ Stroke(Store.reloadBtn, Color3.fromRGB(0,90,170), 1)
 
 Store.refreshStatus = function()
     if not Store.statusLbl or not Store.statusLbl.Parent then return end
-    local ns, nw = #scripts, #waypoints
+    local ns, nw, nf = #scripts, #waypoints, #featureTabs
     if Store.lastError then
         Store.statusLbl.TextColor3 = Color3.fromRGB(220,120,60)
-        Store.statusLbl.Text = string.format("⚠️ %d script · %d WP — %s", ns, nw, Store.lastError)
+        Store.statusLbl.Text = string.format("⚠️ %d script · %d WP · %d tab — %s", ns, nw, nf, Store.lastError)
     elseif Store.mode == "file" then
         Store.statusLbl.TextColor3 = Color3.fromRGB(0,150,80)
-        Store.statusLbl.Text = string.format("💾 %d script · %d WP · %s%s", ns, nw, Store.SAVE_FILE,
+        Store.statusLbl.Text = string.format("💾 %d script · %d WP · %d tab · %s%s", ns, nw, nf, Store.SAVE_FILE,
             Store.lastSavedAt and (" · lưu lúc " .. Store.lastSavedAt) or "")
     elseif Store.mode == "memory" then
         Store.statusLbl.TextColor3 = Color3.fromRGB(220,170,0)
-        Store.statusLbl.Text = string.format("⚠️ %d script · %d WP — chỉ giữ trong phiên chơi này (executor thiếu writefile)", ns, nw)
+        Store.statusLbl.Text = string.format("⚠️ %d script · %d WP · %d tab — chỉ giữ trong phiên chơi này (executor thiếu writefile)", ns, nw, nf)
     elseif Store.mode == "empty" then
         Store.statusLbl.TextColor3 = C.GRAY
         Store.statusLbl.Text = string.format("💾 Chưa lưu gì · sẽ ghi vào %s khi bạn bấm Lưu", Store.SAVE_FILE)
@@ -875,6 +911,7 @@ Store.reloadBtn.Activated:Connect(function()
     -- hoặc bạn copy file banana_cat_saved.json từ máy/executor khác sang.
     Store.load()
     RebuildScripts()
+    if Store.restoreFeatures then pcall(Store.restoreFeatures) end
     Store.save()
     Store.reloadBtn.Text = "✅ Đã nạp"
     task.delay(1.4, function()
@@ -2681,8 +2718,9 @@ task.defer(function()
 end)
 
 -- ==================== TAB 5: TẠO TÍNH NĂNG ====================
-local featureTabs = {}
-local featureTabIndex = 5
+-- (featureTabs / featureTabIndex đã khai báo ở ĐẦU file để khối lưu trữ dùng chung.
+--  KHÔNG khai báo lại ở đây, nếu không sẽ tạo biến local mới che mất biến cũ
+--  và danh sách tab tính năng sẽ không bao giờ được ghi xuống đĩa.)
 
 local function NormalizeCode(c)
     if type(c) ~= "string" then return "" end
@@ -2908,7 +2946,7 @@ local function CreateFeatureTab(name, icon, codeContent)
 
     local saveFeatureBtn = New("TextButton", {
         Size=UDim2.new(0,110,0,26), Position=UDim2.new(0,122,0,5),
-        Text="💾 Lưu Vào DS", BackgroundColor3=C.BLUE, BackgroundTransparency=0.1,
+        Text="📤 Chép sang Code", BackgroundColor3=C.BLUE, BackgroundTransparency=0.1,
         TextColor3=C.WHITE, Font=Enum.Font.GothamBold, TextSize=10, BorderSizePixel=0, ZIndex=21,
     }, toolbar)
     Corner(saveFeatureBtn, UDim.new(0,5))
@@ -3002,10 +3040,13 @@ local function CreateFeatureTab(name, icon, codeContent)
             cnt += 1
             n = bn.." ("..cnt..")"
         end
+        -- Nut nay CHEP MOT BAN cua code sang tab "Code Đã Lưu" cho tiện quản lý.
+        -- Nó KHÔNG phải cách lưu tính năng: tab tính năng đã được tự động lưu riêng
+        -- (xem Store.saveSoon() ở createTabBtn / applyEditBtn / delBtn).
         table.insert(scripts, {name = n, code = c, expanded = false})
         if RebuildScripts then RebuildScripts() end
         Store.saveSoon()
-        fStatus.Text = "✅ Đã lưu!"
+        fStatus.Text = "✅ Đã chép sang tab Code!"
     end)
 
     editFeatureBtn.Activated:Connect(function()
@@ -3018,6 +3059,7 @@ local function CreateFeatureTab(name, icon, codeContent)
         featureData.code = codeContent
         editorFrame.Visible = false
         ClearHost()
+        Store.saveSoon()   -- code đã đổi thì bản lưu trên đĩa cũng phải đổi theo
         fStatus.Text = "✏️ Đã cập nhật code"
     end)
 
@@ -3062,6 +3104,8 @@ cy = cy + 16
 Label(createFeatureTab, "Dán NGUYÊN một script hoàn chỉnh HOẶC link raw.", cy)
 cy = cy + 14
 Label(createFeatureTab, "Script sẽ chạy trong tab, GUI sẽ được nhúng vào menu này.", cy)
+cy = cy + 14
+Label(createFeatureTab, "💾 Tab tạo ra TỰ ĐỘNG được lưu — thoát game vào lại vẫn còn, khỏi cần bấm gì thêm.", cy)
 cy = cy + 18
 
 Label(createFeatureTab, "🏷️ Tên Tính Năng:", cy)
@@ -3270,6 +3314,7 @@ local function RebuildFeatureList()
                     end
                 end
                 RebuildFeatureList()
+                Store.saveSoon()   -- ⭐ xóa cũng phải ghi xuống đĩa, nếu không tab sẽ "sống lại" khi rejoin
             end
         end)
 
@@ -3303,8 +3348,9 @@ createTabBtn.Activated:Connect(function()
 
     CreateFeatureTab(n, ic, c)
     RebuildFeatureList()
+    Store.saveSoon()   -- ⭐ lưu ngay vào file để thoát game vào lại vẫn còn tab này
 
-    createStatus.Text = "✅ Đã tạo tab: "..n
+    createStatus.Text = "✅ Đã tạo tab: "..n.." (đã lưu)"
     featureNameIn.Text = ""
     featureIconIn.Text = "⚙️"
     featureCodeIn.Text = ""
@@ -3320,6 +3366,47 @@ clearFormBtn.Activated:Connect(function()
 end)
 
 RebuildFeatureList()
+
+-- ===== KHÔI PHỤC CÁC TAB TÍNH NĂNG ĐÃ LƯU =====
+-- v4.4a: `featureTabs` trước đây KHÔNG được ghi xuống đĩa, nên tab tính năng bạn tạo
+-- biến mất sau khi thoát game. Cách "cứu" duy nhất là nút chép sang tab Code — khiến
+-- tính năng bị lưu nhầm chỗ (đúng như phản ánh). Giờ tab tính năng được lưu đúng chỗ của nó.
+--
+-- Không dựng tab ngay trong Store.load() vì CreateFeatureTab() mãi tới đây mới tồn tại.
+Store.restoreFeatures = function()
+    -- dỡ toàn bộ tab tính năng hiện có (duyệt ngược để index không bị lệch)
+    for i = #featureTabs, 1, -1 do
+        local ft = featureTabs[i]
+        for j, b in ipairs(tabs) do
+            if b == ft.btn then
+                table.remove(tabs, j)
+                table.remove(tabContent, j)
+                break
+            end
+        end
+        if activeTab == ft.frame then SwitchTab(1) end
+        pcall(function() ft.btn:Destroy() end)
+        pcall(function() ft.frame:Destroy() end)
+        table.remove(featureTabs, i)
+    end
+
+    -- dựng lại từ dữ liệu đọc được trên đĩa
+    for _, f in ipairs(Store.loadedFeatures) do
+        CreateFeatureTab(f.name, f.icon, f.code)
+    end
+
+    for j, t in ipairs(tabs) do t.LayoutOrder = j end
+    tabBar.CanvasSize = UDim2.new(0, 0, 0, #tabs * 34 + 10)
+    RebuildFeatureList()
+    -- phai goi lai: nhãn trạng thái ở TAB2 đã được dựng từ TRƯỚC khi các tab tính năng
+    -- được khôi phục, nên số "N tab" trên đó vẫn là 0 nếu không làm mới lại ở đây.
+    if Store.refreshStatus then Store.refreshStatus() end
+end
+
+if #Store.loadedFeatures > 0 then
+    Store.restoreFeatures()
+    createStatus.Text = string.format("💾 Đã khôi phục %d tab tính năng từ bộ nhớ", #Store.loadedFeatures)
+end
 
 -- ==================== TOGGLE MENU & DRAG ====================
 local function ToggleMainFrame()
@@ -3417,8 +3504,8 @@ main.Visible = true
 togBtn.Text = "✕"
 
 print(string.format(
-    "✅ Banana Cat Hub v4.4 — sẵn sàng! Đã nạp lại %d script + %d waypoint từ bộ nhớ (chế độ: %s%s)",
-    Store.loadedScripts, Store.loadedWp, Store.mode,
+    "✅ Banana Cat Hub v4.4a — sẵn sàng! Đã nạp lại %d script + %d waypoint + %d tab tính năng từ bộ nhớ (chế độ: %s%s)",
+    Store.loadedScripts, Store.loadedWp, #Store.loadedFeatures, Store.mode,
     Store.lastError and (" | ⚠️ " .. Store.lastError) or ""
 ))
 print("   💾 File lưu: " .. Store.SAVE_FILE .. " (trong thư mục workspace của executor — sống qua cả lần rejoin)")
