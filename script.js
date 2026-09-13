@@ -1,5 +1,20 @@
 --[[
-    🍌 Banana Cat Hub v4.4h — FULL CODE
+    🍌 Banana Cat Hub v4.4i — FULL CODE
+    + SỬA (bản này): 3 nút ⚡ Script Nhanh ở tab 🛠 Hỗ Trợ (Dex Explorer, Infinite Yield,
+      SimpleSpy) bấm chạy thì GUI KHÔNG hiện ra màn hình chính mà bị đưa vào menu (v4.4h lỡ
+      "đậu" chúng vào tab 🧩 GUI Ngoài). Đây là CÔNG CỤ CỬA SỔ RIÊNG — phải nằm ngoài màn hình
+      game mới kéo/thu nhỏ/dùng được. Nay:
+        • 3 nút đó truyền noPark=true -> KHÔNG BAO GIỜ bị đưa vào menu (y như trước v4.4h);
+        • dán loadstring của chúng vào tab 💻 Code hoặc chạy từ 💾 Code Đã Lưu cũng TỰ NHẬN RA
+          (soi URL/tên: dex.lua, infiniteyield, simplespy...) -> vẫn để ngoài màn hình;
+        • tab 🧩 GUI Ngoài có thêm nút "↩ Trả tất cả về game";
+        • thêm công tắc 🪟 ở tab ➕ Tạo Tính Năng: TẮT là MỌI script chạy ở tab 💻 Code để GUI
+          ngoài màn hình game (như bản cũ), lựa chọn được LƯU XUỐNG ĐĨA. Tab ➕ Tính Năng không
+          phụ thuộc công tắc này — vẫn nhúng GUI vào tab như bình thường;
+        • nhãn trạng thái tab 💻 Code nói rõ GUI đi đâu ("🪟 GUI để NGOÀI màn hình game..." /
+          "🧩 đã đưa N GUI vào tab GUI Ngoài").
+      KHÔNG đổi gì ở các tính năng khác: tab ➕ Tính Năng vẫn tự nhúng GUI (kể cả script tạo GUI
+      trễ, tạo trong task.spawn, GUI tên "Main", và cả khi executor chặn hook Instance.new).
     + SỬA (bản này): GUI của script tính năng VẪN nằm NGOÀI menu — kể cả lần tạo ĐẦU TIÊN
       (không chỉ sau khi thoát game vào lại). 3 nguyên nhân đã vá:
         • REGRESSION của v4.4g: nó lọc TÊN ScreenGui cho MỌI trường hợp. Rất nhiều script đặt
@@ -332,7 +347,7 @@ Corner(titleBar, UDim.new(0,10))
 New("TextLabel", {
     Size=UDim2.new(1,-90,1,0),
     Position=UDim2.new(0,12,0,0),
-    Text="🍌 Banana Cat Executor Hub v4.4h",
+    Text="🍌 Banana Cat Executor Hub v4.4i",
     BackgroundTransparency=1,
     TextColor3=C.DARK,
     Font=Enum.Font.GothamBold,
@@ -569,6 +584,11 @@ local S = {
     -- main chunk đang ở ~184/200, thêm local tự do là lỗi biên dịch "too many local variables")
     embedEnabled = true,     -- tab 5 có nút 🧩 để tắt hoàn toàn việc nhúng
     embedGuessNew = false,   -- 🕵 nhận cả ScreenGui "lạ" mới xuất hiện (mạnh hơn nhưng dễ ăn GUI game)
+    -- v4.4i: 🪟 có đưa GUI của script chạy ở tab 💻 Code / 💾 Code Đã Lưu vào tab "🧩 GUI Ngoài"
+    -- hay không. BẬT = đưa vào menu (tiện cho script tính năng). TẮT = để GUI ngoài màn hình
+    -- game đúng như bản trước v4.4h. Tab ➕ Tính Năng KHÔNG phụ thuộc công tắc này.
+    -- 3 nút ⚡ Script Nhanh (Dex/IY/SimpleSpy) thì LUÔN ở ngoài màn hình, không cần biết công tắc.
+    parkCodeGuis = true,
     embeds       = {},       -- registry: {host, gui, recs={{child,origParent,origPos,origSize}}, conns={}}
 }
 
@@ -731,6 +751,7 @@ function Store.serialize()
         settings  = {
             embedEnabled  = (S.embedEnabled == true),
             embedGuessNew = (S.embedGuessNew == true),
+            parkCodeGuis  = (S.parkCodeGuis ~= false),   -- v4.4i
         },
     }
 end
@@ -775,6 +796,8 @@ function Store.load()
     if type(data.settings) == "table" then
         S.embedEnabled  = (data.settings.embedEnabled ~= false)
         S.embedGuessNew = (data.settings.embedGuessNew == true)
+        -- v4.4i: file cũ chưa có khóa này -> giữ mặc định BẬT
+        S.parkCodeGuis  = (data.settings.parkCodeGuis ~= false)
     end
 
     local sOut = {}
@@ -844,7 +867,7 @@ local function Cancel()
     if curIndicator then curIndicator.BackgroundColor3=C.BLUE; curIndicator=nil end
 end
 
-local function RunCode(code, name, ind, times, delay)
+local function RunCode(code, name, ind, times, delay, noPark)
     Cancel()
     ReleaseHubFocus()   -- v4.4b: nhả focus TextBox, nếu không game chặn hết input (không đi/không bắn)
     if #code==0 then return false, "⚠️ Vui lòng nhập code!" end
@@ -857,10 +880,32 @@ local function RunCode(code, name, ind, times, delay)
     -- -> vòng while bên ngoài quay vô hạn. Vì vậy dùng cờ runActive riêng.
     curThread=task.spawn(function()
         runActive=true
-        -- v4.4h: script chạy ở tab 💻 Code / 💾 Code Đã Lưu / 🛠 Hỗ Trợ cũng đưa được GUI vào menu.
-        -- Trước đây CHỈ tab ➕ Tính Năng mới nhúng GUI, nên chạy code ở đây thì GUI luôn nằm
-        -- NGOÀI menu (đúng triệu chứng hay bị phản ánh). Tắt 🧩 "Nhúng GUI" là trở về như cũ.
-        local cap = S.BeginRunCapture()
+        -- v4.4h: script chạy ở tab 💻 Code / 💾 Code Đã Lưu cũng đưa được GUI vào menu
+        -- (trước đây CHỈ tab ➕ Tính Năng mới nhúng GUI). Tắt 🧩/🪟 là trở về như cũ.
+        --
+        -- v4.4i: NHƯNG 3 nút ⚡ Script Nhanh ở tab 🛠 Hỗ Trợ (Dex Explorer / Infinite Yield /
+        -- SimpleSpy) là CÔNG CỤ CỬA SỔ RIÊNG — GUI của chúng PHẢI nằm ngoài màn hình game thì
+        -- mới kéo/thu nhỏ/dùng được. v4.4h lỡ "đậu" chúng vào menu nên người dùng thấy
+        -- "bấm chạy mà không hiện ra màn hình chính". Nay nhóm này KHÔNG BAO GIỜ bị đưa vào menu:
+        --   • nút ở tab 🛠 truyền noPark=true
+        --   • dán loadstring của chúng vào tab 💻 Code / lưu ở 💾 Code Đã Lưu cũng tự nhận ra
+        --     (S.ShouldSkipPark soi URL/tên: dex.lua, infiniteyield, simplespy...)
+        local skipPark, skipWhy = (noPark == true), (noPark == true and "nút script nhanh" or nil)
+        if not skipPark and S.ShouldSkipPark then
+            local s2, w2 = S.ShouldSkipPark(code, name)
+            if s2 then skipPark, skipWhy = true, w2 end
+        end
+        local cap = nil
+        if skipPark then
+            S.lastParkNote = "🪟 GUI để NGOÀI màn hình game (công cụ cửa sổ riêng) — không đưa vào menu"
+            pcall(function()
+                print("[BananaCatHub] 🛠 '" .. tostring(name) .. "': GUI ở NGOÀI màn hình game như cũ"
+                    .. " (lý do không đưa vào menu: " .. tostring(skipWhy) .. ")")
+            end)
+        else
+            S.lastParkNote = nil
+            cap = S.BeginRunCapture()
+        end
         for i=1,times do
             if cancelled then break end
             if i>1 and delay>0 then
@@ -1042,8 +1087,16 @@ runBtn.Activated:Connect(function()
                 if cancelled then statusLbl.Text="⏹️ Đã dừng"; return end
                 task.wait(0.1)
             end
-            if not cancelled then statusLbl.Text="✅ Hoàn thành!" end
+            if not cancelled then
+                statusLbl.Text="✅ Hoàn thành!" .. (S.lastParkNote and (" · " .. S.lastParkNote) or "")
+            end
             countLbl.Text="🔄 Tổng số lần đã chạy: "..totalRuns
+            -- GUI có thể được đưa vào menu trễ hơn chút (script dựng GUI sau HttpGet/task.wait)
+            task.delay(1.5, function()
+                if statusLbl and statusLbl.Parent and S.lastParkNote then
+                    statusLbl.Text = "✅ Hoàn thành! · " .. S.lastParkNote
+                end
+            end)
         end)
     end
 end)
@@ -1337,7 +1390,9 @@ for _, s in ipairs(quickScripts) do
         BackgroundTransparency=1, TextColor3=C.WHITE, Font=Enum.Font.GothamBold, TextSize=10,
         TextXAlignment=Enum.TextXAlignment.Left, TextYAlignment=Enum.TextYAlignment.Center, ZIndex=7,
     }, btn)
-    btn.Activated:Connect(function() RunCode(s.c, s.n, nil, 1, 0) end)
+    -- v4.4i: noPark=true -> Dex/IY/SimpleSpy mở GUI NGOÀI màn hình game (đúng như trước v4.4h),
+    -- hub không "mượn" cửa sổ của chúng vào menu nữa.
+    btn.Activated:Connect(function() RunCode(s.c, s.n, nil, 1, 0, true) end)
     posY = posY + 32
 end
 
@@ -3433,7 +3488,7 @@ function S.FitToTab(obj, nm)
 end
 
 _G.BananaCatHubAPI = {
-    Version = "4.4h",
+    Version = "4.4i",
     HubGui = gui,     -- v4.4e: sửa lỗi cũ — biến tên là `gui`, không phải `hubGui` (trước đây là nil)
     Main = main,
     -- gọi bằng dấu hai chấm: API:TabArea("Tên Tab")  ->  Vector2 khổ vùng nội dung của tab
@@ -4453,12 +4508,24 @@ function S.ParkHost(label)
         local sf, btn = AddTab("GUI Ngoài", "🧩", 99)
         S.parkTab, S.parkBtn = sf, btn
         New("TextLabel", {
-            Size = UDim2.new(1, -16, 0, 30), Position = UDim2.new(0, 8, 0, 4),
-            Text = "🧩 GUI do script chạy ở tab 💻 Code tạo ra — hub đã đưa vào đây. Bấm ↩ để trả về màn hình game.",
+            Size = UDim2.new(1, -140, 0, 30), Position = UDim2.new(0, 8, 0, 4),
+            Text = "🧩 GUI do script chạy ở tab 💻 Code tạo ra — hub đưa vào đây. Bấm ↩ để trả về màn hình game. (Dex/IY/SimpleSpy KHÔNG bao giờ vào đây.)",
             BackgroundTransparency = 1, TextColor3 = C.DARK, Font = Enum.Font.GothamMedium,
             TextSize = 10, TextWrapped = true, ZIndex = 6,
             TextXAlignment = Enum.TextXAlignment.Left,
         }, S.parkTab)
+        local backAll = New("TextButton", {
+            Size = UDim2.new(0, 124, 0, 24), Position = UDim2.new(1, -128, 0, 6),
+            Text = "↩ Trả tất cả về game", BackgroundColor3 = C.RED, BackgroundTransparency = 0.15,
+            TextColor3 = C.WHITE, Font = Enum.Font.GothamBold, TextSize = 9, BorderSizePixel = 0, ZIndex = 7,
+        }, S.parkTab)
+        Corner(backAll, UDim.new(0, 5))
+        backAll.Activated:Connect(function()
+            local n = S.RemoveAllParked()
+            pcall(function()
+                print("[BananaCatHub] ↩ đã trả " .. n .. " GUI về màn hình game")
+            end)
+        end)
         S.parkList = New("Frame", {
             Name = "ParkList", Size = UDim2.new(1, -16, 1, -42), Position = UDim2.new(0, 8, 0, 38),
             BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = 5,
@@ -4505,8 +4572,46 @@ end
 
 -- Bắt đầu "chụp" GUI cho một lần chạy script (gọi TỪ TRONG luồng sẽ chạy script).
 -- Trả về nil nếu người dùng tắt 🧩 -> RunCode chạy y như trước, không đổi hành vi.
+-- "Công cụ cửa sổ riêng" (Dex Explorer, Infinite Yield, SimpleSpy...): GUI của chúng phải nằm
+-- NGOÀI màn hình game. Nhận diện qua URL/tên trong code để kể cả khi người dùng dán loadstring
+-- vào tab 💻 Code hoặc chạy từ 💾 Code Đã Lưu thì hub cũng KHÔNG đưa vào menu.
+S.NO_PARK_MARKERS = {
+    "dex.lua", "dex explorer", "dexexplorer", "infiniteyield", "infinite yield",
+    "simplespy", "simple spy",
+}
+function S.ShouldSkipPark(code, name)
+    local hay = (tostring(code or "") .. "\n" .. tostring(name or "")):lower()
+    for _, m in ipairs(S.NO_PARK_MARKERS) do
+        if hay:find(m, 1, true) then return true, m end
+    end
+    return false, nil
+end
+
+-- Trả MỌI GUI đang đậu trong tab "🧩 GUI Ngoài" về màn hình game (frame con về ScreenGui gốc,
+-- khôi phục Position/Size, xóa ô). Dùng cho nút "↩ Trả tất cả về game" và khi tắt công tắc 🪟.
+function S.RemoveAllParked()
+    if not (S.parkList and S.parkList.Parent) then return 0 end
+    local n = 0
+    local kids = S.parkList:GetChildren()
+    for i = #kids, 1, -1 do
+        local box = kids[i]
+        if box.Name:sub(1, 8) == "ParkBox_" then
+            S.ClearEmbedsUnder(box)
+            pcall(function() box:Destroy() end)
+            n += 1
+        end
+    end
+    S.parkCount = 0
+    pcall(function() S.parkTab.CanvasSize = UDim2.new(0, 0, 0, 10) end)
+    pcall(function() if S.parkBtn then S.parkBtn.Text = "🧩 GUI Ngoài" end end)
+    return n
+end
+
 function S.BeginRunCapture()
     if not S.embedEnabled then return nil end
+    -- 🪟 TẮT = script chạy ở tab Code để GUI ngoài màn hình game, đúng như bản trước v4.4h.
+    -- (Tab ➕ Tính Năng KHÔNG bị ảnh hưởng: nó dùng S.HookInstanceNew trực tiếp.)
+    if S.parkCodeGuis == false then return nil end
     local ok, cap = pcall(function()
         local unhook, recs, st = S.HookInstanceNew()
         local stopWatch = S.WatchNewGuis(recs, st)
@@ -5122,6 +5227,14 @@ S.reembedBtn = Button(createFeatureTab,
     "🔁 Cứu GUI: nhúng lại GUI của tab ĐANG MỞ vào menu", 8, cy, 418, 26, C.BLUE)
 cy = cy + 32
 
+-- v4.4i: công tắc 🪟 cho việc đưa GUI của script chạy ở TAB CODE vào menu.
+-- Lý do có nút này: Dex Explorer / Infinite Yield / SimpleSpy và mấy hub của người khác là
+-- "cửa sổ riêng" — chúng phải nằm NGOÀI màn hình game. Ai muốn mọi script ở tab 💻 Code
+-- đều hiện ngoài màn hình (như bản cũ) thì bấm TẮT một cái là xong.
+S.parkToggleBtn = Button(createFeatureTab,
+    "🪟 GUI chạy ở tab 💻 Code → đưa vào menu: BẬT", 8, cy, 418, 26, C.GREEN)
+cy = cy + 32
+
 -- v4.4g: 🧩 và 🕵 giờ ĐƯỢC LƯU XUỐNG ĐĨA (Store.serialize mục settings) -> vào lại game
 -- phải đồng bộ nhãn nút theo trạng thái đã nạp, không thì nút hiện "BẬT" trong khi đang TẮT.
 S.SyncEmbedToggles = function()
@@ -5130,6 +5243,13 @@ S.SyncEmbedToggles = function()
         embedToggleBtn.BackgroundColor3 = S.embedEnabled and C.GREEN or C.GRAY
         guessToggleBtn.Text = (S.embedGuessNew == true) and "🕵 Đoán GUI trễ: BẬT" or "🕵 Đoán GUI trễ: TẮT"
         guessToggleBtn.BackgroundColor3 = (S.embedGuessNew == true) and C.ORANGE or C.GRAY
+        -- v4.4i: nút 🪟 (có thể chưa tồn tại khi hàm này được gọi lần đầu lúc khởi động)
+        if S.parkToggleBtn then
+            local on = (S.parkCodeGuis ~= false)
+            S.parkToggleBtn.Text = on and "🪟 GUI chạy ở tab 💻 Code → đưa vào menu: BẬT"
+                                     or "🪟 GUI chạy ở tab 💻 Code → để ngoài màn hình: TẮT"
+            S.parkToggleBtn.BackgroundColor3 = on and C.GREEN or C.GRAY
+        end
     end)
 end
 S.SyncEmbedToggles()
@@ -5176,6 +5296,22 @@ guessToggleBtn.Activated:Connect(function()
             .. " Script tạo GUI trễ sẽ chạy bình thường ngoài màn hình, không bị nhúng."
     end
     Store.saveSoon()   -- v4.4g: lưu trạng thái 🕵 xuống đĩa
+end)
+
+-- v4.4i: bật/tắt việc đưa GUI của script chạy ở tab 💻 Code vào menu
+S.parkToggleBtn.Activated:Connect(function()
+    S.parkCodeGuis = (S.parkCodeGuis == false)   -- đảo trạng thái
+    S.SyncEmbedToggles()
+    if S.parkCodeGuis == false then
+        local n = S.RemoveAllParked()   -- hoàn tác ngay: trả GUI về màn hình game
+        createStatus.Text = "🪟 TẮT: script chạy ở tab 💻 Code / 💾 Code Đã Lưu sẽ để GUI NGOÀI màn hình game"
+            .. (n > 0 and (" · đã trả " .. n .. " GUI về màn hình") or "")
+            .. " · tab ➕ Tính Năng vẫn nhúng GUI vào tab như bình thường."
+    else
+        createStatus.Text = "🪟 BẬT: GUI của script chạy ở tab 💻 Code sẽ được đưa vào tab '🧩 GUI Ngoài'"
+            .. " (mỗi GUI có nút ↩ trả về màn hình). Dex/IY/SimpleSpy vẫn LUÔN ở ngoài màn hình game."
+    end
+    Store.saveSoon()   -- lưu xuống đĩa: thoát game vào lại vẫn giữ lựa chọn này
 end)
 
 grabSizeCodeBtn.Activated:Connect(function()
@@ -5674,7 +5810,7 @@ main.Visible = true
 togBtn.Text = "✕"
 
 print(string.format(
-    "✅ Banana Cat Hub v4.4h — sẵn sàng! Đã nạp lại %d script + %d waypoint + %d tab tính năng từ bộ nhớ (chế độ: %s%s)",
+    "✅ Banana Cat Hub v4.4i — sẵn sàng! Đã nạp lại %d script + %d waypoint + %d tab tính năng từ bộ nhớ (chế độ: %s%s)",
     Store.loadedScripts, Store.loadedWp, #Store.loadedFeatures, Store.mode,
     Store.lastError and (" | ⚠️ " .. Store.lastError) or ""
 ))

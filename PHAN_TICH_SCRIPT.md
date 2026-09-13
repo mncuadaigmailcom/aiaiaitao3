@@ -497,6 +497,66 @@ Mở console (F9) rồi bấm ▶, và đọc dòng `[BananaCatHub] ▶ …`:
 
 ---
 
+## ✅ Cập nhật 2026-09-13 (lần 3) — bản **v4.4i**: 3 nút ⚡ Script Nhanh ở tab 🛠 Hỗ Trợ phải hiện **ngoài màn hình game**
+
+Phản ánh: *"trong phần Hỗ Trợ, ba tính năng chạy script nhanh, mình nhấn vào hoạt động sao lại
+ba tính năng đó không hiện ra màn hình chính mà lại vào phần Tạo Tính Năng"*.
+
+**Đây là lỗi do chính v4.4h gây ra.** Ba nút đó là:
+
+| nút | script | bản chất GUI |
+|---|---|---|
+| **Dex Explorer** | `dex.lua` (infyiff/backup) | trình khám phá instance — **cửa sổ riêng**, kéo/thu nhỏ được |
+| **Infinite Yield** | `EdgeIY/infiniteyield` | admin commands — **cửa sổ riêng** |
+| **SimpleSpy v3** | `ex-serum/SimpleSpy` | theo dõi Remote — **cửa sổ riêng** |
+
+Chúng là **công cụ cửa sổ độc lập**: GUI phải nằm **ngoài màn hình game** thì mới dùng được.
+v4.4h cho `RunCode` "đậu" GUI vào tab 🧩 GUI Ngoài → ba công cụ này bị nhốt trong ô 240px
+(khung bị clip, không kéo được, nhìn như "không hiện ra màn hình chính") → **mất tính năng**.
+
+### Cách sửa (v4.4i)
+
+1. **`RunCode(code, name, ind, times, delay, noPark)`** — thêm tham số `noPark`. Ba nút ở tab 🛠
+   truyền `noPark = true` → **KHÔNG BAO GIỜ** bị đưa vào menu, hành vi giống hệt trước v4.4h
+   (không mở hook, không tạo tab, không dời frame con).
+2. **Tự nhận diện kể cả khi không bấm 3 nút đó:** `S.ShouldSkipPark(code, name)` soi URL/tên trong
+   code (`dex.lua`, `dex explorer`, `infiniteyield`, `infinite yield`, `simplespy`, `simple spy`).
+   Nên dán loadstring của Dex/IY/SimpleSpy vào tab 💻 Code, hoặc chạy từ 💾 Code Đã Lưu, cũng vẫn
+   để GUI **ngoài màn hình game**. Danh sách này chỉ *ngăn đưa vào menu*, không chặn bất kỳ thứ gì
+   khác → không thể làm hỏng script của người dùng.
+3. **Công tắc mới 🪟 ở tab ➕ Tạo Tính Năng:** `🪟 GUI chạy ở tab 💻 Code → đưa vào menu: BẬT/TẮT`,
+   **lưu xuống đĩa** (`settings.parkCodeGuis`, file cũ chưa có khóa thì mặc định BẬT).
+   - **TẮT** = mọi script chạy ở tab 💻 Code / 💾 Code Đã Lưu để GUI ngoài màn hình game (đúng như
+     bản trước v4.4h), và **hoàn tác ngay** những GUI đang đậu (`S.RemoveAllParked`).
+   - Tab ➕ **Tính Năng không phụ thuộc công tắc này** — vẫn tự nhúng GUI vào tab như thường
+     (đã có test N7 kiểm chứng), nên không mất tính năng nào.
+4. **Nút "↩ Trả tất cả về game"** trên đầu tab 🧩 GUI Ngoài (trước đó chỉ có nút ↩ trên từng ô).
+5. **Nhãn trạng thái tab 💻 Code nói rõ GUI đi đâu:** `🪟 GUI để NGOÀI màn hình game (công cụ cửa
+   sổ riêng) — không đưa vào menu`, hoặc `🧩 đã đưa N GUI vào tab GUI Ngoài`. Console (F9) cũng in
+   lý do bỏ qua.
+
+### Kiểm chứng
+
+Thêm bộ test **`test_nopark` (24 test)** chạy trên đúng code trích từ file:
+
+| nhóm test | nội dung | kết quả |
+|---|---|---|
+| N1–N2 | nhận diện đúng Dex/IY/SimpleSpy **và không bỏ qua oan** script của người dùng (kể cả GUI tên `Main`) | 6/6 |
+| N3 | bấm nút ở tab 🛠 (`noPark=true`): ScreenGui vẫn ở `PlayerGui`, **frame con vẫn nằm trong ScreenGui** (không bị dời vào menu), không mở hook, không tạo tab | 6/6 |
+| N4 | dán loadstring Dex vào tab 💻 Code → vẫn tự nhận ra, để ngoài màn hình | 2/2 |
+| N5 | script tính năng thường chạy ở tab 💻 Code → **vẫn** được đưa vào menu (giữ tính năng v4.4h) | 2/2 |
+| N6–N7 | 🪟 TẮT: tab Code để GUI ngoài màn hình, **nhưng tab ➕ Tính Năng vẫn nhúng bình thường** | 3/3 |
+| N8–N9 | nút "↩ Trả tất cả về game" dọn sạch ô; `RemoveAllParked` an toàn khi chưa có tab | 5/5 |
+
+**Tổng cả 4 bộ: 21 + 15 + 25 + 24 = 85/85 PASS.** Bảng so sánh 3 phiên bản (v4.4f/v4.4g/v4.4h)
+vẫn giữ nguyên **8/8** cho bản mới — không có hồi quy nào.
+
+**Toàn file:** syntax **OK** (5.818 dòng) · `if/do/function … end` **cân bằng** (depth cuối = 0) ·
+**local cấp chunk vẫn 187/200** · **CRLF 100%** (5.817 / 0 LF lẻ) · version đồng bộ `4.4i`
+(header, title bar, `_G.BananaCatHubAPI.Version`, log khởi động).
+
+---
+
 ## 9. Kết luận một câu
 
 Đây là một hub executor **được viết bởi người hiểu rất rõ những "nỗi đau" thực tế của Roblox UI** (focus,
