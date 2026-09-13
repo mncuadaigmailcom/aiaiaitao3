@@ -86,6 +86,11 @@ local function makeObj(cls, name)
             for i, f in ipairs(t) do if f == fn then table.remove(t, i) break end end
         end}
     end
+    for _, sn in ipairs({ "MouseButton1Click", "MouseButton1Down", "Activated", "Changed",
+                          "MouseEnter", "MouseLeave", "FocusLost" }) do
+        o[sn] = { Connect = function(_, fn) return o:_on(sn, fn) end }
+    end
+    function o:WaitForChild(n) return o:FindFirstChild(n) end
     function o:GetPropertyChangedSignal(prop)
         local self = o
         return {
@@ -127,7 +132,12 @@ local function makeObj(cls, name)
                 local changed = (t._defaults and t._defaults[k] ~= nil and t._defaults[k] ~= v)
                     or (t._defaults[k] == nil and rawget(t, k) ~= nil and rawget(t, k) ~= v)
                 if t._defaults and t._defaults[k] ~= nil then t._defaults[k] = v else rawset(t, k, v) end
-                if changed and type(v) ~= "function" then t:_fire("prop:" .. k) end
+                if changed and type(v) ~= "function" then
+                    t:_fire("prop:" .. k)
+                    if k == "Size" or k == "Position" then
+                        t:_fire("prop:AbsoluteSize"); t:_fire("prop:AbsolutePosition")
+                    end
+                end
             end
         end,
     })
@@ -153,12 +163,23 @@ game = makeObj("DataModel", "game")
 game.Players = makeObj("Players", "Players")
 game.Players.LocalPlayer = makeObj("LocalPlayer", "LocalPlayer")
 game.Players.LocalPlayer.PlayerGui = playerGui
+playerGui.Parent = game.Players.LocalPlayer
+local hubGui = gui
+hubGui.Parent = playerGui
 function game:GetService(n)
     if n == "CoreGui" then return coreGui end
     if n == "Players" then return game.Players end
     return makeObj(n, n)
 end
 ReleaseHubFocus = function() end
+Color3 = { fromRGB = function(r, g, bb) return { R = r, G = g, B = bb } end,
+           fromHSV = function() return {} end }
+Enum = setmetatable({}, { __index = function(_, e)
+    return setmetatable({}, { __index = function() return { Name = "EnumItem" } end })
+end })
+workspace = makeObj("Workspace", "workspace")
+workspace.CurrentCamera = nil
+setclipboard = nil
 
 ------------------------------------------------------------------ task stub (hub có dùng task.delay cho re-fit)
 task = {
@@ -404,6 +425,95 @@ check("frame của tab A vẫn nằm trong host A", inA)
 check("mỗi tab có host riêng", #S.embeds == 2)
 S.ClearEmbedsUnder(hostA)
 check("tab B còn nguyên sau khi tab A dọn", gB.Parent == playerGui and #S.embeds == 1)
+
+------------------------------------------------------------------ 10
+print("[10] Code MẪU (nút 📋 Copy sinh ra) — biên dịch được, có SIZE CONTRACT")
+local code = S.FeatureTemplate("Auto Farm", "🌾", "harness")
+check("thay tên tính năng", code:find("Auto Farm") ~= nil and not code:find("__BC_NAME__"))
+check("thay icon", code:find("🌾") ~= nil)
+check("có khối SIZE CONTRACT", code:find("SIZE CONTRACT") ~= nil)
+check("có khối FEATURE LOGIC cho người viết", code:find("FEATURE LOGIC") ~= nil)
+check("dùng API hub nếu có", code:find("BananaCatHubAPI") ~= nil)
+local nGui = select(2, code:gsub('Instance%.new%("ScreenGui"%)', ''))
+check("chỉ tạo ĐÚNG 1 ScreenGui", nGui == 1, nGui)
+check("không quét PlayerGui/CoreGui bừa", not code:find('GetService%("CoreGui"%)'))
+check("nhắc CẤMwhile true thiếu wait", code:find("task%.wait") ~= nil)
+local fn, cerr = load(code, "feature_template", "t", _G)
+check("code mẫu BIÊN DỊCH ĐƯỢC", fn ~= nil, cerr)
+
+print("[11] chạy code mẫu: standalone -> bám khổ menu hub; có API -> dùng API")
+if fn then
+    local okRun, ret = pcall(fn)
+    check("chạy thử không nổ lỗi", okRun, ret)
+    check("trả về tên tính năng", ret == "Auto Farm", tostring(ret))
+    local featGui2 = playerGui:FindFirstChild("Auto Farm")
+    check("tạo ScreenGui tên 'Auto Farm' trong PlayerGui", featGui2 ~= nil)
+    local r2 = featGui2 and featGui2:FindFirstChild("Root")
+    check("có 1 root frame duy nhất", r2 ~= nil and featGui2 ~= nil)
+    -- không có API: fallback đọc ScreenGui "ExMenu" của hub (hubMain 620x420 -> area 590x348)
+    check("root size bám theo menu hub (590x348)",
+        r2 and r2.Size.X.Offset == 590 and r2.Size.Y.Offset == 348,
+        r2 and (r2.Size.X.Offset .. "x" .. r2.Size.Y.Offset))
+    local beforeW = r2 and r2.Size.X.Offset
+    hubMain.Size = UDim2.new(0, 900, 0, 620)   -- kéo menu rộng ra
+    check("kéo menu to -> root to theo (qua AbsoluteSize)",
+        r2 and r2.Size.X.Offset > beforeW + 10, beforeW .. " -> " .. (r2 and r2.Size.X.Offset))
+    -- KÉO DÀI / KÉO RỘNG menu: root phải bám đúng khổ trong, KHÔNG giữ tỉ lệ thiết kế
+    check("root = khổ menu trừ viền (870x548 khi menu 900x620)",
+        r2 and r2.Size.X.Offset == 870 and r2.Size.Y.Offset == 548,
+        r2 and (r2.Size.X.Offset .. "x" .. r2.Size.Y.Offset))
+    local pnl = r2 and r2:FindFirstChild("Panel")
+    check("widget bên trong GIỮ offset thiết kế 620x384 (hub mới là bên scale)",
+        pnl and pnl.Position.X.Offset == 10 and pnl.Position.Y.Offset == 38,
+        pnl and (pnl.Position.X.Offset .. "," .. pnl.Position.Y.Offset))
+    hubMain.Size = UDim2.new(0, 620, 0, 420)
+end
+
+print("[12] code mẫu khi CÓ API: TabArea + OnResize được dùng, và phủ khít khi hub nhúng")
+local calls, fired = 0, 0
+_G.BananaCatHubAPI = {
+    Version = "test",
+    Main = hubMain,
+    TabArea = function(self, nm) calls = calls + 1; return V2(614, 378) end,
+    OnResize = function(self, f)
+        fired = fired + 1; _G.__bcTestCb = f
+        return { Disconnect = function() _G.__bcDisconnected = (_G.__bcDisconnected or 0) + 1 end }
+    end,
+}
+if fn then
+    local okRun2 = pcall(fn)
+    check("chạy lần 2 (có API) không nổ", okRun2)
+    check("có gọi API:TabArea()", calls > 0, calls)
+    check("đăng ký API:OnResize()", fired > 0, fired)
+    local g3 = playerGui:FindFirstChild("Auto Farm")
+    local list = {}
+    for _, c in ipairs(playerGui._children) do
+        if c.Name == "Auto Farm" then list[#list + 1] = c end
+    end
+    local root3 = list[#list] and list[#list]:FindFirstChild("Root")
+    check("size lấy từ API (614x378)",
+        root3 and root3.Size.X.Offset == 614 and root3.Size.Y.Offset == 378,
+        root3 and (root3.Size.X.Offset .. "x" .. root3.Size.Y.Offset))
+    -- hub nhúng root vào host (Frame) -> block phải tự phủ khít, không tự tính nữa
+    local sf = makeObj("ScrollingFrame", "Tab"); sf.Parent = hubMain
+    local hostF = makeObj("Frame", "ScriptHost"); hostF.Parent = sf
+    if root3 then root3.Parent = hostF end
+    if _G.__bcTestCb then _G.__bcTestCb(V2(614, 378)) end
+    if type(_G.BC_FEATURES) == "table" and _G.BC_FEATURES["Auto Farm"] then
+        _G.BC_FEATURES["Auto Farm"].Close()
+        check("bcClose() ngắt OnResize connection (không leak callback)",
+            (_G.__bcDisconnected or 0) > 0, _G.__bcDisconnected)
+        check("bcClose() tắt GUI của tính năng",
+            list[#list] and list[#list].Enabled == false, tostring(list[#list] and list[#list].Enabled))
+    else
+        check("có _G.BC_FEATURES[tên].Close", false, "thiếu registry")
+        check("bcClose() ngắt OnResize connection (không leak callback)", false)
+    end
+    check("được nhúng -> root phủ (1,0,1,0)",
+        root3 and root3.Size.X.Scale == 1 and root3.Size.X.Offset == 0,
+        root3 and (root3.Size.X.Scale .. "," .. root3.Size.X.Offset))
+    _G.BananaCatHubAPI = nil
+end
 
 print(string.format("\n=> %d pass / %d fail", pass, fail))
 if fail > 0 then error("CÓ TEST FAIL") end

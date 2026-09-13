@@ -1,5 +1,5 @@
 --[[
-    🍌 Banana Cat Hub v4.4c — FULL CODE
+    🍌 Banana Cat Hub v4.4d — FULL CODE
     + SỬA (QUAN TRỌNG — đúng cái bạn gặp): "TẠO TÍNH NĂNG → ▶ Chạy Script" làm bạn
            KHÔNG quay chuột / KHÔNG bắn được và làm LỖI vài nút của game. 3 nguyên nhân:
              • TextBox của hub còn focus -> Roblox chặn input người chơi. Giờ hub tự nhả focus
@@ -137,6 +137,14 @@ end
 --   của game (đúng cái lỗi của 4.4a). Mọi giá trị gốc được chụp lại (entry.snap) và trả nguyên
 --   trạng khi ✕ / 🧩 TẮT / xoá tab. Kéo corner menu hay đổi tab -> BcFit() re-fit (debounce
 --   0.05s) nên GUI của tab luôn "bằng kích thước menu chính" theo thời gian thực.
+-- v4.4d — "COPY CODE MẪU" + API kích thước cho script tính năng
+--   Người dùng cần: bấm 1 nút -> ra code -> gửi cho người khác/AI viết tiếp -> dán lại ->
+--   ▶ Chạy Script là GUI TỰ VỪA ô menu và tự theo khi kéo menu to/nhỏ.
+--   -> _G.BananaCatHubAPI (TabArea / OnResize / FeatureTabHost / FitToTab / EmbedGui) để script
+--      bên ngoài đọc được khổ menu; S.FeatureTemplate() sinh code mẫu có khối "SIZE CONTRACT"
+--      (chạy được ngay, tự canh size cả khi hub TẮT nhúng); nút 📋 trong "Tạo Tính Năng" copy
+--      clipboard + lưu vào Code Đã Lưu + chỉ điền vào ô code khi ô đang trống (không mất code).
+--   + sửa: tab "Tạo Tính Năng" có CanvasSize=0 nên mấy dòng dưới không cuộn tới được.
 -- ============================================================================
 local function ReleaseHubFocus()
     pcall(function()
@@ -248,7 +256,7 @@ Corner(titleBar, UDim.new(0,10))
 New("TextLabel", {
     Size=UDim2.new(1,-90,1,0),
     Position=UDim2.new(0,12,0,0),
-    Text="🍌 Banana Cat Executor Hub v4.4c",
+    Text="🍌 Banana Cat Executor Hub v4.4d",
     BackgroundTransparency=1,
     TextColor3=C.DARK,
     Font=Enum.Font.GothamBold,
@@ -3192,13 +3200,349 @@ function S.FitEmbedded(entry)
     return s
 end
 
+-- ===== KHU VỰC: API cho script tính năng (để GUI bên ngoài cũng tự vừa menu) =====
+-- Script được người khác/AI viết thường không biết gì về hub. Chỉ cần nó gọi
+-- _G.BananaCatHubAPI (nếu có) là tự canh size theo ô tab + tự theo khi kéo menu.
+function S.TabArea(nm)
+    local frame
+    if type(nm) == "string" and #nm > 0 then
+        for _, ft in ipairs(featureTabs) do
+            if ft.name == nm then frame = ft.frame break end
+        end
+    end
+    frame = frame or activeTab
+    if not frame then return nil end
+    local host = frame:FindFirstChild("ScriptHost")
+    local area = host or frame
+    local sz = area.AbsoluteSize
+    return Vector2.new(math.max(0, sz.X - 6), math.max(0, sz.Y - 6))
+end
+
+S.resizedCbs = {}
+function S.OnResized(fn)
+    if type(fn) ~= "function" then return nil end
+    table.insert(S.resizedCbs, fn)
+    return { Disconnect = function()
+        for i, f in ipairs(S.resizedCbs) do
+            if f == fn then table.remove(S.resizedCbs, i) break end
+        end
+    end }
+end
+function S.NotifyResize()
+    local a = S.TabArea()
+    local cbs = {}
+    for _, f in ipairs(S.resizedCbs) do cbs[#cbs+1] = f end
+    for _, f in ipairs(cbs) do pcall(f, a) end
+end
+
+-- Script có thể tự xin được nhúng vào tab của nó (thay vì chờ hub "bắt" GUI)
+function S.FeatureTabHost(nm)
+    if type(nm) == "string" and #nm > 0 then
+        for _, ft in ipairs(featureTabs) do
+            if ft.name == nm then
+                local h = ft.frame and ft.frame:FindFirstChild("ScriptHost")
+                if h then return h end
+            end
+        end
+    end
+    return activeTab and activeTab:FindFirstChild("ScriptHost")
+end
+
+-- Không cần nhúng vẫn vừa menu: chỉnh 1 frame phủ khít ô tab hiện tại
+function S.FitToTab(obj, nm)
+    if not obj then return nil end
+    local host = S.FeatureTabHost(nm)
+    if host and obj.Parent ~= host then
+        pcall(function() obj.Parent = host end)
+    end
+    pcall(function()
+        obj.Size = UDim2.new(1, 0, 1, 0)
+        obj.Position = UDim2.new(0, 0, 0, 0)
+    end)
+    return obj
+end
+
+_G.BananaCatHubAPI = {
+    Version = "4.4d",
+    HubGui = hubGui,
+    Main = main,
+    -- gọi bằng dấu hai chấm: API:TabArea("Tên Tab")  ->  Vector2 khổ vùng nội dung của tab
+    TabArea = function(self, nm) return S.TabArea(nm) end,
+    OnResize = function(self, fn) return S.OnResized(fn) end,      -- API:OnResize(f) -> {Disconnect=}
+    FeatureTabHost = function(self, nm) return S.FeatureTabHost(nm) end,
+    FitToTab = function(self, obj, nm) return S.FitToTab(obj, nm) end,
+    EmbedGui = function(self, guiOrFrame, nm)                        -- xin hub mượn GUI vào tab
+        local scr = guiOrFrame
+        if scr and not scr:IsA("ScreenGui") then scr = scr:FindFirstAncestorOfClass("ScreenGui") end
+        local host = S.FeatureTabHost(nm)
+        if not scr or not host then return nil end
+        return S.EmbedGui(scr, host)
+    end,
+    MakeTemplate = function(self, nm, icon) return S.FeatureTemplate(nm, icon) end,
+    ReleaseFocus = function(self) pcall(ReleaseHubFocus) end,
+}
+
+-- ===== FEATURE TEMPLATE (bắt đầu) ==========================
+function S.FeatureTemplate(nm, icon, stamp)
+    if type(nm) ~= "string" or #nm == 0 then nm = "Tính Năng Mới" end
+    if type(icon) ~= "string" or #icon == 0 then icon = "⚙️" end
+    if type(stamp) ~= "string" then stamp = "" end
+    local head = [==[
+-- ===========================================================================
+--  __BC_NAME__  ·  tính năng cho Banana Cat Hub  (bản MẪU, chạy được ngay)
+--  Icon: __BC_ICON__   ·   khổ thiết kế gốc: 620 x 384 px   ·   __BC_STAMP__
+-- ---------------------------------------------------------------------------
+--  [ ĐỌC HẾT PHẦN NÀY TRƯỚC KHI SỬA — dành cho người/AI nhận code ]
+--   1) Code này CHẠY ĐƯỢC NGAY (có sẵn khung giao diện + 1 nút bật/tắt).
+--      Việc duy nhất của bạn: thay phần trong khối "FEATURE LOGIC" bằng thuật
+--      toán thật. Các phần khác giữ nguyên.
+--   2) KHÔNG đổi tên các biến: gui, root, panel, bcToggle, bcStatus, bcEnabled,
+--      bcClose, BC. Hub (và người dán) dựa vào tên đó để nhúng + hoàn tác.
+--      Muốn đóng tính năng từ code của bạn: bcClose()  (hoặc _G.BC_FEATURES[tên].Close()).
+--   3) CHỈ dùng đúng 1 ScreenGui đã tạo ở đây. Widget mới phải là CON của
+--      `panel` (danh sách cài đặt) hoặc của `root` (tiêu đề, nút). KHÔNG tạo
+--      ScreenGui thứ hai, KHÔNG Destroy/ẩn GUI của game.
+--   4) CỨ viết Size/Position bằng pixel theo khổ 620x384 (offset bình thường).
+--      Banana Cat Hub TỰ động nhân đồng đều mọi offset (Size, Position,
+--      UICorner, UIPadding, UIStroke, TextSize) theo kích thước thật của ô tab,
+--      nên kéo menu to ra / thu nhỏ lại thì GUI to theo / nhỏ theo và KHÔNG méo.
+--      Vì vậy: KHÔNG tự ép UDim2.fromScale(1,1) cho widget bên trong, KHÔNG đọc
+--      AbsoluteSize của màn hình, KHÔNG đặt Position âm hay vượt 620x384.
+--   5) GIỮ NGUYÊN khối từ "SIZE CONTRACT" đến "END SIZE CONTRACT" (khối đó làm
+--      GUI vừa khít menu kể cả khi script được chạy NGOÀI hub / hub tắt nhúng).
+--   6) CẤM: while true thiếu task.wait, setclipboard, loadstring/HttpGet link lạ
+--      nếu chưa được yêu cầu, viết _G bừa (dùng biến local), gethui/getgenv để
+--      sửa GUI của game. Dùng `pcall` quanh phần logic có thể lỗi.
+--   7) Cách test: mở menu -> tab "Tạo Tính Năng" -> dán code -> bấm ▶ Chạy Script.
+--      Muốn trả GUI về nguyên trạng: bấm ✕ trên tab tính năng.
+-- ===========================================================================
+
+local BC = { Name = "__BC_NAME__", Icon = "__BC_ICON__", DesignW = 620, DesignH = 384 }
+
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+local pg = player and player:WaitForChild("PlayerGui")
+if not pg then return end
+
+local gui = Instance.new("ScreenGui")
+gui.Name = BC.Name
+gui.ResetOnSpawn = false
+gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+gui.Parent = pg
+
+local root = Instance.new("Frame")
+root.Name = "Root"
+root.Size = UDim2.new(0, BC.DesignW, 0, BC.DesignH)
+root.Position = UDim2.new(0.5, -BC.DesignW / 2, 0.5, -BC.DesignH / 2)
+root.BackgroundColor3 = Color3.fromRGB(24, 26, 38)
+root.BorderSizePixel = 0
+root.Parent = gui
+local function bcCorner(o, r)
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0, r)
+    c.Parent = o
+    return c
+end
+bcCorner(root, 8)
+
+-- ===== SIZE CONTRACT (KHỐI NÀY KHÔNG ĐƯỢC SỬA) ============================
+-- Mục tiêu: GUI luôn BẰNG ĐÚNG ô tab của menu, và tự cập nhật khi kéo menu
+-- to/nhỏ. Chạy trong hub -> phủ khít container mà hub đã đưa cho nó.
+-- Chạy độc lập -> bám theo khổ tab của hub nếu hub đang mở, nếu không thì
+-- lấy ~55% màn hình (vẫn giữ đúng tỉ lệ 620:384).
+local API = _G.BananaCatHubAPI
+local bcConn = nil        -- connection của API:OnResize, bcClose sẽ ngắt để không leak
+local function bcHubMain()
+    local ok, m = pcall(function() return API and API.Main end)
+    if ok and m and m.AbsoluteSize then return m end
+    -- chỉ nhận đúng ScreenGui của hub (tên "ExMenu"): KHÔNG đoán bừa GUI của game
+    local hub = pg:FindFirstChild("ExMenu") or pg:FindFirstChild("BananaCatHub")
+    if hub then
+        local f = hub:FindFirstChildWhichIsA("Frame")
+        if f and f.AbsoluteSize.X > 300 then return f end
+    end
+end
+local function bcArea()
+    local ok, v = pcall(function() return API and API.TabArea and API:TabArea(BC.Name) end)
+    if ok and v and v.X and v.X > 60 then return v end
+    local m = bcHubMain()
+    if m and m.AbsoluteSize.X > 300 then
+        return Vector2.new(m.AbsoluteSize.X - 30, m.AbsoluteSize.Y - 72)
+    end
+    local vp = Vector2.new(1280, 720)
+    pcall(function() vp = workspace.CurrentCamera.ViewportSize end)
+    local w = math.max(320, math.min(vp.X * 0.55, vp.X - 60))
+    return Vector2.new(w, w * BC.DesignH / BC.DesignW)
+end
+local function bcFit()
+    pcall(function()
+        local par = root.Parent
+        if par and not par:IsA("ScreenGui") then
+            root.Size = UDim2.new(1, 0, 1, 0)
+            root.Position = UDim2.new(0, 0, 0, 0)
+            return
+        end
+        local a = bcArea()
+        root.Size = UDim2.new(0, math.floor(a.X), 0, math.floor(a.Y))
+        root.Position = UDim2.new(0.5, -math.floor(a.X / 2), 0.5, -math.floor(a.Y / 2))
+    end)
+end
+bcConn = nil
+bcFit()
+pcall(function()
+    if API and API.OnResize then bcConn = API:OnResize(bcFit) end
+end)
+local bcHubFrame = bcHubMain()
+if bcHubFrame then
+    pcall(function()
+        bcHubFrame:GetPropertyChangedSignal("AbsoluteSize"):Connect(bcFit)
+    end)
+end
+task.delay(0.25, bcFit)
+task.delay(1.2, bcFit)
+-- ===== END SIZE CONTRACT ===================================================
+
+]==]
+    local body = [==[
+-- ---------- giao diện mẫu (thêm/bớt thoải mái, miễn là CON của panel/root) ----
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, -56, 0, 32)
+title.Position = UDim2.new(0, 10, 0, 0)
+title.BackgroundTransparency = 1
+title.Text = BC.Icon .. "  " .. BC.Name
+title.Font = Enum.Font.GothamBold
+title.TextSize = 15
+title.TextXAlignment = Enum.TextXAlignment.Left
+title.TextColor3 = Color3.fromRGB(255, 255, 255)
+title.Parent = root
+
+local closeBtn = Instance.new("TextButton")
+closeBtn.Name = "CloseBtn"
+closeBtn.Size = UDim2.new(0, 26, 0, 26)
+closeBtn.Position = UDim2.new(1, -34, 0, 3)
+closeBtn.BackgroundColor3 = Color3.fromRGB(210, 70, 70)
+closeBtn.Text = "X"
+closeBtn.Font = Enum.Font.GothamBold
+closeBtn.TextSize = 14
+closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeBtn.AutoButtonColor = true
+closeBtn.Parent = root
+bcCorner(closeBtn, 6)
+
+local panel = Instance.new("ScrollingFrame")
+panel.Name = "Panel"
+panel.Size = UDim2.new(1, -20, 1, -74)
+panel.Position = UDim2.new(0, 10, 0, 38)
+panel.BackgroundTransparency = 1
+panel.BorderSizePixel = 0
+panel.ScrollBarThickness = 5
+panel.AutomaticCanvasSize = Enum.AutomaticSize.Y
+panel.CanvasSize = UDim2.new(0, 0, 0, 0)
+panel.Parent = root
+local list = Instance.new("UIListLayout")
+list.Padding = UDim.new(0, 6)
+list.SortOrder = Enum.SortOrder.LayoutOrder
+list.Parent = panel
+local pad = Instance.new("UIPadding")
+pad.PaddingRight = UDim.new(0, 8)
+pad.Parent = panel
+
+local bcStatus = Instance.new("TextLabel")
+bcStatus.Name = "Status"
+bcStatus.Size = UDim2.new(1, -20, 0, 22)
+bcStatus.Position = UDim2.new(0, 10, 1, -30)
+bcStatus.BackgroundTransparency = 1
+bcStatus.Text = "Tắt"
+bcStatus.TextColor3 = Color3.fromRGB(255, 214, 90)
+bcStatus.Font = Enum.Font.Gotham
+bcStatus.TextSize = 12
+bcStatus.TextXAlignment = Enum.TextXAlignment.Left
+bcStatus.Parent = root
+
+local function bcButton(txt, color)
+    local b = Instance.new("TextButton")
+    b.Size = UDim2.new(1, 0, 0, 30)
+    b.BackgroundColor3 = color or Color3.fromRGB(60, 120, 220)
+    b.Text = txt
+    b.Font = Enum.Font.GothamMedium
+    b.TextSize = 13
+    b.TextColor3 = Color3.fromRGB(255, 255, 255)
+    b.AutoButtonColor = true
+    b.Parent = panel
+    bcCorner(b, 6)
+    return b
+end
+
+bcToggle = bcButton(BC.Icon .. "  Bật " .. BC.Name)
+-- VD thêm cài đặt: local speed = bcButton("Tốc độ: 1x")   -- người viết thay/sao dòng này
+
+]==]
+    local foot = [==[
+-- ---------- đóng / trả GUI (KHÔNG xóa khối này) ----------------------------
+local bcEnabled = false
+local bcConns = {}
+local function bcOn(inst, sig, fn)
+    table.insert(bcConns, inst[sig]:Connect(fn))
+end
+
+local function bcClose()
+    if bcConn then pcall(function() bcConn:Disconnect() end) bcConn = nil end
+    for _, c in ipairs(bcConns) do pcall(function() c:Disconnect() end) end
+    for i = #bcConns, 1, -1 do bcConns[i] = nil end
+    bcEnabled = false
+    pcall(function() gui.Enabled = false end)
+    task.delay(0.06, function() pcall(function() gui:Destroy() end) end)
+end
+bcOn(closeBtn, "MouseButton1Click", bcClose)
+
+-- Cho phép code khác (và AI) đóng/tắt tính năng mà không cần biến toàn cục trùng tên:
+_G.BC_FEATURES = _G.BC_FEATURES or {}
+_G.BC_FEATURES[BC.Name] = { name = BC.Name, Close = bcClose, Gui = gui, Root = root }
+
+-- =========================== FEATURE LOGIC ================================
+-- >>> THAY TOÀN BỘ KHỐI NÀY BẰNG THUẬT TOÁN THẬT CỦA TÍNH NĂNG <<<
+-- Quy tắc: mọi vòng lặp phải có task.wait(); mọi thao tác với nhân vật/game
+-- đặt trong pcall; tôn trọng cờ bcEnabled (bấm nút là phải dừng được ngay).
+bcOn(bcToggle, "MouseButton1Click", function()
+    bcEnabled = not bcEnabled
+    bcToggle.Text = (bcEnabled and "⏹  Tắt " or BC.Icon .. "  Bật ") .. BC.Name
+    bcStatus.Text = bcEnabled and "Đang chạy…" or "Tắt"
+    if bcEnabled then
+        table.insert(bcConns, task.spawn(function()
+            while bcEnabled do
+                task.wait(0.2)
+                pcall(function()
+                    -- VÍ DỤ (xóa và viết code thật ở đây):
+                    -- local char = player.Character
+                    -- local hrp = char and char:FindFirstChild("HumanoidRootPart")
+                end)
+            end
+        end))
+    end
+end)
+-- ========================================================================
+
+print("✅ [" .. BC.Name .. "] đã nạp — dán vào tab \"Tạo Tính Năng\" của Banana Cat Hub rồi bấm ▶ Chạy Script")
+return BC.Name
+]==]
+    local out = head .. body .. foot
+    out = (out:gsub("__BC_NAME__", function() return nm end))
+    out = (out:gsub("__BC_ICON__", function() return icon end))
+    out = (out:gsub("__BC_STAMP__", function() return (#stamp > 0) and stamp or "sinh bởi hub" end))
+    return out
+end
+-- ===== FEATURE TEMPLATE (kết thúc) ==========================
+
 -- Nối vào hook BcFit() (khu SetupResizeHandle). Bất cứ lần nào menu đổi kích thước,
 -- mọi GUI đang nhúng đều được đo và co giãn lại cho vừa vùng tab.
 _G.BananaCatHub_SyncEmbeds = function()
     pcall(S.SyncAllEmbeds)
 end
 pcall(function()
-    trackConn(main:GetPropertyChangedSignal("Size"):Connect(function() BcFit() end))
+    trackConn(main:GetPropertyChangedSignal("Size"):Connect(function()
+        BcFit()                 -- GUI đang nhúng trong tab -> đo & scale lại
+        pcall(S.NotifyResize)   -- script đứng ngoài (tự xin size) -> chạy lại bcFit của nó
+    end))
 end)
 
 function S.SyncAllEmbeds()
@@ -3714,6 +4058,10 @@ local grabSizeCodeBtn = Button(createFeatureTab, "📏 Code Tự Co Giãn (an to
 cy = cy + 34
 local fixMouseBtn = Button(createFeatureTab, "🖱 Kẹt chuột / không bấm được? Bấm đây", 8, cy, 418, 24, C.RED)
 cy = cy + 30
+-- v4.4d: sinh CODE MẪU có "hợp đồng kích thước" -> đưa cho người khác/AI viết tiếp là
+-- script thành phẩm tự vừa ô tab của menu (và theo khi kéo menu to/nhỏ), chạy được ngay.
+local copyTemplateBtn = Button(createFeatureTab, "📋 Copy Code Mẫu Cho AI (tự vừa size menu)", 8, cy, 418, 26, C.BLUE)
+cy = cy + 32
 
 local createStatus = Label(createFeatureTab, "", cy)
 createStatus.TextColor3=C.YELLOW; createStatus.TextSize=9; createStatus.ZIndex=6
@@ -3879,6 +4227,61 @@ fixMouseBtn.Activated:Connect(function()
         .. " — vẫn không được? 🧩 TẮT nhúng rồi bấm ▶ lại (lúc đó hub không đụng GUI nào)"
 end)
 
+copyTemplateBtn.Activated:Connect(function()
+    ReleaseHubFocus()
+    local nm = (featureNameIn.Text or ""):gsub('[\r	"]', " "):gsub("^%s+", ""):gsub("%s+$", "")
+    if #nm == 0 then nm = "Tính Năng Mới" end
+    local ic = (featureIconIn.Text or ""):gsub('[\r	"]', " ")
+    if #ic == 0 then ic = "⚙️" end
+    local stamp
+    pcall(function() stamp = os.date("sinh %H:%M %d/%m/%Y") end)
+    local code = S.FeatureTemplate(nm, ic, stamp)
+
+    -- copy ra clipboard: executor nào cũng có 1 trong 3 hàm này
+    local copied = false
+    for _, fname in ipairs({"setclipboard", "toclipboard", "set_clipboard"}) do
+        if not copied then
+            local f = _G[fname]
+            if type(f) == "function" then copied = (pcall(f, code)) end
+        end
+    end
+    -- điền vào ô code CHỈ KHI đang trống -> không bao giờ làm mất code bạn đang soạn
+    local inBox = false
+    if #featureCodeIn.Text == 0 then
+        featureCodeIn.Text = code
+        inBox = true
+    end
+    -- lưu 1 bản vào "Code Đã Lưu" để thoát game vào lại vẫn còn
+    local saveName = "Mẫu " .. nm
+    local baseName = saveName
+    local cnt = 1
+    while true do
+        local exists = false
+        for _, sc in ipairs(scripts) do
+            if sc.name == saveName then exists = true break end
+        end
+        if not exists then break end
+        cnt = cnt + 1
+        saveName = baseName .. " (" .. cnt .. ")"
+    end
+    table.insert(scripts, {name = saveName, code = code, expanded = false})
+    if RebuildScripts then RebuildScripts() end
+    Store.saveSoon()
+
+    createStatus.Text = (copied and ("📋 ĐÃ COPY " .. #code .. " ký tự vào clipboard")
+        or ("⚠️ Executor không có setclipboard — lấy code ở tab 'Code Đã Lưu'"))
+        .. " · đã lưu '" .. saveName .. "'"
+        .. (inBox and " · đã điền vào ô code" or " · ô code giữ nguyên code của bạn")
+        .. " · gửi NGUYÊN đoạn code đó cho AI/người viết script, dán lại rồi bấm ▶ Chạy Script."
+    local oldLabel = copyTemplateBtn.Text
+    copyTemplateBtn.Text = "✅ Đã copy code mẫu cho: " .. nm
+    task.delay(2.6, function()
+        if copyTemplateBtn and copyTemplateBtn.Parent then copyTemplateBtn.Text = oldLabel end
+    end)
+    print("[BananaCatHub] 📋 Code mẫu '" .. nm .. "' (" .. #code .. " ký tự) — clipboard: "
+        .. tostring(copied))
+end)
+
 Label(createFeatureTab, "━━━━━━━━━━━━━━━━━━━━━━", cy)
 cy = cy + 16
 Label(createFeatureTab, "📋 Danh Sách Tab Tính Năng Đã Tạo:", cy)
@@ -4015,6 +4418,10 @@ clearFormBtn.Activated:Connect(function()
 end)
 
 RebuildFeatureList()
+-- v4.4d: CanvasSize của tab này đang 0 -> không cuộn được, các dòng dưới bị cắt mất.
+pcall(function()
+    createFeatureTab.CanvasSize = UDim2.new(0, 0, 0, cy + 40)
+end)
 
 -- ===== KHÔI PHỤC CÁC TAB TÍNH NĂNG ĐÃ LƯU =====
 -- v4.4a: `featureTabs` trước đây KHÔNG được ghi xuống đĩa, nên tab tính năng bạn tạo
@@ -4154,7 +4561,7 @@ main.Visible = true
 togBtn.Text = "✕"
 
 print(string.format(
-    "✅ Banana Cat Hub v4.4b — sẵn sàng! Đã nạp lại %d script + %d waypoint + %d tab tính năng từ bộ nhớ (chế độ: %s%s)",
+    "✅ Banana Cat Hub v4.4d — sẵn sàng! Đã nạp lại %d script + %d waypoint + %d tab tính năng từ bộ nhớ (chế độ: %s%s)",
     Store.loadedScripts, Store.loadedWp, #Store.loadedFeatures, Store.mode,
     Store.lastError and (" | ⚠️ " .. Store.lastError) or ""
 ))
