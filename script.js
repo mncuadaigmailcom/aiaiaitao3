@@ -1,0 +1,4569 @@
+--[[
+    🍌 Banana Cat Hub v4.4d — FULL CODE
+    + SỬA (QUAN TRỌNG — đúng cái bạn gặp): "TẠO TÍNH NĂNG → ▶ Chạy Script" làm bạn
+           KHÔNG quay chuột / KHÔNG bắn được và làm LỖI vài nút của game. 3 nguyên nhân:
+             • TextBox của hub còn focus -> Roblox chặn input người chơi. Giờ hub tự nhả focus
+               mỗi khi chạy code / đổi tab / đóng menu.
+             • ForceStretchToParent ép Size=(1,0,1,0) lên TỪNG frame con (kể cả GUI của game)
+               -> frame trong suốt full-màn-hình nuốt click. Giờ CHỈ chỉnh root.
+             • ScanNewGuis bốc bừa ScreenGui "mới xuất hiện" (bao gồm GUI của game) rồi Destroy
+               -> mất nút game + script bị nhúng hỏng. Giờ: hook Instance.new để biết GUI nào
+               THỰC SỰ thuộc script, không quét CoreGui, không Destroy GUI gốc.
+    + THÊM: nút 🧩 "Nhúng vào Tab: BẬT/TẮT" — TẮT = hub không đụng gì tới GUI (chế độ an toàn)
+    + THÊM: ✕ trên tab tính năng giờ TRẢ GUI về nguyên trạng (Position/Size/Parent cũ), hết kiểu
+           "đóng tab là GUI của script bị hỏng luôn"
+    + THÊM: host nhúng tự co giãn theo kích thước menu bằng Scale tương đối (không còn phá layout)
+    + SỬA: "📏 Lấy Code Kích Thước" không còn quét CoreGui/PlayerGui (trước đây nó đè UI của game
+           và của script khác), không còn ghi đè code trong ô nhập; wrapper cũ đã lưu sẽ được
+           tự vô hại hoá khi nạp
+    + SỬA: "🔄 Nạp lại" không còn ghi đè file lưu (nguy cơ mất dữ liệu khi file JSON hỏng)
+           và có dựng lại danh sách Waypoint
+    ============================================================================
+    (lịch sử cũ) v4.4a:
+    + SỬA: "TẠO TÍNH NĂNG" giờ cũng ĐƯỢC LƯU XUỐNG ĐĨA — tab tính năng bạn tạo
+           thoát game vào lại VẪN CÒN, nằm đúng trong mục "Danh Sách Tab Tính Năng Đã Tạo"
+           (trước đây nó biến mất, nên phải chép sang tab Code để giữ -> lưu nhầm chỗ)
+    + ĐỔI: nút "💾 Lưu Vào DS" trong tab tính năng -> "📤 Chép sang Code" cho rõ nghĩa:
+           nó CHÉP MỘT BẢN sang tab Code Đã Lưu, không phải là cách lưu tính năng
+    + THÊM: sửa code trong tab tính năng (✏️ Áp Dụng) cũng được lưu
+    + THÊM: nhãn trạng thái ở tab Code Đã Lưu hiện thêm số tab tính năng
+    + SỬA: "Code Đã Lưu" + "Waypoint" giờ ĐƯỢC LƯU XUỐNG ĐĨA (file banana_cat_saved.json)
+           -> thoát game / vào lại / chạy lại script VẪN CÒN NGUYÊN dữ liệu
+           -> có nhãn trạng thái lưu + nút "🔄 Nạp lại" ở tab Code Đã Lưu
+           -> executor không có writefile thì tự fallback lưu trong _G (giữ được khi chạy lại script)
+    + SỬA: Chạy code xong status bị kẹt "⏳ Đang thực thi..." (race curThread/task.spawn)
+    + SỬA: Xóa 1 tab tính năng làm các tab còn lại mở SAI tab (closure giữ index cũ)
+    + SỬA: Nút "💾 Lưu" khi API key đang ẨN sẽ ghi đè key thật bằng chuỗi che -> MẤT KEY
+    + SỬA: Nút "▶ Viết tiếp" của AI vô dụng vì không gửi lịch sử hội thoại cho Gemini
+    + SỬA: Khung xem code ở tab "Code Đã Lưu" không cuộn được (CanvasSize = 0)
+    + SỬA: Click vào menu vẫn raycast ra vật thể phía sau (guard dùng nhầm PlayerGui)
+    + THÊM: Highlight viền tím khi click vật thể (dùng Highlight instance)
+    + THÊM: Tự động xóa highlight cũ khi click vật mới
+    + THÊM: Nút bật/tắt highlight
+    + GIỮ NGUYÊN toàn bộ tính năng cũ (Fly/Carpet đã bị bỏ từ v4.3, không phải ở bản này)
+--]]
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local HttpService = game:GetService("HttpService")
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+local camera = workspace.CurrentCamera
+
+local targetGui = playerGui
+pcall(function()
+    if gethui then
+        local hui = gethui()
+        if hui then targetGui = hui end
+    elseif game:GetService("CoreGui") then
+        targetGui = game:GetService("CoreGui")
+    end
+end)
+
+if _G.BananaCatHub_Connections then
+    for _, c in ipairs(_G.BananaCatHub_Connections) do
+        pcall(function() c:Disconnect() end)
+    end
+end
+_G.BananaCatHub_Connections = {}
+
+local function trackConn(conn)
+    table.insert(_G.BananaCatHub_Connections, conn)
+    return conn
+end
+
+pcall(function() RunService:UnbindFromRenderStep("Fly") end)
+pcall(function() RunService:UnbindFromRenderStep("Carpet") end)
+
+local C = {
+    WHITE = Color3.fromRGB(255, 255, 255),
+    DARK = Color3.fromRGB(40, 40, 45),
+    GRAY = Color3.fromRGB(110, 115, 125),
+    GREEN = Color3.fromRGB(0, 170, 90),
+    BLUE = Color3.fromRGB(0, 130, 220),
+    RED = Color3.fromRGB(220, 60, 60),
+    YELLOW = Color3.fromRGB(255, 200, 0),
+    PURPLE = Color3.fromRGB(160, 60, 255),
+    ORANGE = Color3.fromRGB(220, 130, 50),
+    PINK = Color3.fromRGB(230, 100, 180),
+    BG = Color3.fromRGB(240, 242, 248),
+}
+
+local function New(cls, props, parent)
+    local obj = Instance.new(cls)
+    for k, v in pairs(props or {}) do
+        obj[k] = v
+    end
+    if parent then obj.Parent = parent end
+    return obj
+end
+
+local function Corner(p, r)
+    return New("UICorner", {CornerRadius = r or UDim.new(0, 8)}, p)
+end
+
+local function Stroke(p, c, t)
+    return New("UIStroke", {Color = c or Color3.fromRGB(170, 175, 190), Thickness = t or 1.2}, p)
+end
+
+local function Tween(o, p, d, e)
+    TweenService:Create(o, TweenInfo.new(d or 1.5, e or Enum.EasingStyle.Quad), p):Play()
+end
+
+-- ============================================================================
+-- v4.4b — SỬA LỖI "chạy tính năng xong không quay chuột / không bắn được"
+-- Nguyên nhân gốc (3 chỗ, đều được sửa ở dưới):
+--   1) TextBox của hub còn đang FOCUS. Khi có TextBox focused, PlayerModule mặc định của
+--      Roblox chặn toàn bộ input người chơi -> không đi, không quay chuột, không bắn.
+--      -> ReleaseHubFocus() được gọi trước mỗi lần chạy code / đổi tab / đóng menu.
+--   2) ForceStretchToParent ĐỆ QUY ép MỌI Frame (kể cả của game) về Size=(1,0,1,0) +
+--      Position=(0,0) -> một frame con trong suốt biến thành full-màn-hình và nuốt hết click.
+--      -> chuyển thành CHỈ xử lý root (maxDepth mặc định 0).
+--   3) ScanNewGuis "đoán bừa": hễ ScreenGui nào mới xuất hiện trong 2.4s là bốc con sang tab
+--      + Destroy ScreenGui gốc -> mất nút của game, và script được nhúng hỏng vì
+--      `gui.Enabled`/`gui:Destroy()` của nó không còn tác dụng.
+--      -> biết chính xác GUI nào là của script (hook Instance.new), không quét CoreGui,
+--         không Destroy GUI gốc, thêm nút 🧩 BẬT/TẮT nhúng và ✕ trả GUI về nguyên trạng.
+-- v4.4c — SỬA "menu tính năng không cùng kích thước menu chính"
+--   Bản 4.4b chỉ CO GUI (clamp <= 1) nên GUI hard-code nhỏ (vd 300x200) nằm lọt thỏm trong
+--   tab 620x384 thay vì llen bằng menu. Nay S.FitEmbedded đo bounding box nội dung rồi NHÂN
+--   ĐỒNG ĐỀU mọi Offset (Size/Position/UICorner/UIPadding/UIStroke/TextSize) của cả subtree
+--   lên cùng 1 hệ số s = min(khổ tab / nội dung), clamp [0.35, 3.0] -> vừa PÓNG TO được,
+--   vừa co lại được, mà tỉ lệ giữa các phần tử không đổi (không méo, không ép Size=(1,0,1,0)).
+--   Sau đó tịnh tiến khung nội dung về góc tab + canh giữa; phần thừa bị ClipsDescendants chặn.
+--   Vì s tính từ bounding box nên nội dung LUÔN nằm trong ô tab -> không thể tràn ra nuốt click
+--   của game (đúng cái lỗi của 4.4a). Mọi giá trị gốc được chụp lại (entry.snap) và trả nguyên
+--   trạng khi ✕ / 🧩 TẮT / xoá tab. Kéo corner menu hay đổi tab -> BcFit() re-fit (debounce
+--   0.05s) nên GUI của tab luôn "bằng kích thước menu chính" theo thời gian thực.
+-- v4.4d — "COPY CODE MẪU" + API kích thước cho script tính năng
+--   Người dùng cần: bấm 1 nút -> ra code -> gửi cho người khác/AI viết tiếp -> dán lại ->
+--   ▶ Chạy Script là GUI TỰ VỪA ô menu và tự theo khi kéo menu to/nhỏ.
+--   -> _G.BananaCatHubAPI (TabArea / OnResize / FeatureTabHost / FitToTab / EmbedGui) để script
+--      bên ngoài đọc được khổ menu; S.FeatureTemplate() sinh code mẫu có khối "SIZE CONTRACT"
+--      (chạy được ngay, tự canh size cả khi hub TẮT nhúng); nút 📋 trong "Tạo Tính Năng" copy
+--      clipboard + lưu vào Code Đã Lưu + chỉ điền vào ô code khi ô đang trống (không mất code).
+--   + sửa: tab "Tạo Tính Năng" có CanvasSize=0 nên mấy dòng dưới không cuộn tới được.
+-- ============================================================================
+local function ReleaseHubFocus()
+    pcall(function()
+        local tb = UserInputService:GetFocusedTextBox()
+        if tb then tb:ReleaseFocus() end
+    end)
+    -- một số executor game-input vẫn bị giữ bởi ComboBox/TextBox đã Destroy
+    pcall(function() playerGui:ReleaseFocus() end)
+end
+
+if targetGui:FindFirstChild("ExMenu") then
+    targetGui.ExMenu:Destroy()
+end
+
+local gui = New("ScreenGui", {
+    Name="ExMenu",
+    IgnoreGuiInset=true,
+    ResetOnSpawn=false,
+    ZIndexBehavior=Enum.ZIndexBehavior.Sibling,
+}, targetGui)
+
+local togBtn = New("TextButton", {
+    Size=UDim2.new(0,48,0,48),
+    Position=UDim2.new(1,-60,1,-60),
+    Text="🍌",
+    BackgroundColor3=C.WHITE,
+    BackgroundTransparency=0.1,
+    TextColor3=C.DARK,
+    Font=Enum.Font.GothamBold,
+    TextSize=24,
+    BorderSizePixel=0,
+    ZIndex=1000,
+}, gui)
+Corner(togBtn, UDim.new(1,0))
+Stroke(togBtn, C.BLUE, 2)
+
+local main = New("Frame", {
+    Size=UDim2.new(0,540,0,340),
+    Position=UDim2.new(0.5,-270,0.5,-170),
+    BackgroundColor3=Color3.fromRGB(235, 238, 245),
+    BackgroundTransparency=0.25,
+    BorderSizePixel=0,
+    Visible=false,
+    ClipsDescendants=false,
+    ZIndex=2,
+}, gui)
+Corner(main, UDim.new(0,10))
+Stroke(main, Color3.fromRGB(180,185,200), 2)
+
+-- ===== HIT-TEST KHÔNG PHỤ THUỘC VÀO PARENT CỦA GUI =====
+-- PlayerGui:GetGuiObjectsAtPosition() CHỈ quét PlayerGui. Khi hub nằm trong gethui()/CoreGui
+-- (đường mặc định của script này) thì nó trả về rỗng -> mọi guard "click trúng menu" thành code chết.
+-- Hai hàm dưới đây tự tính bằng AbsolutePosition/AbsoluteSize nên đúng với MỌI parent.
+--
+-- ĐÓNG GÓI VÀO BẢNG `Hit` (thay vì 2 biến local riêng): main chunk của script này đã dùng
+-- 189/200 biến local cấp cao nhất. Lua/Luau giới hạn 200 local mỗi function, vượt là
+-- lỗi biên dịch "too many local variables" và TOÀN BỘ script không chạy được.
+local Hit = {}
+
+function Hit.inObject(o, x, y)
+    if not o then return false end
+    local ok, res = pcall(function()
+        if not o.Visible then return false end
+        local p, s = o.AbsolutePosition, o.AbsoluteSize
+        return x >= p.X and x <= p.X + s.X and y >= p.Y and y <= p.Y + s.Y
+    end)
+    return ok and res == true
+end
+
+function Hit.onHub(x, y)
+    -- 1) thử API gốc trước (chạy đúng khi hub nằm trong PlayerGui)
+    local ok, objs = pcall(function()
+        return playerGui:GetGuiObjectsAtPosition(x, y)
+    end)
+    if ok and type(objs) == "table" then
+        for _, o in ipairs(objs) do
+            if o == gui or o:IsDescendantOf(gui) then return true end
+        end
+    end
+    -- 2) fallback: tự đo khung cửa sổ chính + nút chuối
+    if Hit.inObject(main, x, y) then return true end
+    if Hit.inObject(togBtn, x, y) then return true end
+    return false
+end
+
+local bgPattern = New("ImageLabel", {
+    Name = "CheckeredBG",
+    Size = UDim2.new(1, 0, 1, 0),
+    Position = UDim2.new(0, 0, 0, 0),
+    BackgroundTransparency = 1,
+    Image = "rbxassetid://9822602710",
+    ScaleType = Enum.ScaleType.Tile,
+    TileSize = UDim2.new(0, 20, 0, 20),
+    ImageTransparency = 0.82,
+    ImageColor3 = Color3.fromRGB(150, 160, 185),
+    ZIndex = 2,
+}, main)
+Corner(bgPattern, UDim.new(0, 10))
+
+local titleBar = New("Frame", {
+    Size=UDim2.new(1,0,0,30),
+    BackgroundColor3=Color3.fromRGB(225,230,240),
+    BackgroundTransparency=0.2,
+    BorderSizePixel=0,
+    ZIndex=3,
+}, main)
+Corner(titleBar, UDim.new(0,10))
+
+New("TextLabel", {
+    Size=UDim2.new(1,-90,1,0),
+    Position=UDim2.new(0,12,0,0),
+    Text="🍌 Banana Cat Executor Hub v4.4d",
+    BackgroundTransparency=1,
+    TextColor3=C.DARK,
+    Font=Enum.Font.GothamBold,
+    TextSize=13,
+    TextXAlignment=Enum.TextXAlignment.Left,
+    ZIndex=4,
+}, titleBar)
+
+local dragLockBtn = New("TextButton", {
+    Size=UDim2.new(0,30,0,30),
+    Position=UDim2.new(1,-64,0,0),
+    Text="🔒",
+    BackgroundTransparency=1,
+    TextColor3=Color3.fromRGB(120,120,130),
+    Font=Enum.Font.GothamBold,
+    TextSize=15,
+    BorderSizePixel=0,
+    ZIndex=4,
+}, titleBar)
+
+local closeBtn = New("TextButton", {
+    Size=UDim2.new(0,30,0,30),
+    Position=UDim2.new(1,-32,0,0),
+    Text="✕",
+    BackgroundTransparency=1,
+    TextColor3=Color3.fromRGB(120,120,130),
+    Font=Enum.Font.GothamBold,
+    TextSize=15,
+    BorderSizePixel=0,
+    ZIndex=4,
+}, titleBar)
+
+local minW, minH = 440, 260
+
+-- v4.4c: "menu kéo to/nhỏ -> GUI của tab co giãn theo". Khu S.* được khai báo phía dưới nên
+-- ở đây chỉ gọi qua hook _G; BcFit() tự debounce để không chạy mỗi frame khi đang drag.
+function BcFit()
+    local fn = _G.BananaCatHub_SyncEmbeds
+    if type(fn) ~= "function" then return end
+    local ok, now = pcall(os.clock)
+    if ok and _G.BcFitLast and now - _G.BcFitLast < 0.05 then return end
+    _G.BcFitLast = ok and now or 0
+    task.defer(fn)
+end
+
+local function SetupResizeHandle(btn, cornerType)
+    local resizing, sizeStart, posStart, inputStart
+    trackConn(btn.InputBegan:Connect(function(i)
+        if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then
+            resizing=true
+            sizeStart=main.Size
+            posStart=main.Position
+            inputStart=i.Position
+        end
+    end))
+    trackConn(UserInputService.InputChanged:Connect(function(i)
+        if resizing and sizeStart and posStart and inputStart and (i.UserInputType==Enum.UserInputType.MouseMovement or i.UserInputType==Enum.UserInputType.Touch) then
+            local d = i.Position - inputStart
+            local w, h = sizeStart.X.Offset, sizeStart.Y.Offset
+            local posX, posY = posStart.X.Offset, posStart.Y.Offset
+            local newW, newH = w, h
+            local newX, newY = posX, posY
+            if cornerType == "BR" then
+                newW = math.max(minW, w + d.X)
+                newH = math.max(minH, h + d.Y)
+            elseif cornerType == "BL" then
+                newW = math.max(minW, w - d.X)
+                newH = math.max(minH, h + d.Y)
+                newX = posX + (w - newW)
+            elseif cornerType == "TR" then
+                newW = math.max(minW, w + d.X)
+                newH = math.max(minH, h - d.Y)
+                newY = posY + (h - newH)
+            elseif cornerType == "TL" then
+                newW = math.max(minW, w - d.X)
+                newH = math.max(minH, h - d.Y)
+                newX = posX + (w - newW)
+                newY = posY + (h - newH)
+            end
+            main.Size = UDim2.new(sizeStart.X.Scale, newW, sizeStart.Y.Scale, newH)
+            main.Position = UDim2.new(posStart.X.Scale, newX, posStart.Y.Scale, newY)
+        end
+    end))
+    trackConn(UserInputService.InputEnded:Connect(function(i)
+        if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then
+            resizing=false
+        end
+    end))
+end
+
+local function CreateHandle(icon, pos)
+    local btn = New("TextButton", {
+        Size=UDim2.new(0,20,0,20),
+        Position=pos,
+        Text=icon,
+        BackgroundColor3=C.BLUE,
+        BackgroundTransparency=0.1,
+        TextColor3=C.WHITE,
+        Font=Enum.Font.GothamBold,
+        TextSize=11,
+        BorderSizePixel=0,
+        ZIndex=100,
+    }, main)
+    Corner(btn, UDim.new(0,5))
+    Stroke(btn, Color3.fromRGB(255,255,255), 1.2)
+    return btn
+end
+
+-- inline: 4 bien handle chi duoc dung 1 lan -> bo bot 4 slot local (Luau gioi han 200)
+SetupResizeHandle(CreateHandle("↖", UDim2.new(0, 2, 0, 2)), "TL")
+SetupResizeHandle(CreateHandle("↗", UDim2.new(1, -22, 0, 2)), "TR")
+SetupResizeHandle(CreateHandle("↙", UDim2.new(0, 2, 1, -22)), "BL")
+SetupResizeHandle(CreateHandle("↘", UDim2.new(1, -22, 1, -22)), "BR")
+
+local tabs = {}
+local tabContent = {}
+
+local tabBar = New("ScrollingFrame", {
+    Size=UDim2.new(0,105,1,-30),
+    Position=UDim2.new(1,-105,0,30),
+    BackgroundColor3=Color3.fromRGB(225,230,240),
+    BackgroundTransparency=0.3,
+    BorderSizePixel=0,
+    ZIndex=3,
+    ScrollBarThickness=3,
+    CanvasSize=UDim2.new(0,0,0,0),
+}, main)
+
+New("UIListLayout", {
+    FillDirection=Enum.FillDirection.Vertical,
+    SortOrder=Enum.SortOrder.LayoutOrder,
+    Padding=UDim.new(0,4),
+}, tabBar)
+
+New("UIPadding", {PaddingTop=UDim.new(0,6), PaddingLeft=UDim.new(0,4)}, tabBar)
+
+local contentArea = New("Frame", {
+    Size=UDim2.new(1,-105,1,-30),
+    Position=UDim2.new(0,0,0,30),
+    BackgroundTransparency=1,
+    BorderSizePixel=0,
+    ZIndex=3,
+    ClipsDescendants=true,
+}, main)
+
+local activeTab = nil
+
+local function SwitchTab(index)
+    ReleaseHubFocus()   -- v4.4b: đổi tab mà để TextBox còn focus là game chặn input (không đi/không bắn)
+    for _, t in ipairs(tabContent) do t.Visible = false end
+    for _, b in ipairs(tabs) do
+        b.BackgroundColor3 = C.BG
+        b.BackgroundTransparency = 0.3
+    end
+    if tabContent[index] and tabs[index] then
+        tabContent[index].Visible = true
+        tabs[index].BackgroundColor3 = C.BLUE
+        tabs[index].BackgroundTransparency = 0.2
+        activeTab = tabContent[index]
+    end
+    BcFit()   -- v4.4c: tab vừa hiện -> đo lại để GUI nằm vừa đúng ô của tab
+end
+
+local function AddTab(name, icon, order, customContent)
+    local btn = New("TextButton", {
+        Size=UDim2.new(1,-8,0,30),
+        Text=icon.." "..name,
+        BackgroundColor3=C.BG,
+        BackgroundTransparency=0.3,
+        TextColor3=C.DARK,
+        Font=Enum.Font.GothamBold,
+        TextSize=9,
+        BorderSizePixel=0,
+        LayoutOrder=order,
+        TextXAlignment=Enum.TextXAlignment.Left,
+        ZIndex=4,
+    }, tabBar)
+    Corner(btn, UDim.new(0,6))
+
+    local sf
+    if customContent then
+        sf = customContent
+        sf.Parent = contentArea
+        sf.Visible = false
+    else
+        sf = New("ScrollingFrame", {
+            Size=UDim2.new(1,0,1,0),
+            BackgroundTransparency=1,
+            BorderSizePixel=0,
+            ScrollBarThickness=5,
+            ScrollBarImageColor3=Color3.fromRGB(120,120,140),
+            ClipsDescendants=true,
+            CanvasSize=UDim2.new(0,0,0,0),
+            Visible=false,
+            Active=true,
+            Selectable=false,
+            ScrollingDirection=Enum.ScrollingDirection.Y,
+            ZIndex=4,
+        }, contentArea)
+    end
+
+    -- KHONG bat chet index: khi mot tab bi xoa, vi tri trong `tabs`/`tabContent` dich lai
+    -- va index cu se mo SAI tab (hoac khong mo gi ca -> UI trang). Tra cuu dong theo nut.
+    btn.Activated:Connect(function()
+        for i, b in ipairs(tabs) do
+            if b == btn then SwitchTab(i); break end
+        end
+    end)
+
+    table.insert(tabs, btn)
+    table.insert(tabContent, sf)
+    tabBar.CanvasSize = UDim2.new(0, 0, 0, #tabs * 34 + 10)
+    return sf, btn
+end
+
+local codeTab      = AddTab("Code", "💻", 1)
+local savedCodeTab = AddTab("Code Đã Lưu", "💾", 2)
+
+SwitchTab(1)
+
+-- Bang trang thai. Chua ca cac bien keo/tha menu: Luau gioi han 200 bien local moi function
+-- (loi "Out of local registers ... exceeded limit 200"), main chunk cua script nay da gan
+-- nguong do nen moi bien dem duoc deu phai nam trong bang thay vi la local rieng.
+local S = {
+    dragMenu     = false,
+    dragging     = false,
+    dragStart    = nil,
+    startPos     = nil,
+    togDragging  = false,
+    togDragStart = nil,
+    togStartPos  = nil,
+    togMoved     = false,
+    -- v4.4b: trạng thái của cơ chế nhúng GUI (đặt trong bảng để KHÔNG tốn slot local —
+    -- main chunk đang ở ~184/200, thêm local tự do là lỗi biên dịch "too many local variables")
+    embedEnabled = true,     -- tab 5 có nút 🧩 để tắt hoàn toàn việc nhúng
+    embedGuessNew = false,   -- 🕵 nhận cả ScreenGui "lạ" mới xuất hiện (mạnh hơn nhưng dễ ăn GUI game)
+    embeds       = {},       -- registry: {host, gui, recs={{child,origParent,origPos,origSize}}, conns={}}
+}
+
+-- v4.4b: vô hại hoá các wrapper "AUTO-GENERATED SIZE WRAPPER" đời cũ (v4.4a) đã bị lưu lại
+-- trong file JSON. Wrapper đó gọi _ForceStretch(g) lên MỌI ScreenGui trong CoreGui+PlayerGui
+-- -> đè layout của game. Chỉ cần cắt đúng lời gọi đó là cả khối trở thành no-op hợp lệ,
+-- code còn lại của người dùng không bị đụng tới.
+S.WRAP_MARK_OLD = "-- ===== AUTO-GENERATED SIZE WRAPPER"
+S.WRAP_MARK_NEW = "-- ===== AUTO-GENERATED FIT WRAPPER"
+function S.SanitizeCode(c)
+    if type(c) ~= "string" then return c end
+    if not c:find(S.WRAP_MARK_OLD, 1, true) then return c end
+    local out = (c:gsub(
+        "pcall%s*%(%s*function%s*%(%)%s*_ForceStretch%s*%(%s*g%s*%)%s*end%s*%)",
+        ""))
+    return out
+end
+
+local scripts = {}
+local waypoints = {}          -- khai báo sớm để khối lưu trữ bên dưới dùng được
+local featureTabs = {}        -- nt: khai báo sớm để Store.serialize() và nhãn trạng thái dùng được
+local featureTabIndex = 5
+local totalRuns, cancelled = 0, false
+local curThread, curIndicator = nil, nil
+local runActive = false       -- cờ trạng thái chạy (không dựa vào curThread nữa)
+
+-- ==================== LƯU TRỮ DỮ LIỆU (SCRIPT ĐÃ LƯU + WAYPOINT) ====================
+-- v4.3 chỉ ghi API key xuống đĩa, còn scripts/waypoints chỉ nằm trong RAM -> thoát game là mất sạch.
+-- Khối này ghi toàn bộ ra 1 file JSON trong workspace của executor (sống qua cả lần rejoin
+-- và cả khi chạy lại script).
+--
+-- ĐÓNG GÓI VÀO BẢNG `Store`: main chunk đã dùng gần hết 200 slot local cho phép.
+-- Nếu khai báo ~20 biến local riêng ở cấp cao nhất, script sẽ lỗi biên dịch
+-- "too many local variables" và KHÔNG CHẠY ĐƯỢC. Dùng field của bảng thì tốn đúng 1 slot.
+local Store = {}
+
+Store.SAVE_FILE      = "banana_cat_saved.json"
+Store.SAVE_VERSION   = 2
+Store.mode           = "none"   -- "file" | "memory" | "empty" | "none"
+Store.lastError      = nil
+Store.lastSavedAt    = nil
+Store.saveCount      = 0
+Store.loadedScripts  = 0
+Store.loadedWp       = 0
+Store.loadedFeatures = {}     -- dữ liệu thô đọc từ đĩa; TAB5 sẽ dựng thành tab thật
+Store.restoreFeatures = nil   -- TAB5 gán hàm dựng lại tab tính năng vào đây
+Store.restoreWaypoints = nil  -- TAB3 gán RebuildWaypoints vào đây (TAB2 cần mà chưa tồn tại)
+Store.statusLbl      = nil      -- tab "Code Đã Lưu" gán nhãn trạng thái vào đây
+Store.reloadBtn      = nil
+Store._scheduled     = false
+Store.refreshStatus  = nil      -- tab "Code Đã Lưu" gán hàm cập nhật nhãn vào đây
+
+function Store.canWrite()
+    return type(writefile) == "function" and type(readfile) == "function"
+end
+
+function Store.isFinite(n)
+    return type(n) == "number" and n == n and n ~= math.huge and n ~= -math.huge
+end
+
+function Store.write(data)
+    local okEnc, json = pcall(function() return HttpService:JSONEncode(data) end)
+    if not okEnc then
+        Store.mode = "memory"
+        Store.lastError = "Không mã hoá được JSON: " .. tostring(json)
+        _G.BananaCatHub_SavedData = data
+        return false
+    end
+
+    if not Store.canWrite() then
+        Store.mode = "memory"
+        Store.lastError = "Executor không có writefile — chỉ giữ được trong phiên chơi này"
+        _G.BananaCatHub_SavedData = data
+        return false
+    end
+
+    local okW, errW = pcall(writefile, Store.SAVE_FILE, json)
+    if not okW then
+        Store.mode = "memory"
+        Store.lastError = "Ghi file thất bại: " .. tostring(errW)
+        _G.BananaCatHub_SavedData = data
+        return false
+    end
+
+    Store.mode = "file"
+    Store.lastError = nil
+    Store.saveCount = Store.saveCount + 1
+    pcall(function() Store.lastSavedAt = os.date("%H:%M:%S") end)
+    _G.BananaCatHub_SavedData = data
+    return true
+end
+
+function Store.read()
+    -- 1) đọc từ file trong workspace executor
+    if Store.canWrite() then
+        local hasFile = true
+        if type(isfile) == "function" then
+            local okI, r = pcall(isfile, Store.SAVE_FILE)
+            hasFile = (okI and r == true)
+        end
+        if hasFile then
+            local okR, txt = pcall(readfile, Store.SAVE_FILE)
+            if okR and type(txt) == "string" and #txt > 0 then
+                local okD, data = pcall(function() return HttpService:JSONDecode(txt) end)
+                if okD and type(data) == "table" then
+                    Store.mode = "file"
+                    Store.lastError = nil
+                    return data
+                end
+                Store.lastError = "File lưu bị hỏng (JSON không đọc được) — đã bỏ qua"
+            end
+        end
+    end
+    -- 2) fallback: dữ liệu _G của cùng phiên chơi (giữ được khi chạy lại script)
+    --    NGOẠI LỆ (v4.4b): nếu file TỒN TẠI mà giải mã lỗi thì KHÔNG fallback. Trước đây fallback
+    --    khiến Store.save() ghi dữ liệu cũ đè lên file còn có thể cứu bằng tay -> MẤT DỮ LIỆU.
+    if Store.lastError and Store.lastError:find("bị hỏng", 1, true) then
+        Store.mode = "none"
+        return nil
+    end
+    if type(_G.BananaCatHub_SavedData) == "table" then
+        Store.mode = "memory"
+        return _G.BananaCatHub_SavedData
+    end
+    Store.mode = "none"
+    return nil
+end
+
+function Store.serialize()
+    local sOut = {}
+    for _, s in ipairs(scripts) do
+        table.insert(sOut, {
+            name     = tostring(s.name or ""),
+            code     = tostring(s.code or ""),
+            expanded = (s.expanded == true),
+        })
+    end
+    local wOut = {}
+    for _, w in ipairs(waypoints) do
+        local pos = w and w.pos
+        if pos and Store.isFinite(pos.X) and Store.isFinite(pos.Y) and Store.isFinite(pos.Z) then
+            table.insert(wOut, {name = tostring(w.name or ""), x = pos.X, y = pos.Y, z = pos.Z})
+        end
+    end
+    local fOut = {}
+    for _, f in ipairs(featureTabs) do
+        table.insert(fOut, {
+            name = tostring(f.name or ""),
+            icon = tostring(f.icon or "⚙️"),
+            code = tostring(f.code or ""),
+        })
+    end
+    return {version = Store.SAVE_VERSION, scripts = sOut, waypoints = wOut, features = fOut}
+end
+
+-- Ghi ngay (đồng bộ). Trả về true/false.
+function Store.save()
+    local ok = Store.write(Store.serialize())
+    if Store.refreshStatus then pcall(Store.refreshStatus) end
+    return ok
+end
+
+-- Ghi có debounce: gộp nhiều thay đổi liên tiếp (vd bấm expand liên tục) thành 1 lần ghi.
+function Store.saveSoon()
+    if Store._scheduled then return end
+    Store._scheduled = true
+    task.delay(0.3, function()
+        Store._scheduled = false
+        Store.save()
+    end)
+end
+
+-- Nạp dữ liệu đã lưu vào `scripts` và `waypoints`.
+-- PHẢI gọi trước RebuildScripts() và RebuildWaypoints() để danh sách hiện ra ngay.
+function Store.load()
+    local data = Store.read()
+    if type(data) ~= "table" then
+        Store.mode = Store.canWrite() and "empty" or "none"
+        Store.loadedScripts, Store.loadedWp = 0, 0
+        Store.loadedFeatures = {}
+        return
+    end
+
+    -- v4.4b: file đời mới hơn script này -> cảnh báo, không im lặng nạp thiếu
+    local fileVer = tonumber(data.version) or 1
+    if fileVer > Store.SAVE_VERSION then
+        Store.lastError = string.format(
+            "File lưu là version %d, script này chỉ hiểu tới v%d — một số mục có thể không nạp",
+            fileVer, Store.SAVE_VERSION)
+    end
+
+    local sOut = {}
+    if type(data.scripts) == "table" then
+        for _, s in ipairs(data.scripts) do
+            if type(s) == "table" and type(s.code) == "string" and #s.code > 0 then
+                table.insert(sOut, {
+                    name     = (type(s.name) == "string" and #s.name > 0) and s.name or ("Script " .. (#sOut + 1)),
+                    code     = S.SanitizeCode(s.code),
+                    expanded = (s.expanded == true),
+                })
+            end
+        end
+    end
+
+    local wOut = {}
+    if type(data.waypoints) == "table" then
+        for _, w in ipairs(data.waypoints) do
+            if type(w) == "table" and Store.isFinite(w.x) and Store.isFinite(w.y) and Store.isFinite(w.z) then
+                table.insert(wOut, {
+                    name = (type(w.name) == "string" and #w.name > 0) and w.name or ("WP " .. (#wOut + 1)),
+                    pos  = Vector3.new(w.x, w.y, w.z),
+                })
+            end
+        end
+    end
+
+    -- Tab tính năng: chỉ nạp DỮ LIỆU THÔ ở đây. Không dựng tab được vì hàm
+    -- CreateFeatureTab() mãi tới TAB5 mới tồn tại -> Store.restoreFeatures() làm việc đó.
+    local fOut = {}
+    if type(data.features) == "table" then
+        for _, f in ipairs(data.features) do
+            if type(f) == "table" and type(f.code) == "string" and #f.code > 0 then
+                table.insert(fOut, {
+                    name = (type(f.name) == "string" and #f.name > 0) and f.name or ("Tính Năng " .. (#fOut + 1)),
+                    icon = (type(f.icon) == "string" and #f.icon > 0) and f.icon or "⚙️",
+                    code = S.SanitizeCode(f.code),
+                })
+            end
+        end
+    end
+
+    scripts   = sOut
+    waypoints = wOut
+    Store.loadedFeatures = fOut
+    Store.loadedScripts, Store.loadedWp = #sOut, #wOut
+end
+
+Store.load()
+
+local function ExecOnce(code, name)
+    if #name>0 then print("👤 Chạy bởi:", name) end
+    code = S.SanitizeCode(code)   -- v4.4b: cắt wrapper "tự dãn kích thước" độc hại của bản cũ
+    return pcall(function()
+        local fn, err = loadstring(code)
+        if not fn then error(err) end
+        fn()
+    end)
+end
+
+local function Cancel()
+    cancelled=true
+    runActive=false
+    if curThread then pcall(task.cancel, curThread); curThread=nil end
+    if curIndicator then curIndicator.BackgroundColor3=C.BLUE; curIndicator=nil end
+end
+
+local function RunCode(code, name, ind, times, delay)
+    Cancel()
+    ReleaseHubFocus()   -- v4.4b: nhả focus TextBox, nếu không game chặn hết input (không đi/không bắn)
+    if #code==0 then return false, "⚠️ Vui lòng nhập code!" end
+    cancelled=false
+    if ind then curIndicator=ind; ind.BackgroundColor3=C.RED end
+    local okC, failC = 0, 0
+    -- LƯU Ý: task.spawn() chạy hàm NGAY LẬP TỨC tới chỗ yield đầu tiên rồi mới return thread.
+    -- Nên KHÔNG được dùng "curThread == nil" làm dấu hiệu kết thúc: nếu code không yield thì
+    -- "curThread=nil" bên trong chạy trước, rồi phép gán bên ngoài ghi đè bằng thread đã chết
+    -- -> vòng while bên ngoài quay vô hạn. Vì vậy dùng cờ runActive riêng.
+    curThread=task.spawn(function()
+        runActive=true
+        for i=1,times do
+            if cancelled then break end
+            if i>1 and delay>0 then
+                local e=0
+                while e<delay do
+                    if cancelled then break end
+                    task.wait(0.1); e+=0.1
+                end
+                if cancelled then break end
+            end
+            local ok, err = ExecOnce(code, name)
+            if ok then okC+=1 else failC+=1; warn("❌ Lần",i,err) end
+        end
+        totalRuns+=okC+failC
+        if ind then ind.BackgroundColor3=C.GREEN; if curIndicator==ind then curIndicator=nil end end
+        runActive=false
+        curThread=nil
+    end)
+    return true, nil
+end
+
+local function Label(parent, text, y)
+    return New("TextLabel", {
+        Size=UDim2.new(1,-16,0,14), Position=UDim2.new(0,8,0,y or 0),
+        Text=text, BackgroundTransparency=1, TextColor3=Color3.fromRGB(60,60,60),
+        Font=Enum.Font.GothamMedium, TextSize=10, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=6,
+    }, parent)
+end
+
+local function Button(parent, text, x, y, w, h, color)
+    local btn = New("TextButton", {
+        Size=UDim2.new(0,w or 100,0,h or 24), Position=UDim2.new(0,x or 8,0,y or 0),
+        Text=text, BackgroundColor3=color or C.GRAY, BackgroundTransparency=0.2,
+        TextColor3=C.WHITE, Font=Enum.Font.GothamBold, TextSize=10, BorderSizePixel=0, ZIndex=6,
+    }, parent)
+    Corner(btn, UDim.new(0,5))
+    Stroke(btn, color and color:Lerp(Color3.new(0,0,0),0.4) or nil, 1)
+    btn.MouseEnter:Connect(function() Tween(btn, {BackgroundTransparency=0.05}, 0.2) end)
+    btn.MouseLeave:Connect(function() Tween(btn, {BackgroundTransparency=0.2}, 0.2) end)
+    return btn
+end
+
+-- ==================== TAB 1: CODE ====================
+local y = 8
+Label(codeTab, "💻 Nhập Code Tùy Chỉnh", y)
+y = y + 14
+Label(codeTab, "👤 Tên Script", y)
+y = y + 14
+
+local nameIn = New("TextBox", {
+    Size=UDim2.new(1,-16,0,26), Position=UDim2.new(0,8,0,y), Text="",
+    PlaceholderText="Nhập tên script...", PlaceholderColor3=Color3.fromRGB(160,160,160),
+    BackgroundColor3=Color3.fromRGB(255,255,255), BackgroundTransparency=0, TextColor3=Color3.fromRGB(20,20,20),
+    Font=Enum.Font.GothamMedium, TextSize=12, BorderSizePixel=0, ClearTextOnFocus=false,
+    Active=true, Selectable=true, ZIndex=10, TextXAlignment=Enum.TextXAlignment.Left,
+}, codeTab)
+Corner(nameIn, UDim.new(0,5))
+Stroke(nameIn, Color3.fromRGB(100,120,200), 1.5)
+New("UIPadding", {PaddingLeft=UDim.new(0,6)}, nameIn)
+
+y = y + 32
+Label(codeTab, "💻 Code (Lua)", y)
+y = y + 14
+
+local codeIn = New("TextBox", {
+    Size=UDim2.new(1,-16,0,80), Position=UDim2.new(0,8,0,y), Text="",
+    PlaceholderText="-- Nhập code Lua tại đây...", PlaceholderColor3=Color3.fromRGB(160,160,160),
+    BackgroundColor3=Color3.fromRGB(245,245,255), BackgroundTransparency=0, TextColor3=Color3.fromRGB(20,20,20),
+    Font=Enum.Font.Code, TextSize=11, BorderSizePixel=0, ClearTextOnFocus=false,
+    MultiLine=true, TextWrapped=true, TextXAlignment=Enum.TextXAlignment.Left, TextYAlignment=Enum.TextYAlignment.Top,
+    Active=true, Selectable=true, ZIndex=10,
+}, codeTab)
+Corner(codeIn, UDim.new(0,5))
+Stroke(codeIn, Color3.fromRGB(100,120,200), 1.5)
+New("UIPadding", {PaddingLeft=UDim.new(0,6), PaddingTop=UDim.new(0,4)}, codeIn)
+
+y = y + 86
+Label(codeTab, "🔁 Cài đặt lặp", y)
+y = y + 14
+Label(codeTab, "Số lần lặp:", y)
+
+local repIn = New("TextBox", {
+    Size=UDim2.new(0,55,0,24), Position=UDim2.new(0,8,0,y+12), Text="1",
+    PlaceholderColor3=Color3.fromRGB(160,160,160), BackgroundColor3=Color3.fromRGB(255,255,255), BackgroundTransparency=0,
+    TextColor3=Color3.fromRGB(20,20,20), Font=Enum.Font.GothamMedium, TextSize=12, BorderSizePixel=0,
+    ClearTextOnFocus=false, Active=true, Selectable=true, ZIndex=10,
+}, codeTab)
+Corner(repIn, UDim.new(0,5))
+Stroke(repIn, Color3.fromRGB(180,180,200), 1.2)
+
+Label(codeTab, "Thời gian chờ:", y+36)
+
+local delIn = New("TextBox", {
+    Size=UDim2.new(0,55,0,24), Position=UDim2.new(0,8,0,y+50), Text="0",
+    PlaceholderColor3=Color3.fromRGB(160,160,160), BackgroundColor3=Color3.fromRGB(255,255,255), BackgroundTransparency=0,
+    TextColor3=Color3.fromRGB(20,20,20), Font=Enum.Font.GothamMedium, TextSize=12, BorderSizePixel=0,
+    ClearTextOnFocus=false, Active=true, Selectable=true, ZIndex=10,
+}, codeTab)
+Corner(delIn, UDim.new(0,5))
+Stroke(delIn, Color3.fromRGB(180,180,200), 1.2)
+
+local unitBtn = New("TextButton", {
+    Size=UDim2.new(0,55,0,24), Position=UDim2.new(0,75,0,y+50), Text="Giây ▾",
+    BackgroundColor3=Color3.fromRGB(255,255,255), BackgroundTransparency=0, TextColor3=C.DARK,
+    Font=Enum.Font.GothamBold, TextSize=9, BorderSizePixel=0, ZIndex=10,
+}, codeTab)
+Corner(unitBtn,UDim.new(0,4)); Stroke(unitBtn)
+
+local ddFrame = New("Frame", {
+    Size=UDim2.new(0,55,0,48), Position=UDim2.new(0,75,0,y+74),
+    BackgroundColor3=Color3.fromRGB(255,255,255), BackgroundTransparency=0, BorderSizePixel=0, Visible=false, ZIndex=15,
+}, codeTab)
+Corner(ddFrame,UDim.new(0,4)); Stroke(ddFrame)
+
+local secOpt = New("TextButton", {
+    Size=UDim2.new(1,0,0,24), Text="Giây", BackgroundColor3=Color3.fromRGB(245,245,245),
+    BackgroundTransparency=0, TextColor3=C.DARK, Font=Enum.Font.GothamBold, TextSize=9, BorderSizePixel=0, ZIndex=16,
+}, ddFrame)
+
+local minOpt = New("TextButton", {
+    Size=UDim2.new(1,0,0,24), Position=UDim2.new(0,0,0,24), Text="Phút",
+    BackgroundColor3=Color3.fromRGB(245,245,245), BackgroundTransparency=0, TextColor3=C.DARK,
+    Font=Enum.Font.GothamBold, TextSize=9, BorderSizePixel=0, ZIndex=16,
+}, ddFrame)
+
+unitBtn.Activated:Connect(function() ddFrame.Visible=not ddFrame.Visible end)
+secOpt.Activated:Connect(function() unitBtn.Text="Giây ▾"; ddFrame.Visible=false end)
+minOpt.Activated:Connect(function() unitBtn.Text="Phút ▾"; ddFrame.Visible=false end)
+
+trackConn(UserInputService.InputBegan:Connect(function(i,gp)
+    if gp then return end
+    if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then
+        -- không dùng GetGuiObjectsAtPosition: nó chỉ thấy PlayerGui, còn hub nằm trong gethui()/CoreGui
+        local f = Hit.inObject(unitBtn, i.Position.X, i.Position.Y)
+            or Hit.inObject(ddFrame, i.Position.X, i.Position.Y)
+        if not f then ddFrame.Visible=false end
+    end
+end))
+
+y = y + 82
+
+local runBtn = Button(codeTab, "▶ Chạy Code", 8, y, 140, 26, Color3.fromRGB(0,160,90))
+local stopBtn = Button(codeTab, "⏹ Dừng", 156, y, 80, 26, C.RED)
+y = y + 32
+local saveBtn = Button(codeTab, "💾 Lưu Vào Danh Sách", 8, y, 160, 26, C.BLUE)
+y = y + 32
+
+local statusLbl = Label(codeTab, "", y)
+statusLbl.TextColor3=Color3.fromRGB(220,170,0); statusLbl.TextSize=9; statusLbl.ZIndex=6
+y = y + 14
+
+local countLbl = Label(codeTab, "🔄 Tổng số lần đã chạy: 0", y)
+countLbl.TextColor3=C.GREEN; countLbl.TextSize=9; countLbl.ZIndex=6
+
+codeTab.CanvasSize = UDim2.new(0, 0, 0, y + 30)
+
+stopBtn.Activated:Connect(function() Cancel(); statusLbl.Text="⏹️ Đã dừng" end)
+
+runBtn.Activated:Connect(function()
+    local t=math.clamp(tonumber(repIn.Text)or 1,1,1000)
+    local d=math.max(tonumber(delIn.Text)or 0,0)
+    if unitBtn.Text:find("Phút") then d=d*60 end
+    local ok,err=RunCode(codeIn.Text,nameIn.Text,nil,t,d)
+    if not ok then
+        statusLbl.Text=err or "❌ Lỗi không xác định"
+    else
+        statusLbl.Text="⏳ Đang thực thi..."
+        task.spawn(function()
+            while runActive do
+                if cancelled then statusLbl.Text="⏹️ Đã dừng"; return end
+                task.wait(0.1)
+            end
+            if not cancelled then statusLbl.Text="✅ Hoàn thành!" end
+            countLbl.Text="🔄 Tổng số lần đã chạy: "..totalRuns
+        end)
+    end
+end)
+
+local RebuildScripts
+
+saveBtn.Activated:Connect(function()
+    local n=nameIn.Text
+    local c=codeIn.Text
+    if #c==0 then statusLbl.Text="⚠️ Vui lòng nhập code!"; return end
+    if #n==0 then n="Script "..(#scripts+1) end
+    local bn=n
+    local cnt=1
+    while true do
+        local ex=false
+        for _,s in ipairs(scripts) do if s.name==n then ex=true; break end end
+        if not ex then break end
+        cnt+=1; n=bn.." ("..cnt..")"
+    end
+    table.insert(scripts,{name=n, code=c, expanded=false})
+    if RebuildScripts then RebuildScripts() end
+    Store.saveSoon()
+    statusLbl.Text="✅ Đã lưu vào Tab 'Code Đã Lưu'! (đã ghi xuống đĩa)"
+end)
+
+-- ==================== TAB 2: CODE ĐÃ LƯU ====================
+local sy = 8
+Label(savedCodeTab, "💾 Danh Sách Script Đã Lưu", sy)
+sy = sy + 18
+
+local searchIn = New("TextBox", {
+    Size=UDim2.new(1,-16,0,26), Position=UDim2.new(0,8,0,sy), Text="",
+    PlaceholderText="🔍 Tìm kiếm script...", PlaceholderColor3=Color3.fromRGB(160,160,160),
+    BackgroundColor3=Color3.fromRGB(255,255,255), BackgroundTransparency=0, TextColor3=Color3.fromRGB(20,20,20),
+    Font=Enum.Font.GothamMedium, TextSize=12, BorderSizePixel=0, ClearTextOnFocus=false,
+    Active=true, Selectable=true, ZIndex=10, TextXAlignment=Enum.TextXAlignment.Left,
+}, savedCodeTab)
+Corner(searchIn, UDim.new(0,5))
+Stroke(searchIn, Color3.fromRGB(180,180,200), 1.2)
+New("UIPadding", {PaddingLeft=UDim.new(0,6)}, searchIn)
+sy = sy + 32
+
+-- ===== NHÃN TRẠNG THÁI LƯU + NÚT NẠP LẠI TỪ ĐĨA =====
+-- Gắn vào Store.statusLbl / Store.reloadBtn (field của bảng) thay vì khai báo local mới,
+-- vì main chunk đã gần cạn 200 slot local cho phép.
+Store.statusLbl = New("TextLabel", {
+    Size=UDim2.new(1,-110,0,20), Position=UDim2.new(0,8,0,sy),
+    Text="💾 ...", BackgroundTransparency=1, TextColor3=C.GRAY,
+    Font=Enum.Font.GothamMedium, TextSize=9,
+    TextXAlignment=Enum.TextXAlignment.Left, TextYAlignment=Enum.TextYAlignment.Center,
+    TextTruncate=Enum.TextTruncate.AtEnd, ZIndex=7,
+}, savedCodeTab)
+
+Store.reloadBtn = New("TextButton", {
+    Size=UDim2.new(0,94,0,20), Position=UDim2.new(1,-102,0,sy),
+    Text="🔄 Nạp lại", BackgroundColor3=C.BLUE, BackgroundTransparency=0.1,
+    TextColor3=C.WHITE, Font=Enum.Font.GothamBold, TextSize=9, BorderSizePixel=0, ZIndex=8,
+}, savedCodeTab)
+Corner(Store.reloadBtn, UDim.new(0,5))
+Stroke(Store.reloadBtn, Color3.fromRGB(0,90,170), 1)
+
+Store.refreshStatus = function()
+    if not Store.statusLbl or not Store.statusLbl.Parent then return end
+    local ns, nw, nf = #scripts, #waypoints, #featureTabs
+    if Store.lastError then
+        Store.statusLbl.TextColor3 = Color3.fromRGB(220,120,60)
+        Store.statusLbl.Text = string.format("⚠️ %d script · %d WP · %d tab — %s", ns, nw, nf, Store.lastError)
+    elseif Store.mode == "file" then
+        Store.statusLbl.TextColor3 = Color3.fromRGB(0,150,80)
+        Store.statusLbl.Text = string.format("💾 %d script · %d WP · %d tab · %s%s", ns, nw, nf, Store.SAVE_FILE,
+            Store.lastSavedAt and (" · lưu lúc " .. Store.lastSavedAt) or "")
+    elseif Store.mode == "memory" then
+        Store.statusLbl.TextColor3 = Color3.fromRGB(220,170,0)
+        Store.statusLbl.Text = string.format("⚠️ %d script · %d WP · %d tab — chỉ giữ trong phiên chơi này (executor thiếu writefile)", ns, nw, nf)
+    elseif Store.mode == "empty" then
+        Store.statusLbl.TextColor3 = C.GRAY
+        Store.statusLbl.Text = string.format("💾 Chưa lưu gì · sẽ ghi vào %s khi bạn bấm Lưu", Store.SAVE_FILE)
+    else
+        Store.statusLbl.TextColor3 = C.GRAY
+        Store.statusLbl.Text = "💾 Chưa lưu gì (executor thiếu writefile — chỉ giữ trong phiên chơi)"
+    end
+end
+
+Store.reloadBtn.Activated:Connect(function()
+    -- Nạp lại từ đĩa. Hữu ích khi: file bị sửa tay, executor vừa cấp quyền ghi,
+    -- hoặc bạn copy file banana_cat_saved.json từ máy/executor khác sang.
+    Store.load()
+    RebuildScripts()
+    -- v4.4b: Waypoint cũng phải dựng lại (trước đây thiếu: local RebuildWaypoints được khai
+    -- báo ở TAB3, SAU closure này, nên gọi thẳng ở đây sẽ thành global nil -> lỗi).
+    if Store.restoreWaypoints then pcall(Store.restoreWaypoints) end
+    if Store.restoreFeatures then pcall(Store.restoreFeatures) end
+    -- v4.4b: BỎ Store.save() ở đây. Nạp lại là thao tác ĐỌC; lưu ngay sau đó sẽ ghi đè
+    -- file vừa đọc (đang muốn cứu) bằng dữ liệu trong RAM -> mất dữ liệu không cứu được.
+    Store.reloadBtn.Text = "✅ Đã nạp"
+    task.delay(1.4, function()
+        if Store.reloadBtn and Store.reloadBtn.Parent then Store.reloadBtn.Text = "🔄 Nạp lại" end
+    end)
+end)
+
+sy = sy + 24
+
+local scriptList = New("Frame", {
+    Size=UDim2.new(1,-16,0,0), Position=UDim2.new(0,8,0,sy),
+    BackgroundTransparency=1, BorderSizePixel=0, ZIndex=6,
+}, savedCodeTab)
+New("UIListLayout", {SortOrder=Enum.SortOrder.LayoutOrder, Padding=UDim.new(0,6)}, scriptList)
+
+RebuildScripts = function()
+    for _,c in ipairs(scriptList:GetChildren()) do
+        if not c:IsA("UIListLayout") then c:Destroy() end
+    end
+
+    local term=searchIn.Text:lower()
+    local disp={}
+    for _,d in ipairs(scripts) do
+        if term=="" or d.name:lower():find(term,1,true) then table.insert(disp,d) end
+    end
+
+    if #disp==0 then
+        New("TextLabel", {
+            Size=UDim2.new(1,0,0,40),
+            Text=term~="" and "📭 Không tìm thấy script phù hợp" or "📭 Chưa có script nào được lưu",
+            BackgroundTransparency=1, TextColor3=C.GRAY, Font=Enum.Font.GothamMedium, TextSize=11,
+            TextXAlignment=Enum.TextXAlignment.Center, TextYAlignment=Enum.TextYAlignment.Center, ZIndex=7,
+        }, scriptList)
+    end
+
+    local totalHeight = 0
+
+    for _, d in ipairs(disp) do
+        local isExpanded = d.expanded or false
+        local rowH = isExpanded and 160 or 42
+
+        local row = New("Frame", {
+            Size=UDim2.new(1,0,0,rowH), BackgroundColor3=Color3.fromRGB(255,255,255),
+            BackgroundTransparency=0.1, BorderSizePixel=0, ZIndex=6,
+            ClipsDescendants=true,
+        }, scriptList)
+        Corner(row,UDim.new(0,6)); Stroke(row)
+
+        local arrowBtn = New("TextButton", {
+            Size=UDim2.new(0,24,0,24), Position=UDim2.new(0,6,0,9),
+            Text=isExpanded and "▲" or "▼",
+            BackgroundColor3=Color3.fromRGB(220,225,240), BackgroundTransparency=0,
+            TextColor3=C.BLUE, Font=Enum.Font.GothamBold, TextSize=10, BorderSizePixel=0, ZIndex=8,
+        }, row)
+        Corner(arrowBtn, UDim.new(0,4))
+
+        local nameLbl = New("TextLabel", {
+            Size=UDim2.new(1,-175,0,42), Position=UDim2.new(0,36,0,0),
+            Text=d.name, BackgroundTransparency=1, TextColor3=C.DARK,
+            Font=Enum.Font.GothamBold, TextSize=11, TextXAlignment=Enum.TextXAlignment.Left,
+            TextTruncate=Enum.TextTruncate.AtEnd, ZIndex=8,
+        }, row)
+
+        local delScriptBtn = New("TextButton", {
+            Size=UDim2.new(0,58,0,26), Position=UDim2.new(1,-132,0,8),
+            Text="🗑 Xóa", BackgroundColor3=C.RED, BackgroundTransparency=0.1,
+            TextColor3=C.WHITE, Font=Enum.Font.GothamBold, TextSize=10, BorderSizePixel=0, ZIndex=8,
+        }, row)
+        Corner(delScriptBtn, UDim.new(0,5))
+
+        local runScriptBtn = New("TextButton", {
+            Size=UDim2.new(0,62,0,26), Position=UDim2.new(1,-68,0,8),
+            Text="▶ Chạy", BackgroundColor3=C.GREEN, BackgroundTransparency=0.1,
+            TextColor3=C.WHITE, Font=Enum.Font.GothamBold, TextSize=10, BorderSizePixel=0, ZIndex=8,
+        }, row)
+        Corner(runScriptBtn, UDim.new(0,5))
+
+        if isExpanded then
+            local codeBoxFrame = New("ScrollingFrame", {
+                Size=UDim2.new(1,-12,0,82), Position=UDim2.new(0,6,0,42),
+                BackgroundColor3=Color3.fromRGB(240,242,250), BackgroundTransparency=0,
+                BorderSizePixel=0, ZIndex=8, ScrollBarThickness=4,
+                CanvasSize=UDim2.new(0,0,0,0),
+                AutomaticCanvasSize=Enum.AutomaticSize.Y,
+                ScrollingDirection=Enum.ScrollingDirection.Y,
+                ScrollingEnabled=true,
+                VerticalScrollBarInset=Enum.ScrollBarInset.ScrollBar,
+            }, row)
+            Corner(codeBoxFrame, UDim.new(0,5))
+            Stroke(codeBoxFrame, Color3.fromRGB(190,195,210), 1)
+
+            local codeLbl = New("TextBox", {
+                -- AutomaticSize=Y de khung cha (AutomaticCanvasSize.Y) biet chieu cao that cua code
+                -- va sinh dung thanh cuon. Ban cu dung Size=(1,-8,1,-8) => cao = 0 => khong cuon duoc.
+                Size=UDim2.new(1,-8,0,0), Position=UDim2.new(0,4,0,4),
+                AutomaticSize=Enum.AutomaticSize.Y,
+                Text=d.code, TextColor3=Color3.fromRGB(30,30,30), BackgroundTransparency=1,
+                Font=Enum.Font.Code, TextSize=10, TextXAlignment=Enum.TextXAlignment.Left,
+                TextYAlignment=Enum.TextYAlignment.Top, MultiLine=true, TextWrapped=true,
+                ClearTextOnFocus=false, TextEditable=false, Active=true, ZIndex=9,
+            }, codeBoxFrame)
+
+            local copyBtn = New("TextButton", {
+                Size=UDim2.new(0,120,0,24), Position=UDim2.new(0,6,0,128),
+                Text="📋 Sao Chép Code", BackgroundColor3=C.BLUE, BackgroundTransparency=0.1,
+                TextColor3=C.WHITE, Font=Enum.Font.GothamBold, TextSize=10, BorderSizePixel=0, ZIndex=8,
+            }, row)
+            Corner(copyBtn, UDim.new(0,5))
+
+            copyBtn.Activated:Connect(function()
+                if setclipboard then
+                    pcall(setclipboard, d.code)
+                    copyBtn.Text = "✅ Đã Sao Chép!"
+                elseif toclipboard then
+                    pcall(toclipboard, d.code)
+                    copyBtn.Text = "✅ Đã Sao Chép!"
+                else
+                    codeLbl:CaptureFocus()
+                    codeLbl.SelectionStart = 1
+                    codeLbl.CursorPosition = #d.code + 1
+                    copyBtn.Text = "⚠️ Đã Bôi Đen Code"
+                end
+                task.delay(1.5, function()
+                    if copyBtn and copyBtn.Parent then
+                        copyBtn.Text = "📋 Sao Chép Code"
+                    end
+                end)
+            end)
+        end
+
+        arrowBtn.Activated:Connect(function()
+            d.expanded = not d.expanded
+            RebuildScripts()
+            Store.saveSoon()
+        end)
+
+        runScriptBtn.Activated:Connect(function()
+            local prev = runScriptBtn.Text
+            RunCode(d.code, d.name, runScriptBtn, 1, 0)
+            -- v4.4b: statusLbl thuộc TAB1 nên người dùng không nhìn thấy gì ở đây;
+            -- báo ngay trên nút cho chắc.
+            runScriptBtn.Text = "⏳ ..."
+            task.delay(0.9, function()
+                if runScriptBtn and runScriptBtn.Parent then runScriptBtn.Text = "✅ xong" end
+                task.delay(0.9, function()
+                    if runScriptBtn and runScriptBtn.Parent then runScriptBtn.Text = prev end
+                end)
+            end)
+        end)
+
+        delScriptBtn.Activated:Connect(function()
+            local origIdx = nil
+            for idx, s in ipairs(scripts) do
+                if s == d then origIdx = idx; break end
+            end
+            if origIdx then
+                table.remove(scripts, origIdx)
+                RebuildScripts()
+                Store.saveSoon()
+            end
+        end)
+
+        totalHeight = totalHeight + rowH + 6
+    end
+
+    local listH = math.max(totalHeight, 40)
+    scriptList.Size = UDim2.new(1,-16,0,listH)
+    savedCodeTab.CanvasSize = UDim2.new(0, 0, 0, sy + listH + 30)
+    if Store.refreshStatus then Store.refreshStatus() end
+end
+
+searchIn:GetPropertyChangedSignal("Text"):Connect(RebuildScripts)
+RebuildScripts()
+
+-- ==================== TAB 3: HỖ TRỢ — SCRIPT NHANH + PHÂN TÍCH TỌA ĐỘ ====================
+local supportTab = AddTab("Hỗ Trợ", "🛠", 3)
+
+local posY = 8
+
+Label(supportTab, "⚡ Script Nhanh - Nhấn để chạy ngay", posY)
+posY = posY + 16
+
+local quickScripts = {
+    {n="Dex Explorer", d="Mở Dex Explorer", c=[[loadstring(game:HttpGet("https://raw.githubusercontent.com/infyiff/backup/main/dex.lua"))()]], cl=Color3.fromRGB(50,120,200)},
+    {n="Infinite Yield", d="Admin Commands", c=[[loadstring(game:HttpGet("https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source"))()]], cl=C.PURPLE},
+    {n="SimpleSpy v3", d="Theo dõi RemoteEvent & RemoteFunction", c=[[loadstring(game:HttpGet("https://raw.githubusercontent.com/ex-serum/SimpleSpy/main/SimpleSpy.lua"))()]], cl=Color3.fromRGB(0,150,80)},
+}
+
+for _, s in ipairs(quickScripts) do
+    local btn = New("TextButton", {
+        Size=UDim2.new(1,-16,0,28), Position=UDim2.new(0,8,0,posY), Text="",
+        BackgroundColor3=s.cl, BackgroundTransparency=0.3, BorderSizePixel=0, ZIndex=6,
+    }, supportTab)
+    Corner(btn, UDim.new(0,5))
+    Stroke(btn, s.cl, 1.2)
+    New("TextLabel", {
+        Size=UDim2.new(1,-10,1,0), Position=UDim2.new(0,10,0,0), Text=s.n.."\n"..s.d,
+        BackgroundTransparency=1, TextColor3=C.WHITE, Font=Enum.Font.GothamBold, TextSize=10,
+        TextXAlignment=Enum.TextXAlignment.Left, TextYAlignment=Enum.TextYAlignment.Center, ZIndex=7,
+    }, btn)
+    btn.Activated:Connect(function() RunCode(s.c, s.n, nil, 1, 0) end)
+    posY = posY + 32
+end
+
+posY = posY + 6
+Label(supportTab, "━━━━━━━━━━━━━━━━━━━━━━", posY)
+posY = posY + 16
+
+Label(supportTab, "🛠 Hỗ Trợ — Phân Tích Tọa Độ", posY)
+posY = posY + 18
+Label(supportTab, "━━━━━━━━━━━━━━━━━━━━━━", posY)
+posY = posY + 16
+
+-- ===== NÚT BẬT/TẮT PHÂN TÍCH VẬT THỂ + HIGHLIGHT =====
+local analyzeObjectEnabled = false
+local highlightEnabled = true
+
+local objectAnalyzeBtn = Button(supportTab, "🎯 Phân Tích Vật Thể: TẮT", 8, posY, 200, 26, C.GRAY)
+local clearObjectBtn = Button(supportTab, "🧹 Xóa KQ", 214, posY, 90, 26, C.RED)
+posY = posY + 32
+
+local highlightToggleBtn = Button(supportTab, "💜 Highlight Tím: BẬT", 8, posY, 200, 26, C.PURPLE)
+local removeHighlightBtn = Button(supportTab, "❌ Xóa Highlight", 214, posY, 90, 26, C.RED)
+posY = posY + 32
+
+Label(supportTab, "💡 Bật 'Phân Tích' rồi click vào vật thể (tường, đất, part...)", posY)
+posY = posY + 16
+
+-- ===== PANEL HIỂN THỊ KẾT QUẢ VẬT THỂ =====
+local objResultPanel = New("Frame", {
+    Size=UDim2.new(1,-16,0,190),
+    Position=UDim2.new(0,8,0,posY),
+    BackgroundColor3=Color3.fromRGB(20, 25, 35),
+    BackgroundTransparency=0,
+    BorderSizePixel=0,
+    ZIndex=6,
+    Visible=false,
+}, supportTab)
+Corner(objResultPanel, UDim.new(0,6))
+Stroke(objResultPanel, C.PURPLE, 1.5)
+
+New("TextLabel", {   -- (objTitleLbl: bien local khong dung -> bo de tiet kiem slot local)
+    Size=UDim2.new(1,-16,0,16), Position=UDim2.new(0,8,0,4),
+    Text="🎯 VẬT THỂ ĐƯỢC CHỌN", BackgroundTransparency=1,
+    TextColor3=Color3.fromRGB(180, 130, 255),
+    Font=Enum.Font.GothamBold, TextSize=10,
+    TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7,
+}, objResultPanel)
+
+local objNameLbl = New("TextLabel", {
+    Size=UDim2.new(1,-16,0,16), Position=UDim2.new(0,8,0,22),
+    Text="Name: ...", BackgroundTransparency=1,
+    TextColor3=Color3.fromRGB(255, 255, 100),
+    Font=Enum.Font.Code, TextSize=10,
+    TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7,
+}, objResultPanel)
+
+local objClassLbl = New("TextLabel", {
+    Size=UDim2.new(1,-16,0,16), Position=UDim2.new(0,8,0,38),
+    Text="Class: ...", BackgroundTransparency=1,
+    TextColor3=Color3.fromRGB(200, 200, 255),
+    Font=Enum.Font.Code, TextSize=10,
+    TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7,
+}, objResultPanel)
+
+local objPosLbl = New("TextLabel", {
+    Size=UDim2.new(1,-16,0,16), Position=UDim2.new(0,8,0,54),
+    Text="Position: ...", BackgroundTransparency=1,
+    TextColor3=Color3.fromRGB(255, 180, 180),
+    Font=Enum.Font.Code, TextSize=10,
+    TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7,
+}, objResultPanel)
+
+local objSizeLbl = New("TextLabel", {
+    Size=UDim2.new(1,-16,0,16), Position=UDim2.new(0,8,0,70),
+    Text="Size: ...", BackgroundTransparency=1,
+    TextColor3=Color3.fromRGB(180, 255, 180),
+    Font=Enum.Font.Code, TextSize=10,
+    TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7,
+}, objResultPanel)
+
+local objRotLbl = New("TextLabel", {
+    Size=UDim2.new(1,-16,0,16), Position=UDim2.new(0,8,0,86),
+    Text="Rotation: ...", BackgroundTransparency=1,
+    TextColor3=Color3.fromRGB(180, 220, 255),
+    Font=Enum.Font.Code, TextSize=10,
+    TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7,
+}, objResultPanel)
+
+local objLookLbl = New("TextLabel", {
+    Size=UDim2.new(1,-16,0,16), Position=UDim2.new(0,8,0,102),
+    Text="Look: ...", BackgroundTransparency=1,
+    TextColor3=Color3.fromRGB(220, 200, 255),
+    Font=Enum.Font.Code, TextSize=10,
+    TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7,
+}, objResultPanel)
+
+local objMatLbl = New("TextLabel", {
+    Size=UDim2.new(1,-16,0,16), Position=UDim2.new(0,8,0,118),
+    Text="Material: ...", BackgroundTransparency=1,
+    TextColor3=Color3.fromRGB(255, 220, 180),
+    Font=Enum.Font.Code, TextSize=10,
+    TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7,
+}, objResultPanel)
+
+local objColorLbl = New("TextLabel", {
+    Size=UDim2.new(1,-16,0,16), Position=UDim2.new(0,8,0,134),
+    Text="Color: ...", BackgroundTransparency=1,
+    TextColor3=Color3.fromRGB(255, 180, 220),
+    Font=Enum.Font.Code, TextSize=10,
+    TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7,
+}, objResultPanel)
+
+local objPathLbl = New("TextLabel", {
+    Size=UDim2.new(1,-16,0,16), Position=UDim2.new(0,8,0,150),
+    Text="Path: ...", BackgroundTransparency=1,
+    TextColor3=Color3.fromRGB(180, 255, 220),
+    Font=Enum.Font.Code, TextSize=9,
+    TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7,
+    TextTruncate=Enum.TextTruncate.AtEnd,
+}, objResultPanel)
+
+local copyObjBtn = New("TextButton", {
+    Size=UDim2.new(0,120,0,20), Position=UDim2.new(0,8,0,168),
+    Text="📋 Copy Tọa Độ", BackgroundColor3=C.BLUE, BackgroundTransparency=0.1,
+    TextColor3=C.WHITE, Font=Enum.Font.GothamBold, TextSize=9, BorderSizePixel=0, ZIndex=8,
+}, objResultPanel)
+Corner(copyObjBtn, UDim.new(0,4))
+
+local copyPathBtn = New("TextButton", {
+    Size=UDim2.new(0,120,0,20), Position=UDim2.new(0,134,0,168),
+    Text="📋 Copy Path", BackgroundColor3=C.PURPLE, BackgroundTransparency=0.1,
+    TextColor3=C.WHITE, Font=Enum.Font.GothamBold, TextSize=9, BorderSizePixel=0, ZIndex=8,
+}, objResultPanel)
+Corner(copyPathBtn, UDim.new(0,4))
+
+posY = posY + 198
+
+Label(supportTab, "📍 Tọa Độ Hiện Tại (Real-time)", posY)
+posY = posY + 16
+
+-- ===== PANEL TỌA ĐỘ ĐẦY ĐỦ (POS + SIZE + ROTATION + LOOK + STATE + HP) =====
+local coordDisplay = New("Frame", {
+    Size=UDim2.new(1,-16,0,290),
+    Position=UDim2.new(0,8,0,posY),
+    BackgroundColor3=Color3.fromRGB(30, 35, 45),
+    BackgroundTransparency=0,
+    BorderSizePixel=0,
+    ZIndex=6,
+}, supportTab)
+Corner(coordDisplay, UDim.new(0,6))
+Stroke(coordDisplay, C.BLUE, 1.5)
+
+local function CreateCoordRow(parent, yPos, labelText, labelColor, valueDefault)
+    New("TextLabel", {
+        Size=UDim2.new(0,90,0,16), Position=UDim2.new(0,8,0,yPos),
+        Text=labelText, BackgroundTransparency=1, TextColor3=labelColor,
+        Font=Enum.Font.GothamBold, TextSize=10,
+        TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7,
+    }, parent)
+    return New("TextLabel", {
+        Size=UDim2.new(1,-100,0,16), Position=UDim2.new(0,100,0,yPos),
+        Text=valueDefault or "...", BackgroundTransparency=1,
+        TextColor3=Color3.fromRGB(255,255,255),
+        Font=Enum.Font.Code, TextSize=10,
+        TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7,
+    }, parent)
+end
+
+New("TextLabel", {
+    Size=UDim2.new(1,-16,0,14), Position=UDim2.new(0,8,0,4),
+    Text="📍 POSITION (DƯỚI CHÂN)", BackgroundTransparency=1,
+    TextColor3=Color3.fromRGB(255, 200, 100),
+    Font=Enum.Font.GothamBold, TextSize=9,
+    TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7,
+}, coordDisplay)
+
+local xValLbl = CreateCoordRow(coordDisplay, 20, "X:", Color3.fromRGB(255,100,100), "0.000")
+local yValLbl = CreateCoordRow(coordDisplay, 36, "Y:", Color3.fromRGB(100,255,100), "0.000")
+local zValLbl = CreateCoordRow(coordDisplay, 52, "Z:", Color3.fromRGB(100,150,255), "0.000")
+
+New("TextLabel", {
+    Size=UDim2.new(1,-16,0,14), Position=UDim2.new(0,8,0,72),
+    Text="📦 SIZE", BackgroundTransparency=1,
+    TextColor3=Color3.fromRGB(255, 200, 100),
+    Font=Enum.Font.GothamBold, TextSize=9,
+    TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7,
+}, coordDisplay)
+
+local sizeXValLbl = CreateCoordRow(coordDisplay, 88, "Size X:", Color3.fromRGB(255,150,150), "0.000")
+local sizeYValLbl = CreateCoordRow(coordDisplay, 104, "Size Y:", Color3.fromRGB(150,255,150), "0.000")
+local sizeZValLbl = CreateCoordRow(coordDisplay, 120, "Size Z:", Color3.fromRGB(150,180,255), "0.000")
+
+New("TextLabel", {
+    Size=UDim2.new(1,-16,0,14), Position=UDim2.new(0,8,0,140),
+    Text="🧭 ROTATION", BackgroundTransparency=1,
+    TextColor3=Color3.fromRGB(255, 200, 100),
+    Font=Enum.Font.GothamBold, TextSize=9,
+    TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7,
+}, coordDisplay)
+
+local rotPValLbl = CreateCoordRow(coordDisplay, 156, "Pitch (X):", Color3.fromRGB(255,150,150), "0.0°")
+local rotYValLbl = CreateCoordRow(coordDisplay, 172, "Yaw (Y):", Color3.fromRGB(150,255,150), "0.0°")
+local rotRValLbl = CreateCoordRow(coordDisplay, 188, "Roll (Z):", Color3.fromRGB(150,180,255), "0.0°")
+
+New("TextLabel", {
+    Size=UDim2.new(1,-16,0,14), Position=UDim2.new(0,8,0,206),
+    Text="👁 LOOK / STATE / HP", BackgroundTransparency=1,
+    TextColor3=Color3.fromRGB(255, 200, 100),
+    Font=Enum.Font.GothamBold, TextSize=9,
+    TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7,
+}, coordDisplay)
+
+local lookValLbl = New("TextLabel", {
+    Size=UDim2.new(1,-16,0,16), Position=UDim2.new(0,8,0,222),
+    Text="Look: ...", BackgroundTransparency=1,
+    TextColor3=Color3.fromRGB(200,220,255),
+    Font=Enum.Font.Code, TextSize=10,
+    TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7,
+}, coordDisplay)
+
+local stateValLbl = New("TextLabel", {
+    Size=UDim2.new(1,-16,0,16), Position=UDim2.new(0,8,0,240),
+    Text="State: ...", BackgroundTransparency=1,
+    TextColor3=Color3.fromRGB(200,255,200),
+    Font=Enum.Font.Code, TextSize=10,
+    TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7,
+}, coordDisplay)
+
+local hpValLbl = New("TextLabel", {
+    Size=UDim2.new(1,-16,0,16), Position=UDim2.new(0,8,0,258),
+    Text="HP: ...", BackgroundTransparency=1,
+    TextColor3=Color3.fromRGB(255,200,200),
+    Font=Enum.Font.Code, TextSize=10,
+    TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7,
+}, coordDisplay)
+
+local placeLbl = New("TextLabel", {
+    Size=UDim2.new(1,-16,0,14), Position=UDim2.new(0,8,0,274),
+    Text="Place: ...", BackgroundTransparency=1,
+    TextColor3=Color3.fromRGB(150, 200, 255),
+    Font=Enum.Font.GothamMedium, TextSize=9,
+    TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7,
+}, coordDisplay)
+
+posY = posY + 298
+
+local lastPos = Vector3.new()
+local lastSize = Vector3.new()
+local lastRot = Vector3.new()
+local lastLook = Vector3.new()
+local lastState = ""
+local lastHp = -1
+
+local function GetRootPart()
+    local char = player.Character
+    if not char then return nil end
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    local rootPart = (humanoid and humanoid.RootPart)
+        or char:FindFirstChild("HumanoidRootPart")
+        or char.PrimaryPart
+        or char:FindFirstChild("UpperTorso")
+        or char:FindFirstChild("Torso")
+    return rootPart
+end
+
+local function GetGroundPosition()
+    local char = player.Character
+    if not char then return nil end
+    local rootPart = GetRootPart()
+    if not rootPart then return nil end
+
+    local origin = rootPart.Position
+    local direction = Vector3.new(0, -500, 0)
+
+    local params = RaycastParams.new()
+    params.FilterType = Enum.RaycastFilterType.Exclude
+    params.FilterDescendantsInstances = {char}
+    params.IgnoreWater = false
+
+    local result = workspace:Raycast(origin, direction, params)
+    if result then
+        return result.Position, result.Instance, result.Normal, result.Material
+    end
+    return nil
+end
+
+local coordUpdateConn = RunService.RenderStepped:Connect(function()
+    local char = player.Character
+    if not char then
+        xValLbl.Text = "N/A"; yValLbl.Text = "N/A"; zValLbl.Text = "N/A"
+        sizeXValLbl.Text = "N/A"; sizeYValLbl.Text = "N/A"; sizeZValLbl.Text = "N/A"
+        rotPValLbl.Text = "N/A"; rotYValLbl.Text = "N/A"; rotRValLbl.Text = "N/A"
+        lookValLbl.Text = "Look: N/A"
+        stateValLbl.Text = "State: N/A"
+        hpValLbl.Text = "HP: N/A"
+        return
+    end
+
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    local rootPart = GetRootPart()
+
+    if not rootPart then
+        xValLbl.Text = "N/A"; yValLbl.Text = "N/A"; zValLbl.Text = "N/A"
+        sizeXValLbl.Text = "N/A"; sizeYValLbl.Text = "N/A"; sizeZValLbl.Text = "N/A"
+        rotPValLbl.Text = "N/A"; rotYValLbl.Text = "N/A"; rotRValLbl.Text = "N/A"
+        return
+    end
+
+    local groundPos = GetGroundPosition()
+    local displayPos = groundPos or rootPart.CFrame.Position
+
+    local cf = rootPart.CFrame
+    local size = rootPart.Size
+    local rx, ry, rz = cf:ToOrientation()
+    local look = cf.LookVector
+
+    if (displayPos - lastPos).Magnitude > 0.001 then
+        lastPos = displayPos
+        xValLbl.Text = string.format("%.3f", displayPos.X)
+        yValLbl.Text = string.format("%.3f", displayPos.Y)
+        zValLbl.Text = string.format("%.3f", displayPos.Z)
+    end
+
+    if (size - lastSize).Magnitude > 0.001 then
+        lastSize = size
+        sizeXValLbl.Text = string.format("%.3f", size.X)
+        sizeYValLbl.Text = string.format("%.3f", size.Y)
+        sizeZValLbl.Text = string.format("%.3f", size.Z)
+    end
+
+    local newRot = Vector3.new(rx, ry, rz)
+    if (newRot - lastRot).Magnitude > 0.001 then
+        lastRot = newRot
+        rotPValLbl.Text = string.format("%.1f°", math.deg(rx))
+        rotYValLbl.Text = string.format("%.1f°", math.deg(ry))
+        rotRValLbl.Text = string.format("%.1f°", math.deg(rz))
+    end
+
+    if (look - lastLook).Magnitude > 0.001 then
+        lastLook = look
+        lookValLbl.Text = string.format("Look: %.3f, %.3f, %.3f", look.X, look.Y, look.Z)
+    end
+
+    if humanoid then
+        local state = humanoid:GetState()
+        local stateName = tostring(state):gsub("Enum.HumanoidStateType.", "")
+        if stateName ~= lastState then
+            lastState = stateName
+            stateValLbl.Text = "State: "..stateName
+        end
+
+        local hp = math.floor(humanoid.Health)
+        if hp ~= lastHp then
+            lastHp = hp
+            hpValLbl.Text = string.format("HP: %d / %d", hp, math.floor(humanoid.MaxHealth))
+        end
+    else
+        stateValLbl.Text = "State: No Humanoid"
+        hpValLbl.Text = "HP: N/A"
+    end
+
+    if placeLbl.Text == "Place: ..." then
+        pcall(function()
+            local info = game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId)
+            placeLbl.Text = "Place: "..game.PlaceId.." — "..info.Name
+        end)
+    end
+end)
+trackConn(coordUpdateConn)
+
+-- ===== HIGHLIGHT VẬT THỂ =====
+local currentHighlight = nil
+
+local function RemoveCurrentHighlight()
+    if currentHighlight then
+        pcall(function() currentHighlight:Destroy() end)
+        currentHighlight = nil
+    end
+end
+
+local function CreateHighlight(target)
+    RemoveCurrentHighlight()
+    if not target then return end
+    if not target:IsA("BasePart") then return end
+
+    local hl = Instance.new("Highlight")
+    hl.Name = "BananaCatHub_Highlight"
+    hl.Adornee = target
+    hl.FillColor = Color3.fromRGB(160, 60, 255)
+    hl.FillTransparency = 0.7
+    hl.OutlineColor = Color3.fromRGB(200, 100, 255)
+    hl.OutlineTransparency = 0
+    hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    hl.Parent = target
+
+    currentHighlight = hl
+end
+
+-- ===== XỬ LÝ CLICK VẬT THỂ =====
+local function GetFullPath(obj)
+    if not obj then return "nil" end
+    local parts = {}
+    local cur = obj
+    while cur and cur ~= game do
+        table.insert(parts, 1, cur.Name)
+        cur = cur.Parent
+    end
+    return table.concat(parts, ".")
+end
+
+trackConn(UserInputService.InputBegan:Connect(function(input, gp)
+    if gp then return end
+    if not analyzeObjectEnabled then return end
+    if input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then
+        return
+    end
+
+    -- Hit.onHub thay cho GetGuiObjectsAtPosition: hub nằm trong gethui()/CoreGui nên API cũ
+    -- không nhìn thấy -> guard cũ là code chết, click nút trong menu vẫn raycast ra vật thể sau lưng.
+    if Hit.onHub(input.Position.X, input.Position.Y) then return end
+
+    local mousePos = input.Position
+    local unitRay = camera:ViewportPointToRay(mousePos.X, mousePos.Y)
+
+    local params = RaycastParams.new()
+    params.FilterType = Enum.RaycastFilterType.Exclude
+    local filterList = {}
+    if player.Character then table.insert(filterList, player.Character) end
+    if gui then table.insert(filterList, gui) end
+    params.FilterDescendantsInstances = filterList
+    params.IgnoreWater = false
+
+    local result = workspace:Raycast(unitRay.Origin, unitRay.Direction * 5000, params)
+
+    if result and result.Instance then
+        local inst = result.Instance
+        local hitPos = result.Position
+        local hitNormal = result.Normal
+        local hitMat = result.Material
+
+        objResultPanel.Visible = true
+        objNameLbl.Text = "Name: "..inst.Name
+        objClassLbl.Text = "Class: "..inst.ClassName
+        objPosLbl.Text = string.format("Position: %.3f, %.3f, %.3f", hitPos.X, hitPos.Y, hitPos.Z)
+
+        if inst:IsA("BasePart") then
+            local size = inst.Size
+            local cf = inst.CFrame
+            local rx, ry, rz = cf:ToOrientation()
+            local look = cf.LookVector
+            local color = inst.Color
+            local material = inst.Material
+
+            objSizeLbl.Text = string.format("Size: %.3f, %.3f, %.3f", size.X, size.Y, size.Z)
+            objRotLbl.Text = string.format("Rotation: P=%.1f° Y=%.1f° R=%.1f°",
+                math.deg(rx), math.deg(ry), math.deg(rz))
+            objLookLbl.Text = string.format("Look: %.3f, %.3f, %.3f", look.X, look.Y, look.Z)
+            objMatLbl.Text = "Material: "..tostring(material):gsub("Enum.Material.", "")
+            objColorLbl.Text = string.format("Color: R=%d G=%d B=%d",
+                math.floor(color.R*255), math.floor(color.G*255), math.floor(color.B*255))
+
+            -- Tạo highlight tím nếu bật
+            if highlightEnabled then
+                CreateHighlight(inst)
+            end
+        else
+            objSizeLbl.Text = "Size: N/A (không phải BasePart)"
+            objRotLbl.Text = "Rotation: N/A"
+            objLookLbl.Text = "Look: N/A"
+            objMatLbl.Text = "Material: N/A"
+            objColorLbl.Text = "Color: N/A"
+            RemoveCurrentHighlight()
+        end
+
+        objPathLbl.Text = "Path: "..GetFullPath(inst)
+
+        objResultPanel:SetAttribute("LastHitPos", tostring(hitPos))
+        objResultPanel:SetAttribute("LastPath", GetFullPath(inst))
+        objResultPanel:SetAttribute("LastNormal", tostring(hitNormal))
+        objResultPanel:SetAttribute("LastMaterial", tostring(hitMat))
+    else
+        objResultPanel.Visible = true
+        objNameLbl.Text = "Name: (không hit gì)"
+        objClassLbl.Text = "Class: N/A"
+        objPosLbl.Text = "Position: N/A"
+        objSizeLbl.Text = "Size: N/A"
+        objRotLbl.Text = "Rotation: N/A"
+        objLookLbl.Text = "Look: N/A"
+        objMatLbl.Text = "Material: N/A"
+        objColorLbl.Text = "Color: N/A"
+        objPathLbl.Text = "Path: N/A"
+        RemoveCurrentHighlight()
+    end
+end))
+
+objectAnalyzeBtn.Activated:Connect(function()
+    analyzeObjectEnabled = not analyzeObjectEnabled
+    if analyzeObjectEnabled then
+        objectAnalyzeBtn.Text = "🎯 Phân Tích Vật Thể: BẬT"
+        objectAnalyzeBtn.BackgroundColor3 = C.GREEN
+    else
+        objectAnalyzeBtn.Text = "🎯 Phân Tích Vật Thể: TẮT"
+        objectAnalyzeBtn.BackgroundColor3 = C.GRAY
+        RemoveCurrentHighlight()
+    end
+end)
+
+highlightToggleBtn.Activated:Connect(function()
+    highlightEnabled = not highlightEnabled
+    if highlightEnabled then
+        highlightToggleBtn.Text = "💜 Highlight Tím: BẬT"
+        highlightToggleBtn.BackgroundColor3 = C.PURPLE
+    else
+        highlightToggleBtn.Text = "💜 Highlight Tím: TẮT"
+        highlightToggleBtn.BackgroundColor3 = C.GRAY
+        RemoveCurrentHighlight()
+    end
+end)
+
+removeHighlightBtn.Activated:Connect(function()
+    RemoveCurrentHighlight()
+end)
+
+clearObjectBtn.Activated:Connect(function()
+    objResultPanel.Visible = false
+    RemoveCurrentHighlight()
+end)
+
+copyObjBtn.Activated:Connect(function()
+    local pos = objResultPanel:GetAttribute("LastHitPos")
+    if pos and pos ~= "" then
+        if setclipboard then pcall(setclipboard, pos) elseif toclipboard then pcall(toclipboard, pos) end
+        copyObjBtn.Text = "✅ Đã Copy!"
+        task.delay(1.2, function()
+            if copyObjBtn and copyObjBtn.Parent then copyObjBtn.Text = "📋 Copy Tọa Độ" end
+        end)
+    end
+end)
+
+copyPathBtn.Activated:Connect(function()
+    local path = objResultPanel:GetAttribute("LastPath")
+    if path and path ~= "" then
+        if setclipboard then pcall(setclipboard, path) elseif toclipboard then pcall(toclipboard, path) end
+        copyPathBtn.Text = "✅ Đã Copy!"
+        task.delay(1.2, function()
+            if copyPathBtn and copyPathBtn.Parent then copyPathBtn.Text = "📋 Copy Path" end
+        end)
+    end
+end)
+
+posY = posY + 6
+
+local copyCoordBtn = Button(supportTab, "📋 Copy Tọa Độ Dưới Chân", 8, posY, 200, 26, C.BLUE)
+posY = posY + 32
+
+copyCoordBtn.Activated:Connect(function()
+    local groundPos = GetGroundPosition()
+    local rootPart = GetRootPart()
+    local finalPos = groundPos or (rootPart and rootPart.CFrame.Position)
+    if not finalPos then return end
+    local text = string.format("%.3f, %.3f, %.3f", finalPos.X, finalPos.Y, finalPos.Z)
+    if setclipboard then
+        pcall(setclipboard, text)
+    elseif toclipboard then
+        pcall(toclipboard, text)
+    end
+    copyCoordBtn.Text = "✅ Đã Copy: "..text
+    task.delay(2, function()
+        if copyCoordBtn and copyCoordBtn.Parent then
+            copyCoordBtn.Text = "📋 Copy Tọa Độ Dưới Chân"
+        end
+    end)
+end)
+
+Label(supportTab, "🚀 Teleport Tới Tọa Độ", posY)
+posY = posY + 14
+
+Label(supportTab, "X:", posY)
+local tpXIn = New("TextBox", {
+    Size=UDim2.new(0,70,0,24), Position=UDim2.new(0,20,0,posY-2), Text="0",
+    PlaceholderColor3=Color3.fromRGB(160,160,160),
+    BackgroundColor3=Color3.fromRGB(255,255,255), BackgroundTransparency=0,
+    TextColor3=Color3.fromRGB(20,20,20), Font=Enum.Font.Code, TextSize=11,
+    BorderSizePixel=0, ClearTextOnFocus=false, Active=true, Selectable=true, ZIndex=10,
+}, supportTab)
+Corner(tpXIn, UDim.new(0,4)); Stroke(tpXIn, Color3.fromRGB(255,100,100), 1.2)
+
+Label(supportTab, "Y:", posY)
+local tpYIn = New("TextBox", {
+    Size=UDim2.new(0,70,0,24), Position=UDim2.new(0,110,0,posY-2), Text="0",
+    PlaceholderColor3=Color3.fromRGB(160,160,160),
+    BackgroundColor3=Color3.fromRGB(255,255,255), BackgroundTransparency=0,
+    TextColor3=Color3.fromRGB(20,20,20), Font=Enum.Font.Code, TextSize=11,
+    BorderSizePixel=0, ClearTextOnFocus=false, Active=true, Selectable=true, ZIndex=10,
+}, supportTab)
+Corner(tpYIn, UDim.new(0,4)); Stroke(tpYIn, Color3.fromRGB(100,255,100), 1.2)
+
+Label(supportTab, "Z:", posY)
+local tpZIn = New("TextBox", {
+    Size=UDim2.new(0,70,0,24), Position=UDim2.new(0,200,0,posY-2), Text="0",
+    PlaceholderColor3=Color3.fromRGB(160,160,160),
+    BackgroundColor3=Color3.fromRGB(255,255,255), BackgroundTransparency=0,
+    TextColor3=Color3.fromRGB(20,20,20), Font=Enum.Font.Code, TextSize=11,
+    BorderSizePixel=0, ClearTextOnFocus=false, Active=true, Selectable=true, ZIndex=10,
+}, supportTab)
+Corner(tpZIn, UDim.new(0,4)); Stroke(tpZIn, Color3.fromRGB(100,150,255), 1.2)
+
+posY = posY + 30
+
+local fillCurrentBtn = Button(supportTab, "📍 Lấy Vị Trí Dưới Chân", 8, posY, 150, 24, C.ORANGE)
+local tpBtn = Button(supportTab, "🚀 Teleport", 164, posY, 90, 24, C.GREEN)
+posY = posY + 30
+
+fillCurrentBtn.Activated:Connect(function()
+    local groundPos = GetGroundPosition()
+    local rootPart = GetRootPart()
+    local p = groundPos or (rootPart and rootPart.CFrame.Position)
+    if not p then return end
+    tpXIn.Text = string.format("%.3f", p.X)
+    tpYIn.Text = string.format("%.3f", p.Y)
+    tpZIn.Text = string.format("%.3f", p.Z)
+end)
+
+tpBtn.Activated:Connect(function()
+    local rootPart = GetRootPart()
+    if not rootPart then return end
+    local x = tonumber(tpXIn.Text) or 0
+    local y = tonumber(tpYIn.Text) or 0
+    local z = tonumber(tpZIn.Text) or 0
+    rootPart.CFrame = CFrame.new(Vector3.new(x, y, z))
+    tpBtn.Text = "✅ Đã Teleport!"
+    task.delay(1.5, function()
+        if tpBtn and tpBtn.Parent then tpBtn.Text = "🚀 Teleport" end
+    end)
+end)
+
+Label(supportTab, "━━━━━━━━━━━━━━━━━━━━━━", posY)
+posY = posY + 16
+Label(supportTab, "💾 Waypoint Đã Lưu", posY)
+posY = posY + 14
+
+local wpNameIn = New("TextBox", {
+    Size=UDim2.new(1,-130,0,24), Position=UDim2.new(0,8,0,posY), Text="",
+    PlaceholderText="Tên waypoint...",
+    PlaceholderColor3=Color3.fromRGB(160,160,160),
+    BackgroundColor3=Color3.fromRGB(255,255,255), BackgroundTransparency=0,
+    TextColor3=Color3.fromRGB(20,20,20), Font=Enum.Font.GothamMedium, TextSize=11,
+    BorderSizePixel=0, ClearTextOnFocus=false, Active=true, Selectable=true, ZIndex=10,
+}, supportTab)
+Corner(wpNameIn, UDim.new(0,4)); Stroke(wpNameIn, Color3.fromRGB(180,180,200), 1.2)
+New("UIPadding", {PaddingLeft=UDim.new(0,6)}, wpNameIn)
+
+local saveWpBtn = Button(supportTab, "💾 Lưu", 0, 0, 100, 24, C.PURPLE)
+saveWpBtn.Position = UDim2.new(1, -110, 0, posY)
+
+posY = posY + 32
+
+local wpListFrame = New("Frame", {
+    Size=UDim2.new(1,-16,0,0), Position=UDim2.new(0,8,0,posY),
+    BackgroundTransparency=1, BorderSizePixel=0, ZIndex=6,
+}, supportTab)
+New("UIListLayout", {SortOrder=Enum.SortOrder.LayoutOrder, Padding=UDim.new(0,4)}, wpListFrame)
+
+-- (waypoints đã được khai báo ở đầu file để khối lưu trữ dùng chung — KHÔNG khai báo lại ở đây,
+--  nếu không sẽ tạo biến local mới che mất biến cũ và dữ liệu không bao giờ được ghi xuống đĩa)
+
+local RebuildWaypoints
+
+saveWpBtn.Activated:Connect(function()
+    local rootPart = GetRootPart()
+    if not rootPart then return end
+    local name = wpNameIn.Text
+    if #name == 0 then name = "WP "..(#waypoints+1) end
+    table.insert(waypoints, {name = name, pos = rootPart.CFrame.Position})
+    wpNameIn.Text = ""
+    if RebuildWaypoints then RebuildWaypoints() end
+    Store.saveSoon()
+end)
+
+RebuildWaypoints = function()
+    for _, c in ipairs(wpListFrame:GetChildren()) do
+        if not c:IsA("UIListLayout") then c:Destroy() end
+    end
+
+    if #waypoints == 0 then
+        New("TextLabel", {
+            Size=UDim2.new(1,0,0,26),
+            Text="📭 Chưa có waypoint nào.",
+            BackgroundTransparency=1, TextColor3=C.GRAY,
+            Font=Enum.Font.GothamMedium, TextSize=10,
+            TextXAlignment=Enum.TextXAlignment.Center, ZIndex=7,
+        }, wpListFrame)
+        supportTab.CanvasSize = UDim2.new(0, 0, 0, posY + 40)
+        return
+    end
+
+    local totalH = 0
+    for i, wp in ipairs(waypoints) do
+        local row = New("Frame", {
+            Size=UDim2.new(1,0,0,30),
+            BackgroundColor3=Color3.fromRGB(255,255,255),
+            BackgroundTransparency=0.1, BorderSizePixel=0, ZIndex=6,
+        }, wpListFrame)
+        Corner(row, UDim.new(0,5)); Stroke(row)
+
+        New("TextLabel", {
+            Size=UDim2.new(1,-120,1,0), Position=UDim2.new(0,8,0,0),
+            Text=wp.name.." ("..string.format("%.0f, %.0f, %.0f", wp.pos.X, wp.pos.Y, wp.pos.Z)..")",
+            BackgroundTransparency=1, TextColor3=C.DARK,
+            Font=Enum.Font.GothamBold, TextSize=9,
+            TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7,
+        }, row)
+
+        local goBtn = New("TextButton", {
+            Size=UDim2.new(0,50,0,22), Position=UDim2.new(1,-84,0,4),
+            Text="🚀 Tới", BackgroundColor3=C.GREEN, BackgroundTransparency=0.1,
+            TextColor3=C.WHITE, Font=Enum.Font.GothamBold, TextSize=9,
+            BorderSizePixel=0, ZIndex=8,
+        }, row)
+        Corner(goBtn, UDim.new(0,4))
+        goBtn.Activated:Connect(function()
+            local rootPart = GetRootPart()
+            if not rootPart then return end
+            rootPart.CFrame = CFrame.new(wp.pos)
+        end)
+
+        local delBtn = New("TextButton", {
+            Size=UDim2.new(0,26,0,22), Position=UDim2.new(1,-30,0,4),
+            Text="🗑", BackgroundColor3=C.RED, BackgroundTransparency=0.1,
+            TextColor3=C.WHITE, Font=Enum.Font.GothamBold, TextSize=10,
+            BorderSizePixel=0, ZIndex=8,
+        }, row)
+        Corner(delBtn, UDim.new(0,4))
+        delBtn.Activated:Connect(function()
+            table.remove(waypoints, i)
+            RebuildWaypoints()
+-- v4.4b: cho nút "🔄 Nạp lại" ở TAB2 gọi được (đóng gói qua Store vì lý do scope đã note ở đó)
+Store.restoreWaypoints = RebuildWaypoints
+            Store.saveSoon()
+        end)
+
+        totalH = totalH + 34
+    end
+
+    wpListFrame.Size = UDim2.new(1,-16,0,totalH)
+    supportTab.CanvasSize = UDim2.new(0, 0, 0, posY + totalH + 20)
+end
+
+RebuildWaypoints()
+
+-- ==================== TAB 4: AI AI — MINI WEB CHAT ====================
+local aiTab = AddTab("AI AI", "🤖", 4)
+
+aiTab.BackgroundTransparency = 1
+aiTab.ScrollingDirection = Enum.ScrollingDirection.Y
+aiTab.ScrollingEnabled = true
+aiTab.ElasticBehavior = Enum.ElasticBehavior.Never
+aiTab.AutomaticCanvasSize = Enum.AutomaticSize.Y
+aiTab.CanvasSize = UDim2.new(0, 0, 0, 0)
+aiTab.ScrollBarThickness = 5
+aiTab.ScrollBarImageColor3 = Color3.fromRGB(100, 120, 180)
+
+local aiBG = New("Frame", {
+    Size=UDim2.new(1, 0, 0, 0),
+    Position=UDim2.new(0, 0, 0, 0),
+    BackgroundColor3=Color3.fromRGB(15, 17, 22),
+    BackgroundTransparency=0,
+    BorderSizePixel=0,
+    ZIndex=4,
+    AutomaticSize=Enum.AutomaticSize.Y,
+}, aiTab)
+
+local aiInner = New("Frame", {
+    Size=UDim2.new(1, 0, 0, 0),
+    Position=UDim2.new(0, 0, 0, 0),
+    BackgroundTransparency=1,
+    BorderSizePixel=0,
+    ZIndex=5,
+    AutomaticSize=Enum.AutomaticSize.Y,
+}, aiBG)
+New("UIListLayout", {
+    SortOrder=Enum.SortOrder.LayoutOrder,
+    Padding=UDim.new(0,8),
+    HorizontalAlignment=Enum.HorizontalAlignment.Center,
+}, aiInner)
+New("UIPadding", {
+    PaddingTop=UDim.new(0,10),
+    PaddingBottom=UDim.new(0,10),
+    PaddingLeft=UDim.new(0,8),
+    PaddingRight=UDim.new(0,8),
+}, aiInner)
+
+local headerFrame = New("Frame", {
+    Size=UDim2.new(1,-16,0,56),
+    BackgroundColor3=Color3.fromRGB(25, 28, 36),
+    BackgroundTransparency=0,
+    BorderSizePixel=0,
+    ZIndex=6,
+    LayoutOrder=1,
+}, aiInner)
+Corner(headerFrame, UDim.new(0,10))
+Stroke(headerFrame, Color3.fromRGB(60, 70, 100), 1)
+
+local logoCircle = New("Frame", {
+    Size=UDim2.new(0,36,0,36),
+    Position=UDim2.new(0,10,0,10),
+    BackgroundColor3=Color3.fromRGB(100, 120, 240),
+    BackgroundTransparency=0,
+    BorderSizePixel=0,
+    ZIndex=7,
+}, headerFrame)
+Corner(logoCircle, UDim.new(1,0))
+
+New("TextLabel", {
+    Size=UDim2.new(1,0,1,0),
+    Text="🤖",
+    BackgroundTransparency=1,
+    TextColor3=C.WHITE,
+    Font=Enum.Font.GothamBold,
+    TextSize=18,
+    ZIndex=8,
+}, logoCircle)
+
+New("TextLabel", {
+    Size=UDim2.new(1,-70,0,20),
+    Position=UDim2.new(0,56,0,10),
+    Text="AI Mini — Gemini Assistant",
+    BackgroundTransparency=1,
+    TextColor3=Color3.fromRGB(240, 242, 250),
+    Font=Enum.Font.GothamBold,
+    TextSize=13,
+    TextXAlignment=Enum.TextXAlignment.Left,
+    ZIndex=7,
+}, headerFrame)
+
+local statusDot = New("Frame", {
+    Size=UDim2.new(0,8,0,8),
+    Position=UDim2.new(0,58,0,34),
+    BackgroundColor3=C.GREEN,
+    BackgroundTransparency=0,
+    BorderSizePixel=0,
+    ZIndex=7,
+}, headerFrame)
+Corner(statusDot, UDim.new(1,0))
+
+local statusText = New("TextLabel", {
+    Size=UDim2.new(1,-80,0,14),
+    Position=UDim2.new(0,70,0,30),
+    Text="Đang hoạt động",
+    BackgroundTransparency=1,
+    TextColor3=Color3.fromRGB(140, 200, 160),
+    Font=Enum.Font.GothamMedium,
+    TextSize=10,
+    TextXAlignment=Enum.TextXAlignment.Left,
+    ZIndex=7,
+}, headerFrame)
+
+local keyPanel = New("Frame", {
+    Size=UDim2.new(1,-16,0,86),
+    BackgroundColor3=Color3.fromRGB(25, 28, 36),
+    BackgroundTransparency=0,
+    BorderSizePixel=0,
+    ZIndex=6,
+    LayoutOrder=2,
+}, aiInner)
+Corner(keyPanel, UDim.new(0,10))
+Stroke(keyPanel, Color3.fromRGB(60, 70, 100), 1)
+
+New("TextLabel", {
+    Size=UDim2.new(1,-20,0,16),
+    Position=UDim2.new(0,10,0,6),
+    Text="🔑 API KEY GEMINI",
+    BackgroundTransparency=1,
+    TextColor3=Color3.fromRGB(140, 160, 220),
+    Font=Enum.Font.GothamBold,
+    TextSize=9,
+    TextXAlignment=Enum.TextXAlignment.Left,
+    ZIndex=7,
+}, keyPanel)
+
+local apiKeyIn = New("TextBox", {
+    Size=UDim2.new(1,-20,0,26),
+    Position=UDim2.new(0,10,0,24),
+    Text="",
+    PlaceholderText="Dán API key Gemini vào đây...",
+    PlaceholderColor3=Color3.fromRGB(90, 95, 110),
+    BackgroundColor3=Color3.fromRGB(15, 17, 22),
+    BackgroundTransparency=0,
+    TextColor3=Color3.fromRGB(230, 235, 245),
+    Font=Enum.Font.Code,
+    TextSize=10,
+    BorderSizePixel=0,
+    ClearTextOnFocus=false,
+    Active=true,
+    Selectable=true,
+    ZIndex=10,
+    TextXAlignment=Enum.TextXAlignment.Left,
+}, keyPanel)
+Corner(apiKeyIn, UDim.new(0,6))
+Stroke(apiKeyIn, Color3.fromRGB(70, 90, 150), 1.2)
+New("UIPadding", {PaddingLeft=UDim.new(0,8)}, apiKeyIn)
+
+local saveKeyBtn = New("TextButton", {
+    Size=UDim2.new(0,70,0,22),
+    Position=UDim2.new(0,10,0,56),
+    Text="💾 Lưu",
+    BackgroundColor3=Color3.fromRGB(50, 120, 220),
+    BackgroundTransparency=0,
+    TextColor3=C.WHITE,
+    Font=Enum.Font.GothamBold,
+    TextSize=9,
+    BorderSizePixel=0,
+    ZIndex=8,
+}, keyPanel)
+Corner(saveKeyBtn, UDim.new(0,5))
+
+local clearKeyBtn = New("TextButton", {
+    Size=UDim2.new(0,70,0,22),
+    Position=UDim2.new(0,86,0,56),
+    Text="🗑 Xóa",
+    BackgroundColor3=Color3.fromRGB(180, 60, 60),
+    BackgroundTransparency=0,
+    TextColor3=C.WHITE,
+    Font=Enum.Font.GothamBold,
+    TextSize=9,
+    BorderSizePixel=0,
+    ZIndex=8,
+}, keyPanel)
+Corner(clearKeyBtn, UDim.new(0,5))
+
+local toggleKeyBtn = New("TextButton", {
+    Size=UDim2.new(0,70,0,22),
+    Position=UDim2.new(0,162,0,56),
+    Text="👁 Hiện",
+    BackgroundColor3=Color3.fromRGB(180, 120, 40),
+    BackgroundTransparency=0,
+    TextColor3=C.WHITE,
+    Font=Enum.Font.GothamBold,
+    TextSize=9,
+    BorderSizePixel=0,
+    ZIndex=8,
+}, keyPanel)
+Corner(toggleKeyBtn, UDim.new(0,5))
+
+local keyStatus = New("TextLabel", {
+    Size=UDim2.new(1,-240,0,14),
+    Position=UDim2.new(0,238,0,60),
+    Text="",
+    BackgroundTransparency=1,
+    TextColor3=Color3.fromRGB(140, 200, 160),
+    Font=Enum.Font.GothamMedium,
+    TextSize=9,
+    TextXAlignment=Enum.TextXAlignment.Left,
+    ZIndex=7,
+}, keyPanel)
+
+local chatPanel = New("Frame", {
+    Size=UDim2.new(1,-16,0,340),
+    BackgroundColor3=Color3.fromRGB(25, 28, 36),
+    BackgroundTransparency=0,
+    BorderSizePixel=0,
+    ZIndex=6,
+    LayoutOrder=3,
+}, aiInner)
+Corner(chatPanel, UDim.new(0,10))
+Stroke(chatPanel, Color3.fromRGB(60, 70, 100), 1)
+
+local chatScroll = New("ScrollingFrame", {
+    Size=UDim2.new(1,-16,1,-16),
+    Position=UDim2.new(0,8,0,8),
+    BackgroundColor3=Color3.fromRGB(15, 17, 22),
+    BackgroundTransparency=0,
+    BorderSizePixel=0,
+    ZIndex=7,
+    ScrollBarThickness=4,
+    ScrollBarImageColor3=Color3.fromRGB(80, 100, 150),
+    CanvasSize=UDim2.new(0,0,0,0),
+    AutomaticCanvasSize=Enum.AutomaticSize.Y,
+    ScrollingDirection=Enum.ScrollingDirection.Y,
+    ScrollingEnabled=true,
+    ElasticBehavior=Enum.ElasticBehavior.Never,
+    ClipsDescendants=true,
+    Active=true,
+    Selectable=false,
+}, chatPanel)
+Corner(chatScroll, UDim.new(0,8))
+New("UIPadding", {PaddingTop=UDim.new(0,8), PaddingBottom=UDim.new(0,8), PaddingLeft=UDim.new(0,8), PaddingRight=UDim.new(0,8)}, chatScroll)
+New("UIListLayout", {
+    SortOrder=Enum.SortOrder.LayoutOrder,
+    Padding=UDim.new(0,8),
+    HorizontalAlignment=Enum.HorizontalAlignment.Left,
+}, chatScroll)
+
+local function ParseSegments(text)
+    local segments = {}
+    local remaining = text
+    while true do
+        local startIdx, endIdx = remaining:find("```")
+        if not startIdx then
+            if #remaining > 0 then
+                table.insert(segments, {type = "text", content = remaining})
+            end
+            break
+        end
+        local before = remaining:sub(1, startIdx - 1)
+        if #before > 0 then
+            table.insert(segments, {type = "text", content = before})
+        end
+        local rest = remaining:sub(endIdx + 1)
+        local closeStart, closeEnd = rest:find("```")
+        if not closeStart then
+            table.insert(segments, {type = "code", content = rest})
+            break
+        end
+        local codeContent = rest:sub(1, closeStart - 1)
+        codeContent = codeContent:gsub("^%s*%a+%s*\n", "")
+        table.insert(segments, {type = "code", content = codeContent})
+        remaining = rest:sub(closeEnd + 1)
+    end
+    return segments
+end
+
+local function AddMessage(sender, text, isUser)
+    local bubbleColor = isUser and Color3.fromRGB(50, 120, 220) or Color3.fromRGB(35, 40, 55)
+    local textColor = isUser and C.WHITE or Color3.fromRGB(230, 235, 245)
+    local align = isUser and Enum.TextXAlignment.Right or Enum.TextXAlignment.Left
+    local sizeScale = isUser and 0.75 or 0.9
+
+    local holder = New("Frame", {
+        Size=UDim2.new(1,0,0,0),
+        BackgroundTransparency=1,
+        BorderSizePixel=0,
+        ZIndex=8,
+        AutomaticSize=Enum.AutomaticSize.Y,
+    }, chatScroll)
+
+    local bubble = New("Frame", {
+        Size=UDim2.new(sizeScale,0,0,0),
+        BackgroundColor3=bubbleColor,
+        BackgroundTransparency=0,
+        BorderSizePixel=0,
+        ZIndex=9,
+        AutomaticSize=Enum.AutomaticSize.Y,
+    }, holder)
+    Corner(bubble, UDim.new(0,10))
+
+    if isUser then
+        bubble.Position = UDim2.new(1-sizeScale, 0, 0, 0)
+    end
+
+    local senderLbl = New("TextLabel", {
+        Size=UDim2.new(1,-16,0,12),
+        Position=UDim2.new(0,8,0,-14),
+        Text=sender,
+        BackgroundTransparency=1,
+        TextColor3=isUser and Color3.fromRGB(150, 180, 240) or Color3.fromRGB(140, 200, 160),
+        Font=Enum.Font.GothamBold,
+        TextSize=8,
+        TextXAlignment=align,
+        ZIndex=10,
+    }, bubble)
+
+    local contentContainer = New("Frame", {
+        Size=UDim2.new(1,-16,0,0),
+        Position=UDim2.new(0,8,0,4),
+        BackgroundTransparency=1,
+        BorderSizePixel=0,
+        ZIndex=10,
+        AutomaticSize=Enum.AutomaticSize.Y,
+    }, bubble)
+    New("UIListLayout", {
+        SortOrder=Enum.SortOrder.LayoutOrder,
+        Padding=UDim.new(0,4),
+    }, contentContainer)
+    New("UIPadding", {
+        PaddingBottom=UDim.new(0,6),
+    }, contentContainer)
+
+    local segments
+    if isUser then
+        segments = {{type = "text", content = text}}
+    else
+        segments = ParseSegments(text)
+    end
+
+    for idx, seg in ipairs(segments) do
+        if seg.type == "code" then
+            local codeFrame = New("Frame", {
+                Size=UDim2.new(1,0,0,0),
+                BackgroundColor3=Color3.fromRGB(12, 14, 18),
+                BackgroundTransparency=0,
+                BorderSizePixel=0,
+                ZIndex=11,
+                LayoutOrder=idx,
+                AutomaticSize=Enum.AutomaticSize.Y,
+            }, contentContainer)
+            Corner(codeFrame, UDim.new(0,6))
+            Stroke(codeFrame, Color3.fromRGB(70, 90, 150), 1)
+
+            local codeLbl = New("TextBox", {
+                Size=UDim2.new(1,-16,0,0),
+                Position=UDim2.new(0,8,0,8),
+                Text=seg.content,
+                BackgroundTransparency=1,
+                TextColor3=Color3.fromRGB(180, 230, 180),
+                Font=Enum.Font.Code,
+                TextSize=11,
+                TextXAlignment=Enum.TextXAlignment.Left,
+                TextYAlignment=Enum.TextYAlignment.Top,
+                TextWrapped=true,
+                MultiLine=true,
+                TextEditable=false,
+                ClearTextOnFocus=false,
+                Active=true,
+                Selectable=true,
+                ZIndex=12,
+                AutomaticSize=Enum.AutomaticSize.Y,
+            }, codeFrame)
+            New("UIPadding", {
+                PaddingBottom=UDim.new(0,8),
+            }, codeFrame)
+        else
+            local textLbl = New("TextLabel", {
+                Size=UDim2.new(1,0,0,0),
+                BackgroundTransparency=1,
+                Text=seg.content,
+                TextColor3=textColor,
+                Font=Enum.Font.GothamMedium,
+                TextSize=11,
+                TextXAlignment=align,
+                TextYAlignment=Enum.TextYAlignment.Top,
+                TextWrapped=true,
+                ZIndex=10,
+                LayoutOrder=idx,
+                AutomaticSize=Enum.AutomaticSize.Y,
+            }, contentContainer)
+        end
+    end
+
+    task.defer(function()
+        task.wait(0.1)
+        local maxY = math.max(0, chatScroll.AbsoluteCanvasSize.Y - chatScroll.AbsoluteWindowSize.Y)
+        chatScroll.CanvasPosition = Vector2.new(0, maxY)
+    end)
+
+    return holder
+end
+
+AddMessage("🤖 Gemini", "Xin chào! Tôi là AI Mini. Hãy nhập API key ở trên (nếu chưa có) rồi đặt câu hỏi bên dưới nhé!", false)
+
+local inputBar = New("Frame", {
+    Size=UDim2.new(1,-16,0,36),
+    BackgroundColor3=Color3.fromRGB(25, 28, 36),
+    BackgroundTransparency=0,
+    BorderSizePixel=0,
+    ZIndex=6,
+    LayoutOrder=4,
+}, aiInner)
+Corner(inputBar, UDim.new(0,10))
+Stroke(inputBar, Color3.fromRGB(60, 70, 100), 1)
+
+local questionIn = New("TextBox", {
+    Size=UDim2.new(1,-70,1,-10),
+    Position=UDim2.new(0,8,0,5),
+    Text="",
+    PlaceholderText="Nhập câu hỏi...",
+    PlaceholderColor3=Color3.fromRGB(90, 95, 110),
+    BackgroundColor3=Color3.fromRGB(15, 17, 22),
+    BackgroundTransparency=0,
+    TextColor3=Color3.fromRGB(230, 235, 245),
+    Font=Enum.Font.GothamMedium,
+    TextSize=11,
+    BorderSizePixel=0,
+    ClearTextOnFocus=false,
+    ZIndex=10,
+    TextXAlignment=Enum.TextXAlignment.Left,
+    TextYAlignment=Enum.TextYAlignment.Center,
+}, inputBar)
+Corner(questionIn, UDim.new(0,6))
+New("UIPadding", {PaddingLeft=UDim.new(0,8)}, questionIn)
+
+local sendBtn = New("TextButton", {
+    Size=UDim2.new(0,54,1,-10),
+    Position=UDim2.new(1,-62,0,5),
+    Text="➤",
+    BackgroundColor3=Color3.fromRGB(50, 120, 220),
+    BackgroundTransparency=0,
+    TextColor3=C.WHITE,
+    Font=Enum.Font.GothamBold,
+    TextSize=16,
+    BorderSizePixel=0,
+    ZIndex=8,
+}, inputBar)
+Corner(sendBtn, UDim.new(0,6))
+
+local toolBar = New("Frame", {
+    Size=UDim2.new(1,-16,0,30),
+    BackgroundTransparency=1,
+    BorderSizePixel=0,
+    ZIndex=6,
+    LayoutOrder=5,
+}, aiInner)
+New("UIListLayout", {
+    FillDirection=Enum.FillDirection.Horizontal,
+    SortOrder=Enum.SortOrder.LayoutOrder,
+    Padding=UDim.new(0,6),
+}, toolBar)
+
+local copyAnswerBtn = New("TextButton", {
+    Size=UDim2.new(0,120,1,0),
+    Text="📋 Copy chat",
+    BackgroundColor3=Color3.fromRGB(50, 120, 220),
+    BackgroundTransparency=0,
+    TextColor3=C.WHITE,
+    Font=Enum.Font.GothamBold,
+    TextSize=9,
+    BorderSizePixel=0,
+    ZIndex=7,
+}, toolBar)
+Corner(copyAnswerBtn, UDim.new(0,6))
+
+local continueBtn = New("TextButton", {
+    Size=UDim2.new(0,120,1,0),
+    Text="▶ Viết tiếp",
+    BackgroundColor3=Color3.fromRGB(180, 120, 40),
+    BackgroundTransparency=0,
+    TextColor3=C.WHITE,
+    Font=Enum.Font.GothamBold,
+    TextSize=9,
+    BorderSizePixel=0,
+    ZIndex=7,
+}, toolBar)
+Corner(continueBtn, UDim.new(0,6))
+
+local clearChatBtn = New("TextButton", {
+    Size=UDim2.new(0,120,1,0),
+    Text="🧹 Xóa chat",
+    BackgroundColor3=Color3.fromRGB(180, 60, 60),
+    BackgroundTransparency=0,
+    TextColor3=C.WHITE,
+    Font=Enum.Font.GothamBold,
+    TextSize=9,
+    BorderSizePixel=0,
+    ZIndex=7,
+}, toolBar)
+Corner(clearChatBtn, UDim.new(0,6))
+
+local apiKeyFile = "banana_cat_gemini_key.txt"
+
+local function SaveApiKey(key)
+    if writefile then
+        pcall(writefile, apiKeyFile, key)
+    end
+    _G.BananaCatHub_GeminiKey = key
+end
+
+local function LoadApiKey()
+    -- v4.3 doc _G TRUOC file. Ma _G la moi truong chung voi moi script khac dang chay
+    -- (hub nay con nap Dex/Infinite Yield/SimpleSpy tu GitHub vao cung _G do) -> script khac
+    -- co the tiem key gia va chuyen huong toan bo request AI. Nay uu tien file, _G chi la fallback.
+    if readfile and isfile then
+        local ok, data = pcall(function()
+            if isfile(apiKeyFile) then
+                return readfile(apiKeyFile)
+            end
+            return nil
+        end)
+        if ok and data and #data > 0 then
+            _G.BananaCatHub_GeminiKey = data
+            return data
+        end
+    end
+    if _G.BananaCatHub_GeminiKey then
+        return _G.BananaCatHub_GeminiKey
+    end
+    return nil
+end
+
+local function MaskKey(key)
+    if not key or #key == 0 then return "" end
+    -- Bản cũ: key ngắn hơn 8 ký tự được trả về NGUYÊN VĂN -> lộ hoàn toàn.
+    if #key <= 8 then return string.rep("•", #key) end
+    return key:sub(1, 4)..string.rep("•", math.min(#key - 8, 20))..key:sub(-4)
+end
+
+local loadedKey = LoadApiKey()
+if loadedKey and #loadedKey > 0 then
+    apiKeyIn.Text = loadedKey
+    keyStatus.Text = "✅ Đã tải: "..MaskKey(loadedKey)
+else
+    keyStatus.Text = "⚠️ Chưa có key"
+end
+
+local keyVisible = true
+
+saveKeyBtn.Activated:Connect(function()
+    -- LỖI NGHIÊM TRỌNG ở v4.3: khi key đang ở chế độ "🙈 Ẩn", ô nhập chứa CHUỖI ĐÃ CHE
+    -- (vd "AIza••••••••xK9d"). Bấm "💾 Lưu" sẽ ghi chuỗi che đó đè lên key thật
+    -- ở CẢ file lẫn _G -> API key bị phá hủy vĩnh viễn.
+    if not keyVisible then
+        keyStatus.Text = "⚠️ Key đang ẨN — bấm '👁 Hiện' rồi mới bấm Lưu!"
+        return
+    end
+    local k = apiKeyIn.Text
+    if #k == 0 then
+        keyStatus.Text = "⚠️ Nhập key trước!"
+        return
+    end
+    if k:find("•", 1, true) then
+        keyStatus.Text = "⚠️ Đây là chuỗi đã che, không phải key thật!"
+        return
+    end
+    SaveApiKey(k)
+    keyStatus.Text = "✅ Đã lưu: "..MaskKey(k)
+end)
+
+clearKeyBtn.Activated:Connect(function()
+    apiKeyIn.Text = ""
+    _G.BananaCatHub_GeminiKey = nil
+    if delfile then
+        pcall(delfile, apiKeyFile)
+    end
+    keyStatus.Text = "🗑 Đã xóa key"
+end)
+
+toggleKeyBtn.Activated:Connect(function()
+    keyVisible = not keyVisible
+    if keyVisible then
+        apiKeyIn.Text = LoadApiKey() or ""
+        toggleKeyBtn.Text = "👁 Hiện"
+    else
+        apiKeyIn.Text = MaskKey(LoadApiKey() or "")
+        toggleKeyBtn.Text = "🙈 Ẩn"
+    end
+end)
+
+-- LỊCH SỬ HỘI THOẠI: v4.3 chỉ gửi đúng 1 tin nhắn hiện tại lên Gemini, nên nút "▶ Viết tiếp"
+-- hoàn toàn vô dụng (model không biết "câu trả lời trước" là gì). Đây là mảng chứa các lượt cũ.
+local chatHistory = {}
+local HISTORY_CHAR_BUDGET = 60000   -- chặn không cho request phình quá to
+local HISTORY_MAX_TURNS   = 40      -- 40 message = 20 lượt hỏi/đáp
+
+local SYSTEM_PROMPT = [[Bạn là trợ lý lập trình chuyên nghiệp cho Roblox Lua.
+
+QUY TẮC BẮT BUỘC:
+1. Khi người dùng yêu cầu viết code/script, PHẢI viết ĐẦY ĐỦ, HOÀN CHỈNH, có thể chạy được ngay.
+2. TUYỆT ĐỐI KHÔNG dùng "..." hoặc "-- tiếp tục" hoặc "phần còn lại tương tự" để rút gọn code.
+3. Nếu code quá dài, hãy chia thành nhiều khối ```lua ... ``` riêng biệt và viết hết tất cả.
+4. KHÔNG giải thích dài dòng. Chỉ viết code + vài dòng ghi chú ngắn.
+5. Code phải dùng đúng API Roblox Lua, không dùng Python/JavaScript.
+6. Nếu người dùng hỏi bằng tiếng Việt, trả lời bằng tiếng Việt.
+7. Nếu câu hỏi không liên quan lập trình, trả lời ngắn gọn, trực tiếp.
+
+QUY TẮC ĐẶC BIỆT CHO GUI (RẤT QUAN TRỌNG):
+- Khi viết script tạo GUI (như bảng định vị người chơi, ESP, thông tin...), PHẢI dùng cấu trúc GUI TỰ DÃN THEO CHA.
+- Frame chính phải có: Size = UDim2.new(1, 0, 1, 0), Position = UDim2.new(0, 0, 0, 0).
+- KHÔNG hard-code kích thước như UDim2.new(0, 300, 0, 200).
+- Nếu cần viền hay padding, dùng UIPadding bên trong, KHÔNG thay đổi Size của Frame chính.
+- Điều này để khi menu chính của hub kéo to ra, GUI này cũng tự dãn theo.
+- Nếu script dùng ScreenGui riêng, hãy đặt Parent là CoreGui hoặc PlayerGui và dùng Size tự dãn.]]
+
+local function AskGemini(question)
+    local key = LoadApiKey()
+    if not key or #key == 0 then
+        return false, "⚠️ Chưa có API key. Vui lòng nhập và lưu key trước!"
+    end
+    if #question == 0 then
+        return false, "⚠️ Vui lòng nhập câu hỏi!"
+    end
+
+    pcall(function()
+        if HttpService.HttpEnabled == false then
+            HttpService.HttpEnabled = true
+        end
+    end)
+
+    local url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key="..key
+
+    -- Dựng contents từ lịch sử cũ + câu hỏi mới (duyệt từ mới nhất ngược về, trong hạn mức ký tự)
+    local contents = {}
+    do
+        local used = 0
+        local picked = {}
+        for i = #chatHistory, 1, -1 do
+            local m = chatHistory[i]
+            local len = #(m.text or "")
+            if used + len > HISTORY_CHAR_BUDGET then break end
+            used = used + len
+            table.insert(picked, 1, {role = m.role, parts = {{text = m.text}}})
+        end
+        for _, m in ipairs(picked) do
+            table.insert(contents, m)
+        end
+    end
+    table.insert(contents, {role = "user", parts = {{text = question}}})
+
+    local body = HttpService:JSONEncode({
+        system_instruction = {
+            parts = {
+                { text = SYSTEM_PROMPT }
+            }
+        },
+        contents = contents,
+        generationConfig = {
+            temperature = 0.7,
+            topP = 0.95,
+            topK = 40,
+            maxOutputTokens = 8192,
+            candidateCount = 1
+        },
+        safetySettings = {
+            { category = "HARM_CATEGORY_HARASSMENT", threshold = "BLOCK_NONE" },
+            { category = "HARM_CATEGORY_HATE_SPEECH", threshold = "BLOCK_NONE" },
+            { category = "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold = "BLOCK_NONE" },
+            { category = "HARM_CATEGORY_DANGEROUS_CONTENT", threshold = "BLOCK_NONE" }
+        }
+    })
+
+    local maxRetries = 3
+    local baseDelay = 2
+
+    for attempt = 1, maxRetries do
+        local ok, result = pcall(function()
+            return HttpService:RequestAsync({
+                Url = url,
+                Method = "POST",
+                Headers = {
+                    ["Content-Type"] = "application/json"
+                },
+                Body = body
+            })
+        end)
+
+        if not ok then
+            return false, "❌ Lỗi kết nối: "..tostring(result)
+        end
+
+        if result.Success then
+            local parseOk, data = pcall(function()
+                return HttpService:JSONDecode(result.Body)
+            end)
+
+            if not parseOk then
+                return false, "❌ Không parse được JSON trả về"
+            end
+
+            if data.error then
+                return false, "❌ API Error: "..tostring(data.error.message or "unknown")
+            end
+
+            if not (data.candidates and data.candidates[1]) then
+                return false, "❌ Không có candidates trong phản hồi"
+            end
+
+            local cand = data.candidates[1]
+            local finishReason = cand.finishReason or "STOP"
+
+            local fullText = ""
+            if cand.content and cand.content.parts then
+                for _, part in ipairs(cand.content.parts) do
+                    if part.text then
+                        fullText = fullText .. part.text
+                    end
+                end
+            end
+
+            if #fullText == 0 then
+                if finishReason == "SAFETY" then
+                    return false, "⚠️ Gemini từ chối trả lời vì lý do an toàn (SAFETY). Hãy thử diễn đạt lại câu hỏi."
+                elseif finishReason == "RECITATION" then
+                    return false, "⚠️ Gemini dừng vì lý do bản quyền (RECITATION)."
+                else
+                    return false, "❌ Không có text trong phản hồi. finishReason = "..tostring(finishReason)
+                end
+            end
+
+            if finishReason == "MAX_TOKENS" then
+                fullText = fullText .. "\n\n⚠️ [AI bị cắt do giới hạn token. Hãy gõ 'viết tiếp phần còn lại' hoặc bấm nút '▶ Viết tiếp' để lấy code tiếp.]"
+            end
+
+            return true, fullText
+        end
+
+        if result.StatusCode == 429 then
+            if attempt < maxRetries then
+                local waitTime = baseDelay * (2 ^ (attempt - 1))
+                pcall(function()
+                    statusText.Text = string.format("⏳ Bị giới hạn (429). Chờ %ds rồi thử lại (%d/%d)...", waitTime, attempt, maxRetries)
+                    statusDot.BackgroundColor3 = C.YELLOW
+                end)
+                task.wait(waitTime)
+            else
+                local bodyPreview = result.Body and tostring(result.Body):sub(1, 400) or ""
+                return false, "❌ HTTP 429 — Vượt giới hạn yêu cầu/phút của Gemini (gói miễn phí ~10-15 RPM).\n\nVui lòng chờ khoảng 1 phút rồi gửi lại.\nHoặc nâng cấp API key lên gói trả phí để tăng giới hạn.\n\n"..bodyPreview
+            end
+        else
+            local bodyPreview = result.Body and tostring(result.Body):sub(1, 500) or ""
+            return false, "❌ HTTP "..tostring(result.StatusCode)..": "..tostring(result.StatusMessage).."\n"..bodyPreview
+        end
+    end
+
+    return false, "❌ Không thể kết nối sau nhiều lần thử."
+end
+
+local isSending = false
+
+local function SendQuestion()
+    if isSending then return end
+    local q = questionIn.Text
+    if #q == 0 then
+        return
+    end
+
+    isSending = true
+    questionIn.Text = ""
+    statusText.Text = "Đang suy nghĩ..."
+    statusDot.BackgroundColor3 = C.YELLOW
+
+    AddMessage("👤 Bạn", q, true)
+
+    task.spawn(function()
+        local startTime = tick()
+        local ok, response = AskGemini(q)
+        local elapsed = tick() - startTime
+
+        if ok then
+            -- Ghi 2 lượt vào lịch sử để lượt sau (và nút "Viết tiếp") còn biết ngữ cảnh
+            table.insert(chatHistory, {role = "user",  text = q})
+            table.insert(chatHistory, {role = "model", text = response})
+            while #chatHistory > HISTORY_MAX_TURNS do
+                table.remove(chatHistory, 1)
+            end
+            AddMessage("🤖 Gemini", response, false)
+            statusText.Text = string.format("Đang hoạt động (%.1fs)", elapsed)
+            statusDot.BackgroundColor3 = C.GREEN
+        else
+            AddMessage("⚠️ Lỗi", response, false)
+            statusText.Text = "Lỗi kết nối"
+            statusDot.BackgroundColor3 = C.RED
+        end
+        isSending = false
+        task.wait(0.15)
+        local maxY = math.max(0, chatScroll.AbsoluteCanvasSize.Y - chatScroll.AbsoluteWindowSize.Y)
+        chatScroll.CanvasPosition = Vector2.new(0, maxY)
+    end)
+end
+
+sendBtn.Activated:Connect(SendQuestion)
+questionIn.FocusLost:Connect(function(enter)
+    if enter then
+        SendQuestion()
+    end
+end)
+
+continueBtn.Activated:Connect(function()
+    if isSending then return end
+    questionIn.Text = "Viết tiếp phần code còn lại của câu trả lời trước, KHÔNG lặp lại phần đã viết. Viết đầy đủ, không rút gọn."
+    SendQuestion()
+end)
+
+copyAnswerBtn.Activated:Connect(function()
+    local allText = ""
+    local function extract(obj)
+        local res = ""
+        for _, c in ipairs(obj:GetChildren()) do
+            if c:IsA("TextBox") and c.TextEditable == false then
+                res = res..c.Text.."\n"
+            elseif c:IsA("TextLabel") then
+                res = res..c.Text.."\n"
+            end
+            if #c:GetChildren() > 0 then
+                res = res..extract(c)
+            end
+        end
+        return res
+    end
+    for _, child in ipairs(chatScroll:GetChildren()) do
+        if child:IsA("Frame") then
+            allText = allText..extract(child).."\n"
+        end
+    end
+    if setclipboard then
+        pcall(setclipboard, allText)
+    elseif toclipboard then
+        pcall(toclipboard, allText)
+    end
+    copyAnswerBtn.Text = "✅ Đã copy!"
+    task.delay(1.5, function()
+        if copyAnswerBtn and copyAnswerBtn.Parent then
+            copyAnswerBtn.Text = "📋 Copy chat"
+        end
+    end)
+end)
+
+clearChatBtn.Activated:Connect(function()
+    for _, child in ipairs(chatScroll:GetChildren()) do
+        if not child:IsA("UIListLayout") and not child:IsA("UIPadding") then
+            child:Destroy()
+        end
+    end
+    chatHistory = {}   -- xóa cả ngữ cảnh gửi lên model, không chỉ xóa bong bóng trên UI
+    AddMessage("🤖 Gemini", "Cuộc trò chuyện đã được xóa. Hãy đặt câu hỏi mới!", false)
+    task.wait(0.1)
+    chatScroll.CanvasPosition = Vector2.new(0, 0)
+end)
+
+aiTab.CanvasSize = UDim2.new(0, 0, 0, 0)
+aiInner:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+    aiTab.CanvasSize = UDim2.new(0, 0, 0, aiInner.AbsoluteSize.Y + 20)
+end)
+task.defer(function()
+    task.wait(0.5)
+    aiTab.CanvasSize = UDim2.new(0, 0, 0, aiInner.AbsoluteSize.Y + 20)
+end)
+
+-- ==================== TAB 5: TẠO TÍNH NĂNG ====================
+-- (featureTabs / featureTabIndex đã khai báo ở ĐẦU file để khối lưu trữ dùng chung.
+--  KHÔNG khai báo lại ở đây, nếu không sẽ tạo biến local mới che mất biến cũ
+--  và danh sách tab tính năng sẽ không bao giờ được ghi xuống đĩa.)
+
+local function NormalizeCode(c)
+    if type(c) ~= "string" then return "" end
+    c = S.SanitizeCode(c)   -- v4.4b: cắt wrapper "SIZE WRAPPER" cũ (nó đè layout GUI của game)
+    if c:match("^https?://") then
+        -- CHẶN: URL có " hoặc xuống dòng sẽ phá vỡ (hoặc chèn code vào) chuỗi sinh ra bên dưới
+        if c:find('[%c"\\]', 1) then
+            warn("[BananaCatHub] Link không hợp lệ (chứa ký tự xuống dòng/\") -> dùng nguyên văn")
+            return c
+        end
+        return 'loadstring(game:HttpGet("'..c..'"))()'
+    end
+    return c
+end
+
+-- v4.4b: chỉ lấy GUI ở PlayerGui của game + container của hub (KHÔNG quét CoreGui nữa —
+-- CoreGui là nơi game và script khác đựng UI; bốc nhầm GUI của game là MẤT NÚT BẮN/MENU).
+-- GUI "lạ" còn phải qua 2 điều kiện: có ít nhất 1 GuiObject con và tên không nằm trong danh
+-- sách UI hệ thống. GUI mà hook Instance.new bắt được (mine) luôn được nhận — đó mới là của ta.
+local GAME_OWNED_GUI_NAMES = {
+    Topbar = true, TopbarContainer = true, PlayerList = true, Chat = true,
+    Backpack = true, DevConsoleUI = true, ScriptInvitationUI = true,
+    FollowPromptUI = true, TouchControlsFrame = true, Main = true, ExMenu = true,
+    Notifications = true, PauseMenu = true, InGame = true, CoreGui = true,
+}
+
+-- allowGuess=false: CHỈ nhận GUI mà hook bắt được (an toàn tuyệt đối, không bao giờ ăn GUI game)
+-- allowGuess=true : nhận thêm ScreenGui mới xuất hiện ở PlayerGui (GUI script tạo trễ),
+--                   vẫn chặn tên hệ thống + không quét CoreGui.
+local function ScanNewGuis(beforeGuis, mine, allowGuess)
+    local found, seen = {}, {}
+    local function take(g)
+        if not g or seen[g] then return end
+        seen[g] = true
+        table.insert(found, g)
+    end
+    if mine then
+        for _, g in ipairs(mine) do
+            if g:IsA("ScreenGui") or g:IsA("Folder") then take(g) end
+        end
+    end
+    local function scan(container)
+        if not container then return end
+        for _, g in ipairs(container:GetChildren()) do
+            if not beforeGuis[g] then
+                beforeGuis[g] = true
+                if allowGuess and (g:IsA("ScreenGui") or g:IsA("Folder")) and not GAME_OWNED_GUI_NAMES[g.Name] then
+                    local hasGuiChild = false
+                    for _, c in ipairs(g:GetChildren()) do
+                        if c:IsA("GuiObject") then hasGuiChild = true break end
+                    end
+                    if hasGuiChild then take(g) end
+                end
+            end
+        end
+    end
+    scan(playerGui)
+    if targetGui ~= playerGui then scan(targetGui) end
+    return found
+end
+
+-- v4.4b: MẶC ĐỊNH CHỈ chỉnh CHÍNH nó (root). Bản cũ ĐỆ QUY vào mọi con và ép từng frame về
+-- Size=(1,0,1,0)+Position=(0,0) -> sập layout lồng nhau, và tệ hơn: một Frame trong suốt bé xíu
+-- trở thành full-màn-hình, Active, NUỐT hết click của game (không quay chuột/không bắn được).
+-- Muốn phục hồi kiểu cũ thì gọi ForceStretchToParent(obj, 99) — nhưng đừng.
+local function ForceStretchToParent(obj, maxDepth)
+    if not obj then return end
+    maxDepth = maxDepth or 0
+    pcall(function()
+        if obj:IsA("GuiObject") then
+            if obj:IsA("Frame") or obj:IsA("ScrollingFrame") or obj:IsA("CanvasGroup") then
+                local s = obj.Size
+                if s.X.Scale < 0.9 and s.X.Offset > 0 then
+                    obj.Size = UDim2.new(1, 0, s.Y.Scale > 0 and s.Y.Scale or 1, 0)
+                end
+                if obj.Position.X.Offset ~= 0 or obj.Position.Y.Offset ~= 0 then
+                    obj.Position = UDim2.new(0, 0, 0, 0)
+                end
+            end
+        end
+    end)
+    if maxDepth <= 0 then return end
+    for _, child in ipairs(obj:GetChildren()) do
+        ForceStretchToParent(child, maxDepth - 1)
+    end
+end
+
+-- ==================== NHÚNG GUI: ĐĂNG KÝ / TRẠNG THÁI / HOÀN TÁC ====================
+-- Mọi thứ gắn vào bảng S (không thêm local cấp cao nhất — đã ~184/200 slot).
+--
+-- Mô hình mới: GUI của script bạn chạy VẪN NẰM Y NGUYÊN chỗ cũ (PlayerGui), hub chỉ
+-- "mượn" các frame con của nó đặt vào tab, và GHI LẠI Position/Size/Parent gốc để trả về
+-- khi bạn bấm ✕. ScreenGui gốc KHÔNG bị Destroy nên `gui.Enabled`, `gui:Destroy()`,
+-- `gui.Parent = nil`... trong script của bạn còn tác dụng (hub bắt tín hiệu phản chiếu).
+function S.RegisterEmbed(host, gui, recs)
+    local entry = {host = host, gui = gui, recs = recs or {}, conns = {}}
+    -- mỗi connection pcall RIÊNG: Folder không có property Enabled -> nếu gom chung một pcall
+    -- thì connection cuối (Destroying) bị bỏ luôn, tab sẽ không tự dọn khi script Destroy GUI.
+    pcall(function()
+        entry.conns[#entry.conns+1] = gui:GetPropertyChangedSignal("Enabled"):Connect(function()
+            pcall(function() host.Visible = gui.Enabled end)
+        end)
+    end)
+    pcall(function()
+        entry.conns[#entry.conns+1] = gui:GetPropertyChangedSignal("Parent"):Connect(function()
+            pcall(function() host.Visible = (gui.Parent ~= nil) and gui.Enabled end)
+        end)
+    end)
+    -- script tự Destroy GUI -> hub dọn host, không để lại khung rỗng
+    pcall(function()
+        entry.conns[#entry.conns+1] = gui.Destroying:Connect(function()
+            S.DropEmbed(entry, true)
+        end)
+    end)
+    S.embeds[#S.embeds+1] = entry
+    return entry
+end
+
+function S.FindEmbedByHost(host)
+    for i, e in ipairs(S.embeds) do
+        if e.host == host then return e, i end
+    end
+    return nil
+end
+
+function S.RemoveEmbedAt(i)
+    local e = S.embeds[i]
+    if not e then return end
+    for _, c in ipairs(e.conns) do pcall(function() c:Disconnect() end) end
+    table.remove(S.embeds, i)
+    return e
+end
+
+-- Xóa host nhưng KHÔNG trả GUI về (dùng khi chính GUI đã bị Destroy)
+function S.DropEmbed(entry, keepQuiet)
+    for i, e in ipairs(S.embeds) do
+        if e == entry then S.RemoveEmbedAt(i); break end
+    end
+    pcall(function() if entry.host and entry.host.Parent then entry.host:Destroy() end end)
+    if not keepQuiet then
+        print("[BananaCatHub] Đã gỡ host nhúng khỏi tab")
+    end
+end
+
+-- Trả toàn bộ frame con về ScreenGui gốc + khôi phục Position/Size -> GUI y như lúc chưa nhúng
+function S.RestoreEmbed(entry)
+    -- 1) khôi phục mọi giá trị mà hub đã scale (Position/Size/TextSize/UIPadding/...)
+    pcall(function() S.RestoreSnap(entry) end)
+    entry.snap = nil
+    -- 2) rồi mới trả Parent các frame con về ScreenGui gốc. Sau bước 1, Size/Position của chúng
+    --    đã là bản gốc do script đó dùng, nên không cần (và không nên) ghi đè thêm lần nữa.
+    for _, rec in ipairs(entry.recs or {}) do
+        pcall(function()
+            if rec.obj and rec.origParent then
+                rec.obj.Parent = rec.origParent
+            end
+        end)
+    end
+    for i, e in ipairs(S.embeds) do
+        if e == entry then S.RemoveEmbedAt(i); break end
+    end
+    pcall(function() if entry.host and entry.host.Parent then entry.host:Destroy() end end)
+end
+
+-- Dọn các entry đã chết (host/gui bị Destroy từ ngoài) — chống _G leak của bản cũ
+function S.PruneEmbeds()
+    for i = #S.embeds, 1, -1 do
+        local e = S.embeds[i]
+        local hostAlive = e.host and e.host.Parent
+        local guiAlive = e.gui and e.gui.Parent
+        if not hostAlive or not guiAlive then
+            if hostAlive then pcall(function() e.host:Destroy() end) end
+            S.RemoveEmbedAt(i)
+        end
+    end
+end
+
+-- ===== FIT: co/giãn GUI của tab cho VỪA KHÍT vùng tab =====
+-- Cách làm: nhân ĐỒNG ĐỀU mọi Offset (Size + Position + UICorner/UIPadding/UIStroke + TextSize)
+-- của cả subtree lên cùng 1 hệ số s, rồi tịnh tiến khung nội dung về góc tab (canh giữa nếu còn
+-- chỗ trống). KHÔNG có chuyện "ép Size=(1,0,1,0)" từng frame như bản 4.4a -> layout tương đối
+-- được giữ nguyên (tỉ lệ giữa các phần tử không đổi), chỉ to/nhỏ theo menu chính.
+-- Vì s được tính từ bounding box nên nội dung sau khi fit NẰM TRONG tab -> không thể tràn ra
+-- ngoài và nuốt click của game (điểm mà bản 4.4a làm ngược).
+
+-- Đo khung bao của các frame con trực tiếp của host (toạ độ tuyệt đối -> tính theo host)
+function S.MeasureHost(host)
+    local hx, hy = host.AbsolutePosition.X, host.AbsolutePosition.Y
+    local minX, minY, maxX, maxY = math.huge, math.huge, -math.huge, -math.huge
+    local n = 0
+    for _, ch in ipairs(host:GetChildren()) do
+        if ch:IsA("GuiObject") and ch.Visible ~= false then
+            local p, sz = ch.AbsolutePosition, ch.AbsoluteSize
+            if p and sz then
+                minX = math.min(minX, p.X); minY = math.min(minY, p.Y)
+                maxX = math.max(maxX, p.X + sz.X); maxY = math.max(maxY, p.Y + sz.Y)
+                n = n + 1
+            end
+        end
+    end
+    if n == 0 or maxX <= minX or maxY <= minY then return nil end
+    return { x = minX - hx, y = minY - hy, w = maxX - minX, h = maxY - minY }
+end
+
+-- Chụp lại mọi giá trị gốc của subtree (để trả về NGUYÊN TRẠNG khi rút khỏi tab)
+function S.SnapSubtree(list, node, isTop)
+    for _, c in ipairs(node:GetChildren()) do
+        if c:IsA("GuiObject") then
+            list[#list+1] = {
+                obj = c, top = isTop or nil,
+                Position = c.Position, Size = c.Size,
+                TextSize = ((c.TextSize and c.TextSize > 0) and not c.TextScaled) and c.TextSize or nil,
+            }
+            S.SnapSubtree(list, c, false)
+        elseif c:IsA("UICorner") then
+            list[#list+1] = { obj = c, CornerRadius = c.CornerRadius }
+        elseif c:IsA("UIPadding") then
+            list[#list+1] = { obj = c,
+                PadT = c.PaddingTop, PadB = c.PaddingBottom,
+                PadL = c.PaddingLeft, PadR = c.PaddingRight }
+        elseif c:IsA("UIStroke") then
+            list[#list+1] = { obj = c, Thick = c.Thickness }
+        end
+    end
+end
+
+function S.RestoreSnap(entry)
+    if not entry.snap then return end
+    for _, rec in ipairs(entry.snap) do
+        local o = rec.obj
+        if o and o.Parent then
+            pcall(function()
+                if rec.Position then o.Position = rec.Position end
+                if rec.Size then o.Size = rec.Size end
+                if rec.TextSize then o.TextSize = rec.TextSize end
+                if rec.CornerRadius then o.CornerRadius = rec.CornerRadius end
+                if rec.PadT then
+                    o.PaddingTop, o.PaddingBottom = rec.PadT, rec.PadB
+                    o.PaddingLeft, o.PaddingRight = rec.PadL, rec.PadR
+                end
+                if rec.Thick then o.Thickness = rec.Thick end
+            end)
+        end
+    end
+end
+
+function S.FitEmbedded(entry)
+    local host, gui = entry.host, entry.gui
+    if not host or not host.Parent then return end
+    -- 3 helper này đặt TRONG hàm để không tốn slot local của main chunk (Luau ~200 slot/chunk)
+    local function mulUDim(u, k)
+        return UDim2.new(u.X.Scale, math.floor(u.X.Offset * k + 0.5),
+                         u.Y.Scale, math.floor(u.Y.Offset * k + 0.5))
+    end
+    local function mulUDimShift(u, k, dx, dy)
+        return UDim2.new(u.X.Scale, math.floor(u.X.Offset * k + 0.5) + dx,
+                         u.Y.Scale, math.floor(u.Y.Offset * k + 0.5) + dy)
+    end
+    local function mulDim(u, k)
+        return UDim.new(u.Scale, math.floor(u.Offset * k + 0.5))
+    end
+
+    local area = host.Parent                      -- embedHost trong tab
+    local aw = area.AbsoluteSize.X - 6
+    local ah = area.AbsoluteSize.Y - 6
+    if aw < 40 or ah < 40 then return end
+
+    pcall(function()
+        host.Size = UDim2.new(1, 0, 1, 0)
+        host.Position = UDim2.new(0, 0, 0, 0)
+        host.BackgroundTransparency = 1
+        host.ClipsDescendants = true              -- phần dư (nếu có) vừa vô hình vừa không nhận click
+    end)
+
+    if not entry.snap then
+        entry.snap = {}
+        S.SnapSubtree(entry.snap, host, true)
+        if #entry.snap == 0 then return end
+    end
+
+    -- 1) đưa về mốc gốc (idempotent: gọi lại sau khi kéo to menu không cộng dồn scale)
+    S.RestoreSnap(entry)
+    local base = S.MeasureHost(host)
+    if not base then return end
+
+    -- 2) hệ số vừa khít: cho phép PHÓNG TO (GUI bé cũng llen bằng menu) lẫn co lại
+    local s = math.clamp(math.min(aw / base.w, ah / base.h), 0.35, 3.0)
+
+    local function apply(k)
+        for _, rec in ipairs(entry.snap) do
+            local o = rec.obj
+            if o and o.Parent then
+                pcall(function()
+                    if rec.Size then o.Size = mulUDim(rec.Size, k) end
+                    if rec.Position then
+                        if rec.top then
+                            o.Position = mulUDimShift(rec.Position, k, rec.dx or 0, rec.dy or 0)
+                        else
+                            o.Position = mulUDim(rec.Position, k)
+                        end
+                    end
+                    if rec.TextSize then o.TextSize = math.max(8, math.floor(rec.TextSize * k + 0.5)) end
+                    if rec.CornerRadius then
+                        o.CornerRadius = UDim.new(rec.CornerRadius.Scale,
+                            math.floor(rec.CornerRadius.Offset * k + 0.5))
+                    end
+                    if rec.PadT then
+                        o.PaddingTop    = mulDim(rec.PadT, k)
+                        o.PaddingBottom = mulDim(rec.PadB, k)
+                        o.PaddingLeft   = mulDim(rec.PadL, k)
+                        o.PaddingRight  = mulDim(rec.PadR, k)
+                    end
+                    if rec.Thick then o.Thickness = math.max(1, rec.Thick * k) end
+                end)
+            end
+        end
+    end
+
+    -- 3) canh chỉnh: kéo khung nội dung về góc tab, canh giữa nếu vẫn còn chỗ
+    --    (tries: GUI thuần Scale (1,0,1,0) sẽ không đổi gì khi thu -> phải chặn vòng lặp)
+    local hw, hh = area.AbsoluteSize.X, area.AbsoluteSize.Y
+    local function align(k, tries)
+        apply(k)
+        local m = S.MeasureHost(host)
+        if not m then return k end
+        local dx = math.floor(-m.x + math.max(0, (aw - m.w) / 2) + 0.5)
+        local dy = math.floor(-m.y + math.max(0, (ah - m.h) / 2) + 0.5)
+        if math.abs(dx) > 0.5 or math.abs(dy) > 0.5 then
+            for _, rec in ipairs(entry.snap) do
+                if rec.top then rec.dx, rec.dy = (rec.dx or 0) + dx, (rec.dy or 0) + dy end
+            end
+            apply(k)
+            m = S.MeasureHost(host) or m
+        end
+        -- 4) dây an toàn: nội dung TRÀN KHỔ HOST (không phải tràn vùng đã chừa 6px)
+        --    thì thu thêm 1 nấc; tối đa 2 lần để không bao giờ lặp vô hạn.
+        if m and tries < 2 and (m.w > hw + 1 or m.h > hh + 1) then
+            local k2 = k * math.min(hw / m.w, hh / m.h)
+            if k2 < k * 0.98 then
+                for _, rec in ipairs(entry.snap) do rec.dx, rec.dy = 0, 0 end
+                return align(math.max(k2, 0.15), tries + 1)
+            end
+        end
+        return k
+    end
+
+    s = align(s, 0)
+    entry.fitScale = s
+    return s
+end
+
+-- ===== KHU VỰC: API cho script tính năng (để GUI bên ngoài cũng tự vừa menu) =====
+-- Script được người khác/AI viết thường không biết gì về hub. Chỉ cần nó gọi
+-- _G.BananaCatHubAPI (nếu có) là tự canh size theo ô tab + tự theo khi kéo menu.
+function S.TabArea(nm)
+    local frame
+    if type(nm) == "string" and #nm > 0 then
+        for _, ft in ipairs(featureTabs) do
+            if ft.name == nm then frame = ft.frame break end
+        end
+    end
+    frame = frame or activeTab
+    if not frame then return nil end
+    local host = frame:FindFirstChild("ScriptHost")
+    local area = host or frame
+    local sz = area.AbsoluteSize
+    return Vector2.new(math.max(0, sz.X - 6), math.max(0, sz.Y - 6))
+end
+
+S.resizedCbs = {}
+function S.OnResized(fn)
+    if type(fn) ~= "function" then return nil end
+    table.insert(S.resizedCbs, fn)
+    return { Disconnect = function()
+        for i, f in ipairs(S.resizedCbs) do
+            if f == fn then table.remove(S.resizedCbs, i) break end
+        end
+    end }
+end
+function S.NotifyResize()
+    local a = S.TabArea()
+    local cbs = {}
+    for _, f in ipairs(S.resizedCbs) do cbs[#cbs+1] = f end
+    for _, f in ipairs(cbs) do pcall(f, a) end
+end
+
+-- Script có thể tự xin được nhúng vào tab của nó (thay vì chờ hub "bắt" GUI)
+function S.FeatureTabHost(nm)
+    if type(nm) == "string" and #nm > 0 then
+        for _, ft in ipairs(featureTabs) do
+            if ft.name == nm then
+                local h = ft.frame and ft.frame:FindFirstChild("ScriptHost")
+                if h then return h end
+            end
+        end
+    end
+    return activeTab and activeTab:FindFirstChild("ScriptHost")
+end
+
+-- Không cần nhúng vẫn vừa menu: chỉnh 1 frame phủ khít ô tab hiện tại
+function S.FitToTab(obj, nm)
+    if not obj then return nil end
+    local host = S.FeatureTabHost(nm)
+    if host and obj.Parent ~= host then
+        pcall(function() obj.Parent = host end)
+    end
+    pcall(function()
+        obj.Size = UDim2.new(1, 0, 1, 0)
+        obj.Position = UDim2.new(0, 0, 0, 0)
+    end)
+    return obj
+end
+
+_G.BananaCatHubAPI = {
+    Version = "4.4d",
+    HubGui = hubGui,
+    Main = main,
+    -- gọi bằng dấu hai chấm: API:TabArea("Tên Tab")  ->  Vector2 khổ vùng nội dung của tab
+    TabArea = function(self, nm) return S.TabArea(nm) end,
+    OnResize = function(self, fn) return S.OnResized(fn) end,      -- API:OnResize(f) -> {Disconnect=}
+    FeatureTabHost = function(self, nm) return S.FeatureTabHost(nm) end,
+    FitToTab = function(self, obj, nm) return S.FitToTab(obj, nm) end,
+    EmbedGui = function(self, guiOrFrame, nm)                        -- xin hub mượn GUI vào tab
+        local scr = guiOrFrame
+        if scr and not scr:IsA("ScreenGui") then scr = scr:FindFirstAncestorOfClass("ScreenGui") end
+        local host = S.FeatureTabHost(nm)
+        if not scr or not host then return nil end
+        return S.EmbedGui(scr, host)
+    end,
+    MakeTemplate = function(self, nm, icon) return S.FeatureTemplate(nm, icon) end,
+    ReleaseFocus = function(self) pcall(ReleaseHubFocus) end,
+}
+
+-- ===== FEATURE TEMPLATE (bắt đầu) ==========================
+function S.FeatureTemplate(nm, icon, stamp)
+    if type(nm) ~= "string" or #nm == 0 then nm = "Tính Năng Mới" end
+    if type(icon) ~= "string" or #icon == 0 then icon = "⚙️" end
+    if type(stamp) ~= "string" then stamp = "" end
+    local head = [==[
+-- ===========================================================================
+--  __BC_NAME__  ·  tính năng cho Banana Cat Hub  (bản MẪU, chạy được ngay)
+--  Icon: __BC_ICON__   ·   khổ thiết kế gốc: 620 x 384 px   ·   __BC_STAMP__
+-- ---------------------------------------------------------------------------
+--  [ ĐỌC HẾT PHẦN NÀY TRƯỚC KHI SỬA — dành cho người/AI nhận code ]
+--   1) Code này CHẠY ĐƯỢC NGAY (có sẵn khung giao diện + 1 nút bật/tắt).
+--      Việc duy nhất của bạn: thay phần trong khối "FEATURE LOGIC" bằng thuật
+--      toán thật. Các phần khác giữ nguyên.
+--   2) KHÔNG đổi tên các biến: gui, root, panel, bcToggle, bcStatus, bcEnabled,
+--      bcClose, BC. Hub (và người dán) dựa vào tên đó để nhúng + hoàn tác.
+--      Muốn đóng tính năng từ code của bạn: bcClose()  (hoặc _G.BC_FEATURES[tên].Close()).
+--   3) CHỈ dùng đúng 1 ScreenGui đã tạo ở đây. Widget mới phải là CON của
+--      `panel` (danh sách cài đặt) hoặc của `root` (tiêu đề, nút). KHÔNG tạo
+--      ScreenGui thứ hai, KHÔNG Destroy/ẩn GUI của game.
+--   4) CỨ viết Size/Position bằng pixel theo khổ 620x384 (offset bình thường).
+--      Banana Cat Hub TỰ động nhân đồng đều mọi offset (Size, Position,
+--      UICorner, UIPadding, UIStroke, TextSize) theo kích thước thật của ô tab,
+--      nên kéo menu to ra / thu nhỏ lại thì GUI to theo / nhỏ theo và KHÔNG méo.
+--      Vì vậy: KHÔNG tự ép UDim2.fromScale(1,1) cho widget bên trong, KHÔNG đọc
+--      AbsoluteSize của màn hình, KHÔNG đặt Position âm hay vượt 620x384.
+--   5) GIỮ NGUYÊN khối từ "SIZE CONTRACT" đến "END SIZE CONTRACT" (khối đó làm
+--      GUI vừa khít menu kể cả khi script được chạy NGOÀI hub / hub tắt nhúng).
+--   6) CẤM: while true thiếu task.wait, setclipboard, loadstring/HttpGet link lạ
+--      nếu chưa được yêu cầu, viết _G bừa (dùng biến local), gethui/getgenv để
+--      sửa GUI của game. Dùng `pcall` quanh phần logic có thể lỗi.
+--   7) Cách test: mở menu -> tab "Tạo Tính Năng" -> dán code -> bấm ▶ Chạy Script.
+--      Muốn trả GUI về nguyên trạng: bấm ✕ trên tab tính năng.
+-- ===========================================================================
+
+local BC = { Name = "__BC_NAME__", Icon = "__BC_ICON__", DesignW = 620, DesignH = 384 }
+
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+local pg = player and player:WaitForChild("PlayerGui")
+if not pg then return end
+
+local gui = Instance.new("ScreenGui")
+gui.Name = BC.Name
+gui.ResetOnSpawn = false
+gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+gui.Parent = pg
+
+local root = Instance.new("Frame")
+root.Name = "Root"
+root.Size = UDim2.new(0, BC.DesignW, 0, BC.DesignH)
+root.Position = UDim2.new(0.5, -BC.DesignW / 2, 0.5, -BC.DesignH / 2)
+root.BackgroundColor3 = Color3.fromRGB(24, 26, 38)
+root.BorderSizePixel = 0
+root.Parent = gui
+local function bcCorner(o, r)
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0, r)
+    c.Parent = o
+    return c
+end
+bcCorner(root, 8)
+
+-- ===== SIZE CONTRACT (KHỐI NÀY KHÔNG ĐƯỢC SỬA) ============================
+-- Mục tiêu: GUI luôn BẰNG ĐÚNG ô tab của menu, và tự cập nhật khi kéo menu
+-- to/nhỏ. Chạy trong hub -> phủ khít container mà hub đã đưa cho nó.
+-- Chạy độc lập -> bám theo khổ tab của hub nếu hub đang mở, nếu không thì
+-- lấy ~55% màn hình (vẫn giữ đúng tỉ lệ 620:384).
+local API = _G.BananaCatHubAPI
+local bcConn = nil        -- connection của API:OnResize, bcClose sẽ ngắt để không leak
+local function bcHubMain()
+    local ok, m = pcall(function() return API and API.Main end)
+    if ok and m and m.AbsoluteSize then return m end
+    -- chỉ nhận đúng ScreenGui của hub (tên "ExMenu"): KHÔNG đoán bừa GUI của game
+    local hub = pg:FindFirstChild("ExMenu") or pg:FindFirstChild("BananaCatHub")
+    if hub then
+        local f = hub:FindFirstChildWhichIsA("Frame")
+        if f and f.AbsoluteSize.X > 300 then return f end
+    end
+end
+local function bcArea()
+    local ok, v = pcall(function() return API and API.TabArea and API:TabArea(BC.Name) end)
+    if ok and v and v.X and v.X > 60 then return v end
+    local m = bcHubMain()
+    if m and m.AbsoluteSize.X > 300 then
+        return Vector2.new(m.AbsoluteSize.X - 30, m.AbsoluteSize.Y - 72)
+    end
+    local vp = Vector2.new(1280, 720)
+    pcall(function() vp = workspace.CurrentCamera.ViewportSize end)
+    local w = math.max(320, math.min(vp.X * 0.55, vp.X - 60))
+    return Vector2.new(w, w * BC.DesignH / BC.DesignW)
+end
+local function bcFit()
+    pcall(function()
+        local par = root.Parent
+        if par and not par:IsA("ScreenGui") then
+            root.Size = UDim2.new(1, 0, 1, 0)
+            root.Position = UDim2.new(0, 0, 0, 0)
+            return
+        end
+        local a = bcArea()
+        root.Size = UDim2.new(0, math.floor(a.X), 0, math.floor(a.Y))
+        root.Position = UDim2.new(0.5, -math.floor(a.X / 2), 0.5, -math.floor(a.Y / 2))
+    end)
+end
+bcConn = nil
+bcFit()
+pcall(function()
+    if API and API.OnResize then bcConn = API:OnResize(bcFit) end
+end)
+local bcHubFrame = bcHubMain()
+if bcHubFrame then
+    pcall(function()
+        bcHubFrame:GetPropertyChangedSignal("AbsoluteSize"):Connect(bcFit)
+    end)
+end
+task.delay(0.25, bcFit)
+task.delay(1.2, bcFit)
+-- ===== END SIZE CONTRACT ===================================================
+
+]==]
+    local body = [==[
+-- ---------- giao diện mẫu (thêm/bớt thoải mái, miễn là CON của panel/root) ----
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, -56, 0, 32)
+title.Position = UDim2.new(0, 10, 0, 0)
+title.BackgroundTransparency = 1
+title.Text = BC.Icon .. "  " .. BC.Name
+title.Font = Enum.Font.GothamBold
+title.TextSize = 15
+title.TextXAlignment = Enum.TextXAlignment.Left
+title.TextColor3 = Color3.fromRGB(255, 255, 255)
+title.Parent = root
+
+local closeBtn = Instance.new("TextButton")
+closeBtn.Name = "CloseBtn"
+closeBtn.Size = UDim2.new(0, 26, 0, 26)
+closeBtn.Position = UDim2.new(1, -34, 0, 3)
+closeBtn.BackgroundColor3 = Color3.fromRGB(210, 70, 70)
+closeBtn.Text = "X"
+closeBtn.Font = Enum.Font.GothamBold
+closeBtn.TextSize = 14
+closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeBtn.AutoButtonColor = true
+closeBtn.Parent = root
+bcCorner(closeBtn, 6)
+
+local panel = Instance.new("ScrollingFrame")
+panel.Name = "Panel"
+panel.Size = UDim2.new(1, -20, 1, -74)
+panel.Position = UDim2.new(0, 10, 0, 38)
+panel.BackgroundTransparency = 1
+panel.BorderSizePixel = 0
+panel.ScrollBarThickness = 5
+panel.AutomaticCanvasSize = Enum.AutomaticSize.Y
+panel.CanvasSize = UDim2.new(0, 0, 0, 0)
+panel.Parent = root
+local list = Instance.new("UIListLayout")
+list.Padding = UDim.new(0, 6)
+list.SortOrder = Enum.SortOrder.LayoutOrder
+list.Parent = panel
+local pad = Instance.new("UIPadding")
+pad.PaddingRight = UDim.new(0, 8)
+pad.Parent = panel
+
+local bcStatus = Instance.new("TextLabel")
+bcStatus.Name = "Status"
+bcStatus.Size = UDim2.new(1, -20, 0, 22)
+bcStatus.Position = UDim2.new(0, 10, 1, -30)
+bcStatus.BackgroundTransparency = 1
+bcStatus.Text = "Tắt"
+bcStatus.TextColor3 = Color3.fromRGB(255, 214, 90)
+bcStatus.Font = Enum.Font.Gotham
+bcStatus.TextSize = 12
+bcStatus.TextXAlignment = Enum.TextXAlignment.Left
+bcStatus.Parent = root
+
+local function bcButton(txt, color)
+    local b = Instance.new("TextButton")
+    b.Size = UDim2.new(1, 0, 0, 30)
+    b.BackgroundColor3 = color or Color3.fromRGB(60, 120, 220)
+    b.Text = txt
+    b.Font = Enum.Font.GothamMedium
+    b.TextSize = 13
+    b.TextColor3 = Color3.fromRGB(255, 255, 255)
+    b.AutoButtonColor = true
+    b.Parent = panel
+    bcCorner(b, 6)
+    return b
+end
+
+bcToggle = bcButton(BC.Icon .. "  Bật " .. BC.Name)
+-- VD thêm cài đặt: local speed = bcButton("Tốc độ: 1x")   -- người viết thay/sao dòng này
+
+]==]
+    local foot = [==[
+-- ---------- đóng / trả GUI (KHÔNG xóa khối này) ----------------------------
+local bcEnabled = false
+local bcConns = {}
+local function bcOn(inst, sig, fn)
+    table.insert(bcConns, inst[sig]:Connect(fn))
+end
+
+local function bcClose()
+    if bcConn then pcall(function() bcConn:Disconnect() end) bcConn = nil end
+    for _, c in ipairs(bcConns) do pcall(function() c:Disconnect() end) end
+    for i = #bcConns, 1, -1 do bcConns[i] = nil end
+    bcEnabled = false
+    pcall(function() gui.Enabled = false end)
+    task.delay(0.06, function() pcall(function() gui:Destroy() end) end)
+end
+bcOn(closeBtn, "MouseButton1Click", bcClose)
+
+-- Cho phép code khác (và AI) đóng/tắt tính năng mà không cần biến toàn cục trùng tên:
+_G.BC_FEATURES = _G.BC_FEATURES or {}
+_G.BC_FEATURES[BC.Name] = { name = BC.Name, Close = bcClose, Gui = gui, Root = root }
+
+-- =========================== FEATURE LOGIC ================================
+-- >>> THAY TOÀN BỘ KHỐI NÀY BẰNG THUẬT TOÁN THẬT CỦA TÍNH NĂNG <<<
+-- Quy tắc: mọi vòng lặp phải có task.wait(); mọi thao tác với nhân vật/game
+-- đặt trong pcall; tôn trọng cờ bcEnabled (bấm nút là phải dừng được ngay).
+bcOn(bcToggle, "MouseButton1Click", function()
+    bcEnabled = not bcEnabled
+    bcToggle.Text = (bcEnabled and "⏹  Tắt " or BC.Icon .. "  Bật ") .. BC.Name
+    bcStatus.Text = bcEnabled and "Đang chạy…" or "Tắt"
+    if bcEnabled then
+        table.insert(bcConns, task.spawn(function()
+            while bcEnabled do
+                task.wait(0.2)
+                pcall(function()
+                    -- VÍ DỤ (xóa và viết code thật ở đây):
+                    -- local char = player.Character
+                    -- local hrp = char and char:FindFirstChild("HumanoidRootPart")
+                end)
+            end
+        end))
+    end
+end)
+-- ========================================================================
+
+print("✅ [" .. BC.Name .. "] đã nạp — dán vào tab \"Tạo Tính Năng\" của Banana Cat Hub rồi bấm ▶ Chạy Script")
+return BC.Name
+]==]
+    local out = head .. body .. foot
+    out = (out:gsub("__BC_NAME__", function() return nm end))
+    out = (out:gsub("__BC_ICON__", function() return icon end))
+    out = (out:gsub("__BC_STAMP__", function() return (#stamp > 0) and stamp or "sinh bởi hub" end))
+    return out
+end
+-- ===== FEATURE TEMPLATE (kết thúc) ==========================
+
+-- Nối vào hook BcFit() (khu SetupResizeHandle). Bất cứ lần nào menu đổi kích thước,
+-- mọi GUI đang nhúng đều được đo và co giãn lại cho vừa vùng tab.
+_G.BananaCatHub_SyncEmbeds = function()
+    pcall(S.SyncAllEmbeds)
+end
+pcall(function()
+    trackConn(main:GetPropertyChangedSignal("Size"):Connect(function()
+        BcFit()                 -- GUI đang nhúng trong tab -> đo & scale lại
+        pcall(S.NotifyResize)   -- script đứng ngoài (tự xin size) -> chạy lại bcFit của nó
+    end))
+end)
+
+function S.SyncAllEmbeds()
+    for _, e in ipairs(S.embeds) do
+        if e.host and e.host.Parent then
+            pcall(function() S.FitEmbedded(e) end)
+        end
+    end
+end
+
+-- Dọn mọi host đang nằm trong 1 container (khi chạy lại script của tab / đóng tab / xóa tab)
+-- và TRẢ GUI về nguyên trạng. Đây là điểm khác biệt lớn nhất với bản cũ (bản cũ Destroy luôn).
+function S.ClearEmbedsUnder(containerFrame)
+    if not containerFrame then return 0 end
+    local n = 0
+    for i = #S.embeds, 1, -1 do
+        local e = S.embeds[i]
+        if e.host and e.host.Parent == containerFrame then
+            S.RestoreEmbed(e)
+            n += 1
+        end
+    end
+    -- host "rác" do tab này tạo ra nhưng không còn trong registry (vd. leftovers của bản v4.4a)
+    for _, child in ipairs(containerFrame:GetChildren()) do
+        if child.Name:sub(1, 9) == "Embedded_" then
+            pcall(function() child:Destroy() end)
+        end
+    end
+    return n
+end
+
+-- v4.4b: nhúng 1 ScreenGui/Folder vào containerFrame của tab. KHÔNG Destroy GUI gốc,
+-- KHÔNG sửa Size/Position frame con (chỉ đổi Parent) -> layout của script giữ nguyên 100%.
+-- Trả về host Frame để tab tự co giãn theo kích thước menu (xem S.FitEmbedded).
+function S.EmbedGui(scr, containerFrame)
+    if not S.embedEnabled then return nil end
+    if not scr or not scr.Parent then return nil end
+    if not containerFrame or not containerFrame.Parent then return nil end
+    -- không bao giờ nhúng chính GUI của hub (tự nuốt menu của mình = treo UI)
+    if scr == gui or scr:IsDescendantOf(gui) then return nil end
+
+    local hostName = "Embedded_"..scr.Name
+    for _, ex in ipairs(containerFrame:GetChildren()) do
+        if ex.Name == hostName then
+            local e = S.FindEmbedByHost(ex)
+            if e then
+                S.RestoreEmbed(e)
+            else
+                pcall(function() ex:Destroy() end)
+            end
+        end
+    end
+
+    local host = New("Frame", {
+        Size = UDim2.new(1,0,1,0),
+        Position = UDim2.new(0,0,0,0),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        ZIndex = 5,
+        Name = hostName,
+        ClipsDescendants = true,
+    }, containerFrame)
+
+    local recs = {}
+    for _, ch in ipairs(scr:GetChildren()) do
+        if ch:IsA("GuiObject") then
+            recs[#recs+1] = {obj = ch, origParent = scr, origPos = ch.Position, origSize = ch.Size}
+        end
+    end
+    if #recs == 0 then
+        pcall(function() host:Destroy() end)
+        return nil
+    end
+    for _, rec in ipairs(recs) do
+        pcall(function() rec.obj.Parent = host end)
+    end
+
+    ForceStretchToParent(host)          -- root only (an toàn cho mấy frame con)
+    local entry = S.RegisterEmbed(host, scr, recs)
+    pcall(function() S.FitEmbedded(entry) end)
+    -- AbsolutePosition/Size của frame vừa đổi cha chỉ đúng sau 1 render step => đo lại 2 lần
+    task.delay(0.08, function() pcall(function() S.FitEmbedded(entry) end) end)
+    task.delay(0.4,  function() pcall(function() S.FitEmbedded(entry) end) end)
+    return host
+end
+
+local function RunFeatureScript(code, name, containerFrame, indicator, statusLabel)
+    if #code == 0 then
+        if statusLabel then statusLabel.Text = "⚠️ Vui lòng nhập code!" end
+        return false, "empty"
+    end
+
+    code = NormalizeCode(code)
+
+    if indicator then indicator.BackgroundColor3 = C.RED end
+    if statusLabel then statusLabel.Text = "⏳ Đang thực thi..." end
+    ReleaseHubFocus()   -- v4.4b: đang dán code trong TextBox mà chạy luôn thì game vẫn "khóa" input
+
+    local embedCount, lateCandidate = 0, 0
+    local featureUnhook = nil
+    local ok, err = pcall(function()
+        local fn, lerr = loadstring(code)
+        if not fn then error("loadstring thất bại: "..tostring(lerr)) end
+
+        local beforeGuis = {}
+        for _, g in ipairs(playerGui:GetChildren()) do beforeGuis[g] = true end
+        for _, g in ipairs(targetGui:GetChildren()) do beforeGuis[g] = true end
+        -- CoreGui KHÔNG bị đụng tới nữa (trước đây vừa snapshot vừa scan -> dễ bốc UI của game)
+
+        -- Hook Instance.new để biết CHÍNH XÁC ScreenGui nào do script của tab này tạo.
+        -- Gỡ hook ở mọi nhánh (kể cả khi code lỗi) — xem featureUnhook bên dưới.
+        local mine = {}
+        local realNew = Instance.new
+        local hooked = false
+        local myCo = coroutine.running()
+        pcall(function()
+            Instance.new = function(cls, ...)
+                local inst = realNew(cls, ...)
+                -- chỉ nhận GUI được tạo BỞI ĐÚNG thread của tab này: script khác (hoặc GUI của
+                -- game) tạo ScreenGui trong lúc hub đang chờ cũng KHÔNG bị gán nhầm cho ta.
+                if hooked and cls == "ScreenGui" and coroutine.running() == myCo then
+                    mine[#mine+1] = inst
+                end
+                return inst
+            end
+            hooked = true
+        end)
+        featureUnhook = function()
+            if hooked then
+                hooked = false
+                pcall(function() Instance.new = realNew end)
+            end
+        end
+
+        local fnOk, fnErr = pcall(fn)
+
+        -- Script tạo GUI trễ (sau task.wait / HttpGet) vẫn được chờ, nhưng:
+        --   * GUI mà hook bắt được (chắc chắn của ta): chờ tối đa 2.4s
+        --   * GUI "đoán" từ diff (rủi ro ăn nhầm UI của game): CHỈ trong 0.6s đầu && khi
+        --     người dùng bật 🕵. Đây là chỗ bản 4.4a làm ẩu (đoán suốt 2.4s) -> mất nút game.
+        local newGuis = {}
+        for i = 1, 12 do
+            local guessOK = (S.embedGuessNew == true) and (i <= 3)
+            local found = ScanNewGuis(beforeGuis, mine, guessOK)
+            for _, g in ipairs(found) do newGuis[#newGuis+1] = g end
+            if #newGuis > 0 then break end
+            task.wait(0.2)
+        end
+        featureUnhook()
+        if not fnOk then error(fnErr) end
+
+        for _, g in ipairs(newGuis) do
+            if g:IsA("ScreenGui") or g:IsA("Folder") then
+                if S.EmbedGui(g, containerFrame) then embedCount += 1 end
+            end
+        end
+        -- GuiObject "rời" không còn bị bốc sang tab: đó thường là UI của game, động vào là lỗi nút.
+
+        -- Gợi ý đúng lúc: script CÓ tạo GUI nhưng GUI đó sinh quá trễ nên hub không chắc là
+        -- của nó -> nói người dùng bật 🕵 thay vì âm thầm bỏ qua (hoặc đoán ẩu như 4.4a).
+        if embedCount == 0 and not (S.embedGuessNew == true) and #mine == 0 then
+            local late = ScanNewGuis(beforeGuis, nil, true)
+            local real = 0
+            for _, g in ipairs(late) do
+                if g.Parent and not g:IsDescendantOf(containerFrame) then real += 1 end
+            end
+            if real > 0 then lateCandidate = real end
+        end
+    end)
+
+    if featureUnhook then pcall(featureUnhook) end
+
+    if ok then
+        if indicator then indicator.BackgroundColor3 = C.GREEN end
+        if statusLabel then
+            if embedCount > 0 then
+                statusLabel.Text = string.format(
+                    "✅ xong · %d GUI đã nhúng vào tab (bấm ✕ để trả về màn hình game)", embedCount)
+            elseif lateCandidate > 0 and not (S.embedGuessNew == true) then
+                statusLabel.Text = string.format(
+                    "✅ xong · GUI sinh trễ (%d) — bật 🕵 'Đoán GUI trễ' nếu muốn nhúng vào tab", lateCandidate)
+            elseif S.embedEnabled then
+                statusLabel.Text = "✅ xong · script không tạo GUI nào để nhúng (bình thường)"
+            else
+                statusLabel.Text = "✅ xong · nhúng đang TẮT, GUI nằm ngoài màn hình"
+            end
+        end
+        return true
+    else
+        if indicator then indicator.BackgroundColor3 = C.RED end
+        if statusLabel then statusLabel.Text = "❌ Lỗi: "..tostring(err) end
+        warn("[BananaCatHub] Feature script error:", err)
+        return false, err
+    end
+end
+
+local function CreateFeatureTab(name, icon, codeContent)
+    if not name or #name == 0 then name = "Tính Năng " .. (#featureTabs + 1) end
+    if not icon or #icon == 0 then icon = "⚙️" end
+
+    codeContent = NormalizeCode(codeContent)
+
+    local sf = New("ScrollingFrame", {
+        Size=UDim2.new(1,0,1,0),
+        BackgroundTransparency=1,
+        BorderSizePixel=0,
+        ScrollBarThickness=5,
+        ScrollBarImageColor3=Color3.fromRGB(120,120,140),
+        ClipsDescendants=true,
+        CanvasSize=UDim2.new(0,0,0,0),
+        Visible=false,
+        Active=true,
+        Selectable=false,
+        ScrollingDirection=Enum.ScrollingDirection.Y,
+        ZIndex=4,
+    }, contentArea)
+
+    local btn = New("TextButton", {
+        Size=UDim2.new(1,-8,0,30),
+        Text=icon.." "..name,
+        BackgroundColor3=C.BG,
+        BackgroundTransparency=0.3,
+        TextColor3=C.DARK,
+        Font=Enum.Font.GothamBold,
+        TextSize=9,
+        BorderSizePixel=0,
+        LayoutOrder=featureTabIndex + #featureTabs,
+        TextXAlignment=Enum.TextXAlignment.Left,
+        ZIndex=4,
+    }, tabBar)
+    Corner(btn, UDim.new(0,6))
+
+    -- tra cuu index dong (xem giai thich o AddTab)
+    btn.Activated:Connect(function()
+        for i, b in ipairs(tabs) do
+            if b == btn then SwitchTab(i); break end
+        end
+    end)
+
+    table.insert(tabs, btn)
+    table.insert(tabContent, sf)
+    tabBar.CanvasSize = UDim2.new(0, 0, 0, #tabs * 34 + 10)
+
+    local tabIdx = #tabs
+
+    local featureData = {
+        name = name,
+        icon = icon,
+        code = codeContent,
+        btn = btn,
+        frame = sf,
+        tabIdx = tabIdx,
+    }
+    table.insert(featureTabs, featureData)
+
+    local embedHost = New("Frame", {
+        Size = UDim2.new(1,0,1,-36),
+        Position = UDim2.new(0,0,0,0),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        ZIndex = 5,
+        Name = "ScriptHost",
+        Visible = true,
+    }, sf)
+
+    local toolbar = New("Frame", {
+        Size = UDim2.new(1,0,0,36),
+        Position = UDim2.new(0,0,1,-36),
+        BackgroundColor3 = Color3.fromRGB(230,233,242),
+        BackgroundTransparency = 0.1,
+        BorderSizePixel = 0,
+        ZIndex = 20,
+    }, sf)
+    Corner(toolbar, UDim.new(0,6))
+    Stroke(toolbar, Color3.fromRGB(180,185,200), 1)
+
+    local runFeatureBtn = New("TextButton", {
+        Size=UDim2.new(0,110,0,26), Position=UDim2.new(0,6,0,5),
+        Text="▶ Chạy Script", BackgroundColor3=C.GREEN, BackgroundTransparency=0.1,
+        TextColor3=C.WHITE, Font=Enum.Font.GothamBold, TextSize=10, BorderSizePixel=0, ZIndex=21,
+    }, toolbar)
+    Corner(runFeatureBtn, UDim.new(0,5))
+
+    local saveFeatureBtn = New("TextButton", {
+        Size=UDim2.new(0,110,0,26), Position=UDim2.new(0,122,0,5),
+        Text="📤 Chép sang Code", BackgroundColor3=C.BLUE, BackgroundTransparency=0.1,
+        TextColor3=C.WHITE, Font=Enum.Font.GothamBold, TextSize=10, BorderSizePixel=0, ZIndex=21,
+    }, toolbar)
+    Corner(saveFeatureBtn, UDim.new(0,5))
+
+    local editFeatureBtn = New("TextButton", {
+        Size=UDim2.new(0,80,0,26), Position=UDim2.new(0,238,0,5),
+        Text="✏️ Sửa", BackgroundColor3=C.ORANGE, BackgroundTransparency=0.1,
+        TextColor3=C.WHITE, Font=Enum.Font.GothamBold, TextSize=10, BorderSizePixel=0, ZIndex=21,
+    }, toolbar)
+    Corner(editFeatureBtn, UDim.new(0,5))
+
+    local closeFeatureBtn = New("TextButton", {
+        Size=UDim2.new(0,40,0,26), Position=UDim2.new(1,-46,0,5),
+        Text="✕", BackgroundColor3=C.RED, BackgroundTransparency=0.1,
+        TextColor3=C.WHITE, Font=Enum.Font.GothamBold, TextSize=12, BorderSizePixel=0, ZIndex=21,
+    }, toolbar)
+    Corner(closeFeatureBtn, UDim.new(0,5))
+
+    local fStatus = New("TextLabel", {
+        Size=UDim2.new(0,180,0,26), Position=UDim2.new(0,324,0,5),
+        Text="", BackgroundTransparency=1, TextColor3=Color3.fromRGB(220,170,0),
+        Font=Enum.Font.GothamMedium, TextSize=9, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=21,
+    }, toolbar)
+
+    local editorFrame = New("Frame", {
+        Size=UDim2.new(1,0,1,-36),
+        Position=UDim2.new(0,0,0,0),
+        BackgroundColor3=Color3.fromRGB(245,247,252),
+        BackgroundTransparency=0,
+        BorderSizePixel=0,
+        ZIndex=30,
+        Visible=false,
+    }, sf)
+
+    local editorBox = New("TextBox", {
+        Size=UDim2.new(1,-16,1,-70), Position=UDim2.new(0,8,0,8),
+        Text=codeContent,
+        PlaceholderText="Dán script hoàn chỉnh HOẶC link raw vào đây...\nScript có thể tạo GUI riêng, GUI đó sẽ được nhúng vào tab này.",
+        PlaceholderColor3=Color3.fromRGB(160,160,160),
+        BackgroundColor3=Color3.fromRGB(255,255,255), BackgroundTransparency=0,
+        TextColor3=Color3.fromRGB(20,20,20),
+        Font=Enum.Font.Code, TextSize=11, BorderSizePixel=0, ClearTextOnFocus=false,
+        MultiLine=true, TextWrapped=true, TextXAlignment=Enum.TextXAlignment.Left, TextYAlignment=Enum.TextYAlignment.Top,
+        Active=true, Selectable=true, ZIndex=31,
+    }, editorFrame)
+    Corner(editorBox, UDim.new(0,5))
+    Stroke(editorBox, Color3.fromRGB(100,120,200), 1.5)
+    New("UIPadding", {PaddingLeft=UDim.new(0,6), PaddingTop=UDim.new(0,4)}, editorBox)
+
+    local applyEditBtn = New("TextButton", {
+        Size=UDim2.new(0,120,0,26), Position=UDim2.new(0,8,1,-34),
+        Text="✅ Áp Dụng", BackgroundColor3=C.GREEN, BackgroundTransparency=0.1,
+        TextColor3=C.WHITE, Font=Enum.Font.GothamBold, TextSize=10, BorderSizePixel=0, ZIndex=31,
+    }, editorFrame)
+    Corner(applyEditBtn, UDim.new(0,5))
+
+    local cancelEditBtn = New("TextButton", {
+        Size=UDim2.new(0,120,0,26), Position=UDim2.new(0,134,1,-34),
+        Text="❌ Hủy", BackgroundColor3=C.RED, BackgroundTransparency=0.1,
+        TextColor3=C.WHITE, Font=Enum.Font.GothamBold, TextSize=10, BorderSizePixel=0, ZIndex=31,
+    }, editorFrame)
+    Corner(cancelEditBtn, UDim.new(0,5))
+
+    -- v4.4b: ClearHost không còn "phá sạch" — nó trả GUI của script về ScreenGui gốc
+    -- (Position/Size cũ) rồi mới xóa host, nên bấm Chạy lại / ✕ / đổi code không làm
+    -- script của bạn mất UI nữa.
+    local function ClearHost()
+        S.ClearEmbedsUnder(embedHost)
+    end
+
+    runFeatureBtn.Activated:Connect(function()
+        ClearHost()
+        fStatus.Text = "⏳ Đang chạy..."
+        RunFeatureScript(codeContent, name, embedHost, runFeatureBtn, fStatus)
+    end)
+
+    saveFeatureBtn.Activated:Connect(function()
+        local c = codeContent
+        if #c == 0 then
+            fStatus.Text = "⚠️ Không có code!"
+            return
+        end
+        local n = name
+        local bn = n
+        local cnt = 1
+        while true do
+            local ex = false
+            for _, s in ipairs(scripts) do
+                if s.name == n then ex = true; break end
+            end
+            if not ex then break end
+            cnt += 1
+            n = bn.." ("..cnt..")"
+        end
+        -- Nut nay CHEP MOT BAN cua code sang tab "Code Đã Lưu" cho tiện quản lý.
+        -- Nó KHÔNG phải cách lưu tính năng: tab tính năng đã được tự động lưu riêng
+        -- (xem Store.saveSoon() ở createTabBtn / applyEditBtn / delBtn).
+        table.insert(scripts, {name = n, code = c, expanded = false})
+        if RebuildScripts then RebuildScripts() end
+        Store.saveSoon()
+        fStatus.Text = "✅ Đã chép sang tab Code!"
+    end)
+
+    editFeatureBtn.Activated:Connect(function()
+        editorBox.Text = codeContent
+        editorFrame.Visible = true
+    end)
+
+    applyEditBtn.Activated:Connect(function()
+        codeContent = NormalizeCode(editorBox.Text)
+        featureData.code = codeContent
+        editorFrame.Visible = false
+        ClearHost()
+        Store.saveSoon()   -- code đã đổi thì bản lưu trên đĩa cũng phải đổi theo
+        fStatus.Text = "✏️ Đã cập nhật code"
+    end)
+
+    cancelEditBtn.Activated:Connect(function()
+        editorFrame.Visible = false
+    end)
+
+    closeFeatureBtn.Activated:Connect(function()
+        ClearHost()
+        SwitchTab(1)
+    end)
+
+    return featureData
+end
+
+-- v4.4b: watcher resize. Bản cũ ép Size từng frame con mỗi lần kéo menu (nguồn gốc làm vỡ layout
+-- + nuốt click). Bản mới chỉ cập nhật UIScale của host -> GUI to/tho theo menu mà layout còn nguyên.
+task.spawn(function()
+    task.wait(1)
+    local lastSize = main.AbsoluteSize
+    while main and main.Parent do
+        task.wait(0.15)
+        if main.AbsoluteSize ~= lastSize then
+            lastSize = main.AbsoluteSize
+            if #S.embeds > 0 then
+                S.SyncAllEmbeds()
+            end
+            S.PruneEmbeds()
+            -- dọn list _G do bản v4.4a để lại (nó lớn vô hạn vì không ai xoá phần tử đã chết)
+            if _G.BananaCatHub_EmbedHosts then
+                for i = #_G.BananaCatHub_EmbedHosts, 1, -1 do
+                    local host = _G.BananaCatHub_EmbedHosts[i]
+                    if not host or not host.Parent then
+                        table.remove(_G.BananaCatHub_EmbedHosts, i)
+                    end
+                end
+            end
+        end
+    end
+end)
+
+local createFeatureTab = AddTab("Tạo Tính Năng", "➕", 5)
+
+local cy = 8
+Label(createFeatureTab, "➕ Tạo Tab Tính Năng Tích Hợp", cy)
+cy = cy + 16
+Label(createFeatureTab, "Dán NGUYÊN một script hoàn chỉnh HOẶC link raw.", cy)
+cy = cy + 14
+Label(createFeatureTab, "Script chạy trong tab; GUI của NÓ được nhúng vào menu (không đụng GUI game).", cy)
+cy = cy + 14
+Label(createFeatureTab, "💾 Tab tạo ra TỰ ĐỘNG được lưu — thoát game vào lại vẫn còn, khỏi cần bấm gì thêm.", cy)
+cy = cy + 14
+Label(createFeatureTab, "🧩 Bấm 🎯 Chạy Script xong nhớ bấm ✕ hoặc kéo menu to ra — hub tự nhả focus", cy)
+cy = cy + 14
+Label(createFeatureTab, "    để bạn quay chuột/bắn lại bình thường. Nếu script vẫn chiếm chuột: 🧩 TẮT nhúng.", cy)
+cy = cy + 18
+
+Label(createFeatureTab, "🏷️ Tên Tính Năng:", cy)
+cy = cy + 14
+
+local featureNameIn = New("TextBox", {
+    Size=UDim2.new(1,-16,0,26), Position=UDim2.new(0,8,0,cy), Text="",
+    PlaceholderText="VD: Auto Farm, Fly, Speed...",
+    PlaceholderColor3=Color3.fromRGB(160,160,160),
+    BackgroundColor3=Color3.fromRGB(255,255,255), BackgroundTransparency=0, TextColor3=Color3.fromRGB(20,20,20),
+    Font=Enum.Font.GothamMedium, TextSize=12, BorderSizePixel=0, ClearTextOnFocus=false,
+    Active=true, Selectable=true, ZIndex=10, TextXAlignment=Enum.TextXAlignment.Left,
+}, createFeatureTab)
+Corner(featureNameIn, UDim.new(0,5))
+Stroke(featureNameIn, Color3.fromRGB(100,120,200), 1.5)
+New("UIPadding", {PaddingLeft=UDim.new(0,6)}, featureNameIn)
+
+cy = cy + 32
+Label(createFeatureTab, "🎨 Icon (1 ký tự, tùy chọn):", cy)
+cy = cy + 14
+
+local featureIconIn = New("TextBox", {
+    Size=UDim2.new(0,60,0,26), Position=UDim2.new(0,8,0,cy), Text="⚙️",
+    PlaceholderColor3=Color3.fromRGB(160,160,160),
+    BackgroundColor3=Color3.fromRGB(255,255,255), BackgroundTransparency=0, TextColor3=Color3.fromRGB(20,20,20),
+    Font=Enum.Font.GothamBold, TextSize=14, BorderSizePixel=0, ClearTextOnFocus=false,
+    Active=true, Selectable=true, ZIndex=10,
+}, createFeatureTab)
+Corner(featureIconIn, UDim.new(0,5))
+Stroke(featureIconIn, Color3.fromRGB(180,180,200), 1.2)
+
+cy = cy + 32
+Label(createFeatureTab, "📜 Dán Script Hoàn Chỉnh HOẶC link raw:", cy)
+cy = cy + 14
+
+local featureCodeIn = New("TextBox", {
+    Size=UDim2.new(1,-16,0,140), Position=UDim2.new(0,8,0,cy), Text="",
+    PlaceholderText="Dán script hoặc link raw (https://...) vào đây...\nScript có thể tạo ScreenGui riêng, GUI đó sẽ được nhúng vào tab.",
+    PlaceholderColor3=Color3.fromRGB(160,160,160),
+    BackgroundColor3=Color3.fromRGB(245,245,255), BackgroundTransparency=0, TextColor3=Color3.fromRGB(20,20,20),
+    Font=Enum.Font.Code, TextSize=11, BorderSizePixel=0, ClearTextOnFocus=false,
+    MultiLine=true, TextWrapped=true, TextXAlignment=Enum.TextXAlignment.Left, TextYAlignment=Enum.TextYAlignment.Top,
+    Active=true, Selectable=true, ZIndex=10,
+}, createFeatureTab)
+Corner(featureCodeIn, UDim.new(0,5))
+Stroke(featureCodeIn, Color3.fromRGB(100,120,200), 1.5)
+New("UIPadding", {PaddingLeft=UDim.new(0,6), PaddingTop=UDim.new(0,4)}, featureCodeIn)
+
+cy = cy + 146
+
+local createTabBtn = Button(createFeatureTab, "➕ Tạo Tab Tính Năng", 8, cy, 180, 28, Color3.fromRGB(0,150,200))
+local clearFormBtn = Button(createFeatureTab, "🧹 Xóa Form", 196, cy, 100, 28, C.ORANGE)
+cy = cy + 34
+
+local embedToggleBtn = Button(createFeatureTab, "🧩 Nhúng vào Tab: BẬT", 304, cy - 34, 122, 28, C.GREEN)
+local guessToggleBtn = Button(createFeatureTab, "🕵 Đoán GUI trễ: TẮT", 8, cy, 150, 26, C.GRAY)
+local grabSizeCodeBtn = Button(createFeatureTab, "📏 Code Tự Co Giãn (an toàn, Auto-Lưu)", 164, cy, 262, 26, C.PURPLE)
+cy = cy + 34
+local fixMouseBtn = Button(createFeatureTab, "🖱 Kẹt chuột / không bấm được? Bấm đây", 8, cy, 418, 24, C.RED)
+cy = cy + 30
+-- v4.4d: sinh CODE MẪU có "hợp đồng kích thước" -> đưa cho người khác/AI viết tiếp là
+-- script thành phẩm tự vừa ô tab của menu (và theo khi kéo menu to/nhỏ), chạy được ngay.
+local copyTemplateBtn = Button(createFeatureTab, "📋 Copy Code Mẫu Cho AI (tự vừa size menu)", 8, cy, 418, 26, C.BLUE)
+cy = cy + 32
+
+local createStatus = Label(createFeatureTab, "", cy)
+createStatus.TextColor3=C.YELLOW; createStatus.TextSize=9; createStatus.ZIndex=6
+cy = cy + 14
+
+-- (handler đặt ở ĐÂY vì createStatus phải nằm trong scope lúc compile closure —
+--  đặt sớm hơn thì Lua biên dịch `createStatus` thành GLOBAL và gán vào nil -> error)
+embedToggleBtn.Activated:Connect(function()
+    S.embedEnabled = not S.embedEnabled
+    if S.embedEnabled then
+        embedToggleBtn.Text = "🧩 Nhúng vào Tab: BẬT"
+        embedToggleBtn.BackgroundColor3 = C.GREEN
+        createStatus.Text = "🧩 BẬT: GUI của script được mượn vào tab. Bấm ✕ trên tab để trả về như cũ."
+    else
+        embedToggleBtn.Text = "🧩 Nhúng vào Tab: TẮT"
+        embedToggleBtn.BackgroundColor3 = C.GRAY
+        -- TẮT = hoàn tác ngay mọi thứ đang nhúng: hub không còn đụng vào GUI nào -> input của
+        -- game (quay chuột, bắn, nút HUD) trở lại bình thường 100%.
+        for _, ft in ipairs(featureTabs) do
+            local hostFrame = ft.frame and ft.frame:FindFirstChild("ScriptHost")
+            if hostFrame then S.ClearEmbedsUnder(hostFrame) end
+        end
+        S.PruneEmbeds()
+        createStatus.Text = "🛡 Chế độ an toàn: hub không sửa GUI nào nữa. Muốn nhúng lại thì bấm BẬT."
+    end
+end)
+
+guessToggleBtn.Activated:Connect(function()
+    S.embedGuessNew = not (S.embedGuessNew == true)
+    if S.embedGuessNew then
+        guessToggleBtn.Text = "🕵 Đoán GUI trễ: BẬT"
+        guessToggleBtn.BackgroundColor3 = C.ORANGE
+        createStatus.Text = "🕵 BẬT: script tạo GUI trễ (sau HttpGet/task.wait) sẽ được nhúng — tiện hơn"
+            .. " nhưng nếu game cũng vừa mở UI đúng lúc thì UI đó có thể bị mượn vào tab (bấm ✕ để trả)."
+    else
+        guessToggleBtn.Text = "🕵 Đoán GUI trễ: TẮT"
+        guessToggleBtn.BackgroundColor3 = C.GRAY
+        createStatus.Text = "🛡 An toàn nhất: chỉ nhúng GUI mà hub chắc chắn là của script."
+            .. " Script tạo GUI trễ sẽ chạy bình thường ngoài màn hình, không bị nhúng."
+    end
+end)
+
+grabSizeCodeBtn.Activated:Connect(function()
+    local currentCode = featureCodeIn.Text
+    if #currentCode == 0 then
+        createStatus.Text = "⚠️ Ô code đang trống, không có gì để lấy!"
+        return
+    end
+
+    -- v4.4b. Wrapper cũ của bản 4.4a QUÉT MỌI ScreenGui trong CoreGui + PlayerGui rồi ép
+    -- Size=(1,0,1,0)/Position=(0,0) lên TỪNG frame con -> đó chính là lý do "mấy nút của game
+    -- bị lỗi" và "không click/bắn được" (một frame trong suốt bị kéo full màn hình, Active,
+    -- nuốt hết input). Wrapper mới KHÔNG hề đụng GUI của game: nó chỉ
+    --   (1) hook Instance.new trong lúc script của bạn chạy -> biết GUI nào là CỦA BẠN,
+    --   (2) gắn UIScale vào root GUI của bạn để nó co giãn theo kích thước menu hub.
+    local wrappedCode = [[
+-- ===== AUTO-GENERATED FIT WRAPPER v4.4b =====
+-- An toàn: chỉ can thiệp GUI do CHÍNH script này tạo. Không quét CoreGui/PlayerGui.
+local _FIT_WRAPPER = true
+local _bcRealNew = Instance.new
+local _bcMine = {}
+local _bcHookOn = true
+pcall(function()
+    Instance.new = function(cls, ...)
+        local inst = _bcRealNew(cls, ...)
+        if _bcHookOn and cls == "ScreenGui" then _bcMine[#_bcMine + 1] = inst end
+        return inst
+    end
+end)
+
+]] .. currentCode .. [[
+
+pcall(function() _bcHookOn = false; Instance.new = _bcRealNew end)
+
+-- Script có thể tạo GUI trễ (sau HttpGet/task.wait): giữ hook thêm vài giây
+task.delay(4, function()
+    pcall(function() _bcHookOn = false; Instance.new = _bcRealNew end)
+end)
+
+task.defer(function()
+    task.wait(0.4)
+    local hub = nil
+    pcall(function()
+        local hubGui = (gethui and gethui()) or game:GetService("Players").LocalPlayer:FindFirstChildOfClass("PlayerGui")
+        hub = hubGui and hubGui:FindFirstChild("ExMenu") and hubGui.ExMenu:FindFirstChildWhichIsA("Frame")
+        if not hub then
+            local pg = game:GetService("Players").LocalPlayer:FindFirstChildOfClass("PlayerGui")
+            hub = pg and pg:FindFirstChild("ExMenu") and pg.ExMenu:FindFirstChildWhichIsA("Frame")
+        end
+    end)
+    for _, g in ipairs(_bcMine) do
+        pcall(function()
+            if not g or not g.Parent then return end
+            local root = g:FindFirstChildWhichIsA("Frame")
+                or g:FindFirstChildWhichIsA("ScrollingFrame")
+                or g:FindFirstChildWhichIsA("GuiObject")
+            if not root then return end
+            -- chỉ can chỉnh khi GUI dùng kích thước hard-code (offset). GUI đã dùng Scale
+            -- (1,0,1,0) thì tự theo màn hình rồi, nhân UIScale lên nữa là TRÀN ra ngoài.
+            if root.Size and (root.Size.X.Scale ~= 0 or root.Size.Y.Scale ~= 0) then return end
+            local us = root:FindFirstChild("BananaCatFitScale")
+            if not us then
+                us = _bcRealNew("UIScale")
+                us.Name = "BananaCatFitScale"
+                us.Parent = root
+            end
+            if hub then
+                local function _bcSync()
+                    us.Scale = math.clamp(hub.AbsoluteSize.X / 540, 0.8, 1.6)
+                end
+                _bcSync()
+                hub:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+                    pcall(_bcSync)
+                end)
+            end
+        end)
+    end
+end)
+]]
+
+    local saveName = "AutoSize_"..os.date("%H%M%S")
+    local bn = saveName
+    local cnt = 1
+    while true do
+        local ex = false
+        for _, s in ipairs(scripts) do
+            if s.name == saveName then ex = true; break end
+        end
+        if not ex then break end
+        cnt += 1
+        saveName = bn.." ("..cnt..")"
+    end
+
+    table.insert(scripts, {name = saveName, code = wrappedCode, expanded = false})
+    if RebuildScripts then RebuildScripts() end
+    Store.saveSoon()
+
+    -- v4.4b: KHÔNG ghi đè ô code nữa (bản cũ làm MẤT code gốc của bạn trong tab).
+    createStatus.Text = "✅ Đã lưu bản tự co giãn vào tab 'Code Đã Lưu': "..saveName..
+        " · để tab tính năng co giãn theo menu thì KHÔNG cần bản này, hub tự làm khi bấm ▶ Chạy Script."
+end)
+
+-- Nút "cứu nguy": trả mọi GUI hub đang mượn về game + nhả focus + trả chuột về mặc định.
+-- Dùng khi bấm ▶ Chạy Script xong mà không quay chuột/bắn được (do CHÍNH script bạn dán chiếm,
+-- không phải do hub) — hub không can thiệp ngược lại script đó, chỉ trả input về cho game.
+fixMouseBtn.Activated:Connect(function()
+    local done = {}
+    ReleaseHubFocus()
+    done[#done+1] = "nhả focus"
+    local restored = 0
+    for _, ft in ipairs(featureTabs) do
+        local hostFrame = ft.frame and ft.frame:FindFirstChild("ScriptHost")
+        if hostFrame then restored = restored + S.ClearEmbedsUnder(hostFrame) end
+    end
+    if restored > 0 then done[#done+1] = "đã trả " .. restored .. " GUI về game" end
+    -- đồng bộ lại host với trạng thái Enabled thật của GUI (phòng khi lệch sau khi script toggle)
+    for _, e in ipairs(S.embeds) do
+        pcall(function() e.host.Visible = e.gui.Enabled end)
+    end
+    pcall(function() UserInputService.MouseBehavior = Enum.MouseBehavior.Default end)
+    done[#done+1] = "chuột về mặc định"
+    createStatus.Text = "🖱 " .. table.concat(done, " · ")
+        .. " — vẫn không được? 🧩 TẮT nhúng rồi bấm ▶ lại (lúc đó hub không đụng GUI nào)"
+end)
+
+copyTemplateBtn.Activated:Connect(function()
+    ReleaseHubFocus()
+    local nm = (featureNameIn.Text or ""):gsub('[\r	"]', " "):gsub("^%s+", ""):gsub("%s+$", "")
+    if #nm == 0 then nm = "Tính Năng Mới" end
+    local ic = (featureIconIn.Text or ""):gsub('[\r	"]', " ")
+    if #ic == 0 then ic = "⚙️" end
+    local stamp
+    pcall(function() stamp = os.date("sinh %H:%M %d/%m/%Y") end)
+    local code = S.FeatureTemplate(nm, ic, stamp)
+
+    -- copy ra clipboard: executor nào cũng có 1 trong 3 hàm này
+    local copied = false
+    for _, fname in ipairs({"setclipboard", "toclipboard", "set_clipboard"}) do
+        if not copied then
+            local f = _G[fname]
+            if type(f) == "function" then copied = (pcall(f, code)) end
+        end
+    end
+    -- điền vào ô code CHỈ KHI đang trống -> không bao giờ làm mất code bạn đang soạn
+    local inBox = false
+    if #featureCodeIn.Text == 0 then
+        featureCodeIn.Text = code
+        inBox = true
+    end
+    -- lưu 1 bản vào "Code Đã Lưu" để thoát game vào lại vẫn còn
+    local saveName = "Mẫu " .. nm
+    local baseName = saveName
+    local cnt = 1
+    while true do
+        local exists = false
+        for _, sc in ipairs(scripts) do
+            if sc.name == saveName then exists = true break end
+        end
+        if not exists then break end
+        cnt = cnt + 1
+        saveName = baseName .. " (" .. cnt .. ")"
+    end
+    table.insert(scripts, {name = saveName, code = code, expanded = false})
+    if RebuildScripts then RebuildScripts() end
+    Store.saveSoon()
+
+    createStatus.Text = (copied and ("📋 ĐÃ COPY " .. #code .. " ký tự vào clipboard")
+        or ("⚠️ Executor không có setclipboard — lấy code ở tab 'Code Đã Lưu'"))
+        .. " · đã lưu '" .. saveName .. "'"
+        .. (inBox and " · đã điền vào ô code" or " · ô code giữ nguyên code của bạn")
+        .. " · gửi NGUYÊN đoạn code đó cho AI/người viết script, dán lại rồi bấm ▶ Chạy Script."
+    local oldLabel = copyTemplateBtn.Text
+    copyTemplateBtn.Text = "✅ Đã copy code mẫu cho: " .. nm
+    task.delay(2.6, function()
+        if copyTemplateBtn and copyTemplateBtn.Parent then copyTemplateBtn.Text = oldLabel end
+    end)
+    print("[BananaCatHub] 📋 Code mẫu '" .. nm .. "' (" .. #code .. " ký tự) — clipboard: "
+        .. tostring(copied))
+end)
+
+Label(createFeatureTab, "━━━━━━━━━━━━━━━━━━━━━━", cy)
+cy = cy + 16
+Label(createFeatureTab, "📋 Danh Sách Tab Tính Năng Đã Tạo:", cy)
+cy = cy + 16
+
+local featureListFrame = New("Frame", {
+    Size=UDim2.new(1,-16,0,0), Position=UDim2.new(0,8,0,cy),
+    BackgroundTransparency=1, BorderSizePixel=0, ZIndex=6,
+}, createFeatureTab)
+New("UIListLayout", {SortOrder=Enum.SortOrder.LayoutOrder, Padding=UDim.new(0,4)}, featureListFrame)
+
+local function RebuildFeatureList()
+    for _, c in ipairs(featureListFrame:GetChildren()) do
+        if not c:IsA("UIListLayout") then c:Destroy() end
+    end
+
+    if #featureTabs == 0 then
+        New("TextLabel", {
+            Size=UDim2.new(1,0,0,30),
+            Text="📭 Chưa có tab tính năng nào.",
+            BackgroundTransparency=1, TextColor3=C.GRAY, Font=Enum.Font.GothamMedium, TextSize=10,
+            TextXAlignment=Enum.TextXAlignment.Center, TextYAlignment=Enum.TextYAlignment.Center, ZIndex=7,
+        }, featureListFrame)
+        createFeatureTab.CanvasSize = UDim2.new(0, 0, 0, cy + 50)
+        return
+    end
+
+    local totalH = 0
+    for i, ft in ipairs(featureTabs) do
+        local row = New("Frame", {
+            Size=UDim2.new(1,0,0,32), BackgroundColor3=Color3.fromRGB(255,255,255),
+            BackgroundTransparency=0.1, BorderSizePixel=0, ZIndex=6,
+        }, featureListFrame)
+        Corner(row, UDim.new(0,5)); Stroke(row)
+
+        New("TextLabel", {
+            Size=UDim2.new(1,-90,1,0), Position=UDim2.new(0,8,0,0),
+            Text=ft.icon.." "..ft.name, BackgroundTransparency=1, TextColor3=C.DARK,
+            Font=Enum.Font.GothamBold, TextSize=10, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7,
+        }, row)
+
+        local goBtn = New("TextButton", {
+            Size=UDim2.new(0,50,0,22), Position=UDim2.new(1,-78,0,5),
+            Text="➡ Mở", BackgroundColor3=C.BLUE, BackgroundTransparency=0.1,
+            TextColor3=C.WHITE, Font=Enum.Font.GothamBold, TextSize=9, BorderSizePixel=0, ZIndex=8,
+        }, row)
+        Corner(goBtn, UDim.new(0,4))
+        goBtn.Activated:Connect(function()
+            for i, b in ipairs(tabs) do
+                if b == ft.btn then SwitchTab(i); break end
+            end
+        end)
+
+        local delBtn = New("TextButton", {
+            Size=UDim2.new(0,24,0,22), Position=UDim2.new(1,-26,0,5),
+            Text="🗑", BackgroundColor3=C.RED, BackgroundTransparency=0.1,
+            TextColor3=C.WHITE, Font=Enum.Font.GothamBold, TextSize=10, BorderSizePixel=0, ZIndex=8,
+        }, row)
+        Corner(delBtn, UDim.new(0,4))
+        delBtn.Activated:Connect(function()
+            local idx = nil
+            for j, t in ipairs(tabs) do
+                if t == ft.btn then idx = j; break end
+            end
+            if idx then
+                if activeTab == ft.frame then SwitchTab(1) end
+                -- v4.4b: trả GUI của script về ScreenGui gốc TRƯỚC khi xóa frame, nếu không
+                -- GUI đó mất cha là biến mất hẳn khỏi game (bản cũ để nguyên như vậy).
+                local hostFrame = ft.frame and ft.frame:FindFirstChild("ScriptHost")
+                if hostFrame then S.ClearEmbedsUnder(hostFrame) end
+                ft.btn:Destroy()
+                ft.frame:Destroy()
+                table.remove(tabs, idx)
+                table.remove(tabContent, idx)
+                table.remove(featureTabs, i)
+                for j, t in ipairs(tabs) do
+                    t.LayoutOrder = j
+                end
+                for j, ft2 in ipairs(featureTabs) do
+                    for k, t in ipairs(tabs) do
+                        if t == ft2.btn then ft2.tabIdx = k; break end
+                    end
+                end
+                RebuildFeatureList()
+                Store.saveSoon()   -- ⭐ xóa cũng phải ghi xuống đĩa, nếu không tab sẽ "sống lại" khi rejoin
+            end
+        end)
+
+        totalH = totalH + 36
+    end
+
+    featureListFrame.Size = UDim2.new(1,-16,0,totalH)
+    createFeatureTab.CanvasSize = UDim2.new(0, 0, 0, cy + totalH + 30)
+end
+
+createTabBtn.Activated:Connect(function()
+    local n = featureNameIn.Text
+    local ic = featureIconIn.Text
+    local c = featureCodeIn.Text
+
+    if #n == 0 then
+        createStatus.Text = "⚠️ Vui lòng nhập tên tính năng!"
+        return
+    end
+    if #c == 0 then
+        createStatus.Text = "⚠️ Vui lòng dán script!"
+        return
+    end
+
+    for _, ft in ipairs(featureTabs) do
+        if ft.name == n then
+            createStatus.Text = "⚠️ Tên tính năng đã tồn tại!"
+            return
+        end
+    end
+
+    CreateFeatureTab(n, ic, c)
+    RebuildFeatureList()
+    Store.saveSoon()   -- ⭐ lưu ngay vào file để thoát game vào lại vẫn còn tab này
+
+    createStatus.Text = "✅ Đã tạo tab: "..n.." (đã lưu)"
+    featureNameIn.Text = ""
+    featureIconIn.Text = "⚙️"
+    featureCodeIn.Text = ""
+
+    SwitchTab(#tabs)
+end)
+
+clearFormBtn.Activated:Connect(function()
+    featureNameIn.Text = ""
+    featureIconIn.Text = "⚙️"
+    featureCodeIn.Text = ""
+    createStatus.Text = "🧹 Đã xóa form"
+end)
+
+RebuildFeatureList()
+-- v4.4d: CanvasSize của tab này đang 0 -> không cuộn được, các dòng dưới bị cắt mất.
+pcall(function()
+    createFeatureTab.CanvasSize = UDim2.new(0, 0, 0, cy + 40)
+end)
+
+-- ===== KHÔI PHỤC CÁC TAB TÍNH NĂNG ĐÃ LƯU =====
+-- v4.4a: `featureTabs` trước đây KHÔNG được ghi xuống đĩa, nên tab tính năng bạn tạo
+-- biến mất sau khi thoát game. Cách "cứu" duy nhất là nút chép sang tab Code — khiến
+-- tính năng bị lưu nhầm chỗ (đúng như phản ánh). Giờ tab tính năng được lưu đúng chỗ của nó.
+--
+-- Không dựng tab ngay trong Store.load() vì CreateFeatureTab() mãi tới đây mới tồn tại.
+Store.restoreFeatures = function()
+    -- dỡ toàn bộ tab tính năng hiện có (duyệt ngược để index không bị lệch)
+    for i = #featureTabs, 1, -1 do
+        local ft = featureTabs[i]
+        for j, b in ipairs(tabs) do
+            if b == ft.btn then
+                table.remove(tabs, j)
+                table.remove(tabContent, j)
+                break
+            end
+        end
+        if activeTab == ft.frame then SwitchTab(1) end
+        pcall(function() ft.btn:Destroy() end)
+        pcall(function() ft.frame:Destroy() end)
+        table.remove(featureTabs, i)
+    end
+
+    -- dựng lại từ dữ liệu đọc được trên đĩa
+    for _, f in ipairs(Store.loadedFeatures) do
+        CreateFeatureTab(f.name, f.icon, f.code)
+    end
+
+    for j, t in ipairs(tabs) do t.LayoutOrder = j end
+    tabBar.CanvasSize = UDim2.new(0, 0, 0, #tabs * 34 + 10)
+    RebuildFeatureList()
+    -- phai goi lai: nhãn trạng thái ở TAB2 đã được dựng từ TRƯỚC khi các tab tính năng
+    -- được khôi phục, nên số "N tab" trên đó vẫn là 0 nếu không làm mới lại ở đây.
+    if Store.refreshStatus then Store.refreshStatus() end
+end
+
+if #Store.loadedFeatures > 0 then
+    Store.restoreFeatures()
+    createStatus.Text = string.format("💾 Đã khôi phục %d tab tính năng từ bộ nhớ", #Store.loadedFeatures)
+end
+
+-- ==================== TOGGLE MENU & DRAG ====================
+local function ToggleMainFrame()
+    main.Visible = not main.Visible
+    togBtn.Text = main.Visible and "✕" or "🍌"
+    if not main.Visible then ReleaseHubFocus() end   -- v4.4b: đóng menu là phải trả input cho game
+end
+
+closeBtn.Activated:Connect(function()
+    main.Visible = false
+    togBtn.Text = "🍌"
+end)
+
+dragLockBtn.Activated:Connect(function()
+    S.dragMenu = not S.dragMenu
+    if S.dragMenu then
+        dragLockBtn.Text = "🔓"
+        dragLockBtn.TextColor3 = C.BLUE
+    else
+        dragLockBtn.Text = "🔒"
+        dragLockBtn.TextColor3 = Color3.fromRGB(120,120,130)
+    end
+end)
+
+trackConn(titleBar.InputBegan:Connect(function(i)
+    if S.dragMenu and (i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch) then
+        S.dragging=true
+        S.dragStart=i.Position
+        S.startPos=main.Position
+    end
+end))
+
+trackConn(UserInputService.InputChanged:Connect(function(i)
+    if S.dragging and S.startPos and S.dragStart and (i.UserInputType==Enum.UserInputType.MouseMovement or i.UserInputType==Enum.UserInputType.Touch) then
+        local d=i.Position-S.dragStart
+        main.Position=UDim2.new(S.startPos.X.Scale, S.startPos.X.Offset+d.X, S.startPos.Y.Scale, S.startPos.Y.Offset+d.Y)
+    end
+end))
+
+trackConn(UserInputService.InputEnded:Connect(function(i)
+    if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then
+        S.dragging=false
+    end
+end))
+
+trackConn(togBtn.InputBegan:Connect(function(i)
+    if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+        if S.dragMenu then
+            S.togDragging = true
+            S.togDragStart = i.Position
+            S.togStartPos = togBtn.Position
+            S.togMoved = false
+        end
+    end
+end))
+
+trackConn(UserInputService.InputChanged:Connect(function(i)
+    if S.togDragging and S.dragMenu and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
+        local delta = i.Position - S.togDragStart
+        if delta.Magnitude > 5 then
+            S.togMoved = true
+        end
+        if S.togMoved then
+            togBtn.Position = UDim2.new(
+                S.togStartPos.X.Scale, S.togStartPos.X.Offset + delta.X,
+                S.togStartPos.Y.Scale, S.togStartPos.Y.Offset + delta.Y
+            )
+        end
+    end
+end))
+
+trackConn(UserInputService.InputEnded:Connect(function(i)
+    if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+        if S.togDragging then
+            S.togDragging = false
+            if not S.togMoved then
+                ToggleMainFrame()
+            end
+        end
+    end
+end))
+
+togBtn.Activated:Connect(function()
+    if not S.dragMenu then
+        ToggleMainFrame()
+    end
+end)
+
+trackConn(UserInputService.InputBegan:Connect(function(i, gp)
+    if not gp and i.KeyCode == Enum.KeyCode.RightControl then
+        ToggleMainFrame()
+    end
+end))
+
+main.Visible = true
+togBtn.Text = "✕"
+
+print(string.format(
+    "✅ Banana Cat Hub v4.4d — sẵn sàng! Đã nạp lại %d script + %d waypoint + %d tab tính năng từ bộ nhớ (chế độ: %s%s)",
+    Store.loadedScripts, Store.loadedWp, #Store.loadedFeatures, Store.mode,
+    Store.lastError and (" | ⚠️ " .. Store.lastError) or ""
+))
+print("   💾 File lưu: " .. Store.SAVE_FILE .. " (trong thư mục workspace của executor — sống qua cả lần rejoin)")
+print("   Tính năng: Code + Code Đã Lưu + Hỗ Trợ (POS+SIZE+ROT+LOOK+VẬT THỂ+HIGHLIGHT TÍM) + AI AI + Tạo Tính Năng")
