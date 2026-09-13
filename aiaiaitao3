@@ -1,5 +1,18 @@
 --[[
-    🍌 Banana Cat Hub v4.4b — FULL CODE
+    🍌 Banana Cat Hub v4.4c — FULL CODE
+    + SỬA: ⭐ ẨN MENU RỒI BẤM BẬT LẠI MÀ KHÔNG THẤY MENU ĐÂU — 3 nguyên nhân:
+           (1) ScreenGui của hub có DisplayOrder mặc định = 0. Script bạn chạy tạo
+               ScreenGui MỚI trong CoreGui -> sinh ra SAU ExMenu -> VẼ ĐÈ LÊN hub,
+               che mất khung menu và nút 🍌. => Đặt DisplayOrder = 100 và thêm hàm
+               RaiseHub() tự soi mọi ScreenGui anh-em rồi đẩy hub lên trên cái cao nhất
+               (gọi lúc khởi động, mỗi lần bấm 🍌, và sau mỗi lần nhúng GUI).
+           (2) Menu bị kéo lê (nút 🔓) ra HẲN NGOÀI màn hình -> Visible = true nhưng
+               không thấy gì. => Mỗi lần hiện menu thì kẹp Position về trong khung nhìn.
+           (3) Nút 🍌 có 2 đường kích hoạt (InputEnded + Activated); khi cờ kéo-thả
+               S.togDragging còn sót thì MỘT cú bấm bị toggle HAI lần -> Visible đổi
+               2 lần rồi trở về y như cũ -> "bấm hiện mà menu không hiện".
+               => Thêm debounce 0,1s trong ToggleMainFrame() và xoá sạch cờ kéo-thả
+                  mỗi lần bật/tắt 🔒.
     + SỬA: BẤM "▶ CHẠY SCRIPT" TRONG TAB TÍNH NĂNG BỊ "LỖI"/TREO — nguyên nhân: script
            được gọi ĐỒNG BỘ ngay trong handler của nút bấm, mà script dạng Auto Farm /
            Fly / Speed gần như luôn kết thúc bằng `while true do task.wait() end`
@@ -14,8 +27,11 @@
            panel / nút chồng hết lên nhau ở góc trên-trái. Giờ mặc định chỉ dãn cấp
            ROOT, giữ nguyên layout gốc. Cần hành vi cũ thì bật "📐 Dãn sâu GUI nhúng".
     + SỬA: Quét GUI mới có thể "bắt cóc" nhầm HUD/chat/backpack của chính trò chơi
-           (cửa sổ quét 2,4s và không loại trừ UI core). Giờ cửa sổ còn tối đa 1s,
-           dừng ngay khi thấy GUI, và bỏ qua danh sách GUI core của Roblox.
+           (cửa sổ quét 2,4s và không loại trừ UI core). Giờ quét dày 0,05s và DỪNG NGAY
+           khi thấy GUI (nên script bình thường chỉ mất vài chục ms), trần 6s để bắt được
+           GUI mà script tạo MUỘN — mấy cái đó nếu lọt lưới sẽ nằm trôi nổi trong CoreGui
+           và vẽ đè lên hub. Kèm danh sách CORE_GUI_SKIP bỏ qua UI core của Roblox.
+           Quá 1,5s chưa thấy GUI thì nhả khoá để còn bấm lại được, vòng quét vẫn chạy nền.
     + SỬA: Bấm liên tục "▶ Chạy Script" chạy chồng nhiều bản script cùng lúc (thêm khoá).
     + SỬA: _G.BananaCatHub_EmbedHosts phình vô hạn theo số lần bấm Chạy (dọn host đã chết).
     + SỬA: Chữ ở nhãn status tràn đè lên nút ✕ (thêm TextTruncate).
@@ -122,7 +138,35 @@ local gui = New("ScreenGui", {
     IgnoreGuiInset=true,
     ResetOnSpawn=false,
     ZIndexBehavior=Enum.ZIndexBehavior.Sibling,
+    -- ⭐ HUB PHẢI LUÔN NẰM TRÊN GUI CỦA SCRIPT.
+    -- ScreenGui mặc định DisplayOrder = 0. Script bạn chạy (đặc biệt là script trong tab
+    -- "Tạo Tính Năng") thường Instance.new("ScreenGui") thẳng vào CoreGui -> nó SINH RA SAU
+    -- ExMenu nên được VẼ ĐÈ LÊN ExMenu, che mất nút 🍌 ở góc dưới-phải.
+    -- Kết quả: bấm ẩn được, nhưng bấm hiện thì menu nằm DƯỚI lớp GUI kia => "không thấy menu".
+    -- DisplayOrder cao = hub luôn vẽ trên cùng, bất kể script tạo bao nhiêu ScreenGui.
+    DisplayOrder=100,
+    ZIndex=100,
 }, targetGui)
+
+-- ĐẨY HUB LÊN TRÊN CÙNG. DisplayOrder=100 là đủ với đa số script, nhưng có script
+-- đặt DisplayOrder cho ScreenGui của nó cao hơn -> hub lại bị che. Hàm này soi tất cả
+-- ScreenGui anh-em trong cùng parent và đặt hub cao hơn cái cao nhất.
+-- Được gọi: lúc khởi động, mỗi lần bấm 🍌 hiện menu, và sau mỗi lần nhúng GUI.
+local function RaiseHub()
+    pcall(function()
+        local par = gui.Parent
+        if not par then return end
+        local top = 0
+        for _, g in ipairs(par:GetChildren()) do
+            if g ~= gui and g:IsA("ScreenGui") then
+                local d = tonumber(g.DisplayOrder)
+                if d and d > top then top = d end
+            end
+        end
+        gui.DisplayOrder = math.max(100, top + 1)
+    end)
+end
+RaiseHub()
 
 local togBtn = New("TextButton", {
     Size=UDim2.new(0,48,0,48),
@@ -214,7 +258,7 @@ Corner(titleBar, UDim.new(0,10))
 New("TextLabel", {
     Size=UDim2.new(1,-90,1,0),
     Position=UDim2.new(0,12,0,0),
-    Text="🍌 Banana Cat Executor Hub v4.4b",
+    Text="🍌 Banana Cat Executor Hub v4.4c",
     BackgroundTransparency=1,
     TextColor3=C.DARK,
     Font=Enum.Font.GothamBold,
@@ -434,6 +478,7 @@ local S = {
     togDragStart = nil,
     togStartPos  = nil,
     togMoved     = false,
+    lastToggle   = nil,      -- mốc thời gian lần toggle cuối (chống 1 cú bấm toggle 2 lần)
 }
 
 local scripts = {}
@@ -2827,7 +2872,10 @@ local function RunFeatureScript(code, name, containerFrame, indicator, statusLab
         if statusLabel then statusLabel.Text = text end
         if indicator and color then indicator.BackgroundColor3 = color end
     end
+    local doneCalled = false
     local function finish()
+        if doneCalled then return end
+        doneCalled = true
         if onDone then pcall(onDone) end
     end
 
@@ -2890,15 +2938,26 @@ local function RunFeatureScript(code, name, containerFrame, indicator, statusLab
     -- ===== 4) QUÉT + NHÚNG GUI, CHẠY SONG SONG VỚI SCRIPT =====
     task.spawn(function()
         local newGuis = {}
-        -- Cửa sổ rút từ 12 x 0.2s (2,4s) xuống tối đa 20 x 0.05s (1s): cửa sổ càng dài
-        -- thì càng dễ "bắt cóc" nhầm GUI mà chính trò chơi vừa dựng trong lúc đó.
-        for i = 1, 20 do
+        -- Quét dày (0.05s) và DỪNG NGAY khi thấy GUI, nên với script bình thường cửa sổ
+        -- thực tế chỉ vài chục ms. Trần 6s là để bắt được GUI mà script tạo MUỘN
+        -- (sau task.wait / sau HttpGet / trong callback) — mấy cái đó nếu không bắt được
+        -- sẽ nằm trôi nổi trong CoreGui và vẽ đè lên hub.
+        -- Việc loại trừ UI của chính trò chơi do CORE_GUI_SKIP đảm nhiệm.
+        local guardReleased = false
+        for i = 1, 120 do
             task.wait(0.05)
             local found = ScanNewGuis(beforeGuis)
             for _, g in ipairs(found) do table.insert(newGuis, g) end
             if #newGuis > 0 or scriptErr then break end
             -- script đã return: nán thêm ~0.2s cho kịp GUI do task.spawn bên trong tạo
             if scriptDone and i >= 4 then break end
+            -- Quá ~1,5s mà chưa thấy GUI thì NHẢ KHOÁ để người dùng còn bấm lại được;
+            -- vòng quét vẫn chạy tiếp ở nền cho tới trần 6s.
+            if not guardReleased and i >= 30 then
+                guardReleased = true
+                setStatus("🟢 Đang chạy nền, vẫn quét GUI...", C.GREEN)
+                finish()
+            end
         end
 
         for _, g in ipairs(newGuis) do
@@ -2934,6 +2993,7 @@ local function RunFeatureScript(code, name, containerFrame, indicator, statusLab
                     _G.BananaCatHub_EmbedHosts = {}
                 end
                 table.insert(_G.BananaCatHub_EmbedHosts, host)
+                RaiseHub()   -- ScreenGui mới vừa xuất hiện: đẩy hub lên lại trên cùng
             elseif g:IsA("GuiObject") then
                 pcall(function()
                     g.Parent = containerFrame
@@ -3631,8 +3691,55 @@ end
 
 -- ==================== TOGGLE MENU & DRAG ====================
 local function ToggleMainFrame()
-    main.Visible = not main.Visible
-    togBtn.Text = main.Visible and "✕" or "🍌"
+    -- (a) CHỐNG BẤM 1 LẦN MÀ TOGGLE 2 LẦN. Nút 🍌 có tới 2 đường kích hoạt:
+    --     UserInputService.InputEnded (khi đang bật kéo-thả) và togBtn.Activated.
+    --     Nếu cờ S.togDragging còn sót từ lần kéo trước thì CẢ HAI cùng chạy
+    --     -> Visible đổi 2 lần -> trở về y như cũ -> "bấm hiện mà menu không hiện".
+    local now = tick()
+    if S.lastToggle and (now - S.lastToggle) < 0.1 then return end
+    S.lastToggle = now
+
+    local show = not main.Visible
+    main.Visible = show
+    togBtn.Text = show and "✕" or "🍌"
+    -- Hiện menu thì đẩy hub lên trên cùng: nếu có ScreenGui của script đang phủ lên
+    -- nút 🍌 / khung menu thì cú bấm này dẹp nó xuống dưới.
+    if show then RaiseHub() end
+
+    -- (b) KÉO MENU VỀ TRONG TẦM NHÌN. Menu có thể bị kéo lê (nút 🔓) ra hẳn ngoài
+    --     màn hình, hoặc bị script lạ ghi đè Position. Lúc đó Visible = true nhưng
+    --     người dùng KHÔNG THẤY GÌ CẢ. Phải set Visible trước rồi mới đo Absolute*,
+    --     vì khung đang ẩn thì số đo có thể chưa cập nhật.
+    if show then
+        local okVp, vp = pcall(function() return camera.ViewportSize end)
+        local vpX = (okVp and vp and vp.X) or 0
+        local vpY = (okVp and vp and vp.Y) or 0
+        if vpX < 200 or vpY < 200 then vpX, vpY = 1280, 720 end
+
+        local sz = main.AbsoluteSize
+        local w = (sz and sz.X) or 0
+        local h = (sz and sz.Y) or 0
+        if w < 40 then w = math.max(main.Size.X.Offset, 440) end
+        if h < 40 then h = math.max(main.Size.Y.Offset, 260) end
+
+        local ap = main.AbsolutePosition
+        local px = (ap and ap.X) or 0
+        local py = (ap and ap.Y) or 0
+
+        -- Chỉ dời khi menu thật sự trôi ra ngoài (chừa 60px để còn nắm được titlebar)
+        local nx, ny = px, py
+        if px + w < 60 then nx = vpX - w - 20 end
+        if px > vpX - 60 then nx = 20 end
+        if py + h < 60 then ny = vpY - h - 20 end
+        if py > vpY - 60 then ny = 20 end
+
+        if nx ~= px or ny ~= py then
+            main.Position = UDim2.new(
+                0, math.clamp(math.floor(nx), 0, math.max(0, math.floor(vpX - w))),
+                0, math.clamp(math.floor(ny), 0, math.max(0, math.floor(vpY - h)))
+            )
+        end
+    end
 end
 
 closeBtn.Activated:Connect(function()
@@ -3642,6 +3749,9 @@ end)
 
 dragLockBtn.Activated:Connect(function()
     S.dragMenu = not S.dragMenu
+    -- Xoá sạch cờ kéo-thả cũ. Để sót S.togDragging = true thì một cú bấm 🍌 sẽ bị
+    -- toggle hai lần (InputEnded + Activated) => menu không hiện lên.
+    S.dragging, S.togDragging, S.togMoved = false, false, false
     if S.dragMenu then
         dragLockBtn.Text = "🔓"
         dragLockBtn.TextColor3 = C.BLUE
@@ -3702,7 +3812,9 @@ trackConn(UserInputService.InputEnded:Connect(function(i)
     if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
         if S.togDragging then
             S.togDragging = false
-            if not S.togMoved then
+            local moved = S.togMoved
+            S.togMoved = false   -- phải reset, không thì cú bấm thường kế tiếp bị coi là "kéo"
+            if not moved then
                 ToggleMainFrame()
             end
         end
@@ -3725,7 +3837,7 @@ main.Visible = true
 togBtn.Text = "✕"
 
 print(string.format(
-    "✅ Banana Cat Hub v4.4b — sẵn sàng! Đã nạp lại %d script + %d waypoint + %d tab tính năng từ bộ nhớ (chế độ: %s%s)",
+    "✅ Banana Cat Hub v4.4c — sẵn sàng! Đã nạp lại %d script + %d waypoint + %d tab tính năng từ bộ nhớ (chế độ: %s%s)",
     Store.loadedScripts, Store.loadedWp, #Store.loadedFeatures, Store.mode,
     Store.lastError and (" | ⚠️ " .. Store.lastError) or ""
 ))
