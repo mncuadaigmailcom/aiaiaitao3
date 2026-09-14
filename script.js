@@ -1,5 +1,5 @@
 --[[
-    🍌 Banana Cat Hub v4.7 — FULL CODE  ·  giao diện "MIDNIGHT GOLD" + layout kiểu DELTA
+    🍌 Banana Cat Hub v4.8 — FULL CODE  ·  giao diện "MIDNIGHT GOLD" + layout kiểu DELTA
     + v4.6 (bản này): MENU GIỐNG DELTA — chỉ đổi CÁCH BỐ TRÍ, không bỏ tính năng nào:
         • Thanh tab chuyển từ PHẢI (chữ, rộng 105px) sang TRÁI (chỉ icon, rộng 56px) như Delta;
           tab đang mở có vạch accent 3px. Rê chuột vào một icon -> header hiện tên trang đó (chữ
@@ -62,8 +62,26 @@
               trang 💾, hoặc "🪟 ngoài MH" / "🧩 vào tab" khi GUI nằm chỗ khác (kèm tên GUI).
             - 🪟 SCRIPT TẢI TỪ MẠNG (loadstring + http) = menu của tác giả -> GIỮ NGOÀI màn hình,
               không "đậu" vào tab 🧩 GUI Ngoài. Code tự viết vẫn đậu như cũ, 🪟 vẫn bật/tắt được.
-        • 71 kiểm thử tự động PASS (43 cho v4.7 "bấm ▶ là chạy" · 15 park/noPark · 13 nhúng GUI
-          vào tab). Bộ test nằm ở /home/user/luachk (NGOÀI repo, không làm bẩn git):
+        • v4.8 — 🛠 Hỗ Trợ: PHÂN TÍCH VẬT THỂ chạy được cả 📱 ĐIỆN THOẠI lẫn 🖥 MÁY TÍNH,
+          và tự chữa cho mấy game trước đây "không dùng được":
+            - 📱/🖥 tự nhận diện thiết bị (TouchEnabled/MouseEnabled) và nói rõ cách chọn vật:
+              🖥 chuột PHẢI · 📱 GIỮ NGÓN 0.40s (ngưỡng xê dịch nới 12px -> 18px cho dễ giữ).
+            - ⊕ Nút "Vật thể ở GIỮA màn hình": tự ẩn menu 0.35s rồi lấy vật ở tâm — nền tảng nào
+              cũng dùng được, không cần chuột phải.
+            - 🧭 Nút "Vật thể GẦN nhất": quét 60 studs quanh nhân vật, liệt kê 5 vật gần nhất
+              kèm khoảng cách (cứu cánh cho game không cho chọn theo điểm chạm).
+            - 🛡 NỚI lớp chặn GUI (nguyên nhân số 1): trước đây HUD bán trong suốt / frame Active
+              phủ kín màn hình (joystick, vignette, fade) cũng bị coi là "GUI chặn" rồi return
+              TRONG IM LẶNG. Nay tách 2 mức: NÚT/Ô NHẬP thật (<36% màn hình) VẪN chặn để không
+              hit xuyên nút; HUD/nền thì mặc định CHO XUYÊN (có công tắc tắt để về kiểu cũ).
+            - 🧭 Quét dự phòng khi tia trượt: game đặt CanQuery=false cho hitbox thì Raycast
+              XUYÊN QUA — nay tự quét part gần tia nhất (GetPartBoundsInRadius) và vẫn ra thông tin.
+            - 🎥 luôn dùng camera HIỆN HÀNH (game tạo lại camera khi cutscene/respawn vẫn đúng),
+              🌊 xuyên qua mặt nước để lấy vật bên dưới.
+            - 🔎 Nhãn "LÝ DO" mới: mỗi lần không phân tích được đều NÓI RÕ vì sao (chạm trúng nút
+              game / HUD chặn / chưa có nhân vật / chưa có camera / tia vào khoảng không...) + gợi ý.
+        • 118 kiểm thử tự động PASS (47 cho v4.8 phân tích 📱+🖥 · 43 cho v4.7 "bấm ▶ là chạy" ·
+          15 park/noPark · 13 nhúng GUI vào tab). Bộ test nằm ở /home/user/luachk (NGOÀI repo, không làm bẩn git):
           node check.js <script.js> để soát cú pháp · node runtest.js <file.lua> để chạy test.
     + v4.5: THIẾT KẾ LẠI TOÀN BỘ GIAO DIỆN (chỉ đổi màu/chất liệu/hiệu ứng — KHÔNG đổi layout, kích
       thước, vị trí hay logic, nên MỌI TÍNH NĂNG giữ nguyên 100%):
@@ -2294,6 +2312,24 @@ local highlightToggleBtn = Button(supportTab, "💜 Highlight Tím: BẬT", 8, p
 local removeHighlightBtn = Button(supportTab, "❌ Xóa Highlight", 386, posY, 90, 26, C.RED)
 posY = posY + 32
 
+-- ---------- v4.8: PHÂN TÍCH ĐA NỀN TẢNG (📱 điện thoại + 🖥 máy tính) ----------
+-- Mọi widget mới cất vào S.AnaUi.* (không khai báo `local` mới: main chunk gần cạn 200 slot).
+S.AnaUi = S.AnaUi or {}
+S.AnaUi.devLbl = Label(supportTab, "📱/🖥 Đang nhận diện thiết bị...", posY)
+S.AnaUi.devLbl.TextSize = 9
+S.AnaUi.devLbl.TextColor3 = C.ACCENT
+posY = posY + 16
+S.AnaUi.centerBtn = Button(supportTab, "⊕ Vật thể ở GIỮA màn hình", 8, posY, 232, 26, C.BLUE)
+S.AnaUi.nearBtn   = Button(supportTab, "🧭 Vật thể GẦN nhất", 246, posY, 230, 26, C.ORANGE)
+posY = posY + 30
+S.AnaUi.skipGuiBtn = Button(supportTab, "🛡 Phân tích xuyên HUD game: BẬT", 8, posY, 300, 24, C.GREEN)
+S.AnaUi.scanFbBtn  = Button(supportTab, "🧭 Quét dự phòng: BẬT", 314, posY, 162, 24, C.GREEN)
+posY = posY + 28
+-- Nhãn "VÌ SAO": bản cũ im lặng khi không phân tích được -> người dùng tưởng tính năng hỏng
+S.AnaUi.whyLbl = Label(supportTab, "🔎 Lý do: — (bật 🎯 Phân Tích Vật Thể rồi chạm/chuột phải vào vật)", posY)
+S.AnaUi.whyLbl.TextSize = 9
+posY = posY + 16
+
 Label(supportTab, "💡 Bật rồi NHẤP CHUỘT PHẢI (lệt) vào vật thể để chọn (chuột trái vẫn bắn/đi bình thường)", posY)
 Label(supportTab, "    Click xuyên qua nút HUD/menu của game sẽ được tự động bỏ qua, không hit nhầm vật phía sau", posY+14)
 posY = posY + 30
@@ -2700,106 +2736,317 @@ local function GetFullPath(obj)
     return table.concat(parts, ".")
 end
 
+-- ============================================================================
+-- v4.8: PHÂN TÍCH VẬT THỂ ĐA NỀN TẢNG (📱 điện thoại + 🖥 máy tính)
+-- ----------------------------------------------------------------------------
+-- Vì sao trước đây "có game dùng được, có game không":
+--   1) LỚP CHẶN GUI quá gắt: game có HUD bán trong suốt / frame Active phủ kín màn hình
+--      (rất hay gặp trên mobile: joystick, vignette, fade) -> bị coi là "GUI chặn" rồi
+--      return TRONG IM LẶNG -> chạm/chuột phải mà không thấy gì.
+--   2) `camera` chụp 1 lần lúc hub khởi động: game tạo lại camera (cutscene/respawn/script
+--      first-person) thì tia bắn từ camera cũ -> sai.
+--   3) Raycast KHÔNG thấy vật có CanQuery=false (hitbox của nhiều game FPS) -> trượt.
+--   4) Mặt nước ăn tia (IgnoreWater=false) -> chỉ ra "Water".
+--   5) Không có phản hồi -> không biết vì sao game này không dùng được.
+-- Nay: tự nhận diện 📱/🖥, nới lớp chặn GUI (có công tắc), luôn dùng camera HIỆN HÀNH,
+-- thêm 🧭 lớp quét dự phòng, 🌊 xuyên nước, và NÓI RÕ LÝ DO ra nhãn 🔎 + console F9.
+-- ============================================================================
+S.AnaCfg = S.AnaCfg or {
+    skipGameGui  = true,   -- 🛡 bỏ qua HUD/nền của game khi phân tích (nguyên nhân số 1)
+    scanFallback = true,   -- 🧭 tia trượt thì quét vật gần tia (game dùng CanQuery=false)
+    ignoreWater  = true,   -- 🌊 không để mặt nước ăn tia
+    holdTime     = 0.4,    -- 📱 giữ ngón bao nhiêu giây thì = "chuột phải"
+    holdMove     = 18,     -- 📱 ngón xê dịch tối đa (px) mà vẫn tính là "giữ"
+    maxDist      = 10000,  -- tầm tia
+}
+S.AnaUi   = S.AnaUi or {}
+S.AnaLast = S.AnaLast or {ok = false, why = nil, name = nil, how = nil}
+S.AnaNote = nil
+S.AnaWhyScan = nil
+
+-- camera HIỆN HÀNH (game tạo lại camera thì vẫn đúng)
+function S.AnaCam()
+    local cam = workspace.CurrentCamera
+    if not cam then pcall(function() cam = camera end) end
+    return cam
+end
+
+-- ghi LÝ DO ra nhãn 🔎 + console (không bao giờ im lặng nữa)
+function S.AnaSay(msg)
+    S.AnaLast.why = tostring(msg or "")
+    pcall(function()
+        local l = S.AnaUi.whyLbl
+        if l and l.Parent then l.Text = "🔎 " .. tostring(msg) end
+    end)
+    pcall(function() print("[BananaCatHub] 🔎 " .. tostring(msg)) end)
+end
+
+-- tự nhận diện 📱 / 🖥 và nói rõ trên máy NÀY chọn vật bằng cách nào
+function S.DeviceText()
+    local touch, mouse = false, false
+    pcall(function() touch = (UserInputService.TouchEnabled == true) end)
+    pcall(function() mouse = (UserInputService.MouseEnabled == true) end)
+    local hold = string.format("%.2f", S.AnaCfg.holdTime)
+    if touch and mouse then
+        return "🖥📱 Máy có cảm ứng: CHUỘT PHẢI hoặc GIỮ NGÓN " .. hold .. "s lên vật · hoặc bấm ⊕ Giữa màn hình"
+    elseif touch then
+        return "📱 Điện thoại: GIỮ NGÓN " .. hold .. "s lên vật (chạm nhanh vẫn đi/bắn bình thường) · hoặc ⊕ Giữa màn hình"
+    elseif mouse then
+        return "🖥 Máy tính: CHUỘT PHẢI vào vật (chuột trái vẫn chơi bình thường) · hoặc ⊕ Giữa màn hình"
+    end
+    return "🎮 Chưa rõ thiết bị: dùng ⊕ Giữa màn hình hoặc 🧭 Gần nhất — nền tảng nào cũng chạy"
+end
+
+function S.RefreshDevLabel()
+    pcall(function()
+        local l = S.AnaUi.devLbl
+        if l and l.Parent then l.Text = S.DeviceText() end
+    end)
+end
+
+-- LỚP 1 (mới): GUI nào đang nằm dưới điểm chạm?
+--   hard = NÚT/Ô NHẬP thật của game, bé hơn 36% màn hình -> VẪN CHẶN (không hit xuyên nút)
+--   soft = HUD/nền bán trong suốt/frame Active phủ rộng -> mặc định CHO PHÉP xuyên (công tắc 🛡)
+function S.GuiBlockAt(x, y)
+    local hard, soft = nil, nil
+    local vpx, vpy = 1280, 720
+    pcall(function()
+        local cam2 = S.AnaCam()
+        if cam2 then vpx, vpy = cam2.ViewportSize.X, cam2.ViewportSize.Y end
+    end)
+    local bigArea = vpx * vpy * 0.36
+    local conts = {}
+    pcall(function() conts[#conts+1] = playerGui end)
+    pcall(function() conts[#conts+1] = game:GetService("CoreGui") end)
+    for _, cont in ipairs(conts) do
+        local ok, objs = pcall(function() return cont:GetGuiObjectsAtPosition(x, y) end)
+        if ok and type(objs) == "table" then
+            for _, o in ipairs(objs) do
+                local area, trans, isAct = 0, 1, false
+                pcall(function() area = o.AbsoluteSize.X * o.AbsoluteSize.Y end)
+                pcall(function() trans = o.BackgroundTransparency end)
+                pcall(function() isAct = (o.Active == true) end)
+                local interactive = (o:IsA("GuiButton") or o:IsA("TextBox"))
+                local tag = tostring(o.Name) .. " (" .. tostring(o.ClassName) .. ")"
+                if interactive and area < bigArea then
+                    hard = hard or tag
+                elseif interactive or isAct or trans < 0.5 then
+                    soft = soft or tag
+                end
+            end
+        end
+    end
+    return hard, soft
+end
+
+-- 🧭 LỚP DỰ PHÒNG: tia trượt (vật CanQuery=false / game chỉ dùng mesh) thì quét các part
+-- trong khối cầu dọc theo tia, chọn part GẦN TIA NHẤT và nằm TRƯỚC mắt.
+function S.PickByRayScan(ray, filterList)
+    local maxD = 220
+    local okOp, parts = pcall(function()
+        local op = OverlapParams.new()
+        op.FilterType = Enum.RaycastFilterType.Exclude
+        op.FilterDescendantsInstances = filterList or {}
+        op.MaxParts = 80
+        return workspace:GetPartBoundsInRadius(ray.Origin + ray.Direction * (maxD / 2), maxD / 2, op)
+    end)
+    if not okOp or type(parts) ~= "table" or #parts == 0 then
+        return nil, "không quét được vật nào quanh tia (game có thể chặn quét)"
+    end
+    local best, bestD = nil, math.huge
+    for _, pt in ipairs(parts) do
+        local okV, v = pcall(function() return pt.Position - ray.Origin end)
+        if okV and v then
+            local okT, t = pcall(function() return v:Dot(ray.Direction) end)
+            if okT and t and t > 0.5 then
+                local okD, d = pcall(function()
+                    local closest = ray.Origin + ray.Direction * t
+                    local dd = (pt.Position - closest).Magnitude
+                    local r = 0
+                    pcall(function() r = math.max(pt.Size.X, pt.Size.Y, pt.Size.Z) / 2 end)
+                    return math.max(0, dd - r)
+                end)
+                if okD and d and d < bestD then bestD, best = d, pt end
+            end
+        end
+    end
+    if not best then return nil, "quét " .. #parts .. " vật nhưng không vật nào nằm trước tia" end
+    return best, "quét dự phòng — vật này Raycast không thấy (CanQuery=false), lệch tia "
+        .. string.format("%.1f", bestD) .. "m"
+end
+
+-- 🧭 Vật thể GẦN nhân vật nhất (cứu cánh cho game không cho chọn theo điểm chạm)
+function S.NearestParts(n)
+    local char = player.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if not root then return nil, "chưa có nhân vật (đang ở lobby/menu?)" end
+    local ok, parts = pcall(function()
+        local op = OverlapParams.new()
+        op.FilterType = Enum.RaycastFilterType.Exclude
+        op.FilterDescendantsInstances = {char, gui}
+        op.MaxParts = 120
+        return workspace:GetPartBoundsInRadius(root.Position, 60, op)
+    end)
+    if not ok or type(parts) ~= "table" or #parts == 0 then
+        return nil, "không quét được vật nào trong 60 studs quanh bạn"
+    end
+    local list = {}
+    for _, pt in ipairs(parts) do
+        local okD, d = pcall(function() return (pt.Position - root.Position).Magnitude end)
+        if okD and d then list[#list+1] = {p = pt, d = d} end
+    end
+    table.sort(list, function(a, b) return a.d < b.d end)
+    local names = {}
+    for i = 1, math.min(n or 5, #list) do
+        names[#names+1] = list[i].p.Name .. " (" .. string.format("%.1f", list[i].d) .. "m)"
+    end
+    return (list[1] and list[1].p or nil), table.concat(names, " · "), #list
+end
+
+-- Hiển thị 1 vật lên bảng kết quả — DÙNG CHUNG cho chuột phải (🖥), giữ ngón (📱),
+-- ⊕ Giữa màn hình và 🧭 Gần nhất (nên cả 4 đường đều ra cùng một bảng thông tin).
+function S.FillObjPanel(inst, hitPos, hitNormal, hitMat, how)
+    if not inst then return false end
+    objResultPanel.Visible = true
+
+    objNameLbl.Text = "Name: "..inst.Name
+    objClassLbl.Text = "Class: "..inst.ClassName
+    objPosLbl.Text = string.format("Position: %.3f, %.3f, %.3f", hitPos.X, hitPos.Y, hitPos.Z)
+
+    if inst:IsA("BasePart") then
+        local size = inst.Size
+        local cf = inst.CFrame
+        local rx, ry, rz = cf:ToOrientation()
+        local look = cf.LookVector
+        local color = inst.Color
+        local material = inst.Material
+
+        objSizeLbl.Text = string.format("Size: %.3f, %.3f, %.3f", size.X, size.Y, size.Z)
+        objRotLbl.Text = string.format("Rotation: P=%.1f° Y=%.1f° R=%.1f°",
+            math.deg(rx), math.deg(ry), math.deg(rz))
+        objLookLbl.Text = string.format("Look: %.3f, %.3f, %.3f", look.X, look.Y, look.Z)
+        objMatLbl.Text = "Material: "..tostring(material):gsub("Enum.Material.", "")
+        objColorLbl.Text = string.format("Color: R=%d G=%d B=%d",
+            math.floor(color.R*255), math.floor(color.G*255), math.floor(color.B*255))
+
+        if highlightEnabled then CreateHighlight(inst) end
+    else
+        objSizeLbl.Text = "Size: N/A (không phải BasePart)"
+        objRotLbl.Text = "Rotation: N/A"
+        objLookLbl.Text = "Look: N/A"
+        objMatLbl.Text = "Material: N/A"
+        objColorLbl.Text = "Color: N/A"
+        RemoveCurrentHighlight()
+    end
+
+    objPathLbl.Text = "Path: "..GetFullPath(inst)
+    objResultPanel:SetAttribute("LastHitPos", tostring(hitPos))
+    objResultPanel:SetAttribute("LastPath", GetFullPath(inst))
+    objResultPanel:SetAttribute("LastNormal", tostring(hitNormal))
+    objResultPanel:SetAttribute("LastMaterial", tostring(hitMat))
+
+    S.AnaLast.ok = true
+    S.AnaLast.name = tostring(inst.Name)
+    S.AnaLast.how = tostring(how or "")
+    S.AnaSay(tostring(how or "🎯 tia bắn trúng") .. ": " .. inst.Name .. " (" .. inst.ClassName .. ")"
+        .. (S.AnaNote and (" · " .. S.AnaNote) or ""))
+    return true
+end
+
+S.RefreshDevLabel()   -- v4.8: hiện đúng cách chọn vật của thiết bị đang dùng
+
 -- v4.4e: tách logic chọn vật thành hàm riêng để dùng lại cho cả chuột phải và touch-hold.
 -- 3 lớp chống nhầm:
 --   1) bỏ qua nếu click trúng BẤT KỲ GUI nào (của hub, của game trong PlayerGui, của Roblox trong CoreGui)
 --   2) tăng tầm raycast lên 10000 studs + bỏ qua character của người chơi
 --   3) không tự đổi vật khi bạn click trượt: chỉ ghi nhận KHI raycast ra kết quả hợp lệ
-local function PickObjectAt(mousePos, isRightClick)
+local function PickObjectAt(mousePos, isRightClick, ignoreHubGui)
     local x, y = mousePos.X, mousePos.Y
+    S.AnaLast.ok = false
+    S.AnaNote = nil
+    S.AnaWhyScan = nil
 
-    -- LỚP 1: có GUI nào nằm dưới con trỏ thì KHÔNG raycast -> không hit nhầm vật phía sau nút game
-    local blocked = false
-    -- a) GUI của hub
-    if Hit.onHub(x, y) then
-        return   -- click phải trên hub thì bỏ qua tuyệt đối
+    -- LỚP 1 (v4.8): GUI nào nằm dưới điểm chạm? Bản cũ chặn cả HUD bán trong suốt / frame
+    -- Active phủ kín màn hình (rất hay gặp trên mobile) rồi return TRONG IM LẶNG -> người dùng
+    -- kết luận "game này không dùng được". Nay tách 2 mức:
+    --   hard (NÚT/Ô NHẬP thật, bé hơn 36% màn hình) -> VẪN CHẶN để không hit xuyên nút game
+    --   soft (HUD/nền/frame Active phủ rộng)       -> mặc định CHO PHÉP xuyên (công tắc 🛡)
+    -- và LUÔN nói rõ lý do ra nhãn 🔎 + console.
+    -- a) GUI của hub: vẫn bỏ qua tuyệt đối (trừ khi gọi từ nút ⊕ Giữa màn hình của hub)
+    if not ignoreHubGui and Hit.onHub(x, y) then
+        S.AnaSay("⏭️ Điểm chạm nằm trên menu của hub — bấm ra ngoài game rồi thử lại")
+        return
     end
-    -- b) GUI của game trong PlayerGui (joystick, nút bắn, chat, inventory...)
-    local ok, objs = pcall(function() return playerGui:GetGuiObjectsAtPosition(x, y) end)
-    if ok and type(objs) == "table" and #objs > 0 then
-        for _, o in ipairs(objs) do
-            if o:IsA("GuiButton") or o.Active then
-                blocked = true; break
-            end
-            local bgOk, bg = pcall(function() return o.BackgroundTransparency end)
-            local t = bgOk and bg or 1
-            if (o:IsA("TextBox") or o:IsA("ImageLabel") or o:IsA("TextLabel") or o:IsA("Frame"))
-               and t < 0.5 then
-                blocked = true; break
-            end
-        end
+    local hardGui, softGui = S.GuiBlockAt(x, y)
+    if hardGui then
+        S.AnaSay("🚫 Điểm chạm là NÚT của game (" .. hardGui .. ") — dời ra chỗ khác để không hit xuyên nút")
+        return
     end
-    -- c) GUI hệ thống trong CoreGui (menu Roblox, leaderboard, esc...)
-    if not blocked then
-        local coreGui = game:GetService("CoreGui")
-        local ok2, objs2 = pcall(function() return coreGui:GetGuiObjectsAtPosition(x, y) end)
-        if ok2 and type(objs2) == "table" and #objs2 > 0 then
-            for _, o in ipairs(objs2) do
-                if o:IsA("GuiButton") or o.Active then blocked = true; break end
-            end
-        end
+    if softGui and not S.AnaCfg.skipGameGui then
+        S.AnaSay("🚫 HUD của game (" .. softGui .. ") đang chặn — BẬT '🛡 Phân tích xuyên HUD game' là dùng được")
+        return
     end
-    if blocked then return end
+    if softGui then
+        S.AnaNote = "🛡 phân tích xuyên HUD của game (" .. softGui .. ")"
+    end
 
-    -- LỚP 2: raycast chính xác hơn
-    local unitRay = camera:ViewportPointToRay(x, y)
+    -- LỚP 2 (v4.8): raycast bằng camera HIỆN HÀNH (game tạo lại camera vẫn đúng), xuyên nước
+    local cam2 = S.AnaCam()
+    if not cam2 then
+        S.AnaSay("⚠️ Game chưa có camera (Workspace.CurrentCamera = nil) — vào lại game rồi thử")
+        return
+    end
+    local unitRay = cam2:ViewportPointToRay(x, y)
     local params = RaycastParams.new()
     params.FilterType = Enum.RaycastFilterType.Exclude
     local filterList = {}
     if player.Character then table.insert(filterList, player.Character) end
     if gui then table.insert(filterList, gui) end
     params.FilterDescendantsInstances = filterList
-    params.IgnoreWater = false
+    params.IgnoreWater = S.AnaCfg.ignoreWater   -- v4.8: không để mặt nước ăn tia
 
-    local result = workspace:Raycast(unitRay.Origin, unitRay.Direction * 10000, params)
+    local result = workspace:Raycast(unitRay.Origin, unitRay.Direction * S.AnaCfg.maxDist, params)
+    -- v4.8: trúng MẶT NƯỚC thì bắn lại (bỏ nước) để lấy vật thật bên dưới
+    if result and result.Material == Enum.Material.Water then
+        local pw = RaycastParams.new()
+        pw.FilterType = Enum.RaycastFilterType.Exclude
+        pw.FilterDescendantsInstances = filterList
+        pw.IgnoreWater = true
+        local rw = workspace:Raycast(unitRay.Origin, unitRay.Direction * S.AnaCfg.maxDist, pw)
+        if rw and rw.Instance then
+            result = rw
+            S.AnaNote = "🌊 đã xuyên qua mặt nước để lấy vật bên dưới"
+        end
+    end
+
+    -- v4.8: gom về MỘT biến `inst` — raycast trúng thì dùng, trượt thì 🧭 quét dự phòng
+    local inst, hitPos, hitNormal, hitMat, how
+    if result and result.Instance then
+        inst, hitPos, hitNormal, hitMat = result.Instance, result.Position, result.Normal, result.Material
+        how = "🎯 tia bắn trúng"
+    elseif S.AnaCfg.scanFallback then
+        local part, why2 = S.PickByRayScan(unitRay, filterList)
+        if part then
+            inst, hitPos, how = part, part.Position, "🧭 " .. tostring(why2)
+            pcall(function() hitNormal = part.CFrame.LookVector end)
+            pcall(function() hitMat = part.Material end)
+        else
+            S.AnaWhyScan = why2
+        end
+    end
     objResultPanel.Visible = true
 
-    if result and result.Instance then
-        local inst = result.Instance
-        local hitPos = result.Position
-        local hitNormal = result.Normal
-        local hitMat = result.Material
-
-        objNameLbl.Text = "Name: "..inst.Name
-        objClassLbl.Text = "Class: "..inst.ClassName
-        objPosLbl.Text = string.format("Position: %.3f, %.3f, %.3f", hitPos.X, hitPos.Y, hitPos.Z)
-
-        if inst:IsA("BasePart") then
-            local size = inst.Size
-            local cf = inst.CFrame
-            local rx, ry, rz = cf:ToOrientation()
-            local look = cf.LookVector
-            local color = inst.Color
-            local material = inst.Material
-
-            objSizeLbl.Text = string.format("Size: %.3f, %.3f, %.3f", size.X, size.Y, size.Z)
-            objRotLbl.Text = string.format("Rotation: P=%.1f° Y=%.1f° R=%.1f°",
-                math.deg(rx), math.deg(ry), math.deg(rz))
-            objLookLbl.Text = string.format("Look: %.3f, %.3f, %.3f", look.X, look.Y, look.Z)
-            objMatLbl.Text = "Material: "..tostring(material):gsub("Enum.Material.", "")
-            objColorLbl.Text = string.format("Color: R=%d G=%d B=%d",
-                math.floor(color.R*255), math.floor(color.G*255), math.floor(color.B*255))
-
-            if highlightEnabled then CreateHighlight(inst) end
-        else
-            objSizeLbl.Text = "Size: N/A (không phải BasePart)"
-            objRotLbl.Text = "Rotation: N/A"
-            objLookLbl.Text = "Look: N/A"
-            objMatLbl.Text = "Material: N/A"
-            objColorLbl.Text = "Color: N/A"
-            RemoveCurrentHighlight()
-        end
-
-        objPathLbl.Text = "Path: "..GetFullPath(inst)
-        objResultPanel:SetAttribute("LastHitPos", tostring(hitPos))
-        objResultPanel:SetAttribute("LastPath", GetFullPath(inst))
-        objResultPanel:SetAttribute("LastNormal", tostring(hitNormal))
-        objResultPanel:SetAttribute("LastMaterial", tostring(hitMat))
+    if inst then
+        S.FillObjPanel(inst, hitPos, hitNormal, hitMat, how)
     else
-        -- LỚP 3: click vào khoảng không (bầu trời) -> KHÔNG thay đổi gì ngoài thông báo nhất thời,
+        -- LỚP 3: chạm vào khoảng không (bầu trời) -> KHÔNG thay đổi gì ngoài thông báo nhất thời,
         -- kết quả cũ (name/path/highlight) vẫn được giữ nguyên để bạn còn copy / nhìn thấy.
+        -- v4.8: kèm LÝ DO + gợi ý, thay vì im lặng.
         local prevName = objNameLbl.Text
         objNameLbl.Text = "⚠️ Không hit gì — giữ vật đang chọn"
+        S.AnaSay("⚠️ Không thấy vật ở điểm chạm"
+            .. (S.AnaWhyScan and (" (" .. S.AnaWhyScan .. ")") or " (tia đi vào khoảng không)")
+            .. " — thử ⊕ Giữa màn hình, 🧭 Gần nhất, hoặc lại gần vật hơn")
         task.delay(1.0, function()
             if objNameLbl and objNameLbl.Parent and objNameLbl.Text == "⚠️ Không hit gì — giữ vật đang chọn" then
                 objNameLbl.Text = prevName
@@ -2827,7 +3074,7 @@ trackConn(UserInputService.InputBegan:Connect(function(input, gp)
             if e == input then
                 holdConn:Disconnect()
                 if moveConn then moveConn:Disconnect() end
-                if tick() - startTick >= 0.4 then
+                if tick() - startTick >= S.AnaCfg.holdTime then   -- v4.8: ngưỡng giữ ngón chỉnh được
                     task.spawn(function() PickObjectAt(input.Position, false) end)
                 end
             end
@@ -2835,7 +3082,7 @@ trackConn(UserInputService.InputBegan:Connect(function(input, gp)
         moveConn = UserInputService.InputChanged:Connect(function(e)
             if e == input then
                 local d = (e.Position - startPos).Magnitude
-                if d > 12 then
+                if d > S.AnaCfg.holdMove then   -- v4.8: ngón tay trên mobile hay xê dịch -> nới 12px lên 18px
                     -- ngón di chuyển quá xa -> đó là kéo joystick/chạm vuốt, không phải long-press
                     holdConn:Disconnect()
                     moveConn:Disconnect()
@@ -2851,6 +3098,9 @@ objectAnalyzeBtn.Activated:Connect(function()
     if analyzeObjectEnabled then
         objectAnalyzeBtn.Text = "🎯 Phân Tích Vật: BẬT"
         D.SetBg(objectAnalyzeBtn, C.GREEN)   -- v4.5: đổi màu kèm chữ tương phản
+        -- v4.8: bật lên là nói rõ trên máy NÀY chọn vật bằng cách nào (📱 giữ ngón / 🖥 chuột phải)
+        S.RefreshDevLabel()
+        S.AnaSay("✅ Đã BẬT phân tích vật thể · " .. S.DeviceText())
     else
         objectAnalyzeBtn.Text = "🎯 Phân Tích Vật: TẮT"
         D.SetBg(objectAnalyzeBtn, C.GRAY)
@@ -2872,6 +3122,58 @@ end)
 
 removeHighlightBtn.Activated:Connect(function()
     RemoveCurrentHighlight()
+end)
+
+-- ---------- v4.8: ⊕ VẬT THỂ Ở GIỮA MÀN HÌNH (nền tảng nào cũng bấm được, khỏi cần chuột phải) ----------
+S.AnaUi.centerBtn.Activated:Connect(function()
+    local vpx, vpy = 1280, 720
+    pcall(function()
+        local cam2 = S.AnaCam()
+        if cam2 then vpx, vpy = cam2.ViewportSize.X, cam2.ViewportSize.Y end
+    end)
+    S.AnaSay("⊕ Đang ẩn menu 0.35s để lấy vật ở GIỮA màn hình...")
+    local prevEnabled = true
+    pcall(function() prevEnabled = gui.Enabled end)
+    pcall(function() gui.Enabled = false end)   -- ẩn menu để chính menu không che vật cần lấy
+    task.wait(0.12)
+    PickObjectAt(Vector2.new(vpx / 2, vpy / 2), true, true)
+    task.wait(0.25)
+    pcall(function() gui.Enabled = prevEnabled end)
+end)
+
+-- ---------- v4.8: 🧭 VẬT GẦN NHẤT (cứu cánh cho game không cho chọn theo điểm chạm) ----------
+S.AnaUi.nearBtn.Activated:Connect(function()
+    local part, info, total = S.NearestParts(5)
+    if not part then
+        S.AnaSay("⚠️ Không tìm được vật gần bạn: " .. tostring(info))
+        return
+    end
+    local hp = nil
+    pcall(function() hp = part.Position end)
+    S.FillObjPanel(part, hp, nil, nil, "🧭 vật gần bạn nhất (trong " .. tostring(total) .. " vật quét được)")
+    pcall(function()
+        local l = S.AnaUi.whyLbl
+        if l and l.Parent then l.Text = "🔎 Quanh bạn 60 studs: " .. tostring(info) end
+    end)
+end)
+
+-- ---------- v4.8: 2 công tắc cho game "khó" (đều mặc định BẬT) ----------
+S.AnaUi.skipGuiBtn.Activated:Connect(function()
+    S.AnaCfg.skipGameGui = not S.AnaCfg.skipGameGui
+    local on = S.AnaCfg.skipGameGui
+    S.AnaUi.skipGuiBtn.Text = on and "🛡 Phân tích xuyên HUD game: BẬT"
+                                 or "🛡 Xuyên HUD game: TẮT (như bản cũ)"
+    D.SetBg(S.AnaUi.skipGuiBtn, on and C.GREEN or C.GRAY)
+    S.AnaSay(on and "🛡 BẬT: bỏ qua HUD/nền bán trong suốt của game (khuyên dùng, nhất là 📱 mobile)"
+                or "🛡 TẮT: quay lại kiểu cũ — HUD của game sẽ CHẶN phân tích ở điểm chạm")
+end)
+S.AnaUi.scanFbBtn.Activated:Connect(function()
+    S.AnaCfg.scanFallback = not S.AnaCfg.scanFallback
+    local on = S.AnaCfg.scanFallback
+    S.AnaUi.scanFbBtn.Text = on and "🧭 Quét dự phòng: BẬT" or "🧭 Quét dự phòng: TẮT"
+    D.SetBg(S.AnaUi.scanFbBtn, on and C.GREEN or C.GRAY)
+    S.AnaSay(on and "🧭 BẬT: tia trượt sẽ tự quét vật gần tia — game đặt CanQuery=false vẫn phân tích được"
+                or "🧭 TẮT: chỉ dùng tia raycast (nhanh hơn, nhưng game khó sẽ không ra kết quả)")
 end)
 
 clearObjectBtn.Activated:Connect(function()

@@ -838,6 +838,56 @@ Cập nhật live: JobId mỗi 2s, danh sách server mỗi 30s. Chip lọc thêm
 script "kiểu nổi tiếng" dùng 8 hàm lạ · link trần · code dài 3000 ký tự · báo lỗi đúng · luật
 park mới) + 15 park/noPark + 13 nhúng GUI vào tab.
 
+### v4.8 — 🛠 Hỗ Trợ: phân tích vật thể chạy được cả 📱 ĐIỆN THOẠI lẫn 🖥 MÁY TÍNH
+
+> Phản ánh: *"thêm tính năng phân tích dành cho điện thoại và máy tính; tính năng phân tích có một
+> số game dùng được, một số game không dùng được"* — và không làm mất tính năng.
+
+**Bắt bệnh: vì sao "có game dùng được, có game không"**
+
+| # | Nguyên nhân trong code cũ | Hệ quả |
+|---|---|---|
+| 1 | Lớp chặn GUI quá gắt: **bất kỳ** object nào `Active` hoặc nền bán trong suốt (`BackgroundTransparency < 0.5`) ở điểm chạm đều bị coi là "GUI chặn" | Mobile game nào cũng có joystick/vignette/fade phủ kín → **return trong im lặng** |
+| 2 | `camera` được chụp **một lần** lúc hub khởi động (`local camera = workspace.CurrentCamera`) | Game tạo lại camera (cutscene/respawn/script FPS) → tia bắn sai |
+| 3 | `Raycast` không thấy vật có **`CanQuery = false`** (hitbox của nhiều game FPS) | Tia xuyên qua, "Không hit gì" |
+| 4 | `IgnoreWater = false` | Đứng gần nước chỉ ra `Water` |
+| 5 | Không có phản hồi | Người dùng không biết vì sao game này không dùng được |
+
+**Cách sửa (tất cả đều CÓ CÔNG TẮC để quay lại kiểu cũ)**
+
+- **📱/🖥 Tự nhận diện thiết bị** (`TouchEnabled`/`MouseEnabled`) → nhãn trong tab 🛠 chỉ đúng cách
+  chọn vật: 🖥 **chuột PHẢI** · 📱 **GIỮ NGÓN 0.40s** (ngưỡng xê dịch nới 12px → **18px** cho dễ giữ,
+  chạm nhanh vẫn đi/bắn bình thường) · máy cảm ứng thì chỉ cả hai.
+- **⊕ Nút "Vật thể ở GIỮA màn hình"**: tự ẩn menu 0.35s rồi lấy vật ở tâm → **nền tảng nào cũng bấm
+  được**, không cần chuột phải, không lo chạm nhầm HUD.
+- **🧭 Nút "Vật thể GẦN nhất"**: quét 60 studs quanh nhân vật, liệt kê 5 vật gần nhất kèm khoảng cách
+  → cứu cánh cho game không cho chọn theo điểm chạm.
+- **🛡 Nới lớp chặn GUI** (`S.GuiBlockAt` tách 2 mức):
+  - `hard` = **NÚT/Ô NHẬP thật** của game, bé hơn 36% màn hình → **VẪN CHẶN** (không hit xuyên nút).
+  - `soft` = HUD/nền bán trong suốt/frame Active phủ rộng → mặc định **CHO PHÉP XUYÊN** (công tắc
+    `🛡 Phân tích xuyên HUD game`, mặc định BẬT; tắt đi là về đúng kiểu cũ).
+- **🧭 Quét dự phòng khi tia trượt** (`S.PickByRayScan`): dùng `GetPartBoundsInRadius` lấy các part
+  trong khối cầu dọc tia, chọn part **gần tia nhất và nằm trước mắt** (có trừ nửa kích thước vật),
+  nên game đặt `CanQuery = false` **vẫn phân tích được** (công tắc `🧭 Quét dự phòng`).
+- **🎥 Camera hiện hành** (`S.AnaCam` = `workspace.CurrentCamera`, fallback camera cũ) + **🌊 xuyên
+  mặt nước** (trúng `Enum.Material.Water` thì bắn lại với `IgnoreWater = true`).
+- **🔎 Nhãn "LÝ DO"** mới trong tab 🛠: mọi lần không phân tích được đều nói rõ vì sao — chạm trúng
+  nút game (kèm tên nút) / HUD chặn / chưa có nhân vật / chưa có camera / tia vào khoảng không (kèm
+  lý do lớp quét) — và gợi ý bước tiếp theo. Không còn im lặng.
+- `S.FillObjPanel` gom việc hiển thị về **một mối**, nên chuột phải (🖥), giữ ngón (📱), ⊕ Giữa màn
+  hình và 🧭 Gần nhất đều ra **cùng một bảng** Name/Class/Position/Size/Rotation/Look/Material/Color/Path
+  + highlight tím + attribute `LastHitPos`/`LastPath` (nút 📋 Copy và 🚀 Teleport dùng lại như cũ).
+
+**Không mất tính năng:** giữ nguyên 3 lớp chống nhầm (không hit xuyên nút game, bỏ character của bạn,
+click trượt thì **giữ nguyên kết quả cũ**), giữ 🎯 bật/tắt, 💜 highlight, 🧹 Xóa KQ, waypoint, teleport,
+phân tích tọa độ; không thêm `local` tầng chunk nào (mọi widget mới cất trong `S.AnaUi.*`) nên không
+chạm trần 200 local của Luau; Script Hub + nhóm 🌐 Server (v4.6.3) và lớp tương thích v4.7 không bị đụng.
+
+**Kiểm thử:** 118 PASS / 0 FAIL — 47 cho v4.8 (nhận diện 📱/🖥 · HUD phủ kín không còn chặn · nút game
+vẫn chặn · quét dự phòng tìm ra hitbox `CanQuery=false` · bỏ vật sau lưng · game chặn quét không crash ·
+vật gần nhất + chưa có nhân vật · bảng kết quả đầy đủ 9 nhãn + highlight + attribute) · 43 cho v4.7 ·
+15 park/noPark · 13 nhúng GUI vào tab.
+
 ## 9. Kết luận một câu
 
 Đây là một hub executor **được viết bởi người hiểu rất rõ những "nỗi đau" thực tế của Roblox UI** (focus,

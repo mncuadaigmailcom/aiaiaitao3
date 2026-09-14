@@ -178,12 +178,13 @@ gạt công tắc, tìm kiếm, lọc chip, ghim ⭐.</p>
       <tr><td class="del">3 nhãn X:/Y:/Z: đè lên nhau</td><td class="new">Đứng đúng cạnh ô của mình, 3 ô trải đều hết hàng</td></tr>
       <tr><td class="del">RenderStepped: raycast + HTTP <b>mỗi frame</b>, chạy cả khi đóng menu</td><td class="new">Chỉ chạy khi mở trang 🛠, 20 lần/giây, HTTP ≤ 1 lần/10 giây</td></tr>
       <tr><td class="del">Tìm kiếm rebuild sau mỗi phím</td><td class="new">Debounce 0.18s (gõ 6 phím = 1 lần dựng)</td></tr>
+      <tr><td class="del">🎯 Phân tích vật thể: chỉ 🖥 chuột phải / 📱 giữ ngón; game có HUD phủ kín thì chạm mà KHÔNG RA GÌ, không nói lý do; tia trượt vật CanQuery=false</td><td class="new">v4.8: tự nhận diện 📱/🖥 + ⊕ Giữa màn hình + 🧭 Gần nhất + 🛡 xuyên HUD + 🧭 quét dự phòng + 🎥 camera hiện hành + 🌊 xuyên nước + 🔎 nhãn LÝ DO</td></tr>
       <tr><td class="del">Bấm ▶ ở 💾 Code Đã Lưu: script chết vẫn báo "✅ xong"; dán link trần thì không chạy; script nổi tiếng bị "đậu" vào tab 🧩 nên màn hình trống</td><td class="new">v4.7: 🩹 bù 46 hàm executor · 🔗 tự bọc link trần/thiếu () · ❌ báo lỗi thật + nói rõ GUI nằm đâu · 🪟 script tải từ mạng để GUI NGOÀI màn hình</td></tr>
       <tr><td class="del">Không có Reset/Hop server, không có chỗ dán mã server</td><td class="new">🌐 nhóm SERVER trong 📚 Script Hub: 🔄 Reset · 🔀 Hop (tự đi lấy mã) · 🎟 ô dán mã + 🚀 Vào</td></tr>
       <tr><td class="del">Thứ tự: 💻 Code · 📚 Script Hub · 💾 Code Đã Lưu …</td><td class="new">Thứ tự mới: 💾 Code Đã Lưu · 💻 Code · 📚 Script Hub · 🛠 · 🤖 · ➕ (mở menu vào thẳng Code Đã Lưu)</td></tr>
     </table>
-    <p class="foot">✅ <b>Không mất tính năng nào</b>: 71 kiểm thử tự động PASS
-    (43 cho v4.7 "bấm ▶ là chạy" · 15 park/noPark · 13 nhúng GUI vào tab).
+    <p class="foot">✅ <b>Không mất tính năng nào</b>: 118 kiểm thử tự động PASS
+    (47 cho v4.8 phân tích 📱+🖥 · 43 cho v4.7 "bấm ▶ là chạy" · 15 park/noPark · 13 nhúng GUI vào tab).
     Thứ tự trang (v4.6.2): 1 💾 Code Đã Lưu · 2 💻 Code · 3 📚 Script Hub · 4 🛠 · 5 🤖 · 6 ➕ · 7+ tab của bạn · 99 🧩 — mở menu là thấy 💾 Code Đã Lưu.</p>
   </div>
 </div>
@@ -289,6 +290,13 @@ function pageSup(){return `
     <button class="btn red" style="width:90px">🧹 Xóa KQ</button></div>
   <div class="row"><button class="btn purple" style="width:372px">💜 Highlight Tím: BẬT</button>
     <button class="btn red" style="width:90px">❌ Xóa Highlight</button></div>
+  <div class="lbl" style="color:#FFC43D" id="anaDev">📱 Điện thoại: GIỮ NGÓN 0.40s lên vật (chạm nhanh vẫn đi/bắn bình thường) · hoặc bấm ⊕ Giữa màn hình</div>
+  <div class="row"><button class="btn blue" style="width:232px" data-ana="center">⊕ Vật thể ở GIỮA màn hình</button>
+    <button class="btn blue" style="width:230px" data-ana="near">🧭 Vật thể GẦN nhất</button></div>
+  <div class="row"><button class="btn green" style="width:300px" data-ana="skip">🛡 Phân tích xuyên HUD game: BẬT</button>
+    <button class="btn green" style="width:162px" data-ana="scan">🧭 Quét dự phòng: BẬT</button></div>
+  <div class="lbl" id="anaWhy">🔎 Lý do: — (bật 🎯 Phân Tích Vật Thể rồi chạm/chuột phải vào vật)</div>
+  <div class="lbl" style="color:#6E7789">v4.8: nút 🎯 bật lên là nhãn trên chỉ đúng cách chọn vật của máy bạn (🖥 chuột phải / 📱 giữ ngón) — HUD game không còn chặn nhầm, tia trượt thì tự quét vật gần tia</div>
   <div class="lbl">X: 10.000 · Y: 20.000 · Z: 30.000 &nbsp;|&nbsp; Look: 0.000, 0.000, -1.000</div>
   <div class="lbl">State: Running · HP: 88 / 100 · Place: 123 — Test Place</div>
   <div class="rule"></div>
@@ -452,6 +460,29 @@ function wireHub(){
   document.querySelectorAll("[data-fav]").forEach(b=>b.onclick=()=>{
     const n=b.dataset.fav; favs[n]=!favs[n]; paint();
     document.getElementById("hubStatus").textContent = favs[n]?`⭐ đã ghim '${n}' lên đầu`:`☆ đã bỏ ghim '${n}'`;});
+  document.querySelectorAll("[data-ana]").forEach(b=>b.onclick=()=>{
+    const w = document.getElementById("anaWhy"), d = document.getElementById("anaDev"), k = b.dataset.ana;
+    if(k === "center"){ w.style.color = "#96A0B0";
+      w.textContent = "🔎 ⊕ đã ẩn menu 0.35s → 🧭 quét dự phòng: Headshot (Part) — vật này Raycast không thấy (CanQuery=false), lệch tia 0.4m"; }
+    else if(k === "near"){ w.style.color = "#96A0B0";
+      w.textContent = "🔎 Quanh bạn 60 studs: Crate (3.0m) · Barrel (5.4m) · Wall (12.1m) · Rock (18.7m) · Grass (25.2m)"; }
+    else if(k === "skip"){ const on = b.textContent.indexOf("BẬT") > 0;
+      b.textContent = on ? "🛡 Xuyên HUD game: TẮT (như bản cũ)" : "🛡 Phân tích xuyên HUD game: BẬT";
+      b.style.background = on ? "#2E3342" : "#2F6B45"; w.style.color = "#96A0B0";
+      w.textContent = on ? "🔎 🛡 TẮT: quay lại kiểu cũ — HUD của game sẽ CHẶN phân tích ở điểm chạm"
+                         : "🔎 🛡 BẬT: bỏ qua HUD/nền bán trong suốt của game (khuyên dùng, nhất là 📱 mobile)"; }
+    else if(k === "scan"){ const on = b.textContent.indexOf("BẬT") > 0;
+      b.textContent = on ? "🧭 Quét dự phòng: TẮT" : "🧭 Quét dự phòng: BẬT";
+      b.style.background = on ? "#2E3342" : "#2F6B45"; w.style.color = "#96A0B0";
+      w.textContent = on ? "🔎 🧭 TẮT: chỉ dùng tia raycast (nhanh hơn, game khó sẽ không ra kết quả)"
+                         : "🔎 🧭 BẬT: tia trượt sẽ tự quét vật gần tia — game đặt CanQuery=false vẫn phân tích được"; }
+  });
+  document.querySelectorAll("[data-anadev]").forEach(b=>b.onclick=()=>{
+    const d = document.getElementById("anaDev");
+    d.textContent = b.dataset.anadev === "pc"
+      ? "🖥 Máy tính: CHUỘT PHẢI vào vật (chuột trái vẫn chơi bình thường) · hoặc bấm ⊕ Giữa màn hình"
+      : "📱 Điện thoại: GIỮ NGÓN 0.40s lên vật (chạm nhanh vẫn đi/bắn bình thường) · hoặc bấm ⊕ Giữa màn hình";
+  });
   document.querySelectorAll("[data-srun]").forEach(b=>b.onclick=()=>{
     const it = SAVED[+b.dataset.srun], st = document.getElementById("savedStatus"), old = b.textContent;
     b.textContent = "⏳ ..."; b.classList.remove("err");
