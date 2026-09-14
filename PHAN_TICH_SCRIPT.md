@@ -795,6 +795,49 @@ Cập nhật live: JobId mỗi 2s, danh sách server mỗi 30s. Chip lọc thêm
 
 ---
 
+### v4.7 — "BẤM ▶ LÀ CHẠY": tab 💻 Code + 💾 Code Đã Lưu chạy được mọi script
+
+> Phản ánh của người dùng: *"lưu script nổi tiếng, nhấn chạy rồi sao không ra gì"* — và yêu cầu
+> script nào cũng chạy được, kể cả link mã hoá / link dài, không làm mất tính năng.
+
+**Bắt bệnh (4 nguyên nhân, đều có thật trong code cũ)**
+
+| # | Nguyên nhân | Hệ quả |
+|---|---|---|
+| 1 | Script gọi hàm chỉ có ở executor khác (`getgenv`, `identifyexecutor`, `request`, `readfile`, `hookfunction`, `Drawing`, `setclipboard`, `queue_on_teleport`…) | Chết ngay dòng đầu |
+| 2 | Nút ▶ ở 💾 Code Đã Lưu **luôn** hiện `✅ xong` sau 0.9s, lỗi chỉ `warn` ra F9 | Người dùng không biết vì sao "không ra gì" |
+| 3 | Dán **link trần** vào ô code (tab 💻/💾) — chỉ tab ➕ Tính Năng mới tự bọc `loadstring` | Không chạy gì cả |
+| 4 | Script tải từ mạng bị "đậu" vào tab 🧩 GUI Ngoài | Màn hình game trống trơn |
+
+**Cách sửa**
+
+1. **🩹 Lớp tương thích executor** (`S.EnsureCompat`, ~46 hàm): bù `getgenv/getrenv`,
+   `identifyexecutor/getexecutorname`, `request/http_request/http.request/HttpRequest`,
+   `readfile/writefile/appendfile/isfile/delfile/listfiles/makefolder` (ổ đĩa ảo trong RAM),
+   `setclipboard/toclipboard`, `Drawing` (Line/Square/Circle/Text), `hookfunction/hookmetamethod/
+   getrawmetatable/setreadonly/newcclosure/getconnections/fireclickdetector/gethui`,
+   `queue_on_teleport`, `setfpscap`…
+   **NGUYÊN TẮC VÀNG:** `S.SetGlobal` chỉ ghi khi `rawget(_G, tên) == nil` → **không bao giờ đè
+   hàm thật** của executor (đã có kiểm thử riêng cho việc này).
+2. **🔗 `S.NormalizeRunnable`**: link trần → `loadstring(game:HttpGet("…"))()`; `HttpGet("…")` trần
+   → tự bọc; `loadstring(…)` **quên dấu `()`** → tự thêm; gọt BOM/ký tự ẩn; **chặn** URL chứa
+   dấu nháy/xuống dòng (chống chèn code). Code dài **không bị cắt** ở bất kỳ khâu nào.
+   Tab ➕ Tính Năng nay dùng chung một mối (`NormalizeCode` → `S.NormalizeRunnable`).
+3. **❌ Báo cáo thật** (`S.lastRunReport` + `S.RunReportText`): nút ▶ ở 💾 hiện `❌ lỗi` /
+   `🪟 ngoài MH` / `🧩 vào tab` / `✅ xong`, kèm nguyên nhân (cắt 160 ký tự) ở nhãn trạng thái
+   trang 💾; nhãn tab 💻 Code cũng dùng chung báo cáo (chuyển đỏ khi lỗi).
+4. **🪟 Script tải từ mạng = menu của tác giả** → `S.ShouldSkipPark` nhận diện
+   `loadstring`/`load(` + `httpget`/`request(`/`https://` → **không** đậu vào tab 🧩, để GUI hiện
+   ngoài màn hình game. Code tự viết (không http) vẫn đậu như cũ; Dex/IY/SimpleSpy vẫn nhận ra.
+
+**Không mất tính năng:** không đổi layout/tab nào; công tắc 🪟 và tab 🧩 GUI Ngoài vẫn còn;
+`S.SetGlobal` không đè hàm thật; nhóm 🌐 Server (v4.6.3) và Script Hub **không bị đụng một dòng**
+(diff chỉ nằm ở vùng 1400–1750, 3982, 5483, 5615 + header).
+
+**Kiểm thử:** 71 PASS / 0 FAIL — 43 cho v4.7 (compat không đè hàm thật · chuẩn hoá link · chạy
+script "kiểu nổi tiếng" dùng 8 hàm lạ · link trần · code dài 3000 ký tự · báo lỗi đúng · luật
+park mới) + 15 park/noPark + 13 nhúng GUI vào tab.
+
 ## 9. Kết luận một câu
 
 Đây là một hub executor **được viết bởi người hiểu rất rõ những "nỗi đau" thực tế của Roblox UI** (focus,

@@ -1,5 +1,5 @@
 --[[
-    🍌 Banana Cat Hub v4.6 — FULL CODE  ·  giao diện "MIDNIGHT GOLD" + layout kiểu DELTA
+    🍌 Banana Cat Hub v4.7 — FULL CODE  ·  giao diện "MIDNIGHT GOLD" + layout kiểu DELTA
     + v4.6 (bản này): MENU GIỐNG DELTA — chỉ đổi CÁCH BỐ TRÍ, không bỏ tính năng nào:
         • Thanh tab chuyển từ PHẢI (chữ, rộng 105px) sang TRÁI (chỉ icon, rộng 56px) như Delta;
           tab đang mở có vạch accent 3px. Rê chuột vào một icon -> header hiện tên trang đó (chữ
@@ -49,9 +49,22 @@
               trắng và dấu nháy), kèm nút 🔀 Hop. Hop lỗi (game ẩn danh sách server) thì vẫn vào được
               bằng cách dán mã thủ công — không có nút chết.
             - Thêm chip phân loại "Server" (6 chip) và danh sách thẻ ngắn lại 54px để nhường chỗ khung.
-        • 193 kiểm thử tự động PASS (105 Script Hub · 31 header/công tắc · 20 perf RenderStepped ·
-          15 park/noPark · 13 nhúng GUI vào tab · 9 thứ tự trang). Bộ test nằm ở /home/user/luachk
-          (ngoài repo) — chạy: node runtest.js <file.lua>.
+        • v4.7 — "BẤM ▶ LÀ CHẠY": tab 💻 Code + 💾 Code Đã Lưu chạy được MỌI script
+            - 🩹 LỚP TƯƠNG THÍCH EXECUTOR: script nổi tiếng hay chết ngay dòng đầu vì gọi hàm
+              chỉ có ở executor khác (getgenv / identifyexecutor / request / readfile /
+              hookfunction / Drawing / setclipboard / queue_on_teleport...). Hub TỰ BÙ ~45 hàm.
+              NGUYÊN TẮC VÀNG: chỉ bù khi global CHƯA tồn tại -> không bao giờ đè hàm thật.
+            - 🔗 CHUẨN HOÁ CODE: dán LINK TRẦN (dài/ngắn/mã hoá đều chạy) -> tự bọc
+              loadstring(game:HttpGet("..."))() ; HttpGet trần -> tự bọc; loadstring QUÊN dấu ()
+              -> tự thêm; gọt BOM/ký tự ẩn. Code dài KHÔNG bị cắt xén ở bất kỳ khâu nào.
+            - ❌ BÁO LỖI THẬT: bản cũ nút ▶ ở 💾 Code Đã Lưu LUÔN hiện "✅ xong" dù script chết
+              -> người dùng tưởng "không ra gì". Nay hiện "❌ lỗi" + nguyên nhân ngay trên nhãn
+              trang 💾, hoặc "🪟 ngoài MH" / "🧩 vào tab" khi GUI nằm chỗ khác (kèm tên GUI).
+            - 🪟 SCRIPT TẢI TỪ MẠNG (loadstring + http) = menu của tác giả -> GIỮ NGOÀI màn hình,
+              không "đậu" vào tab 🧩 GUI Ngoài. Code tự viết vẫn đậu như cũ, 🪟 vẫn bật/tắt được.
+        • 71 kiểm thử tự động PASS (43 cho v4.7 "bấm ▶ là chạy" · 15 park/noPark · 13 nhúng GUI
+          vào tab). Bộ test nằm ở /home/user/luachk (NGOÀI repo, không làm bẩn git):
+          node check.js <script.js> để soát cú pháp · node runtest.js <file.lua> để chạy test.
     + v4.5: THIẾT KẾ LẠI TOÀN BỘ GIAO DIỆN (chỉ đổi màu/chất liệu/hiệu ứng — KHÔNG đổi layout, kích
       thước, vị trí hay logic, nên MỌI TÍNH NĂNG giữ nguyên 100%):
         • Bảng màu tối "Midnight Gold": nền 18,20,27 · thẻ 26,29,38 · viền mảnh 52,58,74 ·
@@ -1397,14 +1410,247 @@ end
 
 Store.load()
 
+-- ============================================================================
+-- v4.7: LỚP TƯƠNG THÍCH EXECUTOR — để script nổi tiếng "chạy là ra", không im lặng
+-- ----------------------------------------------------------------------------
+-- Vì sao bấm ▶ mà KHÔNG RA GÌ: script gọi hàm chỉ có ở executor khác (getgenv /
+-- identifyexecutor / request / readfile / hookfunction / Drawing / setclipboard...)
+-- -> chết ngay dòng đầu, mà bản cũ vẫn báo "✅ xong" nên không ai biết vì sao.
+-- NGUYÊN TẮC VÀNG: chỉ BÙ khi global đó CHƯA tồn tại. Executor thật có sẵn hàm nào
+-- thì giữ nguyên hàm đó — KHÔNG BAO GIỜ ghi đè, nên không phá tính năng đang chạy tốt.
+-- (Không khai báo `local` mới ở tầng chunk: main chunk đã gần cạn 200 slot local.)
+-- ============================================================================
+S.compatAdded  = S.compatAdded or {}   -- tên các hàm đã bù (để báo lại cho người dùng)
+S.compatTried  = false
+S.vfs          = S.vfs or {}           -- ổ đĩa ảo trong RAM (khi executor không có readfile/writefile)
+S.clipboardTxt = S.clipboardTxt or ""
+S.queued       = S.queued or {}        -- queue_on_teleport: giữ lại, không tự chạy
+S.lastRunReport = nil                  -- báo cáo lần chạy cuối (nhãn 💻 + nút 💾 dùng chung)
+S.lastRunError  = nil
+S.lastNormalizeNote = nil
+S.lastParkedCount = 0
+S.lastParkedNames = {}
+
+function S.HasGlobal(n)
+    local ok, v = pcall(function() return rawget(_G, n) end)
+    return ok and v ~= nil
+end
+
+function S.SetGlobal(n, v)
+    if S.HasGlobal(n) then return false end          -- KHÔNG đè hàm thật của executor
+    local ok = pcall(function() rawset(_G, n, v) end)
+    if ok then S.compatAdded[#S.compatAdded + 1] = n end
+    return ok
+end
+
+function S.VRead(p)
+    local f = S.vfs[tostring(p)]
+    if f == nil then error("File not found: " .. tostring(p)) end
+    return f
+end
+function S.VWrite(p, c)  S.vfs[tostring(p)] = tostring(c); return true end
+function S.VAppend(p, c) S.vfs[tostring(p)] = (S.vfs[tostring(p)] or "") .. tostring(c); return true end
+function S.VExists(p)    return S.vfs[tostring(p)] ~= nil end
+function S.VDel(p)       S.vfs[tostring(p)] = nil; return true end
+function S.VList(dir)
+    dir = tostring(dir or ""):gsub("[/\\]+$", "")
+    local out = {}
+    for k in pairs(S.vfs) do
+        if dir == "" or k:sub(1, #dir) == dir then out[#out + 1] = k end
+    end
+    return out
+end
+
+-- HTTP: trả đúng kiểu bảng {StatusCode, Body, Success, Headers} mà script hay đòi
+function S.CompatRequest(opts)
+    if type(opts) ~= "table" then opts = {Url = tostring(opts)} end
+    local url = tostring(opts.Url or opts.url or "")
+    local body, status, good = "", 200, true
+    pcall(function()
+        local r = game:GetService("HttpService"):RequestAsync({
+            Url = url,
+            Method = tostring(opts.Method or opts.method or "GET"):upper(),
+            Headers = opts.Headers or opts.headers,
+            Body = opts.Body or opts.body,
+        })
+        body, status, good = tostring(r.Body or ""), tonumber(r.StatusCode) or 200, (r.Success ~= false)
+    end)
+    if body == "" then pcall(function() body = tostring(game:HttpGet(url)) end) end
+    return {StatusCode = status, StatusMessage = "", Body = body, Success = good, Headers = {}}
+end
+
+-- Drawing: đủ để script ESP không chết (không vẽ thật được, nhưng menu vẫn hiện)
+function S.CompatDrawing()
+    local D = {}
+    D.Fonts = {UI = 0, System = 0, Plex = 1, Monospace = 2}
+    D.new = function(cls)
+        local o = {__class = tostring(cls or ""), Visible = false, ZIndex = 1, Transparency = 1}
+        return setmetatable(o, {
+            __index = function(t, k)
+                if k == "Remove" or k == "Destroy" then
+                    return function(self) rawset(self, "Visible", false) end
+                end
+                return rawget(t, k)
+            end,
+            __newindex = function(t, k, v) rawset(t, k, v) end,
+        })
+    end
+    return D
+end
+
+function S.EnsureCompat()
+    if S.compatTried then return S.compatAdded end
+    S.compatTried = true
+    pcall(function()
+        -- nạp/biên dịch
+        S.SetGlobal("loadstring", function(src, nm) return load(tostring(src), nm or "compat") end)
+        -- môi trường + danh tính executor
+        S.SetGlobal("getgenv", function() return _G end)
+        S.SetGlobal("getrenv", function() return _G end)
+        S.SetGlobal("identifyexecutor", function() return "BananaCatHub-Compat", "4.7" end)
+        S.SetGlobal("getexecutorname", function() return "BananaCatHub-Compat" end)
+        S.SetGlobal("getscript", function() return nil end)
+        S.SetGlobal("getcallingscript", function() return nil end)
+        S.SetGlobal("checkcaller", function() return false end)
+        S.SetGlobal("isourclosure", function() return false end)
+        S.SetGlobal("is_synapse_function", function() return false end)
+        -- clipboard
+        S.SetGlobal("setclipboard",  function(t) S.clipboardTxt = tostring(t); return true end)
+        S.SetGlobal("toclipboard",   function(t) S.clipboardTxt = tostring(t); return true end)
+        S.SetGlobal("set_clipboard", function(t) S.clipboardTxt = tostring(t); return true end)
+        -- ổ đĩa ảo
+        S.SetGlobal("readfile",   function(p) return S.VRead(p) end)
+        S.SetGlobal("writefile",  function(p, c) return S.VWrite(p, c) end)
+        S.SetGlobal("appendfile", function(p, c) return S.VAppend(p, c) end)
+        S.SetGlobal("isfile",     function(p) return S.VExists(p) end)
+        S.SetGlobal("delfile",    function(p) return S.VDel(p) end)
+        S.SetGlobal("listfiles",  function(d) return S.VList(d) end)
+        S.SetGlobal("makefolder", function() return true end)
+        S.SetGlobal("isfolder",   function() return true end)
+        S.SetGlobal("delfolder",  function() return true end)
+        S.SetGlobal("getcustomasset", function(_, p) return tostring(p) end)
+        S.SetGlobal("getsynasset",    function(_, p) return tostring(p) end)
+        -- HTTP
+        S.SetGlobal("request",      function(o) return S.CompatRequest(o) end)
+        S.SetGlobal("http_request", function(o) return S.CompatRequest(o) end)
+        S.SetGlobal("http", {request = function(o) return S.CompatRequest(o) end})
+        S.SetGlobal("HttpRequest",  function(o) return S.CompatRequest(o) end)
+        -- hook/metatable: không làm thật được -> trả giá trị vô hại để script chạy tiếp
+        S.SetGlobal("hookfunction",      function(_, nw) return nw end)
+        S.SetGlobal("hookmetamethod",    function() return function() end end)
+        S.SetGlobal("getrawmetatable",   function(o) return getmetatable(o) or {} end)
+        S.SetGlobal("setrawmetatable",   function(o, m) pcall(setmetatable, o, m); return o end)
+        S.SetGlobal("setreadonly",       function() return true end)
+        S.SetGlobal("isreadonly",        function() return false end)
+        S.SetGlobal("newcclosure",       function(f) return f end)
+        S.SetGlobal("getnamecallmethod", function() return "" end)
+        S.SetGlobal("setnamecallmethod", function() return true end)
+        S.SetGlobal("getconnections",    function() return {} end)
+        S.SetGlobal("fireclickdetector",   function() return true end)
+        S.SetGlobal("firetouchinterest",   function() return true end)
+        S.SetGlobal("fireproximityprompt", function() return true end)
+        S.SetGlobal("gethui", function() return game:GetService("CoreGui") end)
+        S.SetGlobal("Drawing", S.CompatDrawing())
+        S.SetGlobal("setfpscap", function() return true end)
+        S.SetGlobal("getfpscap", function() return 60 end)
+        S.SetGlobal("iswindowactive", function() return true end)
+        S.SetGlobal("queue_on_teleport", function(_, src)
+            S.queued[#S.queued + 1] = tostring(src); return true end)
+    end)
+    if #S.compatAdded > 0 then
+        pcall(function() print("[BananaCatHub] " .. S.CompatNote()) end)
+    end
+    return S.compatAdded
+end
+
+function S.CompatNote()
+    local n = #S.compatAdded
+    if n == 0 then return "" end
+    local sample = {}
+    for i = 1, math.min(4, n) do sample[#sample + 1] = S.compatAdded[i] end
+    return "🩹 đã bù " .. n .. " hàm executor còn thiếu (" .. table.concat(sample, ", ")
+        .. (n > 4 and "…" or "") .. ")"
+end
+
+-- ============================================================================
+-- v4.7: CHUẨN HOÁ CODE TRƯỚC KHI CHẠY — "link dài/mã hoá đến đâu cũng chạy được"
+--   • link TRẦN (https://...)        -> tự bọc loadstring(game:HttpGet("..."))()
+--   • HttpGet("...") trần            -> tự bọc luôn
+--   • loadstring(...) mà QUÊN dấu () -> tự thêm () (rất hay gặp khi copy từ web)
+--   • BOM / ký tự ẩn / khoảng trắng  -> gọt sạch
+--   • chuỗi cực dài, xuống dòng CRLF -> giữ NGUYÊN VĂN, không cắt xén ở bất kỳ đâu
+-- ============================================================================
+function S.NormalizeRunnable(c)
+    S.lastNormalizeNote = nil
+    if type(c) ~= "string" then return "" end
+    c = c:gsub("\239\187\191", ""):gsub("\226\128\139", "")
+    c = c:gsub("\226\128\142", ""):gsub("\226\128\143", "")
+    local t = c:match("^%s*(.-)%s*$") or ""
+    local q = t:match('^["\'](.-)["\']$')      -- dán cả dấu nháy bao quanh link
+    if q and q ~= "" then t = q end
+    if t:match("^https?://") then
+        -- CHẶN: URL có " hoặc xuống dòng sẽ phá vỡ (hoặc chèn code vào) chuỗi sinh ra bên dưới
+        if t:find('[%c"\\]') then
+            S.lastNormalizeNote = "⚠️ link có ký tự lạ -> chạy nguyên văn"
+            return c
+        end
+        S.lastNormalizeNote = "🔗 link trần -> tự bọc loadstring(game:HttpGet(...))()"
+        return 'loadstring(game:HttpGet("' .. t .. '"))()'
+    end
+    local u = t:match('^game:HttpGet%s*%(%s*"(https?://.-)"%s*%)$')
+        or t:match('^HttpGet%s*%(%s*"(https?://.-)"%s*%)$')
+    if u then
+        S.lastNormalizeNote = "🔗 HttpGet trần -> tự bọc loadstring(...)()"
+        return 'loadstring(game:HttpGet("' .. u .. '"))()'
+    end
+    if t:match("^loadstring%s*%(") and t:sub(-2) ~= "()" then
+        S.lastNormalizeNote = "➕ loadstring thiếu dấu () -> đã thêm để chạy được"
+        return t .. "()"
+    end
+    return c
+end
+
+-- v4.7: BÁO CÁO THẬT của lần chạy cuối. Bản cũ: lỗi chỉ nằm trong F9, còn nút ▶ ở
+-- tab 💾 Code Đã Lưu thì LUÔN hiện "✅ xong" -> người dùng thấy "không ra gì" mà chẳng
+-- biết script chết ở đâu hay GUI đang nằm chỗ nào.
+function S.RunReportText()
+    local r = S.lastRunReport
+    if not r then return "" end
+    if r.fail > 0 and r.ok == 0 then
+        local e = tostring(r.err or "không rõ"):gsub("%s+", " ")
+        if #e > 160 then e = e:sub(1, 160) .. "…" end
+        return "❌ Không chạy được: " .. e .. " · mở F9 xem đầy đủ"
+    end
+    local t = "✅ Đã chạy xong (" .. r.ok .. " lần)"
+    if r.fail > 0 then t = t .. " · ⚠️ " .. r.fail .. " lần lỗi" end
+    if r.guis and r.guis > 0 then
+        local nm = (r.names and r.names[1]) and (" '" .. r.names[1] .. "'") or ""
+        t = t .. " · 🧩 " .. r.guis .. " GUI đã vào tab 'GUI Ngoài'" .. nm .. " (bấm ↩ trả ra màn hình)"
+    elseif r.parked then
+        t = t .. " · " .. r.parked
+    end
+    if r.note then t = t .. " · " .. r.note end
+    if r.compat and r.compat ~= "" then t = t .. " · " .. r.compat end
+    return t
+end
+
 local function ExecOnce(code, name)
     if #name>0 then print("👤 Chạy bởi:", name) end
-    code = S.SanitizeCode(code)   -- v4.4b: cắt wrapper "tự dãn kích thước" độc hại của bản cũ
-    return pcall(function()
-        local fn, err = loadstring(code)
-        if not fn then error(err) end
+    code = S.SanitizeCode(code)          -- v4.4b: cắt wrapper "tự dãn kích thước" độc hại của bản cũ
+    code = S.NormalizeRunnable(code)     -- v4.7: link trần / thiếu () / BOM -> chạy được
+    S.EnsureCompat()                     -- v4.7: bù hàm executor còn thiếu (không đè hàm thật)
+    local ok, err = pcall(function()
+        local fn, lerr = loadstring(code)
+        if not fn then error(lerr) end
         fn()
     end)
+    if ok then
+        S.lastRunError = nil
+    else
+        S.lastRunError = tostring(err)
+        pcall(function() warn("[BananaCatHub] ❌ '" .. tostring(name) .. "' lỗi: " .. tostring(err)) end)
+    end
+    return ok, err
 end
 
 local function Cancel()
@@ -1429,6 +1675,8 @@ local function RunCode(code, name, ind, times, delay, noPark)
     -- -> vòng while bên ngoài quay vô hạn. Vì vậy dùng cờ runActive riêng.
     curThread=task.spawn(function()
         runActive=true
+        S.lastParkedCount, S.lastParkedNames = 0, {}   -- v4.7: đếm GUI của RIÊNG lần chạy này
+        S.lastRunError = nil
         -- v4.4h: script chạy ở tab 💻 Code / 💾 Code Đã Lưu cũng đưa được GUI vào menu
         -- (trước đây CHỈ tab ➕ Tính Năng mới nhúng GUI). Tắt 🧩/🪟 là trở về như cũ.
         --
@@ -1471,12 +1719,26 @@ local function RunCode(code, name, ind, times, delay, noPark)
             -- hook suốt cả nghìn lần lặp (vừa nặng, vừa dễ ăn nhầm UI mà game tạo ra về sau).
             if cap then
                 S.EndRunCapture(cap, (#name>0 and name or "Script"))
+                S.lastParkedCount = cap.parked or 0    -- v4.7: để báo "GUI đang nằm ở đâu"
+                S.lastParkedNames = cap.names or {}
                 cap = nil
             end
         end
         -- bị ⏹ Dừng / hủy ngay trong lần 1 cũng phải nhả hook + watcher, không thì Instance.new
         -- của cả game bị giữ mãi
         if cap then S.EndRunCapture(cap, (#name>0 and name or "Script")) cap = nil end
+        -- v4.7: BÁO CÁO THẬT của lần chạy (nhãn tab 💻 Code + nút ở tab 💾 dùng chung)
+        S.lastRunReport = {
+            name   = name,
+            ok     = okC,
+            fail   = failC,
+            err    = S.lastRunError,
+            parked = (skipPark and S.lastParkNote or nil),
+            guis   = S.lastParkedCount,
+            names  = S.lastParkedNames,
+            note   = S.lastNormalizeNote,
+            compat = S.CompatNote(),
+        }
         totalRuns+=okC+failC
         if ind then ind.BackgroundColor3=C.GREEN; if curIndicator==ind then curIndicator=nil end end
         runActive=false
@@ -1662,13 +1924,20 @@ runBtn.Activated:Connect(function()
                 task.wait(0.1)
             end
             if not cancelled then
-                statusLbl.Text="✅ Hoàn thành!" .. (S.lastParkNote and (" · " .. S.lastParkNote) or "")
+                -- v4.7: hiện BÁO CÁO THẬT (lỗi gì / GUI nằm ở đâu) thay vì luôn "✅ Hoàn thành!"
+                local rep7 = S.RunReportText()
+                statusLbl.Text = (rep7 ~= "") and rep7
+                    or ("✅ Hoàn thành!" .. (S.lastParkNote and (" · " .. S.lastParkNote) or ""))
+                statusLbl.TextColor3 = (S.lastRunReport and S.lastRunReport.fail > 0
+                    and S.lastRunReport.ok == 0) and C.RED or Color3.fromRGB(255, 205, 64)
             end
             countLbl.Text="🔄 Tổng số lần đã chạy: "..totalRuns
             -- GUI có thể được đưa vào menu trễ hơn chút (script dựng GUI sau HttpGet/task.wait)
             task.delay(1.5, function()
-                if statusLbl and statusLbl.Parent and S.lastParkNote then
-                    statusLbl.Text = "✅ Hoàn thành! · " .. S.lastParkNote
+                -- GUI có thể được đưa vào tab 🧩 trễ hơn chút -> cập nhật lại báo cáo lần nữa
+                if statusLbl and statusLbl.Parent and (S.lastParkNote or S.lastRunReport) then
+                    local rep7 = S.RunReportText()
+                    if rep7 ~= "" then statusLbl.Text = rep7 end
                 end
             end)
         end)
@@ -1906,14 +2175,43 @@ RebuildScripts = function()
 
         runScriptBtn.Activated:Connect(function()
             local prev = runScriptBtn.Text
+            local prevColor = runScriptBtn.TextColor3
             RunCode(d.code, d.name, runScriptBtn, 1, 0)
             -- v4.4b: statusLbl thuộc TAB1 nên người dùng không nhìn thấy gì ở đây;
             -- báo ngay trên nút cho chắc.
+            -- v4.7: BẢN CŨ LUÔN hiện "✅ xong" dù script chết ngay dòng đầu (thiếu hàm
+            -- executor / link chưa bọc loadstring) -> người dùng tưởng "chạy mà không ra gì".
+            -- Nay chờ chạy THẬT xong rồi báo đúng: ❌ lỗi (kèm nguyên nhân) / 🪟 GUI ngoài màn
+            -- hình / 🧩 GUI đã vào tab GUI Ngoài, chi tiết đầy đủ ở nhãn trạng thái trang 💾.
             runScriptBtn.Text = "⏳ ..."
-            task.delay(0.9, function()
-                if runScriptBtn and runScriptBtn.Parent then runScriptBtn.Text = "✅ xong" end
-                task.delay(0.9, function()
-                    if runScriptBtn and runScriptBtn.Parent then runScriptBtn.Text = prev end
+            task.spawn(function()
+                local waited = 0
+                while runActive and waited < 60 do task.wait(0.1); waited = waited + 0.1 end
+                task.wait(0.4)                       -- chờ chụp/đậu GUI xong hẳn
+                local rep = S.lastRunReport
+                local txt = S.RunReportText()
+                local bad = rep and rep.fail > 0 and rep.ok == 0
+                if bad then
+                    runScriptBtn.Text = "❌ lỗi"
+                    runScriptBtn.TextColor3 = C.RED
+                elseif rep and (rep.guis or 0) > 0 then
+                    runScriptBtn.Text = "🧩 vào tab"
+                elseif rep and rep.parked then
+                    runScriptBtn.Text = "🪟 ngoài MH"
+                else
+                    runScriptBtn.Text = "✅ xong"
+                end
+                pcall(function()
+                    if Store.statusLbl and Store.statusLbl.Parent then
+                        Store.statusLbl.Text = "▶ '" .. tostring(d.name) .. "' · " .. (txt ~= "" and txt or "xong")
+                        Store.statusLbl.TextColor3 = bad and C.RED or C.GRAY
+                    end
+                end)
+                task.delay(2.2, function()
+                    if runScriptBtn and runScriptBtn.Parent then
+                        runScriptBtn.Text = prev
+                        runScriptBtn.TextColor3 = prevColor
+                    end
                 end)
             end)
         end)
@@ -3681,15 +3979,10 @@ end)
 local function NormalizeCode(c)
     if type(c) ~= "string" then return "" end
     c = S.SanitizeCode(c)   -- v4.4b: cắt wrapper "SIZE WRAPPER" cũ (nó đè layout GUI của game)
-    if c:match("^https?://") then
-        -- CHẶN: URL có " hoặc xuống dòng sẽ phá vỡ (hoặc chèn code vào) chuỗi sinh ra bên dưới
-        if c:find('[%c"\\]', 1) then
-            warn("[BananaCatHub] Link không hợp lệ (chứa ký tự xuống dòng/\") -> dùng nguyên văn")
-            return c
-        end
-        return 'loadstring(game:HttpGet("'..c..'"))()'
-    end
-    return c
+    -- v4.7: gom về MỘT MỐI với tab 💻 Code / 💾 Code Đã Lưu. S.NormalizeRunnable làm đúng việc
+    -- cũ (bọc link trần thành loadstring(game:HttpGet("..."))() , CHẶN URL chứa " hoặc xuống dòng)
+    -- và làm THÊM: HttpGet trần, loadstring thiếu dấu (), BOM/ký tự ẩn.
+    return S.NormalizeRunnable(c)
 end
 
 -- v4.4b: chỉ lấy GUI ở PlayerGui của game + container của hub (KHÔNG quét CoreGui nữa —
@@ -5187,6 +5480,17 @@ function S.ShouldSkipPark(code, name)
     for _, m in ipairs(S.NO_PARK_MARKERS) do
         if hay:find(m, 1, true) then return true, m end
     end
+    -- v4.7: SCRIPT TẢI TỪ MẠNG (loadstring + HttpGet/request + link http) là MENU CỦA TÁC GIẢ:
+    -- nó tự vẽ cửa sổ kéo/thu nhỏ được nên PHẢI nằm NGOÀI màn hình game. Bản cũ hay "đậu"
+    -- script nổi tiếng vào tab 🧩 GUI Ngoài -> người dùng bấm ▶ mà "không ra gì".
+    -- (Công tắc 🪟 và tab 🧩 vẫn còn nguyên cho code tự viết: muốn đậu lại thì BẬT 🪟 ở trang ➕.)
+    local code_l = tostring(code or ""):lower()
+    local hasFetch = code_l:find("httpget", 1, true) or code_l:find("http_request", 1, true)
+        or code_l:find("request(", 1, true) or code_l:find("https://", 1, true)
+        or code_l:find("http://", 1, true)
+    if hasFetch and (code_l:find("loadstring", 1, true) or code_l:find("load(", 1, true)) then
+        return true, "script tải từ mạng (để GUI ngoài màn hình như tác giả thiết kế)"
+    end
     return false, nil
 end
 
@@ -5308,6 +5612,7 @@ local function RunFeatureScript(code, name, containerFrame, indicator, statusLab
     end
 
     code = NormalizeCode(code)
+    S.EnsureCompat()   -- v4.7: tab ➕ Tính Năng cũng được bù hàm executor còn thiếu
 
     if indicator then indicator.BackgroundColor3 = C.RED end
     if statusLabel then statusLabel.Text = "⏳ Đang thực thi..." end

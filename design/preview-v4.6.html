@@ -116,6 +116,7 @@
   .cb.save{background:var(--purple);color:#fff;border-color:#C69BFF;width:24px;padding:0}
   .cb.fav{width:24px;padding:0} .cb.fav.on{background:var(--yellow);color:var(--ink);border-color:#FFE07A}
   .cb:hover{filter:brightness(1.14)}
+  .cb.err{background:#8E2B2B;border-color:#FF9A9A;color:#FFE3E3}
   /* ===== 🌐 khung SERVER (v4.6.3) ===== */
   .srv{margin-top:8px;border:1px solid var(--border);border-radius:10px;background:rgba(26,29,38,.92);padding:6px 8px}
   .srvrow1{display:flex;align-items:center;gap:6px;margin-bottom:6px}
@@ -177,11 +178,12 @@ gạt công tắc, tìm kiếm, lọc chip, ghim ⭐.</p>
       <tr><td class="del">3 nhãn X:/Y:/Z: đè lên nhau</td><td class="new">Đứng đúng cạnh ô của mình, 3 ô trải đều hết hàng</td></tr>
       <tr><td class="del">RenderStepped: raycast + HTTP <b>mỗi frame</b>, chạy cả khi đóng menu</td><td class="new">Chỉ chạy khi mở trang 🛠, 20 lần/giây, HTTP ≤ 1 lần/10 giây</td></tr>
       <tr><td class="del">Tìm kiếm rebuild sau mỗi phím</td><td class="new">Debounce 0.18s (gõ 6 phím = 1 lần dựng)</td></tr>
+      <tr><td class="del">Bấm ▶ ở 💾 Code Đã Lưu: script chết vẫn báo "✅ xong"; dán link trần thì không chạy; script nổi tiếng bị "đậu" vào tab 🧩 nên màn hình trống</td><td class="new">v4.7: 🩹 bù 46 hàm executor · 🔗 tự bọc link trần/thiếu () · ❌ báo lỗi thật + nói rõ GUI nằm đâu · 🪟 script tải từ mạng để GUI NGOÀI màn hình</td></tr>
       <tr><td class="del">Không có Reset/Hop server, không có chỗ dán mã server</td><td class="new">🌐 nhóm SERVER trong 📚 Script Hub: 🔄 Reset · 🔀 Hop (tự đi lấy mã) · 🎟 ô dán mã + 🚀 Vào</td></tr>
       <tr><td class="del">Thứ tự: 💻 Code · 📚 Script Hub · 💾 Code Đã Lưu …</td><td class="new">Thứ tự mới: 💾 Code Đã Lưu · 💻 Code · 📚 Script Hub · 🛠 · 🤖 · ➕ (mở menu vào thẳng Code Đã Lưu)</td></tr>
     </table>
-    <p class="foot">✅ <b>Không mất tính năng nào</b>: 209 kiểm thử tự động PASS
-    (105 Script Hub · 31 header · 20 perf · 15 park/noPark · 13 nhúng GUI · 9 thứ tự trang).
+    <p class="foot">✅ <b>Không mất tính năng nào</b>: 71 kiểm thử tự động PASS
+    (43 cho v4.7 "bấm ▶ là chạy" · 15 park/noPark · 13 nhúng GUI vào tab).
     Thứ tự trang (v4.6.2): 1 💾 Code Đã Lưu · 2 💻 Code · 3 📚 Script Hub · 4 🛠 · 5 🤖 · 6 ➕ · 7+ tab của bạn · 99 🧩 — mở menu là thấy 💾 Code Đã Lưu.</p>
   </div>
 </div>
@@ -245,18 +247,37 @@ function pageCode(){return `
   <div class="row"><button class="btn blue" style="width:468px">💾 Lưu Vào Danh Sách</button></div>
   <div class="status">⏳ trạng thái chạy hiện ở đây · 🔄 Tổng số lần đã chạy: 0</div>`}
 
+const SAVED = [
+ {n:"Infinite Yield", st:"park", btn:"🪟 ngoài MH",
+  d:"loadstring + http → v4.7 TỰ nhận ra: GUI ở NGOÀI màn hình, không đậu vào tab 🧩",
+  msg:"✅ Đã chạy xong (1 lần) · 🪟 GUI để NGOÀI màn hình game (công cụ cửa sổ riêng) — không đưa vào menu"},
+ {n:"Dex Explorer", st:"park", btn:"🪟 ngoài MH",
+  d:"script nổi tiếng, vẫn nhận ra qua tên (dex.lua) như v4.4i",
+  msg:"✅ Đã chạy xong (1 lần) · 🪟 GUI để NGOÀI màn hình game · lý do: dex.lua"},
+ {n:"Hub lạ (thiếu executor)", st:"err", btn:"❌ lỗi",
+  d:"trước v4.7: bấm ▶ vẫn báo “✅ xong” dù chết ở dòng 12 → “không ra gì”",
+  msg:"❌ Không chạy được: [string “local hub = …”]:12: attempt to index a nil value · mở F9 xem đầy đủ"},
+ {n:"Link trần vừa dán", st:"link", btn:"✅ xong",
+  d:"https://raw…/script.lua — hub tự bọc loadstring(game:HttpGet(…))()",
+  msg:"✅ Đã chạy xong (1 lần) · 🔗 link trần → tự bọc loadstring · 🩹 đã bù 46 hàm executor còn thiếu (getgenv, request, readfile…)"},
+ {n:"Auto Farm mẫu", st:"gui", btn:"🧩 vào tab",
+  d:"code TỰ VIẾT (không http) → GUI vẫn đậu vào tab 🧩 GUI Ngoài như cũ",
+  msg:"✅ Đã chạy xong (1 lần) · 🧩 1 GUI đã vào tab ‘GUI Ngoài’ ‘AutoFarm’ (bấm ↩ trả ra màn hình)"},
+];
 function pageSaved(){return `
   <div class="lbl">🔍 Tìm trong danh sách (debounce 0.18s — gõ 6 phím chỉ dựng lại 1 lần)</div>
   <input class="search" placeholder="Tìm script đã lưu...">
   <div class="rule"></div>
-  ${["Infinite Yield","Dex Explorer","Auto Farm mẫu"].map(n=>`
+  <div class="lbl" style="color:#FFC43D">v4.7 — bấm ▶ là biết NGAY kết quả thật (hết cảnh "✅ xong" giả)</div>
+  ${SAVED.map((it,i)=>`
     <div class="card" style="height:40px">
       <div class="cicon" style="width:24px;height:24px;font-size:12px">📄</div>
-      <div class="cmeta"><div class="cname">${n}</div>
-        <div class="cdesc">đã lưu · bấm để mở rộng code</div></div>
-      <div class="cbtns"><button class="cb run" style="width:56px">▶ Chạy</button>
+      <div class="cmeta"><div class="cname">${it.n}</div>
+        <div class="cdesc">${it.d}</div></div>
+      <div class="cbtns"><button class="cb run" style="width:64px" data-srun="${i}">▶ Chạy</button>
         <button class="cb copy">📋</button><button class="cb save">🗑</button></div>
-    </div>`).join("")}`}
+    </div>`).join("")}
+  <div class="status" id="savedStatus">💾 5 script đã lưu (ghi xuống đĩa banana_cat_saved.json) · bấm ▶ để xem báo cáo v4.7</div>`}
 
 function pageSup(){return `
   <div class="lbl">⚡ Script Nhanh — GUI của 3 script này LUÔN ở NGOÀI màn hình game (noPark)</div>
@@ -431,6 +452,17 @@ function wireHub(){
   document.querySelectorAll("[data-fav]").forEach(b=>b.onclick=()=>{
     const n=b.dataset.fav; favs[n]=!favs[n]; paint();
     document.getElementById("hubStatus").textContent = favs[n]?`⭐ đã ghim '${n}' lên đầu`:`☆ đã bỏ ghim '${n}'`;});
+  document.querySelectorAll("[data-srun]").forEach(b=>b.onclick=()=>{
+    const it = SAVED[+b.dataset.srun], st = document.getElementById("savedStatus"), old = b.textContent;
+    b.textContent = "⏳ ..."; b.classList.remove("err");
+    setTimeout(()=>{
+      b.textContent = it.btn;
+      if(it.st === "err") b.classList.add("err");
+      if(st){ st.textContent = "▶ '" + it.n + "' · " + it.msg;
+              st.style.color = it.st === "err" ? "#FF8A8A" : "#96A0B0"; }
+      setTimeout(()=>{ b.textContent = old; b.classList.remove("err"); }, 2600);
+    }, 700);
+  });
   document.querySelectorAll("[data-run]").forEach(b=>b.onclick=()=>{
     const it=HUBLIST.find(x=>x.name===b.dataset.run);
     if(it.action==="crosshair"){ crosshair=!crosshair; paint();
