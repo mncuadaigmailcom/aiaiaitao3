@@ -1,6 +1,57 @@
 --[[
-    🍌 Banana Cat Hub v4.8 — FULL CODE  ·  giao diện "MIDNIGHT GOLD" + layout kiểu DELTA
-    + v4.6 (bản này): MENU GIỐNG DELTA — chỉ đổi CÁCH BỐ TRÍ, không bỏ tính năng nào:
+    🍌 Banana Cat Hub v4.9 — FULL CODE  ·  giao diện "OBSIDIAN GOLD" + layout kiểu DELTA
+    ---------------------------------------------------------------------------
+    + v4.9 (BẢN NÀY): THIẾT KẾ LẠI CHO "ĐẲNG CẤP HƠN" + SỬA 6 LỖI THẬT (KHÔNG mất tính năng nào)
+      A. GIAO DIỆN — cùng bố cục, cùng tính năng, chỉ khác vật liệu & chiều sâu:
+        • Bảng màu mở rộng thành "OBSIDIAN GOLD": nền sâu hơn (13,15,21), đỉnh cửa sổ sáng hơn
+          đáy (gradient dọc) -> cửa sổ như một khối obsidian thật, vàng accent nổi hơn hẳn.
+          GIỮ NGUYÊN mọi tên khoá cũ (C.BG/C.SURFACE/C.MUTED/C.ACCENT...) nên toàn bộ code cũ
+          không phải sửa; chỉ THÊM 10 token mới (BG_TOP/BG_BOT/EL1/EL2/LINE/GOLD/GOLD2/ICE/SHADOW).
+        • Bộ vật liệu mới trong bảng D (không tốn thêm biến local): D.Bevel (vệt sáng mép trên,
+          tự mờ hai đầu), D.Depth (bóng tối trong đáy), D.Card (thẻ kính + nhấc nhẹ khi rê chuột),
+          D.Shadow (bóng đổ NGOÀI cửa sổ 2 lớp, tự bám theo khi kéo/nới), D.TitleBtn (nút ✕/🔒 có
+          "viên thuốc" khi hover), D.TabActive (tab đang mở: pill gradient + vạch accent CÓ
+          ANIMATION + quầng sáng), D.ChipState, D.Section, D.Sweep (làn sáng quét khi mở menu).
+        • Cửa sổ: bo 16px, khối đổ dọc, bevel mép trên, bóng đổ ngoài.
+        • Thanh tiêu đề: ô logo 🍌 gradient, chữ gradient vàng->kem, pill phiên bản rộng hơn có bevel.
+        • Rail trái: gradient dọc, tab đang mở có pill + vạch vàng gradient + quầng; tab hover có
+          pill "ghost" riêng (không đè lên trạng thái tab đang mở).
+        • Thẻ/danh sách dùng CHUNG một ngôn ngữ: Script Hub, Code Đã Lưu, Waypoint, tab tính năng,
+          GUI Ngoài, panel vật thể, bong bóng chat, header AI, 3 nút Script Nhanh — tất cả là
+          thẻ kính có bevel + đáy tối + phản hồi hover; chip lọc có 1 nguồn trạng thái duy nhất.
+        • Tiêu đề mục có vạch vàng (D.Section); kẻ ngăn & kẻ header mờ dần hai đầu; thanh cuộn
+          dày 4px, bo tròn (MidSize).
+        • KHÔNG đổi kích thước/không đổi bố cục -> mọi giới hạn cứng (thanh tiêu đề 30px,
+          rail 56px, header trang 24px, code nút trong tab) giữ nguyên nên không thể lệch layout.
+      B. SỬA LỖI THẬT (đều là lỗi có sẵn từ trước, không phải do v4.9 gây ra):
+        • B11 (NẶNG): `local S = { ... }` được khai báo SAU 7 chỗ dùng nó -> Lua biên dịch `S`
+          thành GLOBAL nil. Hệ quả: bấm 3 công tắc 🧩/🕵/🪟 trên header = lỗi nil (3 công tắc CHẾT),
+          và D.SyncPageChips hỏng im lặng (trong pcall) nên công tắc không hiện đúng trạng thái.
+          Nay khối S được chuyển lên trước phần hit-test -> 3 công tắc chạy thật.
+        • B1: `for j, t in ipairs(tabs) do t.LayoutOrder = j end` (2 chỗ) đánh số lại TOÀN BỘ rail
+          theo thứ tự TẠO -> xoá 1 tab tính năng, hoặc vào game khi đã có tab lưu, là mất thứ tự
+          đã thiết kế (💻 Code lên đầu, 📚/🧩 chen giữa) và OpenFirstPage() mở sai trang.
+          Nay có RenumberFeatureTabs(): chỉ dồn nhóm tab tính năng (7..89), giữ 1..6 và 99.
+        • B2: rail từ v4.5 chỉ có icon nhưng nút 🧩 được gán chữ "🧩 GUI Ngoài (2)" -> tràn/héo
+          chữ trong ô 48px, và số GUI không hiện ở header. Nay Text luôn là icon, số lượng vào
+          attribute BCTabName (header/hover đọc từ đó) qua S.SetParkLabel().
+        • B3: snapshot GUI khi nhúng chỉ chụp MỘT lần rồi RestoreSnap ở mỗi lần re-fit -> mọi
+          thay đổi layout mà script người dùng tự làm sau đó bị kéo về trạng thái cũ. Nay FitEmbedded
+          so sánh giá trị HIỆN TẠI với bản đã áp (lệch >1px = ý định mới) và cập nhật "mốc"
+          (chia ngược hệ số) -> tôn trọng thay đổi của script, số không bị trôi.
+        • B4: code tự sinh "📋 Lấy code tự co giãn" gỡ hook bằng phép gán thô (đè mất hook của
+          hub/script khác) và tự tắt hook ngay sau code người dùng -> GUI tạo trễ không được ghi
+          nhận. Nay gỡ CÓ GUARD (chỉ khi Instance.new vẫn là hàm của mình), hook sống đủ 4 giây,
+          và connection AbsoluteSize chỉ nối 1 lần cho mỗi root.
+        • B5: Store.canWrite() kiểm tra global lúc gọi, nên sau khi lớp compat bù readfile/writefile
+          bằng ổ đĩa ẢO thì hub báo "đã lưu xuống đĩa" trong khi dữ liệu chỉ nằm trong RAM.
+          Nay chốt Store.hasRealFs NGAY LÚC KHỞI ĐỘNG (trước EnsureCompat) + in cảnh báo khi vào game.
+        • B8: số phiên bản lệch nhau ở 4 chỗ (v4.8 / "v4.6 · DELTA" / print "v4.6" / "4.7").
+          Nay tất cả đọc từ D.VERSION và D.VERSION_NUM. B9: bỏ hằng số chết S.WRAP_MARK_NEW,
+          bỏ 3 biến local tạo mà không dùng, cập nhật số liệu slot local trong comment.
+        • B7 (một phần): S.FetchServers nay tự bọc pcall thay vì "may mắn" nhờ chỗ gọi bọc pcall.
+    ---------------------------------------------------------------------------
+    (lịch sử cũ) v4.6: MENU GIỐNG DELTA — chỉ đổi CÁCH BỐ TRÍ, không bỏ tính năng nào:
         • Thanh tab chuyển từ PHẢI (chữ, rộng 105px) sang TRÁI (chỉ icon, rộng 56px) như Delta;
           tab đang mở có vạch accent 3px. Rê chuột vào một icon -> header hiện tên trang đó (chữ
           mờ 40%), rời chuột thì trả về tên trang đang mở. Vùng nội dung nhờ vậy RỘNG thêm 49px.
@@ -281,26 +332,39 @@ pcall(function() RunService:UnbindFromRenderStep("Carpet") end)
 --     (đã kiểm tra: C.DARK chỉ được dùng cho TextColor3, không nơi nào dùng làm nền/viền)
 local C = {
     WHITE  = Color3.fromRGB(255, 255, 255),
-    DARK   = Color3.fromRGB(233, 237, 245),   -- chữ chính trên nền tối
+    DARK   = Color3.fromRGB(236, 240, 248),   -- chữ chính trên nền tối
     GRAY   = Color3.fromRGB(124, 132, 150),   -- nút tắt / chữ phụ
-    GREEN  = Color3.fromRGB(38, 194, 118),
-    BLUE   = Color3.fromRGB(72, 148, 248),
-    RED    = Color3.fromRGB(242, 86, 94),
-    YELLOW = Color3.fromRGB(255, 205, 64),
-    PURPLE = Color3.fromRGB(172, 105, 255),
-    ORANGE = Color3.fromRGB(245, 152, 66),
+    GREEN  = Color3.fromRGB(40, 205, 125),
+    BLUE   = Color3.fromRGB(86, 156, 255),
+    RED    = Color3.fromRGB(244, 92, 100),
+    YELLOW = Color3.fromRGB(255, 208, 78),
+    PURPLE = Color3.fromRGB(176, 112, 255),
+    ORANGE = Color3.fromRGB(247, 158, 74),
     PINK   = Color3.fromRGB(242, 122, 185),
-    BG     = Color3.fromRGB(18, 20, 27),      -- nền cửa sổ chính
+    BG     = Color3.fromRGB(13, 15, 21),      -- nền cửa sổ chính (v4.9: sâu hơn -> vàng accent nổi hơn)
 
     -- token thiết kế mới (v4.5)
     INK      = Color3.fromRGB(16, 18, 24),    -- chữ ĐẬM dùng trên nền vàng/cam/sáng
-    SURFACE  = Color3.fromRGB(26, 29, 38),    -- thẻ, ô nhập liệu
-    SURFACE2 = Color3.fromRGB(34, 38, 50),    -- panel, dòng hover, thanh tiêu đề
-    SURFACE3 = Color3.fromRGB(46, 51, 66),    -- viền sáng, scrollbar
-    BORDER   = Color3.fromRGB(52, 58, 74),    -- viền mảnh 1px
-    MUTED    = Color3.fromRGB(150, 158, 176), -- chữ phụ
+    SURFACE  = Color3.fromRGB(24, 27, 36),    -- thẻ, ô nhập liệu
+    SURFACE2 = Color3.fromRGB(32, 36, 48),    -- panel, dòng hover, thanh tiêu đề
+    SURFACE3 = Color3.fromRGB(45, 50, 65),    -- viền sáng, scrollbar
+    BORDER   = Color3.fromRGB(56, 62, 80),    -- viền mảnh 1px
+    MUTED    = Color3.fromRGB(152, 161, 181), -- chữ phụ
     ACCENT   = Color3.fromRGB(255, 196, 61),  -- vàng chuối (màu nhận diện hub)
     ACCENT2  = Color3.fromRGB(255, 132, 62),  -- cam (đuôi gradient)
+
+    -- ===================== v4.9: TOKEN "OBSIDIAN GOLD" =====================
+    -- Bổ sung thêm lớp vật liệu cho giao diện (KHÔNG đổi tên khoá cũ nên mọi chỗ
+    -- đang dùng C.BG/C.SURFACE... vẫn chạy y như trước).
+    BG_TOP   = Color3.fromRGB(23, 26, 35),    -- đỉnh gradient cửa sổ
+    BG_BOT   = Color3.fromRGB(8, 9, 13),      -- đáy gradient cửa sổ (tối dần -> có chiều sâu)
+    EL1      = Color3.fromRGB(29, 33, 43),    -- lớp nổi 1 (thẻ, panel)
+    EL2      = Color3.fromRGB(37, 42, 55),    -- lớp nổi 2 (thẻ hover, nút)
+    LINE     = Color3.fromRGB(72, 80, 101),   -- viền sáng (tách khối rõ, vẫn dịu)
+    GOLD     = Color3.fromRGB(255, 205, 92),  -- vàng sáng (đỉnh gradient accent)
+    GOLD2    = Color3.fromRGB(255, 149, 55),  -- vàng cam (đuôi gradient accent)
+    ICE      = Color3.fromRGB(216, 226, 242), -- chữ nhấn lạnh (tương phản với vàng)
+    SHADOW   = Color3.fromRGB(0, 0, 0),        -- bóng đổ ngoài cửa sổ
 }
 
 local function New(cls, props, parent)
@@ -312,9 +376,10 @@ local function New(cls, props, parent)
             obj.BorderSizePixel = 0          -- phẳng, không viền 1px kiểu cũ
         end
         if cls == "ScrollingFrame" then
-            obj.ScrollBarThickness = 3       -- scrollbar mảnh kiểu hiện đại
-            obj.ScrollBarImageColor3 = Color3.fromRGB(46, 51, 66)
-            obj.ScrollBarImageTransparency = 0.2
+            obj.ScrollBarThickness = 4       -- v4.9: dày 4px cho dễ bấm, vẫn mảnh
+            obj.ScrollBarImageColor3 = Color3.fromRGB(62, 69, 88)
+            obj.ScrollBarImageTransparency = 0.1
+            obj.MidSize = Vector2.new(4, 4)  -- thanh cuộn bo tròn (không còn ô vuông góc cạnh)
         end
     end)
     for k, v in pairs(props or {}) do
@@ -403,6 +468,12 @@ end
 -- main chunk của file này đã sát trần 200 local của Luau).
 -- ============================================================================
 local D = {}
+
+-- v4.9: MỘT nguồn sự thật cho số phiên bản. Trước đây số phiên bản bị ghi lệch nhau ở
+-- 4 chỗ (tiêu đề file "v4.8", pill "v4.6 · DELTA", print cuối "v4.6", identifyexecutor "4.7")
+-- -> người dùng không biết mình đang chạy bản nào. Nay tất cả cùng đọc 2 hằng số này.
+D.VERSION     = "v4.9 · OBSIDIAN"
+D.VERSION_NUM = "4.9"
 
 -- Chữ/viền nên sáng hay đậm trên nền `bg`? (tự động tương phản, tránh chữ chìm)
 function D.BestText(bg)
@@ -547,6 +618,286 @@ function D.Breathe(obj, props, dur)
 end
 
 -- ============================================================================
+-- v4.9: BỘ VẬT LIỆU "OBSIDIAN GOLD" — CHỈ thêm hàm mới, KHÔNG đổi hàm cũ, KHÔNG
+-- đổi tên khoá nào -> mọi chỗ đang gọi D.* giữ nguyên hành vi 100%.
+-- Nguyên tắc: mọi hiệu ứng đều là ĐỐI TƯỢNG CON (Frame/UIStroke) chứ không phải
+-- ảnh/asset ngoài, và luôn bọc pcall + trackConn để không rò rỉ khi chạy lại.
+-- ============================================================================
+
+-- Vệt sáng mảnh ở MÉP TRÊN (bevel kính) — 1 Frame con cao 1px, mờ dần về 2 đầu.
+-- Tạo bao nhiêu lần cũng chỉ có 1 (tìm theo tên) -> an toàn khi dựng lại thẻ.
+function D.Bevel(obj, c, trans, inset)
+    pcall(function()
+        if not obj or not obj:IsA("GuiObject") then return end
+        if obj:FindFirstChild("BC_Bevel") then return end
+        local ins = inset or 8
+        local b = New("Frame", {
+            Name = "BC_Bevel", Size = UDim2.new(1, -ins * 2, 0, 1), Position = UDim2.new(0, ins, 0, 0),
+            BackgroundColor3 = c or C.WHITE, BackgroundTransparency = trans or 0.78,
+            BorderSizePixel = 0, ZIndex = obj.ZIndex or 1,
+        }, obj)
+        local g = D.Grad(b)
+        g.Rotation = 0
+        g.Color = ColorSequence.new(Color3.new(1, 1, 1))
+        -- mờ hai đầu, sáng ở giữa -> cảm giác mặt kính bo tròn, không bị "kẻ vạch"
+        g.Transparency = NumberSequence.new({
+            NumberSequenceKeypoint.new(0.00, 1.00),
+            NumberSequenceKeypoint.new(0.12, 0.55),
+            NumberSequenceKeypoint.new(0.50, 0.30),
+            NumberSequenceKeypoint.new(0.88, 0.55),
+            NumberSequenceKeypoint.new(1.00, 1.00),
+        })
+    end)
+    return obj
+end
+
+-- Bóng tối mềm phía TRONG đáy (đổ khối) — giúp thẻ "dày" hơn mà không cần ảnh.
+function D.Depth(obj, h, trans)
+    pcall(function()
+        if not obj or not obj:IsA("GuiObject") then return end
+        if obj:FindFirstChild("BC_Depth") then return end
+        local d = New("Frame", {
+            Name = "BC_Depth", Size = UDim2.new(1, 0, 0, h or 18),
+            Position = UDim2.new(0, 0, 1, -(h or 18)),
+            BackgroundColor3 = C.SHADOW, BackgroundTransparency = trans or 0.86,
+            BorderSizePixel = 0, ZIndex = obj.ZIndex or 1,
+        }, obj)
+        local g = D.Grad(d)
+        g.Rotation = 90
+        g.Color = ColorSequence.new(Color3.new(1, 1, 1))
+        g.Transparency = NumberSequence.new({
+            NumberSequenceKeypoint.new(0.00, 1.00),
+            NumberSequenceKeypoint.new(1.00, 0.35),
+        })
+    end)
+    return obj
+end
+
+-- THẺ CHUẨN của hub: nền lớp nổi + bevel + đáy tối dần + (tuỳ chọn) nhấc nhẹ khi rê chuột.
+-- Dùng cho mọi "hàng" trong danh sách -> cả menu nhìn cùng một ngôn ngữ vật liệu.
+function D.Card(obj, hover, trans)
+    pcall(function()
+        if not obj or not obj:IsA("GuiObject") then return end
+        if trans ~= nil then obj.BackgroundTransparency = trans end
+        D.Bevel(obj)
+        D.Depth(obj, 16, 0.88)
+        if hover and not obj:GetAttribute("BC_Lift") then
+            obj:SetAttribute("BC_Lift", true)
+            local base = obj.BackgroundTransparency
+            trackConn(obj.MouseEnter:Connect(function()
+                pcall(function()
+                    if obj:FindFirstChild("BC_Bevel") then
+                        obj.BC_Bevel.BackgroundTransparency = 0.62
+                    end
+                    Tween(obj, {BackgroundTransparency = math.max(0, base - 0.05)}, 0.16)
+                end)
+            end))
+            trackConn(obj.MouseLeave:Connect(function()
+                pcall(function()
+                    if obj:FindFirstChild("BC_Bevel") then
+                        obj.BC_Bevel.BackgroundTransparency = 0.78
+                    end
+                    Tween(obj, {BackgroundTransparency = base}, 0.22)
+                end)
+            end))
+        end
+    end)
+    return obj
+end
+
+-- Bóng đổ NGOÀI cửa sổ (2 lớp, không cần ảnh): tạo cảm giác cửa sổ "nổi" khỏi màn hình.
+-- Tự bám theo Size + Position của đối tượng (kể cả khi kéo/nới cửa sổ).
+function D.Shadow(obj, pad, trans)
+    pcall(function()
+        if not obj or not obj.Parent then return end
+        local p = pad or 10
+        local function posOf()
+            local pp = obj.Position
+            return UDim2.new(pp.X.Scale, pp.X.Offset - p, pp.Y.Scale, pp.Y.Offset - p)
+        end
+        for i = 1, 2 do
+            local inflate = p * i * 1.6
+            local sh = New("Frame", {
+                Name = "BC_Shadow" .. i,
+                Size = UDim2.new(1, p * 2 + inflate, 1, p * 2 + inflate),
+                Position = UDim2.new(obj.Position.X.Scale, obj.Position.X.Offset - p - inflate / 2,
+                                     obj.Position.Y.Scale, obj.Position.Y.Offset - p - inflate / 2),
+                BackgroundColor3 = C.SHADOW,
+                BackgroundTransparency = (trans or 0.72) + (i - 1) * 0.1,
+                BorderSizePixel = 0,
+                Visible = (obj.Visible ~= false),
+                ZIndex = math.max(1, (obj.ZIndex or 2) - 1),
+            }, obj.Parent)
+            Corner(sh, UDim.new(0, 20 + i * 4))
+            -- bóng phải ĐI THEO trạng thái ẩn/hiện của cửa sổ: đóng menu là bóng biến mất,
+            -- không để lại một khối mờ lơ lửng giữa màn hình game.
+            trackConn(obj:GetPropertyChangedSignal("Visible"):Connect(function()
+                pcall(function() sh.Visible = obj.Visible end)
+            end))
+            trackConn(obj:GetPropertyChangedSignal("Position"):Connect(function()
+                pcall(function() sh.Position = posOf() end)
+            end))
+            trackConn(obj:GetPropertyChangedSignal("Size"):Connect(function()
+                pcall(function() sh.Size = UDim2.new(obj.Size.X.Scale,
+                    obj.Size.X.Offset + p * 2 + inflate, obj.Size.Y.Scale, obj.Size.Y.Offset + p * 2 + inflate) end)
+            end))
+        end
+    end)
+    return obj
+end
+
+-- Nút trên THANH TIÊU ĐỀ: nền trong suốt -> khi rê chuột hiện "viên thuốc" mờ + đổi màu chữ.
+-- (Trước đây chỉ đổi màu chữ; nay có phản hồi nền nên nhìn "đắt" hơn, vẫn cùng kích thước.)
+function D.TitleBtn(parent, text, x, overColor)
+    local b = New("TextButton", {
+        Size = UDim2.new(0, 26, 0, 22), Position = UDim2.new(1, x, 0, 4),
+        Text = text, BackgroundColor3 = C.SURFACE3, BackgroundTransparency = 1,
+        TextColor3 = C.MUTED, Font = Enum.Font.GothamBold, TextSize = 13,
+        BorderSizePixel = 0, AutoButtonColor = false, ZIndex = 6,
+    }, parent)
+    Corner(b, UDim.new(0, 7))
+    local base = b.TextColor3
+    trackConn(b.MouseEnter:Connect(function()
+        Tween(b, {BackgroundTransparency = 0.55, TextColor3 = overColor or C.WHITE}, 0.14)
+    end))
+    trackConn(b.MouseLeave:Connect(function()
+        Tween(b, {BackgroundTransparency = 1, TextColor3 = base}, 0.2)
+    end))
+    return b
+end
+
+-- TAB ĐANG MỞ: pill gradient + vạch accent có animation + icon sáng lên.
+-- on=false -> pill tắt hẳn (BackgroundTransparency = 1) và vạch ẩn: giữ ĐÚNG các bất biến
+-- mà logic hover cũ trong AddTab/CreateFeatureTab đang dựa vào
+-- (hover chỉ chạy khi BackgroundTransparency > 0.5, và "đang mở" nhận biết bằng TextColor3 == C.ACCENT).
+function D.TabActive(btn, on)
+    pcall(function()
+        if not btn then return end
+        local bar = btn:FindFirstChild("BC_Bar")
+        if on and not bar then
+            -- tạo vạch tại đây để lần mở ĐẦU TIÊN cũng có animation (SwitchTab có khối tạo riêng
+            -- và sẽ tìm thấy vạch này -> không bao giờ sinh 2 vạch)
+            bar = New("Frame", {
+                Name = "BC_Bar", Size = UDim2.new(0, 3, 0, 6), Position = UDim2.new(0, 2, 0, 6),
+                BackgroundColor3 = C.ACCENT, BorderSizePixel = 0, ZIndex = 6,
+            }, btn)
+            Corner(bar, UDim.new(1, 0))
+            D.Paint(bar, C.GOLD, C.GOLD2, 90)
+        end
+        if on then
+            D.Paint(btn, C.EL2, C.SURFACE2, 90)
+            btn.BackgroundTransparency = 0.06
+            btn.TextColor3 = C.ACCENT
+            if bar then
+                bar.Visible = true
+                if D.barTween then pcall(function() D.barTween:Cancel() end) end
+                bar.Size = UDim2.new(0, 3, 0, 6)
+                D.barTween = TweenService:Create(bar,
+                    TweenInfo.new(0.22, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
+                    {Size = UDim2.new(0, 3, 1, -12)})
+                D.barTween:Play()
+                if not btn:FindFirstChild("BC_TabGlow") then
+                    local gl = New("Frame", {
+                        Name = "BC_TabGlow", Size = UDim2.new(1, 6, 1, 6), Position = UDim2.new(0, -3, 0, -3),
+                        BackgroundColor3 = C.ACCENT, BackgroundTransparency = 0.93,
+                        BorderSizePixel = 0, ZIndex = math.max(1, (btn.ZIndex or 4) - 1),
+                    }, btn)
+                    Corner(gl, UDim.new(0, 12))
+                end
+                if btn:FindFirstChild("BC_TabGlow") then btn.BC_TabGlow.Visible = true end
+            end
+        else
+            btn.BackgroundColor3 = C.SURFACE2
+            btn.BackgroundTransparency = 1
+            btn.TextColor3 = C.MUTED
+            if btn:FindFirstChild("BC_TabGlow") then btn.BC_TabGlow.Visible = false end
+            -- vạch accent là CON của nút nên UIListLayout không xô; ẩn bằng Visible như cũ
+            local b2 = btn:FindFirstChild("BC_Bar")
+            if b2 then b2.Visible = false end
+        end
+    end)
+end
+
+-- Trạng thái CHIP lọc (Script Hub): đang chọn = viên vàng gradient + chữ đậm;
+-- chưa chọn = viên trong suốt + viền mảnh. Gom 1 hàm để chỗ dựng và chỗ bấm không lệch nhau.
+function D.ChipState(chip, on)
+    pcall(function()
+        if not chip then return end
+        if on then
+            D.Paint(chip, C.GOLD, C.GOLD2, 0)
+            chip.BackgroundTransparency = 0.05
+            chip.TextColor3 = C.INK
+        else
+            chip.BackgroundColor3 = C.EL1
+            chip.BackgroundTransparency = 0.35
+            chip.TextColor3 = C.MUTED
+        end
+        local st = chip:FindFirstChildOfClass("UIStroke")
+        if st then st.Color = on and C.GOLD or C.LINE; st.Transparency = on and 0 or 0.35 end
+    end)
+    return chip
+end
+
+-- TIÊU ĐỀ MỤC (section heading): vạch vàng 3px + chữ sáng đậm hơn nhãn thường.
+-- Nhãn có chữ "━" vẫn là đường kẻ phân cách như cũ.
+function D.Section(parent, text, y, color)
+    pcall(function()
+        if not parent then return end
+        local tick = New("Frame", {
+            Name = "BC_SecTick", Size = UDim2.new(0, 3, 0, 11), Position = UDim2.new(0, 8, 0, (y or 0) + 2),
+            BackgroundColor3 = C.ACCENT, BorderSizePixel = 0, ZIndex = 6,
+        }, parent)
+        Corner(tick, UDim.new(1, 0))
+        D.Paint(tick, C.GOLD, C.GOLD2, 90)
+    end)
+    -- LƯU Ý: KHÔNG gọi Label() ở đây. `local function Label` được khai báo SAU khu vực này
+    -- (trong tab Hỗ Trợ) nên nếu gọi, Lua biên dịch `Label` thành GLOBAL -> nil -> lỗi runtime.
+    -- Vì vậy tự dựng nhãn bằng New() với đúng các giá trị mặc định của Label().
+    local lbl = New("TextLabel", {
+        Size = UDim2.new(1, -25, 0, 14), Position = UDim2.new(0, 17, 0, y or 0),
+        Text = text, BackgroundTransparency = 1, TextColor3 = color or C.ICE,
+        Font = Enum.Font.GothamBold, TextSize = 10,
+        TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 6,
+    }, parent)
+    return lbl
+end
+
+-- LÀN SÁNG QUÉT ngang thanh tiêu đề mỗi lần MỞ menu (hiệu ứng "khởi động" rất nhẹ).
+-- Thuần trang trí: nếu có lỗi thì pcall nuốt, không ảnh hưởng tính năng.
+function D.Sweep(bar)
+    pcall(function()
+        if not bar then return end
+        if D.sweepTween then pcall(function() D.sweepTween:Cancel() end) end
+        local sweep = bar:FindFirstChild("BC_Sweep")
+        if not sweep then
+            sweep = New("Frame", {
+                Name = "BC_Sweep", Size = UDim2.new(0, 74, 1, 0), Position = UDim2.new(0, -0.3, 0, 0),
+                BackgroundColor3 = C.WHITE, BackgroundTransparency = 0.9,
+                BorderSizePixel = 0, ZIndex = 6,
+            }, bar)
+            local g = D.Grad(sweep)
+            g.Rotation = 0
+            g.Color = ColorSequence.new(C.GOLD, C.GOLD)
+            g.Transparency = NumberSequence.new({
+                NumberSequenceKeypoint.new(0.00, 1.00),
+                NumberSequenceKeypoint.new(0.50, 0.15),
+                NumberSequenceKeypoint.new(1.00, 1.00),
+            })
+        end
+        sweep.Visible = true
+        sweep.Position = UDim2.new(0, -0.3, 0, 0)
+        sweep.BackgroundTransparency = 0.86
+        D.sweepTween = TweenService:Create(sweep,
+            TweenInfo.new(0.75, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
+            {Position = UDim2.new(0, 1.02, 0, 0), BackgroundTransparency = 0.97})
+        D.sweepTween:Play()
+        D.sweepTween.Completed:Connect(function()
+            pcall(function() sweep.Visible = false end)
+        end)
+    end)
+end
+
+-- ============================================================================
 -- v4.4b — SỬA LỖI "chạy tính năng xong không quay chuột / không bắn được"
 -- Nguyên nhân gốc (3 chỗ, đều được sửa ở dưới):
 --   1) TextBox của hub còn đang FOCUS. Khi có TextBox focused, PlayerModule mặc định của
@@ -613,13 +964,17 @@ local togBtn = New("TextButton", {
     ZIndex=1000,
 }, gui)
 Corner(togBtn, UDim.new(1,0))
-Stroke(togBtn, C.ACCENT2, 1.6)
+Stroke(togBtn, C.GOLD2, 1.6)
 -- v4.5: nút chuối vàng->cam + quầng sáng "thở" phía sau (không dùng ảnh/asset ngoài)
-D.Paint(togBtn, C.ACCENT, C.ACCENT2, 135)
+-- v4.9: thêm 1 quầng "hào quang" rộng hơn + bevel đỉnh -> nút nhìn như viên ngọc nổi.
+D.Paint(togBtn, C.GOLD, C.GOLD2, 135)
 D.Tactile(togBtn, 0.03)
+D.Bevel(togBtn, C.WHITE, 0.72)
 pcall(function()
-    local glow = D.Glow(togBtn, C.ACCENT, 7, 0.88)
+    local glow = D.Glow(togBtn, C.GOLD, 7, 0.88)
     if glow then D.Breathe(glow, {BackgroundTransparency = 0.97}, 2.1) end
+    local halo = D.Glow(togBtn, C.GOLD2, 13, 0.95)
+    if halo then D.Breathe(halo, {BackgroundTransparency = 0.99}, 3.4) end
 end)
 
 local main = New("Frame", {
@@ -632,9 +987,37 @@ local main = New("Frame", {
     ClipsDescendants=false,
     ZIndex=2,
 }, gui)
-Corner(main, UDim.new(0,14))
+Corner(main, UDim.new(0,16))
 Stroke(main, C.BORDER, 1.4)
-D.Shade(main, Color3.fromRGB(255,255,255), Color3.fromRGB(196,199,210), 90)   -- sâu hơn ở đáy
+-- v4.9: cửa sổ = khối obsidian đổ dần từ trên xuống (đỉnh sáng hơn, đáy tối hơn) +
+-- bóng đổ ngoài 2 lớp + vệt bevel mép trên. Tất cả đều tự bám theo khi kéo/nới cửa sổ.
+D.Paint(main, C.BG_TOP, C.BG_BOT, 90)
+D.Shadow(main, 9, 0.74)
+D.Bevel(main, C.WHITE, 0.9, 18)
+
+-- Bang trang thai. Chua ca cac bien keo/tha menu: Luau gioi han 200 bien local moi function
+-- (loi "Out of local registers ... exceeded limit 200"), main chunk cua script nay da gan
+-- nguong do nen moi bien dem duoc deu phai nam trong bang thay vi la local rieng.
+local S = {
+    dragMenu     = false,
+    dragging     = false,
+    dragStart    = nil,
+    startPos     = nil,
+    togDragging  = false,
+    togDragStart = nil,
+    togStartPos  = nil,
+    togMoved     = false,
+    -- v4.4b: trạng thái của cơ chế nhúng GUI (đặt trong bảng để KHÔNG tốn slot local —
+    -- main chunk đang ở ~184/200, thêm local tự do là lỗi biên dịch "too many local variables")
+    embedEnabled = true,     -- tab 5 có nút 🧩 để tắt hoàn toàn việc nhúng
+    embedGuessNew = false,   -- 🕵 nhận cả ScreenGui "lạ" mới xuất hiện (mạnh hơn nhưng dễ ăn GUI game)
+    -- v4.4i: 🪟 có đưa GUI của script chạy ở tab 💻 Code / 💾 Code Đã Lưu vào tab "🧩 GUI Ngoài"
+    -- hay không. BẬT = đưa vào menu (tiện cho script tính năng). TẮT = để GUI ngoài màn hình
+    -- game đúng như bản trước v4.4h. Tab ➕ Tính Năng KHÔNG phụ thuộc công tắc này.
+    -- 3 nút ⚡ Script Nhanh (Dex/IY/SimpleSpy) thì LUÔN ở ngoài màn hình, không cần biết công tắc.
+    parkCodeGuis = true,
+    embeds       = {},       -- registry: {host, gui, recs={{child,origParent,origPos,origSize}}, conns={}}
+}
 
 -- ===== HIT-TEST KHÔNG PHỤ THUỘC VÀO PARENT CỦA GUI =====
 -- PlayerGui:GetGuiObjectsAtPosition() CHỈ quét PlayerGui. Khi hub nằm trong gethui()/CoreGui
@@ -642,7 +1025,8 @@ D.Shade(main, Color3.fromRGB(255,255,255), Color3.fromRGB(196,199,210), 90)   --
 -- Hai hàm dưới đây tự tính bằng AbsolutePosition/AbsoluteSize nên đúng với MỌI parent.
 --
 -- ĐÓNG GÓI VÀO BẢNG `Hit` (thay vì 2 biến local riêng): main chunk của script này đã dùng
--- 189/200 biến local cấp cao nhất. Lua/Luau giới hạn 200 local mỗi function, vượt là
+-- ~155/200 biến local cấp cao nhất (số liệu cập nhật v4.9; trước đây ghi 189/200).
+-- Lua/Luau giới hạn 200 local mỗi function, vượt là
 -- lỗi biên dịch "too many local variables" và TOÀN BỘ script không chạy được.
 local Hit = {}
 
@@ -695,65 +1079,60 @@ local titleBar = New("Frame", {
     BorderSizePixel=0,
     ZIndex=3,
 }, main)
-Corner(titleBar, UDim.new(0,14))
-D.Shade(titleBar, Color3.fromRGB(255,255,255), Color3.fromRGB(168,172,184), 90)
+Corner(titleBar, UDim.new(0,16))
+-- v4.9: thanh tiêu đề = kính tối, sáng hơn ở đỉnh; giữ NGUYÊN chiều cao 30px vì
+-- tabBar/contentArea/pageHeader đều neo theo 30px (đổi là xô toàn bộ layout).
+D.Paint(titleBar, C.EL2, Color3.fromRGB(22, 25, 33), 90)
 
--- vạch accent (vàng -> cam) chạy dọc đáy thanh tiêu đề
+-- vạch accent (vàng -> cam) mảnh 1px ở đáy thanh tiêu đề + quầng sáng mờ phía dưới
 D.Paint(New("Frame", {
     Name="TitleAccent", Size=UDim2.new(1,-2,0,2), Position=UDim2.new(0,1,1,-1),
     BackgroundColor3=C.ACCENT, BorderSizePixel=0, ZIndex=5,
 }, titleBar), C.ACCENT, C.ACCENT2, 0)
 
+-- v4.9: ô "logo" nhỏ có gradient vàng->cam (thay cho việc tiêu đề bắt đầu bằng emoji trần)
+local logoTile = New("Frame", {
+    Name = "LogoTile", Size = UDim2.new(0, 18, 0, 18), Position = UDim2.new(0, 9, 0, 6),
+    BackgroundColor3 = C.ACCENT, BackgroundTransparency = 0, BorderSizePixel = 0, ZIndex = 5,
+}, titleBar)
+Corner(logoTile, UDim.new(0, 6))
+D.Paint(logoTile, C.GOLD, C.GOLD2, 135)
+New("TextLabel", {
+    Size = UDim2.new(1, 0, 1, 0), Text = "🍌", BackgroundTransparency = 1, TextColor3 = C.INK,
+    Font = Enum.Font.GothamBold, TextSize = 11, ZIndex = 6,
+}, logoTile)
+
 D.PaintText(New("TextLabel", {
-    Size=UDim2.new(1,-90,1,0),
-    Position=UDim2.new(0,12,0,0),
-    Text="🍌 Banana Cat Hub",
+    Size=UDim2.new(1,-260,1,0),
+    Position=UDim2.new(0,33,0,0),
+    Text="Banana Cat Hub",
     BackgroundTransparency=1,
     TextColor3=C.DARK,
     Font=Enum.Font.GothamBold,
     TextSize=13,
     TextXAlignment=Enum.TextXAlignment.Left,
     ZIndex=4,
-}, titleBar), C.ACCENT, Color3.fromRGB(255, 243, 214))   -- chữ gradient vàng -> trắng sữa
+}, titleBar), C.GOLD, Color3.fromRGB(255, 246, 224))   -- chữ gradient vàng -> trắng sữa
 
 -- pill phiên bản (v4.5) — thông tin phiên bản tách khỏi tiêu đề cho gọn, sang
 D.verPill = New("Frame", {
-    Name="VersionPill", Size=UDim2.new(0,62,0,16), Position=UDim2.new(0,158,0,7),
-    BackgroundColor3=C.SURFACE3, BackgroundTransparency=0.35, BorderSizePixel=0, ZIndex=5,
+    Name="VersionPill", Size=UDim2.new(0,104,0,16), Position=UDim2.new(0,152,0,7),
+    BackgroundColor3=C.SURFACE3, BackgroundTransparency=0.45, BorderSizePixel=0, ZIndex=5,
 }, titleBar)
 Corner(D.verPill, UDim.new(1,0))
 Stroke(D.verPill, C.ACCENT, 1)
-New("TextLabel", {
-    Size=UDim2.new(1,0,1,0), Text="v4.6 · DELTA", BackgroundTransparency=1,
+D.Bevel(D.verPill, C.GOLD, 0.86)
+D.verPillLbl = New("TextLabel", {
+    Size=UDim2.new(1,0,1,0), Text=D.VERSION, BackgroundTransparency=1,
     TextColor3=C.ACCENT, Font=Enum.Font.GothamBold, TextSize=8, ZIndex=6,
 }, D.verPill)
 
-local dragLockBtn = New("TextButton", {
-    Size=UDim2.new(0,30,0,30),
-    Position=UDim2.new(1,-64,0,0),
-    Text="🔒",
-    BackgroundTransparency=1,
-    TextColor3=C.MUTED,
-    Font=Enum.Font.GothamBold,
-    TextSize=15,
-    BorderSizePixel=0,
-    ZIndex=4,
-}, titleBar)
-
-local closeBtn = New("TextButton", {
-    Size=UDim2.new(0,30,0,30),
-    Position=UDim2.new(1,-32,0,0),
-    Text="✕",
-    BackgroundTransparency=1,
-    TextColor3=C.MUTED,
-    Font=Enum.Font.GothamBold,
-    TextSize=15,
-    BorderSizePixel=0,
-    ZIndex=4,
-}, titleBar)
--- v4.5: hover đổi màu (✕ đỏ, 🔒 vàng) — chỉ đổi TextColor3, không đụng layout
-D.HoverText(closeBtn, C.RED, C.RED)
-D.HoverText(dragLockBtn, C.ACCENT, C.ACCENT)
+-- v4.9: 2 nút điều khiển thanh tiêu đề nay có "viên thuốc" nền khi rê chuột (D.TitleBtn).
+-- Vị trí/kích thước giữ nguyên như cũ để không xô bố cục.
+local dragLockBtn = D.TitleBtn(titleBar, "🔒", -58, C.GOLD)
+local closeBtn    = D.TitleBtn(titleBar, "✕", -30, C.RED)
+dragLockBtn.TextSize = 13
+closeBtn.TextSize = 13
 
 local minW, minH = 440, 260
 
@@ -841,6 +1220,27 @@ SetupResizeHandle(CreateHandle("↘", UDim2.new(1, -22, 1, -22)), "BR")
 local tabs = {}
 local tabContent = {}
 
+-- ============================================================================
+-- v4.9 — SỬA LỖI B1: thứ tự tab trên rail bị phá sau khi XOÁ tab / KHÔI PHỤC tab
+-- ----------------------------------------------------------------------------
+-- Bản cũ có 2 chỗ gọi `for j, t in ipairs(tabs) do t.LayoutOrder = j end`. Dòng đó ĐÁNH SỐ LẠI
+-- TOÀN BỘ rail theo THỨ TỰ TẠO, tức là xoá sạch bảng xếp hạng cố ý của AddTab:
+--     1 💾 Code Đã Lưu · 2 💻 Code · 3 📚 Script Hub · 4 🛠 Hỗ Trợ · 5 🤖 AI AI ·
+--     6 ➕ Tạo Tính Năng · 7+ tab tính năng của bạn · 99 🧩 GUI Ngoài
+-- Hệ quả: chỉ cần XOÁ một tab tính năng, HOẶC vào game khi đã có tab lưu sẵn
+-- (Store.restoreFeatures chạy) là rail nhảy về thứ tự tạo -> 💻 Code lên đầu, 📚 Script Hub và
+-- 🧩 GUI Ngoài chen vào giữa, và OpenFirstPage() mở sai trang (icon tô vàng lệch trang đang mở).
+-- Nay: chỉ dồn lại nhóm tab TÍNH NĂNG (7..89); 6 trang hệ thống và 🧩 (99) giữ nguyên vị trí.
+local function RenumberFeatureTabs()
+    local group = {}
+    for _, t in ipairs(tabs) do
+        local o = t and t.LayoutOrder
+        if type(o) == "number" and o >= 7 and o < 90 then group[#group + 1] = t end
+    end
+    table.sort(group, function(a, b) return (a.LayoutOrder or 0) < (b.LayoutOrder or 0) end)
+    for i, t in ipairs(group) do t.LayoutOrder = 7 + i - 1 end
+end
+
 -- v4.5 (Delta-style): thanh trang chuyển sang TRÁI, rộng 56px, CHỈ ICON.
 -- Tên trang hiện ở header (D.pageTitle) — đúng cách Delta làm, và cũng giúp thanh trang không
 -- chật khi tên dài ("➕ Tạo Tính Năng", "🧩 GUI Ngoài (2)"...).
@@ -851,9 +1251,12 @@ local tabBar = New("ScrollingFrame", {
     BackgroundTransparency=0.35,
     BorderSizePixel=0,
     ZIndex=3,
-    ScrollBarThickness=3,
+    ScrollBarThickness=0,
+    ScrollingDirection=Enum.ScrollingDirection.Y,
     CanvasSize=UDim2.new(0,0,0,0),
 }, main)
+-- v4.9: rail có gradient dọc (trên sáng, dưới chìm) -> tách hẳn khỏi vùng nội dung
+D.Paint(tabBar, Color3.fromRGB(27, 30, 40), Color3.fromRGB(15, 17, 23), 90)
 
 -- v4.5: đường kẻ 1px tách thanh tab khỏi vùng nội dung. PHẢI neo vào `main` chứ không neo vào
 -- tabBar: tabBar có UIListLayout, thêm con vào đó sẽ xô vị trí toàn bộ nút tab.
@@ -861,6 +1264,21 @@ New("Frame", {
     Name="TabRailDivider", Size=UDim2.new(0,1,1,-30), Position=UDim2.new(0,56,0,30),
     BackgroundColor3=C.BORDER, BackgroundTransparency=0.3, BorderSizePixel=0, ZIndex=4,
 }, main)
+-- v4.9: vạch ngăn mờ dần ở hai đầu (thay vì kẻ thẳng tắp) -> mắt không bị "cắt" khung
+pcall(function()
+    local dv = main:FindFirstChild("TabRailDivider")
+    if dv then
+        local g = D.Grad(dv)
+        g.Rotation = 90
+        g.Color = ColorSequence.new(C.LINE)
+        g.Transparency = NumberSequence.new({
+            NumberSequenceKeypoint.new(0.00, 1.00),
+            NumberSequenceKeypoint.new(0.10, 0.35),
+            NumberSequenceKeypoint.new(0.90, 0.35),
+            NumberSequenceKeypoint.new(1.00, 1.00),
+        })
+    end
+end)
 
 New("UIListLayout", {
     FillDirection=Enum.FillDirection.Vertical,
@@ -881,11 +1299,17 @@ local contentArea = New("Frame", {
 
 -- v4.5 (Delta-style): HEADER TRANG cao 24px, giữa thanh tiêu đề và vùng nội dung.
 -- Trái: icon + tên trang đang mở (vàng). Phải: cụm chip trạng thái 🧩/🕵/🪟.
--- Cất vào bảng D để KHÔNG tốn biến local cấp chunk (đang 188/200).
+-- Cất vào bảng D để KHÔNG tốn biến local cấp chunk (v4.9: đang ~155/200).
 D.pageHeader = New("Frame", {
     Name="PageHeader", Size=UDim2.new(1,-56,0,24), Position=UDim2.new(0,56,0,30),
     BackgroundColor3=C.SURFACE, BackgroundTransparency=0.55, BorderSizePixel=0, ZIndex=3,
 }, main)
+D.Paint(D.pageHeader, Color3.fromRGB(30, 34, 45), Color3.fromRGB(19, 22, 29), 0)
+-- vạch vàng 2px ở mép TRÁI header (điểm nhấn thị giác cho biết đang ở trang nào)
+D.Paint(New("Frame", {
+    Name = "PageHeaderNotch", Size = UDim2.new(0, 2, 1, -6), Position = UDim2.new(0, 0, 0, 3),
+    BackgroundColor3 = C.ACCENT, BorderSizePixel = 0, ZIndex = 6,
+}, D.pageHeader), C.GOLD, C.GOLD2, 90)
 D.pageTitle = New("TextLabel", {
     Name="PageTitle", Size=UDim2.new(1,-196,1,0), Position=UDim2.new(0,10,0,0),
     Text="💾 Code Đã Lưu", BackgroundTransparency=1, TextColor3=C.ACCENT,   -- v4.6.2: trang đầu tiên
@@ -962,9 +1386,24 @@ New("Frame", {   -- kẻ mảnh dưới header
     Name="PageHeaderRule", Size=UDim2.new(1,-56,0,1), Position=UDim2.new(0,56,0,53),
     BackgroundColor3=C.BORDER, BackgroundTransparency=0.35, BorderSizePixel=0, ZIndex=4,
 }, main)
+-- v4.9: kẻ dưới header mờ dần về bên phải (vệt sáng vàng đoạn đầu) cho có nhịp
+pcall(function()
+    local hr = main:FindFirstChild("PageHeaderRule")
+    if hr then
+        local g = D.Grad(hr)
+        g.Rotation = 0
+        g.Color = ColorSequence.new(C.LINE, C.LINE)
+        g.Transparency = NumberSequence.new({
+            NumberSequenceKeypoint.new(0.00, 0.05),
+            NumberSequenceKeypoint.new(0.35, 0.45),
+            NumberSequenceKeypoint.new(1.00, 1.00),
+        })
+    end
+end)
 
 -- Đồng bộ 3 công tắc trên header theo trạng thái thật trong S.
--- (Hàm chỉ chạy lúc runtime nên thứ tự khai báo không quan trọng.)
+-- v4.9: S nay được khai báo TRƯỚC khu vực này (xem ghi chú "SỬA LỖI B11" phía trên), nên hàm này
+-- và handler của 3 công tắc đọc được đúng bảng trạng thái thật — trước đây chúng trỏ vào global nil.
 function D.SyncPageChips()
     pcall(function()
         if not D.hdrSwitches then return end
@@ -975,10 +1414,20 @@ function D.SyncPageChips()
         }
         for k, s in pairs(D.hdrSwitches) do
             local on = (state[k] == true)
-            s.track.BackgroundColor3 = on and (s.onColor or C.GREEN) or C.SURFACE3
+            -- v4.9: khi BẬT thì track là gradient (vàng→cam cho 🪟/🧩, cam→hồng cho 🕵) thay vì
+            -- một khối màu phẳng; khi TẮT thì về đúng cặp màu tối cũ. Vị trí/kích thước không đổi.
+            if on then
+                local c1 = s.onColor or C.GREEN
+                D.Paint(s.track, c1, (k == "guess") and Color3.fromRGB(255, 120, 90)
+                    or Color3.fromRGB(150, 235, 120), 0)
+            else
+                D.Paint(s.track, C.SURFACE3, Color3.fromRGB(38, 42, 55), 0)
+            end
+            s.track.BackgroundTransparency = 0.05
             s.knob.BackgroundColor3  = on and C.WHITE or C.GRAY
             s.knob.Position = on and UDim2.new(1,-10,0,2) or UDim2.new(0,2,0,2)
-            s.icon.TextColor3 = on and C.DARK or C.GRAY
+            s.knob.Size = UDim2.new(0, 8, 0, 8)
+            s.icon.TextColor3 = on and C.GOLD or C.GRAY
         end
     end)
 end
@@ -991,18 +1440,14 @@ local function SwitchTab(index)
     -- v4.5: tab CHƯA mở = pill trong suốt + chữ mờ; tab ĐANG mở = pill nổi + chữ vàng + vạch
     -- accent dọc bên trái. Logic cũ giữ nguyên: chỉ đổi Visible của tabContent và gán activeTab.
     for _, b in ipairs(tabs) do
-        b.BackgroundColor3 = C.SURFACE2
-        b.BackgroundTransparency = 1
-        b.TextColor3 = C.MUTED
-        local bar = b:FindFirstChild("BC_Bar")
-        if bar then bar.Visible = false end
+        -- v4.9: gom vào D.TabActive (giữ NGUYÊN các bất biến cũ: tab tắt = trong suốt hoàn
+        -- toàn + chữ xám, tab mở = chữ vàng) -> logic hover trong AddTab không phải sửa.
+        D.TabActive(b, false)
     end
     if tabContent[index] and tabs[index] then
         tabContent[index].Visible = true
         local b = tabs[index]
-        b.BackgroundColor3 = C.SURFACE2
-        b.BackgroundTransparency = 0.1
-        b.TextColor3 = C.ACCENT
+        D.TabActive(b, true)
         -- vạch accent là CON của nút tab nên tự trượt theo nút, và KHÔNG nằm trong UIListLayout
         -- của tabBar (neo vào tabBar là bị layout xếp chỗ -> xô toàn bộ nút tab)
         local bar = b:FindFirstChild("BC_Bar")
@@ -1012,6 +1457,7 @@ local function SwitchTab(index)
                 BackgroundColor3 = C.ACCENT, BorderSizePixel = 0, ZIndex = 6,
             }, b)
             Corner(bar, UDim.new(1, 0))
+            D.Paint(bar, C.GOLD, C.GOLD2, 90)   -- v4.9: vạch accent có gradient
         end
         bar.Visible = true
         activeTab = tabContent[index]
@@ -1069,7 +1515,11 @@ local function AddTab(name, icon, order, customContent)
     -- để SwitchTab toàn quyền quyết định màu -> không đánh nhau giữa tween và trạng thái tab.
     pcall(function()
         trackConn(btn.MouseEnter:Connect(function()
-            if btn.BackgroundTransparency > 0.5 then Tween(btn, {BackgroundTransparency = 0.62}, 0.16) end
+            -- v4.9: tab chưa mở -> pill "ghost" hiện lên (chỉ đổi độ trong suốt, không xô layout)
+            if btn.BackgroundTransparency > 0.5 then
+                btn.BackgroundColor3 = C.SURFACE3
+                Tween(btn, {BackgroundTransparency = 0.72}, 0.16)
+            end
             pcall(function()   -- v4.5 Delta: rê vào icon nào thì header hiện TÊN trang đó (mờ nhẹ)
                 if D.pageTitle then
                     D.hoverName = btn:GetAttribute("BCTabName")
@@ -1135,36 +1585,21 @@ local savedCodeTab = AddTab("Code Đã Lưu", "💾", 1)
 
 OpenFirstPage()   -- v4.6.2: mở trang ĐẦU TIÊN theo thứ tự rail (💾 Code Đã Lưu)
 
--- Bang trang thai. Chua ca cac bien keo/tha menu: Luau gioi han 200 bien local moi function
--- (loi "Out of local registers ... exceeded limit 200"), main chunk cua script nay da gan
--- nguong do nen moi bien dem duoc deu phai nam trong bang thay vi la local rieng.
-local S = {
-    dragMenu     = false,
-    dragging     = false,
-    dragStart    = nil,
-    startPos     = nil,
-    togDragging  = false,
-    togDragStart = nil,
-    togStartPos  = nil,
-    togMoved     = false,
-    -- v4.4b: trạng thái của cơ chế nhúng GUI (đặt trong bảng để KHÔNG tốn slot local —
-    -- main chunk đang ở ~184/200, thêm local tự do là lỗi biên dịch "too many local variables")
-    embedEnabled = true,     -- tab 5 có nút 🧩 để tắt hoàn toàn việc nhúng
-    embedGuessNew = false,   -- 🕵 nhận cả ScreenGui "lạ" mới xuất hiện (mạnh hơn nhưng dễ ăn GUI game)
-    -- v4.4i: 🪟 có đưa GUI của script chạy ở tab 💻 Code / 💾 Code Đã Lưu vào tab "🧩 GUI Ngoài"
-    -- hay không. BẬT = đưa vào menu (tiện cho script tính năng). TẮT = để GUI ngoài màn hình
-    -- game đúng như bản trước v4.4h. Tab ➕ Tính Năng KHÔNG phụ thuộc công tắc này.
-    -- 3 nút ⚡ Script Nhanh (Dex/IY/SimpleSpy) thì LUÔN ở ngoài màn hình, không cần biết công tắc.
-    parkCodeGuis = true,
-    embeds       = {},       -- registry: {host, gui, recs={{child,origParent,origPos,origSize}}, conns={}}
-}
+-- (v4.9 — SỬA LỖI B11) KHỐI `local S = { ... }` ĐÃ ĐƯỢC CHUYỂN LÊN TRÊN, ngay trước phần
+-- HIT-TEST. Lý do: bản cũ khai báo S ở ĐÂY, nhưng 7 chỗ dùng S lại nằm TRƯỚC đó (3 công tắc
+-- 🧩/🕵/🪟 trên header trang ở dòng ~936 và D.SyncPageChips ở dòng ~968). Lua biên dịch tên
+-- `local` theo thứ tự văn bản, nên những chỗ dùng sớm hơn trở thành GLOBAL -> nil:
+--   • bấm công tắc trên header = lỗi "attempt to index nil value (global 'S')" -> 3 công tắc CHẾT;
+--   • D.SyncPageChips() nằm trong pcall nên hỏng IM LẶNG -> công tắc không bao giờ hiện đúng trạng thái.
+-- (Chú thích cũ "Hàm chỉ chạy lúc runtime nên thứ tự khai báo không quan trọng" là SAI — đó chính
+--  là gốc của lỗi này.)
 
 -- v4.4b: vô hại hoá các wrapper "AUTO-GENERATED SIZE WRAPPER" đời cũ (v4.4a) đã bị lưu lại
 -- trong file JSON. Wrapper đó gọi _ForceStretch(g) lên MỌI ScreenGui trong CoreGui+PlayerGui
 -- -> đè layout của game. Chỉ cần cắt đúng lời gọi đó là cả khối trở thành no-op hợp lệ,
 -- code còn lại của người dùng không bị đụng tới.
 S.WRAP_MARK_OLD = "-- ===== AUTO-GENERATED SIZE WRAPPER"
-S.WRAP_MARK_NEW = "-- ===== AUTO-GENERATED FIT WRAPPER"
+-- (v4.9: bỏ S.WRAP_MARK_NEW — hằng số này được gán mà KHÔNG nơi nào dùng)
 function S.SanitizeCode(c)
     if type(c) ~= "string" then return c end
     if not c:find(S.WRAP_MARK_OLD, 1, true) then return c end
@@ -1208,8 +1643,15 @@ Store.reloadBtn      = nil
 Store._scheduled     = false
 Store.refreshStatus  = nil      -- tab "Code Đã Lưu" gán hàm cập nhật nhãn vào đây
 
+-- v4.9 — SỬA LỖI B5: chốt "executor có đĩa thật không" NGAY LÚC KHỞI ĐỘNG, trước khi
+-- S.EnsureCompat bù readfile/writefile bằng ổ đĩa ẢO trong RAM (S.vfs).
+-- Bản cũ kiểm tra global tại thời điểm gọi, nên sau lần bấm ▶ đầu tiên nó thấy writefile "có"
+-- (thật ra là hàm ảo vừa được bù) -> Store.write báo thành công, mode = "file", nhãn trạng thái
+-- nói "đã lưu xuống đĩa" trong khi dữ liệu chỉ nằm trong RAM và MẤT khi thoát game.
+Store.hasRealFs = (type(writefile) == "function" and type(readfile) == "function")
+
 function Store.canWrite()
-    return type(writefile) == "function" and type(readfile) == "function"
+    return Store.hasRealFs == true
 end
 
 function Store.isFinite(n)
@@ -1525,7 +1967,9 @@ function S.EnsureCompat()
         -- môi trường + danh tính executor
         S.SetGlobal("getgenv", function() return _G end)
         S.SetGlobal("getrenv", function() return _G end)
-        S.SetGlobal("identifyexecutor", function() return "BananaCatHub-Compat", "4.7" end)
+        -- v4.9 (B8): lấy số phiên bản từ MỘT nguồn duy nhất (D.VERSION_NUM) — trước đây chỗ này
+        -- ghi cứng "4.7" trong khi tiêu đề file là v4.8 -> không ai biết đang chạy bản nào.
+        S.SetGlobal("identifyexecutor", function() return "BananaCatHub-Compat", D.VERSION_NUM end)
         S.SetGlobal("getexecutorname", function() return "BananaCatHub-Compat" end)
         S.SetGlobal("getscript", function() return nil end)
         S.SetGlobal("getcallingscript", function() return nil end)
@@ -1789,7 +2233,9 @@ local function Button(parent, text, x, y, w, h, color)
     }, parent)
     Corner(btn, UDim.new(0,8))
     Stroke(btn, D.Edge(base), 1)
-    D.Shade(btn, Color3.fromRGB(255,255,255), Color3.fromRGB(206,209,220), 90)
+    -- v4.9: thay lớp "Shade" cũ bằng vật liệu thẻ (bevel + đáy tối dần) -> mọi nút trong hub
+    -- tự động ăn theo mà không phải sửa một dòng nào ở chỗ gọi.
+    D.Card(btn)
     D.Tactile(btn, 0.08)
     return btn
 end
@@ -2101,7 +2547,8 @@ RebuildScripts = function()
             BackgroundTransparency=0.1, BorderSizePixel=0, ZIndex=6,
             ClipsDescendants=true,
         }, scriptList)
-        Corner(row,UDim.new(0,6)); Stroke(row)
+        Corner(row,UDim.new(0,10)); Stroke(row)
+        D.Card(row, true)          -- v4.9: hàng script = thẻ kính, rê chuột sáng nhẹ
 
         local arrowBtn = New("TextButton", {
             Size=UDim2.new(0,24,0,24), Position=UDim2.new(0,6,0,9),
@@ -2111,7 +2558,7 @@ RebuildScripts = function()
         }, row)
         Corner(arrowBtn, UDim.new(0,4))
 
-        local nameLbl = New("TextLabel", {
+        New("TextLabel", {   -- v4.9: bỏ biến `nameLbl` (tạo ra mà không dùng) — nhãn vẫn được vẽ
             Size=UDim2.new(1,-175,0,42), Position=UDim2.new(0,36,0,0),
             Text=d.name, BackgroundTransparency=1, TextColor3=C.DARK,
             Font=Enum.Font.GothamBold, TextSize=11, TextXAlignment=Enum.TextXAlignment.Left,
@@ -2264,7 +2711,7 @@ local supportTab = AddTab("Hỗ Trợ", "🛠", 4)
 
 local posY = 8
 
-Label(supportTab, "⚡ Script Nhanh - Nhấn để chạy ngay", posY)
+D.Section(supportTab, "⚡ Script Nhanh — nhấn để chạy ngay", posY)
 posY = posY + 16
 
 local quickScripts = {
@@ -2278,12 +2725,24 @@ for _, s in ipairs(quickScripts) do
         Size=UDim2.new(1,-16,0,28), Position=UDim2.new(0,8,0,posY), Text="",
         BackgroundColor3=s.cl, BackgroundTransparency=0.3, BorderSizePixel=0, ZIndex=6,
     }, supportTab)
-    Corner(btn, UDim.new(0,5))
+    Corner(btn, UDim.new(0,10))
     Stroke(btn, s.cl, 1.2)
+    -- v4.9: 3 nút script nhanh = thẻ gradient theo màu riêng + bevel + phản hồi khi rê chuột
+    pcall(function()
+        D.Paint(btn, s.cl, Color3.new(s.cl.R * 0.45, s.cl.G * 0.45, s.cl.B * 0.45), 90)
+        btn.BackgroundTransparency = 0.18
+        D.Bevel(btn, C.WHITE, 0.72, 10)
+        D.Tactile(btn, 0.18)
+    end)
     New("TextLabel", {
-        Size=UDim2.new(1,-10,1,0), Position=UDim2.new(0,10,0,0), Text=s.n.."\n"..s.d,
+        Size=UDim2.new(1,-40,1,0), Position=UDim2.new(0,10,0,0), Text=s.n.."\n"..s.d,
         BackgroundTransparency=1, TextColor3=C.WHITE, Font=Enum.Font.GothamBold, TextSize=10,
         TextXAlignment=Enum.TextXAlignment.Left, TextYAlignment=Enum.TextYAlignment.Center, ZIndex=7,
+    }, btn)
+    New("TextLabel", {
+        Size=UDim2.new(0,26,1,0), Position=UDim2.new(1,-30,0,0), Text="▶",
+        BackgroundTransparency=1, TextColor3=C.WHITE, TextTransparency=0.25,
+        Font=Enum.Font.GothamBold, TextSize=12, ZIndex=7,
     }, btn)
     -- v4.4i: noPark=true -> Dex/IY/SimpleSpy mở GUI NGOÀI màn hình game (đúng như trước v4.4h),
     -- hub không "mượn" cửa sổ của chúng vào menu nữa.
@@ -2295,7 +2754,7 @@ posY = posY + 6
 Label(supportTab, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", posY)
 posY = posY + 16
 
-Label(supportTab, "🛠 Hỗ Trợ — Phân Tích Tọa Độ", posY)
+D.Section(supportTab, "🛠 Hỗ Trợ — Phân Tích Tọa Độ", posY)
 posY = posY + 18
 Label(supportTab, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", posY)
 posY = posY + 16
@@ -2344,8 +2803,11 @@ local objResultPanel = New("Frame", {
     ZIndex=6,
     Visible=false,
 }, supportTab)
-Corner(objResultPanel, UDim.new(0,6))
-Stroke(objResultPanel, C.PURPLE, 1.5)
+Corner(objResultPanel, UDim.new(0,12))
+Stroke(objResultPanel, C.PURPLE, 1.2)
+-- v4.9: panel tím (đặc trưng của tính năng phân tích) đổ dần + bevel thay vì tô phẳng
+D.Paint(objResultPanel, Color3.fromRGB(30, 26, 48), Color3.fromRGB(16, 15, 26), 90)
+D.Bevel(objResultPanel, C.PURPLE, 0.8, 12)
 
 New("TextLabel", {   -- (objTitleLbl: bien local khong dung -> bo de tiet kiem slot local)
     Size=UDim2.new(1,-16,0,16), Position=UDim2.new(0,8,0,4),
@@ -3296,7 +3758,7 @@ end)
 
 Label(supportTab, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", posY)
 posY = posY + 16
-Label(supportTab, "💾 Waypoint Đã Lưu", posY)
+D.Section(supportTab, "💾 Waypoint Đã Lưu", posY)
 posY = posY + 14
 
 local wpNameIn = New("TextBox", {
@@ -3361,7 +3823,8 @@ RebuildWaypoints = function()
             BackgroundColor3=Color3.fromRGB(26, 29, 38),
             BackgroundTransparency=0.1, BorderSizePixel=0, ZIndex=6,
         }, wpListFrame)
-        Corner(row, UDim.new(0,5)); Stroke(row)
+        Corner(row, UDim.new(0,9)); Stroke(row)
+        D.Card(row, true)          -- v4.9: hàng waypoint cùng ngôn ngữ vật liệu
 
         New("TextLabel", {
             Size=UDim2.new(1,-120,1,0), Position=UDim2.new(0,8,0,0),
@@ -3429,6 +3892,7 @@ local aiBG = New("Frame", {
     ZIndex=4,
     AutomaticSize=Enum.AutomaticSize.Y,
 }, aiTab)
+D.Paint(aiBG, Color3.fromRGB(19, 22, 29), Color3.fromRGB(11, 13, 17), 90)   -- v4.9: nền chat đổ dần
 
 local aiInner = New("Frame", {
     Size=UDim2.new(1, 0, 0, 0),
@@ -3458,8 +3922,10 @@ local headerFrame = New("Frame", {
     ZIndex=6,
     LayoutOrder=1,
 }, aiInner)
-Corner(headerFrame, UDim.new(0,10))
-Stroke(headerFrame, Color3.fromRGB(60, 70, 100), 1)
+Corner(headerFrame, UDim.new(0,12))
+Stroke(headerFrame, Color3.fromRGB(76, 88, 124), 1)
+D.Card(headerFrame)            -- v4.9: thẻ kính cho header AI
+D.Paint(headerFrame, Color3.fromRGB(34, 39, 54), Color3.fromRGB(21, 24, 32), 90)
 
 local logoCircle = New("Frame", {
     Size=UDim2.new(0,36,0,36),
@@ -3470,6 +3936,14 @@ local logoCircle = New("Frame", {
     ZIndex=7,
 }, headerFrame)
 Corner(logoCircle, UDim.new(1,0))
+-- v4.9: logo AI = viên gradient xanh->tím + bevel + quầng sáng nhẹ (thay màu phẳng)
+D.Paint(logoCircle, Color3.fromRGB(108, 132, 255), Color3.fromRGB(150, 92, 255), 135)
+D.Bevel(logoCircle, C.WHITE, 0.8, 6)
+Stroke(logoCircle, Color3.fromRGB(150, 162, 255), 1)
+pcall(function()
+    local h = D.Glow(logoCircle, Color3.fromRGB(120, 130, 255), 5, 0.9)
+    if h then D.Breathe(h, {BackgroundTransparency = 0.98}, 2.6) end
+end)
 
 New("TextLabel", {
     Size=UDim2.new(1,0,1,0),
@@ -3681,7 +4155,9 @@ local function ParseSegments(text)
 end
 
 local function AddMessage(sender, text, isUser)
-    local bubbleColor = isUser and Color3.fromRGB(50, 120, 220) or Color3.fromRGB(35, 40, 55)
+    -- v4.9: bong bóng của bạn = gradient xanh hoàng gia, của AI = khối obsidian.
+    -- (Giữ nguyên biến bubbleColor cho nhánh fallback + mọi chỗ khác đang đọc nó.)
+    local bubbleColor = isUser and Color3.fromRGB(58, 110, 224) or Color3.fromRGB(33, 38, 51)
     local textColor = isUser and C.WHITE or Color3.fromRGB(230, 235, 245)
     local align = isUser and Enum.TextXAlignment.Right or Enum.TextXAlignment.Left
     local sizeScale = isUser and 0.75 or 0.9
@@ -3702,13 +4178,20 @@ local function AddMessage(sender, text, isUser)
         ZIndex=9,
         AutomaticSize=Enum.AutomaticSize.Y,
     }, holder)
-    Corner(bubble, UDim.new(0,10))
+    Corner(bubble, UDim.new(0,12))
+    -- v4.9: đổ khối + bevel cho bong bóng -> khối chat có chiều sâu như app thật
+    if isUser then
+        D.Paint(bubble, Color3.fromRGB(86, 138, 255), Color3.fromRGB(44, 84, 196), 90)
+    else
+        D.Paint(bubble, Color3.fromRGB(40, 46, 62), Color3.fromRGB(24, 28, 38), 90)
+    end
+    D.Bevel(bubble, C.WHITE, 0.86, 10)
 
     if isUser then
         bubble.Position = UDim2.new(1-sizeScale, 0, 0, 0)
     end
 
-    local senderLbl = New("TextLabel", {
+    New("TextLabel", {   -- v4.9: bỏ biến `senderLbl` (không dùng tới)
         Size=UDim2.new(1,-16,0,12),
         Position=UDim2.new(0,8,0,-14),
         Text=sender,
@@ -4546,6 +5029,66 @@ function S.FitEmbedded(entry)
         host.ClipsDescendants = true              -- phần dư (nếu có) vừa vô hình vừa không nhận click
     end)
 
+    -- ========================================================================
+    -- v4.9 — SỬA LỖI B3: snapshot trước đây chỉ chụp MỘT lần, nên mọi thay đổi layout mà script
+    -- của bạn tự làm sau đó (mở panel, đổi Size, ẩn/hiện khung...) đều bị RestoreSnap kéo về
+    -- trạng thái chụp đầu tiên, mỗi lần hub re-fit (kéo/nới cửa sổ, đổi tab, 3 lần fit trong 0,4s
+    -- đầu). Người dùng thấy "GUI tự dựng lại như lúc mới chạy".
+    -- Nay: trước khi fit, nếu giá trị HIỆN TẠI đã KHÁC bản mà hub đã áp (lệch > 1px) thì coi đó là
+    -- ý định mới của script -> chia ngược hệ số đang áp để cập nhật "mốc". Không lệch thì giữ mốc
+    -- cũ, nhờ vậy con số không bị trôi qua nhiều lần fit.
+    -- ========================================================================
+    if entry.snap and entry.appliedK and entry.appliedK > 0 then
+        local k0 = entry.appliedK
+        local function inv(n) return math.floor((tonumber(n) or 0) / k0 + 0.5) end
+        local function far(a, b) return math.abs((tonumber(a) or 0) - (tonumber(b) or 0)) > 1 end
+        for _, rec in ipairs(entry.snap) do
+            local o = rec.obj
+            if o and o.Parent then
+                pcall(function()
+                    if rec.Size and o.Size then
+                        local cur, exp = o.Size, mulUDim(rec.Size, k0)
+                        if math.abs(cur.X.Scale - exp.X.Scale) > 0.0001 or math.abs(cur.Y.Scale - exp.Y.Scale) > 0.0001
+                           or far(cur.X.Offset, exp.X.Offset) or far(cur.Y.Offset, exp.Y.Offset) then
+                            rec.Size = UDim2.new(cur.X.Scale, inv(cur.X.Offset), cur.Y.Scale, inv(cur.Y.Offset))
+                        end
+                    end
+                    if rec.Position and o.Position then
+                        local cur, exp = o.Position, mulUDim(rec.Position, k0)
+                        local sx = rec.top and (rec.dx or 0) or 0
+                        local sy = rec.top and (rec.dy or 0) or 0
+                        if math.abs(cur.X.Scale - exp.X.Scale) > 0.0001 or math.abs(cur.Y.Scale - exp.Y.Scale) > 0.0001
+                           or far(cur.X.Offset - sx, exp.X.Offset) or far(cur.Y.Offset - sy, exp.Y.Offset) then
+                            rec.Position = UDim2.new(cur.X.Scale, inv(cur.X.Offset), cur.Y.Scale, inv(cur.Y.Offset))
+                            if rec.top then rec.dx, rec.dy = 0, 0 end
+                        end
+                    end
+                    if rec.TextSize and o.TextSize and o.TextSize > 0
+                       and far(o.TextSize, math.max(8, math.floor(rec.TextSize * k0 + 0.5))) then
+                        rec.TextSize = math.max(1, inv(o.TextSize))
+                    end
+                    if rec.CornerRadius and o.CornerRadius
+                       and far(o.CornerRadius.Offset, math.floor(rec.CornerRadius.Offset * k0 + 0.5)) then
+                        rec.CornerRadius = UDim.new(o.CornerRadius.Scale, inv(o.CornerRadius.Offset))
+                    end
+                    if rec.PadT and o.PaddingTop then
+                        local expPad = math.floor(rec.PadT.Offset * k0 + 0.5)
+                        if far(o.PaddingTop.Offset, expPad) then
+                            rec.PadT = UDim.new(rec.PadT.Scale, inv(o.PaddingTop.Offset))
+                            rec.PadB = UDim.new(rec.PadB.Scale, inv(o.PaddingBottom.Offset))
+                            rec.PadL = UDim.new(rec.PadL.Scale, inv(o.PaddingLeft.Offset))
+                            rec.PadR = UDim.new(rec.PadR.Scale, inv(o.PaddingRight.Offset))
+                        end
+                    end
+                    if rec.Thick and o.Thickness
+                       and math.abs(o.Thickness - math.max(1, rec.Thick * k0)) > 0.5 then
+                        rec.Thick = o.Thickness / k0
+                    end
+                end)
+            end
+        end
+    end
+
     if not entry.snap then
         entry.snap = {}
         S.SnapSubtree(entry.snap, host, true)
@@ -4620,6 +5163,7 @@ function S.FitEmbedded(entry)
 
     s = align(s, 0)
     entry.fitScale = s
+    entry.appliedK = s     -- v4.9 (B3): nhớ hệ số ĐÃ ÁP để lần fit sau biết cái gì là "thay đổi mới"
     return s
 end
 
@@ -5699,6 +6243,25 @@ S.parkTab   = nil
 S.parkBtn   = nil
 S.parkList  = nil
 S.parkCount = 0
+
+-- v4.9 — SỬA LỖI B2: rail từ v4.5 CHỈ CÒN ICON (ô 48x38, TextSize 16), nhưng nút tab 🧩 lại được
+-- gán chữ dài "🧩 GUI Ngoài (2)" -> chữ tràn/héo trong ô icon, và vì số lượng nằm ở Text (không
+-- phải attribute) nên tiêu đề trang cũng không bao giờ hiện số GUI đang "đậu".
+-- Nay: Text luôn là icon; số lượng đưa vào attribute BCTabName (header + hover đọc từ đó).
+function S.SetParkLabel()
+    pcall(function()
+        if not S.parkBtn then return end
+        local nm = (S.parkCount > 0) and ("GUI Ngoài (" .. S.parkCount .. ")") or "GUI Ngoài"
+        S.parkBtn.Text = "🧩"
+        S.parkBtn:SetAttribute("BCTabName", nm)
+        S.parkBtn:SetAttribute("BCTabIcon", "🧩")
+        -- nếu trang 🧩 đang mở thì tiêu đề header phải đổi theo ngay
+        if D.pageTitle and D.activeName and S.parkTab and S.parkTab.Visible then
+            D.activeName = "🧩  " .. nm
+            if not D.hoverName then D.pageTitle.Text = D.activeName end
+        end
+    end)
+end
 S.PARK_MAX  = 2      -- mỗi lần chạy chỉ đưa tối đa 2 GUI vào menu (tránh nuốt cả UI của game)
 
 function S.ParkHost(label)
@@ -5735,10 +6298,12 @@ function S.ParkHost(label)
     local box = New("Frame", {
         Name = "ParkBox_" .. tostring(label or "GUI"),
         Size = UDim2.new(1, 0, 0, 240), LayoutOrder = S.parkCount,
-        BackgroundColor3 = C.BG, BackgroundTransparency = 0.35, BorderSizePixel = 0, ZIndex = 5,
+        BackgroundColor3 = C.BG, BackgroundTransparency = 0.28, BorderSizePixel = 0, ZIndex = 5,
     }, S.parkList)
-    Corner(box, UDim.new(0, 8))
-    Stroke(box, nil, 1)
+    Corner(box, UDim.new(0, 12))
+    Stroke(box, C.LINE, 1)
+    D.Card(box)                    -- v4.9: khung chứa GUI "đậu" cũng là thẻ kính
+    D.Paint(box, Color3.fromRGB(24, 27, 36), Color3.fromRGB(12, 14, 19), 90)
 
     local back = New("TextButton", {
         Size = UDim2.new(0, 110, 0, 20), Position = UDim2.new(1, -114, 0, 2),
@@ -5751,10 +6316,7 @@ function S.ParkHost(label)
         pcall(function() box:Destroy() end)
         S.parkCount = math.max(0, S.parkCount - 1)
         pcall(function() S.parkTab.CanvasSize = UDim2.new(0, 0, 0, S.parkCount * 246 + 10) end)
-        pcall(function()
-            if S.parkBtn then S.parkBtn.Text = S.parkCount > 0
-                and ("🧩 GUI Ngoài (" .. S.parkCount .. ")") or "🧩 GUI Ngoài" end
-        end)
+        pcall(S.SetParkLabel)     -- v4.9 (B2): luôn là icon trên rail, số lượng ở header
     end)
 
     local area = New("Frame", {
@@ -5763,7 +6325,7 @@ function S.ParkHost(label)
     }, box)
     pcall(function() S.parkTab.CanvasSize = UDim2.new(0, 0, 0, S.parkCount * 246 + 10) end)
     pcall(function()
-        if S.parkBtn then S.parkBtn.Text = "🧩 GUI Ngoài (" .. S.parkCount .. ")" end
+        pcall(S.SetParkLabel)     -- v4.9 (B2)
     end)
     return area, box
 end
@@ -5812,7 +6374,7 @@ function S.RemoveAllParked()
     end
     S.parkCount = 0
     pcall(function() S.parkTab.CanvasSize = UDim2.new(0, 0, 0, 10) end)
-    pcall(function() if S.parkBtn then S.parkBtn.Text = "🧩 GUI Ngoài" end end)
+    pcall(S.SetParkLabel)         -- v4.9 (B2): trả hết về game -> nhãn về mặc định
     return n
 end
 
@@ -6123,7 +6685,11 @@ local function CreateFeatureTab(name, icon, codeContent)
     -- để SwitchTab toàn quyền quyết định màu -> không đánh nhau giữa tween và trạng thái tab.
     pcall(function()
         trackConn(btn.MouseEnter:Connect(function()
-            if btn.BackgroundTransparency > 0.5 then Tween(btn, {BackgroundTransparency = 0.62}, 0.16) end
+            -- v4.9: tab chưa mở -> pill "ghost" hiện lên (chỉ đổi độ trong suốt, không xô layout)
+            if btn.BackgroundTransparency > 0.5 then
+                btn.BackgroundColor3 = C.SURFACE3
+                Tween(btn, {BackgroundTransparency = 0.72}, 0.16)
+            end
             pcall(function()   -- v4.5 Delta: rê vào icon nào thì header hiện TÊN trang đó (mờ nhẹ)
                 if D.pageTitle then
                     D.hoverName = btn:GetAttribute("BCTabName")
@@ -6578,21 +7144,33 @@ local _FIT_WRAPPER = true
 local _bcRealNew = Instance.new
 local _bcMine = {}
 local _bcHookOn = true
+local _bcMyHook = nil
 pcall(function()
-    Instance.new = function(cls, ...)
+    _bcMyHook = function(cls, ...)
         local inst = _bcRealNew(cls, ...)
         if _bcHookOn and cls == "ScreenGui" then _bcMine[#_bcMine + 1] = inst end
         return inst
     end
+    Instance.new = _bcMyHook
 end)
+-- v4.9 (SỬA B4): chỉ gỡ hook nếu Instance.new VẪN LÀ hàm của mình. Bản cũ gán thẳng
+-- Instance.new = _bcRealNew nên nếu có hook khác cài sau (hook của hub lúc bấm ▶, hook của script
+-- khác, hook của người dùng) thì nó bị XOÁ MẤT. Giống cách S.HookInstanceNew đang làm.
+local function _bcUnhook()
+    pcall(function()
+        if _bcMyHook and Instance.new == _bcMyHook then Instance.new = _bcRealNew end
+    end)
+end
 
 ]] .. currentCode .. [[
 
-pcall(function() _bcHookOn = false; Instance.new = _bcRealNew end)
-
--- Script có thể tạo GUI trễ (sau HttpGet/task.wait): giữ hook thêm vài giây
+-- v4.9 (SỬA B4): KHÔNG tắt hook ngay tại đây nữa. Bản cũ tắt ngay dòng này rồi lại có
+-- task.delay(4) "giữ hook thêm vài giây" — vô nghĩa, nên GUI tạo trễ (task.spawn / sau HttpGet /
+-- task.wait) KHÔNG bao giờ được ghi nhận, dù dòng chú thích ngay dưới nói ngược lại.
+-- Nay hook sống đủ 4 giây đúng như thiết kế, rồi tự gỡ (có guard, không đè hook của người khác).
 task.delay(4, function()
-    pcall(function() _bcHookOn = false; Instance.new = _bcRealNew end)
+    _bcHookOn = false
+    _bcUnhook()
 end)
 
 task.defer(function()
@@ -6627,9 +7205,14 @@ task.defer(function()
                     us.Scale = math.clamp(hub.AbsoluteSize.X / 540, 0.8, 1.6)
                 end
                 _bcSync()
-                hub:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
-                    pcall(_bcSync)
-                end)
+                -- v4.9 (SỬA B4): connection này trước đây tạo mới mỗi lần chạy mà không ngắt ->
+                -- chạy nút này vài lần là rò rỉ. Nay giữ 1 connection duy nhất trên mỗi root.
+                if not root:GetAttribute("BC_FitWired") then
+                    root:SetAttribute("BC_FitWired", true)
+                    hub:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+                        pcall(_bcSync)
+                    end)
+                end
             end
         end)
     end
@@ -6806,7 +7389,8 @@ local function RebuildFeatureList()
             Size=UDim2.new(1,0,0,32), BackgroundColor3=Color3.fromRGB(26, 29, 38),
             BackgroundTransparency=0.1, BorderSizePixel=0, ZIndex=6,
         }, featureListFrame)
-        Corner(row, UDim.new(0,5)); Stroke(row)
+        Corner(row, UDim.new(0,10)); Stroke(row)
+        D.Card(row, true)          -- v4.9: hàng tab tính năng = thẻ kính
 
         New("TextLabel", {
             Size=UDim2.new(1,-90,1,0), Position=UDim2.new(0,8,0,0),
@@ -6848,9 +7432,7 @@ local function RebuildFeatureList()
                 table.remove(tabs, idx)
                 table.remove(tabContent, idx)
                 table.remove(featureTabs, i)
-                for j, t in ipairs(tabs) do
-                    t.LayoutOrder = j
-                end
+                RenumberFeatureTabs()   -- v4.9 (B1): chỉ dồn nhóm tab tính năng, giữ thứ tự 1..6 + 99
                 for j, ft2 in ipairs(featureTabs) do
                     for k, t in ipairs(tabs) do
                         if t == ft2.btn then ft2.tabIdx = k; break end
@@ -6947,7 +7529,7 @@ Store.restoreFeatures = function()
         CreateFeatureTab(f.name, f.icon, f.code)
     end
 
-    for j, t in ipairs(tabs) do t.LayoutOrder = j end
+    RenumberFeatureTabs()   -- v4.9 (B1): KHÔNG đánh số lại toàn bộ rail (xem giải thích ở đầu file)
     tabBar.CanvasSize = UDim2.new(0, 0, 0, #tabs * 44 + 10)
     RebuildFeatureList()
     -- phai goi lai: nhãn trạng thái ở TAB2 đã được dựng từ TRƯỚC khi các tab tính năng
@@ -6999,9 +7581,13 @@ function S.FetchServers(cursor)
     local url = "https://games.roblox.com/v1/games/" .. tostring(game.PlaceId)
              .. "/servers/Public?sortOrder=Asc&limit=100"
     if cursor and cursor ~= "" then url = url .. "&cursor=" .. tostring(cursor) end
-    local raw = game:HttpGet(url)
-    local data = HttpService:JSONDecode(raw)
-    if type(data) ~= "table" then return {}, nil end
+    -- v4.9 (B7): bọc pcall ngay tại đây. Trước đây hàm này ném lỗi ra ngoài và chỉ "may mắn" an
+    -- toàn nhờ chỗ gọi bọc pcall -> hợp đồng ngầm, dễ vỡ khi refactor. Giữ NGUYÊN kiểu trả về
+    -- ({}, nil) khi lỗi nên mọi chỗ gọi cũ chạy y như trước.
+    local okGet, raw = pcall(function() return game:HttpGet(url) end)
+    if not okGet or type(raw) ~= "string" or #raw == 0 then return {}, nil end
+    local okDec, data = pcall(function() return HttpService:JSONDecode(raw) end)
+    if not okDec or type(data) ~= "table" then return {}, nil end
     return (type(data.data) == "table" and data.data or {}), data.nextPageCursor
 end
 
@@ -7155,7 +7741,7 @@ function D.CardBtn(parent, text, posX, w, color)
     }, parent)
     Corner(b, UDim.new(0, 7))
     Stroke(b, D.Edge(color or C.SURFACE3), 1)
-    D.Shade(b, Color3.fromRGB(255,255,255), Color3.fromRGB(206,209,220), 90)
+    D.Card(b, true)
     D.Tactile(b, 0.08)
     return b
 end
@@ -7209,8 +7795,9 @@ D.hubSrvPanel = New("Frame", {
     Name = "HubServerPanel", Size = UDim2.new(1, -16, 0, 54), Position = UDim2.new(0, 8, 1, -80),
     BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.25, BorderSizePixel = 0, ZIndex = 6,
 }, D.hubTab)
-Corner(D.hubSrvPanel, UDim.new(0, 10))
-Stroke(D.hubSrvPanel, C.BORDER, 1)
+Corner(D.hubSrvPanel, UDim.new(0, 12))
+Stroke(D.hubSrvPanel, C.LINE, 1)
+D.Card(D.hubSrvPanel)          -- v4.9: khung 🌐 Server thành thẻ kính
 
 D.hubJobLbl = New("TextLabel", {
     Size = UDim2.new(1, -44, 0, 14), Position = UDim2.new(0, 8, 0, 5),
@@ -7338,15 +7925,30 @@ function S.RebuildHubList()
             Name = "HubCard_" .. tostring(it.name), Size = UDim2.new(1, 0, 0, 56), LayoutOrder = i,
             BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, BorderSizePixel = 0, ZIndex = 6,
         }, list)
-        Corner(card, UDim.new(0, 10))
-        Stroke(card, S.hubFavs[it.name] and C.ACCENT or C.BORDER, 1)
+        Corner(card, UDim.new(0, 12))
+        local fav = S.hubFavs[it.name]
+        Stroke(card, fav and C.GOLD or C.LINE, 1)
+        -- v4.9: thẻ kính (bevel đỉnh + đáy tối) + sáng lên khi rê chuột; thẻ đã ⭐ ghim thì
+        -- viền và ô icon mang màu vàng để nhìn là thấy ngay.
+        D.Card(card, true, 0.1)
+        if fav then
+            D.Paint(card, C.EL2, C.SURFACE, 90)
+            -- Bevel đã được D.Card tạo ở trên -> đổi màu trực tiếp (gọi D.Bevel lần nữa sẽ bị bỏ qua)
+            pcall(function()
+                local bv = card:FindFirstChild("BC_Bevel")
+                if bv then bv.BackgroundColor3 = C.GOLD bv.BackgroundTransparency = 0.6 end
+            end)
+        end
 
         local ico = New("TextLabel", {
             Size = UDim2.new(0, 34, 0, 34), Position = UDim2.new(0, 8, 0, 11), Text = it.icon,
-            BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.15, TextColor3 = C.ACCENT,
-            Font = Enum.Font.GothamBold, TextSize = 16, BorderSizePixel = 0, ZIndex = 7,
+            BackgroundColor3 = fav and C.GOLD or C.EL2, BackgroundTransparency = fav and 0.82 or 0.15,
+            TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 16,
+            BorderSizePixel = 0, ZIndex = 7,
         }, card)
         Corner(ico, UDim.new(0, 9))
+        Stroke(ico, fav and C.GOLD or C.LINE, 1)
+        D.Bevel(ico, C.WHITE, 0.8, 5)
 
         New("TextLabel", {
             Size = UDim2.new(1, -214, 0, 14), Position = UDim2.new(0, 50, 0, 8),
@@ -7451,22 +8053,19 @@ for _, cname in ipairs({"Tất cả", "Admin", "Explorer", "Spy", "Tiện ích",
               or (cname == "Server" and 56) or (cname == "Admin" and 52) or 44
     local chip = New("TextButton", {
         Size = UDim2.new(0, w, 0, 20), Text = cname,
-        BackgroundColor3 = (S.hubCat == cname) and C.ACCENT or C.SURFACE2,
-        BackgroundTransparency = (S.hubCat == cname) and 0.08 or 1,
-        TextColor3 = (S.hubCat == cname) and C.INK or C.MUTED,
-        Font = Enum.Font.GothamBold, TextSize = 9, BorderSizePixel = 0, ZIndex = 7,
+        BackgroundColor3 = C.EL1, BackgroundTransparency = 0.35,
+        TextColor3 = C.MUTED, Font = Enum.Font.GothamBold, TextSize = 9,
+        BorderSizePixel = 0, AutoButtonColor = false, ZIndex = 7,
     }, D.hubChips)
     Corner(chip, UDim.new(1, 0))
-    Stroke(chip, (S.hubCat == cname) and C.ACCENT2 or C.BORDER, 1)
+    Stroke(chip, C.LINE, 1)
+    local chipStroke = chip:FindFirstChildOfClass("UIStroke")
+    if chipStroke then chipStroke.Transparency = 0.35 end
+    D.ChipState(chip, S.hubCat == cname)     -- v4.9: dùng chung 1 hàm với lúc bấm
     chip.Activated:Connect(function()
         S.hubCat = cname
         for nm, cb in pairs(D.hubChipBtns) do
-            local on = (nm == cname)
-            cb.BackgroundColor3 = on and C.ACCENT or C.SURFACE2
-            cb.BackgroundTransparency = on and 0.08 or 1
-            cb.TextColor3 = on and C.INK or C.MUTED
-            local st = cb:FindFirstChildOfClass("UIStroke")
-            if st then st.Color = on and C.ACCENT2 or C.BORDER end
+            D.ChipState(cb, nm == cname)     -- chỉ còn MỘT chỗ quyết định giao diện của chip
         end
         S.RebuildHubList()
     end)
@@ -7502,6 +8101,7 @@ local function ToggleMainFrame()
                 TweenInfo.new(0.2, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
                 {Size = ts, Position = tp})
             D.openTween:Play()
+            D.Sweep(titleBar)   -- v4.9: làn sáng vàng quét ngang thanh tiêu đề khi mở menu
             D.openTween.Completed:Connect(function()
                 D.openTween = nil
                 pcall(BcFit)   -- đo lại để GUI đang nhúng vừa đúng ô tab
@@ -7603,9 +8203,12 @@ main.Visible = true
 togBtn.Text = "✕"
 
 print(string.format(
-    "✅ Banana Cat Hub v4.6 — sẵn sàng! Đã nạp lại %d script + %d waypoint + %d tab tính năng từ bộ nhớ (chế độ: %s%s)",
-    Store.loadedScripts, Store.loadedWp, #Store.loadedFeatures, Store.mode,
+    "✅ Banana Cat Hub %s — sẵn sàng! Đã nạp lại %d script + %d waypoint + %d tab tính năng từ bộ nhớ (chế độ: %s%s)",
+    D.VERSION, Store.loadedScripts, Store.loadedWp, #Store.loadedFeatures, Store.mode,
     Store.lastError and (" | ⚠️ " .. Store.lastError) or ""
 ))
+if Store.hasRealFs ~= true then
+    print("   ⚠️ Executor này KHÔNG có đĩa thật: script/waypoint/tab chỉ sống trong phiên chơi này.")
+end
 print("   💾 File lưu: " .. Store.SAVE_FILE .. " (trong thư mục workspace của executor — sống qua cả lần rejoin)")
 print("   Tính năng: Code + Code Đã Lưu + Hỗ Trợ (POS+SIZE+ROT+LOOK+VẬT THỂ+HIGHLIGHT TÍM) + AI AI + Tạo Tính Năng")

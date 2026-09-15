@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Banana Cat Hub v4.9 — xem trước giao diện "Obsidian Gold"</title>
+<style>
+  :root{
+    /* ===== v4.9 OBSIDIAN GOLD (đúng giá trị dùng trong script.js) ===== */
+    --bg-top:#171a23; --bg-bot:#08090d;
+    --surface:#181b24; --surface2:#202430; --surface3:#2d3241;
+    --el1:#1d212b; --el2:#252a37;
+    --border:#383e50; --line:#485065;
+    --muted:#98a1b5; --dark:#ecf0f8; --ice:#d8e2f2;
+    --accent:#ffc43d; --accent2:#ff843e; --gold:#ffcd5c; --gold2:#ff9537;
+    --green:#28cd7d; --blue:#569cff; --red:#f45c64; --purple:#b070ff; --orange:#f79e4a;
+    --bevel:rgba(255,255,255,.14);
+    --card-top:rgba(255,255,255,.035); --card-bot:rgba(0,0,0,.30);
+    --shadow1:rgba(0,0,0,.28); --shadow2:rgba(0,0,0,.18);
+    --card-border:var(--line);
+    --title-from:#ffcd5c; --title-to:#fff6e0;
+    --win-radius:16px;
+  }
+  /* ===== v4.4–v4.8 "MIDNIGHT GOLD" (để so sánh) ===== */
+  body.old{
+    --bg-top:#12141b; --bg-bot:#15181f;
+    --surface:#1a1d26; --surface2:#222632; --surface3:#2e3342;
+    --el1:#1a1d26; --el2:#222632;
+    --border:#343a4a; --line:#343a4a;
+    --muted:#969eb0; --dark:#e9edf5; --ice:#e9edf5;
+    --bevel:transparent;
+    --card-top:rgba(255,255,255,.05); --card-bot:rgba(255,255,255,.10); /* Shade cũ: đáy SÁNG hơn */
+    --shadow1:transparent; --shadow2:transparent;
+    --card-border:#343a4a;
+    --title-from:#ffc43d; --title-to:#fff3d6;
+    --win-radius:14px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:#05060a;color:#c9d2e3;
+    font-family:"Segoe UI",Roboto,system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif}
+  .page{max-width:1180px;margin:0 auto;padding:28px 20px 70px}
+  h1{font-size:19px;margin:0 0 4px;color:#fff;font-weight:700;letter-spacing:.2px}
+  h1 span{color:var(--accent)}
+  .sub{font-size:12.5px;color:#8e9ab1;margin:0 0 22px;line-height:1.55}
+  .toolbar{display:flex;gap:10px;align-items:center;margin:0 0 20px;flex-wrap:wrap}
+  .tgl{display:inline-flex;background:#11141c;border:1px solid #262b38;border-radius:999px;padding:3px}
+  .tgl button{background:none;border:0;color:#8e9ab1;font:inherit;font-size:12px;padding:6px 14px;border-radius:999px;cursor:pointer}
+  .tgl button.on{background:linear-gradient(135deg,var(--gold),var(--gold2));color:#1a1206;font-weight:700}
+  .hint{font-size:11.5px;color:#6f7a90}
+  .stage{display:flex;gap:34px;align-items:flex-start;flex-wrap:wrap}
+
+  /* ================= CỬA SỔ HUB (540x340 như trong script) ================= */
+  .wrap{position:relative;width:540px;height:340px;transform:scale(1.34);transform-origin:top left;margin-bottom:120px}
+  .shadow1,.shadow2{position:absolute;border-radius:26px;background:#000;pointer-events:none}
+  .shadow1{inset:-22px;opacity:.30;background:var(--shadow1)}
+  .shadow2{inset:-12px;opacity:.42;background:var(--shadow2)}
+  .win{position:absolute;inset:0;border-radius:var(--win-radius);
+    background:linear-gradient(180deg,var(--bg-top),var(--bg-bot));
+    border:1.4px solid var(--border);overflow:hidden}
+  .bevel{position:absolute;left:18px;right:18px;top:0;height:1px;background:linear-gradient(90deg,
+    transparent,var(--bevel) 14%,rgba(255,255,255,.28) 50%,var(--bevel) 86%,transparent)}
+
+  /* --- thanh tiêu đề 30px --- */
+  .title{position:absolute;left:0;right:0;top:0;height:30px;
+    background:linear-gradient(180deg,var(--el2),#161922);border-radius:var(--win-radius) var(--win-radius) 0 0;
+    display:flex;align-items:center;padding:0 8px 0 9px;gap:6px}
+  .logo{width:18px;height:18px;border-radius:6px;background:linear-gradient(135deg,var(--gold),var(--gold2));
+    display:grid;place-items:center;font-size:10px;color:#1a1206;flex:0 0 auto}
+  .brand{font-size:13px;font-weight:700;margin-left:6px;letter-spacing:.2px;
+    background:linear-gradient(90deg,var(--title-from),var(--title-to));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .pill{margin-left:auto;height:16px;padding:0 12px;border-radius:999px;border:1px solid var(--accent);
+    background:rgba(255,196,61,.10);color:var(--accent);font-size:8px;font-weight:700;
+    display:flex;align-items:center;letter-spacing:.3px}
+  .tbtn{width:26px;height:22px;border-radius:7px;display:grid;place-items:center;font-size:12px;color:var(--muted)}
+  .tbtn.hover{background:rgba(45,50,65,.45)}
+  .tbtn.hover.lock{color:var(--gold)} .tbtn.hover.close{color:var(--red)}
+  .accentline{position:absolute;left:1px;right:1px;top:28px;height:2px;
+    background:linear-gradient(90deg,var(--accent),var(--accent2))}
+
+  /* --- rail 56px --- */
+  .rail{position:absolute;left:0;top:30px;bottom:0;width:56px;
+    background:linear-gradient(180deg,#1b1e28,#0f1117);display:flex;flex-direction:column;
+    gap:4px;padding:6px 4px}
+  .tabbtn{height:38px;border-radius:10px;display:grid;place-items:center;font-size:16px;position:relative;color:var(--muted)}
+  .tabbtn.active{background:linear-gradient(180deg,var(--el2),var(--surface2));color:var(--accent)}
+  .tabbtn.active::before{content:"";position:absolute;left:2px;top:6px;bottom:6px;width:3px;border-radius:999px;
+    background:linear-gradient(180deg,var(--gold),var(--gold2))}
+  .tabbtn.active::after{content:"";position:absolute;inset:-3px;border-radius:12px;background:rgba(255,196,61,.07)}
+  .tabbtn.ghost{background:rgba(45,50,65,.28)}
+  .divider{position:absolute;left:56px;top:30px;bottom:0;width:1px;
+    background:linear-gradient(180deg,transparent,var(--line) 12%,var(--line) 88%,transparent)}
+
+  /* --- header trang 24px --- */
+  .phead{position:absolute;left:56px;right:0;top:30px;height:24px;
+    background:linear-gradient(90deg,#1e222d,#13161d);display:flex;align-items:center;padding:0 6px 0 10px}
+  .phead .notch{position:absolute;left:0;top:3px;bottom:3px;width:2px;border-radius:2px;
+    background:linear-gradient(180deg,var(--gold),var(--gold2))}
+  .ptitle{font-size:11px;font-weight:700;color:var(--accent)}
+  .chips{margin-left:auto;display:flex;gap:8px;align-items:center}
+  .sw{display:flex;align-items:center;gap:5px;width:42px}
+  .sw i{font-style:normal;font-size:10px}
+  .sw.on i{color:var(--gold)} .sw.off i{color:var(--muted)}
+  .track{width:26px;height:12px;border-radius:999px;position:relative;margin-left:auto}
+  .sw.on .track{background:linear-gradient(90deg,var(--green),#96eb78)}
+  .sw.guess.on .track{background:linear-gradient(90deg,var(--orange),#ff785a)}
+  .sw.off .track{background:linear-gradient(90deg,var(--surface3),#262a37)}
+  .knob{position:absolute;top:2px;width:8px;height:8px;border-radius:999px;background:#7c8496}
+  .sw.on .knob{left:16px;background:#fff} .sw.off .knob{left:2px}
+  .hrule{position:absolute;left:56px;right:0;top:53px;height:1px;
+    background:linear-gradient(90deg,var(--line),rgba(72,80,101,.35) 35%,transparent)}
+
+  /* --- vùng nội dung: trang 📚 Script Hub --- */
+  .content{position:absolute;left:56px;right:0;top:54px;bottom:0;padding:8px;display:flex;flex-direction:column;gap:6px}
+  .search{height:26px;border-radius:10px;border:1px solid #343a4a;background:var(--surface);
+    display:flex;align-items:center;padding:0 9px;font-size:10px;color:#6f7a90;position:relative;overflow:hidden}
+  .search .bev{position:absolute;left:8px;right:8px;top:0;height:1px;background:linear-gradient(90deg,transparent,var(--bevel),transparent)}
+  .chiprow{display:flex;gap:5px;height:22px;align-items:center}
+  .chip{height:20px;padding:0 11px;border-radius:999px;font-size:9px;font-weight:700;display:flex;align-items:center;
+    border:1px solid var(--line);color:var(--muted);background:rgba(29,33,43,.65)}
+  .chip.on{background:linear-gradient(90deg,var(--gold),var(--gold2));color:#1a1206;border-color:var(--gold)}
+  .cards{flex:1;display:flex;flex-direction:column;gap:6px;overflow:hidden}
+  .card{height:56px;border-radius:12px;border:1px solid var(--card-border);position:relative;overflow:hidden;
+    background:var(--surface);display:flex;align-items:flex-start;padding:8px 8px;
+    background-image:linear-gradient(180deg,var(--card-top),var(--card-bot))}
+  .card::before{content:"";position:absolute;left:8px;right:8px;top:0;height:1px;
+    background:linear-gradient(90deg,transparent,var(--bevel) 18%,rgba(255,255,255,.22) 50%,var(--bevel) 82%,transparent)}
+  .card::after{content:"";position:absolute;left:0;right:0;bottom:0;height:16px;
+    background:linear-gradient(180deg,transparent,rgba(0,0,0,.34))}
+  .card.fav{border-color:var(--gold)}
+  .card.fav::before{background:linear-gradient(90deg,transparent,var(--gold) 50%,transparent);opacity:.5}
+  .ico{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;font-size:16px;flex:0 0 auto;
+    background:var(--el2);border:1px solid var(--line);position:relative}
+  .ico.fav{background:rgba(255,205,92,.18);border-color:var(--gold)}
+  .cbody{flex:1;padding:0 8px;min-width:0}
+  .cname{font-size:11px;font-weight:700;color:var(--dark);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ccat{font-size:8px;font-weight:700;color:var(--accent);letter-spacing:.6px;margin-top:2px}
+  .cdesc{font-size:9px;color:var(--muted);line-height:1.35;margin-top:3px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .cbtns{display:flex;gap:5px;align-items:center;padding-top:8px;flex:0 0 auto}
+  .cbtn{height:24px;border-radius:7px;font-size:9px;font-weight:700;display:grid;place-items:center;
+    border:1px solid rgba(255,255,255,.14);position:relative;overflow:hidden}
+  .cbtn::before{content:"";position:absolute;inset:0 0 auto 0;height:1px;background:rgba(255,255,255,.22)}
+  .cbtn.run{width:78px;background:var(--green);color:#04140c}
+  .cbtn.gray{width:78px;background:var(--surface3);color:#e6ebf5}
+  .cbtn.b{width:24px;background:var(--blue);color:#06101f}
+  .cbtn.p{width:24px;background:var(--purple);color:#130720}
+  .cbtn.s{width:24px;background:var(--surface3);color:#dbe2ef}
+  .cbtn.y{width:24px;background:var(--gold);color:#1a1206}
+  .srvpanel{margin-top:auto;height:54px;border-radius:12px;border:1px solid var(--line);
+    background:linear-gradient(180deg,var(--el1),#14161d);position:relative;padding:5px 8px;overflow:hidden}
+  .srvpanel::before{content:"";position:absolute;left:8px;right:8px;top:0;height:1px;
+    background:linear-gradient(90deg,transparent,var(--bevel),transparent)}
+  .srvjob{font-size:9px;color:var(--muted);display:flex;align-items:center;gap:8px}
+  .srvjob b{color:var(--ice);font-weight:600}
+  .cp{width:26px;height:16px;border-radius:6px;background:var(--blue);color:#06101f;font-size:9px;display:grid;place-items:center;font-weight:700;margin-left:auto}
+  .srvrow{display:flex;gap:6px;margin-top:5px}
+  .srvrow .inp{flex:1;height:24px;border-radius:8px;border:1px solid #343a4a;background:var(--surface2);
+    display:flex;align-items:center;padding:0 7px;font-size:9px;color:#6f7a90}
+  .srvrow .go{width:50px;height:24px;border-radius:7px;background:var(--green);color:#04140c;font-size:9px;font-weight:700;display:grid;place-items:center}
+  .srvrow .hop{width:50px;height:24px;border-radius:7px;background:var(--purple);color:#130720;font-size:9px;font-weight:700;display:grid;place-items:center}
+
+  /* --- nút 🍌 --- */
+  .banana{position:relative;width:64px;height:64px;border-radius:999px;
+    background:linear-gradient(135deg,var(--gold),var(--gold2));border:1.6px solid var(--gold2);
+    display:grid;place-items:center;font-size:30px;color:#1a1206;
+    box-shadow:0 0 26px rgba(255,196,61,.40),0 0 60px rgba(255,149,55,.22),inset 0 1px 0 rgba(255,255,255,.5)}
+  .legend{font-size:12px;line-height:1.75;color:#93a0b8;max-width:430px}
+  .legend h3{font-size:12.5px;color:#fff;margin:0 0 6px;text-transform:uppercase;letter-spacing:.8px}
+  .legend b{color:var(--ice)}
+  .legend .dot{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:7px;vertical-align:middle}
+  .legend ul{margin:0 0 16px;padding-left:0;list-style:none}
+  .legend li{margin:5px 0}
+  footer{margin-top:26px;font-size:11.5px;color:#5d6879;line-height:1.7}
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>🍌 Banana Cat Hub <span>v4.9 · OBSIDIAN GOLD</span></h1>
+  <p class="sub">Bản xem trước giao diện mới — dựng lại <b>đúng kích thước, đúng bảng màu, đúng vị trí</b> như trong <code>script.js</code>
+     (cửa sổ 540×340, thanh tiêu đề 30px, rail 56px, header trang 24px). Bấm nút bên dưới để so sánh với bản cũ.</p>
+
+  <div class="toolbar">
+    <div class="tgl">
+      <button id="bNew" class="on">v4.9 · Obsidian Gold (mới)</button>
+      <button id="bOld">v4.4–4.8 · Midnight Gold (cũ)</button>
+    </div>
+    <span class="hint">Bố cục & tính năng y như nhau — chỉ khác vật liệu, chiều sâu và sắc độ.</span>
+  </div>
+
+  <div class="stage">
+    <div class="wrap">
+      <div class="shadow2"></div>
+      <div class="shadow1"></div>
+      <div class="win">
+        <div class="bevel"></div>
+
+        <!-- ===== thanh tiêu đề 30px ===== -->
+        <div class="title">
+          <div class="logo">🍌</div>
+          <div class="brand">Banana Cat Hub</div>
+          <div class="pill">v4.9 · OBSIDIAN</div>
+          <div class="tbtn hover lock">🔒</div>
+          <div class="tbtn hover close">✕</div>
+        </div>
+        <div class="accentline"></div>
+
+        <!-- ===== rail trái 56px ===== -->
+        <div class="rail">
+          <div class="tabbtn" title="Code Đã Lưu">💾</div>
+          <div class="tabbtn ghost" title="Code">💻</div>
+          <div class="tabbtn active" title="Script Hub">📚</div>
+          <div class="tabbtn" title="Hỗ Trợ">🛠</div>
+          <div class="tabbtn" title="AI AI">🤖</div>
+          <div class="tabbtn" title="Tạo Tính Năng">➕</div>
+          <div class="tabbtn" title="GUI Ngoài (2)">🧩</div>
+        </div>
+        <div class="divider"></div>
+
+        <!-- ===== header trang 24px ===== -->
+        <div class="phead">
+          <div class="notch"></div>
+          <div class="ptitle">📚&nbsp;&nbsp;Script Hub</div>
+          <div class="chips">
+            <div class="sw on"><i>🧩</i><span class="track"><span class="knob"></span></span></div>
+            <div class="sw guess off"><i>🕵</i><span class="track"><span class="knob"></span></span></div>
+            <div class="sw on"><i>🪟</i><span class="track"><span class="knob"></span></span></div>
+          </div>
+        </div>
+        <div class="hrule"></div>
+
+        <!-- ===== nội dung ===== -->
+        <div class="content">
+          <div class="search"><span class="bev"></span>🔍&nbsp; Tìm script hoặc tiện ích...</div>
+          <div class="chiprow">
+            <div class="chip on">Tất cả</div>
+            <div class="chip">Admin</div>
+            <div class="chip">Explorer</div>
+            <div class="chip">Spy</div>
+            <div class="chip">Tiện ích</div>
+            <div class="chip">Server</div>
+          </div>
+          <div class="cards">
+            <div class="card fav">
+              <div class="ico fav">🛡</div>
+              <div class="cbody">
+                <div class="cname">Infinite Yield&nbsp;&nbsp;⭐</div>
+                <div class="ccat">ADMIN</div>
+                <div class="cdesc">Admin commands: kill, speed, jump, noclip, teleport, bring...</div>
+              </div>
+              <div class="cbtns">
+                <div class="cbtn run">▶ Chạy</div>
+                <div class="cbtn b">📋</div><div class="cbtn p">💾</div><div class="cbtn y">⭐</div>
+              </div>
+            </div>
+            <div class="card">
+              <div class="ico">🧰</div>
+              <div class="cbody">
+                <div class="cname">Dex Explorer</div>
+                <div class="ccat">EXPLORER</div>
+                <div class="cdesc">Duyệt toàn bộ instance trong game, xem/sửa property...</div>
+              </div>
+              <div class="cbtns">
+                <div class="cbtn run">▶ Chạy</div>
+                <div class="cbtn b">📋</div><div class="cbtn p">💾</div><div class="cbtn s">☆</div>
+              </div>
+            </div>
+            <div class="card">
+              <div class="ico">📡</div>
+              <div class="cbody">
+                <div class="cname">SimpleSpy v3</div>
+                <div class="ccat">SPY</div>
+                <div class="cdesc">Theo dõi RemoteEvent/RemoteFunction: tên, tham số, copy code...</div>
+              </div>
+              <div class="cbtns">
+                <div class="cbtn run">▶ Chạy</div>
+                <div class="cbtn b">📋</div><div class="cbtn p">💾</div><div class="cbtn s">☆</div>
+              </div>
+            </div>
+          </div>
+          <div class="srvpanel">
+            <div class="srvjob">🌐 Mã server: <b>4b7f1c9e-8a2d-4f61-9c33-1e7a5b0d2f88</b><span class="cp">📋</span></div>
+            <div class="srvrow">
+              <div class="inp">🎟 Dán mã server (JobId) vào đây...</div>
+              <div class="go">🚀 Vào</div>
+              <div class="hop">🔀 Hop</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="legend">
+      <h3>Điều gì đã đổi</h3>
+      <ul>
+        <li><span class="dot" style="background:linear-gradient(180deg,#171a23,#08090d)"></span><b>Cửa sổ:</b> khối obsidian đổ dọc (đỉnh sáng – đáy tối), bo 16px, <b>bevel mép trên</b>, <b>bóng đổ ngoài 2 lớp</b> tự bám theo khi kéo/nới.</li>
+        <li><span class="dot" style="background:linear-gradient(135deg,#ffcd5c,#ff9537)"></span><b>Thanh tiêu đề:</b> ô logo 🍌 gradient, chữ gradient vàng→kem, pill phiên bản có viền vàng + bevel, nút ✕/🔒 có "viên thuốc" khi rê chuột.</li>
+        <li><span class="dot" style="background:linear-gradient(180deg,#252a37,#202430)"></span><b>Rail trái:</b> nền gradient dọc; tab đang mở = pill kính + <b>vạch vàng có animation mọc ra</b> + quầng sáng; tab hover có pill ghost riêng.</li>
+        <li><span class="dot" style="background:linear-gradient(90deg,rgba(255,255,255,.04),rgba(0,0,0,.3))"></span><b>Thẻ &amp; danh sách:</b> mọi hàng (Script Hub, Code Đã Lưu, Waypoint, tab tính năng, GUI Ngoài, chat) dùng chung ngôn ngữ "kính": bevel đỉnh + đáy tối + sáng nhẹ khi rê chuột.</li>
+        <li><span class="dot" style="background:#ffc43d"></span><b>Nhấn thị giác:</b> vạch vàng ở header trang, tiêu đề mục có gạch vàng, kẻ ngăn mờ dần hai đầu, thanh cuộn 4px bo tròn, chip lọc đang chọn là viên vàng gradient.</li>
+        <li><span class="dot" style="background:#28cd7d"></span><b>Nút bấm:</b> giữ nguyên kích thước &amp; vị trí, chỉ thêm bevel + phản hồi hover/nhấn — không thể xô layout.</li>
+      </ul>
+      <h3>Vẫn còn nguyên</h3>
+      <ul>
+        <li>🔒 Toàn bộ tính năng: Code · Code Đã Lưu · Script Hub (6 chip + 🌐 Server) · Hỗ Trợ (phân tích vật thể 📱/🖥) · AI AI · Tạo Tính Năng · nhúng GUI · crosshair · waypoint · 🎟 JobId.</li>
+        <li>🔒 Kích thước cứng giữ nguyên: thanh tiêu đề 30px, rail 56px, header trang 24px, khổ tab 540×340 và mọi toạ độ nút.</li>
+        <li>🔒 3 công tắc 🧩/🕵/🪟 trên header nay <b>chạy thật</b> (bản cũ bị lỗi "global nil" — xem mục B11 trong báo cáo).</li>
+      </ul>
+      <div class="banana">🍌</div>
+      <footer>Nút 🍌 nổi: gradient vàng→cam + bevel + 2 quầng sáng "thở" lệch nhịp (không dùng asset ngoài).<br>
+        Tệp này chỉ để <b>xem trước</b>; giao diện thật do <code>script.js</code> dựng bằng Instance (UICorner/UIStroke/UIGradient), không dùng ảnh.</footer>
+    </div>
+  </div>
+</div>
+
+<script>
+  const b = document.body, bN = document.getElementById('bNew'), bO = document.getElementById('bOld');
+  bN.onclick = () => { b.classList.remove('old'); bN.classList.add('on'); bO.classList.remove('on'); };
+  bO.onclick = () => { b.classList.add('old');    bO.classList.add('on'); bN.classList.remove('on'); };
+</script>
+</body>
+</html>
