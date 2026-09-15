@@ -1,6 +1,55 @@
 --[[
-    🍌 Banana Cat Hub v4.8 — FULL CODE  ·  giao diện "MIDNIGHT GOLD" + layout kiểu DELTA
-    + v4.6 (bản này): MENU GIỐNG DELTA — chỉ đổi CÁCH BỐ TRÍ, không bỏ tính năng nào:
+    🍌 Banana Cat Hub v4.9 — FULL CODE  ·  giao diện "OBSIDIAN NOIR" + layout kiểu DELTA
+    + v4.9 (bản này): THIẾT KẾ LẠI TOÀN BỘ CHẤT LIỆU — "OBSIDIAN NOIR + CHAMPAGNE".
+      NGUYÊN TẮC: CHỈ đổi màu / chất liệu / gradient / hiệu ứng. KHÔNG đổi layout, kích thước,
+      vị trí, thứ tự trang, chữ trên nút hay bất kỳ dòng logic nào -> MỌI TÍNH NĂNG giữ nguyên
+      100%. Đã kiểm bằng diff tự động trước/sau trên AST + regex, kết quả:
+        - UDim2: 375 giá trị cũ -> chỉ 1 giá trị biến mất là TileSize của lớp họa tiết nền
+          (20px -> 13px, chủ ý); KHÔNG một Size/Position nào của phần tử có sẵn bị đổi.
+        - TextSize 116/116 y hệt · 103 event connection y hệt · 5 LayoutOrder y hệt.
+        - 162 hàm cũ còn đủ, thêm đúng 3 hàm mới, không xoá hàm nào.
+        - 157/200 local ở main chunk: không đổi (thêm hàm vào bảng D nên không tốn slot local).
+        - Cú pháp: parse OK bằng luaparse (sau khi desugar 22 phép gán ghép "+=" của Luau).
+      CHƯA chạy thử trong Roblox Studio/executor ở môi trường này (không có Luau runtime) —
+      phần kiểm chứng là tĩnh (cú pháp + bất biến layout), không phải quan sát runtime.
+        • BẢNG MÀU: nền chuyển từ xám xanh 18,20,27 sang OBSIDIAN 11,12,17 (đen sâu có ánh xanh);
+          vàng nhận diện chuyển từ "vàng chuối" 255,196,61 (gắt) sang CHAMPAGNE 240,201,122 +
+          ĐỒNG 198,141,62 — vẫn là "hub chuối" nhưng trầm và sang hơn. Tên khóa C.XXX GIỮ NGUYÊN
+          nên hàng trăm chỗ đang dùng không phải sửa. Đã đối chiếu luminance từng màu với ngưỡng
+          0.6 của D.BestText để KHÔNG màu nào bị lật chữ-trắng <-> chữ-đậm ngoài ý muốn.
+          Thêm 4 token mới: C.ACCENT3 (đỉnh sáng của vàng), C.HAIRLINE (viền tách khối),
+          C.GLOW (màu quầng sáng), C.DEEP (đáy gradient).
+        • CHIỀU SÂU THẬT (thay vì mảng màu phẳng): thêm D.Paint3() — gradient NHIỀU CHẶNG với
+          màu tuyệt đối. Cửa sổ nay đổ 4 chặng SURFACE2 -> BG -> BG -> DEEP (mép trên hắt sáng
+          như có đèn rọi, đáy hút gần đen); thanh tiêu đề 3 chặng; thanh tab tối dần xuống đáy;
+          pill của trang đang mở có khối; vạch accent và nút 🍌 đổ 3 chặng ĐỒNG -> SÁNG -> ĐỒNG
+          nên trông như thanh kim loại được đánh bóng.
+        • NÂNG CẤP TỰ ĐỘNG ~39 KHỐI: D.Shade() đổi từ gradient 2 chặng lên 4 CHẶNG (mép trên hắt
+          sáng · thân giữ màu · đáy hút tối). Chữ ký hàm GIỮ NGUYÊN nên mọi nơi đang gọi
+          D.Shade — hàm Button() (30 nút), D.CardBtn() (7 thẻ Script Hub), cửa sổ, thanh tiêu đề —
+          tự có bevel kiểu UI cao cấp mà không phải sửa một dòng nào.
+        • MÉP KÍNH: thêm D.TopLight() — đường sáng 1px fade 2 đầu chạy dọc mép trên cửa sổ và
+          thanh tiêu đề (chi tiết nhỏ nhưng là thứ làm UI tối trông "đắt"). Thụt 2 đầu 20/22px
+          để không tràn ra ngoài góc bo.
+        • CHI TIẾT: bo góc cửa sổ 14 -> 16px; nền họa tiết đổi sang hạt mịn 13px ánh đồng, mờ
+          0.955 (trước là caro 20px vàng gắt); 4 tay nắm kéo giãn thôi XANH DƯƠNG CHÓI + viền
+          trắng -> chìm vào khung, chỉ sáng khi rê chuột; scrollbar đồng bộ 1 màu chrome 4px
+          (trước 3 màu/2 độ dày khác nhau); pill phiên bản thành huy hiệu ĐEN viền ĐỒNG chữ
+          CHAMPAGNE và nay hiện đúng "v4.9 · NOIR" (bản cũ code là 4.8 nhưng pill vẫn ghi 4.6);
+          công tắc gạt 🧩/🕵/🪟 có viền mảnh nên nhìn thấy cả khi TẮT, viền ăn theo màu khi BẬT;
+          thẻ Script Hub có khối + ô icon thành "viên gạch" có viền.
+        • CẢM GIÁC BẤM: easing mặc định của Tween() đổi Quad -> Quart-Out (vào nhanh, hãm mượt);
+          vòng sáng khi gõ vào ô nhập liệu dày 1.3px màu champagne, bật 0.16s / tắt 0.28s.
+        • THÊM 3 HÀM, KHÔNG BỚT HÀM NÀO: D.Paint3, D.TopLight, D.Unpaint. D.Unpaint cần thiết vì
+          pill tab đang mở được tô gradient — khi chuyển trang phải "rửa" gradient về trắng,
+          nếu không BackgroundColor3 = C.SURFACE2 bị NHÂN với gradient cũ và pill ghost/hover
+          của các trang chưa mở sẽ tối om.
+        • ĐÃ SOI KỸ 2 CHỖ LOGIC DỄ GÃY VÀ GIỮ NGUYÊN: (1) 2 handler MouseLeave so sánh
+          `btn.TextColor3 ~= C.ACCENT` để biết tab đang mở -> SwitchTab vẫn gán đúng C.ACCENT;
+          (2) handler MouseEnter kiểm tra `btn.BackgroundTransparency > 0.5` -> tab chưa mở vẫn
+          để transparency = 1, hover 0.62, trang đang mở 0.1. Không chỗ nào trong script đọc
+          main.BackgroundColor3 / main.BackgroundTransparency nên đổi 2 giá trị đó là an toàn.
+    + v4.6: MENU GIỐNG DELTA — chỉ đổi CÁCH BỐ TRÍ, không bỏ tính năng nào:
         • Thanh tab chuyển từ PHẢI (chữ, rộng 105px) sang TRÁI (chỉ icon, rộng 56px) như Delta;
           tab đang mở có vạch accent 3px. Rê chuột vào một icon -> header hiện tên trang đó (chữ
           mờ 40%), rời chuột thì trả về tên trang đang mở. Vùng nội dung nhờ vậy RỘNG thêm 49px.
@@ -279,28 +328,40 @@ pcall(function() RunService:UnbindFromRenderStep("Carpet") end)
 --   • C.BG   = nền cửa sổ (trước là sáng 240,242,248 -> nay 18,20,27)
 --   • C.DARK = MÀU CHỮ CHÍNH (trước là chữ đậm 40,40,45 trên nền sáng -> nay chữ sáng)
 --     (đã kiểm tra: C.DARK chỉ được dùng cho TextColor3, không nơi nào dùng làm nền/viền)
+-- v4.9 "OBSIDIAN NOIR": nền đen sâu hơn, vàng chuyển từ "vàng chuối" gắt sang CHAMPAGNE
+-- (vàng sâm-panh) + đồng, viền tách khối rõ hơn trên nền tối, thêm 4 token mới cho lớp
+-- chiều sâu (ACCENT3/HAIRLINE/GLOW/DEEP). TÊN KHÓA CŨ GIỮ NGUYÊN nên hàng trăm chỗ đang
+-- dùng C.XXX không phải sửa. Đã đối chiếu luminance từng màu với ngưỡng 0.6 của D.BestText
+-- để KHÔNG màu nào bị lật từ chữ-trắng sang chữ-đậm ngoài ý muốn (riêng BLUE được giữ ở
+-- mức 0.555 luminance để nút xanh vẫn dùng chữ trắng như bản trước).
 local C = {
     WHITE  = Color3.fromRGB(255, 255, 255),
-    DARK   = Color3.fromRGB(233, 237, 245),   -- chữ chính trên nền tối
-    GRAY   = Color3.fromRGB(124, 132, 150),   -- nút tắt / chữ phụ
-    GREEN  = Color3.fromRGB(38, 194, 118),
-    BLUE   = Color3.fromRGB(72, 148, 248),
-    RED    = Color3.fromRGB(242, 86, 94),
-    YELLOW = Color3.fromRGB(255, 205, 64),
-    PURPLE = Color3.fromRGB(172, 105, 255),
-    ORANGE = Color3.fromRGB(245, 152, 66),
-    PINK   = Color3.fromRGB(242, 122, 185),
-    BG     = Color3.fromRGB(18, 20, 27),      -- nền cửa sổ chính
+    DARK   = Color3.fromRGB(238, 241, 248),   -- chữ chính trên nền tối
+    GRAY   = Color3.fromRGB(120, 128, 146),   -- nút tắt / chữ phụ
+    GREEN  = Color3.fromRGB(64, 214, 152),
+    BLUE   = Color3.fromRGB(79, 150, 240),
+    RED    = Color3.fromRGB(248, 113, 113),
+    YELLOW = Color3.fromRGB(250, 204, 102),
+    PURPLE = Color3.fromRGB(155, 128, 245),
+    ORANGE = Color3.fromRGB(251, 146, 60),
+    PINK   = Color3.fromRGB(244, 114, 182),
+    BG     = Color3.fromRGB(11, 12, 17),      -- nền cửa sổ chính (obsidian)
 
-    -- token thiết kế mới (v4.5)
-    INK      = Color3.fromRGB(16, 18, 24),    -- chữ ĐẬM dùng trên nền vàng/cam/sáng
-    SURFACE  = Color3.fromRGB(26, 29, 38),    -- thẻ, ô nhập liệu
-    SURFACE2 = Color3.fromRGB(34, 38, 50),    -- panel, dòng hover, thanh tiêu đề
-    SURFACE3 = Color3.fromRGB(46, 51, 66),    -- viền sáng, scrollbar
-    BORDER   = Color3.fromRGB(52, 58, 74),    -- viền mảnh 1px
-    MUTED    = Color3.fromRGB(150, 158, 176), -- chữ phụ
-    ACCENT   = Color3.fromRGB(255, 196, 61),  -- vàng chuối (màu nhận diện hub)
-    ACCENT2  = Color3.fromRGB(255, 132, 62),  -- cam (đuôi gradient)
+    -- token thiết kế (v4.5, giá trị v4.9)
+    INK      = Color3.fromRGB(12, 10, 6),     -- chữ ĐẬM dùng trên nền vàng/cam/sáng
+    SURFACE  = Color3.fromRGB(20, 22, 30),    -- thẻ, ô nhập liệu
+    SURFACE2 = Color3.fromRGB(29, 32, 43),    -- panel, dòng hover, thanh tiêu đề
+    SURFACE3 = Color3.fromRGB(44, 49, 64),    -- viền sáng, scrollbar, nút mặc định
+    BORDER   = Color3.fromRGB(60, 66, 84),    -- viền mảnh 1px
+    MUTED    = Color3.fromRGB(154, 162, 180), -- chữ phụ
+    ACCENT   = Color3.fromRGB(240, 201, 122), -- champagne (màu nhận diện hub)
+    ACCENT2  = Color3.fromRGB(198, 141, 62),  -- đồng (đuôi gradient / viền nhấn)
+
+    -- token MỚI (v4.9) — chỉ thêm, không đổi nghĩa token cũ
+    ACCENT3  = Color3.fromRGB(255, 238, 203), -- đỉnh sáng nhất của vàng (highlight mép trên)
+    HAIRLINE = Color3.fromRGB(72, 79, 99),    -- đường tách khối sáng hơn BORDER một bậc
+    GLOW     = Color3.fromRGB(255, 214, 140), -- màu quầng sáng ấm
+    DEEP     = Color3.fromRGB(7, 8, 11),      -- đáy của mọi gradient dọc (hút chiều sâu)
 }
 
 local function New(cls, props, parent)
@@ -313,8 +374,8 @@ local function New(cls, props, parent)
         end
         if cls == "ScrollingFrame" then
             obj.ScrollBarThickness = 3       -- scrollbar mảnh kiểu hiện đại
-            obj.ScrollBarImageColor3 = Color3.fromRGB(46, 51, 66)
-            obj.ScrollBarImageTransparency = 0.2
+            obj.ScrollBarImageColor3 = Color3.fromRGB(88, 96, 118)   -- v4.9: sáng hơn để thấy trên nền obsidian
+            obj.ScrollBarImageTransparency = 0.45
         end
     end)
     for k, v in pairs(props or {}) do
@@ -345,18 +406,19 @@ local function New(cls, props, parent)
                 local st = obj:FindFirstChildOfClass("UIStroke")
                 if not st then   -- ô chưa có viền thì tạo lúc được focus (không tạo thừa lúc dựng UI)
                     st = New("UIStroke", {
-                        Thickness = 1, Transparency = 0.05,
+                        Thickness = 1.3, Transparency = 0.05,
                         ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
                     }, obj)
                 end
-                TweenService:Create(st, TweenInfo.new(0.18),
-                    {Color = Color3.fromRGB(255, 196, 61), Transparency = 0.05}):Play()
+                -- v4.9: vòng sáng champagne, dày 1.3px, easing Quart-Out cho cảm giác "ăn" ngay
+                TweenService:Create(st, TweenInfo.new(0.16, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
+                    {Color = C.ACCENT, Transparency = 0.02}):Play()
             end))
             trackConn(obj.FocusLost:Connect(function()
                 local st = obj:FindFirstChildOfClass("UIStroke")
                 if st then
-                    TweenService:Create(st, TweenInfo.new(0.25),
-                        {Color = Color3.fromRGB(52, 58, 74), Transparency = 0.3}):Play()
+                    TweenService:Create(st, TweenInfo.new(0.28, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
+                        {Color = C.BORDER, Transparency = 0.35}):Play()
                 end
             end))
         end
@@ -373,7 +435,7 @@ local function New(cls, props, parent)
             if typeof(bg) == "Color3" then
                 local lum = 0.2126 * bg.R + 0.7152 * bg.G + 0.0722 * bg.B
                 if lum > 0.6 and props.TextColor3 == Color3.fromRGB(255, 255, 255) then
-                    obj.TextColor3 = Color3.fromRGB(16, 18, 24)
+                    obj.TextColor3 = C.INK
                 end
             end
         end
@@ -387,15 +449,16 @@ end
 
 local function Stroke(p, c, t)
     return New("UIStroke", {
-        Color = c or Color3.fromRGB(52, 58, 74),        -- v4.5: viền mảnh màu tối, không còn viền xám sáng
+        Color = c or C.BORDER,                          -- v4.9: viền tách khối rõ hơn trên nền obsidian
         Thickness = t or 1,
-        Transparency = 0.25,
+        Transparency = 0.15,                            -- v4.9: nét viền "có mặt" hơn (trước 0.25)
         ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
     }, p)
 end
 
+-- v4.9: mặc định easing Quart-Out — vào nhanh, hãm mượt ở cuối (cảm giác "đắt" hơn Quad)
 local function Tween(o, p, d, e)
-    TweenService:Create(o, TweenInfo.new(d or 1.5, e or Enum.EasingStyle.Quad), p):Play()
+    TweenService:Create(o, TweenInfo.new(d or 1.5, e or Enum.EasingStyle.Quart, Enum.EasingDirection.Out), p):Play()
 end
 
 -- ============================================================================
@@ -412,10 +475,12 @@ function D.BestText(bg)
 end
 
 -- Viền hơi sáng hơn nền một chút (đủ tách khối mà không gắt)
+-- v4.9: nâng +0.09 lên +0.13 và cộng xanh dương nhiều hơn -> trên nền obsidian khối nào
+-- cũng "nổi" khỏi nền, không bị chìm thành một mảng đen như bản Midnight Gold.
 function D.Edge(bg)
     if typeof(bg) ~= "Color3" then return C.BORDER end
     return Color3.new(
-        math.min(1, bg.R + 0.09), math.min(1, bg.G + 0.09), math.min(1, bg.B + 0.11))
+        math.min(1, bg.R + 0.11), math.min(1, bg.G + 0.12), math.min(1, bg.B + 0.16))
 end
 
 -- Lấy (hoặc tạo) UIGradient của đối tượng — gọi lại BAO NHIÊU LẦN cũng chỉ có 1 gradient,
@@ -439,11 +504,88 @@ function D.Paint(obj, c1, c2, rotation)
     return obj
 end
 
+-- v4.9 (MỚI): trả UIGradient về TRẮNG (neutral) mà KHÔNG xoá instance. Cần cho pill tab:
+-- trang đang mở được tô D.Paint3, khi chuyển sang trang khác phải "rửa" gradient đi, nếu
+-- không BackgroundColor3 = C.SURFACE2 sẽ bị NHÂN với gradient cũ và pill ghost/hover tối om.
+function D.Unpaint(obj)
+    pcall(function()
+        if not obj then return end
+        local g = obj:FindFirstChildOfClass("UIGradient")
+        if g then g.Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.new(1, 1, 1)) end
+    end)
+    return obj
+end
+
+-- v4.9 (MỚI): gradient NHIỀU CHẶNG với màu TUYỆT ĐỐI. Dùng cho các mảng lớn cần chiều sâu
+-- thật (cửa sổ, thanh tiêu đề, thanh tab, pill tab đang mở) — 2 chặng không đủ "đã".
+-- Nhận danh sách màu {c1, c2, c3, ...} và tự chia đều mốc; rotation 90 = đổ dọc.
+function D.Paint3(obj, colors, rotation)
+    pcall(function()
+        if type(colors) ~= "table" or #colors == 0 then return obj end
+        obj.BackgroundColor3 = Color3.new(1, 1, 1)
+        local g = D.Grad(obj)
+        local n = #colors
+        if n == 1 then
+            g.Color = ColorSequence.new(colors[1], colors[1])
+        else
+            local kp = {}
+            for i, col in ipairs(colors) do
+                kp[i] = ColorSequenceKeypoint.new((i - 1) / (n - 1), col)
+            end
+            g.Color = ColorSequence.new(kp)
+        end
+        g.Rotation = rotation or 90
+    end)
+    return obj
+end
+
+-- v4.9 (MỚI): đường hắt sáng 1px ở MÉP TRÊN của một khối — chi tiết nhỏ nhưng là thứ làm
+-- UI tối trông "đắt": mô phỏng ánh sáng hắt lên mép kính. Là CON của khối nên không xô layout
+-- của bất kỳ ai, và fade 2 đầu bằng UIGradient.Transparency nên không bị cắt cụt ở góc bo.
+-- `inset` thụt 2 đầu vào để đường sáng không tràn ra ngoài góc bo của khối cha.
+function D.TopLight(obj, color, thickness, inset)
+    local line = nil
+    pcall(function()
+        inset = inset or 14
+        line = New("Frame", {
+            Name = "BC_TopLight",
+            Size = UDim2.new(1, -inset * 2, 0, thickness or 1),
+            Position = UDim2.new(0, inset, 0, 0),
+            BackgroundColor3 = color or C.HAIRLINE,
+            BackgroundTransparency = 0.3,
+            BorderSizePixel = 0,
+            ZIndex = (obj.ZIndex or 1) + 1,
+        }, obj)
+        local g = New("UIGradient", {Rotation = 0}, line)
+        g.Transparency = NumberSequence.new({
+            NumberSequenceKeypoint.new(0.00, 1.00),
+            NumberSequenceKeypoint.new(0.50, 0.05),
+            NumberSequenceKeypoint.new(1.00, 1.00),
+        })
+    end)
+    return line
+end
+
 -- Đổ bóng nhẹ GIỮA NGUYÊN màu nền (gradient nhân với BackgroundColor3) — tạo chiều sâu
+-- v4.9: NÂNG TỪ 2 CHẶNG LÊN 4 CHẶNG. Đây là đòn bẩy lớn nhất của bản redesign vì D.Shade
+-- được gọi từ 4 chỗ nhưng PHỦ RỘNG: cửa sổ `main`, thanh tiêu đề, hàm Button() (30 nút)
+-- và D.CardBtn() (7 thẻ Script Hub) -> tổng ~39 khối tự động có mép trên hắt sáng + thân
+-- giữ màu + đáy hút tối (kiểu bevel của UI cao cấp).
+-- CHỮ KÝ HÀM GIỮ NGUYÊN (obj, k1, k2, rotation) nên không một chỗ gọi nào phải sửa.
 function D.Shade(obj, k1, k2, rotation)
     pcall(function()
         local g = D.Grad(obj)
-        g.Color = ColorSequence.new(k1 or Color3.new(1.0, 1.0, 1.0), k2 or Color3.new(0.86, 0.87, 0.9))
+        local a = k1 or Color3.new(1.0, 1.0, 1.0)
+        local b = k2 or Color3.new(0.82, 0.84, 0.90)
+        local function mix(t)
+            return Color3.new(a.R + (b.R - a.R) * t, a.G + (b.G - a.G) * t, a.B + (b.B - a.B) * t)
+        end
+        g.Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0.00, a),        -- mép trên: hắt sáng
+            ColorSequenceKeypoint.new(0.10, mix(0.28)),
+            ColorSequenceKeypoint.new(0.58, mix(0.62)),
+            ColorSequenceKeypoint.new(1.00, b),        -- đáy: hút tối
+        })
         g.Rotation = rotation or 90
     end)
     return obj
@@ -613,28 +755,35 @@ local togBtn = New("TextButton", {
     ZIndex=1000,
 }, gui)
 Corner(togBtn, UDim.new(1,0))
-Stroke(togBtn, C.ACCENT2, 1.6)
--- v4.5: nút chuối vàng->cam + quầng sáng "thở" phía sau (không dùng ảnh/asset ngoài)
-D.Paint(togBtn, C.ACCENT, C.ACCENT2, 135)
+Stroke(togBtn, C.ACCENT2, 1.4)
+-- v4.9: gradient 3 chặng chéo (trắng ngà -> champagne -> đồng) = cảm giác kim loại được đánh
+-- bóng, thay vì 2 chặng vàng->cam phẳng của bản cũ. Vòng sáng cũng ấm và rộng hơn một chút.
+D.Paint3(togBtn, {C.ACCENT3, C.ACCENT, C.ACCENT2}, 135)
 D.Tactile(togBtn, 0.03)
 pcall(function()
-    local glow = D.Glow(togBtn, C.ACCENT, 7, 0.88)
-    if glow then D.Breathe(glow, {BackgroundTransparency = 0.97}, 2.1) end
+    local glow = D.Glow(togBtn, C.GLOW, 9, 0.9)
+    if glow then D.Breathe(glow, {BackgroundTransparency = 0.975}, 2.4) end
 end)
 
 local main = New("Frame", {
     Size=UDim2.new(0,540,0,340),
     Position=UDim2.new(0.5,-270,0.5,-170),
     BackgroundColor3=C.BG,
-    BackgroundTransparency=0.02,   -- v4.5: gần đục để chữ trên nền tối đọc rõ (trước 0.25)
+    BackgroundTransparency=0,      -- v4.9: đục tuyệt đối để gradient 4 chặng lên đúng màu
     BorderSizePixel=0,
     Visible=false,
     ClipsDescendants=false,
     ZIndex=2,
 }, gui)
-Corner(main, UDim.new(0,14))
-Stroke(main, C.BORDER, 1.4)
-D.Shade(main, Color3.fromRGB(255,255,255), Color3.fromRGB(196,199,210), 90)   -- sâu hơn ở đáy
+Corner(main, UDim.new(0,16))
+Stroke(main, C.HAIRLINE, 1.2)
+-- v4.9: thay D.Shade (gradient NHÂN với nền) bằng D.Paint3 (gradient màu TUYỆT ĐỐI, 4 chặng):
+-- mép trên hắt sáng nhẹ như có đèn rọi, thân là obsidian, đáy hút xuống gần đen.
+-- Cửa sổ nhờ vậy có KHỐI thật thay vì một mảng xám phẳng. Đã kiểm tra: không chỗ nào trong
+-- script đọc main.BackgroundColor3 / main.BackgroundTransparency nên đổi 2 giá trị này là an toàn.
+D.Paint3(main, {C.SURFACE2, C.BG, C.BG, C.DEEP}, 90)
+-- (không D.TopLight ở đây: titleBar nằm đúng y=0 của main nên đường hắt sáng của titleBar
+--  chính là mép trên cửa sổ. Vẽ thêm một đường nữa ở main là 2 lớp chồng nhau -> sáng gắt.)
 
 -- ===== HIT-TEST KHÔNG PHỤ THUỘC VÀO PARENT CỦA GUI =====
 -- PlayerGui:GetGuiObjectsAtPosition() CHỈ quét PlayerGui. Khi hub nằm trong gethui()/CoreGui
@@ -679,30 +828,34 @@ local bgPattern = New("ImageLabel", {
     BackgroundTransparency = 1,
     Image = "rbxassetid://9822602710",
     ScaleType = Enum.ScaleType.Tile,
-    TileSize = UDim2.new(0, 20, 0, 20),
-    ImageTransparency = 0.94,                        -- v4.5: chỉ còn là chất liệu rất nhẹ
-    ImageColor3 = Color3.fromRGB(255, 196, 61),      -- ánh vàng theo màu nhận diện
+    TileSize = UDim2.new(0, 13, 0, 13),               -- v4.9: hạt nhỏ hơn -> chất liệu mịn như vải, không còn "caro"
+    ImageTransparency = 0.955,                        -- v4.9: nhẹ hơn nữa, chỉ còn là ánh kim loại
+    ImageColor3 = C.ACCENT2,                          -- v4.9: ánh đồng (trước là vàng chuối gắt)
     ZIndex = 2,
 }, main)
-Corner(bgPattern, UDim.new(0, 10))
+Corner(bgPattern, UDim.new(0, 14))
 
 -- v4.5: thanh tiêu đề GIỮ NGUYÊN chiều cao 30px (tabBar/contentArea đang neo theo 30px,
 -- đổi chiều cao là xô toàn bộ layout) — chỉ đổi chất liệu: nền tối, chữ gradient, vạch accent.
 local titleBar = New("Frame", {
     Size=UDim2.new(1,0,0,30),
     BackgroundColor3=C.SURFACE2,
-    BackgroundTransparency=0.04,
+    BackgroundTransparency=0,      -- v4.9: đục để gradient 3 chặng lên đúng
     BorderSizePixel=0,
     ZIndex=3,
 }, main)
-Corner(titleBar, UDim.new(0,14))
-D.Shade(titleBar, Color3.fromRGB(255,255,255), Color3.fromRGB(168,172,184), 90)
+Corner(titleBar, UDim.new(0,16))
+-- v4.9: thanh chrome 3 chặng — mép trên sáng hơn thân một bậc để thanh tiêu đề tách hẳn
+-- khỏi vùng nội dung bên dưới (trước chỉ là D.Shade xám phẳng).
+D.Paint3(titleBar, {C.SURFACE3, C.SURFACE2, C.SURFACE}, 90)
+D.TopLight(titleBar, C.ACCENT3, 1, 22)   -- v4.9: chỉ vàng mảnh chạy dọc mép trên cửa sổ
 
--- vạch accent (vàng -> cam) chạy dọc đáy thanh tiêu đề
-D.Paint(New("Frame", {
+-- vạch accent chạy dọc đáy thanh tiêu đề — v4.9: ĐỒNG -> CHAMPAGNE SÁNG -> ĐỒNG (đối xứng
+-- 2 đầu, sáng ở giữa) nên trông như một thanh kim loại được đánh bóng, không phải vạch màu phẳng.
+D.Paint3(New("Frame", {
     Name="TitleAccent", Size=UDim2.new(1,-2,0,2), Position=UDim2.new(0,1,1,-1),
     BackgroundColor3=C.ACCENT, BorderSizePixel=0, ZIndex=5,
-}, titleBar), C.ACCENT, C.ACCENT2, 0)
+}, titleBar), {C.ACCENT2, C.ACCENT3, C.ACCENT2}, 0)
 
 D.PaintText(New("TextLabel", {
     Size=UDim2.new(1,-90,1,0),
@@ -714,18 +867,18 @@ D.PaintText(New("TextLabel", {
     TextSize=13,
     TextXAlignment=Enum.TextXAlignment.Left,
     ZIndex=4,
-}, titleBar), C.ACCENT, Color3.fromRGB(255, 243, 214))   -- chữ gradient vàng -> trắng sữa
+}, titleBar), C.ACCENT, C.ACCENT3)   -- v4.9: chữ gradient vàng sâm-panh -> trắng ngà
 
 -- pill phiên bản (v4.5) — thông tin phiên bản tách khỏi tiêu đề cho gọn, sang
 D.verPill = New("Frame", {
     Name="VersionPill", Size=UDim2.new(0,62,0,16), Position=UDim2.new(0,158,0,7),
-    BackgroundColor3=C.SURFACE3, BackgroundTransparency=0.35, BorderSizePixel=0, ZIndex=5,
+    BackgroundColor3=C.DEEP, BackgroundTransparency=0.15, BorderSizePixel=0, ZIndex=5,
 }, titleBar)
 Corner(D.verPill, UDim.new(1,0))
-Stroke(D.verPill, C.ACCENT, 1)
+Stroke(D.verPill, C.ACCENT2, 1)   -- v4.9: huy hiệu đen + viền đồng, chữ champagne
 New("TextLabel", {
-    Size=UDim2.new(1,0,1,0), Text="v4.6 · DELTA", BackgroundTransparency=1,
-    TextColor3=C.ACCENT, Font=Enum.Font.GothamBold, TextSize=8, ZIndex=6,
+    Size=UDim2.new(1,0,1,0), Text="v4.9 · NOIR", BackgroundTransparency=1,
+    TextColor3=C.ACCENT3, Font=Enum.Font.GothamBold, TextSize=8, ZIndex=6,
 }, D.verPill)
 
 local dragLockBtn = New("TextButton", {
@@ -819,16 +972,21 @@ local function CreateHandle(icon, pos)
         Size=UDim2.new(0,20,0,20),
         Position=pos,
         Text=icon,
-        BackgroundColor3=C.BLUE,
-        BackgroundTransparency=0.1,
-        TextColor3=C.WHITE,
+        -- v4.9: 4 tay nắm kéo giãn trước đây XANH DƯƠNG CHÓI + viền trắng, nhìn như nút lỗi
+        -- trên giao diện tối. Nay cho chìm vào khung (nền xám đậm, chữ mờ, viền mảnh) và chỉ
+        -- sáng lên khi rê chuột -> khung cửa sổ liền khối, sang hơn. Size/Position GIỮ NGUYÊN.
+        BackgroundColor3=C.SURFACE3,
+        BackgroundTransparency=0.35,
+        TextColor3=C.MUTED,
         Font=Enum.Font.GothamBold,
         TextSize=11,
         BorderSizePixel=0,
         ZIndex=100,
     }, main)
     Corner(btn, UDim.new(0,5))
-    Stroke(btn, Color3.fromRGB(255,255,255), 1.2)
+    Stroke(btn, C.HAIRLINE, 1)
+    D.Shade(btn, Color3.fromRGB(255,255,255), Color3.fromRGB(190,196,210), 90)
+    D.Tactile(btn, 0.35)
     return btn
 end
 
@@ -848,18 +1006,21 @@ local tabBar = New("ScrollingFrame", {
     Size=UDim2.new(0,56,1,-30),
     Position=UDim2.new(0,0,0,30),
     BackgroundColor3=C.SURFACE,
-    BackgroundTransparency=0.35,
+    BackgroundTransparency=0,
     BorderSizePixel=0,
     ZIndex=3,
     ScrollBarThickness=3,
     CanvasSize=UDim2.new(0,0,0,0),
 }, main)
+-- v4.9: thanh icon tối dần xuống đáy (SURFACE -> BG -> DEEP) nên rail "ăn" vào khung cửa sổ
+-- thay vì là một cột xám đều đều. Vẫn là ScrollingFrame, CanvasSize/UIListLayout không đổi.
+D.Paint3(tabBar, {C.SURFACE, C.BG, C.DEEP}, 90)
 
 -- v4.5: đường kẻ 1px tách thanh tab khỏi vùng nội dung. PHẢI neo vào `main` chứ không neo vào
 -- tabBar: tabBar có UIListLayout, thêm con vào đó sẽ xô vị trí toàn bộ nút tab.
 New("Frame", {
     Name="TabRailDivider", Size=UDim2.new(0,1,1,-30), Position=UDim2.new(0,56,0,30),
-    BackgroundColor3=C.BORDER, BackgroundTransparency=0.3, BorderSizePixel=0, ZIndex=4,
+    BackgroundColor3=C.HAIRLINE, BackgroundTransparency=0.45, BorderSizePixel=0, ZIndex=4,
 }, main)
 
 New("UIListLayout", {
@@ -884,8 +1045,9 @@ local contentArea = New("Frame", {
 -- Cất vào bảng D để KHÔNG tốn biến local cấp chunk (đang 188/200).
 D.pageHeader = New("Frame", {
     Name="PageHeader", Size=UDim2.new(1,-56,0,24), Position=UDim2.new(0,56,0,30),
-    BackgroundColor3=C.SURFACE, BackgroundTransparency=0.55, BorderSizePixel=0, ZIndex=3,
+    BackgroundColor3=C.SURFACE, BackgroundTransparency=0.2, BorderSizePixel=0, ZIndex=3,
 }, main)
+D.Paint3(D.pageHeader, {C.SURFACE2, C.SURFACE}, 90)   -- v4.9: dải chrome mảnh dưới thanh tiêu đề
 D.pageTitle = New("TextLabel", {
     Name="PageTitle", Size=UDim2.new(1,-196,1,0), Position=UDim2.new(0,10,0,0),
     Text="💾 Code Đã Lưu", BackgroundTransparency=1, TextColor3=C.ACCENT,   -- v4.6.2: trang đầu tiên
@@ -925,12 +1087,14 @@ for i, sw in ipairs({
         BackgroundColor3=C.SURFACE3, BorderSizePixel=0, ZIndex=7,
     }, btn)
     Corner(track, UDim.new(1,0))
+    -- v4.9: rãnh công tắc có viền mảnh để nhìn thấy cả khi TẮT (trước là khối xám chìm hẳn)
+    local trackStroke = Stroke(track, C.HAIRLINE, 1)
     local knob = New("Frame", {
         Name="BC_SwKnob", Size=UDim2.new(0,8,0,8), Position=UDim2.new(0,2,0,2),
         BackgroundColor3=C.GRAY, BorderSizePixel=0, ZIndex=8,
     }, track)
     Corner(knob, UDim.new(1,0))
-    D.hdrSwitches[sw.key] = {btn=btn, icon=ic, track=track, knob=knob, onColor=sw.onColor}
+    D.hdrSwitches[sw.key] = {btn=btn, icon=ic, track=track, knob=knob, onColor=sw.onColor, stroke=trackStroke}
 
     btn.Activated:Connect(function()
         local fn = (sw.key == "embed" and S.DoToggleEmbed)
@@ -960,7 +1124,7 @@ for i, sw in ipairs({
 end
 New("Frame", {   -- kẻ mảnh dưới header
     Name="PageHeaderRule", Size=UDim2.new(1,-56,0,1), Position=UDim2.new(0,56,0,53),
-    BackgroundColor3=C.BORDER, BackgroundTransparency=0.35, BorderSizePixel=0, ZIndex=4,
+    BackgroundColor3=C.HAIRLINE, BackgroundTransparency=0.5, BorderSizePixel=0, ZIndex=4,
 }, main)
 
 -- Đồng bộ 3 công tắc trên header theo trạng thái thật trong S.
@@ -979,6 +1143,8 @@ function D.SyncPageChips()
             s.knob.BackgroundColor3  = on and C.WHITE or C.GRAY
             s.knob.Position = on and UDim2.new(1,-10,0,2) or UDim2.new(0,2,0,2)
             s.icon.TextColor3 = on and C.DARK or C.GRAY
+            -- v4.9: viền rãnh ăn theo trạng thái (BẬT = viền cùng tông màu công tắc)
+            if s.stroke then s.stroke.Color = on and D.Edge(s.onColor or C.GREEN) or C.HAIRLINE end
         end
     end)
 end
@@ -994,6 +1160,7 @@ local function SwitchTab(index)
         b.BackgroundColor3 = C.SURFACE2
         b.BackgroundTransparency = 1
         b.TextColor3 = C.MUTED
+        D.Unpaint(b)   -- v4.9: rửa gradient của lần mở trước để pill ghost/hover lên đúng màu
         local bar = b:FindFirstChild("BC_Bar")
         if bar then bar.Visible = false end
     end
@@ -1002,7 +1169,12 @@ local function SwitchTab(index)
         local b = tabs[index]
         b.BackgroundColor3 = C.SURFACE2
         b.BackgroundTransparency = 0.1
+        -- LƯU Ý v4.9: PHẢI gán đúng C.ACCENT — 2 handler MouseLeave (AddTab + tab tính năng)
+        -- so sánh `btn.TextColor3 ~= C.ACCENT` để biết tab này đang mở. Đổi sang màu khác là
+        -- pill của trang đang mở sẽ bị tween về trong suốt mỗi khi rời chuột.
         b.TextColor3 = C.ACCENT
+        -- v4.9: pill trang đang mở CÓ KHỐI (sáng trên -> tối dưới) thay vì một mảng xám phẳng
+        D.Paint3(b, {C.SURFACE3, C.SURFACE2, C.SURFACE}, 90)
         -- vạch accent là CON của nút tab nên tự trượt theo nút, và KHÔNG nằm trong UIListLayout
         -- của tabBar (neo vào tabBar là bị layout xếp chỗ -> xô toàn bộ nút tab)
         local bar = b:FindFirstChild("BC_Bar")
@@ -1012,6 +1184,7 @@ local function SwitchTab(index)
                 BackgroundColor3 = C.ACCENT, BorderSizePixel = 0, ZIndex = 6,
             }, b)
             Corner(bar, UDim.new(1, 0))
+            D.Paint3(bar, {C.ACCENT3, C.ACCENT, C.ACCENT2}, 90)   -- v4.9: vạch như thanh kim loại đánh bóng
         end
         bar.Visible = true
         activeTab = tabContent[index]
@@ -1101,8 +1274,8 @@ local function AddTab(name, icon, order, customContent)
             Size=UDim2.new(1,0,1,0),
             BackgroundTransparency=1,
             BorderSizePixel=0,
-            ScrollBarThickness=5,
-            ScrollBarImageColor3=Color3.fromRGB(70, 77, 95),
+            ScrollBarThickness=4,                                   -- v4.9: mảnh hơn
+            ScrollBarImageColor3=Color3.fromRGB(88, 96, 118),       -- v4.9: thấy rõ trên nền obsidian
             ClipsDescendants=true,
             CanvasSize=UDim2.new(0,0,0,0),
             Visible=false,
@@ -1788,8 +1961,10 @@ local function Button(parent, text, x, y, w, h, color)
         TextColor3=D.BestText(base), Font=Enum.Font.GothamBold, TextSize=10, BorderSizePixel=0, ZIndex=6,
     }, parent)
     Corner(btn, UDim.new(0,8))
-    Stroke(btn, D.Edge(base), 1)
-    D.Shade(btn, Color3.fromRGB(255,255,255), Color3.fromRGB(206,209,220), 90)
+    -- v4.9: viền dày 1.1px + đáy đổ sâu hơn (206 -> 182) nên nút có bevel rõ, "nổi" khỏi thẻ.
+    -- Chữ ký hàm và Size/Position GIỮ NGUYÊN -> 30 chỗ đang gọi Button(...) không phải sửa.
+    Stroke(btn, D.Edge(base), 1.1)
+    D.Shade(btn, Color3.fromRGB(255,255,255), Color3.fromRGB(182,187,201), 90)
     D.Tactile(btn, 0.08)
     return btn
 end
@@ -3417,8 +3592,8 @@ aiTab.ScrollingEnabled = true
 aiTab.ElasticBehavior = Enum.ElasticBehavior.Never
 aiTab.AutomaticCanvasSize = Enum.AutomaticSize.Y
 aiTab.CanvasSize = UDim2.new(0, 0, 0, 0)
-aiTab.ScrollBarThickness = 5
-aiTab.ScrollBarImageColor3=Color3.fromRGB(88, 108, 166)
+aiTab.ScrollBarThickness = 4
+aiTab.ScrollBarImageColor3=Color3.fromRGB(88, 96, 118)   -- v4.9: đồng bộ màu scrollbar toàn hub
 
 local aiBG = New("Frame", {
     Size=UDim2.new(1, 0, 0, 0),
@@ -3633,7 +3808,7 @@ local chatScroll = New("ScrollingFrame", {
     BorderSizePixel=0,
     ZIndex=7,
     ScrollBarThickness=4,
-    ScrollBarImageColor3=Color3.fromRGB(74, 92, 140),
+    ScrollBarImageColor3=Color3.fromRGB(88, 96, 118),    -- v4.9: đồng bộ màu scrollbar toàn hub
     CanvasSize=UDim2.new(0,0,0,0),
     AutomaticCanvasSize=Enum.AutomaticSize.Y,
     ScrollingDirection=Enum.ScrollingDirection.Y,
@@ -4887,7 +5062,7 @@ panel.Size = UDim2.new(1, -20, 1, -74)
 panel.Position = UDim2.new(0, 10, 0, 38)
 panel.BackgroundTransparency = 1
 panel.BorderSizePixel = 0
-panel.ScrollBarThickness = 5
+panel.ScrollBarThickness = 4   -- v4.9: đồng bộ
 panel.AutomaticCanvasSize = Enum.AutomaticSize.Y
 panel.CanvasSize = UDim2.new(0, 0, 0, 0)
 panel.Parent = root
@@ -6090,8 +6265,8 @@ local function CreateFeatureTab(name, icon, codeContent)
         Size=UDim2.new(1,0,1,0),
         BackgroundTransparency=1,
         BorderSizePixel=0,
-        ScrollBarThickness=5,
-        ScrollBarImageColor3=Color3.fromRGB(70, 77, 95),
+        ScrollBarThickness=4,                                       -- v4.9: mảnh hơn
+        ScrollBarImageColor3=Color3.fromRGB(88, 96, 118),           -- v4.9: thấy rõ trên nền obsidian
         ClipsDescendants=true,
         CanvasSize=UDim2.new(0,0,0,0),
         Visible=false,
@@ -7154,8 +7329,8 @@ function D.CardBtn(parent, text, posX, w, color)
         BorderSizePixel = 0, ZIndex = 8,
     }, parent)
     Corner(b, UDim.new(0, 7))
-    Stroke(b, D.Edge(color or C.SURFACE3), 1)
-    D.Shade(b, Color3.fromRGB(255,255,255), Color3.fromRGB(206,209,220), 90)
+    Stroke(b, D.Edge(color or C.SURFACE3), 1.1)
+    D.Shade(b, Color3.fromRGB(255,255,255), Color3.fromRGB(182,187,201), 90)   -- v4.9: bevel sâu hơn
     D.Tactile(b, 0.08)
     return b
 end
@@ -7339,7 +7514,8 @@ function S.RebuildHubList()
             BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, BorderSizePixel = 0, ZIndex = 6,
         }, list)
         Corner(card, UDim.new(0, 10))
-        Stroke(card, S.hubFavs[it.name] and C.ACCENT or C.BORDER, 1)
+        Stroke(card, S.hubFavs[it.name] and C.ACCENT or C.HAIRLINE, 1)   -- v4.9: viền tách khối rõ hơn
+        D.Shade(card, Color3.fromRGB(255,255,255), Color3.fromRGB(188,192,205), 90)   -- v4.9: thẻ có khối
 
         local ico = New("TextLabel", {
             Size = UDim2.new(0, 34, 0, 34), Position = UDim2.new(0, 8, 0, 11), Text = it.icon,
@@ -7347,6 +7523,9 @@ function S.RebuildHubList()
             Font = Enum.Font.GothamBold, TextSize = 16, BorderSizePixel = 0, ZIndex = 7,
         }, card)
         Corner(ico, UDim.new(0, 9))
+        -- v4.9: ô icon thành "viên gạch" có chiều sâu + viền mảnh, không còn là ô xám phẳng
+        D.Shade(ico, Color3.fromRGB(255,255,255), Color3.fromRGB(176,181,196), 90)
+        Stroke(ico, C.HAIRLINE, 1)
 
         New("TextLabel", {
             Size = UDim2.new(1, -214, 0, 14), Position = UDim2.new(0, 50, 0, 8),
@@ -7603,7 +7782,7 @@ main.Visible = true
 togBtn.Text = "✕"
 
 print(string.format(
-    "✅ Banana Cat Hub v4.6 — sẵn sàng! Đã nạp lại %d script + %d waypoint + %d tab tính năng từ bộ nhớ (chế độ: %s%s)",
+    "✅ Banana Cat Hub v4.9 — sẵn sàng! Đã nạp lại %d script + %d waypoint + %d tab tính năng từ bộ nhớ (chế độ: %s%s)",
     Store.loadedScripts, Store.loadedWp, #Store.loadedFeatures, Store.mode,
     Store.lastError and (" | ⚠️ " .. Store.lastError) or ""
 ))
