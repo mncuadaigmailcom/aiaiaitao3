@@ -1,6 +1,31 @@
 --[[
-    🍌 Banana Cat Hub v4.10 — FULL CODE  ·  giao diện "OBSIDIAN NOIR" + layout kiểu DELTA
-    + v4.10 (bản này): GỠ BỎ HOÀN TOÀN TRANG 🤖 AI AI (mini web chat Gemini).
+    🍌 Banana Cat Hub v4.11 — FULL CODE  ·  giao diện "OBSIDIAN NOIR" + layout kiểu DELTA
+    + v4.11 (bản này): CHẠY TEST THẬT + SỬA 3 LỖI + THÊM TRANG ⚙️ THIẾT LẬP.
+        • BỘ TEST THẬT (thư mục tests/): lần đầu hub được NẠP VÀ CHẠY trong máy ảo Lua 5.4
+          (wasmoon) trên môi trường Roblox/executor giả lập (tests/roblox-mock.lua). Kết quả:
+          84 test — 84 PASS. Chạy bằng: node tests/run.js
+        • SỬA LỖI 1 (nghiêm trọng): D.SyncPageChips() nằm TRƯỚC khai báo `local S`, nên `S`
+          trong hàm bị Lua coi là GLOBAL nil -> hàm chết ngay dòng đầu và bị pcall nuốt mất.
+          Hệ quả thật: 3 công tắc trên header KHÔNG BAO GIỜ được đồng bộ lúc khởi động —
+          🧩 mặc định BẬT nhưng chip vẫn hiện TẮT, trạng thái đọc từ đĩa cũng không lên chip.
+        • SỬA LỖI 2 (nguy cơ mất dữ liệu): Store.canWrite() chỉ kiểm tra
+          type(writefile)=="function". Khi executor thiếu writefile, hub tự bù hàm ghi vào Ổ ĐĨA
+          ẢO trong RAM -> canWrite() vẫn true -> Store.mode="file" -> nhãn báo XANH "đã ghi
+          xuống đĩa" trong khi rejoin là mất sạch. Nay loại trừ đúng hàm hub tự bù (S.Shimmed
+          so sánh DANH TÍNH hàm), để mode="memory" và nhãn hiện đúng cảnh báo vàng.
+        • SỬA LỖI 3 (chữ đọc khó): chữ trắng trên nền RED chỉ đạt 2.77:1 và PINK 2.65:1 theo
+          WCAG. Đổi RED 248,113,113 -> 230,88,88 và PINK 244,114,182 -> 226,82,158. Nay CẢ 12
+          màu nền có chữ đều đạt WCAG AA-large (>=3:1). (8/12 màu vốn đã tốt hơn bản v4.8.)
+        • THÊM TRANG ⚙️ THIẾT LẬP ở ô LayoutOrder 5 (ô bỏ trống từ v4.10):
+          - 💾 LƯU TRỮ: nói THẬT dữ liệu đang nằm ở đĩa thật hay chỉ trong RAM của phiên chơi,
+            kèm 💾 Lưu ngay / 🔄 Đọc lại từ đĩa.
+          - 📤 SAO LƯU & CHUYỂN MÁY: xuất toàn bộ ra clipboard + 📥 Nhập JSON (GHÉP theo tên,
+            trùng thì tự đánh số " (2)" — KHÔNG ghi đè bản đang có).
+          - 🖥 MÔI TRƯỜNG: tên executor + danh sách hàm hub đã tự bù.
+          - ⚠️ VÙNG NGUY HIỂM: 🗑 Xoá sạch dữ liệu, bắt buộc bấm 2 lần để xác nhận.
+        • KHÔNG MẤT TÍNH NĂNG NÀO: 6 trang cũ còn nguyên. Kiểm bằng tests/ (84 PASS) và
+          đối chiếu metric: chỉ thêm đúng 1 hàm (S.Shimmed), không mất hàm/chuỗi nào.
+    + v4.10: GỠ BỎ HOÀN TOÀN TRANG 🤖 AI AI (mini web chat Gemini).
         • Đã xoá 865 dòng — nguyên khối "TAB 4: AI AI — MINI WEB CHAT": khung chat, bong bóng
           tin nhắn, ô nhập câu hỏi, nút Gửi / ⏹ Dừng / 🗑 Xóa, nhãn trạng thái, SYSTEM_PROMPT,
           lịch sử hội thoại, hàm AskGemini gọi API Gemini, và phần nhập/lưu/che API key.
@@ -360,11 +385,11 @@ local C = {
     GRAY   = Color3.fromRGB(120, 128, 146),   -- nút tắt / chữ phụ
     GREEN  = Color3.fromRGB(64, 214, 152),
     BLUE   = Color3.fromRGB(79, 150, 240),
-    RED    = Color3.fromRGB(248, 113, 113),
+    RED    = Color3.fromRGB(230, 88, 88),
     YELLOW = Color3.fromRGB(250, 204, 102),
     PURPLE = Color3.fromRGB(155, 128, 245),
     ORANGE = Color3.fromRGB(251, 146, 60),
-    PINK   = Color3.fromRGB(244, 114, 182),
+    PINK   = Color3.fromRGB(226, 82, 158),
     BG     = Color3.fromRGB(11, 12, 17),      -- nền cửa sổ chính (obsidian)
 
     -- token thiết kế (v4.5, giá trị v4.9)
@@ -897,7 +922,7 @@ D.verPill = New("Frame", {
 Corner(D.verPill, UDim.new(1,0))
 Stroke(D.verPill, C.ACCENT2, 1)   -- v4.9: huy hiệu đen + viền đồng, chữ champagne
 New("TextLabel", {
-    Size=UDim2.new(1,0,1,0), Text="v4.10 · NOIR", BackgroundTransparency=1,
+    Size=UDim2.new(1,0,1,0), Text="v4.11 · NOIR", BackgroundTransparency=1,
     TextColor3=C.ACCENT3, Font=Enum.Font.GothamBold, TextSize=8, ZIndex=6,
 }, D.verPill)
 
@@ -1147,27 +1172,6 @@ New("Frame", {   -- kẻ mảnh dưới header
     BackgroundColor3=C.HAIRLINE, BackgroundTransparency=0.5, BorderSizePixel=0, ZIndex=4,
 }, main)
 
--- Đồng bộ 3 công tắc trên header theo trạng thái thật trong S.
--- (Hàm chỉ chạy lúc runtime nên thứ tự khai báo không quan trọng.)
-function D.SyncPageChips()
-    pcall(function()
-        if not D.hdrSwitches then return end
-        local state = {
-            embed = (S.embedEnabled == true),
-            guess = (S.embedGuessNew == true),
-            park  = (S.parkCodeGuis ~= false),
-        }
-        for k, s in pairs(D.hdrSwitches) do
-            local on = (state[k] == true)
-            s.track.BackgroundColor3 = on and (s.onColor or C.GREEN) or C.SURFACE3
-            s.knob.BackgroundColor3  = on and C.WHITE or C.GRAY
-            s.knob.Position = on and UDim2.new(1,-10,0,2) or UDim2.new(0,2,0,2)
-            s.icon.TextColor3 = on and C.DARK or C.GRAY
-            -- v4.9: viền rãnh ăn theo trạng thái (BẬT = viền cùng tông màu công tắc)
-            if s.stroke then s.stroke.Color = on and D.Edge(s.onColor or C.GREEN) or C.HAIRLINE end
-        end
-    end)
-end
 
 local activeTab = nil
 
@@ -1322,7 +1326,7 @@ end
 
 -- v4.6.2: thứ tự trang theo yêu cầu — 1 💾 Code Đã Lưu · 2 💻 Code · 3 📚 Script Hub ·
 -- 4 🛠 Hỗ Trợ · 6 ➕ Tạo Tính Năng · 7+ tab tính năng của bạn · 99 🧩 GUI Ngoài.
--- (v4.10: đã gỡ trang 🤖 AI AI nên LayoutOrder 5 để TRỐNG — rail vẫn liền mạch vì LayoutOrder
+-- (v4.11: ô LayoutOrder 5 nay là trang ⚙️ Thiết Lập. Rail vẫn liền mạch vì LayoutOrder
 --  chỉ quyết định thứ tự. Không đánh số lại để khỏi đụng featureTabIndex = 7 ở trên.)
 -- (Thứ tự TẠO vẫn giữ nguyên để không đụng scope biến; thứ tự HIỂN THỊ do LayoutOrder.)
 local codeTab      = AddTab("Code", "💻", 2)
@@ -1369,10 +1373,50 @@ function S.SanitizeCode(c)
     return out
 end
 
+
+-- v4.11: một global có phải do hub TỰ BÙ hay không. Store.canWrite() dùng nó để phân
+-- biệt writefile THẬT của executor (ghi xuống đĩa) với writefile giả (ghi vào S.vfs).
+function S.Shimmed(n)
+    local v = S.shimmedFns and S.shimmedFns[n]
+    if v == nil then return false end
+    -- so sanh DANH TINH ham dang thuc su nam trong _G. Neu executor (hay script khac)
+    -- sau nay gan writefile that de len thi ham nay tu dong tra ve false, Store.canWrite()
+    -- lai bao dung la ghi duoc xuong dia.
+    return rawget(_G, n) == v
+end
+
+-- v4.11 SỬA LỖI NGHIÊM TRỌNG: hàm này TRƯỚC ĐÂY nằm ở dòng ~1152, tức là TRƯỚC khi
+-- `local S = {...}` được khai báo (dòng ~1336). Trong Lua, một closure chỉ bắt được
+-- những biến local ĐÃ khai báo trước nó — nên `S` bên trong hàm bị coi là GLOBAL nil,
+-- hàm chết ngay ở dòng đầu với "attempt to index a nil value (global 'S')" và bị pcall
+-- nuốt mất. Hệ quả thật: 3 công tắc trên header KHÔNG BAO GIỜ được đồng bộ lúc khởi
+-- động — 🧩 "đưa GUI script vào tab riêng" mặc định là BẬT nhưng chip vẫn hiển thị TẮT,
+-- và trạng thái đọc lại từ đĩa cũng không hiện lên chip.
+-- => Bắt buộc phải nằm SAU `local S`. Comment cũ ("thứ tự khai báo không quan trọng")
+--    chỉ đúng với việc gán field vào bảng D, KHÔNG đúng với việc bắt upvalue S.
+function D.SyncPageChips()
+    pcall(function()
+        if not D.hdrSwitches then return end
+        local state = {
+            embed = (S.embedEnabled == true),
+            guess = (S.embedGuessNew == true),
+            park  = (S.parkCodeGuis ~= false),
+        }
+        for k, s in pairs(D.hdrSwitches) do
+            local on = (state[k] == true)
+            s.track.BackgroundColor3 = on and (s.onColor or C.GREEN) or C.SURFACE3
+            s.knob.BackgroundColor3  = on and C.WHITE or C.GRAY
+            s.knob.Position = on and UDim2.new(1,-10,0,2) or UDim2.new(0,2,0,2)
+            s.icon.TextColor3 = on and C.DARK or C.GRAY
+            -- v4.9: viền rãnh ăn theo trạng thái (BẬT = viền cùng tông màu công tắc)
+            if s.stroke then s.stroke.Color = on and D.Edge(s.onColor or C.GREEN) or C.HAIRLINE end
+        end
+    end)
+end
 local scripts = {}
 local waypoints = {}          -- khai báo sớm để khối lưu trữ bên dưới dùng được
 local featureTabs = {}        -- nt: khai báo sớm để Store.serialize() và nhãn trạng thái dùng được
-local featureTabIndex = 7   -- 1=Code Đã Lưu 2=Code 3=Script Hub 4=Hỗ Trợ 6=Tạo Tính Năng (5 bỏ trống từ v4.10); tab tính năng của người dùng từ 7 trở đi
+local featureTabIndex = 7   -- 1=Code Đã Lưu 2=Code 3=Script Hub 4=Hỗ Trợ 5=Thiết Lập 6=Tạo Tính Năng; tab tính năng của người dùng từ 7 trở đi
 local totalRuns, cancelled = 0, false
 local curThread, curIndicator = nil, nil
 local runActive = false       -- cờ trạng thái chạy (không dựa vào curThread nữa)
@@ -1403,8 +1447,16 @@ Store.reloadBtn      = nil
 Store._scheduled     = false
 Store.refreshStatus  = nil      -- tab "Code Đã Lưu" gán hàm cập nhật nhãn vào đây
 
+-- v4.11 SỬA LỖI: hàm writefile/readfile mà S.EnsureCompat() TỰ BÙ chỉ ghi vào ổ đĩa ảo
+-- trong RAM (S.vfs) — dữ liệu chết theo phiên chơi. Bản cũ chỉ kiểm
+-- tra type(...) == "function" nên vẫn tin là ghi được xuống đĩa -> Store.mode = "file"
+-- -> nhãn trạng thái hiện XANH "đã ghi xuống đĩa" trong khi không có gì nằm trên đĩa.
+-- Người dùng tưởng script/waypoint đã an toàn qua rejoin. Nay loại trừ đúng những hàm
+-- do hub tự bù, để Store.mode = "memory" và nhãn hiện đúng cảnh báo vàng.
 function Store.canWrite()
-    return type(writefile) == "function" and type(readfile) == "function"
+    if type(writefile) ~= "function" or type(readfile) ~= "function" then return false end
+    if S.Shimmed("writefile") or S.Shimmed("readfile") then return false end
+    return true
 end
 
 function Store.isFinite(n)
@@ -1650,9 +1702,14 @@ function S.HasGlobal(n)
 end
 
 function S.SetGlobal(n, v)
-    if S.HasGlobal(n) then return false end          -- KHÔNG đè hàm thật của executor
+    if S.HasGlobal(n) then return false end          -- KHONG de ham that cua executor
     local ok = pcall(function() rawset(_G, n, v) end)
-    if ok then S.compatAdded[#S.compatAdded + 1] = n end
+    if ok then
+        S.compatAdded[#S.compatAdded + 1] = n
+        -- v4.11: giu lai chinh ham da cai de S.Shimmed() nhan dien duoc sau nay
+        S.shimmedFns = S.shimmedFns or {}
+        S.shimmedFns[n] = rawget(_G, n)
+    end
     return ok
 end
 
@@ -6819,6 +6876,233 @@ S.RebuildHubList()
 D.SyncPageChips()
 S.SyncServerPanel()   -- v4.6.3: hiện mã server (JobId) lên khung 🌐 SERVER
 
+-- ============================================================================
+-- ============== v4.11: TRANG ⚙️ THIẾT LẬP  (chiếm ô trống LayoutOrder 5) =====
+-- ============================================================================
+-- Ô số 5 trên rail bị bỏ trống từ v4.10 (khi gỡ tab 🤖 AI AI). Nay dùng nó cho trang
+-- Thiết Lập — gom 4 việc mà TRƯỚC ĐÂY HUB KHÔNG CÓ CHỖ NÀO LÀM:
+--   1) Nói THẬT về nơi dữ liệu đang nằm: đĩa thật hay chỉ trong RAM của phiên chơi.
+--      (Dựa trên Store.canWrite()/S.Shimmed() vừa sửa ở v4.11 — trước đó hub báo xanh
+--       "đã ghi xuống đĩa" dù chỉ ghi vào ổ đĩa ảo.)
+--   2) 📤 Xuất toàn bộ dữ liệu ra clipboard — sao lưu / chuyển máy / chia sẻ.
+--   3) 📥 Nhập lại từ chuỗi JSON đã dán (ghép theo tên, KHÔNG ghi đè cái đang có).
+--   4) 🗑 Xoá sạch dữ liệu, có bước xác nhận thứ hai để không bấm nhầm.
+-- Toàn bộ biến nằm trong khối `do ... end` nên KHÔNG chiếm slot local của main chunk
+-- (Luau giới hạn 200 biến local mỗi chunk — main chunk của hub đã dùng gần ngưỡng).
+do
+    local setTab = AddTab("Thiết Lập", "⚙️", 5)
+
+    local sy = 8
+    local function rule(y)
+        New("TextLabel", {
+            Size = UDim2.new(1, -16, 0, 14), Position = UDim2.new(0, 8, 0, y),
+            Text = "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", BackgroundTransparency = 1,
+            TextColor3 = C.HAIRLINE, Font = Enum.Font.Gotham, TextSize = 8,
+            TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 6,
+        }, setTab)
+    end
+    -- một thẻ: nền surface + viền + tiêu đề; trả về frame để xếp nội dung bên trong
+    local function card(title, h)
+        local f = New("Frame", {
+            Size = UDim2.new(1, -16, 0, h), Position = UDim2.new(0, 8, 0, sy),
+            BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.08,
+            BorderSizePixel = 0, ZIndex = 6,
+        }, setTab)
+        Corner(f, UDim.new(0, 10))
+        Stroke(f, C.HAIRLINE, 0.18)
+        New("TextLabel", {
+            Size = UDim2.new(1, -16, 0, 16), Position = UDim2.new(0, 8, 0, 6),
+            Text = title, BackgroundTransparency = 1, TextColor3 = C.ACCENT,
+            Font = Enum.Font.GothamBold, TextSize = 10,
+            TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+        }, f)
+        sy = sy + h + 8
+        return f
+    end
+    local function line(parent, text, y, color, h)
+        return New("TextLabel", {
+            Size = UDim2.new(1, -16, 0, h or 12), Position = UDim2.new(0, 8, 0, y),
+            Text = text, BackgroundTransparency = 1, TextColor3 = color or C.MUTED,
+            Font = Enum.Font.Gotham, TextSize = 9, TextWrapped = true,
+            TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+        }, parent)
+    end
+    local function act(parent, text, x, y, w, color)
+        local b = New("TextButton", {
+            Size = UDim2.new(0, w, 0, 22), Position = UDim2.new(0, x, 0, y),
+            Text = text, BackgroundColor3 = color or C.SURFACE3, BackgroundTransparency = 0.08,
+            TextColor3 = D.BestText(color or C.SURFACE3), Font = Enum.Font.GothamBold,
+            TextSize = 9, BorderSizePixel = 0, ZIndex = 8,
+        }, parent)
+        Corner(b, UDim.new(0, 7))
+        Stroke(b, D.Edge(color or C.SURFACE3), 0.22)
+        return b
+    end
+
+    -- ---------- [1] TÌNH TRẠNG LƯU TRỮ ----------
+    local c1 = card("💾  LƯU TRỮ — dữ liệu của bạn đang nằm ở đâu?", 82)
+    local stTitle = line(c1, "", 24, C.GRAY, 12)
+    local stBody  = line(c1, "", 38, C.MUTED, 26)
+    local saveNow = act(c1, "💾 Lưu ngay", 8, 54, 92, C.GREEN)
+    local reload  = act(c1, "🔄 Đọc lại từ đĩa", 106, 54, 116)
+
+    local function refreshStorage()
+        local ns, nw, nf = #scripts, #waypoints, #featureTabs
+        local canDisk = Store.canWrite()
+        stTitle.TextColor3 = canDisk and C.GREEN or C.YELLOW
+        if canDisk then
+            stTitle.Text = "✅  ĐANG GHI XUỐNG ĐĨA THẬT"
+            stBody.Text = string.format(
+                "File: %s\n%d script · %d waypoint · %d tab tính năng — sống qua cả lần rejoin.",
+                tostring(Store.SAVE_FILE), ns, nw, nf)
+        else
+            stTitle.Text = "⚠️  CHỈ GIỮ TRONG RAM CỦA PHIÊN CHƠI NÀY"
+            stBody.Text = string.format(
+                "Executor không có writefile thật (hub đã bù bằng ổ đĩa ảo).\n%d script · %d WP · %d tab — REJOIN LÀ MẤT. Hãy bấm 📤 Xuất để sao lưu.",
+                ns, nw, nf)
+        end
+    end
+    refreshStorage()
+    saveNow.Activated:Connect(function()
+        local ok = Store.save()
+        refreshStorage()
+        saveNow.Text = ok and "✅ Đã lưu" or "❌ Lỗi"
+        task.delay(1.4, function()
+            if saveNow and saveNow.Parent then saveNow.Text = "💾 Lưu ngay" end
+        end)
+    end)
+    reload.Activated:Connect(function()
+        pcall(function() if S.DoReload then S.DoReload() end end)
+        refreshStorage()
+    end)
+
+    -- ---------- [2] XUẤT / NHẬP ----------
+    local c2 = card("📤  SAO LƯU & CHUYỂN MÁY", 132)
+    line(c2, "Xuất toàn bộ dữ liệu ra clipboard để dán sang máy/executor khác, hoặc nhập lại chuỗi đã lưu. Nhập là GHÉP theo tên — không ghi đè cái đang có.", 24, C.MUTED, 24)
+    local expBtn = act(c2, "📤 Xuất ra clipboard", 8, 50, 128, C.BLUE)
+    local paste = New("TextBox", {
+        Size = UDim2.new(1, -16, 0, 44), Position = UDim2.new(0, 8, 0, 76),
+        PlaceholderText = "Dán JSON đã xuất vào đây rồi bấm 📥 Nhập…",
+        Text = "", BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.06,
+        TextColor3 = C.DARK, PlaceholderColor3 = C.GRAY, Font = Enum.Font.Code,
+        TextSize = 9, TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left,
+        TextYAlignment = Enum.TextYAlignment.Top, ClearTextOnFocus = false, ZIndex = 7,
+    }, c2)
+    Corner(paste, UDim.new(0, 7))
+    Stroke(paste, C.HAIRLINE, 0.2)
+    local impBtn = act(c2, "📥 Nhập", 142, 50, 66, C.GREEN)
+
+    expBtn.Activated:Connect(function()
+        local ok, json = pcall(function() return HttpService:JSONEncode(Store.serialize()) end)
+        if not ok or type(json) ~= "string" then
+            expBtn.Text = "❌ Lỗi JSON"; task.delay(1.6, function() if expBtn.Parent then expBtn.Text = "📤 Xuất ra clipboard" end end)
+            return
+        end
+        local done = false
+        if setclipboard then done = pcall(setclipboard, json)
+        elseif toclipboard then done = pcall(toclipboard, json) end
+        if not done then
+            -- không có clipboard: đưa thẳng vào ô dán để người dùng tự copy
+            paste.Text = json
+            expBtn.Text = "⚠️ Đã dán vào ô"
+        else
+            expBtn.Text = "✅ Đã copy"
+        end
+        task.delay(1.8, function() if expBtn and expBtn.Parent then expBtn.Text = "📤 Xuất ra clipboard" end end)
+    end)
+
+    impBtn.Activated:Connect(function()
+        local txt = paste.Text
+        if type(txt) ~= "string" or #txt < 2 then
+            impBtn.Text = "⚠️ Trống"; task.delay(1.6, function() if impBtn.Parent then impBtn.Text = "📥 Nhập" end end); return
+        end
+        local ok, data = pcall(function() return HttpService:JSONDecode(txt) end)
+        if not ok or type(data) ~= "table" or type(data.scripts) ~= "table" then
+            impBtn.Text = "❌ JSON sai"; task.delay(1.8, function() if impBtn.Parent then impBtn.Text = "📥 Nhập" end end); return
+        end
+        local have = {}
+        for _, s in ipairs(scripts) do have[tostring(s.name)] = true end
+        local added = 0
+        for _, s in ipairs(data.scripts) do
+            if type(s) == "table" and type(s.code) == "string" then
+                local nm = tostring(s.name or ("Script " .. (#scripts + 1)))
+                if have[nm] then
+                    local base, k = nm, 2
+                    while have[base .. " (" .. k .. ")"] do k = k + 1 end
+                    nm = base .. " (" .. k .. ")"
+                end
+                have[nm] = true
+                scripts[#scripts + 1] = {name = nm, code = s.code, expanded = false}
+                added = added + 1
+            end
+        end
+        pcall(function() RebuildScripts() end)
+        refreshStorage()
+        Store.saveSoon()
+        paste.Text = ""
+        impBtn.Text = "✅ +" .. added
+        task.delay(1.8, function() if impBtn and impBtn.Parent then impBtn.Text = "📥 Nhập" end end)
+    end)
+
+    -- ---------- [3] MÔI TRƯỜNG EXECUTOR ----------
+    local c3 = card("🖥  MÔI TRƯỜNG EXECUTOR", 74)
+    local envTitle = line(c3, "", 24, C.DARK, 12)
+    local envBody  = line(c3, "", 38, C.MUTED, 26)
+    pcall(function()
+        local nm, ver = "không rõ", ""
+        if identifyexecutor then
+            local a, b = identifyexecutor()
+            nm = tostring(a or "không rõ"); ver = tostring(b or "")
+        end
+        envTitle.Text = "Executor: " .. nm .. (ver ~= "" and ("  ·  " .. ver) or "")
+        local miss = {}
+        for _, k in ipairs({"writefile", "readfile", "setclipboard", "gethui", "hookfunction", "Drawing", "request", "queue_on_teleport"}) do
+            if not S.HasGlobal(k) then miss[#miss + 1] = k end
+        end
+        if #miss == 0 then
+            envBody.Text = "✅ Executor đủ mọi hàm hub cần — không phải bù gì."
+            envBody.TextColor3 = C.GREEN
+        else
+            envBody.Text = "Hub đã tự bù " .. #miss .. " hàm còn thiếu: " .. table.concat(miss, ", ")
+            envBody.TextColor3 = C.YELLOW
+        end
+    end)
+
+    -- ---------- [4] VÙNG NGUY HIỂM ----------
+    local c4 = card("⚠️  VÙNG NGUY HIỂM", 66)
+    line(c4, "Xoá sạch script đã lưu, waypoint và tab tính năng. Không hoàn tác được.", 24, C.MUTED, 14)
+    local clearBtn = act(c4, "🗑 Xoá sạch dữ liệu", 8, 40, 132, C.RED)
+    local armed = false
+    clearBtn.Activated:Connect(function()
+        if not armed then
+            armed = true
+            clearBtn.Text = "⚠️ Bấm lần nữa để XÁC NHẬN"
+            task.delay(4, function()
+                armed = false
+                if clearBtn and clearBtn.Parent then clearBtn.Text = "🗑 Xoá sạch dữ liệu" end
+            end)
+            return
+        end
+        armed = false
+        for i = #scripts, 1, -1 do scripts[i] = nil end
+        for i = #waypoints, 1, -1 do waypoints[i] = nil end
+        pcall(function() RebuildScripts() end)
+        pcall(function() if Store.restoreWaypoints then Store.restoreWaypoints() end end)
+        Store.save()
+        refreshStorage()
+        clearBtn.Text = "✅ Đã xoá"
+        task.delay(1.6, function() if clearBtn and clearBtn.Parent then clearBtn.Text = "🗑 Xoá sạch dữ liệu" end end)
+    end)
+
+    setTab.CanvasSize = UDim2.new(0, 0, 0, sy + 8)
+    S.settingsTab = setTab
+    -- v4.11: mo cac nut cua trang nay ra de test cham toi duoc (tests/test-08-settings.lua)
+    S.settingsBtns = {save = saveNow, reload = reload, export = expBtn, import = impBtn,
+                      paste = paste, clear = clearBtn, statusTitle = stTitle, statusBody = stBody,
+                      envTitle = envTitle, envBody = envBody, cardStorage = c1, cardEnv = c3}
+    S.refreshStorageCard = refreshStorage   -- để chỗ khác gọi lại sau khi trạng thái lưu thay đổi
+end
+
 -- ==================== TOGGLE MENU & DRAG ====================
 local function ToggleMainFrame()
     main.Visible = not main.Visible
@@ -6939,9 +7223,9 @@ main.Visible = true
 togBtn.Text = "✕"
 
 print(string.format(
-    "✅ Banana Cat Hub v4.10 — sẵn sàng! Đã nạp lại %d script + %d waypoint + %d tab tính năng từ bộ nhớ (chế độ: %s%s)",
+    "✅ Banana Cat Hub v4.11 — sẵn sàng! Đã nạp lại %d script + %d waypoint + %d tab tính năng từ bộ nhớ (chế độ: %s%s)",
     Store.loadedScripts, Store.loadedWp, #Store.loadedFeatures, Store.mode,
     Store.lastError and (" | ⚠️ " .. Store.lastError) or ""
 ))
 print("   💾 File lưu: " .. Store.SAVE_FILE .. " (trong thư mục workspace của executor — sống qua cả lần rejoin)")
-print("   Tính năng: Code + Code Đã Lưu + Script Hub + Hỗ Trợ (POS+SIZE+ROT+LOOK+VẬT THỂ+HIGHLIGHT TÍM) + Tạo Tính Năng")
+print("   Tính năng: Code + Code Đã Lưu + Script Hub + Hỗ Trợ (POS+SIZE+ROT+LOOK+VẬT THỂ+HIGHLIGHT TÍM) + Thiết Lập + Tạo Tính Năng")
