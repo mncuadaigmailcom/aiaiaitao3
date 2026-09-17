@@ -1,0 +1,272 @@
+# Phân tích 2 file trong repo `aiaiaitao3`
+
+Ngày phân tích: 2026-09-17 · Branch: `arena/01a0af79-aiaiaitao3` · Commit gốc: `9e42057`
+
+---
+
+## 0. Cập nhật v4.12 (đã thực hiện theo yêu cầu)
+
+Port **5 tính năng di chuyển** từ `aiaiaitao3` vào trang 📚 Script Hub của `script.js`, kèm bộ test
+tự động chạy thật trong máy ảo. Kết quả: **`node tests/run.js` → 37 PASS · 0 FAIL**.
+
+**Đã thêm (toàn bộ là tiện ích nội bộ, không tải gì từ mạng):**
+
+| Thẻ mới trong Script Hub | Hoạt động |
+|---|---|
+| 🚀 Bay | BodyVelocity/BodyGyro · Space lên · Shift/Ctrl xuống · WASD lái |
+| 🧱 Xuyên Tường | NoClip |
+| 🦘 Nhảy Vô Hạn | JumpRequest → ChangeState(Jumping) |
+| 👟 Chạy Độ | WalkSpeed + JumpPower, tự áp lại 0.5s/lần nếu game đổi về mặc định |
+| 🪩 Thảm Kính | Chỉnh **Rộng × Cao × Dài**, ⬆⬇ nâng/hạ, thảm bám theo người, giữ người đứng trên mặt thảm khi đang xuyên tường |
+
+Kèm **khung ⚙ Tuỳ chỉnh** nằm trên cùng danh sách thẻ (`HubMove_Panel`, LayoutOrder 0, không bị xoá
+khi lọc/tìm kiếm): tốc độ bay · chạy · nhảy · 3 chiều thảm · ⬆/⬇ · 🛑 Tắt hết + nhãn trạng thái.
+Tất cả state gom trong `S.Move` (không tốn slot local cấp chunk), mọi connection qua `trackConn()`,
+tự bật lại sau respawn qua `CharacterAdded`.
+
+**3 chỗ làm TỐT HƠN bản gốc ở `aiaiaitao3`:**
+
+1. Tắt Xuyên Tường trả lại **đúng CanCollide gốc** của từng part (bản gốc gán cứng `true` → mũ/phụ
+   kiện bị "cứng" lại, nhân vật hay kẹt).
+2. Vòng lặp NoClip chỉ duyệt nhân vật mình và chỉ ghi khi giá trị khác (bản gốc lặp mọi người chơi
+   mỗi Stepped ≈ 1000 ghi/frame).
+3. Sống qua respawn + `StopAll()` dọn gọn (bản gốc không có tương đương gọn).
+
+**4 lỗi đã sửa** (2 lỗi cũ, 2 lỗi do test phát hiện) — chi tiết ở mục 3.1 và bảng trong
+`tests/README.md`:
+
+1. **P0**: 3 công tắc header 🧩/🕵/🪟 vẫn chết (v4.11 mới dời hàm `D.SyncPageChips()`, chỗ gọi vẫn
+   đứng trước `local S`) → khai báo trước `local S` và đổi `local S = {` thành `S = {`.
+2. `function BcFit()` thiếu `local` → rò rỉ global.
+3. Gán số vào `Text` (`flyIn.Text = S.Move.flySpeed`) → Roblox báo `string expected, got number`.
+4. `trackConn()` giữ mãi connection của thẻ đã Destroy → bảng phình vô hạn; nay tự gom rác khi >300.
+
+Chi tiết bộ test: xem `tests/README.md`.
+
+---
+
+> Repo chỉ có đúng 2 file, cả hai đều là **script Lua chạy bằng Roblox executor** (không phải JS dù
+> một file tên `script.js`). Phân tích dưới đây là phân tích tĩnh (đọc mã + AST), **không chạy thật**
+> trong Roblox/executor.
+
+---
+
+## 1. Tóm tắt nhanh
+
+| | `aiaiaitao3` | `script.js` |
+|---|---|---|
+| Tên sản phẩm (trong mã) | "EXECUTOR MENU" (GUI `ExMenu`) | "🍌 Banana Cat Hub **v4.11**" (GUI `ExMenu`) |
+| Kích thước | 2.499 dòng / 92 KB / LF | 7.231 dòng / 368 KB / **CRLF** |
+| Số hàm | 42 (toàn bộ `local function`) | 164 (64 `local` + 99 gắn vào bảng `D./S./Store.`) |
+| Biến local cấp chunk | **160 / 200** (Luau) → còn 40 slot | **128 / 200** → còn 72 slot |
+| Event connections | 94 (29 được `trackConn`) | 109 (28 được `trackConn`) |
+| `pcall` (bọc lỗi) | **11** | **254** |
+| Lưu xuống đĩa | ❌ Không có (mất sạch khi rejoin) | ✅ `banana_cat_saved.json` (v3) |
+| Tính năng ăn gian trong game | ✅ Fly, NoClip, Thảm kính, ESP, Aimbot, Đóng băng người khác, Click-TP, Anti-AFK, FullBright | ❌ Không còn (Fly/Carpet đã gỡ từ v4.3) |
+| Chạy script người dùng | ✅ (Code / Code Đã Lưu) | ✅ + Script Hub, nhúng GUI, tương thích ~45 hàm executor |
+| Số "trang" (tab) | 8 cố định | 7 cố định + tab tính năng động (từ 7 trở đi) |
+| Cú pháp | ✅ parse OK (sau khi desugar 5 chỗ `+=` của Luau) | ✅ parse OK (sau khi desugar 22 chỗ `+=`) |
+| Lỗi nghiêm trọng tìm thấy | 0 | **1** (xem mục 3.1) |
+
+**Kết luận ngắn gọn:** hai file là **hai nhánh cùng một dòng sản phẩm** (cùng tên GUI `ExMenu`, cùng
+`_G.BananaCatHub_Connections`, cùng bộ helper `New/Corner/Stroke/Tween`, cùng 3 khối mã giống hệt
+nhau ≥25 dòng, 431 dòng trùng nhau = 29% file nhỏ). `aiaiaitao3` là bản **"menu hành động"** (có
+Fly/ESP/Aimbot… nhưng không lưu được gì), còn `script.js` là bản **"hub quản lý script"** đã được
+chăm chút nhiều phiên bản (v4.5→v4.11), có lưu đĩa, có test, nhưng **vẫn còn 1 lỗi P0 chưa sửa xong**.
+
+---
+
+## 2. File 1 — `aiaiaitao3` ("EXECUTOR MENU")
+
+### 2.1 Kiến trúc & tính năng
+
+```
+[1-50]    Khởi tạo service, chọn parent GUI (gethui → CoreGui → PlayerGui)
+[34-49]   Dọn kết nối cũ: _G.BananaCatHub_Connections + UnbindFromRenderStep("Fly"/"Carpet")
+[51-101]  Bảng màu C.*, DEFAULT_LIGHTING, helper New/Corner/Stroke/Tween
+[102-284] ScreenGui "ExMenu", nút 🍌 nổi, resize 4 góc
+[285-385] Hệ tab (8 tab, nút icon trái)
+[386-432] STATE: bảng S.* (31 trường, tất cả đều được dùng)
+[451-559] Chặn Kick (hookmetamethod __namecall) · Freeze người khác · Anti-AFK · Inf-Jump · Click-TP · NoClip
+[560-966] Fly · Thảm kính · Fly tới Player · Fly tới Tọa độ
+[967-1169] ESP (Highlight + BillboardGui, phân biệt bạn bè, đếm giờ hạ ngục)
+[1170-1212] Thực thi code (loadstring, lặp n lần, có ⏹ Dừng)
+[1213-2499] 8 tab UI: Code · Code Đã Lưu · Di Chuyển · Bay Đến Player · Người Chơi · Môi Trường · Tọa Độ · Niệm Tâm
+```
+
+8 tab: 1 💻 Code · 2 💾 Code Đã Lưu · 3 🏃 Di Chuyển · 4 🎯 Bay Đến Player · 5 👤 Người Chơi ·
+6 ⚙️ Môi Trường · 7 📍 Tọa Độ · 8 👁️ Niệm Tâm.
+
+### 2.2 Điểm làm tốt
+
+- **Dọn dẹp khi chạy lại**: ngắt toàn bộ connection cũ qua `_G.BananaCatHub_Connections`, `Destroy()`
+  GUI `ExMenu` cũ, `UnbindFromRenderStep` → chạy lại nhiều lần không bị nhân bản (rất nhiều script
+  dạng này quên).
+- **Toàn bộ hàm đều `local`**, **không ghi một global nào** (kiểm bằng AST: 0 global write) → không
+  bẩn môi trường executor.
+- **Vòng lặp nặng đều có nhịp**: ESP `task.wait(0.2)`, fly dùng `RenderStepped` có `dt`.
+- **Dọn ESP đúng chỗ**: `PlayerRemoving` / `CharacterRemoving` → `RemovePlayerESP` + xoá
+  `friendCache`, tránh leak và tránh giữ reference tới nhân vật đã chết.
+- **Gọi executor API có guard**: `if hookmetamethod then …`, `setclipboard → toclipboard` đều kiểm tra
+  tồn tại trước khi gọi.
+
+### 2.3 Vấn đề
+
+| # | Mức | Vị trí | Mô tả |
+|---|---|---|---|
+| A1 | **P1** | toàn file | **Không lưu xuống đĩa.** `scripts` / `savedLocations` chỉ nằm trong RAM → thoát game / rejoin mất sạch. `script.js` đã giải quyết bằng `Store` + JSON; đây là lùi lại so với bản kia. |
+| A2 | **P1** | 470-484 | `freezeOthers` chạy **mỗi Stepped**, lặp `GetDescendants()` của **tất cả** người chơi và set `Anchored` cho mọi `BasePart`. Server 20 người × ~50 part = ~1.000 ghi thuộc tính/mỗi frame (~60-144 Hz). Nên chỉ anchor `HumanoidRootPart` hoặc giảm xuống 10 Hz. |
+| A3 | **P1** | 546-558 | `DisNC()` khi **tắt** NoClip set `CanCollide = true` cho **mọi** `BasePart` của nhân vật — kể cả mũ, phụ kiện, vũ khí vốn mặc định `false`. Hậu quả: nhân vật có thể kẹt vào tường/vật thể, va chạm kỳ lạ. Cần lưu lại giá trị gốc thay vì gán cứng `true`. |
+| A4 | **P1** | 1926-1945 | `serverHopBtn`: `req({Url=…})` và `HttpService:JSONDecode(res.Body)` **không bọc pcall**, cũng không kiểm `s.playing`/`s.maxPlayers` có `nil`. Executor chặn HTTP hoặc API đổi định dạng → lỗi ném thẳng trong handler `Activated`, Roblox chỉ log, nút "chết lặng". |
+| A5 | **P2** | 486-497 | `UnfreezeAllPlayers()` set `Anchored=false` cho mọi part của người khác → gỡ cả những part game **cố ý** anchor (ghế, xe, rig). Chỉ ảnh hưởng phía client nhưng có thể gây giật/teleport hình ảnh. |
+| A6 | **P2** | 2363-2372 | Aimbot chỉ chạy khi `S.aimLock and S.xrayCircle` → **tự ngắm tắt theo vòng tròn**, không có ghi chú trong UI. Nên tách 2 cờ hoặc ghi rõ. Ngoài ra: không kiểm tra đồng đội/bạn bè (đang có sẵn `friendCache`), không làm mượt góc xoay. |
+| A7 | **P2** | 531-540 | `EnNC()` cũng lặp toàn bộ descendants mỗi Stepped (giống A2, ít nghiêm trọng hơn vì chỉ 1 nhân vật). |
+| A8 | **P2** | toàn file | **11 `pcall` cho 94 connections** → một lỗi nhỏ trong handler nào đó là cả handler chết im lặng, khó tự chẩn đoán. |
+| A9 | **P3** | 451-465 | Chặn `Kick` qua `hookmetamethod` chỉ bắt được lệnh Kick **gọi phía client**. Anti-cheat hiện đại kick từ server hoặc ném lỗi remote → "bảo vệ" mang tính an tâm hơn là hiệu quả thật. |
+| A10 | **P3** | 160/200 local | Còn 40 slot local trước giới hạn 200 của Luau. Thêm ~8 hàm có 5 biến local là script **không biên dịch được**. Nên học `script.js`: gom state vào bảng `S`. |
+
+---
+
+## 3. File 2 — `script.js` ("🍌 Banana Cat Hub v4.11")
+
+### 3.1 🔴 P0 — Lỗi "SỬA LỖI 1" của v4.11 mới chỉ sửa **một nửa**
+
+Changelog (dòng 7-10) khẳng định đã sửa lỗi `D.SyncPageChips()` đứng trước `local S`, và quả thật hàm
+đã được dời xuống **dòng 1397** (sau `local S = {` ở **dòng 1340**) — phần này **đúng**.
+
+Nhưng **chỗ gọi nó vẫn còn nguyên lỗi**, ở handler bấm 3 công tắc trên header trang:
+
+```lua
+-- script.js:1144-1153  (local S được khai báo ở dòng 1340 → S ở đây là GLOBAL = nil)
+btn.Activated:Connect(function()
+    local fn = (sw.key == "embed" and S.DoToggleEmbed)      -- ← index vào nil
+            or (sw.key == "guess" and S.DoToggleGuess)
+            or (sw.key == "park"  and S.DoTogglePark)
+    if type(fn) == "function" then pcall(fn) end
+    D.SyncPageChips()                                        -- ← không bao giờ chạy tới
+    pcall(function() if S.SyncEmbedToggles then S.SyncEmbedToggles() end end)
+end)
+```
+
+Cơ chế: closure được tạo **trước** khi `local S` tồn tại, nên Lua/Luau coi `S` là **global**, đọc
+`_G.S` lúc chạy = `nil`. Không có `local S` nào trước dòng 1145 (đã kiểm bằng cả grep lẫn AST:
+đây là đúng 6 chỗ đọc `S` dạng global duy nhất trong file).
+
+Hậu quả thực tế — **y chang triệu chứng mà changelog mô tả là đã sửa**:
+- Bấm 🧩 / 🕵 / 🪟 trên header → `attempt to index a nil value (global 'S')`, handler chết ngay dòng đầu,
+  **không bật/tắt được gì**, và `D.SyncPageChips()` không chạy nên **chip không đổi trạng thái**.
+- Lỗi này không bị nuốt (không nằm trong `pcall`), nó chỉ hiện trong console của executor.
+- Ba nút gốc ở tab ➕ Tạo Tính Năng (dòng 5914 / 5931 / 5948, **nằm sau** `local S`) vẫn hoạt động bình
+  thường → dấu hiệu nhận biết: bấm ở tab ➕ được, bấm trên header không được.
+
+**Cách sửa (chọn 1):**
+1. Đơn giản nhất: dùng bảng `D` (đã là local từ dòng 513) làm cầu nối —
+   `local fn = (sw.key=="embed" and D.DoToggleEmbed) …` rồi gán `D.DoToggleEmbed = S.DoToggleEmbed`
+   ở dòng ~5948 nơi các hàm được định nghĩa.
+2. Hoặc dời nguyên khối tạo 3 chip (khoảng dòng 1105-1175) xuống **sau** dòng 1420 (`local S` +
+   `local Store`), giống cách đã làm với `D.SyncPageChips()`.
+3. Hoặc forward-declare `local S` ở đầu file (trước dòng 382) rồi `S = { … }` ở dòng 1340.
+
+### 3.2 Kiến trúc
+
+```
+[1-360]     Changelog v4.5 → v4.11 (rất chi tiết, có kèm số liệu đối chiếu)
+[325-380]   Service, player, targetGui (gethui/CoreGui/PlayerGui), dọn kết nối cũ
+[382-512]   Bảng màu C.* "OBSIDIAN NOIR + CHAMPAGNE"
+[513-840]   Bảng D: 40+ hàm vẽ/UI (Paint3, TopLight, Shade, BestText, SetBg, Breathe…)
+[841-960]   Hit-test không phụ thuộc parent GUI · BcFit
+[960-1420]  GUI chính, resize 4 góc, hệ tab, header trang + 3 chip, local S
+[1424-1680] Store: ghi/đọc JSON, VFS (ổ đĩa ảo RAM), serialize/load, SAVE_VERSION 3
+[1687-1840] Lớp tương thích executor: tự bù ~45 hàm (chỉ bù khi global chưa tồn tại)
+[1853-2000] Chuẩn hoá code (link trần → loadstring(HttpGet)()), chạy code, báo lỗi thật
+[2068-3000] Tab Code / Code Đã Lưu / Hỗ Trợ (phân tích vật thể, toạ độ, highlight)
+[3665-4500] Tab Tạo Tính Năng + FEATURE TEMPLATE (khung mẫu có SIZE CONTRACT)
+[4695-5100] Phát hiện & nhúng GUI của script tính năng (nhiều lớp, hook Instance.new)
+[6352-6880] Trang 📚 Script Hub (menu kiểu Delta, có Reset/Hop/Lấy mã server)
+[6880-7106] Trang ⚙️ Thiết Lập (v4.11)
+[7106-7231] Toggle menu & drag
+```
+
+### 3.3 Điểm làm tốt
+
+- **Kỷ luật "không đè hàm thật"**: `S.SetGlobal()` chỉ ghi khi global chưa tồn tại (dòng 1704-1717).
+- **v4.11 nói thật về nơi dữ liệu nằm**: `S.Shimmed()` so sánh **danh tính hàm** trong `_G` để phân biệt
+  `writefile` thật với hàm hub tự bù → nhãn "đã ghi xuống đĩa" không còn nói dối. Sửa đúng gốc, rất gọn.
+- **Chống "quá 200 local"**: toàn bộ state/fn gom vào `C/D/Hit/S/Store` (99 hàm gắn vào bảng) → main
+  chunk chỉ còn **128/200**, còn chỗ để phát triển.
+- **254 `pcall`** + báo lỗi thật lên UI (không còn "✅ xong" giả).
+- **Có bộ test**: changelog ghi 84 test / 84 PASS bằng máy ảo Lua 5.4 (wasmoon).
+- **Tôn trọng WCAG**: đổi RED/PINK để 12/12 màu nền đạt ≥3:1.
+
+### 3.4 Vấn đề khác
+
+| # | Mức | Vị trí | Mô tả |
+|---|---|---|---|
+| B1 | **P0** | 1144-1153 | 3 công tắc header 🧩/🕵/🪟 chết (xem 3.1). |
+| B2 | **P2** | 960 | `function BcFit()` **không có `local`** → tạo global `BcFit` (hàm global duy nhất của file). Nên đổi thành `local function` (chỉ `SetupResizeHandle` ở ngay dưới dùng tới). |
+| B3 | **P2** | 1788-1790 | `setclipboard`/`toclipboard`/`set_clipboard` giả chỉ ghi vào `S.clipboardTxt` → người dùng bấm "sao lưu ra clipboard" thấy im lặng/thành công mà clipboard thật không đổi. Cảnh báo hiện chỉ có ở 1 nơi (dòng 6152). Nên hiện cảnh báo chung ở mọi nút copy. |
+| B4 | **P2** | 1809-1817 | Các shim `hookfunction`/`hookmetamethod`/`getnamecallmethod`/`checkcaller` trả về giá trị **giả** (no-op, `""`, `false`). Script chạy trong hub sẽ "nghĩ" mình đang ở môi trường khác → những script dựa vào hook có thể hoạt động sai **mà không báo gì**. Chỉ nên bù khi thật sự vô hại. |
+| B5 | **P2** | 1776 | Shim `loadstring` = `load(tostring(src), …)` — nếu executor có sẵn `loadstring` thì không dùng, nhưng nếu không có `load` luôn thì shim lỗi ngay lúc gọi. |
+| B6 | **P3** | toàn file | **Thư mục `tests/` không có trong repo** (chỉ còn 2 file) → không thể tự chạy lại để kiểm chứng con số "84 test — 84 PASS"; changelog dẫn `node tests/run.js` và `tests/roblox-mock.lua` nhưng đường dẫn gốc (`/home/user/luachk`) nằm ngoài repo. |
+| B7 | **P3** | tên file | File chứa mã Lua nhưng đuôi `.js` → mọi linter/highlighter/editor hiểu sai. Nên đổi `script.js` → `BananaCatHub.lua` (và `aiaiaitao3` → `ExecutorMenu.lua`). |
+| B8 | **P3** | 5095, 5768… | Thứ tự trang dùng `LayoutOrder` 1/2/3/4/5/6/99 + tab tính năng từ 7 → đúng như ghi chú, nhưng số 5 từng là tab 🤖 AI (đã xoá ở v4.10) nên 5/6/7 lệch nhau; ai thêm tab mới cần đọc kỹ changelog mới hiểu. |
+
+---
+
+## 4. Rủi ro chung (áp dụng cho cả 2 file)
+
+1. **Tải & chạy mã từ xa lúc runtime (supply-chain).** Cả hai file nhúng sẵn
+   `loadstring(game:HttpGet("https://raw.githubusercontent.com/…"))()` cho
+   **Dex Explorer**, **Infinite Yield**, **SimpleSpy**. Đây là mã của bên thứ ba, được tải **mỗi lần
+   bấm** và chạy với **đầy đủ quyền của executor** trong tiến trình Roblox của bạn. Nếu repo gốc bị
+   chiếm quyền/đổi chủ, người dùng sẽ chạy mã lạ mà không hay. Khuyến nghị: ghim commit hash cụ thể
+   (vd `.../raw/<sha>/dex.lua`) thay vì nhánh `main`/`master`, hoặc lưu bản đã kiểm chứng vào tab
+   "Code Đã Lưu" rồi chạy offline.
+2. **Điều khoản Roblox.** Đây là script can thiệp client (NoClip, Fly, ESP, tự ngắm, đóng băng người
+   khác…) — vi phạm Điều khoản dịch vụ của Roblox; rủi ro bị khóa tài khoản nằm ở phía người dùng.
+   Phân tích này chỉ đọc mã, không thêm tính năng ăn gian mới.
+3. **Mã người dùng chạy cùng quyền.** Cả hai đều cho dán/chạy Lua tuỳ ý (`loadstring`); bất kỳ đoạn mã
+   nào cũng có thể đọc clipboard, ghi file, gọi mạng. Tab "Code Đã Lưu" vì thế là nơi lưu trữ nhạy cảm.
+4. **Xung đột khi chạy cả hai.** Cùng tên GUI `ExMenu` và cùng khoá `_G.BananaCatHub_Connections`:
+   chạy file thứ hai sẽ `Destroy()` GUI của file thứ nhất và ngắt connection của nó → **không thể chạy
+   song song**, đúng thiết kế (hai nhánh cùng sản phẩm), nhưng cần biết để không bối rối khi "menu biến mất".
+
+---
+
+## 5. Khuyến nghị theo thứ tự ưu tiên
+
+| Ưu tiên | Việc | File |
+|---|---|---|
+| **P0** | Sửa 3 công tắc header (mục 3.1) — 3 dòng, hiệu quả thấy ngay | `script.js` |
+| P1 | Thêm lưu/đọc đĩa cho script + toạ độ (mượn khối `Store` của `script.js`) | `aiaiaitao3` |
+| P1 | Giảm tần suất `freezeOthers`/`EnNC` (10 Hz thay vì mỗi Stepped) | `aiaiaitao3` |
+| P1 | `DisNC` khôi phục `CanCollide` gốc thay vì gán `true` | `aiaiaitao3` |
+| P1 | Bọc `pcall` cho `serverHopBtn` + kiểm `nil` | `aiaiaitao3` |
+| P2 | `local function BcFit` | `script.js` |
+| P2 | Cảnh báo clipboard giả ở mọi nút copy | `script.js` |
+| P2 | Đổi đuôi file `.js` → `.lua` cho cả 2 | cả 2 |
+| P2 | Tách cờ aimbot khỏi cờ vòng tròn | `aiaiaitao3` |
+| P3 | Đưa `tests/` (84 test) vào repo để có thể tự kiểm chứng | `script.js` |
+| P3 | Ghim commit hash cho 3 URL GitHub | cả 2 |
+
+---
+
+## 6. Phương pháp kiểm chứng (để bạn tự chạy lại)
+
+- **Parse cú pháp**: `luaparse` (npm) với `luaVersion 5.1`, sau khi "desugar" phép gán ghép của Luau
+  (`+=` …): `aiaiaitao3` 5 chỗ (nhiều nhất ở dòng 1199 `e+=0.1`), `script.js` 22 chỗ (dòng 1982).
+  → Cả hai **parse OK**, không lỗi cú pháp.
+- **Phân tích AST** (`luaparse` với `scope: true`) để tìm:
+  - ghi vào biến global (kết quả: `aiaiaitao3` **0**, `script.js` **1** = `BcFit`),
+  - đọc biến global ngoài whitelist Lua/Roblox/executor → phát hiện **6 lần đọc `S` dạng global ở
+    dòng 1145-1152** (bug P0), phần còn lại (`tick`, `toclipboard`, `typeof`, `set_clipboard`) là API hợp lệ.
+- **Đếm**: hàm, local cấp chunk (so với giới hạn 200 của Luau), connection (`:Connect(`) vs
+  connection được `trackConn` quản lý, số `pcall`.
+- **So sánh chéo** 2 file bằng `difflib`: 431 dòng trùng nhau sau khi chuẩn hoá khoảng trắng
+  (29,2% file nhỏ), 3 khối trùng ≥25 dòng (helper `New/Corner/Stroke/Tween` dòng 189-233 ↔ 928-972;
+  khối tab/con lặp; khối ô nhập liệu).
+- Script phân tích nằm ở `/tmp/luachk/` (ngoài repo, không đưa vào git).
+
+> Chưa thể kiểm chứng runtime: trong môi trường này không có Luau/Roblox, nên các kết luận về hành vi
+> (đặc biệt bug P0) là suy luận trực tiếp từ ngữ nghĩa phạm vi biến của Lua — rất chắc chắn về mặt
+> quy tắc ngôn ngữ, nhưng nên bấm thử 3 công tắc header một lần để xác nhận triệu chứng.

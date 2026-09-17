@@ -1,0 +1,15 @@
+{
+  "name": "banana-cat-hub-tests",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Bộ test chạy thật Banana Cat Hub (script.js) trong máy ảo Lua 5.4 + Roblox/executor giả lập",
+  "main": "run.js",
+  "scripts": {
+    "test": "node run.js ../script.js",
+    "test:filter": "node run.js ../script.js"
+  },
+  "license": "ISC",
+  "dependencies": {
+    "wasmoon": "^1.16.0"
+  }
+}
