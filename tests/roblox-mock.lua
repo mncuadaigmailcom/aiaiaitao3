@@ -663,13 +663,15 @@ Mock.friends = {}
 Mock.files = {}
 
 local function schedule(fn, at, co)
-    Mock.tasks[#Mock.tasks + 1] = { fn = fn, at = at or Mock.time, co = co }
+    local tk = { fn = fn, at = at or Mock.time, co = co }
+    Mock.tasks[#Mock.tasks + 1] = tk
+    return tk      -- task.spawn thật trả thread -> trả token để code dùng làm cờ "đang chạy"
 end
 
 task = {
-    spawn = function(fn, ...) local args = { ... }; schedule(function() return fn(table.unpack(args)) end, Mock.time) end,
-    defer = function(fn, ...) local args = { ... }; schedule(function() return fn(table.unpack(args)) end, Mock.time) end,
-    delay = function(t, fn, ...) local args = { ... }; schedule(function() return fn(table.unpack(args)) end, Mock.time + (t or 0)) end,
+    spawn = function(fn, ...) local args = { ... }; return schedule(function() return fn(table.unpack(args)) end, Mock.time) end,
+    defer = function(fn, ...) local args = { ... }; return schedule(function() return fn(table.unpack(args)) end, Mock.time) end,
+    delay = function(t, fn, ...) local args = { ... }; return schedule(function() return fn(table.unpack(args)) end, Mock.time + (t or 0)) end,
     wait = function(t)
         local co = coroutine.running()
         if co then

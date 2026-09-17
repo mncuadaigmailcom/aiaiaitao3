@@ -320,9 +320,11 @@ test("B8 · 🦘 NHẢY VÔ HẠN: JumpRequest -> ChangeState(Jumping)", functio
 end)
 
 test("B9 · 👟 CHẠY ĐỘ + lực nhảy: áp đúng và trả lại mặc định", function()
+    S.Move.StopAll(); Mock.advance(0.05)          -- toggle: phải chắc chắn đang TẮT
     local ch = resetChar()
     local h = hum()
     eq(h.WalkSpeed, 16, " WalkSpeed mặc định")
+    S.Move.speedMode = "num"                      -- test này dùng tốc độ CỐ ĐỊNH
     S.Move.walkSpeed = 120
     S.Move.jumpPower = 200
     action("speed")
@@ -333,6 +335,7 @@ test("B9 · 👟 CHẠY ĐỘ + lực nhảy: áp đúng và trả lại mặc �
     Mock.advance(0.05)
     eq(h.WalkSpeed, 16, "tắt thì về 16")
     eq(h.JumpPower, 50, "tắt thì lực nhảy về 50")
+    S.Move.speedMode = "x"                        -- trả lại chế độ mặc định (theo game)
 end)
 
 test("B10 · 🪩 THẢM KÍNH: tạo đúng kích thước Rộng×Cao×Dài, đổi được, đi theo người", function()
@@ -382,7 +385,9 @@ test("B11 · thảm + xuyên tường: người được giữ trên mặt thả
 end)
 
 test("B12 · sống qua respawn: tự bật lại những gì đang bật", function()
+    S.Move.StopAll(); Mock.advance(0.05)
     local ch = resetChar()
+    S.Move.speedMode = "num"
     S.Move.walkSpeed = 80
     action("noclip"); action("speed"); action("fly")
     Mock.advance(0.1)
@@ -393,6 +398,7 @@ test("B12 · sống qua respawn: tự bật lại những gì đang bật", func
     truthy(findByClass(ch2, "BodyVelocity"), "bay được bật lại sau respawn")
     eq(ch2:FindFirstChild("HumanoidRootPart").CanCollide, false, "xuyên tường được bật lại")
     eq(ch2:FindFirstChild("Humanoid").WalkSpeed, 80, "chạy độ được áp lại")
+    S.Move.speedMode = "x"
 
     -- thảm riêng: bay và thảm KHÔNG đi cùng (như bản gốc), bật thảm sẽ tắt bay
     S.Move.StopAll(); Mock.advance(0.05)
@@ -487,6 +493,7 @@ test("D1 · ô nhập trong khung ⚙: đổi tốc độ bay / chạy / nhảy"
     Mock.click(panelBtns()[1])
     eq(S.Move.flySpeed, 120, "vượt quá 500 thì không nhận")
     S.Move.flySpeed, S.Move.walkSpeed, S.Move.jumpPower = 50, 16, 50
+    S.Move.speedMode = "x"; S.Move.speedMul = 3        -- trả lại mặc định (theo game ×3)
 end)
 
 test("D2 · ô nhập thảm: Rộng × Cao × Dài đổi được cả khi thảm đang TẮT", function()
@@ -612,21 +619,22 @@ local function hudBtn(txt)
     return nil
 end
 
-test("E1 · 🏃 Chạy Trên Thảm: bật = có thảm + tăng tốc + HUD hiện", function()
+test("E1 · 🏃 Chạy Trên Thảm: bật = có thảm + tăng tốc (theo game ×3) + HUD hiện", function()
+    S.Move.StopAll(); Mock.advance(0.05)
     local ch = resetChar()
-    S.Move.walkSpeed = 90
+    S.Move.speedMode, S.Move.speedMul = "x", 3
     local msg = action("runmode")
     Mock.advance(0.1)
     truthy(S.Move.runMode, "cờ chế độ chạy")
     truthy(tostring(msg):find("BẬT"), "thông báo BẬT: " .. msg)
     truthy(H.workspace:FindFirstChild("Carpet"), "có thảm kính dưới chân")
-    eq(ch:FindFirstChild("Humanoid").WalkSpeed, 90, "tốc độ chạy đã áp")
+    eq(ch:FindFirstChild("Humanoid").WalkSpeed, 48, "tốc độ = game 16 × 3")
     truthy(hud(), "có HUD")
     eq(hud().Visible, true, "HUD đang hiện trên màn hình")
     S.Move.StopAll(); Mock.advance(0.05)
 end)
 
-test("E2 · thảm nằm DƯỚI CHÂN (cách 3 studs như bản gốc) và đủ rõ để thấy", function()
+test("E2 · thảm nằm DƯỚI CHÂN, trong suốt vừa đủ để thấy", function()
     local ch = cleanStart()
     action("runmode")
     Mock.advance(0.1)
@@ -814,6 +822,142 @@ test("F7 · đổi kích thước thảm khi đang bật: vẫn đứng trên m�
     truthy(r.Position.Y >= standingY() - 0.01, "đổi kích thước xong vẫn đứng trên mặt thảm")
     S.Move.SetCarpetSize(6, 0.5, 6)
     S.Move.StopAll(); Mock.advance(0.05)
+end)
+
+
+print("\n── G. v4.12.2: NHẢY + CHẠY chạy được ở MỌI GAME (tốc độ theo game) ──")
+
+test("G1 · 🦘 game ăn mất JumpRequest -> bấm Space (InputBegan) vẫn nhảy", function()
+    local ch = cleanStart()
+    local h = hum()
+    h._state = nil
+    action("infjump")
+    Mock.advance(0.05)
+    -- game không bao giờ bốc JumpRequest (ContextActionService ưu tiên cao) -> chỉ còn phím
+    Mock.fire(H.UserInputService, "InputBegan", { KeyCode = Enum.KeyCode.Space }, true)
+    eq(h._state, Enum.HumanoidStateType.Jumping, "Space vẫn phát được lệnh nhảy")
+    action("infjump"); Mock.advance(0.05)
+    h._state = nil
+    Mock.fire(H.UserInputService, "InputBegan", { KeyCode = Enum.KeyCode.Space }, true)
+    eq(h._state, nil, "tắt rồi thì thôi")
+end)
+
+test("G2 · 🦘 game CẤM NHẢY (JumpPower=0) -> mở lại để nhảy, tắt trả đúng 0", function()
+    local ch = cleanStart()
+    Mock.advance(0.4)      -- xả nợ: Refresh của respawn test trước (0.3s) kẻo nó dẫm lên kết quả
+    local h = hum()
+    h.JumpPower, h.JumpHeight = 0, 0          -- kiểu game cấm nhảy
+    action("infjump")
+    Mock.advance(0.05)
+    truthy(h.JumpPower >= 1, "JumpPower được mở lại: " .. tostring(h.JumpPower))
+    truthy(h.JumpHeight >= 0.1, "JumpHeight được mở lại: " .. tostring(h.JumpHeight))
+    action("infjump")
+    Mock.advance(0.05)
+    eq(h.JumpPower, 0, "tắt thì trả lại đúng 0 như game (không để kẹt 50)")
+end)
+
+test("G3 · 🦘 game phớt lờ lệnh nhảy -> tự đẩy vận tốc (cách thứ 3)", function()
+    local ch = cleanStart()
+    local r = root()
+    action("infjump")
+    Mock.advance(0.05)
+    r.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+    local y0 = r.Position.Y
+    Mock.fire(H.UserInputService, "JumpRequest")
+    Mock.advance(0.15)                        -- qua 0.08s xác nhận
+    truthy(r.AssemblyLinearVelocity.Y >= 40 or r.Position.Y > y0 + 0.4,
+        "vẫn phải nhúc nhích lên (vy=" .. tostring(r.AssemblyLinearVelocity.Y) .. ")")
+    action("infjump"); Mock.advance(0.05)
+end)
+
+test("G4 · 👟 TỐC ĐỘ THEO GAME: 20×3=60 · game đổi 10 -> 30 · tắt về 10", function()
+    local ch = cleanStart()
+    local h = hum()
+    h.WalkSpeed = 20
+    S.Move.speedMode, S.Move.speedMul = "x", 3
+    S.Move.SetSpeed(true)
+    eq(h.WalkSpeed, 60, "20 × 3 = 60")
+    h.WalkSpeed = 10                          -- game tự đổi tốc độ
+    Mock.advance(0.4)                          -- vòng canh gác bắt kịp
+    eq(h.WalkSpeed, 30, "theo game: 10 × 3 = 30")
+    S.Move.SetSpeed(false)
+    eq(h.WalkSpeed, 10, "tắt thì về ĐÚNG tốc độ game đang có (10), không phải 20")
+end)
+
+test("G5 · ô 👟 Chạy trong khung ⚙: gõ x4 = theo game ×4 · gõ 50 = cố định 50", function()
+    local ch = cleanStart()
+    local h = hum()
+    h.WalkSpeed = 16
+    local b = panelBoxes()
+    b[2].Text = "x4"
+    Mock.click(panelBtns()[1])
+    eq(S.Move.speedMode, "x", "chế độ nhân")
+    eq(S.Move.speedMul, 4, "hệ số 4")
+    S.Move.SetSpeed(true)
+    eq(h.WalkSpeed, 64, "16 × 4 = 64")
+    b[2].Text = "50"
+    Mock.click(panelBtns()[1])
+    eq(S.Move.speedMode, "num", "chế độ cố định")
+    eq(h.WalkSpeed, 50, "đổi ngay sang 50")
+    h.WalkSpeed = 5                            -- game đổi tốc độ
+    Mock.advance(0.4)
+    eq(h.WalkSpeed, 50, "chế độ CỐ ĐỊNH thì không chạy theo game")
+    S.Move.SetSpeed(false)
+    b[2].Text = "x3"; Mock.click(panelBtns()[1])   -- trả mặc định
+end)
+
+test("G6 · 🪩 thảm bị game XOÁ -> tự trải lại (bị xoá 3 lần thì né sang Camera)", function()
+    local ch = cleanStart()
+    action("carpet")
+    Mock.advance(0.1)
+    for i = 1, 3 do
+        local cp = H.workspace:FindFirstChild("Carpet")
+        truthy(cp, "lần " .. i .. ": đang có thảm")
+        cp:Destroy()
+        Mock.advance(0.1)
+    end
+    truthy(S.Move._carpet and S.Move._carpet.Parent, "thảm được trải lại sau 3 lần bị xoá")
+    eq(S.Move._carpet.Parent, H.workspace.CurrentCamera,
+       "đã né sang Camera để game không dọn được nữa")
+    S.Move.StopAll(); Mock.advance(0.1)
+    falsy(S.Move._carpet, "tắt thì dọn sạch")
+end)
+
+test("G7 · 🏃 chạy trên thảm: NHẢY THOẢI MÁI (lên không bị kéo xuống · rơi được đỡ lại)", function()
+    local ch = cleanStart()
+    local h, r = hum(), root()
+    h.WalkSpeed = 24
+    S.Move.speedMode, S.Move.speedMul = "x", 3
+    action("runmode")
+    Mock.advance(0.1)
+    eq(h.WalkSpeed, 72, "tốc độ = game 24 × 3")
+    local top = S.Move.carpetY + (S.Move.carpetH / 2)
+    -- NHẢY: đang bay lên thì KHÔNG bị áp xuống
+    r.Position = Vector3.new(0, top + 3, 0)
+    r.AssemblyLinearVelocity = Vector3.new(0, 30, 0)
+    Mock.advance(0.1)
+    eq(r.Position.Y, top + 3, "đang nhảy lên: không bị kéo xuống mặt thảm")
+    -- RƠI: được đỡ lại trên mặt thảm (không rơi xuyên)
+    r.Position = Vector3.new(0, top - 4, 0)
+    r.AssemblyLinearVelocity = Vector3.new(0, -20, 0)
+    Mock.advance(0.1)
+    truthy(r.Position.Y >= top + 3 - 0.01, string.format(
+        "rơi xuống được đỡ lại trên mặt thảm (Y=%s, đứng=%s)", tostring(r.Position.Y), tostring(top + 3)))
+    S.Move.StopAll(); Mock.advance(0.1)
+end)
+
+test("G8 · không mất tính năng cũ + vòng canh gác tự tắt (không rò rỉ luồng)", function()
+    local ch = cleanStart()
+    action("noclip"); action("infjump"); action("fly")
+    Mock.advance(0.1)
+    truthy(S.Move.fly and S.Move.noclip and S.Move.infJump, "3 tính năng cùng bật được")
+    truthy(findByClass(ch, "BodyVelocity"), "bay vẫn có BodyVelocity")
+    S.Move.StopAll()
+    Mock.advance(0.5)
+    falsy(S.Move.fly or S.Move.noclip or S.Move.infJump or S.Move.speed or S.Move.carpet, "tắt hết")
+    falsy(findByClass(ch, "BodyVelocity"), "bay đã dọn")
+    eq(root().CanCollide, true, "CanCollide trả lại")
+    eq(S.Move._wd, nil, "vòng canh gác đã tự thoát (không kẹt luồng chạy ngầm)")
 end)
 
 print("\n── C. KIỂM TRA CUỐI ─────────────────────────────────────────")

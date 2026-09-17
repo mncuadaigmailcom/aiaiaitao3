@@ -40,7 +40,21 @@
             mới (D.Tactile) nhưng connection của thẻ đã Destroy không bao giờ bị dọn khỏi
             _G.BananaCatHub_Connections -> bảng phình mãi. Nay trackConn() tự gom rác khi >300.
         • BỘ TEST TỰ ĐỘNG (thư mục tests/, chạy bằng `node tests/run.js`): nạp và CHẠY THẬT hub
-          trong máy ảo Lua 5.4 (wasmoon) + Roblox/executor giả lập. 51 test — 51 PASS (nhóm E: chế độ chạy trên thảm + cụm nút nổi · nhóm F: sửa thảm kính).
+          trong máy ảo Lua 5.4 (wasmoon) + Roblox/executor giả lập. 59 test — 59 PASS (E: chạy trên thảm + nút nổi · F: sửa thảm kính · G: nhảy/chạy ở mọi game + tốc độ theo game).
+    + v4.12.2 (CHO NHẢY + CHẠY CHẠY Ở MỌI GAME · TỐC ĐỘ THEO GAME — 59 test PASS):
+        • 🦘 NHẢY VÔ HẠN bị liệt ở nhiều game vì chỉ nghe JumpRequest rồi ChangeState. Nay nhảy
+          bằng 3 CÁCH: ChangeState · lệnh Jump kiểu cũ · ĐẨY VẬN TỐC (chỉ chạy khi 0.08s sau mà
+          người vẫn không nhúc nhích -> không bao giờ "nhảy đúp" ở game bình thường). Nghe thêm
+          phím Space / nút A qua InputBegan nên game ĂN MẤT JumpRequest vẫn nhảy được. Game CẤM
+          NHẢY (JumpPower/JumpHeight = 0) cũng được mở lại, tắt thì trả lại đúng 0.
+        • 🏃 CHẠY TRÊN THẢM: CHẠY + NHẢY THOẢI MÁI — thảm chỉ giữ bạn khi đứng yên hoặc đang rơi,
+          nên nhảy tự do, rơi xuống được đỡ lại (không dính chặt, không rơi xuyên).
+        • 👟 TỐC ĐỘ THEO GAME (mặc định mới): chạy = TỐC ĐỘ GAME × 3 thay vì ép cứng 50. Game để
+          8 -> 24, game để 20 -> 60, game đổi tốc độ -> đổi theo, tắt -> trả đúng tốc độ game.
+          Muốn CỐ ĐỊNH thì gõ số (vd 50) vào ô 👟 Chạy trong khung ⚙; gõ "x3"/"x4" để nhân.
+        • VÒNG CANH GÁC 0.3s: game (hoặc anti-cheat) xoá thảm / trả lại WalkSpeed / đổi JumpPower
+          / thay nhân vật -> tự dựng lại và theo số mới của game. Thảm bị xoá 3 lần thì tự né
+          sang treo vào Camera để game không dọn được nữa.
     + v4.12.1 (SỬA THẢM KÍNH — không mất tính năng nào, 51 test PASS):
         • LỖI CHÍNH làm thảm "vô dụng": bản gốc aiaiaitao3 (và v4.12 đầu) CHỈ giữ người đứng
           trên mặt thảm khi đang bật Xuyên Tường -> bật thảm MỘT MÌNH thì người vẫn RƠI XUYÊN
@@ -6452,13 +6466,18 @@ S.Move = {
     runMode = false,                         -- 🏃 chế độ "chạy trên thảm" (gộp thảm + tốc độ + HUD)
     _hud = nil, _hudUp = nil, _hudDown = nil, _hudCarpet = nil, _menuWasOpen = nil,
     flySpeed = 50, walkSpeed = 16, jumpPower = 50,
+    -- v4.12.2: TỐC ĐỘ THEO GAME. speedMode="x" (mặc định) -> chạy = TỐC ĐỘ GAME × speedMul;
+    -- speedMode="num" -> ép cứng = walkSpeed. Gõ "x3" hay "50" vào ô 👟 Chạy trong khung ⚙.
+    speedMode = "x", speedMul = 3, appliedWS = nil,
     carpetW = 6, carpetH = 0.5, carpetL = 6,     -- Rộng × Cao(dày) × Dài
     carpetGap = 0.2,                             -- thảm cách bàn chân bao nhiêu stud (0 = áp sát)
     carpetY = nil,
     _carpet = nil, _bv = nil, _bg = nil, _floor = nil,
-    _ncConn = nil, _ijConn = nil, _speedThread = nil,
+    _ncConn = nil, _ijConn = nil, _ijConn2 = nil, _speedThread = nil,
     _origCC = {},                                 -- [part] = CanCollide gốc
-    _baseWS = 16, _baseJP = 50,
+    _baseWS = 16, _baseJP = 50,                   -- tốc độ / lực nhảy GỐC CỦA GAME
+    _wd = nil, _lastJump = nil, _ijBaseJP = nil, _ijBaseJH = nil,
+    _carpetRetries = 0,                           -- số lần thảm bị game xoá
 }
 local MV = S.Move
 
@@ -6513,38 +6532,144 @@ function MV.SetNoclip(on)
         MV._ncConn = nil
         MV._NcRestore()
     end
+    MV._Watchdog()
     return MV.noclip
 end
 
 -- ---------- 🦘 NHẢY VÔ HẠN ----------
+-- v4.12.2: NHIỀU GAME KHÔNG NHẬN kiểu cũ (chỉ nghe JumpRequest rồi ChangeState) vì:
+--   • game gọi ContextActionService:BindActionAtPriority ăn mất Space -> JumpRequest không bốc
+--   • game để JumpPower / JumpHeight = 0 (cấm nhảy) -> ChangeState vô tác dụng
+--   • game bật PlatformStand / tắt StateEnabled / dùng rig tự chế -> Humanoid phớt lờ lệnh nhảy
+-- Nên nhảy bằng 3 ĐƯỜNG, đường nào được thì được:
+--   1) Humanoid:ChangeState(Jumping)            — chuẩn
+--   2) Humanoid.Jump = true                     — API cũ, game đời cũ vẫn ăn
+--   3) đẩy thẳng vận tốc vào HumanoidRootPart   — cách cuối, luôn có tác dụng
+-- Đường 3 chỉ chạy khi 0.08s sau mà người VẪN chưa nhúc nhích (tức 1+2 bị game bỏ qua) ->
+-- không bao giờ bị "nhảy đúp" ở những game vốn nhảy bình thường.
+-- Ngoài ra: ép JumpPower/JumpHeight về mức NHẢY ĐƯỢC nếu game đang để 0 (trả lại khi tắt),
+-- và nghe thêm phím Space / A (tay cầm) qua InputBegan để vẫn nhảy được khi game ăn JumpRequest.
+function MV._JumpGuard()
+    local h = MV.Hum()
+    if not h then return end
+    pcall(function()
+        local jp = mvClamp(MV.jumpPower, 1, 500)
+        if h.UseJumpPower ~= false then
+            if (tonumber(h.JumpPower) or 0) < 1 then h.JumpPower = jp end
+        end
+        if (tonumber(h.JumpHeight) or 0) < 0.1 then
+            local g = tonumber(workspace.Gravity) or 0
+            if g < 1 then g = 196.2 end
+            h.JumpHeight = mvClamp((jp * jp) / (2 * g), 1, 500)
+        end
+    end)
+end
+function MV._JumpConfirm(y0)
+    if not MV.infJump then return end
+    local r2 = MV.Root()
+    if not r2 then return end
+    local up = r2.Position.Y - y0
+    local v  = r2.AssemblyLinearVelocity
+    local vy = (type(v) == "table" and v.Y) or 0
+    if up < 0.4 and vy < 10 then        -- chưa nhúc nhích -> game đã bỏ qua lệnh nhảy
+        pcall(function()
+            r2.AssemblyLinearVelocity = Vector3.new(
+                (type(v) == "table" and v.X) or 0, mvClamp(MV.jumpPower, 1, 500),
+                (type(v) == "table" and v.Z) or 0)
+        end)
+    end
+end
+function MV._DoJump()
+    if not MV.infJump then return false end
+    local h, r = MV.Hum(), MV.Root()
+    if not h or not r then return false end
+    if h.Sit or h.PlatformStand then return false end      -- đang ngồi ghế/xe: không nhảy
+    local now = os.clock()
+    if MV._lastJump and (now - MV._lastJump) < 0.12 then return false end   -- chống bốc đúp
+    MV._lastJump = now
+    MV._JumpGuard()
+    local y0 = r.Position.Y
+    pcall(function() h:ChangeState(Enum.HumanoidStateType.Jumping) end)
+    pcall(function() h.Jump = true end)
+    task.delay(0.08, function() pcall(MV._JumpConfirm, y0) end)
+    return true
+end
 function MV.SetInfJump(on)
     on = (on == true)
     if on == MV.infJump then return MV.infJump end
     MV.infJump = on
     if on then
-        MV._ijConn = trackConn(UserInputService.JumpRequest:Connect(function()
+        local h = MV.Hum()
+        if h then MV._ijBaseJP, MV._ijBaseJH = h.JumpPower, h.JumpHeight end
+        MV._JumpGuard()
+        MV._ijConn  = trackConn(UserInputService.JumpRequest:Connect(function()
+            pcall(MV._DoJump)
+        end))
+        -- dự phòng: game ăn mất JumpRequest thì bấm Space / A vẫn nhảy (trừ khi đang gõ trong hub)
+        MV._ijConn2 = trackConn(UserInputService.InputBegan:Connect(function(i, gp)
             if not MV.infJump then return end
-            local h = MV.Hum()
-            if h then pcall(function() h:ChangeState(Enum.HumanoidStateType.Jumping) end) end
+            pcall(function()
+                local tb = UserInputService:GetFocusedTextBox()
+                if tb and tb:IsDescendantOf(gui) then return end   -- đang gõ trong hub thì thôi
+                local k = i and i.KeyCode
+                if k == Enum.KeyCode.Space or k == Enum.KeyCode.ButtonA then MV._DoJump() end
+            end)
         end))
     else
-        if MV._ijConn then pcall(function() MV._ijConn:Disconnect() end) end
-        MV._ijConn = nil
+        for _, c in ipairs({ MV._ijConn, MV._ijConn2 }) do
+            if c then pcall(function() c:Disconnect() end) end
+        end
+        MV._ijConn, MV._ijConn2 = nil, nil
+        local h = MV.Hum()
+        if h then
+            if MV._ijBaseJP ~= nil then pcall(function() h.JumpPower  = MV._ijBaseJP end) end
+            if MV._ijBaseJH ~= nil then pcall(function() h.JumpHeight = MV._ijBaseJH end) end
+        end
+        MV._ijBaseJP, MV._ijBaseJH = nil, nil
     end
+    MV._Watchdog()
     return MV.infJump
 end
 
 -- ---------- 👟 CHẠY ĐỘ (WalkSpeed / JumpPower) ----------
+-- v4.12.2 — TỐC ĐỘ PHỤ THUỘC VÀO GAME (điều bạn muốn):
+--   • speedMode = "x"   (MẶC ĐỊNH): tốc độ = TỐC ĐỘ CỦA GAME × speedMul (×3).
+--     Game để 8 thì chạy 24, game để 20 thì chạy 60, game đổi tốc độ (cúp, nhân vật khác,
+--     leo thang, đổi map...) thì chạy ĐỔI THEO — không còn chuyện "ép 50 rồi văng khỏi map"
+--     hay "game chậm mà mình vẫn chậm". Tắt đi trả lại ĐÚNG tốc độ game đang có.
+--   • speedMode = "num": ép cứng = walkSpeed (kiểu cũ) — dành khi bạn muốn một con số cố định.
+--   Gõ "x3" hoặc "50" vào ô 👟 Chạy trong khung ⚙ (ô chạy nhận cả 2 kiểu).
+function MV.WantSpeed()
+    if MV.speedMode == "x" then
+        local base = tonumber(MV._baseWS) or 16
+        return mvClamp(base * mvClamp(MV.speedMul, 1, 20), 0, 500)
+    end
+    return mvClamp(MV.walkSpeed, 0, 500)
+end
 function MV.ApplyChar()
     local h = MV.Hum()
     if not h then return end
     if MV.speed then
-        h.WalkSpeed  = MV.walkSpeed
-        h.JumpPower  = MV.jumpPower
+        local want = MV.WantSpeed()
+        h.WalkSpeed = want
+        MV.appliedWS = want
+        local jp = mvClamp(MV.jumpPower, 0, 500)
+        if h.JumpPower ~= jp then h.JumpPower = jp end
     else
-        h.WalkSpeed  = MV._baseWS
-        h.JumpPower  = MV._baseJP
+        h.WalkSpeed  = MV._baseWS or 16
+        h.JumpPower  = MV._baseJP or 50
+        MV.appliedWS = nil
     end
+end
+-- Game đổi tốc độ (cắt cảnh, leo thang, đổi nhân vật, anti-cheat trả lại 16...) -> THEO GAME:
+-- lấy số mới làm NỀN rồi nhân lại. Nhờ vậy không bao giờ cãi nhau với game.
+function MV.SpeedStep()
+    local h = MV.Hum()
+    if not h or not MV.speed then return end
+    if MV.appliedWS ~= nil and math.abs((tonumber(h.WalkSpeed) or 0) - MV.appliedWS) > 0.01 then
+        MV._baseWS = tonumber(h.WalkSpeed) or MV._baseWS
+    end
+    MV.ApplyChar()
 end
 function MV.SetSpeed(on)
     on = (on == true)
@@ -6555,17 +6680,34 @@ function MV.SetSpeed(on)
     end
     MV.speed = on
     MV.ApplyChar()
-    if on and not MV._speedThread then
-        -- nhiều game tự đặt lại WalkSpeed mỗi khi đổi trạng thái -> áp lại mỗi 0.5s (rẻ)
-        MV._speedThread = task.spawn(function()
-            while MV.speed do
-                MV.ApplyChar()
-                task.wait(0.5)
-            end
-            MV._speedThread = nil
-        end)
-    end
+    MV._Watchdog()
     return MV.speed
+end
+
+-- ---------- v4.12.2: VÒNG CANH GÁC (lý do nhiều game "không hoạt động") ----------
+-- Rất nhiều game (hoặc anti-cheat) chủ động DỌN đồ của mình: xoá part lạ trong workspace,
+-- trả WalkSpeed về mặc định mỗi frame, để JumpPower = 0, thay nhân vật... Vòng này chạy mỗi
+-- 0.3s khi có tính năng đang bật: thấy mất là dựng lại ngay, thấy game đổi là theo game.
+function MV._NeedWatch()
+    return (MV.fly or MV.noclip or MV.infJump or MV.speed or MV.carpet or MV.runMode) == true
+end
+function MV._KeepAlive()
+    if MV.speed or MV.runMode then pcall(MV.SpeedStep) end
+    if MV.infJump or MV.runMode then pcall(MV._JumpGuard) end
+    if MV.carpet and (not MV._carpet or not MV._carpet.Parent) then
+        pcall(function() MV.CreateCarpet(MV.carpetY) end)
+    end
+end
+function MV._Watchdog()
+    if MV._wd then return end
+    MV._wd = task.spawn(function()
+        while MV._NeedWatch() and MV._wd do
+            pcall(MV._KeepAlive)
+            task.wait(0.3)
+        end
+        MV._wd = nil
+    end)
+    if MV._wd == nil then MV._wd = true end      -- executor nào spawn không trả thread thì gắn cờ
 end
 
 -- ---------- 🚀 BAY ----------
@@ -6586,7 +6728,7 @@ function MV.SetFly(on)
     local r = MV.Root()
     if on and not r then return false, "chưa có nhân vật để bay" end
     MV.fly = on
-    if not on then MV._StopFly(); MV.SyncHud(); return false end
+    if not on then MV._StopFly(); MV._Watchdog(); MV.SyncHud(); return false end
     local h = MV.Hum()
     MV._bv = New("BodyVelocity", { Name = "BC_FlyVel", MaxForce = Vector3.new(4000, 4000, 4000) }, r)
     MV._bg = New("BodyGyro",     { Name = "BC_FlyGyro", MaxTorque = Vector3.new(4000, 4000, 4000) }, r)
@@ -6657,6 +6799,16 @@ function MV._StopCarpet()
     MV.carpetY = nil
     pcall(function() RunService:UnbindFromRenderStep("Carpet") end)
 end
+-- v4.12.2: một số game / anti-cheat XOÁ part lạ trong workspace -> thảm biến mất dù vẫn BẬT.
+-- Bị xoá 3 lần thì chuyển sang treo thảm vào Camera: vẫn nằm trong thế giới 3D, vẫn đứng được
+-- trên đó, mà không nằm trong danh sách part của workspace để game dọn.
+function MV.CarpetHost()
+    if (MV._carpetRetries or 0) >= 3 then
+        local cam = workspace.CurrentCamera
+        if cam then return cam end
+    end
+    return workspace
+end
 function MV.CreateCarpet(y)
     local r = MV.Root()
     if not r then return end
@@ -6671,7 +6823,7 @@ function MV.CreateCarpet(y)
         Material = Enum.Material.Glass,
         Anchored = true, CanCollide = true, Friction = 1,
         Position = Vector3.new(r.Position.X, MV.carpetY, r.Position.Z),
-    }, workspace)
+    }, MV.CarpetHost())
     -- v4.12.1: VIỀN SÁNG quanh thảm. Thảm trong suốt rất khó thấy trên nền sáng/tối, nhất là
     -- khi nó nằm sát mặt đất. SelectionBox chỉ là đường viền (không che tầm nhìn) và là CON của
     -- thảm nên tự biến mất khi thảm bị Destroy — không bao giờ rớt lại trong workspace.
@@ -6684,7 +6836,13 @@ function MV.CreateCarpet(y)
     end)
     RunService:BindToRenderStep("Carpet", Enum.RenderPriority.Camera.Value - 1, function()
         local curR, cp = MV.Root(), MV._carpet
-        if not MV.carpet or not cp or not cp.Parent or not curR then return end
+        if not MV.carpet or not curR then return end
+        if not cp or not cp.Parent then                     -- v4.12.2: bị xoá -> trải lại ngay
+            MV._carpetRetries = (MV._carpetRetries or 0) + 1
+            pcall(function() MV.CreateCarpet(MV.carpetY) end)
+            cp = MV._carpet
+            if not cp or not cp.Parent then return end
+        end
         if cp.Size.X ~= MV.carpetW or cp.Size.Y ~= MV.carpetH or cp.Size.Z ~= MV.carpetL then
             cp.Size = Vector3.new(MV.carpetW, MV.carpetH, MV.carpetL)
         end
@@ -6712,10 +6870,12 @@ function MV.SetCarpet(on)
     if on and MV.fly then MV.SetFly(false) end      -- bay và thảm không đi cùng (như bản gốc)
     MV.carpet = on
     if on then
+        MV._carpetRetries = 0
         MV.CreateCarpet(on and MV.FootY() or nil)
     else
         MV._StopCarpet()
     end
+    MV._Watchdog()
     MV.SyncHud()
     return MV.carpet
 end
@@ -6797,6 +6957,9 @@ end
 -- Bật 1 lần = trải thảm kính dưới chân + tăng tốc chạy + hiện cụm nút ⬆🪩⬇✕ trên màn hình
 -- + ẩn menu để nhìn game. Thảm CanCollide = true nên người CHẠY ĐƯỢC TRÊN MẶT THẢM; ⬆⬇
 -- đưa cả thảm (và người đang đứng trên đó) lên/xuống.
+-- v4.12.2: CHẠY + NHẢY THOẢI MÁI — vòng lặp thảm chỉ can thiệp khi bạn đứng yên hoặc đang RƠI,
+-- nên nhảy lên bao nhiêu cũng được, rơi xuống lại được thảm đỡ (không dính, không rơi xuyên).
+-- Tốc độ = TỐC ĐỘ CỦA GAME × speedMul (mặc định ×3; đổi ở ô 👟 Chạy trong khung ⚙).
 function MV.SetRunMode(on)
     on = (on == true)
     local r = MV.Root()
@@ -6812,8 +6975,9 @@ function MV.SetRunMode(on)
                 if togBtn then togBtn.Text = "🍌" end
             end)
         end
-        MV.SetSpeed(true)                            -- 👟 tăng tốc chạy
+        MV.SetSpeed(true)                            -- 👟 tăng tốc (THEO tốc độ game × speedMul)
         if not MV.carpet then MV.SetCarpet(true) end  -- 🪩 thảm dưới chân
+        MV._JumpGuard()                              -- 🦘 game cấm nhảy thì mở lại để NHẢY TRÊN THẢM
     else
         MV.SetCarpet(false)
         MV.SetSpeed(false)
@@ -6871,7 +7035,13 @@ function MV.Status()
     if MV.fly then t[#t + 1] = string.format("🚀 bay %d", MV.flySpeed) end
     if MV.noclip then t[#t + 1] = "🧱 xuyên tường" end
     if MV.infJump then t[#t + 1] = "🦘 nhảy vô hạn" end
-    if MV.speed then t[#t + 1] = string.format("👟 chạy %d", MV.walkSpeed) end
+    if MV.speed then
+        if MV.speedMode == "x" then
+            t[#t + 1] = string.format("👟 chạy ×%g (game %g)", MV.speedMul, MV._baseWS or 16)
+        else
+            t[#t + 1] = string.format("👟 chạy %g", MV.walkSpeed)
+        end
+    end
     if MV.carpet then
         t[#t + 1] = string.format("🪩 thảm %g×%g×%g", MV.carpetW, MV.carpetH, MV.carpetL)
     end
@@ -7014,11 +7184,11 @@ S.ScriptHubList = {
     {icon="🧱", name="Xuyên Tường", cat="Di chuyển", ord=13, action="noclip",
      desc="Đi xuyên mọi vật cản. Tắt đi trả lại ĐÚNG CanCollide gốc của từng part (không gán cứng như bản cũ)."},
     {icon="🦘", name="Nhảy Vô Hạn", cat="Di chuyển", ord=14, action="infjump",
-     desc="Nhảy mãi không chạm đất, bấm Space bao nhiêu lần cũng được."},
+     desc="Nhảy mãi không chạm đất. Tự thử 3 cách nhảy (ChangeState · lệnh Jump · đẩy vận tốc) nên cả game cấm nhảy, để JumpPower=0 hay ăn mất phím Space vẫn nhảy được."},
     {icon="🏃", name="Chạy Trên Thảm", cat="Di chuyển", ord=15, action="runmode",
-     desc="Chế độ CHẠY BỘ kiểu aiaiaitao3: trải thảm kính dưới chân để chạy lên + tăng tốc + hiện nút ⬆🪩⬇✕ NỔI TRÊN MÀN HÌNH (⬆⬇ đưa cả thảm và bạn lên/xuống)."},
+     desc="Chế độ CHẠY BỘ kiểu aiaiaitao3: thảm kính dưới chân để CHẠY + NHẢY THOẢI MÁI (không rơi xuyên, không dính chặt) + tăng tốc THEO TỐC ĐỘ GAME (×3) + nút ⬆🪩⬇✕ NỔI TRÊN MÀN HÌNH."},
     {icon="🪩", name="Thảm Kính", cat="Di chuyển", ord=16, action="carpet",
-     desc="Trải thảm kính dưới chân để đứng/lên xuống (⬆⬇). Chỉnh RỘNG × CAO × DÀI ở khung ⚙ phía trên."},
+     desc="Trải thảm kính dưới chân để đứng/lên xuống (⬆⬇), không rơi xuyên dù KHÔNG bật Xuyên Tường. Chỉnh RỘNG × CAO × DÀI + khoảng cách tới chân ở khung ⚙."},
 }
 S.hubFavs   = S.hubFavs or {}
 S.hubCat    = "Tất cả"
@@ -7097,14 +7267,17 @@ function S.RunHubAction(id)
     elseif id == "infjump" then
         pcall(function() S.Move.SetInfJump(not S.Move.infJump) end)
         pcall(function() if S.RebuildHubList then S.RebuildHubList() end end)
-        return S.Move.infJump and "🦘 Nhảy vô hạn: BẬT (bấm Space bao nhiêu cũng được)"
-                               or "🦘 Nhảy vô hạn: TẮT"
+        return S.Move.infJump and "🦘 Nhảy vô hạn: BẬT (Space/🐸 A — nhảy được cả game cấm nhảy/không bốc JumpRequest)"
+                               or "🦘 Nhảy vô hạn: TẮT (JumpPower/JumpHeight đã trả lại game)"
     elseif id == "speed" then
         pcall(function() S.Move.SetSpeed(not S.Move.speed) end)
         pcall(function() if S.RebuildHubList then S.RebuildHubList() end end)
-        return S.Move.speed and ("👟 Chạy độ: BẬT — WalkSpeed " .. tostring(S.Move.walkSpeed)
+        return S.Move.speed and ("👟 Chạy độ: BẬT — " .. (S.Move.speedMode == "x"
+                                     and ("theo game ×" .. tostring(S.Move.speedMul)
+                                          .. " = " .. tostring(S.Move.WantSpeed()))
+                                     or  ("cố định " .. tostring(S.Move.walkSpeed)))
                                  .. " · JumpPower " .. tostring(S.Move.jumpPower))
-                            or ("👟 Chạy độ: TẮT — về mặc định (" .. tostring(S.Move._baseWS) .. ")")
+                            or ("👟 Chạy độ: TẮT — về tốc độ game (" .. tostring(S.Move._baseWS) .. ")")
     elseif id == "carpet" then
         if not S.Move.Root() then return "⚠️ chưa có nhân vật để trải thảm (đợi vào game xong hãy bấm)" end
         pcall(function() S.Move.SetCarpet(not S.Move.carpet) end)
@@ -7120,7 +7293,8 @@ function S.RunHubAction(id)
         return S.Move.runMode
             and ("🏃 CHẠY TRÊN THẢM: BẬT — thảm " .. string.format("%g×%g×%g",
                     S.Move.carpetW, S.Move.carpetH, S.Move.carpetL)
-                 .. " dưới chân · chạy " .. tostring(S.Move.walkSpeed)
+                 .. " dưới chân · chạy " .. tostring(S.Move.WantSpeed())
+                 .. (S.Move.speedMode == "x" and (" (game ×" .. tostring(S.Move.speedMul) .. ")") or "")
                  .. " · dùng nút ⬆⬇ nổi GÓC PHẢI màn hình để lên/xuống, ✕ để tắt")
             or "🏃 CHẠY TRÊN THẢM: TẮT (thảm đã dọn, tốc độ về mặc định)"
     elseif id == "movestop" then
@@ -7453,7 +7627,7 @@ end
 -- (không phải "HubCard_...") nên S.RebuildHubList() không bao giờ xoá nó khi lọc/tìm kiếm.
 -- Tất cả biến nằm trong `do ... end` để không chiếm slot local của main chunk.
 do
-    local PH = 104
+    local PH = 128
     local P = New("Frame", {
         Name = "HubMove_Panel",
         Size = UDim2.new(1, 0, 0, PH),
@@ -7516,7 +7690,9 @@ do
     lab("🚀 Bay", 8, 22, 52)
     local flyIn = box(62, 22, 44, S.Move.flySpeed)
     lab("👟 Chạy", 114, 22, 50)
-    local wsIn = box(166, 22, 40, S.Move.walkSpeed)
+    -- v4.12.2: ô này nhận 2 kiểu: "x3" = TỐC ĐỘ GAME ×3 (mặc định) · "50" = cố định 50
+    local wsIn = box(166, 22, 40, (S.Move.speedMode == "x") and ("x" .. tostring(S.Move.speedMul))
+                                                             or tostring(S.Move.walkSpeed))
     lab("🦘 Nhảy", 214, 22, 46)
     local jpIn = box(262, 22, 40, S.Move.jumpPower)
     local ap1 = act("✔", 308, 22, 28, C.GREEN)
@@ -7538,6 +7714,18 @@ do
     lab("↕ cách chân", 314, 48, 60)
     local ap2 = act("✔", 374, 48, 28, C.GREEN)
 
+    -- v4.12.2: dòng ghi chú nhỏ (đọc một lần là hiểu hết 3 tính năng mới sửa)
+    New("TextLabel", {
+        Size = UDim2.new(1, -16, 0, 34), Position = UDim2.new(0, 8, 0, 92),
+        Text = "💡 👟 Chạy: gõ x3 = TỐC ĐỘ GAME ×3 (mặc định — game nhanh thì nhanh theo, game chậm thì chậm theo); "
+             .. "gõ 50 = cố định 50. 🦘 Nhảy tự thử 3 cách nên game cấm nhảy/ăn phím Space vẫn nhảy được. "
+             .. "🪩 Thảm có viền sáng, nằm ngay dưới chân, bị game xoá sẽ tự trải lại.",
+        TextWrapped = true, BackgroundTransparency = 1, TextColor3 = C.MUTED,
+        Font = Enum.Font.GothamMedium, TextSize = 8,
+        TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top,
+        ZIndex = 7,
+    }, P)
+
     -- Hàng 3: nâng/hạ (thảm hoặc bay) + tắt hết + nhãn trạng thái
     local upBtn  = act("⬆ Nâng", 8, 74, 62, C.BLUE)
     local dnBtn  = act("⬇ Hạ", 76, 74, 56, C.BLUE)
@@ -7553,13 +7741,27 @@ do
         ReleaseHubFocus()
         local f = tonumber(flyIn.Text); local w = tonumber(wsIn.Text); local j = tonumber(jpIn.Text)
         if f then S.Move.flySpeed = (f >= 1 and f <= 500) and f or S.Move.flySpeed end
-        if w then S.Move.walkSpeed = (w >= 1 and w <= 500) and w or S.Move.walkSpeed end
+        -- ô 👟 Chạy: "x3"/"×3" = NHÂN THEO GAME · số trơn = CỐ ĐỊNH
+        local wmul = tostring(wsIn.Text or ""):match("^[xX×]%s*([%d%.]+)")
+        if wmul then
+            S.Move.speedMode = "x"
+            S.Move.speedMul  = mvClamp(tonumber(wmul), 1, 20)
+        elseif w then
+            S.Move.speedMode = "num"
+            S.Move.walkSpeed = (w >= 1 and w <= 500) and w or S.Move.walkSpeed
+        end
         if j then S.Move.jumpPower = (j >= 0 and j <= 500) and j or S.Move.jumpPower end
         -- Text là THUỘC TÍNH CHUỖI: gán số -> Roblox văng lỗi 'string expected, got number'
-        flyIn.Text, wsIn.Text, jpIn.Text = tostring(S.Move.flySpeed), tostring(S.Move.walkSpeed), tostring(S.Move.jumpPower)
+        flyIn.Text = tostring(S.Move.flySpeed)
+        wsIn.Text  = (S.Move.speedMode == "x") and ("x" .. tostring(S.Move.speedMul)) or tostring(S.Move.walkSpeed)
+        jpIn.Text  = tostring(S.Move.jumpPower)
         pcall(function() if S.Move.speed then S.Move.ApplyChar() end end)
-        say(string.format("⚙ đã áp dụng: bay %d · chạy %d · nhảy %d",
-            S.Move.flySpeed, S.Move.walkSpeed, S.Move.jumpPower), true)
+        say(string.format("⚙ đã áp dụng: bay %d · chạy %s · nhảy %d%s",
+            S.Move.flySpeed,
+            (S.Move.speedMode == "x") and ("×" .. tostring(S.Move.speedMul) .. " (theo game)")
+                                       or tostring(S.Move.walkSpeed),
+            S.Move.jumpPower,
+            (S.Move.speedMode == "x" and S.Move.speed) and (" = " .. tostring(S.Move.WantSpeed())) or ""), true)
     end)
 
     ap2.Activated:Connect(function()
@@ -7601,7 +7803,7 @@ do
             cwIn.Text, chIn.Text, clIn.Text = tostring(S.Move.carpetW), tostring(S.Move.carpetH), tostring(S.Move.carpetL)
             gapIn.Text = tostring(S.Move.carpetGap)
             flyIn.Text = S.Move.flySpeed
-            wsIn.Text = S.Move.walkSpeed
+            wsIn.Text = (S.Move.speedMode == "x") and ("x" .. tostring(S.Move.speedMul)) or tostring(S.Move.walkSpeed)
             jpIn.Text = S.Move.jumpPower
         end)
     end
@@ -7999,4 +8201,4 @@ print(string.format(
 ))
 print("   💾 File lưu: " .. Store.SAVE_FILE .. " (trong thư mục workspace của executor — sống qua cả lần rejoin)")
 print("   Tính năng: Code + Code Đã Lưu + Script Hub + Hỗ Trợ (POS+SIZE+ROT+LOOK+VẬT THỂ+HIGHLIGHT TÍM) + Thiết Lập + Tạo Tính Năng")
-print("   🆕 v4.12: Script Hub có BỘ DI CHUYỂN — 🚀 Bay · 🧱 Xuyên Tường · 🦘 Nhảy Vô Hạn · 🏃 Chạy Trên Thảm · 🪩 Thảm Kính (chỉnh Rộng×Cao×Dài ở khung ⚙ đầu danh sách)")
+print("   🆕 v4.12.2: Di chuyển — 🦘 nhảy được ở MỌI game (3 cách nhảy) · 🏃 chạy trên thảm NHẢY THOẢI MÁI · 👟 tốc độ THEO GAME ×3 (gõ x4 hay 50 ở ô 👟 Chạy) · 🪩 thảm tự trải lại khi bị game xoá")

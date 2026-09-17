@@ -7,7 +7,7 @@ Ngày phân tích: 2026-09-17 · Branch: `arena/01a0af79-aiaiaitao3` · Commit g
 ## 0. Cập nhật v4.12 (đã thực hiện theo yêu cầu)
 
 Port **5 tính năng di chuyển** từ `aiaiaitao3` vào trang 📚 Script Hub của `script.js`, kèm bộ test
-tự động chạy thật trong máy ảo. Kết quả: **`node tests/run.js` → 51 PASS · 0 FAIL**.
+tự động chạy thật trong máy ảo. Kết quả: **`node tests/run.js` → 59 PASS · 0 FAIL**.
 
 **Đã thêm (toàn bộ là tiện ích nội bộ, không tải gì từ mạng):**
 
@@ -23,6 +23,14 @@ Kèm **cụm nút nổi trên màn hình game** (⬆ nâng · 🪩 bật/tắt t
 khi lọc/tìm kiếm): tốc độ bay · chạy · nhảy · 3 chiều thảm · ⬆/⬇ · 🛑 Tắt hết + nhãn trạng thái.
 Tất cả state gom trong `S.Move` (không tốn slot local cấp chunk), mọi connection qua `trackConn()`,
 tự bật lại sau respawn qua `CharacterAdded`.
+
+**v4.12.2 — cho nhảy + chạy chạy ở MỌI GAME, tốc độ theo game:**
+1. 🦘 **Nhảy vô hạn** hay bị liệt vì chỉ nghe `JumpRequest` rồi `ChangeState`. Nay nhảy bằng 3
+   cách (ChangeState · lệnh `Jump` kiểu cũ · đẩy vận tốc — chỉ khi 0.08s sau vẫn không nhúc nhích)
+   + nghe thêm phím Space/A qua `InputBegan` + ép `JumpPower`/`JumpHeight` nếu game để 0.
+2. 🏃 **Chạy trên thảm**: chạy + nhảy thoải mái (thảm chỉ giữ khi đứng yên/đang rơi).
+3. 👟 **Tốc độ theo game**: chạy = tốc độ game × 3 (gõ `x4` hay `50` ở ô 👟 Chạy trong khung ⚙).
+4. Vòng canh gác 0.3s: game xoá thảm / đổi WalkSpeed / đổi JumpPower → tự dựng lại, theo số mới.
 
 **Sửa thảm kính (v4.12.1)** — 3 lỗi làm thảm "vô dụng":
 1. Bản gốc CHỈ giữ người trên mặt thảm khi bật Xuyên Tường → bật thảm một mình là rơi xuyên
