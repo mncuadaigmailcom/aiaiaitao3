@@ -455,6 +455,10 @@ function game:GetService(name)
 end
 function game:HttpGet(url)
     MOCK_HTTP_LOG[#MOCK_HTTP_LOG + 1] = {Url = url, Method = "GET", _via = "game:HttpGet"}
+    -- MOCK_YIELD_HTTP = true: giả lập HttpGet CHẶN thật (ở Roblox nó yield luồng hiện tại).
+    -- Cần có để phân biệt được một handler nút gọi ĐỒNG BỘ hay đã được đẩy sang luồng riêng:
+    -- nếu còn đồng bộ thì luồng gọi sẽ yield ngay bên trong đây và chưa kịp trả về.
+    if MOCK_YIELD_HTTP and coroutine.isyieldable() then coroutine.yield("http", url) end
     if MOCK_HTTPGET_HANDLER then return MOCK_HTTPGET_HANDLER(url) end
     return ""
 end

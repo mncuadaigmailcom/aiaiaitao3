@@ -8,7 +8,19 @@
 // chuoi/ghi chu nao trong file chua "+=" nen phep thay nay an toan.
 const fs = require('fs');
 const path = require('path');
-const { LuaFactory } = require(process.env.LUAVM || '/home/user/.cache/luavm/node_modules/wasmoon');
+// wasmoon = Lua 5.4 bien dich sang WASM. Cai bang:  npm install wasmoon
+// (mac dinh tim o ~/luavm/node_modules; doi cho khac thi dat bien moi truong LUAVM)
+const WASMOON = process.env.LUAVM
+    || require('path').join(require('os').homedir(), 'luavm/node_modules/wasmoon');
+let LuaFactory;
+try {
+    LuaFactory = require(WASMOON).LuaFactory;
+} catch (e) {
+    console.log('\n❌ Khong tim thay wasmoon tai: ' + WASMOON);
+    console.log('   Cai truoc khi chay test:   mkdir -p ~/luavm && cd ~/luavm && npm install wasmoon');
+    console.log('   (hoac tro den cho khac:   LUAVM=/duong/dan/wasmoon node tests/run.js)');
+    process.exit(4);
+}
 
 const ROOT = path.resolve(__dirname, '..');
 const SCRIPT = path.join(ROOT, 'script.js');
@@ -41,6 +53,7 @@ function desugar(src) {
 
     // 2) desugar + nap script that
     const raw = fs.readFileSync(SCRIPT, 'utf8');
+    let pass_count = 0, fail_count = 0;
     const { code: desugared, count } = desugar(raw);
     // Test-only: noi cac bien local cua main chunk ra _G.__T de test cham toi duoc.
     // FILE script.js KHONG bi sua — doan nay chi duoc noi vao ban nap trong bo nho test.
@@ -97,12 +110,64 @@ _G.__T = {
         process.exit(stats.errors > 0 ? 3 : 0);
     }
 
+    // 2b) GUARD TINH: chan nhung thoi quen xau quay lai. Cac guard nay doc truc tiep
+    //     script.js nen bat duoc loi ma test runtime khong thay (vd ai do chep lai vong lap).
+    const GUARDS = [
+        {
+            name: 'khong con vong lap do ten trung O(n^2) chep tay (phai dung S.UniqueName)',
+            test: () => {
+                const lines = raw.split(/\r?\n/);
+                let bad = [];
+                for (let i = 0; i < lines.length; i++) {
+                    if (lines[i].trim() !== 'while true do') continue;
+                    const ind = lines[i].length - lines[i].trimStart().length;
+                    for (let j = i + 1; j < Math.min(i + 14, lines.length); j++) {
+                        if (lines[j].trim() === 'end' && (lines[j].length - lines[j].trimStart().length) === ind) {
+                            const body = lines.slice(i, j + 1).join('\n');
+                            if (body.includes('ipairs(scripts)') && /\.name\s*==/.test(body)) bad.push(j + 1);
+                            break;
+                        }
+                    }
+                }
+                if (bad.length) throw new Error('con ' + bad.length + ' khoi dedup chep tay tai dong ' + bad.join(', '));
+            },
+        },
+        {
+            name: 'S.UniqueName duoc dung o ca 5 cho luu ten (khong ai quay lai viet tay)',
+            test: () => {
+                const n = (raw.match(/S\.UniqueName\s*\(/g) || []).length;
+                if (n < 6) throw new Error('chi thay ' + n + ' lan goi S.UniqueName (mong >= 6: 1 dinh nghia + 5 cho goi)');
+            },
+        },
+        {
+            name: 'S.WRAP_MARK_NEW (hang so chet) khong quay lai',
+            test: () => {
+                if (/S\.WRAP_MARK_NEW\s*=/.test(raw)) throw new Error('S.WRAP_MARK_NEW lai duoc khai bao');
+            },
+        },
+        {
+            name: 'S.CompatDrawing khong dung bien cuc bo ten `D` (che khuat bang thiet ke)',
+            test: () => {
+                const i = raw.indexOf('function S.CompatDrawing()');
+                if (i < 0) throw new Error('khong tim thay S.CompatDrawing');
+                const body = raw.slice(i, i + 1200);
+                if (/local\s+D\s*=/.test(body)) throw new Error('van con `local D = ...` trong S.CompatDrawing');
+            },
+        },
+    ];
+    console.log('\n── guard tĩnh ──');
+    let guardFail = 0;
+    for (const g of GUARDS) {
+        try { g.test(); pass_count++; console.log('   ✅ ' + g.name); }
+        catch (e) { guardFail++; fail_count++; console.log('   ❌ ' + g.name + '\n      ↳ ' + e.message); }
+    }
+
     // 3) chay cac file test
     const testFiles = fs.readdirSync(__dirname)
         .filter(f => /^test-.*\.lua$/.test(f))
         .sort();
 
-    let pass = 0, fail = 0;
+    let pass = pass_count, fail = fail_count;
     const failures = [];
     for (const f of testFiles) {
         const src = fs.readFileSync(path.join(__dirname, f), 'utf8');

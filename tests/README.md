@@ -5,11 +5,15 @@ không hề có test nào** — con số đó không kiểm chứng lại đư�
 **nạp và chạy chính `script.js`**, không phải một bản chép lại logic.
 
 ```bash
-node tests/run.js              # chạy toàn bộ 84 test
+node tests/run.js              # chạy toàn bộ 100 test
 node tests/run.js --boot-only  # chỉ nạp script, báo lỗi khởi động
+LUAVM=/duong/dan/wasmoon node tests/run.js   # nếu cài wasmoon ở chỗ khác
 ```
 
-Kết quả hiện tại: **84 PASS · 0 FAIL** · script khởi động sạch (689 instance, 0 lỗi runtime).
+> Cần cài máy ảo Lua **một lần** (thư mục `node_modules` không nằm trong repo):
+> `mkdir -p ~/luavm && cd ~/luavm && npm install wasmoon`
+
+Kết quả hiện tại: **100 PASS · 0 FAIL** · script khởi động sạch (689 instance, 0 lỗi runtime).
 
 ## Cách nó chạy được script Roblox trên máy thường
 
@@ -40,6 +44,29 @@ Hai điểm kỹ thuật đáng chú ý:
 | `test-06-contrast.lua` | Tương phản chữ/nền theo **WCAG thật** (sRGB tuyến tính hoá) + chống hồi quy so với bảng màu v4.8. |
 | `test-07-savenames.lua` | Nút 💾 Lưu: trùng tên tự đánh số, không ghi đè, không lưu script rỗng, ghi xuống đĩa. |
 | `test-08-settings.lua` | Trang ⚙️ Thiết Lập: nói thật về lưu trữ, xuất/nhập JSON, xoá sạch có xác nhận 2 bước. |
+| `test-09-optimize.lua` | Tối ưu v4.12: `S.UniqueName`, biến che trong `S.CompatDrawing`, HopServer không còn chặn UI thread. |
+
+## Guard tĩnh (trong `run.js`)
+
+Bốn kiểm tra đọc thẳng `script.js` để chặn thói quen xấu quay lại — thứ test runtime không
+thấy được (ví dụ ai đó chép lại vòng lặp dò tên trùng):
+
+1. Không còn vòng lặp `while true do … ipairs(scripts) …` dò tên trùng viết tay.
+2. `S.UniqueName` được gọi ở đủ 5 chỗ lưu tên.
+3. Hằng số chết `S.WRAP_MARK_NEW` không quay lại.
+4. `S.CompatDrawing` không dùng biến cục bộ tên `D` (che khuất bảng thiết kế).
+
+Các guard này **đã được kiểm chứng là bắt được lỗi**: cố tình chép lại vòng lặp và đổi
+`local Draw` về `local D` thì 3/4 guard báo đỏ, khôi phục thì xanh lại.
+
+## Tối ưu ở v4.12 (không thêm/bớt tính năng)
+
+| Vấn đề | Trước | Sau |
+|---|---|---|
+| Dò tên trùng khi lưu | 5 chỗ **chép tay** cùng một vòng lặp lồng nhau, mỗi lần lưu duyệt lại toàn bộ danh sách → O(n²), quy ước đánh số nhân bản 5 lần | 1 hàm `S.UniqueName()` dùng bảng tra → O(n) một lần, quy ước chỉ còn ở **một** nơi |
+| Bấm 🔀 Hop Server | Gọi thẳng trong handler nút; `S.HopServer` lật tối đa 3 trang, **mỗi trang một HttpGet chặn** → UI đơ vài giây, người dùng tưởng hub chết | Đẩy sang luồng riêng (kiểu nhánh `reload`), trả về ngay; `S.HopServer` **vẫn** đồng bộ + trả chuỗi nên chỗ gọi khác không đổi |
+| `S.CompatDrawing()` | `local D = {}` **trùng tên** bảng `D` của hệ thiết kế → bên trong hàm không gọi được `D.Shade`/`D.BestText`… | Đổi thành `local Draw` |
+| `S.WRAP_MARK_NEW` | Khai báo nhưng không nơi nào đọc (dễ tưởng là đang dùng) | Đã bỏ, có ghi chú tại chỗ |
 
 ## 3 lỗi mà bộ test này đã bắt được (đã sửa ở v4.11)
 

@@ -1,6 +1,25 @@
 --[[
-    🍌 Banana Cat Hub v4.11 — FULL CODE  ·  giao diện "OBSIDIAN NOIR" + layout kiểu DELTA
-    + v4.11 (bản này): CHẠY TEST THẬT + SỬA 3 LỖI + THÊM TRANG ⚙️ THIẾT LẬP.
+    🍌 Banana Cat Hub v4.12 — FULL CODE  ·  giao diện "OBSIDIAN NOIR" + layout kiểu DELTA
+    + v4.12 (bản này): TỐI ƯU CODE — không thêm/bớt tính năng, chỉ làm gọn và hết đơ.
+        • GỘP 5 VÒNG LẶP TRÙNG NHAU về một hàm S.UniqueName(). Trước đây 5 chỗ (nút 💾 Lưu
+          ở tab Code, chép tính năng sang tab Code, lưu bản AutoSize, lưu tab tính năng
+          "Mẫu …", nút 💾 trên thẻ Script Hub) MỖI CHỖ tự viết một vòng lặp lồng nhau:
+          mỗi lần lưu lại duyệt toàn bộ danh sách, trùng thì tăng số rồi duyệt LẠI từ đầu
+          -> O(n^2). Nay dùng bảng tra nên chỉ O(n) một lần, và quy ước đánh số " (2)",
+          " (3)"… chỉ còn định nghĩa ở ĐÚNG MỘT nơi (trước là 5 bản chép tay, dễ sửa lệch).
+        • HẾT ĐƠ MENU khi bấm 🔀 Hop Server. S.HopServer lật tối đa 3 trang danh sách server,
+          MỖI TRANG là một HttpGet CHẶN; gọi thẳng trong handler nút làm UI cứng vài giây
+          khiến người dùng tưởng hub chết rồi bấm liên tục. Nay đẩy sang luồng riêng (đúng
+          kiểu nhánh "reload"), trả về ngay "🔀 đang tìm server còn chỗ trống…". Bản thân
+          S.HopServer VẪN đồng bộ + trả chuỗi nên chỗ gọi khác và test không đổi.
+        • BỎ CÁI BẪY BIẾN CHE: S.CompatDrawing() khai báo `local D = {}` TRÙNG TÊN với bảng
+          D của toàn bộ hệ thiết kế (D.Shade/D.BestText/D.Edge/D.Paint3…). Bên trong hàm đó
+          `D` bị che nên không gọi được helper thiết kế nào. Đổi thành `local Draw`.
+        • BỎ HẰNG SỐ CHẾT S.WRAP_MARK_NEW (khai báo nhưng không nơi nào đọc — dễ gây hiểu
+          lầm là đang được dùng để nhận diện wrapper đời mới).
+        • Test tăng 84 -> 100 (thêm tests/test-09-optimize.lua + 4 guard tĩnh trong
+          tests/run.js để vòng lặp chép tay không quay lại). KHÔNG MẤT TÍNH NĂNG NÀO.
+    + v4.11: CHẠY TEST THẬT + SỬA 3 LỖI + THÊM TRANG ⚙️ THIẾT LẬP.
         • BỘ TEST THẬT (thư mục tests/): lần đầu hub được NẠP VÀ CHẠY trong máy ảo Lua 5.4
           (wasmoon) trên môi trường Roblox/executor giả lập (tests/roblox-mock.lua). Kết quả:
           84 test — 84 PASS. Chạy bằng: node tests/run.js
@@ -922,7 +941,7 @@ D.verPill = New("Frame", {
 Corner(D.verPill, UDim.new(1,0))
 Stroke(D.verPill, C.ACCENT2, 1)   -- v4.9: huy hiệu đen + viền đồng, chữ champagne
 New("TextLabel", {
-    Size=UDim2.new(1,0,1,0), Text="v4.11 · NOIR", BackgroundTransparency=1,
+    Size=UDim2.new(1,0,1,0), Text="v4.12 · NOIR", BackgroundTransparency=1,
     TextColor3=C.ACCENT3, Font=Enum.Font.GothamBold, TextSize=8, ZIndex=6,
 }, D.verPill)
 
@@ -1363,7 +1382,9 @@ local S = {
 -- -> đè layout của game. Chỉ cần cắt đúng lời gọi đó là cả khối trở thành no-op hợp lệ,
 -- code còn lại của người dùng không bị đụng tới.
 S.WRAP_MARK_OLD = "-- ===== AUTO-GENERATED SIZE WRAPPER"
-S.WRAP_MARK_NEW = "-- ===== AUTO-GENERATED FIT WRAPPER"
+-- v4.12: đã bỏ S.WRAP_MARK_NEW — nó được khai báo nhưng KHÔNG nơi nào đọc (marker của
+-- wrapper đời mới nằm ngay trong chuỗi [[ ]] ở hàm tạo wrappedCode). Giữ một hằng số chết
+-- dễ gây hiểu lầm là "đang được dùng để nhận diện".
 function S.SanitizeCode(c)
     if type(c) ~= "string" then return c end
     if not c:find(S.WRAP_MARK_OLD, 1, true) then return c end
@@ -1420,6 +1441,23 @@ local featureTabIndex = 7   -- 1=Code Đã Lưu 2=Code 3=Script Hub 4=Hỗ Trợ
 local totalRuns, cancelled = 0, false
 local curThread, curIndicator = nil, nil
 local runActive = false       -- cờ trạng thái chạy (không dựa vào curThread nữa)
+
+-- v4.12 TỐI ƯU: lấy một tên chưa trùng trong danh sách (mặc định là `scripts`).
+-- Trước đây 5 chỗ khác nhau TỰ VIẾT cùng một vòng lặp lồng nhau: mỗi lần lưu lại duyệt
+-- toàn bộ danh sách, trùng thì tăng số rồi duyệt LẠI từ đầu -> O(n^2), và quy ước đánh số
+-- bị chép ra 5 bản nên rất dễ sửa lệch nhau. Nay gom về một hàm dùng bảng tra (O(n) một
+-- lần) và quy ước chỉ còn định nghĩa ở ĐÚNG MỘT nơi.
+-- Quy ước GIỮ NGUYÊN như cũ: trùng thì thêm " (2)", " (3)", ...
+function S.UniqueName(base, list)
+    list = list or scripts
+    base = tostring(base or "")
+    local taken = {}
+    for _, it in ipairs(list) do taken[tostring(it.name)] = true end
+    if not taken[base] then return base end
+    local k = 2
+    while taken[base .. " (" .. k .. ")"] do k = k + 1 end
+    return base .. " (" .. k .. ")"
+end
 
 -- ==================== LƯU TRỮ DỮ LIỆU (SCRIPT ĐÃ LƯU + WAYPOINT) ====================
 -- v4.3 chỉ ghi API key xuống đĩa, còn scripts/waypoints chỉ nằm trong RAM -> thoát game là mất sạch.
@@ -1751,9 +1789,12 @@ end
 
 -- Drawing: đủ để script ESP không chết (không vẽ thật được, nhưng menu vẫn hiện)
 function S.CompatDrawing()
-    local D = {}
-    D.Fonts = {UI = 0, System = 0, Plex = 1, Monospace = 2}
-    D.new = function(cls)
+    -- v4.12: đổi tên biến cục bộ từ `D` -> `Draw`. Trước đây nó TRÙNG TÊN với bảng `D`
+    -- của toàn bộ hệ thiết kế (D.Shade / D.BestText / D.Edge / D.Paint3...). Bên trong hàm
+    -- này `D` bị che nên không gọi được helper thiết kế nào — một cái bẫy rất khó nhìn thấy.
+    local Draw = {}
+    Draw.Fonts = {UI = 0, System = 0, Plex = 1, Monospace = 2}
+    Draw.new = function(cls)
         local o = {__class = tostring(cls or ""), Visible = false, ZIndex = 1, Transparency = 1}
         return setmetatable(o, {
             __index = function(t, k)
@@ -1765,7 +1806,7 @@ function S.CompatDrawing()
             __newindex = function(t, k, v) rawset(t, k, v) end,
         })
     end
-    return D
+    return Draw
 end
 
 function S.EnsureCompat()
@@ -2223,14 +2264,7 @@ saveBtn.Activated:Connect(function()
     local c=codeIn.Text
     if #c==0 then statusLbl.Text="⚠️ Vui lòng nhập code!"; return end
     if #n==0 then n="Script "..(#scripts+1) end
-    local bn=n
-    local cnt=1
-    while true do
-        local ex=false
-        for _,s in ipairs(scripts) do if s.name==n then ex=true; break end end
-        if not ex then break end
-        cnt+=1; n=bn.." ("..cnt..")"
-    end
+    n = S.UniqueName(n)   -- v4.12: gộp về một hàm (trước là vòng lặp O(n^2) chép tay)
     table.insert(scripts,{name=n, code=c, expanded=false})
     if RebuildScripts then RebuildScripts() end
     Store.saveSoon()
@@ -5693,17 +5727,7 @@ local function CreateFeatureTab(name, icon, codeContent)
             return
         end
         local n = name
-        local bn = n
-        local cnt = 1
-        while true do
-            local ex = false
-            for _, s in ipairs(scripts) do
-                if s.name == n then ex = true; break end
-            end
-            if not ex then break end
-            cnt += 1
-            n = bn.." ("..cnt..")"
-        end
+        n = S.UniqueName(n)   -- v4.12
         -- Nut nay CHEP MOT BAN cua code sang tab "Code Đã Lưu" cho tiện quản lý.
         -- Nó KHÔNG phải cách lưu tính năng: tab tính năng đã được tự động lưu riêng
         -- (xem Store.saveSoon() ở createTabBtn / applyEditBtn / delBtn).
@@ -6026,17 +6050,7 @@ end)
 ]]
 
     local saveName = "AutoSize_"..os.date("%H%M%S")
-    local bn = saveName
-    local cnt = 1
-    while true do
-        local ex = false
-        for _, s in ipairs(scripts) do
-            if s.name == saveName then ex = true; break end
-        end
-        if not ex then break end
-        cnt += 1
-        saveName = bn.." ("..cnt..")"
-    end
+    saveName = S.UniqueName(saveName)   -- v4.12
 
     table.insert(scripts, {name = saveName, code = wrappedCode, expanded = false})
     if RebuildScripts then RebuildScripts() end
@@ -6133,17 +6147,7 @@ copyTemplateBtn.Activated:Connect(function()
     end
     -- lưu 1 bản vào "Code Đã Lưu" để thoát game vào lại vẫn còn
     local saveName = "Mẫu " .. nm
-    local baseName = saveName
-    local cnt = 1
-    while true do
-        local exists = false
-        for _, sc in ipairs(scripts) do
-            if sc.name == saveName then exists = true break end
-        end
-        if not exists then break end
-        cnt = cnt + 1
-        saveName = baseName .. " (" .. cnt .. ")"
-    end
+    saveName = S.UniqueName(saveName)   -- v4.12
     table.insert(scripts, {name = saveName, code = code, expanded = false})
     if RebuildScripts then RebuildScripts() end
     Store.saveSoon()
@@ -6516,13 +6520,25 @@ function S.RunHubAction(id)
         if not okRs then return "⚠️ Reset server thất bại: " .. tostring(msg) end
         return tostring(msg)
     elseif id == "hopserver" then
-        local msg = "⚠️ chưa hop được"
-        local okHp = pcall(function() msg = S.HopServer() end)
-        if not okHp then
-            return "⚠️ Hop server thất bại: " .. tostring(msg)
-                .. " — vẫn dùng được ô 🎟 dán mã server bên dưới để vào thủ công"
-        end
-        return tostring(msg)
+        -- v4.12 TỐI ƯU: S.HopServer lật tối đa 3 trang danh sách server, MỖI TRANG là một
+        -- HttpGet CHẶN. Gọi thẳng trong handler nút -> UI đơ cứng vài giây, người dùng
+        -- tưởng hub chết nên bấm liên tục. Nay đẩy sang luồng riêng (đúng kiểu nhánh
+        -- "reload" ở trên). S.HopServer VẪN đồng bộ + trả chuỗi nên test và chỗ gọi khác
+        -- không đổi; chỉ chỗ gọi này là không chặn.
+        task.spawn(function()
+            local msg = "⚠️ chưa hop được"
+            local okHp = pcall(function() msg = S.HopServer() end)
+            local txt = okHp and tostring(msg)
+                or ("⚠️ Hop server thất bại: " .. tostring(msg)
+                    .. " — vẫn dùng được ô 🎟 dán mã server bên dưới để vào thủ công")
+            pcall(function()
+                if D.hubStatus then
+                    D.hubStatus.Text = txt
+                    D.hubStatus.TextColor3 = (okHp and not txt:find("⚠️", 1, true)) and C.GREEN or C.YELLOW
+                end
+            end)
+        end)
+        return "🔀 đang tìm server còn chỗ trống… (không đơ menu)"
     elseif id == "getjobid" then
         local jid = S.GetJobId()
         if not jid then return "⚠️ Không đọc được mã server (đang ở Studio / server đơn)" end
@@ -6799,15 +6815,7 @@ function S.RebuildHubList()
             end)
             local saveBtn = D.CardBtn(card, "💾", -56, 24, C.PURPLE)
             saveBtn.Activated:Connect(function()
-                local nm = it.name
-                local cnt = 1
-                while true do
-                    local ex = false
-                    for _, s in ipairs(scripts) do if s.name == nm then ex = true break end end
-                    if not ex then break end
-                    cnt += 1
-                    nm = it.name .. " (" .. cnt .. ")"
-                end
+                local nm = S.UniqueName(it.name)   -- v4.12
                 table.insert(scripts, {name = nm, code = it.code, expanded = false})
                 pcall(function() if RebuildScripts then RebuildScripts() end end)
                 pcall(function() Store.saveSoon() end)
@@ -7223,7 +7231,7 @@ main.Visible = true
 togBtn.Text = "✕"
 
 print(string.format(
-    "✅ Banana Cat Hub v4.11 — sẵn sàng! Đã nạp lại %d script + %d waypoint + %d tab tính năng từ bộ nhớ (chế độ: %s%s)",
+    "✅ Banana Cat Hub v4.12 — sẵn sàng! Đã nạp lại %d script + %d waypoint + %d tab tính năng từ bộ nhớ (chế độ: %s%s)",
     Store.loadedScripts, Store.loadedWp, #Store.loadedFeatures, Store.mode,
     Store.lastError and (" | ⚠️ " .. Store.lastError) or ""
 ))
