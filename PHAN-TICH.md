@@ -7,7 +7,7 @@ Ngày phân tích: 2026-09-17 · Branch: `arena/01a0af79-aiaiaitao3` · Commit g
 ## 0. Cập nhật v4.12 (đã thực hiện theo yêu cầu)
 
 Port **5 tính năng di chuyển** từ `aiaiaitao3` vào trang 📚 Script Hub của `script.js`, kèm bộ test
-tự động chạy thật trong máy ảo. Kết quả: **`node tests/run.js` → 44 PASS · 0 FAIL**.
+tự động chạy thật trong máy ảo. Kết quả: **`node tests/run.js` → 51 PASS · 0 FAIL**.
 
 **Đã thêm (toàn bộ là tiện ích nội bộ, không tải gì từ mạng):**
 
@@ -23,6 +23,13 @@ Kèm **cụm nút nổi trên màn hình game** (⬆ nâng · 🪩 bật/tắt t
 khi lọc/tìm kiếm): tốc độ bay · chạy · nhảy · 3 chiều thảm · ⬆/⬇ · 🛑 Tắt hết + nhãn trạng thái.
 Tất cả state gom trong `S.Move` (không tốn slot local cấp chunk), mọi connection qua `trackConn()`,
 tự bật lại sau respawn qua `CharacterAdded`.
+
+**Sửa thảm kính (v4.12.1)** — 3 lỗi làm thảm "vô dụng":
+1. Bản gốc CHỈ giữ người trên mặt thảm khi bật Xuyên Tường → bật thảm một mình là rơi xuyên
+   xuống đất. Nay luôn giữ trên mặt thảm, nhưng chỉ khi đứng yên/đang rơi nên **vẫn nhảy được**.
+2. Thảm mặc định chìm 3 studs dưới đất → nay nằm **ngay dưới chân** (cách 0.2), có ô
+   "cách chân" (0–10) trong khung ⚙ nếu muốn kiểu cũ.
+3. Thêm **viền sáng SelectionBox** quanh thảm (là con của thảm → tự dọn khi tắt, không rớt rác).
 
 **3 chỗ làm TỐT HƠN bản gốc ở `aiaiaitao3`:**
 

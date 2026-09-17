@@ -472,7 +472,7 @@ end
 
 test("D1 · ô nhập trong khung ⚙: đổi tốc độ bay / chạy / nhảy", function()
     local b = panelBoxes()
-    eq(#b, 6, "có đúng 6 ô nhập (bay, chạy, nhảy, rộng, cao, dài)")
+    eq(#b, 7, "có đúng 7 ô nhập (bay, chạy, nhảy, rộng, cao, dài, cách chân)")
     b[1].Text = "120"; b[2].Text = "88"; b[3].Text = "160"
     Mock.click(panelBtns()[1])                       -- nút ✔ hàng 1
     eq(S.Move.flySpeed, 120, "tốc độ bay")
@@ -513,9 +513,9 @@ test("D3 · ⬆ Nâng / ⬇ Hạ đổi độ cao thảm", function()
     local y0 = S.Move.carpetY
     truthy(y0, "có độ cao thảm")
     Mock.click(panelBtns()[3])                       -- ⬆
-    eq(S.Move.carpetY, y0 + 2.5, "nâng 2.5")
+    near(S.Move.carpetY, y0 + 2.5, 1e-6, "nâng 2.5")
     Mock.click(panelBtns()[4])                       -- ⬇
-    eq(S.Move.carpetY, y0, "hạ về chỗ cũ")
+    near(S.Move.carpetY, y0, 1e-6, "hạ về chỗ cũ")
     S.Move.StopAll(); Mock.advance(0.05)
 end)
 
@@ -646,9 +646,9 @@ test("E3 · nút ⬆/⬇ NỔI TRÊN MÀN HÌNH đưa thảm lên/xuống", func
     local y0 = S.Move.carpetY
     truthy(hudBtn("⬆"), "có nút ⬆"); truthy(hudBtn("⬇"), "có nút ⬇")
     Mock.click(hudBtn("⬆"))
-    eq(S.Move.carpetY, y0 + 2.5, "⬆ nâng 2.5")
+    near(S.Move.carpetY, y0 + 2.5, 1e-6, "⬆ nâng 2.5")
     Mock.click(hudBtn("⬇"))
-    eq(S.Move.carpetY, y0, "⬇ hạ về chỗ cũ")
+    near(S.Move.carpetY, y0, 1e-6, "⬇ hạ về chỗ cũ")
 end)
 
 test("E4 · HUD nằm trong GUI của hub (không bị nhúng vào tab 🧩)", function()
@@ -695,6 +695,125 @@ test("E7 · thảm cũng hiện HUD khi bật thẻ 🪩 Thảm Kính (không c�
     action("carpet")                       -- tắt
     Mock.advance(0.1)
     eq(hud().Visible, false, "tắt thảm là HUD ẩn")
+end)
+
+
+print("\n── F. THẢM KÍNH (sửa: hiện dưới chân, không rơi xuyên, có viền) ──")
+
+local function carpetPart() return H.workspace:FindFirstChild("Carpet") end
+local function carpetEdge()
+    local cp = carpetPart()
+    if not cp then return nil end
+    return cp:FindFirstChildOfClass("SelectionBox")
+end
+local function standingY()
+    return S.Move.carpetY + (S.Move.carpetH / 2) + 3.0
+end
+
+test("F1 · bật thảm: nằm NGAY DƯỚI CHÂN + có viền sáng (không chìm 3 studs)", function()
+    local ch = cleanStart()
+    S.Move.SetCarpetGap(0.2)
+    action("carpet")
+    Mock.advance(0.1)
+    local cp = carpetPart()
+    truthy(cp, "có thảm")
+    local feet = ch:FindFirstChild("HumanoidRootPart").Position.Y - 3.0
+    local top = cp.CFrame.Position.Y + cp.Size.Y / 2
+    truthy(feet - top <= 0.5, string.format("mặt thảm phải sát chân (chân %s, mặt thảm %s)", tostring(feet), tostring(top)))
+    truthy(carpetEdge(), "thảm có viền SelectionBox để dễ thấy")
+    eq(cp.Transparency <= 0.7, true, "thảm đủ rõ")
+end)
+
+test("F2 · ⭐ không rơi xuyên thảm kể cả khi KHÔNG bật xuyên tường", function()
+    local ch = cleanStart()
+    action("carpet")
+    Mock.advance(0.1)
+    local r = ch:FindFirstChild("HumanoidRootPart")
+    local top = S.Move.carpetY + (S.Move.carpetH / 2)
+    -- thả người xuống dưới mặt thảm, đang rơi (vận tốc âm)
+    r.Position = Vector3.new(0, top - 6, 0)
+    r.AssemblyLinearVelocity = Vector3.new(0, -30, 0)
+    Mock.advance(0.2)
+    truthy(r.Position.Y >= standingY() - 0.01, string.format(
+        "phải được đỡ trên mặt thảm (Y=%s, mặt thảm=%s)", tostring(r.Position.Y), tostring(standingY())))
+    falsy(S.Move.noclip, "test này bật MỘT MÌNH thảm, không bật xuyên tường")
+end)
+
+test("F3 · vẫn NHẢY được (đang bay lên thì không bị kéo xuống)", function()
+    local ch = cleanStart()
+    action("carpet")
+    Mock.advance(0.1)
+    local r = ch:FindFirstChild("HumanoidRootPart")
+    r.Position = Vector3.new(0, standingY() - 1, 0)
+    r.AssemblyLinearVelocity = Vector3.new(0, 25, 0)     -- đang nhảy lên
+    Mock.advance(0.1)
+    eq(r.Position.Y, standingY() - 1, "đang nhảy thì KHÔNG bị áp xuống mặt thảm")
+end)
+
+test("F4 · ô 'cách chân' trong khung ⚙ đổi vị trí thảm (và kẹp 0..10)", function()
+    local ch = cleanStart()
+    action("carpet")
+    Mock.advance(0.1)
+    local b = panelBoxes()
+    eq(#b, 7, "khung ⚙ có 7 ô (thêm ô cách chân)")
+    b[7].Text = "4"
+    Mock.click(panelBtns()[2])
+    eq(S.Move.carpetGap, 4, "đổi khoảng cách thành 4")
+    Mock.advance(0.1)
+    local cp = carpetPart()
+    truthy(cp, "vẫn còn thảm")
+    local feet = ch:FindFirstChild("HumanoidRootPart").Position.Y - 3.0
+    truthy((feet - (cp.CFrame.Position.Y + cp.Size.Y / 2)) <= 4.5, "thảm thấp xuống đúng khoảng cách")
+    b[7].Text = "999"
+    Mock.click(panelBtns()[2])
+    eq(S.Move.carpetGap, 10, "vượt quá thì kẹp ở 10")
+    S.Move.SetCarpetGap(0.2)
+    S.Move.StopAll(); Mock.advance(0.05)
+end)
+
+test("F5 · tắt thảm dọn SẠCH cả thảm lẫn viền (không rớt rác trong workspace)", function()
+    local ch = cleanStart()
+    action("carpet")
+    Mock.advance(0.1)
+    truthy(carpetPart(), "có thảm")
+    action("carpet")
+    Mock.advance(0.1)
+    falsy(carpetPart(), "thảm đã dọn")
+    local leftovers = 0
+    for _, d in ipairs(H.workspace:GetDescendants()) do
+        if d.Name == "Carpet" or d.Name == "CarpetEdge" then leftovers = leftovers + 1 end
+    end
+    eq(leftovers, 0, "không còn Part/SelectionBox nào sót lại")
+end)
+
+test("F6 · ⭐ không mất tính năng: ⬆⬇ vẫn nâng/hạ, Chạy Trên Thảm vẫn chạy", function()
+    local ch = cleanStart()
+    action("runmode")                     -- chế độ gộp: thảm + tốc độ + HUD
+    Mock.advance(0.1)
+    truthy(carpetPart(), "chế độ chạy vẫn trải thảm")
+    truthy(hud().Visible, "HUD vẫn hiện")
+    local y0 = S.Move.carpetY
+    Mock.click(hudBtn("⬆"))
+    near(S.Move.carpetY, y0 + 2.5, 1e-6, "⬆ vẫn nâng")
+    Mock.click(hudBtn("⬇"))
+    near(S.Move.carpetY, y0, 1e-6, "⬇ vẫn hạ")
+    Mock.click(hudBtn("✕"))
+    Mock.advance(0.1)
+    falsy(carpetPart(), "✕ vẫn tắt hết")
+end)
+
+test("F7 · đổi kích thước thảm khi đang bật: vẫn đứng trên mặt thảm", function()
+    local ch = cleanStart()
+    action("carpet")
+    Mock.advance(0.1)
+    S.Move.SetCarpetSize(20, 2, 20)
+    Mock.advance(0.1)
+    local cp = carpetPart()
+    eq(cp.Size.X, 20, "Rộng mới"); eq(cp.Size.Y, 2, "Cao mới")
+    local r = ch:FindFirstChild("HumanoidRootPart")
+    truthy(r.Position.Y >= standingY() - 0.01, "đổi kích thước xong vẫn đứng trên mặt thảm")
+    S.Move.SetCarpetSize(6, 0.5, 6)
+    S.Move.StopAll(); Mock.advance(0.05)
 end)
 
 print("\n── C. KIỂM TRA CUỐI ─────────────────────────────────────────")

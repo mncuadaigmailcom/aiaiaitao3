@@ -40,7 +40,19 @@
             mới (D.Tactile) nhưng connection của thẻ đã Destroy không bao giờ bị dọn khỏi
             _G.BananaCatHub_Connections -> bảng phình mãi. Nay trackConn() tự gom rác khi >300.
         • BỘ TEST TỰ ĐỘNG (thư mục tests/, chạy bằng `node tests/run.js`): nạp và CHẠY THẬT hub
-          trong máy ảo Lua 5.4 (wasmoon) + Roblox/executor giả lập. 44 test — 44 PASS (thêm nhóm E: chế độ chạy trên thảm + cụm nút nổi).
+          trong máy ảo Lua 5.4 (wasmoon) + Roblox/executor giả lập. 51 test — 51 PASS (nhóm E: chế độ chạy trên thảm + cụm nút nổi · nhóm F: sửa thảm kính).
+    + v4.12.1 (SỬA THẢM KÍNH — không mất tính năng nào, 51 test PASS):
+        • LỖI CHÍNH làm thảm "vô dụng": bản gốc aiaiaitao3 (và v4.12 đầu) CHỈ giữ người đứng
+          trên mặt thảm khi đang bật Xuyên Tường -> bật thảm MỘT MÌNH thì người vẫn RƠI XUYÊN
+          qua thảm xuống đất. Nay: luôn giữ người trên mặt thảm, NHƯNG chỉ can thiệp khi đang
+          đứng yên hoặc đang rơi (vận tốc Y <= 0) -> VẪN NHẢY ĐƯỢC bình thường.
+        • Thảm nay nằm NGAY DƯỚI CHÂN (mặc định cách 0.2 stud) thay vì chìm 3 studs xuống đất
+          như bản gốc -> bật là đứng được liền, không còn "bật mà không thấy thảm". Ai quen
+          kiểu cũ thì đặt "cách chân = 3" ở ô MỚI trong khung ⚙ (kẹp 0..10).
+        • Thêm VIỀN SÁNG (SelectionBox) quanh thảm: mặt kính trong suốt rất khó nhìn; viền là
+          CON của thảm nên tự mất khi thảm bị dọn — không rớt rác trong workspace.
+        • Đổi kích thước khi thảm đang bật: thảm đổi ngay và người vẫn đứng trên mặt (có test).
+        • ⬆⬇ (nút nổi + khung ⚙) và chế độ 🏃 Chạy Trên Thảm hoạt động như cũ (có test chống mất).
     + v4.11: CHẠY TEST THẬT + SỬA 3 LỖI + THÊM TRANG ⚙️ THIẾT LẬP.
         • BỘ TEST THẬT (thư mục tests/): lần đầu hub được NẠP VÀ CHẠY trong máy ảo Lua 5.4
           (wasmoon) trên môi trường Roblox/executor giả lập (tests/roblox-mock.lua). Kết quả:
@@ -6441,6 +6453,7 @@ S.Move = {
     _hud = nil, _hudUp = nil, _hudDown = nil, _hudCarpet = nil, _menuWasOpen = nil,
     flySpeed = 50, walkSpeed = 16, jumpPower = 50,
     carpetW = 6, carpetH = 0.5, carpetL = 6,     -- Rộng × Cao(dày) × Dài
+    carpetGap = 0.2,                             -- thảm cách bàn chân bao nhiêu stud (0 = áp sát)
     carpetY = nil,
     _carpet = nil, _bv = nil, _bg = nil, _floor = nil,
     _ncConn = nil, _ijConn = nil, _speedThread = nil,
@@ -6606,7 +6619,11 @@ function MV.SetFly(on)
     return true
 end
 
--- ---------- 🪩 THẢM KÍNH (chỉnh Rộng × Cao × Dài) ----------
+ -- ---------- 🪩 THẢM KÍNH (chỉnh Rộng × Cao × Dài + khoảng cách tới chân) ----------
+-- v4.12.1: `carpetGap` = thảm nằm CÁCH MẶT ĐẤT/chân bao nhiêu stud.
+--   • 0.2 (mặc định mới): thảm nằm NGAY DƯỚI CHÂN -> bật lên là đứng được liền.
+--   • 3 (kiểu bản gốc aiaiaitao3): thảm nằm sâu 3 studs -> thường chìm trong nền đất,
+--     chỉ dùng được khi bật kèm Xuyên Tường. Vẫn chọn được ở khung ⚙.
 function MV.SetCarpetSize(w, h, l)
     MV.carpetW = mvClamp(w, 1, 50, MV.carpetW)
     MV.carpetH = mvClamp(h, 0.05, 10, MV.carpetH)
@@ -6618,6 +6635,22 @@ function MV.SetCarpetSize(w, h, l)
     end
     return MV.carpetW, MV.carpetH, MV.carpetL
 end
+function MV.SetCarpetGap(g)
+    MV.carpetGap = mvClamp(g, 0, 10, MV.carpetGap)
+    -- đang bật thì dời thảm ngay theo khoảng cách mới (không cần tắt bật lại)
+    if MV.carpet then
+        local r = MV.Root()
+        if r then MV.carpetY = r.Position.Y - 3.0 - (MV.carpetH / 2) - MV.carpetGap end
+    end
+    return MV.carpetGap
+end
+-- Chiều cao (Y) mà thảm phải nằm: 3.0 = khoảng cách từ HumanoidRootPart xuống bàn chân,
+-- trừ nửa độ dày thảm để MẶT TRÊN của thảm áp sát chân, trừ thêm gap nếu muốn thả thấp.
+function MV.FootY()
+    local r = MV.Root()
+    if not r then return nil end
+    return r.Position.Y - 3.0 - (MV.carpetH / 2) - (MV.carpetGap or 0)
+end
 function MV._StopCarpet()
     if MV._carpet then pcall(function() MV._carpet:Destroy() end) end
     MV._carpet = nil
@@ -6628,7 +6661,7 @@ function MV.CreateCarpet(y)
     local r = MV.Root()
     if not r then return end
     if MV._carpet then pcall(function() MV._carpet:Destroy() end) end
-    MV.carpetY = y or (r.Position.Y - 3.0 - (MV.carpetH / 2))
+    MV.carpetY = y or MV.FootY()
     MV._carpet = New("Part", {
         Name = "Carpet",
         Size = Vector3.new(MV.carpetW, MV.carpetH, MV.carpetL),
@@ -6639,6 +6672,16 @@ function MV.CreateCarpet(y)
         Anchored = true, CanCollide = true, Friction = 1,
         Position = Vector3.new(r.Position.X, MV.carpetY, r.Position.Z),
     }, workspace)
+    -- v4.12.1: VIỀN SÁNG quanh thảm. Thảm trong suốt rất khó thấy trên nền sáng/tối, nhất là
+    -- khi nó nằm sát mặt đất. SelectionBox chỉ là đường viền (không che tầm nhìn) và là CON của
+    -- thảm nên tự biến mất khi thảm bị Destroy — không bao giờ rớt lại trong workspace.
+    pcall(function()
+        New("SelectionBox", {
+            Name = "CarpetEdge", Adornee = MV._carpet,
+            Color3 = Color3.fromRGB(120, 225, 255), LineThickness = 0.035,
+            SurfaceTransparency = 0.65, Transparency = 0,
+        }, MV._carpet)
+    end)
     RunService:BindToRenderStep("Carpet", Enum.RenderPriority.Camera.Value - 1, function()
         local curR, cp = MV.Root(), MV._carpet
         if not MV.carpet or not cp or not cp.Parent or not curR then return end
@@ -6646,15 +6689,18 @@ function MV.CreateCarpet(y)
             cp.Size = Vector3.new(MV.carpetW, MV.carpetH, MV.carpetL)
         end
         cp.CFrame = CFrame.new(curR.Position.X, MV.carpetY, curR.Position.Z)
-        -- đang xuyên tường thì giữ người ĐỨNG TRÊN mặt thảm (không rơi xuyên)
-        if MV.noclip then
-            local standingY = MV.carpetY + (MV.carpetH / 2) + 3.0
-            if curR.Position.Y < standingY then
-                curR.CFrame = CFrame.new(curR.Position.X, standingY, curR.Position.Z)
-                if curR.AssemblyLinearVelocity.Y < 0 then
-                    curR.AssemblyLinearVelocity = Vector3.new(
-                        curR.AssemblyLinearVelocity.X, 0, curR.AssemblyLinearVelocity.Z)
-                end
+        -- v4.12.1: KHÔNG RƠI XUYÊN THẢM — đây là lỗi làm thảm "vô dụng": bản gốc (và bản
+        -- v4.12 đầu) CHỈ giữ người trên mặt thảm khi đang bật Xuyên Tường, nên bật thảm một
+        -- mình thì người vẫn rơi xuyên qua nó xuống đất. Nay áp dụng LUÔN.
+        -- Vẫn NHẢY được bình thường: chỉ can thiệp khi đang đứng yên/rơi (vận tốc Y <= 0).
+        local standingY = MV.carpetY + (MV.carpetH / 2) + 3.0
+        local vel = curR.AssemblyLinearVelocity
+        local vy = (type(vel) == "table" and vel.Y) or 0
+        if curR.Position.Y < standingY and vy <= 0.1 then
+            curR.CFrame = CFrame.new(curR.Position.X, standingY, curR.Position.Z)
+            if vy < 0 then
+                curR.AssemblyLinearVelocity = Vector3.new(
+                    (vel and vel.X) or 0, 0, (vel and vel.Z) or 0)
             end
         end
     end)
@@ -6666,7 +6712,7 @@ function MV.SetCarpet(on)
     if on and MV.fly then MV.SetFly(false) end      -- bay và thảm không đi cùng (như bản gốc)
     MV.carpet = on
     if on then
-        MV.CreateCarpet(on and (r.Position.Y - 3.0 - (MV.carpetH / 2)) or nil)
+        MV.CreateCarpet(on and MV.FootY() or nil)
     else
         MV._StopCarpet()
     end
@@ -6677,7 +6723,7 @@ end
 -- ---------- ⬆⬇ nâng/hạ: thảm thì đổi độ cao, bay thì đẩy người ----------
 function MV.Nudge(dy)
     if MV.carpet then
-        MV.carpetY = (MV.carpetY or 0) + dy
+        MV.carpetY = (MV.carpetY or MV.FootY() or 0) + dy
         return true, "thảm"
     elseif MV.fly then
         local r = MV.Root()
@@ -7480,7 +7526,17 @@ do
     local cwIn = box(128, 48, 40, S.Move.carpetW)
     local chIn = box(176, 48, 40, S.Move.carpetH)
     local clIn = box(224, 48, 40, S.Move.carpetL)
-    local ap2 = act("✔", 272, 48, 28, C.GREEN)
+    -- v4.12.1: ô thứ 4 = KHOẢNG CÁCH thảm tới bàn chân (0 = áp sát chân, 3 = kiểu bản gốc)
+    local gapIn = New("TextBox", {
+        Size = UDim2.new(0, 40, 0, 20), Position = UDim2.new(0, 272, 0, 48),
+        Text = tostring(S.Move.carpetGap), PlaceholderText = "gap", ClearTextOnFocus = false,
+        BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.1, TextColor3 = C.DARK,
+        PlaceholderColor3 = C.GRAY, Font = Enum.Font.GothamMedium, TextSize = 9,
+        TextXAlignment = Enum.TextXAlignment.Center, BorderSizePixel = 0, ZIndex = 7,
+    }, P)
+    Corner(gapIn, UDim.new(0, 6)); Stroke(gapIn, C.BORDER, 1)
+    lab("↕ cách chân", 314, 48, 60)
+    local ap2 = act("✔", 374, 48, 28, C.GREEN)
 
     -- Hàng 3: nâng/hạ (thảm hoặc bay) + tắt hết + nhãn trạng thái
     local upBtn  = act("⬆ Nâng", 8, 74, 62, C.BLUE)
@@ -7509,10 +7565,12 @@ do
     ap2.Activated:Connect(function()
         ReleaseHubFocus()
         S.Move.SetCarpetSize(tonumber(cwIn.Text), tonumber(chIn.Text), tonumber(clIn.Text))
+        S.Move.SetCarpetGap(tonumber(gapIn.Text))
         cwIn.Text, chIn.Text, clIn.Text = tostring(S.Move.carpetW), tostring(S.Move.carpetH), tostring(S.Move.carpetL)
-        say(string.format("🪩 thảm: Rộng %g × Cao %g × Dài %g%s",
-            S.Move.carpetW, S.Move.carpetH, S.Move.carpetL,
-            S.Move.carpet and " (đang bật, đổi ngay)" or " (bật thảm để thấy)"), true)
+        gapIn.Text = tostring(S.Move.carpetGap)
+        say(string.format("🪩 thảm: Rộng %g × Cao %g × Dài %g · cách chân %g%s",
+            S.Move.carpetW, S.Move.carpetH, S.Move.carpetL, S.Move.carpetGap,
+            (S.Move.carpet and " (đang bật, đổi ngay)") or " (bật thảm để thấy)"), true)
     end)
 
     upBtn.Activated:Connect(function()
@@ -7541,6 +7599,7 @@ do
         pcall(function()
             st.Text = S.Move.Status()
             cwIn.Text, chIn.Text, clIn.Text = tostring(S.Move.carpetW), tostring(S.Move.carpetH), tostring(S.Move.carpetL)
+            gapIn.Text = tostring(S.Move.carpetGap)
             flyIn.Text = S.Move.flySpeed
             wsIn.Text = S.Move.walkSpeed
             jpIn.Text = S.Move.jumpPower
