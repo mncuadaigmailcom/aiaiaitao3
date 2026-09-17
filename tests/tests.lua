@@ -960,6 +960,100 @@ test("G8 · không mất tính năng cũ + vòng canh gác tự tắt (không r�
     eq(S.Move._wd, nil, "vòng canh gác đã tự thoát (không kẹt luồng chạy ngầm)")
 end)
 
+
+print("\n── H. v4.12.3: RÚT GỌN CODE (helper dùng chung) không được làm hỏng gì ──")
+
+test("H1 · flash(): đổi chữ nút rồi TỰ TRẢ LẠI chữ cũ (11 nút trong hub dùng)", function()
+    local b = Instance.new("TextButton")
+    b.Text = "📋 Copy"; b.Size = UDim2.new(0, 80, 0, 24); b.Parent = H.gui
+    H.flash(b, "✅ Đã copy", 0.5)
+    eq(b.Text, "✅ Đã copy", "đổi chữ ngay")
+    Mock.advance(0.6)
+    eq(b.Text, "📋 Copy", "hết giờ tự trả lại chữ cũ")
+    -- bấm liên tục: không được lưu nhầm chữ TẠM làm chữ gốc
+    H.flash(b, "✅ lần 2", 0.5)
+    H.flash(b, "✅ lần 3", 0.5)
+    Mock.advance(0.6)
+    eq(b.Text, "📋 Copy", "bấm liên tục vẫn trả đúng chữ GỐC")
+    -- nút bị xoá giữa chừng: không văng lỗi
+    local b2 = Instance.new("TextButton")
+    b2.Text = "x"; b2.Parent = H.gui
+    H.flash(b2, "y", 0.2)
+    b2:Destroy()
+    Mock.advance(0.4)
+    b:Destroy()
+end)
+
+test("H2 · D.Say(): 1 dòng đặt cả chữ + màu cho thanh trạng thái", function()
+    local st = H.D.hubStatus
+    truthy(st, "có thanh trạng thái")
+    H.D.Say("xin chào", H.C.GREEN)
+    eq(st.Text, "xin chào", "chữ")
+    eq(st.TextColor3, H.C.GREEN, "màu truyền vào")
+    H.D.Say("báo lỗi")
+    eq(st.Text, "báo lỗi", "chữ mới")
+    eq(st.TextColor3, H.C.RED, "không truyền màu thì mặc định ĐỎ")
+    H.D.Say(nil, H.C.MUTED)
+    eq(st.Text, "nil", "không văng lỗi khi truyện nil")
+end)
+
+test("H3 · S.CopyToClipboard(): thử đủ 3 tên hàm clipboard, trả đúng true/false", function()
+    local ok = H.CopyToClipboard("thử copy")
+    eq(ok, true, "executor có setclipboard -> true")
+    eq(Mock.clipboard, "thử copy", "nội dung đã vào clipboard")
+    -- giả lập executor KHÔNG có hàm clipboard nào: không được văng lỗi
+    local old1, old2, old3 = setclipboard, toclipboard, set_clipboard
+    setclipboard, toclipboard, set_clipboard = nil, nil, nil
+    local ok2 = false
+    pcall(function() ok2 = H.CopyToClipboard("không có clipboard") end)
+    eq(ok2, false, "không có hàm nào -> false (không lỗi)")
+    setclipboard, toclipboard, set_clipboard = old1, old2, old3
+end)
+
+test("H4 · MakeTabButton/AddTab: tab mới có attribute, bấm mở đúng trang", function()
+    local n0 = #H.tabs
+    local sf, btn = H.AddTab("🧪 Tab Test", "🧪", 90)
+    truthy(sf and btn, "AddTab trả khung + nút")
+    eq(#H.tabs, n0 + 1, "thêm đúng 1 tab")
+    eq(btn:GetAttribute("BCTabName"), "🧪 Tab Test", "nút nhớ tên tab")
+    eq(btn:GetAttribute("BCTabIcon"), "🧪", "nút nhớ icon")
+    eq(btn:IsDescendantOf(H.gui), true, "nút nằm trong GUI của hub")
+    eq(sf.Visible, false, "khung tab mới đang ẩn")
+    Mock.click(btn)
+    eq(sf.Visible, true, "bấm nút -> mở đúng khung của tab đó")
+    Mock.click(btn)                       -- bấm lại: không lỗi, vẫn mở
+    eq(sf.Visible, true, "bấm lại vẫn ổn")
+end)
+
+test("H5 · CreateFeatureTab: tab tính năng cũng dựng bằng helper chung (không lỗi)", function()
+    local n0 = #H.tabs
+    local ok = pcall(function() H.CreateFeatureTab("🧪 Tính Năng Test", "🧪", "print('hi')") end)
+    truthy(ok, "tạo tab tính năng không văng lỗi")
+    eq(#H.tabs, n0 + 1, "thêm đúng 1 tab")
+    local btn = H.tabs[#H.tabs]
+    eq(btn:GetAttribute("BCTabName"), "🧪 Tính Năng Test", "nút nhớ tên")
+    Mock.click(btn)
+    Mock.advance(0.1)
+    truthy(#H.featureTabs >= 1, "tab tính năng được ghi nhận")
+end)
+
+test("H6 · xuyên tường sau khi tối ưu: dọn SẠCH kết nối khi tắt", function()
+    local ch = cleanStart()
+    action("noclip")
+    Mock.advance(0.1)
+    truthy(S.Move._ncDesc, "đang theo dõi part mới (DescendantAdded)")
+    action("noclip")
+    Mock.advance(0.1)
+    falsy(S.Move._ncDesc, "tắt thì ngắt cả kết nối DescendantAdded")
+    falsy(S.Move._ncChar, "quên cả nhân vật đang theo dõi")
+    -- bật/tắt 5 lần: không được rò kết nối (trackConn đếm)
+    local before = #(H.S.conns or {})
+    for i = 1, 5 do action("noclip"); Mock.advance(0.05) end
+    Mock.advance(0.2)
+    local after = #(H.S.conns or {})
+    truthy((after - before) <= 2, string.format("bật/tắt 5 lần chỉ tăng <=2 kết nối (trước %d, sau %d)", before, after))
+end)
+
 print("\n── C. KIỂM TRA CUỐI ─────────────────────────────────────────")
 
 test("C1 · không có lỗi runtime nào trong event / render step", function()

@@ -7,7 +7,7 @@ Ngày phân tích: 2026-09-17 · Branch: `arena/01a0af79-aiaiaitao3` · Commit g
 ## 0. Cập nhật v4.12 (đã thực hiện theo yêu cầu)
 
 Port **5 tính năng di chuyển** từ `aiaiaitao3` vào trang 📚 Script Hub của `script.js`, kèm bộ test
-tự động chạy thật trong máy ảo. Kết quả: **`node tests/run.js` → 59 PASS · 0 FAIL**.
+tự động chạy thật trong máy ảo. Kết quả: **`node tests/run.js` → 65 PASS · 0 FAIL**.
 
 **Đã thêm (toàn bộ là tiện ích nội bộ, không tải gì từ mạng):**
 
@@ -23,6 +23,15 @@ Kèm **cụm nút nổi trên màn hình game** (⬆ nâng · 🪩 bật/tắt t
 khi lọc/tìm kiếm): tốc độ bay · chạy · nhảy · 3 chiều thảm · ⬆/⬇ · 🛑 Tắt hết + nhãn trạng thái.
 Tất cả state gom trong `S.Move` (không tốn slot local cấp chunk), mọi connection qua `trackConn()`,
 tự bật lại sau respawn qua `CharacterAdded`.
+
+**v4.12.3 — rút gọn + tối ưu code (bớt 66 dòng, không đổi tính năng nào):**
+1. Gom các chỗ copy-dán thành helper dùng chung: `flash()` (11 nút đổi chữ rồi trả lại) ·
+   `D.Say()` (13 chỗ đặt chữ + màu thanh trạng thái) · `S.Rebuild()` (9 chỗ) ·
+   `S.CopyToClipboard()` (6 chỗ, tự thử đủ 3 tên hàm clipboard) · `MakeTabFrame()` /
+   `MakeTabButton()` (trang thường và tab tính năng dựng chung 1 chỗ) · `TitleBtn()` · `coordNA()`.
+2. Tối ưu Xuyên Tường: không còn `GetDescendants()` mỗi frame (60 lần/giây) — quét khi bật /
+   đổi nhân vật / mỗi 2s + bắt `DescendantAdded` nên part mới thêm vào vẫn XUYÊN NGAY.
+3. Sửa lỗi lọt khi gộp code: nút 📋 "Sao Chép Code" bị kẹt chữ "✅ Đã Sao Chép!" (test nhóm H).
 
 **v4.12.2 — cho nhảy + chạy chạy ở MỌI GAME, tốc độ theo game:**
 1. 🦘 **Nhảy vô hạn** hay bị liệt vì chỉ nghe `JumpRequest` rồi `ChangeState`. Nay nhảy bằng 3

@@ -40,7 +40,7 @@
             mới (D.Tactile) nhưng connection của thẻ đã Destroy không bao giờ bị dọn khỏi
             _G.BananaCatHub_Connections -> bảng phình mãi. Nay trackConn() tự gom rác khi >300.
         • BỘ TEST TỰ ĐỘNG (thư mục tests/, chạy bằng `node tests/run.js`): nạp và CHẠY THẬT hub
-          trong máy ảo Lua 5.4 (wasmoon) + Roblox/executor giả lập. 59 test — 59 PASS (E: chạy trên thảm + nút nổi · F: sửa thảm kính · G: nhảy/chạy ở mọi game + tốc độ theo game).
+          trong máy ảo Lua 5.4 (wasmoon) + Roblox/executor giả lập. 65 test — 65 PASS (E: chạy trên thảm + nút nổi · F: sửa thảm kính · G: nhảy/chạy ở mọi game + tốc độ theo game · H: helper dùng chung sau khi rút gọn).
     + v4.12.2 (CHO NHẢY + CHẠY CHẠY Ở MỌI GAME · TỐC ĐỘ THEO GAME — 59 test PASS):
         • 🦘 NHẢY VÔ HẠN bị liệt ở nhiều game vì chỉ nghe JumpRequest rồi ChangeState. Nay nhảy
           bằng 3 CÁCH: ChangeState · lệnh Jump kiểu cũ · ĐẨY VẬN TỐC (chỉ chạy khi 0.08s sau mà
@@ -584,6 +584,27 @@ local function Stroke(p, c, t)
 end
 
 -- v4.9: mặc định easing Quart-Out — vào nhanh, hãm mượt ở cuối (cảm giác "đắt" hơn Quad)
+-- v4.12.3: Đổi chữ nút một lát rồi TỰ TRẢ LẠI chữ (và màu) cũ — kiểu "✅ Đã copy" -> "📋 Copy".
+-- Có 11 nút trong hub làm đúng kiểu này, trước đây mỗi nút tự viết 3-5 dòng. Chữ gốc được nhớ
+-- theo NÚT nên bấm liên tục cũng không lưu nhầm chữ tạm; bảng dùng khoá yếu (__mode="k") để
+-- nút bị Destroy thì dòng nhớ tự biến mất, không rò bộ nhớ.
+local flashBack = setmetatable({}, { __mode = "k" })
+local function flash(btn, temp, secs, tempColor, back)
+    if not btn then return end
+    if flashBack[btn] == nil then flashBack[btn] = { back or btn.Text, btn.TextColor3 } end
+    pcall(function()
+        btn.Text = tostring(temp)
+        if tempColor then btn.TextColor3 = tempColor end
+    end)
+    task.delay(secs or 1.6, function()
+        if not (btn and btn.Parent) then return end
+        local old = flashBack[btn]
+        if not old then return end
+        pcall(function() btn.Text = old[1]; btn.TextColor3 = old[2] end)
+        flashBack[btn] = nil
+    end)
+end
+
 local function Tween(o, p, d, e)
     TweenService:Create(o, TweenInfo.new(d or 1.5, e or Enum.EasingStyle.Quart, Enum.EasingDirection.Out), p):Play()
 end
@@ -604,6 +625,16 @@ local D = {}
 local S
 
 -- Chữ/viền nên sáng hay đậm trên nền `bg`? (tự động tương phản, tránh chữ chìm)
+-- v4.12.3: hơn 10 chỗ trong hub chỉ làm "đặt chữ + đặt màu" cho thanh trạng thái -> gom 1 dòng.
+-- Không văng lỗi nếu thanh trạng thái chưa được dựng (ghi trực tiếp thì có thể văng).
+function D.Say(msg, color)
+    if not D.hubStatus then return end
+    pcall(function()
+        D.hubStatus.Text = tostring(msg)
+        D.hubStatus.TextColor3 = color or C.RED
+    end)
+end
+
 function D.BestText(bg)
     if typeof(bg) ~= "Color3" then return C.WHITE end
     local lum = 0.2126 * bg.R + 0.7152 * bg.G + 0.0722 * bg.B
@@ -1017,29 +1048,16 @@ New("TextLabel", {
     TextColor3=C.ACCENT3, Font=Enum.Font.GothamBold, TextSize=8, ZIndex=6,
 }, D.verPill)
 
-local dragLockBtn = New("TextButton", {
-    Size=UDim2.new(0,30,0,30),
-    Position=UDim2.new(1,-64,0,0),
-    Text="🔒",
-    BackgroundTransparency=1,
-    TextColor3=C.MUTED,
-    Font=Enum.Font.GothamBold,
-    TextSize=15,
-    BorderSizePixel=0,
-    ZIndex=4,
-}, titleBar)
-
-local closeBtn = New("TextButton", {
-    Size=UDim2.new(0,30,0,30),
-    Position=UDim2.new(1,-32,0,0),
-    Text="✕",
-    BackgroundTransparency=1,
-    TextColor3=C.MUTED,
-    Font=Enum.Font.GothamBold,
-    TextSize=15,
-    BorderSizePixel=0,
-    ZIndex=4,
-}, titleBar)
+-- v4.12.3: 2 nút góc (🔒 khoá kéo · ✕ đóng) dựng y hệt nhau, chỉ khác chữ và vị trí -> gom.
+local function TitleBtn(txt, xOff)
+    return New("TextButton", {
+        Size=UDim2.new(0,30,0,30), Position=UDim2.new(1,-xOff,0,0), Text=txt,
+        BackgroundTransparency=1, TextColor3=C.MUTED, Font=Enum.Font.GothamBold,
+        TextSize=15, BorderSizePixel=0, ZIndex=4,
+    }, titleBar)
+end
+local dragLockBtn = TitleBtn("🔒", 64)
+local closeBtn    = TitleBtn("✕", 32)
 -- v4.5: hover đổi màu (✕ đỏ, 🔒 vàng) — chỉ đổi TextColor3, không đụng layout
 D.HoverText(closeBtn, C.RED, C.RED)
 D.HoverText(dragLockBtn, C.ACCENT, C.ACCENT)
@@ -1335,7 +1353,29 @@ local function OpenFirstPage()
     SwitchTab(idx)
 end
 
-local function AddTab(name, icon, order, customContent)
+-- v4.12.3: AddTab và CreateFeatureTab dựng khung tab Y HỆT NHAU (13 dòng × 2 chỗ) -> gom lại.
+local function MakeTabFrame()
+    return New("ScrollingFrame", {
+        Size=UDim2.new(1,0,1,0),
+        BackgroundTransparency=1,
+        BorderSizePixel=0,
+        ScrollBarThickness=4,                                   -- v4.9: mảnh hơn
+        ScrollBarImageColor3=Color3.fromRGB(88, 96, 118),       -- v4.9: thấy rõ trên nền obsidian
+        ClipsDescendants=true,
+        CanvasSize=UDim2.new(0,0,0,0),
+        Visible=false,
+        Active=true,
+        Selectable=false,
+        ScrollingDirection=Enum.ScrollingDirection.Y,
+        ZIndex=4,
+    }, contentArea)
+end
+
+-- v4.12.3: Nút icon ở thanh tab — gắn tên/icon vào attribute (header + hover đọc), đổi màu khi
+-- rê chuột, bấm thì mở đúng tab. Index được tra ĐỘNG theo nút: khi một tab bị xoá, vị trí trong
+-- `tabs` dịch lại, nên bắt chết index sẽ mở SAI tab (hoặc không mở gì -> UI trắng).
+-- onClick (nếu có) chạy SAU khi tab đã mở (CreateFeatureTab dùng để tự nhúng lại GUI).
+local function MakeTabButton(name, icon, order, onClick)
     local btn = New("TextButton", {
         Size=UDim2.new(1,-8,0,38),        -- v4.5 Delta: ô icon 48x38
         Text=icon,                        -- CHỈ icon; tên trang hiện ở header
@@ -1354,7 +1394,7 @@ local function AddTab(name, icon, order, customContent)
         btn:SetAttribute("BCTabName", name)   -- header + hover đọc tên trang từ đây
         btn:SetAttribute("BCTabIcon", icon)
     end)
-    -- v4.5: rê chuột vào tab chưa mở thì pill hiện nhẹ. Tab ĐANG mở (chữ vàng) thì không đụng,
+    -- v4.5: rê chuột vào tab chưa mở thì pill hiện nhẹ. Tab ĐANG MỞ (chữ vàng) thì không đụng,
     -- để SwitchTab toàn quyền quyết định màu -> không đánh nhau giữa tween và trạng thái tab.
     pcall(function()
         trackConn(btn.MouseEnter:Connect(function()
@@ -1379,43 +1419,35 @@ local function AddTab(name, icon, order, customContent)
             end)
         end))
     end)
+    btn.Activated:Connect(function()
+        for i, b in ipairs(tabs) do
+            if b == btn then
+                SwitchTab(i)
+                if onClick then pcall(onClick) end
+                break
+            end
+        end
+    end)
+    return btn
+end
 
+-- v4.12.3: phần dựng khung + nút đã nằm trong MakeTabFrame/MakeTabButton -> AddTab chỉ còn lo
+-- việc riêng: nhận khung có sẵn (trang tự dựng) hay dựng khung mới.
+local function AddTab(name, icon, order, customContent)
     local sf
     if customContent then
         sf = customContent
         sf.Parent = contentArea
         sf.Visible = false
     else
-        sf = New("ScrollingFrame", {
-            Size=UDim2.new(1,0,1,0),
-            BackgroundTransparency=1,
-            BorderSizePixel=0,
-            ScrollBarThickness=4,                                   -- v4.9: mảnh hơn
-            ScrollBarImageColor3=Color3.fromRGB(88, 96, 118),       -- v4.9: thấy rõ trên nền obsidian
-            ClipsDescendants=true,
-            CanvasSize=UDim2.new(0,0,0,0),
-            Visible=false,
-            Active=true,
-            Selectable=false,
-            ScrollingDirection=Enum.ScrollingDirection.Y,
-            ZIndex=4,
-        }, contentArea)
+        sf = MakeTabFrame()
     end
-
-    -- KHONG bat chet index: khi mot tab bi xoa, vi tri trong `tabs`/`tabContent` dich lai
-    -- va index cu se mo SAI tab (hoac khong mo gi ca -> UI trang). Tra cuu dong theo nut.
-    btn.Activated:Connect(function()
-        for i, b in ipairs(tabs) do
-            if b == btn then SwitchTab(i); break end
-        end
-    end)
-
+    local btn = MakeTabButton(name, icon, order)
     table.insert(tabs, btn)
     table.insert(tabContent, sf)
     tabBar.CanvasSize = UDim2.new(0, 0, 0, #tabs * 44 + 10)
     return sf, btn
 end
-
 -- v4.6.2: thứ tự trang theo yêu cầu — 1 💾 Code Đã Lưu · 2 💻 Code · 3 📚 Script Hub ·
 -- 4 🛠 Hỗ Trợ · 6 ➕ Tạo Tính Năng · 7+ tab tính năng của bạn · 99 🧩 GUI Ngoài.
 -- (v4.11: ô LayoutOrder 5 nay là trang ⚙️ Thiết Lập. Rail vẫn liền mạch vì LayoutOrder
@@ -2397,17 +2429,14 @@ S.DoReload = function()
     Store.load()
     RebuildScripts()
     -- v4.5: nạp lại cả ⭐ yêu thích của trang 📚 Script Hub (Store.load vừa đọc xong)
-    pcall(function() if S.RebuildHubList then S.RebuildHubList() end end)
+    S.Rebuild()
     -- v4.4b: Waypoint cũng phải dựng lại (trước đây thiếu: local RebuildWaypoints được khai
     -- báo ở TAB3, SAU closure này, nên gọi thẳng ở đây sẽ thành global nil -> lỗi).
     if Store.restoreWaypoints then pcall(Store.restoreWaypoints) end
     if Store.restoreFeatures then pcall(Store.restoreFeatures) end
     -- v4.4b: BỎ Store.save() ở đây. Nạp lại là thao tác ĐỌC; lưu ngay sau đó sẽ ghi đè
     -- file vừa đọc (đang muốn cứu) bằng dữ liệu trong RAM -> mất dữ liệu không cứu được.
-    Store.reloadBtn.Text = "✅ Đã nạp"
-    task.delay(1.4, function()
-        if Store.reloadBtn and Store.reloadBtn.Parent then Store.reloadBtn.Text = "🔄 Nạp lại" end
-    end)
+    flash(Store.reloadBtn, "✅ Đã nạp", 1.4)
 end
 Store.reloadBtn.Activated:Connect(S.DoReload)
 
@@ -2514,23 +2543,14 @@ RebuildScripts = function()
             Corner(copyBtn, UDim.new(0,5))
 
             copyBtn.Activated:Connect(function()
-                if setclipboard then
-                    pcall(setclipboard, d.code)
-                    copyBtn.Text = "✅ Đã Sao Chép!"
-                elseif toclipboard then
-                    pcall(toclipboard, d.code)
-                    copyBtn.Text = "✅ Đã Sao Chép!"
+                if S.CopyToClipboard(d.code) then
+                    flash(copyBtn, "✅ Đã Sao Chép!", 1.5)
                 else
                     codeLbl:CaptureFocus()
                     codeLbl.SelectionStart = 1
                     codeLbl.CursorPosition = #d.code + 1
-                    copyBtn.Text = "⚠️ Đã Bôi Đen Code"
+                    flash(copyBtn, "⚠️ Đã Bôi Đen Code", 1.5)
                 end
-                task.delay(1.5, function()
-                    if copyBtn and copyBtn.Parent then
-                        copyBtn.Text = "📋 Sao Chép Code"
-                    end
-                end)
             end)
         end
 
@@ -2950,6 +2970,20 @@ end
 --   • tối đa ~20 lần/giây: mắt đọc số không phân biệt được 20Hz với 144Hz, còn CPU thì có;
 --   • đóng menu = vòng này tốn đúng 2 phép cộng, không raycast, không ghi nhãn nào.
 local coordAcc = 0
+-- v4.12.3: 2 nhánh "không có nhân vật / không có RootPart" xoá 12 ô y hệt nhau -> gom 1 hàm.
+-- all=true thì xoá cả 3 ô Look/State/HP (nhánh kia giữ nguyên giá trị cũ).
+local coordLbls
+local function coordNA(all)
+    coordLbls = coordLbls or {xValLbl, yValLbl, zValLbl, sizeXValLbl, sizeYValLbl, sizeZValLbl,
+                              rotPValLbl, rotYValLbl, rotRValLbl}
+    for _, l in ipairs(coordLbls) do pcall(function() l.Text = "N/A" end) end
+    if all then
+        lookValLbl.Text = "Look: N/A"
+        stateValLbl.Text = "State: N/A"
+        hpValLbl.Text = "HP: N/A"
+    end
+end
+
 local coordUpdateConn = RunService.RenderStepped:Connect(function(stepDt)
     coordAcc = coordAcc + (tonumber(stepDt) or 0.016)
     if coordAcc < 0.05 then return end
@@ -2958,12 +2992,7 @@ local coordUpdateConn = RunService.RenderStepped:Connect(function(stepDt)
     if not (supportTab and supportTab.Visible) then return end
     local char = player.Character
     if not char then
-        xValLbl.Text = "N/A"; yValLbl.Text = "N/A"; zValLbl.Text = "N/A"
-        sizeXValLbl.Text = "N/A"; sizeYValLbl.Text = "N/A"; sizeZValLbl.Text = "N/A"
-        rotPValLbl.Text = "N/A"; rotYValLbl.Text = "N/A"; rotRValLbl.Text = "N/A"
-        lookValLbl.Text = "Look: N/A"
-        stateValLbl.Text = "State: N/A"
-        hpValLbl.Text = "HP: N/A"
+        coordNA(true)
         return
     end
 
@@ -2971,9 +3000,7 @@ local coordUpdateConn = RunService.RenderStepped:Connect(function(stepDt)
     local rootPart = GetRootPart()
 
     if not rootPart then
-        xValLbl.Text = "N/A"; yValLbl.Text = "N/A"; zValLbl.Text = "N/A"
-        sizeXValLbl.Text = "N/A"; sizeYValLbl.Text = "N/A"; sizeZValLbl.Text = "N/A"
-        rotPValLbl.Text = "N/A"; rotYValLbl.Text = "N/A"; rotRValLbl.Text = "N/A"
+        coordNA()
         return
     end
 
@@ -3533,22 +3560,16 @@ end)
 copyObjBtn.Activated:Connect(function()
     local pos = objResultPanel:GetAttribute("LastHitPos")
     if pos and pos ~= "" then
-        if setclipboard then pcall(setclipboard, pos) elseif toclipboard then pcall(toclipboard, pos) end
-        copyObjBtn.Text = "✅ Đã Copy!"
-        task.delay(1.2, function()
-            if copyObjBtn and copyObjBtn.Parent then copyObjBtn.Text = "📋 Copy Tọa Độ" end
-        end)
+        S.CopyToClipboard(pos)
+        flash(copyObjBtn, "✅ Đã Copy!", 1.2)
     end
 end)
 
 copyPathBtn.Activated:Connect(function()
     local path = objResultPanel:GetAttribute("LastPath")
     if path and path ~= "" then
-        if setclipboard then pcall(setclipboard, path) elseif toclipboard then pcall(toclipboard, path) end
-        copyPathBtn.Text = "✅ Đã Copy!"
-        task.delay(1.2, function()
-            if copyPathBtn and copyPathBtn.Parent then copyPathBtn.Text = "📋 Copy Path" end
-        end)
+        S.CopyToClipboard(path)
+        flash(copyPathBtn, "✅ Đã Copy!", 1.2)
     end
 end)
 
@@ -3563,17 +3584,8 @@ copyCoordBtn.Activated:Connect(function()
     local finalPos = groundPos or (rootPart and rootPart.CFrame.Position)
     if not finalPos then return end
     local text = string.format("%.3f, %.3f, %.3f", finalPos.X, finalPos.Y, finalPos.Z)
-    if setclipboard then
-        pcall(setclipboard, text)
-    elseif toclipboard then
-        pcall(toclipboard, text)
-    end
-    copyCoordBtn.Text = "✅ Đã Copy: "..text
-    task.delay(2, function()
-        if copyCoordBtn and copyCoordBtn.Parent then
-            copyCoordBtn.Text = "📋 Copy Tọa Độ Dưới Chân"
-        end
-    end)
+    S.CopyToClipboard(text)
+    flash(copyCoordBtn, "✅ Đã Copy: " .. text, 2)
 end)
 
 Label(supportTab, "🚀 Teleport Tới Tọa Độ", posY)
@@ -3637,10 +3649,7 @@ tpBtn.Activated:Connect(function()
     local y = tonumber(tpYIn.Text) or 0
     local z = tonumber(tpZIn.Text) or 0
     rootPart.CFrame = CFrame.new(Vector3.new(x, y, z))
-    tpBtn.Text = "✅ Đã Teleport!"
-    task.delay(1.5, function()
-        if tpBtn and tpBtn.Parent then tpBtn.Text = "🚀 Teleport" end
-    end)
+    flash(tpBtn, "✅ Đã Teleport!", 1.5)
 end)
 
 Label(supportTab, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", posY)
@@ -5570,76 +5579,11 @@ local function CreateFeatureTab(name, icon, codeContent)
     -- muộn thì Lua biên dịch tên đó thành GLOBAL trong closure -> nil -> không tự nhúng lại được.
     local featureData
 
-    local sf = New("ScrollingFrame", {
-        Size=UDim2.new(1,0,1,0),
-        BackgroundTransparency=1,
-        BorderSizePixel=0,
-        ScrollBarThickness=4,                                       -- v4.9: mảnh hơn
-        ScrollBarImageColor3=Color3.fromRGB(88, 96, 118),           -- v4.9: thấy rõ trên nền obsidian
-        ClipsDescendants=true,
-        CanvasSize=UDim2.new(0,0,0,0),
-        Visible=false,
-        Active=true,
-        Selectable=false,
-        ScrollingDirection=Enum.ScrollingDirection.Y,
-        ZIndex=4,
-    }, contentArea)
-
-    local btn = New("TextButton", {
-        Size=UDim2.new(1,-8,0,38),        -- v4.5 Delta: ô icon 48x38
-        Text=icon,                        -- CHỈ icon; tên trang hiện ở header
-        BackgroundColor3=C.SURFACE2,      -- pill ghost (SwitchTab tô màu khi trang mở)
-        BackgroundTransparency=1,
-        TextColor3=C.MUTED,
-        Font=Enum.Font.GothamBold,
-        TextSize=16,
-        BorderSizePixel=0,
-        LayoutOrder=featureTabIndex + #featureTabs,
-        TextXAlignment=Enum.TextXAlignment.Center,
-        ZIndex=4,
-    }, tabBar)
-    Corner(btn, UDim.new(0,10))           -- v4.5 Delta: bo 10px cho ô icon
-    pcall(function()
-        btn:SetAttribute("BCTabName", name)   -- header + hover đọc tên trang từ đây
-        btn:SetAttribute("BCTabIcon", icon)
-    end)
-    -- v4.5: rê chuột vào tab chưa mở thì pill hiện nhẹ. Tab ĐANG mở (chữ vàng) thì không đụng,
-    -- để SwitchTab toàn quyền quyết định màu -> không đánh nhau giữa tween và trạng thái tab.
-    pcall(function()
-        trackConn(btn.MouseEnter:Connect(function()
-            if btn.BackgroundTransparency > 0.5 then Tween(btn, {BackgroundTransparency = 0.62}, 0.16) end
-            pcall(function()   -- v4.5 Delta: rê vào icon nào thì header hiện TÊN trang đó (mờ nhẹ)
-                if D.pageTitle then
-                    D.hoverName = btn:GetAttribute("BCTabName")
-                    local ic = btn:GetAttribute("BCTabIcon")
-                    D.pageTitle.Text = (ic and (ic .. "  ") or "") .. tostring(D.hoverName or "")
-                    D.pageTitle.TextTransparency = 0.4
-                end
-            end)
-        end))
-        trackConn(btn.MouseLeave:Connect(function()
-            if btn.TextColor3 ~= C.ACCENT then Tween(btn, {BackgroundTransparency = 1}, 0.2) end
-            pcall(function()   -- rời chuột: header trả về tên trang ĐANG MỞ
-                D.hoverName = nil
-                if D.pageTitle and D.activeName then
-                    D.pageTitle.Text = D.activeName
-                    D.pageTitle.TextTransparency = 0
-                end
-            end)
-        end))
-    end)
-
-    -- tra cuu index dong (xem giai thich o AddTab)
-    btn.Activated:Connect(function()
-        for i, b in ipairs(tabs) do
-            if b == btn then
-                SwitchTab(i)
-                -- v4.4g: MỞ tab -> nếu lần bấm ▶ trước GUI bị "rớt" ngoài menu thì TỰ nhúng lại.
-                -- task.defer để tab kịp hiện + AbsoluteSize kịp đúng trước khi đo.
-                task.defer(function() S.OnFeatureTabOpened(featureData) end)
-                break
-            end
-        end
+    local sf  = MakeTabFrame()
+    local btn = MakeTabButton(name, icon, featureTabIndex + #featureTabs, function()
+        -- v4.4g: MỞ tab -> nếu lần bấm ▶ trước GUI bị "rớt" ngoài menu thì TỰ nhúng lại.
+        -- task.defer để tab kịp hiện + AbsoluteSize kịp đúng trước khi đo.
+        task.defer(function() S.OnFeatureTabOpened(featureData) end)
     end)
 
     table.insert(tabs, btn)
@@ -6212,14 +6156,8 @@ copyTemplateBtn.Activated:Connect(function()
     pcall(function() stamp = os.date("sinh %H:%M %d/%m/%Y") end)
     local code = S.FeatureTemplate(nm, ic, stamp)
 
-    -- copy ra clipboard: executor nào cũng có 1 trong 3 hàm này
-    local copied = false
-    for _, fname in ipairs({"setclipboard", "toclipboard", "set_clipboard"}) do
-        if not copied then
-            local f = _G[fname]
-            if type(f) == "function" then copied = (pcall(f, code)) end
-        end
-    end
+    -- copy ra clipboard: hàm này tự thử cả 3 tên (setclipboard / toclipboard / set_clipboard)
+    local copied = S.CopyToClipboard(code)
     -- điền vào ô code CHỈ KHI đang trống -> không bao giờ làm mất code bạn đang soạn
     local inBox = false
     if #featureCodeIn.Text == 0 then
@@ -6473,7 +6411,8 @@ S.Move = {
     carpetGap = 0.2,                             -- thảm cách bàn chân bao nhiêu stud (0 = áp sát)
     carpetY = nil,
     _carpet = nil, _bv = nil, _bg = nil, _floor = nil,
-    _ncConn = nil, _ijConn = nil, _ijConn2 = nil, _speedThread = nil,
+    _ncConn = nil, _ncDesc = nil, _ncChar = nil, _ncLast = nil,
+    _ijConn = nil, _ijConn2 = nil, _speedThread = nil,
     _origCC = {},                                 -- [part] = CanCollide gốc
     _baseWS = 16, _baseJP = 50,                   -- tốc độ / lực nhảy GỐC CỦA GAME
     _wd = nil, _lastJump = nil, _ijBaseJP = nil, _ijBaseJH = nil,
@@ -6500,14 +6439,31 @@ function MV.Root()
 end
 
 -- ---------- 🧱 XUYÊN TƯỜNG (NoClip) ----------
+-- v4.12.3: bản cũ gọi GetDescendants() MỖI Stepped (60 lần/giây — mỗi lần cấp phát cả 1 bảng ->
+-- rác cho GC dọn). Nay quét đầy đủ khi BẬT / khi ĐỔI NHÂN VẬT / mỗi 2s, còn bình thường chỉ
+-- bắt sự kiện DescendantAdded (phụ kiện, áo, vũ khí gắn thêm) -> gần như không tốn gì mỗi frame.
+function MV._NcPart(p)
+    if not (p and p.IsA and p:IsA("BasePart")) then return end
+    if MV._origCC[p] == nil then MV._origCC[p] = p.CanCollide end  -- nhớ giá trị gốc
+    if p.CanCollide ~= false then p.CanCollide = false end
+end
+function MV._NcScan()
+    local c = MV.Char()
+    if not c then return end
+    if MV._ncChar ~= c then                    -- đổi nhân vật (respawn) -> dọn kết nối cũ
+        if MV._ncDesc then pcall(function() MV._ncDesc:Disconnect() end) end
+        MV._ncChar = c
+        MV._ncDesc = trackConn(c.DescendantAdded:Connect(MV._NcPart))
+    end
+    for _, p in ipairs(c:GetDescendants()) do MV._NcPart(p) end
+end
 function MV._NcStep()
     local c = MV.Char()
     if not c then return end
-    for _, p in ipairs(c:GetDescendants()) do
-        if p:IsA("BasePart") then
-            if MV._origCC[p] == nil then MV._origCC[p] = p.CanCollide end  -- nhớ giá trị gốc
-            if p.CanCollide ~= false then p.CanCollide = false end
-        end
+    local now = os.clock()
+    if MV._ncChar ~= c or not MV._ncLast or (now - MV._ncLast) > 2 then
+        MV._ncLast = now
+        MV._NcScan()
     end
 end
 -- Dọn các part đã chết (respawn) khỏi bảng nhớ, rồi trả lại giá trị gốc cho part còn sống.
@@ -6525,11 +6481,14 @@ function MV.SetNoclip(on)
     if on == MV.noclip then return MV.noclip end
     MV.noclip = on
     if on then
+        MV._ncLast = nil
+        MV._NcScan()                                   -- quét ngay lần đầu cho chắc
         MV._ncConn = trackConn(RunService.Stepped:Connect(MV._NcStep))
-        MV._NcStep()
     else
-        if MV._ncConn then pcall(function() MV._ncConn:Disconnect() end) end
-        MV._ncConn = nil
+        for _, c in ipairs({ MV._ncConn, MV._ncDesc }) do
+            if c then pcall(function() c:Disconnect() end) end
+        end
+        MV._ncConn, MV._ncDesc, MV._ncChar, MV._ncLast = nil, nil, nil, nil
         MV._NcRestore()
     end
     MV._Watchdog()
@@ -7199,7 +7158,7 @@ function S.RunHubAction(id)
     if id == "crosshair" then
         local okC = pcall(function() S.ToggleCrosshair() end)
         if not okC then return "⚠️ chưa bật được niêm tâm" end
-        pcall(function() if S.RebuildHubList then S.RebuildHubList() end end)   -- cập nhật nhãn nút
+        S.Rebuild()                                        -- cập nhật nhãn nút
         return "🎯 Niêm tâm: " .. (S.crosshairOn and "BẬT (giữa màn hình game)" or "TẮT")
     elseif id == "unpark" then
         local n = 0
@@ -7255,23 +7214,23 @@ function S.RunHubAction(id)
         if not S.Move.Root() then return "⚠️ chưa có nhân vật để bay (đợi vào game xong hãy bấm)" end
         local okF = pcall(function() S.Move.SetFly(not S.Move.fly) end)
         if not okF then return "⚠️ không bật được bay" end
-        pcall(function() if S.RebuildHubList then S.RebuildHubList() end end)   -- cập nhật nhãn nút
+        S.Rebuild()                                        -- cập nhật nhãn nút
         return S.Move.fly and ("🚀 Bay: BẬT — Space lên · Shift/Ctrl xuống · tốc độ " .. tostring(S.Move.flySpeed))
                             or "🚀 Bay: TẮT (nhân vật trở lại bình thường)"
     elseif id == "noclip" then
         if not S.Move.Root() then return "⚠️ chưa có nhân vật (đợi vào game xong hãy bấm)" end
         pcall(function() S.Move.SetNoclip(not S.Move.noclip) end)
-        pcall(function() if S.RebuildHubList then S.RebuildHubList() end end)
+        S.Rebuild()
         return S.Move.noclip and "🧱 Xuyên tường: BẬT (đi xuyên mọi vật cản)"
                               or "🧱 Xuyên tường: TẮT (CanCollide đã trả lại giá trị gốc)"
     elseif id == "infjump" then
         pcall(function() S.Move.SetInfJump(not S.Move.infJump) end)
-        pcall(function() if S.RebuildHubList then S.RebuildHubList() end end)
+        S.Rebuild()
         return S.Move.infJump and "🦘 Nhảy vô hạn: BẬT (Space/🐸 A — nhảy được cả game cấm nhảy/không bốc JumpRequest)"
                                or "🦘 Nhảy vô hạn: TẮT (JumpPower/JumpHeight đã trả lại game)"
     elseif id == "speed" then
         pcall(function() S.Move.SetSpeed(not S.Move.speed) end)
-        pcall(function() if S.RebuildHubList then S.RebuildHubList() end end)
+        S.Rebuild()
         return S.Move.speed and ("👟 Chạy độ: BẬT — " .. (S.Move.speedMode == "x"
                                      and ("theo game ×" .. tostring(S.Move.speedMul)
                                           .. " = " .. tostring(S.Move.WantSpeed()))
@@ -7281,7 +7240,7 @@ function S.RunHubAction(id)
     elseif id == "carpet" then
         if not S.Move.Root() then return "⚠️ chưa có nhân vật để trải thảm (đợi vào game xong hãy bấm)" end
         pcall(function() S.Move.SetCarpet(not S.Move.carpet) end)
-        pcall(function() if S.RebuildHubList then S.RebuildHubList() end end)
+        S.Rebuild()
         return S.Move.carpet and string.format("🪩 Thảm kính: BẬT — %g×%g×%g (Rộng×Cao×Dài) · ⬆⬇ chỉnh độ cao",
                                                S.Move.carpetW, S.Move.carpetH, S.Move.carpetL)
                             or "🪩 Thảm kính: TẮT (thảm đã dọn khỏi workspace)"
@@ -7289,7 +7248,7 @@ function S.RunHubAction(id)
         if not S.Move.Root() then return "⚠️ chưa có nhân vật (đợi vào game xong hãy bấm)" end
         local okR = pcall(function() S.Move.SetRunMode(not S.Move.runMode) end)
         if not okR then return "⚠️ không bật được chế độ chạy trên thảm" end
-        pcall(function() if S.RebuildHubList then S.RebuildHubList() end end)
+        S.Rebuild()
         return S.Move.runMode
             and ("🏃 CHẠY TRÊN THẢM: BẬT — thảm " .. string.format("%g×%g×%g",
                     S.Move.carpetW, S.Move.carpetH, S.Move.carpetL)
@@ -7299,7 +7258,7 @@ function S.RunHubAction(id)
             or "🏃 CHẠY TRÊN THẢM: TẮT (thảm đã dọn, tốc độ về mặc định)"
     elseif id == "movestop" then
         pcall(function() S.Move.StopAll() end)
-        pcall(function() if S.RebuildHubList then S.RebuildHubList() end end)
+        S.Rebuild()
         return "🛑 đã tắt hết: " .. S.Move.Status()
     end
     return "⚠️ không rõ thao tác: " .. tostring(id)
@@ -7422,15 +7381,13 @@ end
 D.hubJobCopy.Activated:Connect(function()
     local jid = S.GetJobId()
     if not jid then
-        D.hubStatus.Text = "⚠️ Không có mã server để copy (đang ở Studio / server đơn)"
-        D.hubStatus.TextColor3 = C.RED
+        D.Say("⚠️ Không có mã server để copy (đang ở Studio / server đơn)")
         return
     end
     local okCp = S.CopyToClipboard(jid)
     pcall(function() D.hubJobIn.Text = jid end)
-    D.hubStatus.Text = okCp and ("📋 Đã copy mã server: " .. jid)
-                             or ("⚠️ Executor không cho copy — mã server là: " .. jid)
-    D.hubStatus.TextColor3 = okCp and C.GREEN or C.YELLOW
+    D.Say(okCp and ("📋 Đã copy mã server: " .. jid)
+              or ("⚠️ Executor không cho copy — mã server là: " .. jid), okCp and C.GREEN or C.YELLOW)
 end)
 
 -- 🚀 Vào server theo mã vừa dán
@@ -7440,30 +7397,31 @@ D.hubJoinBtn.Activated:Connect(function()
     id = id:gsub("^%s+", ""):gsub("%s+$", "")
     id = id:gsub('^"', ""):gsub('"$', ""):gsub("^'", ""):gsub("'$", "")
     if id == "" then
-        D.hubStatus.Text = "⚠️ Hãy DÁN mã server (JobId) vào ô 🎟 trước khi bấm 🚀 Vào"
-        D.hubStatus.TextColor3 = C.RED
+        D.Say("⚠️ Hãy DÁN mã server (JobId) vào ô 🎟 trước khi bấm 🚀 Vào")
         ReleaseHubFocus()
         return
     end
-    D.hubStatus.Text = "🚀 Đang vào server " .. id .. " ..."
-    D.hubStatus.TextColor3 = C.YELLOW
+    D.Say("🚀 Đang vào server " .. id .. " ...", C.YELLOW)
     ReleaseHubFocus()   -- nhả focus ô nhập, không thì game chặn input sau khi teleport
     local okJ, errJ = pcall(function() S.JoinServer(id) end)
     if not okJ then
-        D.hubStatus.Text = "⚠️ Không vào được server này (mã sai/hết chỗ/game chặn): " .. tostring(errJ)
-        D.hubStatus.TextColor3 = C.RED
+        D.Say("⚠️ Không vào được server này (mã sai/hết chỗ/game chặn): " .. tostring(errJ))
     end
 end)
 
 -- 🔀 Hop ngay trên khung (cùng một hàm với thẻ 🔀 Hop Server trong danh sách)
 D.hubHopBtn.Activated:Connect(function()
     ReleaseHubFocus()
-    D.hubStatus.Text = "🔀 Đang đi lấy mã server..."
-    D.hubStatus.TextColor3 = C.YELLOW
+    D.Say("🔀 Đang đi lấy mã server...", C.YELLOW)
     D.hubStatus.Text = S.RunHubAction("hopserver")
 end)
 
 -- dựng lại danh sách theo từ khóa + phân loại + yêu thích
+-- v4.12.3: 9 chỗ gọi y hệt 1 dòng này -> gom thành hàm.
+function S.Rebuild()
+    pcall(function() if S.RebuildHubList then S.RebuildHubList() end end)
+end
+
 function S.RebuildHubList()
     local list = D.hubList
     if not list or not list.Parent then return end
@@ -7554,27 +7512,20 @@ function S.RebuildHubList()
             ReleaseHubFocus()
             if it.code then
                 local okR = RunCode(it.code, it.name, nil, 1, 0, it.noPark == true)
-                D.hubStatus.Text = (okR and "▶ đã chạy '" or "⚠️ không chạy được '") .. it.name .. "'"
+                D.Say((okR and "▶ đã chạy '" or "⚠️ không chạy được '") .. it.name .. "'"
                     .. (it.noPark and " · 🪟 GUI của nó ở NGOÀI màn hình game (đúng như tab 🛠)" or "")
-                    .. " · xem chi tiết ở tab 💻 Code"
+                    .. " · xem chi tiết ở tab 💻 Code", C.YELLOW)
             else
-                D.hubStatus.Text = S.RunHubAction(it.action)
+                D.Say(S.RunHubAction(it.action), C.YELLOW)
             end
-            D.hubStatus.TextColor3 = C.YELLOW
         end)
 
         if it.code then
             local copyBtn = D.CardBtn(card, "📋", -84, 24, C.BLUE)
             copyBtn.Activated:Connect(function()
-                local did = false
-                pcall(function()
-                    if setclipboard then setclipboard(it.code) did = true
-                    elseif toclipboard then toclipboard(it.code) did = true
-                    elseif set_clipboard then set_clipboard(it.code) did = true end
-                end)
-                D.hubStatus.Text = did and ("📋 đã copy loadstring của '" .. it.name .. "'")
-                                       or "⚠️ executor này không hỗ trợ clipboard"
-                D.hubStatus.TextColor3 = did and C.GREEN or C.RED
+                local did = S.CopyToClipboard(it.code)
+                D.Say(did and ("📋 đã copy loadstring của '" .. it.name .. "'")
+                           or "⚠️ executor này không hỗ trợ clipboard", did and C.GREEN or C.RED)
             end)
             local saveBtn = D.CardBtn(card, "💾", -56, 24, C.PURPLE)
             saveBtn.Activated:Connect(function()
@@ -7590,8 +7541,7 @@ function S.RebuildHubList()
                 table.insert(scripts, {name = nm, code = it.code, expanded = false})
                 pcall(function() if RebuildScripts then RebuildScripts() end end)
                 pcall(function() Store.saveSoon() end)
-                D.hubStatus.Text = "💾 đã lưu '" .. nm .. "' sang tab 💾 Code Đã Lưu"
-                D.hubStatus.TextColor3 = C.GREEN
+                D.Say("💾 đã lưu '" .. nm .. "' sang tab 💾 Code Đã Lưu", C.GREEN)
             end)
         end
 
@@ -7601,9 +7551,8 @@ function S.RebuildHubList()
             if S.hubFavs[it.name] then S.hubFavs[it.name] = nil else S.hubFavs[it.name] = true end
             pcall(function() Store.saveSoon() end)   -- lưu yêu thích xuống đĩa
             S.RebuildHubList()
-            D.hubStatus.Text = S.hubFavs[it.name] and ("⭐ đã ghim '" .. it.name .. "' lên đầu")
-                                                   or ("☆ đã bỏ ghim '" .. it.name .. "'")
-            D.hubStatus.TextColor3 = C.MUTED
+            D.Say(S.hubFavs[it.name] and ("⭐ đã ghim '" .. it.name .. "' lên đầu")
+                                      or ("☆ đã bỏ ghim '" .. it.name .. "'"), C.MUTED)
         end)
     end
 
@@ -7617,8 +7566,7 @@ function S.RebuildHubList()
     end)
     if S.RefreshMovePanel then pcall(S.RefreshMovePanel) end   -- v4.12: nhãn trạng thái di chuyển
     if #items == 0 and D.hubStatus then
-        D.hubStatus.Text = "🔍 không tìm thấy gì khớp '" .. tostring(S.hubSearch or "") .. "'"
-        D.hubStatus.TextColor3 = C.MUTED
+        D.Say("🔍 không tìm thấy gì khớp '" .. tostring(S.hubSearch or "") .. "'", C.MUTED)
     end
 end
 
@@ -7677,12 +7625,7 @@ do
         D.Tactile(b, 0.08)
         return b
     end
-    local function say(msg, good)
-        if D.hubStatus then
-            D.hubStatus.Text = msg
-            D.hubStatus.TextColor3 = good and C.GREEN or C.RED
-        end
-    end
+    local function say(msg, good) D.Say(msg, good and C.GREEN or C.RED) end
 
     title("⚙ Tuỳ chỉnh di chuyển (áp dụng ngay, không cần bật lại)")
 
@@ -7791,8 +7734,7 @@ do
     end)
     stopBtn.Activated:Connect(function()
         ReleaseHubFocus()
-        D.hubStatus.Text = S.RunHubAction("movestop")
-        D.hubStatus.TextColor3 = C.YELLOW
+        D.Say(S.RunHubAction("movestop"), C.YELLOW)
         st.Text = S.Move.Status()
     end)
 
@@ -7938,10 +7880,7 @@ do
     saveNow.Activated:Connect(function()
         local ok = Store.save()
         refreshStorage()
-        saveNow.Text = ok and "✅ Đã lưu" or "❌ Lỗi"
-        task.delay(1.4, function()
-            if saveNow and saveNow.Parent then saveNow.Text = "💾 Lưu ngay" end
-        end)
+        flash(saveNow, ok and "✅ Đã lưu" or "❌ Lỗi", 1.4)
     end)
     reload.Activated:Connect(function()
         pcall(function() if S.DoReload then S.DoReload() end end)
@@ -7967,30 +7906,27 @@ do
     expBtn.Activated:Connect(function()
         local ok, json = pcall(function() return HttpService:JSONEncode(Store.serialize()) end)
         if not ok or type(json) ~= "string" then
-            expBtn.Text = "❌ Lỗi JSON"; task.delay(1.6, function() if expBtn.Parent then expBtn.Text = "📤 Xuất ra clipboard" end end)
+            flash(expBtn, "❌ Lỗi JSON", 1.6)
             return
         end
-        local done = false
-        if setclipboard then done = pcall(setclipboard, json)
-        elseif toclipboard then done = pcall(toclipboard, json) end
+        local done = S.CopyToClipboard(json)
         if not done then
             -- không có clipboard: đưa thẳng vào ô dán để người dùng tự copy
             paste.Text = json
-            expBtn.Text = "⚠️ Đã dán vào ô"
+            flash(expBtn, "⚠️ Đã dán vào ô", 1.8)
         else
-            expBtn.Text = "✅ Đã copy"
+            flash(expBtn, "✅ Đã copy", 1.8)
         end
-        task.delay(1.8, function() if expBtn and expBtn.Parent then expBtn.Text = "📤 Xuất ra clipboard" end end)
     end)
 
     impBtn.Activated:Connect(function()
         local txt = paste.Text
         if type(txt) ~= "string" or #txt < 2 then
-            impBtn.Text = "⚠️ Trống"; task.delay(1.6, function() if impBtn.Parent then impBtn.Text = "📥 Nhập" end end); return
+            flash(impBtn, "⚠️ Trống", 1.6); return
         end
         local ok, data = pcall(function() return HttpService:JSONDecode(txt) end)
         if not ok or type(data) ~= "table" or type(data.scripts) ~= "table" then
-            impBtn.Text = "❌ JSON sai"; task.delay(1.8, function() if impBtn.Parent then impBtn.Text = "📥 Nhập" end end); return
+            flash(impBtn, "❌ JSON sai", 1.8); return
         end
         local have = {}
         for _, s in ipairs(scripts) do have[tostring(s.name)] = true end
@@ -8012,8 +7948,7 @@ do
         refreshStorage()
         Store.saveSoon()
         paste.Text = ""
-        impBtn.Text = "✅ +" .. added
-        task.delay(1.8, function() if impBtn and impBtn.Parent then impBtn.Text = "📥 Nhập" end end)
+        flash(impBtn, "✅ +" .. added, 1.8)
     end)
 
     -- ---------- [3] MÔI TRƯỜNG EXECUTOR ----------
@@ -8062,8 +7997,7 @@ do
         pcall(function() if Store.restoreWaypoints then Store.restoreWaypoints() end end)
         Store.save()
         refreshStorage()
-        clearBtn.Text = "✅ Đã xoá"
-        task.delay(1.6, function() if clearBtn and clearBtn.Parent then clearBtn.Text = "🗑 Xoá sạch dữ liệu" end end)
+        flash(clearBtn, "✅ Đã xoá", 1.6)
     end)
 
     setTab.CanvasSize = UDim2.new(0, 0, 0, sy + 8)

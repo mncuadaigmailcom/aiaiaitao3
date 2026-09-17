@@ -366,6 +366,15 @@ instMT.__newindex = function(t, k, v)
             table.insert(v._children, t)
             local add = v._signals["ChildAdded"]
             if add then pcall(function() add:Fire(t) end) end
+            -- Roblox thật: DescendantAdded bốc trên MỌI tổ tiên (cha, ông, cụ...) chứ không
+            -- chỉ cha trực tiếp. Mock cũ thiếu -> các code "bắt part mới" không test được.
+            local up, guard = v, 0
+            while isInstance(up) and guard < 64 do
+                local da = up._signals["DescendantAdded"]
+                if da then pcall(function() da:Fire(t) end) end
+                up = rawget(up, "Parent")
+                guard = guard + 1
+            end
         end
         local anc = t._signals["AncestryChanged"]
         if anc then pcall(function() anc:Fire(t, v) end) end
@@ -808,6 +817,7 @@ camera.CameraType = Enum.CameraType.Custom
 camera.CameraSubject = nil
 camera.Parent = workspace
 rawset(workspace, "CurrentCamera", camera)
+rawset(workspace, "Gravity", 196.2)          -- trọng lực mặc định của Roblox
 Mock.camera = camera
 function workspace:GetPartBoundsInRadius(pos, r, params) return {} end
 function workspace:Raycast(origin, dir, params) return nil end
@@ -931,6 +941,8 @@ function Mock.makeCharacter(parent)
     hum.MaxHealth = 100
     hum.WalkSpeed = 16
     hum.JumpPower = 50
+    hum.JumpHeight = 7.35          -- Roblox thật: ~JumpPower^2 / (2*Gravity)
+    hum.UseJumpPower = true        -- R6/R15 mặc định: dùng JumpPower (không dùng JumpHeight)
     hum.AutoRotate = true
     hum.PlatformStand = false
     hum.Sit = false

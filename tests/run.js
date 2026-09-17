@@ -37,6 +37,8 @@ _G.__HUBTEST = {
     player = player, Players = Players, RunService = RunService,
     UserInputService = UserInputService, workspace = workspace, targetGui = targetGui,
     ReleaseHubFocus = ReleaseHubFocus, Hit = Hit, SwitchTab = SwitchTab,
+    flash = flash, MakeTabFrame = MakeTabFrame, MakeTabButton = MakeTabButton,
+    CreateFeatureTab = CreateFeatureTab, CopyToClipboard = S.CopyToClipboard,
     S_Move = S.Move, RebuildHubList = S.RebuildHubList, RunHubAction = S.RunHubAction,
     -- Store.load() GÁN LẠI local scripts/waypoints (scripts = sOut), nên mọi tham chiếu
     -- lấy ra từ đây trước đó sẽ cũ -> test phải đọc qua hàm.
