@@ -6,8 +6,15 @@
             - 🚀 Bay: BodyVelocity/BodyGyro, Space lên · Shift/Ctrl xuống · WASD lái.
             - 🧱 Xuyên Tường (NoClip).
             - 🦘 Nhảy Vô Hạn.
-            - 👟 Chạy Độ: WalkSpeed + JumpPower, tự áp lại nếu game đổi về mặc định.
+            - 🏃 Chạy Trên Thảm (chế độ CHẠY BỘ kiểu aiaiaitao3): bật 1 lần = trải thảm kính
+              dưới chân để chạy lên + tăng tốc chạy + ẩn menu + hiện cụm nút NỔI.
             - 🪩 Thảm Kính: chỉnh được RỘNG × CAO (độ dày) × DÀI, ⬆⬇ nâng/hạ, bám theo người.
+              (Tốc độ chạy / lực nhảy vẫn chỉnh được ở khung ⚙ — Chạy Trên Thảm dùng chính chúng.)
+        • CỤM NÚT NỔI TRÊN MÀN HÌNH GAME (⬆ 🪩 ⬇ ✕, góc phải màn hình): tự hiện khi thảm/bay/
+          chạy-trên-thảm đang bật, tự ẩn khi tắt hết. ⬆⬇ đưa thảm (và bạn đang đứng trên đó) lên/
+          xuống 2.5 studs · 🪩 bật/tắt thảm · ✕ tắt hết. Đựng TRONG ScreenGui của hub nên KHÔNG
+          bị cơ chế nhúng 🧩 kéo vào tab, và vẫn hiện khi menu đang đóng.
+        • THẢM KÍNH DỄ NHÌN HƠN: bản gốc để Transparency 0.9 (gần tàng hình) -> nay 0.55.
         • KHUNG ⚙ TUỲ CHỈNH nằm TRÊN CÙNG danh sách thẻ (LayoutOrder 0, tên HubMove_Panel nên
           không bao giờ bị xoá khi lọc/tìm kiếm): tốc độ bay · tốc độ chạy · lực nhảy · 3 chiều
           thảm · ⬆ Nâng / ⬇ Hạ / 🛑 Tắt hết + nhãn trạng thái. Toàn bộ nằm trong `do ... end`.
@@ -33,7 +40,7 @@
             mới (D.Tactile) nhưng connection của thẻ đã Destroy không bao giờ bị dọn khỏi
             _G.BananaCatHub_Connections -> bảng phình mãi. Nay trackConn() tự gom rác khi >300.
         • BỘ TEST TỰ ĐỘNG (thư mục tests/, chạy bằng `node tests/run.js`): nạp và CHẠY THẬT hub
-          trong máy ảo Lua 5.4 (wasmoon) + Roblox/executor giả lập. 37 test — 37 PASS.
+          trong máy ảo Lua 5.4 (wasmoon) + Roblox/executor giả lập. 44 test — 44 PASS (thêm nhóm E: chế độ chạy trên thảm + cụm nút nổi).
     + v4.11: CHẠY TEST THẬT + SỬA 3 LỖI + THÊM TRANG ⚙️ THIẾT LẬP.
         • BỘ TEST THẬT (thư mục tests/): lần đầu hub được NẠP VÀ CHẠY trong máy ảo Lua 5.4
           (wasmoon) trên môi trường Roblox/executor giả lập (tests/roblox-mock.lua). Kết quả:
@@ -6430,6 +6437,8 @@ end
 -- ============================================================================
 S.Move = {
     fly = false, noclip = false, infJump = false, speed = false, carpet = false,
+    runMode = false,                         -- 🏃 chế độ "chạy trên thảm" (gộp thảm + tốc độ + HUD)
+    _hud = nil, _hudUp = nil, _hudDown = nil, _hudCarpet = nil, _menuWasOpen = nil,
     flySpeed = 50, walkSpeed = 16, jumpPower = 50,
     carpetW = 6, carpetH = 0.5, carpetL = 6,     -- Rộng × Cao(dày) × Dài
     carpetY = nil,
@@ -6564,7 +6573,7 @@ function MV.SetFly(on)
     local r = MV.Root()
     if on and not r then return false, "chưa có nhân vật để bay" end
     MV.fly = on
-    if not on then MV._StopFly(); return false end
+    if not on then MV._StopFly(); MV.SyncHud(); return false end
     local h = MV.Hum()
     MV._bv = New("BodyVelocity", { Name = "BC_FlyVel", MaxForce = Vector3.new(4000, 4000, 4000) }, r)
     MV._bg = New("BodyGyro",     { Name = "BC_FlyGyro", MaxTorque = Vector3.new(4000, 4000, 4000) }, r)
@@ -6593,6 +6602,7 @@ function MV.SetFly(on)
         end
         if MV._floor then MV._floor.Position = curR.Position - Vector3.new(0, 3.5, 0) end
     end)
+    MV.SyncHud()
     return true
 end
 
@@ -6622,8 +6632,9 @@ function MV.CreateCarpet(y)
     MV._carpet = New("Part", {
         Name = "Carpet",
         Size = Vector3.new(MV.carpetW, MV.carpetH, MV.carpetL),
-        Transparency = 0.9,
-        Color = Color3.fromRGB(200, 230, 255),
+        -- v4.12: transparency 0.9 của bản gốc làm thảm gần như tàng hình -> 0.55 để NHÌN THẤY
+        Transparency = 0.55,
+        Color = Color3.fromRGB(150, 210, 255),
         Material = Enum.Material.Glass,
         Anchored = true, CanCollide = true, Friction = 1,
         Position = Vector3.new(r.Position.X, MV.carpetY, r.Position.Z),
@@ -6659,6 +6670,7 @@ function MV.SetCarpet(on)
     else
         MV._StopCarpet()
     end
+    MV.SyncHud()
     return MV.carpet
 end
 
@@ -6675,6 +6687,103 @@ function MV.Nudge(dy)
     return false, nil
 end
 
+-- ---------- HUD: cụm nút NỔI TRÊN MÀN HÌNH GAME (⬆ 🪩 ⬇ ✕) ----------
+-- Bản gốc (aiaiaitao3) cũng có overlay này. Ở đây dựng TRONG `gui` của hub (không tạo
+-- ScreenGui riêng) để: (1) luôn nằm trên màn hình game, kể cả khi menu đang đóng;
+-- (2) KHÔNG bị cơ chế nhúng GUI (🧩) kéo vào tab — vì nút này là của hub, không phải của
+-- script người dùng. Hiện mỗi khi thảm/bay/chạy-trên-thảm đang bật, ẨN khi tắt hết.
+function MV._BuildHud()
+    if MV._hud then return MV._hud end
+    local hud = New("Frame", {
+        Name = "BC_MoveHud",
+        Size = UDim2.new(0, 52, 0, 176), Position = UDim2.new(1, -62, 0.5, -88),
+        BackgroundTransparency = 1, Visible = false, ZIndex = 20,
+    }, gui)
+    local function hbtn(txt, y, color, cb)
+        local b = New("TextButton", {
+            Size = UDim2.new(0, 44, 0, 38), Position = UDim2.new(0, 4, 0, y),
+            Text = txt, BackgroundColor3 = color or C.SURFACE3, BackgroundTransparency = 0.12,
+            TextColor3 = C.WHITE, Font = Enum.Font.GothamBold, TextSize = 17,
+            BorderSizePixel = 0, ZIndex = 21,
+        }, hud)
+        Corner(b, UDim.new(0, 10))
+        Stroke(b, C.WHITE, 1.5)
+        b.Activated:Connect(function() pcall(cb) end)
+        return b
+    end
+    MV._hudUp = hbtn("⬆", 0, C.GREEN, function()
+        local ok, what = MV.Nudge(2.5)
+        MV._HudSay(ok and ("⬆ nâng " .. tostring(what) .. " lên 2.5") or "⬆ chưa có thảm/bay")
+    end)
+    MV._hudCarpet = hbtn("🪩", 44, C.PURPLE, function()
+        MV.SetCarpet(not MV.carpet)
+        MV._HudSay(MV.carpet and "🪩 thảm: BẬT" or "🪩 thảm: TẮT")
+    end)
+    MV._hudDown = hbtn("⬇", 88, C.BLUE, function()
+        local ok, what = MV.Nudge(-2.5)
+        MV._HudSay(ok and ("⬇ hạ " .. tostring(what) .. " xuống 2.5") or "⬇ chưa có thảm/bay")
+    end)
+    hbtn("✕", 132, C.RED, function()
+        MV.SetRunMode(false)
+        MV._HudSay("🛑 đã tắt chế độ chạy trên thảm")
+    end)
+    MV._hud = hud
+    return hud
+end
+function MV._HudSay(msg)
+    pcall(function() if D.hubStatus then D.hubStatus.Text = msg end end)
+end
+-- Hiện/ẩn + tô màu theo trạng thái thật (gọi sau mỗi lần bật/tắt)
+function MV.SyncHud()
+    pcall(function()
+        local hud = MV._BuildHud()
+        local on = (MV.carpet or MV.fly or MV.runMode)
+        hud.Visible = (on == true)
+        if MV._hudCarpet then
+            MV._hudCarpet.BackgroundColor3 = MV.carpet and C.GREEN or C.SURFACE3
+        end
+        if MV._hudUp then MV._hudUp.BackgroundTransparency = (MV.carpet or MV.fly) and 0.12 or 0.6 end
+        if MV._hudDown then MV._hudDown.BackgroundTransparency = (MV.carpet or MV.fly) and 0.12 or 0.6 end
+    end)
+end
+
+-- ---------- 🏃 CHẠY TRÊN THẢM (chế độ gộp, kiểu "chạy bộ" của aiaiaitao3) ----------
+-- Bật 1 lần = trải thảm kính dưới chân + tăng tốc chạy + hiện cụm nút ⬆🪩⬇✕ trên màn hình
+-- + ẩn menu để nhìn game. Thảm CanCollide = true nên người CHẠY ĐƯỢC TRÊN MẶT THẢM; ⬆⬇
+-- đưa cả thảm (và người đang đứng trên đó) lên/xuống.
+function MV.SetRunMode(on)
+    on = (on == true)
+    local r = MV.Root()
+    if on and not r then return false, "chưa có nhân vật để chạy" end
+    if on == MV.runMode then MV.SyncHud(); return MV.runMode end
+    MV.runMode = on
+    if on then
+        -- nhớ menu đang mở hay đóng để lúc tắt trả lại đúng trạng thái cũ
+        MV._menuWasOpen = (main and main.Visible) or false
+        if MV._menuWasOpen then
+            pcall(function()
+                main.Visible = false
+                if togBtn then togBtn.Text = "🍌" end
+            end)
+        end
+        MV.SetSpeed(true)                            -- 👟 tăng tốc chạy
+        if not MV.carpet then MV.SetCarpet(true) end  -- 🪩 thảm dưới chân
+    else
+        MV.SetCarpet(false)
+        MV.SetSpeed(false)
+        if MV.fly then MV.SetFly(false) end
+        if MV._menuWasOpen then
+            pcall(function()
+                if main then main.Visible = true end
+                if togBtn then togBtn.Text = "✕" end
+            end)
+        end
+        MV._menuWasOpen = nil
+    end
+    MV.SyncHud()
+    return MV.runMode
+end
+
 -- ---------- tắt hết / khôi phục sau respawn / tóm tắt trạng thái ----------
 function MV.StopAll()
     MV.SetFly(false)
@@ -6682,6 +6791,8 @@ function MV.StopAll()
     MV.SetNoclip(false)
     MV.SetInfJump(false)
     MV.SetSpeed(false)
+    MV.SetRunMode(false)     -- v4.12: thoát cả chế độ chạy trên thảm (trả menu + ẩn HUD)
+    MV.SyncHud()
 end
 -- Bảng để thẻ trong Script Hub tự hiện trạng thái (BẬT/TẮT): thêm tính năng mới thì chỉ
 -- cần thêm 1 dòng ở đây, không phải sửa hàm dựng thẻ.
@@ -6691,6 +6802,7 @@ S.MoveActionState = {
     infjump = function() return S.Move.infJump end,
     speed   = function() return S.Move.speed   end,
     carpet  = function() return S.Move.carpet  end,
+    runmode = function() return S.Move.runMode end,
 }
 
 function MV.Refresh()
@@ -6706,6 +6818,7 @@ function MV.Refresh()
     if MV.carpet and (not MV._carpet or not MV._carpet.Parent) then
         MV.CreateCarpet(MV.carpetY)
     end
+    MV.SyncHud()
 end
 function MV.Status()
     local t = {}
@@ -6856,8 +6969,8 @@ S.ScriptHubList = {
      desc="Đi xuyên mọi vật cản. Tắt đi trả lại ĐÚNG CanCollide gốc của từng part (không gán cứng như bản cũ)."},
     {icon="🦘", name="Nhảy Vô Hạn", cat="Di chuyển", ord=14, action="infjump",
      desc="Nhảy mãi không chạm đất, bấm Space bao nhiêu lần cũng được."},
-    {icon="👟", name="Chạy Độ", cat="Di chuyển", ord=15, action="speed",
-     desc="Đổi tốc độ chạy (WalkSpeed) và lực nhảy (JumpPower). Tự áp lại nếu game đổi về mặc định."},
+    {icon="🏃", name="Chạy Trên Thảm", cat="Di chuyển", ord=15, action="runmode",
+     desc="Chế độ CHẠY BỘ kiểu aiaiaitao3: trải thảm kính dưới chân để chạy lên + tăng tốc + hiện nút ⬆🪩⬇✕ NỔI TRÊN MÀN HÌNH (⬆⬇ đưa cả thảm và bạn lên/xuống)."},
     {icon="🪩", name="Thảm Kính", cat="Di chuyển", ord=16, action="carpet",
      desc="Trải thảm kính dưới chân để đứng/lên xuống (⬆⬇). Chỉnh RỘNG × CAO × DÀI ở khung ⚙ phía trên."},
 }
@@ -6953,6 +7066,17 @@ function S.RunHubAction(id)
         return S.Move.carpet and string.format("🪩 Thảm kính: BẬT — %g×%g×%g (Rộng×Cao×Dài) · ⬆⬇ chỉnh độ cao",
                                                S.Move.carpetW, S.Move.carpetH, S.Move.carpetL)
                             or "🪩 Thảm kính: TẮT (thảm đã dọn khỏi workspace)"
+    elseif id == "runmode" then
+        if not S.Move.Root() then return "⚠️ chưa có nhân vật (đợi vào game xong hãy bấm)" end
+        local okR = pcall(function() S.Move.SetRunMode(not S.Move.runMode) end)
+        if not okR then return "⚠️ không bật được chế độ chạy trên thảm" end
+        pcall(function() if S.RebuildHubList then S.RebuildHubList() end end)
+        return S.Move.runMode
+            and ("🏃 CHẠY TRÊN THẢM: BẬT — thảm " .. string.format("%g×%g×%g",
+                    S.Move.carpetW, S.Move.carpetH, S.Move.carpetL)
+                 .. " dưới chân · chạy " .. tostring(S.Move.walkSpeed)
+                 .. " · dùng nút ⬆⬇ nổi GÓC PHẢI màn hình để lên/xuống, ✕ để tắt")
+            or "🏃 CHẠY TRÊN THẢM: TẮT (thảm đã dọn, tốc độ về mặc định)"
     elseif id == "movestop" then
         pcall(function() S.Move.StopAll() end)
         pcall(function() if S.RebuildHubList then S.RebuildHubList() end end)
@@ -7816,4 +7940,4 @@ print(string.format(
 ))
 print("   💾 File lưu: " .. Store.SAVE_FILE .. " (trong thư mục workspace của executor — sống qua cả lần rejoin)")
 print("   Tính năng: Code + Code Đã Lưu + Script Hub + Hỗ Trợ (POS+SIZE+ROT+LOOK+VẬT THỂ+HIGHLIGHT TÍM) + Thiết Lập + Tạo Tính Năng")
-print("   🆕 v4.12: Script Hub có BỘ DI CHUYỂN — 🚀 Bay · 🧱 Xuyên Tường · 🦘 Nhảy Vô Hạn · 👟 Chạy Độ · 🪩 Thảm Kính (chỉnh Rộng×Cao×Dài ở khung ⚙ đầu danh sách)")
+print("   🆕 v4.12: Script Hub có BỘ DI CHUYỂN — 🚀 Bay · 🧱 Xuyên Tường · 🦘 Nhảy Vô Hạn · 🏃 Chạy Trên Thảm · 🪩 Thảm Kính (chỉnh Rộng×Cao×Dài ở khung ⚙ đầu danh sách)")

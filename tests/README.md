@@ -13,7 +13,7 @@ node run.js ../script.js            # chạy tất cả
 node run.js ../script.js noclip     # chỉ chạy test tên có chữ "noclip"
 ```
 
-Kết quả hiện tại: **37 PASS · 0 FAIL**.
+Kết quả hiện tại: **44 PASS · 0 FAIL**.
 
 ## Cấu trúc
 
@@ -21,7 +21,7 @@ Kết quả hiện tại: **37 PASS · 0 FAIL**.
 |---|---|
 | `run.js` | Tạo máy ảo, nạp mock, nạp hub, chạy `tests.lua`, tổng hợp kết quả (exit code 1 nếu FAIL). |
 | `roblox-mock.lua` | Giả lập Roblox + executor: `Instance`/event/method, `Vector3/CFrame/UDim2/Color3/Enum…`, `task.wait/spawn/defer`, service (Players, RunService, UserInputService, TweenService, HttpService, TeleportService…), JSON encode/decode, file ảo, API executor (`writefile`, `setclipboard`, `gethui`, `request`…), đồng hồ ảo (`Mock.advance`) và nhân vật mẫu (`Mock.makeCharacter`). |
-| `tests.lua` | Các test, chia 4 nhóm: **A** tính năng cũ (chống mất), **B** bộ di chuyển mới, **C** kiểm tra cuối, **D** khung ⚙ tuỳ chỉnh + ngoại lệ. |
+| `tests.lua` | Các test, chia 4 nhóm: **A** tính năng cũ (chống mất), **B** bộ di chuyển mới, **C** kiểm tra cuối, **D** khung ⚙ tuỳ chỉnh + ngoại lệ, **E** chế độ Chạy Trên Thảm + cụm nút nổi. |
 
 ## Cách test đọc được biến `local` của hub
 
@@ -47,6 +47,8 @@ Vì đoạn này nằm **trong cùng chunk**, nó nhìn thấy mọi `local`.
 | 4 | `trackConn()` giữ mãi connection của thẻ đã Destroy → mỗi lần lọc/tìm kiếm phình thêm hàng trăm phần tử | D10 |
 | 5 | `MV.Refresh()` dựng lại thảm vô điều kiện sau respawn → làm mất tham chiếu thảm đang dùng (sửa: chỉ dựng lại khi thật sự mất) | B10, B12 |
 | 6 | (mock) `CFrame`/`Position` không nối với nhau → test đọc sai vị trí | — |
+| 7 | Thảm `Transparency = 0.9` gần như tàng hình → người dùng "bật mà không thấy thảm" | E2 |
+| 8 | Bật/tắt chế độ chạy để lại cờ BẬT → test sau gọi `action()` lại TẮT nhầm (sửa test: `cleanStart()`) | E2, E5 |
 
 ## Thêm test mới
 

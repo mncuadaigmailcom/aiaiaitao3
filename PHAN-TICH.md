@@ -7,7 +7,7 @@ Ngày phân tích: 2026-09-17 · Branch: `arena/01a0af79-aiaiaitao3` · Commit g
 ## 0. Cập nhật v4.12 (đã thực hiện theo yêu cầu)
 
 Port **5 tính năng di chuyển** từ `aiaiaitao3` vào trang 📚 Script Hub của `script.js`, kèm bộ test
-tự động chạy thật trong máy ảo. Kết quả: **`node tests/run.js` → 37 PASS · 0 FAIL**.
+tự động chạy thật trong máy ảo. Kết quả: **`node tests/run.js` → 44 PASS · 0 FAIL**.
 
 **Đã thêm (toàn bộ là tiện ích nội bộ, không tải gì từ mạng):**
 
@@ -16,10 +16,10 @@ tự động chạy thật trong máy ảo. Kết quả: **`node tests/run.js` �
 | 🚀 Bay | BodyVelocity/BodyGyro · Space lên · Shift/Ctrl xuống · WASD lái |
 | 🧱 Xuyên Tường | NoClip |
 | 🦘 Nhảy Vô Hạn | JumpRequest → ChangeState(Jumping) |
-| 👟 Chạy Độ | WalkSpeed + JumpPower, tự áp lại 0.5s/lần nếu game đổi về mặc định |
+| 🏃 Chạy Trên Thảm | **Chế độ chạy bộ kiểu aiaiaitao3**: trải thảm dưới chân + tăng tốc + ẩn menu + hiện cụm nút ⬆🪩⬇✕ nổi trên màn hình |
 | 🪩 Thảm Kính | Chỉnh **Rộng × Cao × Dài**, ⬆⬇ nâng/hạ, thảm bám theo người, giữ người đứng trên mặt thảm khi đang xuyên tường |
 
-Kèm **khung ⚙ Tuỳ chỉnh** nằm trên cùng danh sách thẻ (`HubMove_Panel`, LayoutOrder 0, không bị xoá
+Kèm **cụm nút nổi trên màn hình game** (⬆ nâng · 🪩 bật/tắt thảm · ⬇ hạ · ✕ tắt hết, góc phải): tự hiện khi thảm/bay/chạy-trên-thảm đang bật, tự ẩn khi tắt. Và **khung ⚙ Tuỳ chỉnh** nằm trên cùng danh sách thẻ (`HubMove_Panel`, LayoutOrder 0, không bị xoá
 khi lọc/tìm kiếm): tốc độ bay · chạy · nhảy · 3 chiều thảm · ⬆/⬇ · 🛑 Tắt hết + nhãn trạng thái.
 Tất cả state gom trong `S.Move` (không tốn slot local cấp chunk), mọi connection qua `trackConn()`,
 tự bật lại sau respawn qua `CharacterAdded`.

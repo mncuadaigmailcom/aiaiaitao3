@@ -220,8 +220,8 @@ test("B1 · S.Move tồn tại với đủ thông số", function()
     truthy(type(m.carpetL) == "number", "carpetL")
 end)
 
-test("B2 · Script Hub có 5 thẻ mới, đúng phân loại 'Di chuyển'", function()
-    local names = { "Nhảy Vô Hạn", "Xuyên Tường", "Bay", "Chạy Độ", "Thảm Kính" }
+test("B2 · Script Hub có 6 thẻ di chuyển, đúng phân loại 'Di chuyển'", function()
+    local names = { "Nhảy Vô Hạn", "Xuyên Tường", "Bay", "Chạy Trên Thảm", "Thảm Kính" }
     for _, nm in ipairs(names) do
         local found
         for _, it in ipairs(S.ScriptHubList) do
@@ -590,6 +590,111 @@ test("D10 · bật/tắt 20 lần không rò rỉ connection", function()
     S.Move.StopAll()
     local after = #(_G.BananaCatHub_Connections or {})
     truthy(after - before <= 2, string.format("số connection chỉ được tăng <=2 (trước %d, sau %d)", before, after))
+end)
+
+
+print("\n── E. CHẠY TRÊN THẢM + NÚT NỔI TRÊN MÀN HÌNH ─────────────")
+
+local function hud()
+    return H.gui:FindFirstChild("BC_MoveHud", true)
+end
+local function cleanStart()
+    S.Move.StopAll()          -- tránh tình trạng test trước để lại cờ đang BẬT -> action() tắt nhầm
+    Mock.advance(0.05)
+    return resetChar()
+end
+local function hudBtn(txt)
+    local h = hud()
+    if not h then return nil end
+    for _, d in ipairs(h:GetDescendants()) do
+        if d.ClassName == "TextButton" and d.Text == txt then return d end
+    end
+    return nil
+end
+
+test("E1 · 🏃 Chạy Trên Thảm: bật = có thảm + tăng tốc + HUD hiện", function()
+    local ch = resetChar()
+    S.Move.walkSpeed = 90
+    local msg = action("runmode")
+    Mock.advance(0.1)
+    truthy(S.Move.runMode, "cờ chế độ chạy")
+    truthy(tostring(msg):find("BẬT"), "thông báo BẬT: " .. msg)
+    truthy(H.workspace:FindFirstChild("Carpet"), "có thảm kính dưới chân")
+    eq(ch:FindFirstChild("Humanoid").WalkSpeed, 90, "tốc độ chạy đã áp")
+    truthy(hud(), "có HUD")
+    eq(hud().Visible, true, "HUD đang hiện trên màn hình")
+    S.Move.StopAll(); Mock.advance(0.05)
+end)
+
+test("E2 · thảm nằm DƯỚI CHÂN (cách 3 studs như bản gốc) và đủ rõ để thấy", function()
+    local ch = cleanStart()
+    action("runmode")
+    Mock.advance(0.1)
+    local cp = H.workspace:FindFirstChild("Carpet")
+    truthy(cp, "có thảm")
+    local r = ch:FindFirstChild("HumanoidRootPart")
+    truthy(cp.CFrame.Position.Y < r.Position.Y, "thảm nằm dưới chân")
+    truthy((r.Position.Y - cp.CFrame.Position.Y) <= 3.5, "không quá xa chân")
+    truthy(cp.Transparency <= 0.7, "thảm đủ rõ để nhìn thấy (transparency=" .. tostring(cp.Transparency) .. ")")
+    eq(cp.CanCollide, true, "thảm đặc để CHẠY ĐƯỢC TRÊN mặt")
+end)
+
+test("E3 · nút ⬆/⬇ NỔI TRÊN MÀN HÌNH đưa thảm lên/xuống", function()
+    local ch = cleanStart()
+    action("runmode")
+    Mock.advance(0.1)
+    local y0 = S.Move.carpetY
+    truthy(hudBtn("⬆"), "có nút ⬆"); truthy(hudBtn("⬇"), "có nút ⬇")
+    Mock.click(hudBtn("⬆"))
+    eq(S.Move.carpetY, y0 + 2.5, "⬆ nâng 2.5")
+    Mock.click(hudBtn("⬇"))
+    eq(S.Move.carpetY, y0, "⬇ hạ về chỗ cũ")
+end)
+
+test("E4 · HUD nằm trong GUI của hub (không bị nhúng vào tab 🧩)", function()
+    local h = hud()
+    truthy(h, "có HUD")
+    eq(h:FindFirstAncestorOfClass("ScreenGui"), H.gui, "HUD là con của ScreenGui hub")
+    -- không nằm trong tab 🧩 GUI Ngoài hay tab tính năng nào
+    for _, ft in ipairs(H.featureTabs or {}) do
+        falsy(h:IsDescendantOf(ft.frame), "HUD không nằm trong tab tính năng")
+    end
+end)
+
+test("E5 · nút ✕ trên HUD tắt hết: mất thảm, ẩn HUD, trả lại menu", function()
+    local ch = cleanStart()
+    action("runmode")
+    Mock.advance(0.1)
+    truthy(hud().Visible, "HUD đang hiện")
+    Mock.click(hudBtn("✕"))
+    Mock.advance(0.1)
+    falsy(S.Move.runMode, "đã thoát chế độ")
+    falsy(H.workspace:FindFirstChild("Carpet"), "thảm đã dọn")
+    eq(hud().Visible, false, "HUD đã ẩn")
+    eq(ch:FindFirstChild("Humanoid").WalkSpeed, 16, "tốc độ về mặc định")
+end)
+
+test("E6 · bật/tắt chế độ nhiều lần không kẹt menu, không rò rỉ", function()
+    local ch = cleanStart()
+    local before = #(_G.BananaCatHub_Connections or {})
+    for i = 1, 10 do action("runmode") end
+    Mock.advance(0.1)
+    S.Move.StopAll()
+    Mock.advance(0.1)
+    falsy(S.Move.runMode or S.Move.carpet or S.Move.speed, "mọi cờ false")
+    eq(hud().Visible, false, "HUD ẩn")
+    local after = #(_G.BananaCatHub_Connections or {})
+    truthy(after - before <= 2, string.format("connection chỉ tăng <=2 (trước %d sau %d)", before, after))
+end)
+
+test("E7 · thảm cũng hiện HUD khi bật thẻ 🪩 Thảm Kính (không cần chế độ chạy)", function()
+    local ch = cleanStart()
+    action("carpet")
+    Mock.advance(0.1)
+    eq(hud().Visible, true, "bật thảm là HUD hiện")
+    action("carpet")                       -- tắt
+    Mock.advance(0.1)
+    eq(hud().Visible, false, "tắt thảm là HUD ẩn")
 end)
 
 print("\n── C. KIỂM TRA CUỐI ─────────────────────────────────────────")
