@@ -40,7 +40,27 @@
             mới (D.Tactile) nhưng connection của thẻ đã Destroy không bao giờ bị dọn khỏi
             _G.BananaCatHub_Connections -> bảng phình mãi. Nay trackConn() tự gom rác khi >300.
         • BỘ TEST TỰ ĐỘNG (thư mục tests/, chạy bằng `node tests/run.js`): nạp và CHẠY THẬT hub
-          trong máy ảo Lua 5.4 (wasmoon) + Roblox/executor giả lập. 65 test — 65 PASS (E: chạy trên thảm + nút nổi · F: sửa thảm kính · G: nhảy/chạy ở mọi game + tốc độ theo game · H: helper dùng chung sau khi rút gọn).
+          trong máy ảo Lua 5.4 (wasmoon) + Roblox/executor giả lập. 72 test — 72 PASS (E: chạy trên thảm + nút nổi · F: sửa thảm kính · G: nhảy/chạy ở mọi game + tốc độ theo game · H: helper dùng chung sau khi rút gọn · I: Chạy Trên Thảm = Bay chạy bộ bản gốc 100%).
+    + v4.12.4 (🏃 CHẠY TRÊN THẢM = "🕹️ BAY CHẠY BỘ" BẢN GỐC 100% — 72 test PASS):
+        • Overlay dựng Y HỆT aiaiaitao3: khung 180×160 sát mép phải · 3 nút TRÒN 50×50 xếp dọc
+          🪩 (y=0) · ⬆ (y=60) · ⬇ (y=120) · viền trắng 2px · mờ 0.3 · màu đúng bản gốc (🪩 xám,
+          ⬆ xanh lá 0,150,0 · ⬇ đỏ 150,0,0) · ✕ TRÒN 34×34 ở góc trên bên phải khung.
+        • Bật chế độ Y HỆT StartFlyRun(): tắt bay → trải thảm → ẨN MENU → nút mở menu thành ⚙ →
+          hiện overlay. Tắt Y HỆT StopFlyRun(): thu thảm → ẩn overlay → trả nút mở menu về ✕/🍌.
+        • ⬆⬇ y hệt movUBtn/movDBtn: thảm đang tắt thì TỰ BẬT lại rồi mới nâng/hạ đúng 2.5.
+        • 🪩 y hệt togCBtn: bật/tắt thảm ngay trong lúc đang chạy (overlay vẫn hiện như bản gốc).
+        • Bật BAY khi đang chạy trên thảm thì THOÁT chế độ chạy (y hệt TogFly gọi StopFlyRun).
+        • Vẫn giữ 2 cái TỐT HƠN bản gốc (đã xin ở các bản trước): không rơi xuyên thảm dù KHÔNG
+          bật Xuyên Tường, và tốc độ chạy THEO GAME ×3.
+    + v4.12.3 (RÚT GỌN + TỐI ƯU CODE — 65 test PASS, KHÔNG đổi tính năng nào):
+        • RÚT GỌN (bớt 66 dòng): 11 nút kiểu "đổi chữ rồi trả lại" gom vào flash() · 13 chỗ "đặt
+          chữ + màu thanh trạng thái" gom vào D.Say() · 9 chỗ dựng lại danh sách gom vào
+          S.Rebuild() · 6 chỗ copy clipboard gom vào S.CopyToClipboard() · khung + nút trang gom
+          thành MakeTabFrame/MakeTabButton (dùng chung cho trang thường và tab tính năng) · 2 nút
+          góc tiêu đề thành TitleBtn() · 2 khối "N/A" bảng tọa độ thành coordNA().
+        • TỐI ƯU: 🧱 Xuyên Tường không còn gọi GetDescendants() MỖI frame (60 lần/giây). Nay quét
+          khi BẬT / đổi nhân vật / mỗi 2s + bắt DescendantAdded -> part mới vẫn XUYÊN NGAY.
+        • SỬA LỖI LỌT KHI GỘP CODE: nút 📋 "Sao Chép Code" kẹt chữ "✅ Đã Sao Chép!" (nhóm test H).
     + v4.12.2 (CHO NHẢY + CHẠY CHẠY Ở MỌI GAME · TỐC ĐỘ THEO GAME — 59 test PASS):
         • 🦘 NHẢY VÔ HẠN bị liệt ở nhiều game vì chỉ nghe JumpRequest rồi ChangeState. Nay nhảy
           bằng 3 CÁCH: ChangeState · lệnh Jump kiểu cũ · ĐẨY VẬN TỐC (chỉ chạy khi 0.08s sau mà
@@ -6402,7 +6422,7 @@ end
 S.Move = {
     fly = false, noclip = false, infJump = false, speed = false, carpet = false,
     runMode = false,                         -- 🏃 chế độ "chạy trên thảm" (gộp thảm + tốc độ + HUD)
-    _hud = nil, _hudUp = nil, _hudDown = nil, _hudCarpet = nil, _menuWasOpen = nil,
+    _hud = nil, _hudUp = nil, _hudDown = nil, _hudCarpet = nil, _hudClose = nil, _menuWasOpen = nil,
     flySpeed = 50, walkSpeed = 16, jumpPower = 50,
     -- v4.12.2: TỐC ĐỘ THEO GAME. speedMode="x" (mặc định) -> chạy = TỐC ĐỘ GAME × speedMul;
     -- speedMode="num" -> ép cứng = walkSpeed. Gõ "x3" hay "50" vào ô 👟 Chạy trong khung ⚙.
@@ -6686,6 +6706,8 @@ function MV.SetFly(on)
     on = (on == true)
     local r = MV.Root()
     if on and not r then return false, "chưa có nhân vật để bay" end
+    -- v4.12.4: y hệt bản gốc (TogFly gọi StopFlyRun) — bật BAY thì thoát chế độ CHẠY TRÊN THẢM
+    if on and MV.runMode then MV.SetRunMode(false) end
     MV.fly = on
     if not on then MV._StopFly(); MV._Watchdog(); MV.SyncHud(); return false end
     local h = MV.Hum()
@@ -6857,38 +6879,57 @@ end
 -- ScreenGui riêng) để: (1) luôn nằm trên màn hình game, kể cả khi menu đang đóng;
 -- (2) KHÔNG bị cơ chế nhúng GUI (🧩) kéo vào tab — vì nút này là của hub, không phải của
 -- script người dùng. Hiện mỗi khi thảm/bay/chạy-trên-thảm đang bật, ẨN khi tắt hết.
+-- ⬆⬇ nâng/hạ y hệt bản gốc: đang ở chế độ chạy mà thảm chưa bật thì TỰ BẬT thảm rồi mới nâng/hạ
+function MV._HudNudge(dy)
+    if MV.runMode and not MV.carpet then MV.SetCarpet(true) end
+    local ok, what = MV.Nudge(dy)
+    MV._HudSay(ok and ((dy > 0 and "⬆ nâng " or "⬇ hạ ") .. tostring(what) .. " 2.5")
+                   or "⬆⬇ bật Thảm Kính hoặc Bay trước đã")
+end
 function MV._BuildHud()
     if MV._hud then return MV._hud end
+    -- v4.12.4: dựng Y HỆT overlay "🕹️ Bay chạy bộ" của aiaiaitao3 — khung 180x160 sát mép phải,
+    -- 3 nút TRÒN 50x50 xếp dọc 🪩 (y=0) · ⬆ (y=60) · ⬇ (y=120), viền trắng 2px, mờ 0.3, và
+    -- nút ✕ TRÒN 34x34 nằm ở góc trên bên phải khung. Màu cũng lấy đúng bản gốc:
+    -- 🪩 xám · ⬆ xanh lá (0,150,0) · ⬇ đỏ (150,0,0) · ✕ đỏ.
+    -- Nút vẫn dựng TRONG `gui` của hub (như bản gốc) nên luôn nằm trên màn hình game.
     local hud = New("Frame", {
         Name = "BC_MoveHud",
-        Size = UDim2.new(0, 52, 0, 176), Position = UDim2.new(1, -62, 0.5, -88),
+        Size = UDim2.new(0, 180, 0, 160), Position = UDim2.new(1, -190, 0.5, -80),
         BackgroundTransparency = 1, Visible = false, ZIndex = 20,
     }, gui)
-    local function hbtn(txt, y, color, cb)
+    -- Corner = UDim.new(1,0) -> bo TRÒN hoàn toàn (bản gốc dùng cho mọi nút overlay)
+    local function obtn(txt, y, size, color, cb)
         local b = New("TextButton", {
-            Size = UDim2.new(0, 44, 0, 38), Position = UDim2.new(0, 4, 0, y),
-            Text = txt, BackgroundColor3 = color or C.SURFACE3, BackgroundTransparency = 0.12,
-            TextColor3 = C.WHITE, Font = Enum.Font.GothamBold, TextSize = 17,
+            Size = UDim2.new(0, size, 0, size), Position = UDim2.new(0.5, -size / 2, 0, y),
+            Text = txt, BackgroundColor3 = color or C.BLUE, BackgroundTransparency = 0.3,
+            TextColor3 = C.WHITE, Font = Enum.Font.GothamBold, TextSize = 20,
             BorderSizePixel = 0, ZIndex = 21,
         }, hud)
-        Corner(b, UDim.new(0, 10))
-        Stroke(b, C.WHITE, 1.5)
+        Corner(b, UDim.new(1, 0))
+        Stroke(b, C.WHITE, 2)
         b.Activated:Connect(function() pcall(cb) end)
         return b
     end
-    MV._hudUp = hbtn("⬆", 0, C.GREEN, function()
-        local ok, what = MV.Nudge(2.5)
-        MV._HudSay(ok and ("⬆ nâng " .. tostring(what) .. " lên 2.5") or "⬆ chưa có thảm/bay")
-    end)
-    MV._hudCarpet = hbtn("🪩", 44, C.PURPLE, function()
-        MV.SetCarpet(not MV.carpet)
+    MV._hudCarpet = obtn("🪩", 0, 50, C.GRAY, function()
+        if not (MV.runMode or MV.carpet or MV.fly) then
+            MV.SetCarpet(true)
+        else
+            MV.SetCarpet(not MV.carpet)
+        end
         MV._HudSay(MV.carpet and "🪩 thảm: BẬT" or "🪩 thảm: TẮT")
     end)
-    MV._hudDown = hbtn("⬇", 88, C.BLUE, function()
-        local ok, what = MV.Nudge(-2.5)
-        MV._HudSay(ok and ("⬇ hạ " .. tostring(what) .. " xuống 2.5") or "⬇ chưa có thảm/bay")
-    end)
-    hbtn("✕", 132, C.RED, function()
+    MV._hudUp   = obtn("⬆", 60,  50, Color3.fromRGB(0, 150, 0),   function() MV._HudNudge(2.5) end)
+    MV._hudDown = obtn("⬇", 120, 50, Color3.fromRGB(150, 0, 0),   function() MV._HudNudge(-2.5) end)
+    MV._hudClose = New("TextButton", {
+        Size = UDim2.new(0, 34, 0, 34), Position = UDim2.new(1, -44, 0, 10),
+        Text = "✕", BackgroundColor3 = C.RED, BackgroundTransparency = 0.3,
+        TextColor3 = C.WHITE, Font = Enum.Font.GothamBold, TextSize = 18,
+        BorderSizePixel = 0, ZIndex = 21,
+    }, hud)
+    Corner(MV._hudClose, UDim.new(1, 0))
+    Stroke(MV._hudClose, C.WHITE, 2)
+    MV._hudClose.Activated:Connect(function()
         MV.SetRunMode(false)
         MV._HudSay("🛑 đã tắt chế độ chạy trên thảm")
     end)
@@ -6904,15 +6945,20 @@ function MV.SyncHud()
         local hud = MV._BuildHud()
         local on = (MV.carpet or MV.fly or MV.runMode)
         hud.Visible = (on == true)
-        if MV._hudCarpet then
-            MV._hudCarpet.BackgroundColor3 = MV.carpet and C.GREEN or C.SURFACE3
+        if MV._hudCarpet then                       -- xám như bản gốc, XANH khi thảm đang bật
+            MV._hudCarpet.BackgroundColor3 = MV.carpet and C.GREEN or C.GRAY
         end
-        if MV._hudUp then MV._hudUp.BackgroundTransparency = (MV.carpet or MV.fly) and 0.12 or 0.6 end
-        if MV._hudDown then MV._hudDown.BackgroundTransparency = (MV.carpet or MV.fly) and 0.12 or 0.6 end
+        -- ⬆⬇ giữ nguyên độ mờ 0.3 như bản gốc (chúng LUÔN dùng được: thảm tắt thì tự bật lại)
     end)
 end
 
--- ---------- 🏃 CHẠY TRÊN THẢM (chế độ gộp, kiểu "chạy bộ" của aiaiaitao3) ----------
+-- ---------- 🏃 CHẠY TRÊN THẢM = "🕹️ BAY CHẠY BỘ" của aiaiaitao3 (v4.12.4: GIỐNG 100%) ----------
+-- Bản gốc aiaiaitao3 có 3 hàm + overlay ⬆🪩⬇✕; ở đây bê Y HỆT từng hành động:
+--   StartFlyRun = tắt bay · trải thảm · main.Visible=false · togBtn.Text="⚙" · hiện overlay
+--   StopFlyRun  = thu thảm · ẩn overlay · togBtn.Text = (menu đang mở) and "✕" or "🍌"
+--   togCBtn 🪩  = bật/tắt thảm (overlay vẫn hiện, như bản gốc)   · clsOBtn ✕ = thoát chế độ
+--   movUBtn ⬆   = thảm tắt thì TỰ BẬT rồi nâng 2.5              · movDBtn ⬇ = hạ 2.5
+--   TogFly      = bật BAY thì THOÁT chế độ chạy (bay và chạy bộ không đi cùng)
 -- Bật 1 lần = trải thảm kính dưới chân + tăng tốc chạy + hiện cụm nút ⬆🪩⬇✕ trên màn hình
 -- + ẩn menu để nhìn game. Thảm CanCollide = true nên người CHẠY ĐƯỢC TRÊN MẶT THẢM; ⬆⬇
 -- đưa cả thảm (và người đang đứng trên đó) lên/xuống.
@@ -6926,27 +6972,27 @@ function MV.SetRunMode(on)
     if on == MV.runMode then MV.SyncHud(); return MV.runMode end
     MV.runMode = on
     if on then
-        -- nhớ menu đang mở hay đóng để lúc tắt trả lại đúng trạng thái cũ
+        -- ▼ y hệt StartFlyRun() của bản gốc: tắt bay, trải thảm, ẨN MENU, nút mở menu thành "⚙"
+        if MV.fly then MV.SetFly(false) end          -- bay và chạy bộ không đi cùng (như bản gốc)
         MV._menuWasOpen = (main and main.Visible) or false
-        if MV._menuWasOpen then
-            pcall(function()
-                main.Visible = false
-                if togBtn then togBtn.Text = "🍌" end
-            end)
-        end
-        MV.SetSpeed(true)                            -- 👟 tăng tốc (THEO tốc độ game × speedMul)
+        pcall(function()
+            if main then main.Visible = false end
+            if togBtn then togBtn.Text = "⚙" end     -- bản gốc dùng "⚙" lúc đang chạy trên thảm
+        end)
         if not MV.carpet then MV.SetCarpet(true) end  -- 🪩 thảm dưới chân
+        MV.SetSpeed(true)                            -- 👟 tăng tốc (THEO tốc độ game × speedMul)
         MV._JumpGuard()                              -- 🦘 game cấm nhảy thì mở lại để NHẢY TRÊN THẢM
     else
+        -- ▼ y hệt StopFlyRun() của bản gốc: thu thảm, ẩn overlay, trả nút mở menu về ✕/🍌
         MV.SetCarpet(false)
         MV.SetSpeed(false)
         if MV.fly then MV.SetFly(false) end
         if MV._menuWasOpen then
-            pcall(function()
-                if main then main.Visible = true end
-                if togBtn then togBtn.Text = "✕" end
-            end)
+            pcall(function() if main then main.Visible = true end end)
         end
+        pcall(function()
+            if togBtn then togBtn.Text = (main and main.Visible) and "✕" or "🍌" end
+        end)
         MV._menuWasOpen = nil
     end
     MV.SyncHud()
@@ -7145,7 +7191,7 @@ S.ScriptHubList = {
     {icon="🦘", name="Nhảy Vô Hạn", cat="Di chuyển", ord=14, action="infjump",
      desc="Nhảy mãi không chạm đất. Tự thử 3 cách nhảy (ChangeState · lệnh Jump · đẩy vận tốc) nên cả game cấm nhảy, để JumpPower=0 hay ăn mất phím Space vẫn nhảy được."},
     {icon="🏃", name="Chạy Trên Thảm", cat="Di chuyển", ord=15, action="runmode",
-     desc="Chế độ CHẠY BỘ kiểu aiaiaitao3: thảm kính dưới chân để CHẠY + NHẢY THOẢI MÁI (không rơi xuyên, không dính chặt) + tăng tốc THEO TỐC ĐỘ GAME (×3) + nút ⬆🪩⬇✕ NỔI TRÊN MÀN HÌNH."},
+     desc="Y HỆT '🕹️ Bay chạy bộ' của aiaiaitao3: thảm kính dưới chân + ẨN MENU + cụm nút tròn ⬆🪩⬇✕ nổi góc phải màn hình (⬆⬇ đưa cả thảm lẫn bạn lên/xuống). Thêm 2 cái tốt hơn bản gốc: KHÔNG rơi xuyên thảm và tốc độ THEO GAME ×3."},
     {icon="🪩", name="Thảm Kính", cat="Di chuyển", ord=16, action="carpet",
      desc="Trải thảm kính dưới chân để đứng/lên xuống (⬆⬇), không rơi xuyên dù KHÔNG bật Xuyên Tường. Chỉnh RỘNG × CAO × DÀI + khoảng cách tới chân ở khung ⚙."},
 }
@@ -7250,7 +7296,7 @@ function S.RunHubAction(id)
         if not okR then return "⚠️ không bật được chế độ chạy trên thảm" end
         S.Rebuild()
         return S.Move.runMode
-            and ("🏃 CHẠY TRÊN THẢM: BẬT — thảm " .. string.format("%g×%g×%g",
+            and ("🏃 CHẠY TRÊN THẢM (như 🕹️ Bay chạy bộ): BẬT — thảm " .. string.format("%g×%g×%g",
                     S.Move.carpetW, S.Move.carpetH, S.Move.carpetL)
                  .. " dưới chân · chạy " .. tostring(S.Move.WantSpeed())
                  .. (S.Move.speedMode == "x" and (" (game ×" .. tostring(S.Move.speedMul) .. ")") or "")

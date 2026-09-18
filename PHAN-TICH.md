@@ -7,7 +7,7 @@ Ngày phân tích: 2026-09-17 · Branch: `arena/01a0af79-aiaiaitao3` · Commit g
 ## 0. Cập nhật v4.12 (đã thực hiện theo yêu cầu)
 
 Port **5 tính năng di chuyển** từ `aiaiaitao3` vào trang 📚 Script Hub của `script.js`, kèm bộ test
-tự động chạy thật trong máy ảo. Kết quả: **`node tests/run.js` → 65 PASS · 0 FAIL**.
+tự động chạy thật trong máy ảo. Kết quả: **`node tests/run.js` → 72 PASS · 0 FAIL**.
 
 **Đã thêm (toàn bộ là tiện ích nội bộ, không tải gì từ mạng):**
 
@@ -23,6 +23,14 @@ Kèm **cụm nút nổi trên màn hình game** (⬆ nâng · 🪩 bật/tắt t
 khi lọc/tìm kiếm): tốc độ bay · chạy · nhảy · 3 chiều thảm · ⬆/⬇ · 🛑 Tắt hết + nhãn trạng thái.
 Tất cả state gom trong `S.Move` (không tốn slot local cấp chunk), mọi connection qua `trackConn()`,
 tự bật lại sau respawn qua `CharacterAdded`.
+
+**v4.12.4 — 🏃 Chạy Trên Thảm = "🕹️ Bay chạy bộ" của aiaiaitao3 GIỐNG 100%:**
+- Overlay dựng y hệt bản gốc: khung 180×160 sát mép phải, 3 nút TRÒN 50×50 (🪩 y=0 · ⬆ y=60 ·
+  ⬇ y=120), viền trắng 2px, mờ 0.3, màu đúng bản gốc; ✕ TRÒN 34×34 góc trên bên phải.
+- Bật = `StartFlyRun()` (tắt bay · trải thảm · ẨN MENU · nút mở menu thành ⚙ · hiện overlay);
+  tắt = `StopFlyRun()` (thu thảm · ẩn overlay · trả nút về ✕/🍌). ⬆⬇ tự bật thảm rồi nâng/hạ 2.5,
+  🪩 bật/tắt thảm, ✕ thoát. Bật Bay khi đang chạy thì thoát chế độ chạy (như `TogFly`).
+- Vẫn giữ 2 cái TỐT HƠN bản gốc: không rơi xuyên thảm (dù không bật Xuyên Tường) + tốc độ THEO GAME ×3.
 
 **v4.12.3 — rút gọn + tối ưu code (bớt 66 dòng, không đổi tính năng nào):**
 1. Gom các chỗ copy-dán thành helper dùng chung: `flash()` (11 nút đổi chữ rồi trả lại) ·
