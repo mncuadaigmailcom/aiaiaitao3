@@ -2068,6 +2068,222 @@ test("M6 · trang 👥 đang MỞ: 2 danh sách tự làm mới (không cần m�
     cleanLoc({ a, b })
 end)
 
+print("\n── N. v4.16: ✨ PHÁT SÁNG (nhân vật mình · chỉnh RỘNG + ĐỘ SÁNG) ──────────")
+
+local function glowPanel() return D.hubList:FindFirstChild("HubGlow_Panel") end
+local function glowBoxes()
+    local t = {}
+    local p = glowPanel()
+    if not p then return t end
+    for _, d in ipairs(p:GetChildren()) do
+        if d.ClassName == "TextBox" then t[#t + 1] = d end
+    end
+    return t                      -- 📏 Rộng , ☀ Sáng
+end
+local function glowBtn(name) local p = glowPanel(); return p and p:FindFirstChild(name) or nil end
+local function glowHL()
+    local h = H.gui:FindFirstChild("BC_GlowHL")
+    if h then return h end
+    local t = H.targetGui
+    return t and t:FindFirstChild("BC_GlowHL") or nil
+end
+local function glowPL() local r = root(); return r and r:FindFirstChild("BC_GlowLight") or nil end
+local function cleanGlow()
+    pcall(function() S.Glow.Stop() end)
+    pcall(function() S.Glow.SetWidth(18); S.Glow.SetBright(3) end)
+    pcall(function() S.Glow.SetThru(true); S.Glow.SetLight(true) end)
+    pcall(function() S.Glow.SetColor(1) end)
+    Mock.advance(0.05)
+end
+
+test("N1 · bật ✨ Phát Sáng: nhân vật MÌNH có viền nhuộm sáng + đèn toả sáng quanh người", function()
+    cleanStart(); cleanGlow()
+    truthy(card("Phát Sáng"), "có thẻ ✨ Phát Sáng trong 📚 Script Hub")
+    local p = glowPanel()
+    truthy(p, "có khung ✨ ngay trong Script Hub")
+    truthy(p:FindFirstChild("GlowTitle"), "có tiêu đề khung")
+    truthy(glowBtn("GlowApply"), "có nút ✔ Áp dụng")
+    truthy(glowBtn("GlowStop"), "có nút 🚫 Tắt")
+    local msg = action("glow")
+    Mock.advance(0.2)
+    truthy(S.Glow.on, "đã bật: " .. msg)
+    local hl = glowHL()
+    truthy(hl, "có Highlight nhuộm sáng (BC_GlowHL)")
+    eq(hl.Adornee, H.player.Character, "nhuộm ĐÚNG nhân vật của mình")
+    truthy(glowPL(), "có PointLight toả sáng trong người (BC_GlowLight)")
+    truthy(tostring(msg):find("BẬT", 1, true), "thao tác trả về trạng thái BẬT: " .. msg)
+    cleanGlow()
+end)
+
+test("N2 · ☀ ĐỘ SÁNG: càng lớn -> nhuộm càng đặc + PointLight càng sáng", function()
+    cleanStart(); cleanGlow()
+    action("glow")
+    Mock.advance(0.2)
+    S.Glow.SetBright(1); Mock.advance(0.1)
+    local t1 = glowHL().FillTransparency
+    S.Glow.SetBright(9); Mock.advance(0.1)
+    local t9 = glowHL().FillTransparency
+    truthy(t9 < t1, string.format("sáng 9 phải đặc hơn sáng 1 (%.2f < %.2f)", t9, t1))
+    eq(glowPL().Brightness, 9, "đèn thật sáng đúng 9")
+    -- áp dụng bằng ô nhập ☀
+    glowBoxes()[2].Text = "6"
+    Mock.click(glowBtn("GlowApply"))
+    Mock.advance(0.2)
+    eq(S.Glow.bright, 6, "nút ✔ Áp dụng đọc đúng ô ☀ Sáng")
+    eq(glowPL().Brightness, 6, "đèn thật theo độ sáng mới")
+    truthy(tostring(glowBtn("GlowApply").Text):find("Áp dụng", 1, true), "nút ✔ còn nguyên")
+    cleanGlow()
+end)
+
+test("N3 · 📏 CHIỀU RỘNG: đổi là bán kính toả sáng đổi ngay (không cần tắt/bật lại)", function()
+    cleanStart(); cleanGlow()
+    action("glow")
+    Mock.advance(0.2)
+    eq(glowPL().Range, 18, "bán kính mặc định 18")
+    glowBoxes()[1].Text = "45"
+    Mock.click(glowBtn("GlowApply"))
+    Mock.advance(0.2)
+    eq(S.Glow.width, 45, "đọc đúng ô 📏 Rộng")
+    eq(glowPL().Range, 45, "bán kính toả sáng = 45 ngay lập tức")
+    -- nhận số vô lý: kẹp trong khoảng cho phép, không vỡ
+    S.Glow.SetWidth(9999); eq(S.Glow.width, 200, "kẹp trần 200")
+    S.Glow.SetWidth(-5);   eq(S.Glow.width, 1, "kẹp sàn 1")
+    cleanGlow()
+end)
+
+test("N4 · ÁNH SÁNG KHÔNG BỊ TRÓI: game xoá thì tự gắn lại, respawn thì theo nhân vật mới", function()
+    cleanStart(); cleanGlow()
+    action("glow")
+    Mock.advance(0.2)
+    truthy(glowHL() and glowPL(), "đang có đủ 2 thứ")
+    -- game/anti-cheat xoá sạch
+    local oldHL, oldPL = glowHL(), glowPL()
+    oldHL:Destroy()
+    oldPL:Destroy()
+    Mock.advance(0.8)                       -- vòng canh gác 0,5 giây -> tự gắn lại
+    truthy(glowHL(), "Highlight được GẮN LẠI sau khi bị xoá")
+    truthy(glowPL(), "PointLight được GẮN LẠI sau khi bị xoá")
+    truthy(glowHL() ~= oldHL, "đúng là bản MỚI (bản cũ đã bị xoá)")
+    truthy(glowPL() ~= oldPL, "đèn cũng là bản MỚI")
+    -- respawn: nhân vật mới -> theo sang nhân vật mới
+    local ch = resetChar()
+    Mock.advance(0.6)
+    local hl = glowHL()
+    truthy(hl, "sau respawn vẫn còn phát sáng")
+    eq(hl.Adornee, ch, "nhuộm ĐÚNG nhân vật MỚI")
+    truthy(glowPL(), "đèn nằm trong nhân vật mới")
+    eq(glowPL().Parent, ch:FindFirstChild("HumanoidRootPart"), "đèn theo HumanoidRootPart mới")
+    cleanGlow()
+end)
+
+test("N5 · 🚫 Tắt: dọn SẠCH hiệu ứng + ngắt vòng canh gác (không ngầm chạy nữa)", function()
+    cleanStart(); cleanGlow()
+    action("glow")
+    Mock.advance(0.2)
+    truthy(Mock.renderSteps["BC_Glow"], "vòng canh gác đang chạy")
+    Mock.click(glowBtn("GlowStop"))
+    Mock.advance(0.3)
+    falsy(S.Glow.on, "đã tắt")
+    falsy(glowHL(), "Highlight đã dọn")
+    falsy(glowPL(), "PointLight đã dọn")
+    falsy(Mock.renderSteps["BC_Glow"], "vòng canh gác đã ngắt")
+    -- tắt rồi mà game có xoá gì cũng không tự dựng lại
+    Mock.advance(1.0)
+    falsy(glowHL(), "không tự bật lại khi đã TẮT")
+    cleanGlow()
+end)
+
+test("N6 · 👁 Xuyên tường + 💡 Đèn thật: bật/tắt đúng như mô tả", function()
+    cleanStart(); cleanGlow()
+    action("glow")
+    Mock.advance(0.2)
+    eq(glowHL().DepthMode, Enum.HighlightDepthMode.AlwaysOnTop, "mặc định: sáng xuyên vật cản")
+    Mock.click(glowBtn("GlowThru"))
+    Mock.advance(0.2)
+    eq(glowHL().DepthMode, Enum.HighlightDepthMode.Occluded, "tắt xuyên tường -> bị vật cản che")
+    Mock.click(glowBtn("GlowThru"))
+    Mock.advance(0.2)
+    eq(glowHL().DepthMode, Enum.HighlightDepthMode.AlwaysOnTop, "bật lại -> xuyên tường")
+    eq(glowPL().Shadows, false, "đèn KHÔNG đổ bóng -> ánh sáng không bị vật cản chặn")
+    Mock.click(glowBtn("GlowLight"))                       -- tắt đèn thật
+    Mock.advance(0.2)
+    falsy(glowPL(), "tắt đèn thật -> PointLight biến mất")
+    truthy(glowHL(), "vẫn còn nhuộm sáng nhân vật")
+    Mock.click(glowBtn("GlowLight"))                       -- bật lại
+    Mock.advance(0.2)
+    truthy(glowPL(), "bật lại -> đèn có lại")
+    cleanGlow()
+end)
+
+test("N7 · 🎨 Đổi màu: xoay vòng 7 màu, đổi cả viền nhuộm lẫn đèn", function()
+    cleanStart(); cleanGlow()
+    action("glow")
+    Mock.advance(0.2)
+    local c1 = glowHL().FillColor
+    Mock.click(glowBtn("GlowColor"))
+    Mock.advance(0.2)
+    local c2 = glowHL().FillColor
+    truthy(c1 ~= c2, "bấm 🎨 -> đổi màu khác")
+    eq(glowPL().Color, c2, "đèn đổi cùng màu với viền nhuộm")
+    eq(glowHL().OutlineColor, c2, "viền ngoài cùng màu")
+    for _ = 1, 6 do Mock.click(glowBtn("GlowColor")); Mock.advance(0.05) end
+    eq(glowHL().FillColor, c1, "bấm đủ 7 lần -> quay về màu ban đầu")
+    cleanGlow()
+end)
+
+test("N8 · không mất tính năng cũ: thẻ lọc được + 2 khung cùng sống sót + thảm/HUD/tốc độ còn nguyên", function()
+    cleanStart(); cleanGlow()
+    -- chip 'Tiện ích' lọc ra được thẻ ✨
+    truthy(D.hubChipBtns["Tiện ích"], "có chip Tiện ích")
+    S.hubCat = "Tiện ích"; S.RebuildHubList()
+    truthy(card("Phát Sáng"), "chip Tiện ích lọc ra thẻ ✨")
+    S.hubCat = "Tất cả"; S.RebuildHubList()
+    -- 2 khung điều khiển sống sót qua dựng lại danh sách
+    S.RebuildHubList(); S.RebuildHubList()
+    truthy(D.hubList:FindFirstChild("HubMove_Panel"), "khung ⚙ di chuyển vẫn còn")
+    truthy(glowPanel(), "khung ✨ phát sáng vẫn còn")
+    -- CanvasSize đủ chỗ cho cả 2 khung + mọi thẻ
+    local h = D.hubList.CanvasSize.Y.Offset
+    local need = #cards() * 62 + D.hubList:FindFirstChild("HubMove_Panel").Size.Y.Offset
+        + glowPanel().Size.Y.Offset
+    truthy(h >= need, string.format("CanvasSize (%d) phải >= thẻ + 2 khung (%d)", h, need))
+    -- khung ⚙ vẫn đủ 7 nút, khung ✨ đủ 6 nút
+    eq(#panelBtns(), 7, "khung ⚙ vẫn 7 nút")
+    local n = 0
+    for _, d in ipairs(glowPanel():GetDescendants()) do
+        if d.ClassName == "TextButton" then n = n + 1 end
+    end
+    eq(n, 6, "khung ✨ có 6 nút (✨ · 👁 · 💡 · 🎨 · ✔ · 🚫)")
+    -- tính năng cũ vẫn sống: thảm + HUD + tốc độ theo game
+    hum().WalkSpeed = 20
+    S.Move.speedMode, S.Move.speedMul = "x", 3
+    action("runmode")
+    Mock.advance(0.3)
+    truthy(H.workspace:FindFirstChild("Carpet"), "🪩 thảm vẫn trải được")
+    eq(hudBtn("🪩").Size.X.Offset, 50, "cụm nút nổi vẫn y hệt bản gốc")
+    eq(hum().WalkSpeed, 60, "👟 tốc độ vẫn theo game ×3")
+    S.Move.StopAll()
+    cleanGlow()
+end)
+
+test("N9 · GUI của hub bị gỡ: phát sáng KHÔNG bị trói — tự treo sang GUI khác đang sống", function()
+    cleanStart(); cleanGlow()
+    local savedParent = H.gui.Parent
+    action("glow")
+    Mock.advance(0.2)
+    truthy(glowHL(), "đang phát sáng")
+    H.gui.Parent = nil                     -- game/anti-cheat gỡ GUI của hub
+    Mock.advance(0.8)
+    local hl = glowHL()
+    truthy(hl, "viền nhuộm sáng VẪN SỐNG (đã treo sang GUI khác)")
+    eq(hl.Adornee, H.player.Character, "vẫn nhuộm đúng nhân vật mình")
+    truthy(hl.Parent ~= H.gui, "không còn treo vào GUI đã bị gỡ")
+    H.gui.Parent = savedParent             -- trả GUI về như cũ
+    Mock.advance(0.8)
+    truthy(glowHL(), "trả GUI về -> phát sáng vẫn còn")
+    cleanGlow()
+end)
+
 print("\n── C. KIỂM TRA CUỐI ─────────────────────────────────────────")
 
 test("C1 · không có lỗi runtime nào trong event / render step", function()

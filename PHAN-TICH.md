@@ -7,7 +7,7 @@ Ngày phân tích: 2026-09-17 · Branch: `arena/01a0af79-aiaiaitao3` · Commit g
 ## 0. Cập nhật v4.12 (đã thực hiện theo yêu cầu)
 
 Port **5 tính năng di chuyển** từ `aiaiaitao3` vào trang 📚 Script Hub của `script.js`, kèm bộ test
-tự động chạy thật trong máy ảo. Kết quả: **`node tests/run.js` → 110 PASS · 0 FAIL**.
+tự động chạy thật trong máy ảo. Kết quả: **`node tests/run.js` → 119 PASS · 0 FAIL**.
 
 **Đã thêm (toàn bộ là tiện ích nội bộ, không tải gì từ mạng):**
 
@@ -23,6 +23,16 @@ Kèm **cụm nút nổi trên màn hình game** (⬆ nâng · 🪩 bật/tắt t
 khi lọc/tìm kiếm): tốc độ bay · chạy · nhảy · 3 chiều thảm · ⬆/⬇ · 🛑 Tắt hết + nhãn trạng thái.
 Tất cả state gom trong `S.Move` (không tốn slot local cấp chunk), mọi connection qua `trackConn()`,
 tự bật lại sau respawn qua `CharacterAdded`.
+
+**v4.16 — ✨ PHÁT SÁNG (nhân vật mình · chỉnh CHIỀU RỘNG + ĐỘ SÁNG):**
+- Thẻ "✨ Phát Sáng" (nhóm Tiện ích) + khung ✨ trên cùng 📚 Script Hub: BẬT/TẮT · 👁 Xuyên
+  tường · 💡 Đèn thật · 📏 Rộng (1–200) · ☀ Sáng (0–10) · 🎨 7 màu · ✔ Áp dụng · 🚫 Tắt.
+- Nhân vật mình phát sáng: Highlight nhuộm sáng + PointLight toả sáng quanh người.
+- "Ánh sáng không bị trói": xuyên tường (AlwaysOnTop) · đèn `Shadows=false` không bị vật cản
+  chặn · bị game xoá thì tự gắn lại sau 0,5s · respawn tự theo nhân vật mới · GUI hub bị gỡ thì
+  treo sang GUI khác. Chỉ thêm hiệu ứng, không đụng di chuyển.
+- 2 lỗi bộ test bắt được: `math.clamp` (không có trong Lua 5.4) và CanvasSize tính thiếu khi có
+  khung điều khiển thứ 2.
 
 **v4.15 — TRANG 👥 NGƯỜI CHƠI (nằm giữa 📚 Script Hub và ➕ Tạo Tính Năng):**
 - Thêm 1 trang riêng gom mọi việc liên quan tới người chơi khác; thứ tự rail nay là

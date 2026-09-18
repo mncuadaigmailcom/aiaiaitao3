@@ -40,7 +40,28 @@
             mới (D.Tactile) nhưng connection của thẻ đã Destroy không bao giờ bị dọn khỏi
             _G.BananaCatHub_Connections -> bảng phình mãi. Nay trackConn() tự gom rác khi >300.
         • BỘ TEST TỰ ĐỘNG (thư mục tests/, chạy bằng `node tests/run.js`): nạp và CHẠY THẬT hub
-          trong máy ảo Lua 5.4 (wasmoon) + Roblox/executor giả lập. 110 test — 110 PASS (E: chạy trên thảm + nút nổi · F: sửa thảm kính · G: nhảy/chạy ở mọi game + tốc độ theo game · H: helper dùng chung sau khi rút gọn · I: Chạy Trên Thảm = Bay chạy bộ bản gốc 100% · J: hết giật khi bật thảm · K: 📍 định vị người chơi · L: 👣 xem người chơi).
+          trong máy ảo Lua 5.4 (wasmoon) + Roblox/executor giả lập. 119 test — 119 PASS (E: chạy trên thảm + nút nổi · F: sửa thảm kính · G: nhảy/chạy ở mọi game + tốc độ theo game · H: helper dùng chung sau khi rút gọn · I: Chạy Trên Thảm = Bay chạy bộ bản gốc 100% · J: hết giật khi bật thảm · K: 📍 định vị người chơi · L: 👣 xem người chơi · M: trang 👥 Người Chơi · N: ✨ phát sáng).
+    + v4.16 (✨ PHÁT SÁNG — nhân vật MÌNH phát sáng, chỉnh RỘNG + ĐỘ SÁNG — 119 test PASS):
+        • 1 THẺ MỚI "✨ Phát Sáng" (nhóm "Tiện ích") + KHUNG ✨ nằm TRÊN CÙNG danh sách thẻ
+          trong 📚 Script Hub: ✨ BẬT/TẮT · 👁 Xuyên tường · 💡 Đèn thật · 📏 Rộng · ☀ Sáng ·
+          🎨 Đổi màu · ✔ Áp dụng · 🚫 Tắt.
+        • Bật là CHÍNH BẠN phát sáng: 1 Highlight nhuộm sáng cả nhân vật + 1 PointLight toả
+          sáng thật quanh người. Chỉnh được CHIỀU RỘNG (bán kính 1–200) và ĐỘ SÁNG (0–10)
+          + 7 màu xoay vòng — đổi là thấy ngay, không cần tắt/bật lại.
+        • "ÁNH SÁNG KHÔNG BỊ TRÓI":
+            - 👁 Xuyên tường: thấy mình sáng XUYÊN QUA tường/vật cản (DepthMode = AlwaysOnTop).
+            - 💡 Đèn thật: PointLight.Shadows = false -> ánh sáng KHÔNG bị vật cản chặn;
+              toả tròn theo bán kính bạn chỉnh, đi tới đâu sáng tới đó (đèn nằm trong người).
+            - Game/anti-cheat xoá Highlight hay PointLight -> vòng canh gác 0,5 giây GẮN LẠI.
+            - Respawn: tự gắn lại vào nhân vật mới, không cần bấm lại.
+            - Game gỡ luôn GUI của hub -> tự treo viền nhuộm sang GUI khác đang sống.
+        • AN TOÀN: chỉ thêm hiệu ứng (Highlight không phải part + PointLight không va chạm) —
+          KHÔNG đụng vào vị trí, tốc độ hay chuyển động của ai. Tắt là dẹp sạch + ngắt vòng canh.
+        • 2 LỖI do bộ test bắt được khi làm tính năng này:
+          1) Dùng math.clamp() (chỉ có trong Luau) trong hàm tính độ sáng -> pcall nuốt lỗi,
+             bật lên KHÔNG thấy gì. Nay dùng mvClamp() của hub (chạy được cả Lua 5.4).
+          2) Đổi chiều cao khung điều khiển: CanvasSize cũ chỉ cộng 1 khung ⚙ -> cuộn thiếu
+             hàng thẻ cuối. Nay cộng chiều cao MỌI khung điều khiển (thêm khung nào cũng đúng).
     + v4.15 (TRANG 👥 NGƯỜI CHƠI — nằm GIỮA 📚 Script Hub và ➕ Tạo Tính Năng — 110 test PASS):
         • THÊM 1 TRANG RIÊNG cho mọi việc liên quan tới NGƯỜI CHƠI KHÁC, đặt ngay sau
           📚 Script Hub và trước ➕ Tạo Tính Năng (thứ tự rail: 💾 💻 📚 👥 🛠 ⚙️ ➕):
@@ -7147,6 +7168,7 @@ S.MoveActionState = {
     loc_all  = function() return S.Loc and S.Loc.on   end,
     loc_solo = function() return S.Loc and S.Loc.solo end,
     spec_on  = function() return S.Spec and S.Spec.on   end,
+    glow     = function() return S.Glow and S.Glow.on   end,
 }
 
 function MV.Refresh()
@@ -7324,6 +7346,8 @@ S.ScriptHubList = {
     {icon="🪩", name="Thảm Kính", cat="Di chuyển", ord=16, action="carpet",
      desc="Trải thảm kính dưới chân để đứng/lên xuống (⬆⬇), không rơi xuyên dù KHÔNG bật Xuyên Tường. Chỉnh RỘNG × CAO × DÀI + khoảng cách tới chân ở khung ⚙."},
     -- v4.13: ĐỊNH VỊ NGƯỜI CHƠI (port từ "ESP System" của menu EXECUTOR MENU trong aiaiaitao3).
+    {icon="✨", name="Phát Sáng", cat="Tiện ích", ord=22, action="glow",
+     desc="CHÍNH BẠN phát sáng: nhuộm sáng cả nhân vật + đèn toả sáng thật quanh người. Chỉnh CHIỀU RỘNG + ĐỘ SÁNG + MÀU ở khung ✨ ngay đầu danh sách. 👁 xuyên tường (sáng xuyên vật cản) · 💡 đèn không bị vật cản chặn · bị game xoá hay respawn thì tự gắn lại."},
     -- v4.15: 5 thẻ 📍👣 vẫn ở đây (bấm là chạy ngay) — khung điều khiển ĐẦY ĐỦ (danh sách
     -- người chơi, 📏 giới hạn tầm, 📏/⬆ camera...) nằm ở trang 👥 Người Chơi cho gọn trang này.
     {icon="📍", name="Định Vị Người Chơi", cat="Định vị", ord=17, action="loc_all",
@@ -7459,6 +7483,18 @@ function S.RunHubAction(id)
         return (S.Loc.solo and "🎯 ĐỊNH VỊ LẺ: " .. tostring(S.Loc.target and S.Loc.target.Name or "?")
                 .. " — chỉ hiện người này (bấm tên khác trong khung 📍 để đổi)")
                or "🎯 ĐỊNH VỊ LẺ: TẮT (trở lại bình thường)"
+    -- ---------- v4.16: ✨ PHÁT SÁNG ----------
+    elseif id == "glow" then
+        pcall(function() S.Glow.Set(not S.Glow.on) end)
+        pcall(function() if S.SyncGlowPanel then S.SyncGlowPanel() end end)
+        S.Rebuild()
+        return S.Glow.Status()
+    elseif id == "glow_off" then
+        pcall(function() S.Glow.Stop() end)
+        pcall(function() if S.SyncGlowPanel then S.SyncGlowPanel() end end)
+        S.Rebuild()
+        return "🚫 " .. S.Glow.Status()
+
     -- ---------- v4.14: 👣 XEM NGƯỜI CHƠI ----------
     elseif id == "spec_on" then
         local p = S.Spec.target or S.Loc.target or S.Loc.Nearest()
@@ -7674,7 +7710,7 @@ function S.RebuildHubList()
 
     for i, it in ipairs(items) do
         local card = New("Frame", {
-            Name = "HubCard_" .. tostring(it.name), Size = UDim2.new(1, 0, 0, 56), LayoutOrder = i,
+            Name = "HubCard_" .. tostring(it.name), Size = UDim2.new(1, 0, 0, 56), LayoutOrder = i + 1,
             BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, BorderSizePixel = 0, ZIndex = 6,
         }, list)
         Corner(card, UDim.new(0, 10))
@@ -7780,12 +7816,18 @@ function S.RebuildHubList()
     -- v4.12: CanvasSize phải tính CẢ khung ⚙ tuỳ chỉnh (nằm trên cùng danh sách), nếu không
     -- cuộn xuống sẽ thiếu đúng 1 hàng thẻ cuối.
     pcall(function()
+        -- v4.16: cộng chiều cao MỌI khung điều khiển (⚙ di chuyển + ✨ phát sáng; sau này thêm
+        -- khung nào cũng tự đúng), nếu không cuộn xuống sẽ thiếu đúng hàng thẻ cuối.
         local panelH = 0
-        local panel = list:FindFirstChild("HubMove_Panel")
-        if panel and panel.Size then panelH = (panel.Size.Y.Offset or 0) + 6 end
+        for _, c in ipairs(list:GetChildren()) do
+            if c:IsA("Frame") and c.Name:sub(1, 8) ~= "HubCard_" then
+                panelH = panelH + ((c.Size and c.Size.Y.Offset) or 0) + 6
+            end
+        end
         list.CanvasSize = UDim2.new(0, 0, 0, #items * 62 + 6 + panelH)
     end)
     if S.RefreshMovePanel then pcall(S.RefreshMovePanel) end   -- v4.12: nhãn trạng thái di chuyển
+    if S.SyncGlowPanel then pcall(S.SyncGlowPanel) end         -- v4.16: nhãn khung ✨ phát sáng
     if #items == 0 and D.hubStatus then
         D.Say("🔍 không tìm thấy gì khớp '" .. tostring(S.hubSearch or "") .. "'", C.MUTED)
     end
@@ -8833,6 +8875,312 @@ function S.Spec.Sync()
             u.title.Text = "👣 ĐANG XEM" .. (SP.follow and "" or " (KHÔNG bám)") .. (SP.auto and " · 🔄" or "")
         end
     end)
+end
+
+-- ============================================================================
+-- ===== v4.16: ✨ PHÁT SÁNG (nhân vật MÌNH phát sáng — chỉnh RỘNG + ĐỘ SÁNG) ===
+-- ============================================================================
+-- Bật là CHÍNH BẠN phát sáng: 1 Highlight nhuộm sáng cả nhân vật + 1 PointLight toả sáng
+-- thật quanh người. Chỉnh được CHIỀU RỘNG (bán kính toả sáng) và ĐỘ SÁNG + MÀU ngay trong
+-- trang 📚 Script Hub (khung ✨ nằm trên cùng danh sách thẻ).
+-- "ÁNH SÁNG KHÔNG BỊ TRÓI":
+--   • 👁 Xuyên tường: DepthMode = AlwaysOnTop -> thấy mình sáng xuyên qua tường/vật cản.
+--   • 💡 Đèn thật: PointLight.Shadows = false -> ánh sáng KHÔNG bị vật cản chặn, không bị
+--     "trói" vào một chỗ — nó toả tròn theo bán kính bạn chỉnh.
+--   • Không bị game trói: game/anti-cheat xoá Highlight/PointLight thì vòng canh gác 0,5 giây
+--     gắn lại; respawn (CharacterAdded) tự gắn lại vào nhân vật mới.
+-- An toàn: chỉ thêm Highlight (không phải part, không va chạm) + PointLight (không va chạm,
+-- không đẩy ai) — KHÔNG đụng vào chuyển động, tốc độ hay vị trí của ai.
+S.Glow = {
+    on = false, width = 18, bright = 3,
+    color = Color3.fromRGB(120, 220, 255),
+    thru = true,          -- 👁 xuyên tường (mặc định BẬT — đúng ý "ánh sáng không bị trói")
+    light = true,         -- 💡 đèn thật toả sáng quanh người
+    _hl = nil, _pl = nil, _char = nil, _bound = false, _acc = 0, palIdx = 1,
+}
+local GL = S.Glow
+local function glowRound(n) return math.floor((tonumber(n) or 0) + 0.5) end
+-- bảng màu xoay vòng khi bấm 🎨 Đổi màu
+GL.palette = {
+    { name = "Xanh băng", c = Color3.fromRGB(120, 220, 255) },
+    { name = "Xanh lá",  c = Color3.fromRGB(80, 255, 140) },
+    { name = "Hồng",     c = Color3.fromRGB(255, 120, 210) },
+    { name = "Vàng",     c = Color3.fromRGB(255, 220, 90) },
+    { name = "Đỏ",       c = Color3.fromRGB(255, 80, 80) },
+    { name = "Tím",      c = Color3.fromRGB(170, 120, 255) },
+    { name = "Trắng",    c = Color3.fromRGB(255, 255, 255) },
+}
+-- ĐỘ SÁNG (0..10) -> độ ĐẶC của lớp nhuộm sáng. Càng sáng càng đặc (0 = gần như không thấy).
+function S.Glow.FillT() return mvClamp(0.94 - (tonumber(GL.bright) or 0) * 0.088, 0, 1, 1) end
+function S.Glow.EdgeT() return mvClamp(0.60 - (tonumber(GL.bright) or 0) * 0.058, 0, 1, 1) end
+function S.Glow.Char() return player and player.Character or nil end
+function S.Glow.Kill()
+    pcall(function() if GL._hl then GL._hl:Destroy() end end)
+    pcall(function() if GL._pl then GL._pl:Destroy() end end)
+    GL._hl, GL._pl, GL._char = nil, nil, nil
+end
+-- GẮN LẠI mọi thứ theo trạng thái hiện tại (gọi mỗi frame cũng an toàn, chỉ ghi khi cần)
+function S.Glow.Apply()
+    if not GL.on then return end
+    local ch = S.Glow.Char()
+    if not ch then return end
+    if GL._char ~= ch then S.Glow.Kill(); GL._char = ch end          -- respawn -> nhân vật mới
+    local hrp = ch:FindFirstChild("HumanoidRootPart") or ch:FindFirstChildOfClass("BasePart")
+    local mode = GL.thru and Enum.HighlightDepthMode.AlwaysOnTop or Enum.HighlightDepthMode.Occluded
+    -- chỗ treo Highlight: GUI của hub; nếu game/anti-cheat gỡ luôn GUI của hub thì treo sang
+    -- GUI khác đang sống (gethui/CoreGui/PlayerGui) -> phát sáng KHÔNG bị "trói" vào một GUI.
+    local host = (gui and gui.Parent and gui) or targetGui or playerGui
+    if not host then return end
+    if not (GL._hl and GL._hl.Parent) then                            -- bị game xoá -> dựng lại
+        GL._hl = New("Highlight", {
+            Name = "BC_GlowHL", Adornee = ch,
+            FillColor = GL.color, OutlineColor = GL.color,
+            FillTransparency = S.Glow.FillT(), OutlineTransparency = S.Glow.EdgeT(),
+            DepthMode = mode,
+        }, host)
+    end
+    pcall(function()
+        if GL._hl.Parent ~= host then GL._hl.Parent = host end
+        GL._hl.Adornee = ch
+        GL._hl.FillColor = GL.color
+        GL._hl.OutlineColor = GL.color
+        GL._hl.FillTransparency = S.Glow.FillT()
+        GL._hl.OutlineTransparency = S.Glow.EdgeT()
+        GL._hl.DepthMode = mode
+    end)
+    if GL.light and hrp then
+        if not (GL._pl and GL._pl.Parent) then                        -- bị xoá -> dựng lại
+            GL._pl = New("PointLight", {
+                Name = "BC_GlowLight", Brightness = GL.bright, Range = GL.width,
+                Color = GL.color, Shadows = false,
+            }, hrp)
+        end
+        pcall(function()
+            GL._pl.Brightness = GL.bright
+            GL._pl.Range = GL.width
+            GL._pl.Color = GL.color
+            GL._pl.Shadows = false                                     -- không bị vật cản chặn
+            if GL._pl.Parent ~= hrp then GL._pl.Parent = hrp end
+        end)
+    elseif not GL.light then
+        pcall(function() if GL._pl then GL._pl:Destroy() end end)
+        GL._pl = nil
+    end
+end
+function S.Glow.Bind(on)
+    if on and not GL._bound then
+        GL._bound = true
+        pcall(function()
+            RunService:BindToRenderStep("BC_Glow", Enum.RenderPriority.Camera.Value - 5, function(dt)
+                GL._acc = (GL._acc or 0) + (tonumber(dt) or 0.016)
+                if GL._acc < 0.5 then return end      -- 2 lần/giây là đủ để canh, không tốn gì
+                GL._acc = 0
+                pcall(function() S.Glow.Apply() end)
+            end)
+        end)
+    elseif (not on) and GL._bound then
+        GL._bound = false
+        pcall(function() RunService:UnbindFromRenderStep("BC_Glow") end)
+    end
+end
+function S.Glow.Set(on)
+    GL.on = (on == true)
+    if GL.on then S.Glow.Bind(true); S.Glow.Apply() else S.Glow.Kill(); S.Glow.Bind(false) end
+    return GL.on
+end
+function S.Glow.SetWidth(n)  GL.width  = mvClamp(n, 1, 200, GL.width);  S.Glow.Apply(); return GL.width  end
+function S.Glow.SetBright(n) GL.bright = mvClamp(n, 0, 10, GL.bright); S.Glow.Apply(); return GL.bright end
+function S.Glow.SetThru(b)   GL.thru   = (b == true); S.Glow.Apply(); return GL.thru end
+function S.Glow.SetLight(b)  GL.light  = (b == true); S.Glow.Apply(); return GL.light end
+function S.Glow.SetColor(c)
+    if typeof(c) == "Color3" then
+        GL.color = c
+    elseif type(c) == "number" and GL.palette[c] then
+        GL.palIdx = c
+        GL.color = GL.palette[c].c
+    end
+    S.Glow.Apply()
+    return GL.color
+end
+-- bấm 🎨 Đổi màu: xoay vòng qua 7 màu
+function S.Glow.CycleColor()
+    local n = #GL.palette
+    GL.palIdx = ((GL.palIdx or 1) % n) + 1
+    GL.color = GL.palette[GL.palIdx].c
+    S.Glow.Apply()
+    return GL.palette[GL.palIdx].name
+end
+function S.Glow.Stop() return S.Glow.Set(false) end
+function S.Glow.ColorName()
+    for _, p in ipairs(GL.palette) do
+        if p.c == GL.color then return p.name end
+    end
+    return "tự chọn"
+end
+function S.Glow.Status()
+    if not GL.on then return "✨ phát sáng: đang TẮT" end
+    local t = { string.format("📏 rộng %g", GL.width), string.format("☀ sáng %g", GL.bright),
+                "🎨 " .. S.Glow.ColorName() }
+    if GL.thru then t[#t + 1] = "👁 xuyên tường" end
+    if GL.light then t[#t + 1] = "💡 đèn thật" end
+    return "✨ phát sáng: BẬT · " .. table.concat(t, " · ")
+end
+-- respawn: gắn lại vào nhân vật mới (không cần bấm lại)
+do
+    trackConn(player.CharacterAdded:Connect(function()
+        if GL.on then pcall(function() S.Glow.Apply() end) end
+    end))
+end
+
+-- ---------- KHUNG ✨ PHÁT SÁNG (trên cùng danh sách thẻ trong 📚 Script Hub) ----------
+do
+    local PH = 132
+    local P = New("Frame", {
+        Name = "HubGlow_Panel",
+        Size = UDim2.new(1, 0, 0, PH), LayoutOrder = 1,
+        BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, BorderSizePixel = 0, ZIndex = 6,
+    }, D.hubList)
+    Corner(P, UDim.new(0, 10))
+    Stroke(P, C.HAIRLINE, 1)
+    D.Shade(P, Color3.fromRGB(255, 255, 255), Color3.fromRGB(188, 192, 205), 90)
+
+    New("TextLabel", {
+        Name = "GlowTitle",
+        Size = UDim2.new(1, -16, 0, 14), Position = UDim2.new(0, 8, 0, 4),
+        Text = "✨ PHÁT SÁNG (nhân vật của MÌNH)", BackgroundTransparency = 1,
+        TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 10,
+        TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+    }, P)
+
+    local function act(txt, x, y, w, color, name)
+        local b = New("TextButton", {
+            Name = name or "GlowBtn",
+            Size = UDim2.new(0, w, 0, 20), Position = UDim2.new(0, x, 0, y),
+            Text = txt, BackgroundColor3 = color, TextColor3 = D.BestText(color),
+            Font = Enum.Font.GothamBold, TextSize = 9, BorderSizePixel = 0, ZIndex = 8,
+        }, P)
+        Corner(b, UDim.new(0, 6))
+        D.Shade(b, Color3.fromRGB(255, 255, 255), Color3.fromRGB(182, 187, 201), 90)
+        D.Tactile(b, 0.08)
+        return b
+    end
+    local function lab(txt, x, y, w)
+        New("TextLabel", {
+            Size = UDim2.new(0, w, 0, 20), Position = UDim2.new(0, x, 0, y),
+            Text = txt, BackgroundTransparency = 1, TextColor3 = C.MUTED,
+            Font = Enum.Font.GothamMedium, TextSize = 9,
+            TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+        }, P)
+    end
+    local function box(x, y, w, val)
+        local b = New("TextBox", {
+            Size = UDim2.new(0, w, 0, 20), Position = UDim2.new(0, x, 0, y),
+            Text = tostring(val), ClearTextOnFocus = false,
+            BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.1, TextColor3 = C.DARK,
+            PlaceholderColor3 = C.GRAY, Font = Enum.Font.GothamMedium, TextSize = 9,
+            TextXAlignment = Enum.TextXAlignment.Center, BorderSizePixel = 0, ZIndex = 7,
+        }, P)
+        Corner(b, UDim.new(0, 6))
+        return b
+    end
+
+    local onBtn   = act("✨ BẬT", 8, 22, 92, C.GRAY, "GlowOn")
+    local thruBtn = act("👁 Xuyên tường: BẬT", 106, 22, 112, C.GREEN, "GlowThru")
+    local litBtn  = act("💡 Đèn thật: BẬT", 224, 22, 104, C.GREEN, "GlowLight")
+
+    lab("📏 Rộng", 8, 48, 44)
+    local wIn = box(52, 48, 46, 18)
+    lab("☀ Sáng", 106, 48, 44)
+    local bIn = box(150, 48, 46, 3)
+    local colBtn = act("🎨 Đổi màu", 204, 48, 124, C.PURPLE, "GlowColor")
+
+    local applyBtn = act("✔ Áp dụng", 8, 74, 84, C.SURFACE3, "GlowApply")
+    local stopBtn  = act("🚫 Tắt", 98, 74, 70, C.RED, "GlowStop")
+    local statusLbl = New("TextLabel", {
+        Name = "GlowStatus",
+        Size = UDim2.new(1, -188, 0, 20), Position = UDim2.new(0, 174, 0, 74),
+        Text = "", BackgroundTransparency = 1, TextColor3 = C.MUTED,
+        Font = Enum.Font.GothamMedium, TextSize = 8, TextXAlignment = Enum.TextXAlignment.Left,
+        TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = 7,
+    }, P)
+
+    New("TextLabel", {
+        Size = UDim2.new(1, -16, 0, 30), Position = UDim2.new(0, 8, 0, 98),
+        Text = "💡 📏 Rộng = bán kính toả sáng (1–200) · ☀ Sáng = độ sáng (0–10). "
+             .. "👁 Xuyên tường = thấy mình sáng qua tường · 💡 Đèn thật = ánh sáng KHÔNG bị vật cản chặn. "
+             .. "Bị game xoá hay respawn thì tự gắn lại; chỉ thêm hiệu ứng, KHÔNG đụng vào di chuyển.",
+        TextWrapped = true, BackgroundTransparency = 1, TextColor3 = C.MUTED,
+        Font = Enum.Font.GothamMedium, TextSize = 8, TextXAlignment = Enum.TextXAlignment.Left,
+        TextYAlignment = Enum.TextYAlignment.Top, ZIndex = 7,
+    }, P)
+
+    local function paint()
+        onBtn.Text = GL.on and "✨ TẮT" or "✨ BẬT"
+        onBtn.BackgroundColor3 = GL.on and C.GREEN or C.GRAY
+        onBtn.TextColor3 = D.BestText(onBtn.BackgroundColor3)
+        thruBtn.Text = GL.thru and "👁 Xuyên tường: BẬT" or "👁 Xuyên tường: TẮT"
+        thruBtn.BackgroundColor3 = GL.thru and C.GREEN or C.SURFACE3
+        thruBtn.TextColor3 = D.BestText(thruBtn.BackgroundColor3)
+        litBtn.Text = GL.light and "💡 Đèn thật: BẬT" or "💡 Đèn thật: TẮT"
+        litBtn.BackgroundColor3 = GL.light and C.GREEN or C.SURFACE3
+        litBtn.TextColor3 = D.BestText(litBtn.BackgroundColor3)
+        wIn.Text, bIn.Text = tostring(GL.width), tostring(GL.bright)
+        colBtn.Text = "🎨 " .. S.Glow.ColorName()
+        statusLbl.Text = S.Glow.Status()
+    end
+    S.SyncGlowPanel = paint                     -- S.RebuildHubList gọi để nhãn luôn đúng
+    S.Glow.RefreshPanel = paint
+
+    onBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        S.Glow.Set(not GL.on)
+        paint()
+        if D.hubStatus then flash(D.hubStatus, S.Glow.Status(), 2, C.ACCENT) end
+        pcall(S.Rebuild)   -- đổi chữ thẻ ✨ trong danh sách
+    end)
+    thruBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        S.Glow.SetThru(not GL.thru)
+        paint()
+        if D.hubStatus then
+            flash(D.hubStatus, GL.thru and "👁 xuyên tường: thấy mình sáng qua vật cản"
+                 or "👁 chỉ sáng khi không bị vật cản che", 2, C.ACCENT)
+        end
+    end)
+    litBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        S.Glow.SetLight(not GL.light)
+        paint()
+        if D.hubStatus then
+            flash(D.hubStatus, GL.light and "💡 đèn thật: toả sáng quanh người, không bị vật cản chặn"
+                 or "💡 đã tắt đèn (chỉ còn nhuộm sáng nhân vật)", 2, C.ACCENT)
+        end
+    end)
+    colBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        local nm = S.Glow.CycleColor()
+        paint()
+        if D.hubStatus then flash(D.hubStatus, "🎨 màu phát sáng: " .. nm, 1.8, C.ACCENT) end
+    end)
+    applyBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        local w = tonumber(tostring(wIn.Text or ""):match("%-?%d+%.?%d*"))
+        local b = tonumber(tostring(bIn.Text or ""):match("%-?%d+%.?%d*"))
+        if w then S.Glow.SetWidth(w) end
+        if b then S.Glow.SetBright(b) end
+        if not GL.on then S.Glow.Set(true) end          -- áp dụng là bật luôn cho khỏi phải bấm 2 lần
+        paint()
+        if D.hubStatus then flash(D.hubStatus, S.Glow.Status(), 2, C.ACCENT) end
+        pcall(S.Rebuild)
+    end)
+    stopBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        S.Glow.Stop()
+        paint()
+        if D.hubStatus then flash(D.hubStatus, "🚫 " .. S.Glow.Status(), 1.8, C.ACCENT) end
+        pcall(S.Rebuild)
+    end)
+    paint()
 end
 
 -- ---------- TỰ LÀM MỚI 2 DANH SÁCH TRONG MENU (📍 + 👣) ----------
