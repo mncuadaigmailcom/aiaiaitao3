@@ -40,7 +40,29 @@
             mới (D.Tactile) nhưng connection của thẻ đã Destroy không bao giờ bị dọn khỏi
             _G.BananaCatHub_Connections -> bảng phình mãi. Nay trackConn() tự gom rác khi >300.
         • BỘ TEST TỰ ĐỘNG (thư mục tests/, chạy bằng `node tests/run.js`): nạp và CHẠY THẬT hub
-          trong máy ảo Lua 5.4 (wasmoon) + Roblox/executor giả lập. 90 test — 90 PASS (E: chạy trên thảm + nút nổi · F: sửa thảm kính · G: nhảy/chạy ở mọi game + tốc độ theo game · H: helper dùng chung sau khi rút gọn · I: Chạy Trên Thảm = Bay chạy bộ bản gốc 100% · J: hết giật khi bật thảm · K: 📍 định vị người chơi).
+          trong máy ảo Lua 5.4 (wasmoon) + Roblox/executor giả lập. 104 test — 104 PASS (E: chạy trên thảm + nút nổi · F: sửa thảm kính · G: nhảy/chạy ở mọi game + tốc độ theo game · H: helper dùng chung sau khi rút gọn · I: Chạy Trên Thảm = Bay chạy bộ bản gốc 100% · J: hết giật khi bật thảm · K: 📍 định vị người chơi · L: 👣 xem người chơi).
+    + v4.14 (👣 XEM NGƯỜI CHƠI — bám theo để thấy họ đang làm gì — 104 test PASS):
+        • Bật 👣 rồi BẤM TÊN một người chơi (trong khung 👣 hoặc khung 📍) là CAMERA BAY THEO
+          người đó: thấy tận mắt họ đang chạy/nhảy/ngồi/rơi/gục/đứng yên ở đâu. Kèm BẢNG NỔI
+          trên màn hình game (menu đóng vẫn thấy): TÊN · 💗 Bạn Bè · ❤️ máu · 📏 khoảng cách ·
+          💨 tốc độ · và dòng "🏃 đang CHẠY NHANH / 🚶 đang CHẠY / 🐌 đi CHẬM / 🦘 đang NHẢY /
+          🪂 đang RƠI / 🪑 đang NGỒI / ☠️ đang BỊ HẠ GỤC (⏱ đếm giờ) / 🧍 đang ĐỨNG YÊN".
+        • 2 THẺ MỚI ở nhóm "Định vị": 👣 Xem Người Chơi (bám người gần nhất / người đang chọn)
+          và 🚫 Dừng Xem Người Chơi. Khung 👣 nằm ngay dưới khung 📍: 👣 Bám theo · 🎥 Bám BẬT/TẮT ·
+          🔄 Tự chuyển · 📏 m · ⬆ cao · ✔ Áp dụng · danh sách người chơi (bấm tên = bám).
+        • BẢNG NỔI có 2 nút dùng ngay: 🎥 (tắt/bật bám camera) và 🚫 (trả camera về cho bạn).
+        • AN TOÀN TUYỆT ĐỐI: chỉ ĐỔI CAMERA (CameraType = Scriptable) — KHÔNG dịch chuyển nhân vật,
+          KHÔNG ghi CFrame/vận tốc của ai. Tắt là trả lại ĐÚNG kiểu camera gốc của game.
+          Game cướp camera (cutscene/respawn/anti-cheat) -> hub tự đòi lại 4 lần/giây khi đang bám.
+          Chạy lại hub giữa chừng cũng KHÔNG bao giờ để camera bị đóng băng: kiểu camera gốc được
+          ghi ra _G.BananaCatHub_SpecCam và lần chạy sau tự trả lại.
+        • Vẫn dùng chung 1 vòng lặp 0,2 giây của 📍 (BindToRenderStep, ngắt khi tắt hết) nên nhẹ;
+          danh sách trong menu tự làm mới 2 giây/lần CHỈ khi trang 📚 Script Hub đang mở.
+        • 2 LỖI do bộ test bắt được và đã sửa trong v4.14:
+          1) ⏱ đếm giờ hạ gục chỉ chạy khi 📍 Định Vị đang bật (bật 👣 một mình thì đồng hồ đứng
+             ở 00:00) -> nay 📍 và 👣 dùng CHUNG hàm ghi mốc S.Loc.NoteDown.
+          2) Người đang xem biến mất hẳn khỏi danh sách (không bắn PlayerRemoving) -> camera kẹt
+             ở chế độ Scriptable. Nay tự chuyển người (nếu bật 🔄) hoặc tự thoát + TRẢ camera.
     + v4.13 (📍 ĐỊNH VỊ NGƯỜI CHƠI — port từ "ESP System" của aiaiaitao3 — 90 test PASS):
         • XUYÊN TƯỜNG THẤY NGƯỜI: mỗi người chơi 1 nhãn nổi trên đầu + viền sáng quanh người.
           Nhãn ghi: TÊN · 💗 Bạn Bè · ☠️ Hạ gục (kèm ⏱ ĐẾM GIỜ đã gục) · ❤️ máu · 📏 KHOẢNG CÁCH.
@@ -469,6 +491,19 @@ if _G.BananaCatHub_Connections then
     end
 end
 _G.BananaCatHub_Connections = {}
+
+-- v4.14: nếu lần chạy TRƯỚC còn để camera ở chế độ Scriptable (đang 👣 bám theo người chơi) thì
+-- TRẢ LẠI NGAY cho game. Chạy lại hub giữa chừng KHÔNG BAO GIỜ để camera bị "đóng băng" —
+-- người dùng không phải vào lại game.
+pcall(function()
+    local old = _G.BananaCatHub_SpecCam
+    if old ~= nil then
+        local cam = workspace.CurrentCamera
+        if cam then cam.CameraType = old end
+        _G.BananaCatHub_SpecCam = nil
+    end
+    pcall(function() RunService:UnbindFromRenderStep("BC_Spec") end)
+end)
 
 -- Dọn crosshair/menu cũ nếu script bị chạy lại (tránh đè 2 vòng tròn / 2 menu)
 for _, parent in ipairs({targetGui, playerGui, game:GetService("CoreGui")}) do
@@ -7101,6 +7136,7 @@ S.MoveActionState = {
     -- v4.13: nhóm 📍 Định Vị cũng dùng chung bảng này (tên bảng giữ nguyên để không phá code cũ).
     loc_all  = function() return S.Loc and S.Loc.on   end,
     loc_solo = function() return S.Loc and S.Loc.solo end,
+    spec_on  = function() return S.Spec and S.Spec.on   end,
 }
 
 function MV.Refresh()
@@ -7282,7 +7318,11 @@ S.ScriptHubList = {
      desc="Xuyên tường thấy TẤT CẢ người chơi: tên + 💗 bạn bè + ☠️ bị hạ gục (kèm ⏱ đếm giờ) + ❤️ máu + 📏 khoảng cách. Màu: 🟢 thường · 💗 bạn bè · 🔴 bị hạ gục · 🟣 bạn bè bị hạ gục."},
     {icon="🎯", name="Định Vị Lẻ", cat="Định vị", ord=18, action="loc_solo",
      desc="Chỉ định vị ĐÚNG 1 người: bấm nút rồi BẤM TÊN trong khung 📍 ngay trên đầu danh sách (chưa chọn thì tự lấy người đứng gần nhất)."},
-    {icon="🚫", name="Tắt Định Vị", cat="Định vị", ord=19, action="loc_stop",
+    {icon="👣", name="Xem Người Chơi", cat="Định vị", ord=19, action="spec_on",
+     desc="Bám theo 1 người để XEM HỌ ĐANG LÀM GÌ: camera rời khỏi bạn bay theo họ, kèm bảng nổi trên màn hình (TÊN · 💗 bạn bè · ❤️ máu · 📏 khoảng cách · 💨 tốc độ · 🏃 đang chạy/nhảy/ngồi/gục/đứng yên). Chỉ ĐỔI CAMERA — nhân vật bạn không bị dịch chuyển."},
+    {icon="🚫", name="Dừng Xem Người Chơi", cat="Định vị", ord=20, action="spec_off",
+     desc="Trả camera về cho bạn ngay (CameraType gốc của game) + ẩn bảng 👣. Nhân vật bạn không hề bị đụng tới."},
+    {icon="🚫", name="Tắt Định Vị", cat="Định vị", ord=21, action="loc_stop",
      desc="Tắt sạch mọi định vị: bỏ hết nhãn tên + viền sáng khỏi tất cả người chơi, giải phóng vòng lặp."},
 }
 S.hubFavs   = S.hubFavs or {}
@@ -7407,6 +7447,20 @@ function S.RunHubAction(id)
         return (S.Loc.solo and "🎯 ĐỊNH VỊ LẺ: " .. tostring(S.Loc.target and S.Loc.target.Name or "?")
                 .. " — chỉ hiện người này (bấm tên khác trong khung 📍 để đổi)")
                or "🎯 ĐỊNH VỊ LẺ: TẮT (trở lại bình thường)"
+    -- ---------- v4.14: 👣 XEM NGƯỜI CHƠI ----------
+    elseif id == "spec_on" then
+        local p = S.Spec.target or S.Loc.target or S.Loc.Nearest()
+        if not p then return "⚠️ chưa có ai để xem (server chỉ có mình bạn)" end
+        pcall(function() S.Loc.SetTarget(p) end)
+        pcall(function() S.Spec.Set(p) end)
+        pcall(function() if S.Spec.RefreshList then S.Spec.RefreshList() end end)
+        S.Rebuild()
+        return "👣 " .. S.Spec.Status() .. " (bấm tên người khác trong khung 👣 để đổi)"
+    elseif id == "spec_off" then
+        pcall(function() S.Spec.Stop() end)
+        pcall(function() if S.Spec.RefreshList then S.Spec.RefreshList() end end)
+        S.Rebuild()
+        return "🚫 " .. S.Spec.Status()
     elseif id == "loc_stop" then
         pcall(function() S.Loc.StopAll() end)
         S.Rebuild()
@@ -7999,6 +8053,16 @@ function S.Loc.IsDown(h)
     if (tonumber(h.Health) or 1) <= 0 then return true end
     return false
 end
+-- v4.14: ghi mốc "vừa bị hạ gục" — DÙNG CHUNG cho 📍 Định vị và 👣 Xem người chơi.
+-- (Trước đây chỉ 📍 ghi mốc, nên bật 👣 một mình thì đồng hồ ⏱ cứ đứng ở 0 — lỗi này bộ test bắt.)
+function S.Loc.NoteDown(p, down)
+    if p == nil then return end
+    if down then
+        if not LOC._downAt[p] then LOC._downAt[p] = tick() end
+    else
+        LOC._downAt[p] = nil
+    end
+end
 -- số giây ĐÃ bị hạ gục (0 = đang khoẻ)
 function S.Loc.DownSecs(p)
     local st = LOC._downAt[p]
@@ -8078,11 +8142,7 @@ function S.Loc.TickOne(p)
     local c, r, h = LOC.CharOf(p)
     if not c then LOC.Kill(p); return end
     local down, fr = LOC.IsDown(h), LOC.IsFriend(p)
-    if down then
-        if not LOC._downAt[p] then LOC._downAt[p] = tick() end
-    else
-        LOC._downAt[p] = nil
-    end
+    S.Loc.NoteDown(p, down)
     local col = down and (fr and LOCC.fdown or LOCC.down) or (fr and LOCC.friend or LOCC.normal)
     local r0 = LOC.Root()
     local dist = (r0 and r) and (r0.Position - r.Position).Magnitude or nil
@@ -8347,8 +8407,15 @@ do
                         ReleaseHubFocus()
                         if LOC.target == p then
                             LOC.SetSolo(false)
+                            -- v4.14: đang xem chính người này mà bỏ chọn -> trả camera về luôn
+                            if S.Spec and S.Spec.on and S.Spec.target == p then pcall(function() S.Spec.Stop() end) end
                         else
                             LOC.SetTarget(p)
+                            -- v4.14: 👣 đang bật thì bấm tên = BÁM THEO xem họ đang làm gì
+                            if S.Spec and S.Spec.on then
+                                pcall(function() S.Spec.Set(p) end)
+                                pcall(function() if S.Spec.RefreshList then S.Spec.RefreshList() end end)
+                            end
                         end
                         paint()
                         if LOC.RefreshList then LOC.RefreshList() end
@@ -8414,6 +8481,563 @@ do
         distIn.Text = tostring(LOC.maxDist)
         if LOC.RefreshList then pcall(LOC.RefreshList) end
     end
+end
+
+-- ============================================================================
+-- ===== v4.14: 👣 XEM NGƯỜI CHƠI (bám theo để xem họ đang làm gì) ============
+-- ============================================================================
+-- Bật 👣 rồi BẤM TÊN một người (trong khung 📍 hoặc khung 👣) -> camera rời khỏi bạn và
+-- BÁM THEO người đó: thấy tận mắt họ đang chạy/nhảy/ngồi/gục/đứng yên ở đâu, kèm bảng nổi
+-- trên màn hình game hiện: TÊN · 💗 bạn bè · ❤️ máu · 📏 khoảng cách · 💨 tốc độ · 🏃 họ đang làm gì.
+-- Không cần hé mắt khỏi màn hình game (menu đóng vẫn thấy bảng).
+-- An toàn cho nhân vật bạn: CHỈ đổi camera (CameraType = Scriptable) — KHÔNG dịch chuyển,
+-- KHÔNG ghi CFrame, KHÔNG đụng vận tốc của ai cả; tắt đi là trả lại camera y như cũ.
+S.Spec = {
+    on = false, target = nil,       -- 👣 đang xem ai
+    auto = true,                    -- người đang xem thoát thì tự chuyển sang người gần nhất
+    follow = true, dist = 12, height = 3.2,
+    moving = false, jumping = false, falling = false, speed = 0, act = "",
+    -- v4.14: ghi NHỚ MỐC THỜI GIAN "vừa mới chạy/nhảy/rơi" thay vì so từng frame. Nhiều game
+    -- teleport/dịch chuyển từng nhịp nên so frame sẽ nháy trạng thái (đang chạy -> đứng yên ngay).
+    lastMove = 0, lastJump = 0, lastFall = 0,
+    _prev = nil, _oldType = nil, _bound = false, _ui = {},
+}
+local SP = S.Spec
+local function spRound(n) return math.floor((tonumber(n) or 0) + 0.5) end
+
+-- Camera bám: nhớ KIỂU camera gốc của game (Custom/Follow/Observe...) để trả lại đúng cái cũ
+function S.Spec.CamOn()
+    local cam = workspace.CurrentCamera
+    if not cam then return end
+    if SP._oldType == nil then pcall(function() SP._oldType = cam.CameraType end) end
+    _G.BananaCatHub_SpecCam = SP._oldType          -- để lần chạy sau (chạy lại hub) trả lại được
+    pcall(function() cam.CameraType = Enum.CameraType.Scriptable end)
+end
+function S.Spec.CamOff()
+    local cam = workspace.CurrentCamera
+    if cam and SP._oldType ~= nil then
+        pcall(function() cam.CameraType = SP._oldType end)
+    end
+    SP._oldType = nil
+    _G.BananaCatHub_SpecCam = nil
+end
+-- Họ đang LÀM GÌ (đây là thứ người dùng xin: "thấy người chơi đó đang làm gì")
+function S.Spec.Acting(p)
+    if not p or not SP.on then return "—" end
+    local c, r, h = S.Loc.CharOf(p)
+    if not c then return "⏳ đang chờ nhân vật (đang hồi sinh?)" end
+    if S.Loc.IsDown(h) then
+        local t = S.Loc.DownSecs(p)
+        return "☠️ đang BỊ HẠ GỤC" .. (t > 0 and (" (⏱ " .. string.format("%02d:%02d", math.floor(t / 60), math.floor(t % 60)) .. ")") or "")
+    end
+    if h and h.Sit == true then return "🪑 đang NGỒI" end
+    if SP.jumping then return "🦘 đang NHẢY" end
+    if SP.falling then return "🪂 đang RƠI" end
+    local sp = tonumber(SP.speed) or 0
+    if sp > 0.6 then
+        local base = (h and tonumber(h.WalkSpeed)) or 16
+        if sp >= base * 1.25 then return "🏃 đang CHẠY NHANH (" .. spRound(sp) .. " m/s)"
+        elseif sp >= base * 0.6 then return "🚶 đang CHẠY (" .. spRound(sp) .. " m/s)"
+        else return "🐌 đang đi CHẬM (" .. spRound(sp) .. " m/s)" end
+    end
+    return "🧍 đang ĐỨNG YÊN"
+end
+-- một nhịp: đo chuyển động của người đang xem + kéo camera theo (chạy mỗi frame)
+function S.Spec.Step(dt)
+    if not (SP.on and SP.target) then return end
+    local p = SP.target
+    if p.Parent == nil then
+        -- người đang xem biến mất hẳn khỏi danh sách -> tự chuyển (nếu bật 🔄) hoặc tự thoát,
+        -- KHÔNG để camera kẹt ở chế độ Scriptable.
+        SP.target = nil
+        if SP.auto then
+            local n = S.Loc.Nearest()
+            if n then pcall(function() S.Spec.Set(n) end) end
+        end
+        if not SP.target then pcall(function() S.Spec.Stop() end) end
+        pcall(function() if S.Spec.RefreshList then S.Spec.RefreshList() end end)
+        return
+    end
+    local c, r = S.Loc.CharOf(p)
+    if not c or not r then
+        -- đang hồi sinh / chưa có nhân vật: giữ camera, chờ frame sau; 👣 tự chuyển thì đổi người
+        if SP.auto then
+            local n = S.Loc.Nearest()
+            if n and n ~= p and S.Loc.CharOf(n) then
+                SP.target = n
+                SP._prev = nil
+                SP.lastMove, SP.lastJump, SP.lastFall = 0, 0, 0
+                S.Spec.RefreshList()
+            end
+        end
+        SP.moving, SP.jumping, SP.falling, SP.speed = false, false, false, 0
+        S.Loc.NoteDown(p, false)
+        S.Spec.Sync()
+        return
+    end
+    -- ⏱ đồng hồ hạ gục của RIÊNG người đang xem (📍 có bật hay không đều đếm đúng)
+    pcall(function() S.Loc.NoteDown(p, S.Loc.IsDown(c:FindFirstChildOfClass("Humanoid"))) end)
+    local pos = r.Position
+    local now = tick()
+    local pv = SP._prev
+    if pv and pv.p == p then
+        local d = math.max(now - pv.t, 0.001)
+        local dx, dz = pos.X - pv.x, pos.Z - pv.z
+        local sp = math.sqrt(dx * dx + dz * dz) / d
+        if sp > 0.6 then SP.lastMove = now; SP.speed = sp end
+        local dy = pos.Y - pv.y
+        if dy > 0.8 then SP.lastJump = now end
+        if dy < -0.8 then SP.lastFall = now end
+    end
+    -- giữ trạng thái trong một khoảng ngắn để mắt người xem đọc kịp (0,5s chạy · 0,9s nhảy · 0,6s rơi)
+    SP.moving = (SP.lastMove > 0) and (now - SP.lastMove < 0.5) or false
+    SP.jumping = (SP.lastJump > 0) and (now - SP.lastJump < 0.9) or false
+    SP.falling = (SP.lastFall > 0) and (now - SP.lastFall < 0.6) or false
+    if not SP.moving then SP.speed = 0 end
+    SP._prev = { p = p, t = now, x = pos.X, y = pos.Y, z = pos.Z }
+    if SP.follow then
+        local cam = workspace.CurrentCamera
+        if cam then
+            local look = r.CFrame.LookVector
+            local want = pos - look * SP.dist + Vector3.new(0, SP.height, 0)
+            pcall(function() cam.CFrame = CFrame.lookAt(want, pos + Vector3.new(0, 1.5, 0)) end)
+        end
+    end
+    SP._acc = (SP._acc or 0) + (tonumber(dt) or 0.016)
+    if SP._acc >= 0.25 then
+        SP._acc = 0
+        S.Spec.Sync()
+        -- game (cutscene/respawn/anti-cheat) đổi lại camera -> tự đòi quyền, 4 lần/giây
+        if SP.follow then
+            local cam = workspace.CurrentCamera
+            if cam and cam.CameraType ~= Enum.CameraType.Scriptable then
+                pcall(function() cam.CameraType = Enum.CameraType.Scriptable end)
+            end
+        end
+    end
+end
+function S.Spec.Bind(on)
+    if on and not SP._bound then
+        SP._bound = true
+        pcall(function()
+            RunService:BindToRenderStep("BC_Spec", Enum.RenderPriority.Camera.Value - 3, function(dt)
+                pcall(function() S.Spec.Step(dt) end)
+            end)
+        end)
+    elseif (not on) and SP._bound then
+        SP._bound = false
+        pcall(function() RunService:UnbindFromRenderStep("BC_Spec") end)
+    end
+end
+-- chọn người để xem (nil = tắt)
+function S.Spec.Set(p)
+    if p == nil or p == player or p.Parent == nil then
+        SP.on = false; SP.target = nil; SP._prev = nil
+        SP.moving, SP.jumping, SP.falling, SP.speed = false, false, false, 0
+        SP.lastMove, SP.lastJump, SP.lastFall = 0, 0, 0
+        S.Spec.Bind(false)
+        S.Spec.CamOff()
+        S.Spec.Sync()
+        return false
+    end
+    SP.target, SP.on, SP._prev = p, true, nil
+    SP.lastMove, SP.lastJump, SP.lastFall = 0, 0, 0
+    SP.moving, SP.jumping, SP.falling, SP.speed = false, false, false, 0
+    S.Spec.Bind(true)
+    if SP.follow then S.Spec.CamOn() end
+    S.Spec.Sync()
+    return true
+end
+function S.Spec.Stop() return S.Spec.Set(nil) end
+function S.Spec.SetFollow(on)
+    SP.follow = (on == true)
+    if SP.follow and SP.on then S.Spec.CamOn() else S.Spec.CamOff() end
+    S.Spec.Sync()
+    return SP.follow
+end
+function S.Spec.SetAuto(on) SP.auto = (on == true); S.Spec.Sync(); return SP.auto end
+function S.Spec.SetDist(n) SP.dist = mvClamp(n, 3, 200); S.Spec.Sync(); return SP.dist end
+function S.Spec.SetHeight(n) SP.height = mvClamp(n, -30, 60); S.Spec.Sync(); return SP.height end
+function S.Spec.Status()
+    if not (SP.on and SP.target) then return "👣 xem người chơi: đang TẮT (camera của bạn bình thường)" end
+    return "👣 đang xem " .. tostring(SP.target.Name) .. " — " .. S.Spec.Acting(SP.target)
+end
+-- người đang xem thoát game: tự dọn (hoặc tự chuyển người nếu 👣 bật Tự chuyển)
+do
+    trackConn(Players.PlayerRemoving:Connect(function(p)
+        if SP.target == p then
+            SP.target = nil
+            if SP.on and SP.auto then
+                local n = S.Loc.Nearest()
+                if n then pcall(function() S.Spec.Set(n) end) end
+            end
+            if not SP.target then pcall(function() S.Spec.Stop() end) end
+            pcall(function() S.Spec.RefreshList() end)
+        end
+    end))
+end
+
+-- ---------- BẢNG NỔI 👣 (hiện trên màn hình game, menu đóng vẫn thấy) ----------
+do
+    local g = New("ScreenGui", {
+        Name = "BC_SpecHud", ResetOnSpawn = false,
+        ZIndexBehavior = Enum.ZIndexBehavior.Sibling, Enabled = false,
+    }, gui)
+    local F = New("Frame", {
+        Name = "SpecBox", Size = UDim2.new(0, 250, 0, 92), Position = UDim2.new(0, 10, 0, 10),
+        BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, BorderSizePixel = 0, ZIndex = 20,
+    }, g)
+    Corner(F, UDim.new(0, 10))
+    Stroke(F, C.ACCENT, 1.2)
+    D.Shade(F, Color3.fromRGB(255, 255, 255), Color3.fromRGB(188, 192, 205), 90)
+    SP._ui.gui = g
+    SP._ui.title = New("TextLabel", {
+        Name = "title",
+        Size = UDim2.new(1, -46, 0, 14), Position = UDim2.new(0, 8, 0, 4),
+        Text = "👣 ĐANG XEM", BackgroundTransparency = 1, TextColor3 = C.ACCENT,
+        Font = Enum.Font.GothamBold, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left,
+        ZIndex = 21,
+    }, F)
+    SP._ui.who = New("TextLabel", {
+        Name = "who",
+        Size = UDim2.new(1, -16, 0, 16), Position = UDim2.new(0, 8, 0, 19),
+        Text = "", BackgroundTransparency = 1, TextColor3 = C.DARK,
+        Font = Enum.Font.GothamBold, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Left,
+        TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = 21,
+    }, F)
+    SP._ui.info = New("TextLabel", {
+        Name = "info",
+        Size = UDim2.new(1, -16, 0, 14), Position = UDim2.new(0, 8, 0, 37),
+        Text = "", BackgroundTransparency = 1, TextColor3 = C.MUTED,
+        Font = Enum.Font.GothamMedium, TextSize = 9, TextXAlignment = Enum.TextXAlignment.Left,
+        ZIndex = 21,
+    }, F)
+    SP._ui.act = New("TextLabel", {
+        Name = "act",
+        Size = UDim2.new(1, -16, 0, 16), Position = UDim2.new(0, 8, 0, 52),
+        Text = "", BackgroundTransparency = 1, TextColor3 = C.GREEN,
+        Font = Enum.Font.GothamBold, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Left,
+        TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = 21,
+    }, F)
+    local stopBtn = New("TextButton", {
+        Name = "stopBtn",
+        Size = UDim2.new(0, 30, 0, 20), Position = UDim2.new(1, -38, 0, 4),
+        Text = "🚫", BackgroundColor3 = C.RED, TextColor3 = D.BestText(C.RED),
+        Font = Enum.Font.GothamBold, TextSize = 11, BorderSizePixel = 0, ZIndex = 22,
+    }, F)
+    Corner(stopBtn, UDim.new(0, 7))
+    D.Tactile(stopBtn, 0.1)
+    stopBtn.Activated:Connect(function()
+        pcall(function() S.Spec.Stop() end)
+        pcall(function() S.Spec.RefreshList() end)
+        pcall(S.Rebuild)
+    end)
+    -- v4.14: nút 🎥 NGAY TRÊN BẢNG NỔI — bật/tắt bám camera mà không cần mở menu
+    local followBtnHud = New("TextButton", {
+        Name = "followBtn",
+        Size = UDim2.new(0, 46, 0, 20), Position = UDim2.new(1, -88, 0, 4),
+        Text = "🎥 Bám", BackgroundColor3 = C.GREEN, TextColor3 = D.BestText(C.GREEN),
+        Font = Enum.Font.GothamBold, TextSize = 9, BorderSizePixel = 0, ZIndex = 22,
+    }, F)
+    Corner(followBtnHud, UDim.new(0, 7))
+    D.Tactile(followBtnHud, 0.1)
+    followBtnHud.Activated:Connect(function()
+        pcall(function() S.Spec.SetFollow(not SP.follow) end)
+        pcall(function() S.Spec.RefreshList() end)
+    end)
+    SP._ui.followBtn = followBtnHud
+    -- nhãn "đang làm gì" bên dưới (dòng thứ 4) cho dễ đọc khi chạy nhanh
+    SP._ui.note = New("TextLabel", {
+        Name = "note",
+        Size = UDim2.new(1, -16, 0, 16), Position = UDim2.new(0, 8, 0, 70),
+        Text = "💡 bấm 🚫 để trả camera về cho bạn", BackgroundTransparency = 1, TextColor3 = C.GRAY,
+        Font = Enum.Font.GothamMedium, TextSize = 8, TextXAlignment = Enum.TextXAlignment.Left,
+        ZIndex = 21,
+    }, F)
+end
+-- cập nhật chữ trên bảng nổi (gọi từ vòng lặp ~4 lần/giây, không phải mỗi frame)
+function S.Spec.Sync()
+    local u = SP._ui
+    if not u then return end
+    local on = (SP.on and SP.target ~= nil)
+    pcall(function() if u.gui then u.gui.Enabled = on end end)
+    if not on then return end
+    pcall(function()
+        if u.followBtn then
+            u.followBtn.Text = SP.follow and "🎥 Bám" or "🎥 Thôi"
+            u.followBtn.BackgroundColor3 = SP.follow and C.GREEN or C.SURFACE3
+            u.followBtn.TextColor3 = D.BestText(u.followBtn.BackgroundColor3)
+        end
+    end)
+    local p = SP.target
+    local c, r, h = S.Loc.CharOf(p)
+    local fr = S.Loc.IsFriend(p)
+    local nm = tostring(p.Name) .. (fr and "  💗 Bạn Bè" or "")
+    local dist = S.Loc.Dist(p)
+    local lines = {}
+    if h then lines[#lines + 1] = string.format("❤️ %d/%d", spRound(h.Health or 0), spRound(h.MaxHealth or 100)) end
+    lines[#lines + 1] = dist and ("📏 " .. spRound(dist) .. "m") or "📏 --m"
+    lines[#lines + 1] = "💨 " .. spRound(SP.speed) .. " m/s"
+    pcall(function()
+        if u.who then u.who.Text = "👣 " .. nm end
+        if u.info then u.info.Text = table.concat(lines, "   ") end
+        if u.act then
+            local txt = S.Spec.Acting(p)
+            u.act.Text = txt
+            u.act.TextColor3 = S.Loc.IsDown(h) and Color3.fromRGB(255, 100, 100) or C.GREEN
+        end
+        if u.title then
+            u.title.Text = "👣 ĐANG XEM" .. (SP.follow and "" or " (KHÔNG bám)") .. (SP.auto and " · 🔄" or "")
+        end
+    end)
+end
+
+-- ---------- TỰ LÀM MỚI 2 DANH SÁCH TRONG MENU (📍 + 👣) ----------
+-- Chỉ chạy khi trang 📚 Script Hub đang MỞ (đóng menu thì không tốn gì): 2 giây/lần dựng lại
+-- danh sách người chơi để 💗 bạn bè · ☠️ hạ gục · ❤️ máu · 📏 khoảng cách luôn đúng.
+do
+    local acc = 0
+    RunService:BindToRenderStep("BC_HubList", Enum.RenderPriority.Camera.Value - 4, function(dt)
+        acc = acc + (tonumber(dt) or 0.016)
+        if acc < 2 then return end
+        acc = 0
+        pcall(function()
+            local visible = true
+            if D.hubTab and D.hubTab.Visible ~= nil then visible = (D.hubTab.Visible == true) end
+            if not visible then return end
+            if S.Loc.RefreshList then S.Loc.RefreshList() end
+            if S.Spec.RefreshList then S.Spec.RefreshList() end
+        end)
+    end)
+end
+
+-- ---------- KHUNG 👣 XEM NGƯỜI CHƠI (ngay dưới khung 📍, cùng nằm trên danh sách thẻ) -------
+do
+    local PH = 262
+    local P = New("Frame", {
+        Name = "HubSpec_Panel",
+        Size = UDim2.new(1, 0, 0, PH), LayoutOrder = 2,
+        BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, BorderSizePixel = 0, ZIndex = 6,
+    }, D.hubList)
+    Corner(P, UDim.new(0, 10))
+    Stroke(P, C.HAIRLINE, 1)
+    D.Shade(P, Color3.fromRGB(255, 255, 255), Color3.fromRGB(188, 192, 205), 90)
+
+    New("TextLabel", {
+        Size = UDim2.new(1, -16, 0, 14), Position = UDim2.new(0, 8, 0, 4),
+        Text = "👣 XEM NGƯỜI CHƠI (bám theo — xem họ đang làm gì)", BackgroundTransparency = 1,
+        TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 10,
+        TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+    }, P)
+
+    local function act(txt, x, y, w, color)
+        local b = New("TextButton", {
+            Size = UDim2.new(0, w, 0, 20), Position = UDim2.new(0, x, 0, y),
+            Text = txt, BackgroundColor3 = color, TextColor3 = D.BestText(color),
+            Font = Enum.Font.GothamBold, TextSize = 9, BorderSizePixel = 0, ZIndex = 8,
+        }, P)
+        Corner(b, UDim.new(0, 6))
+        D.Shade(b, Color3.fromRGB(255, 255, 255), Color3.fromRGB(182, 187, 201), 90)
+        D.Tactile(b, 0.08)
+        return b
+    end
+    local function lab(txt, x, y, w)
+        New("TextLabel", {
+            Size = UDim2.new(0, w, 0, 20), Position = UDim2.new(0, x, 0, y),
+            Text = txt, BackgroundTransparency = 1, TextColor3 = C.MUTED,
+            Font = Enum.Font.GothamMedium, TextSize = 9,
+            TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+        }, P)
+    end
+
+    local watchBtn = act("👣 Bám theo", 8, 22, 106, C.GRAY)
+    local followBtn = act("🎥 Bám: BẬT", 120, 22, 96, C.GREEN)
+    local autoBtn = act("🔄 Tự chuyển", 222, 22, 66, C.GRAY)
+
+    lab("📏", 8, 48, 14)
+    local distIn = New("TextBox", {
+        Size = UDim2.new(0, 44, 0, 20), Position = UDim2.new(0, 22, 0, 48),
+        Text = "12", ClearTextOnFocus = false,
+        BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.1, TextColor3 = C.DARK,
+        PlaceholderColor3 = C.GRAY, Font = Enum.Font.GothamMedium, TextSize = 9,
+        TextXAlignment = Enum.TextXAlignment.Center, BorderSizePixel = 0, ZIndex = 7,
+    }, P)
+    Corner(distIn, UDim.new(0, 6))
+    lab("m · ⬆", 70, 48, 30)
+    local hiIn = New("TextBox", {
+        Size = UDim2.new(0, 44, 0, 20), Position = UDim2.new(0, 100, 0, 48),
+        Text = "3.2", ClearTextOnFocus = false,
+        BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.1, TextColor3 = C.DARK,
+        PlaceholderColor3 = C.GRAY, Font = Enum.Font.GothamMedium, TextSize = 9,
+        TextXAlignment = Enum.TextXAlignment.Center, BorderSizePixel = 0, ZIndex = 7,
+    }, P)
+    Corner(hiIn, UDim.new(0, 6))
+    local applyBtn = act("✔ Áp dụng", 150, 48, 70, C.SURFACE3)
+    lab("🚫 Dừng", 226, 48, 62)
+
+    local searchIn = New("TextBox", {
+        Size = UDim2.new(1, -16, 0, 22), Position = UDim2.new(0, 8, 0, 72),
+        Text = "", PlaceholderText = "🔍 Tìm tên người chơi...", ClearTextOnFocus = false,
+        PlaceholderColor3 = C.GRAY, BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.1,
+        TextColor3 = C.DARK, Font = Enum.Font.GothamMedium, TextSize = 9,
+        TextXAlignment = Enum.TextXAlignment.Left, BorderSizePixel = 0, ZIndex = 7,
+    }, P)
+    Corner(searchIn, UDim.new(0, 6))
+    New("UIPadding", { PaddingLeft = UDim.new(0, 6) }, searchIn)
+
+    local list = New("ScrollingFrame", {
+        Name = "SpecList", Size = UDim2.new(1, -16, 0, 130), Position = UDim2.new(0, 8, 0, 98),
+        BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = 4,
+        CanvasSize = UDim2.new(0, 0, 0, 0), ZIndex = 7,
+    }, P)
+    New("UIListLayout", { Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder }, list)
+
+    New("TextLabel", {
+        Size = UDim2.new(1, -16, 0, 30), Position = UDim2.new(0, 8, 0, 230),
+        Text = "💡 Bấm TÊN = bám theo xem họ đang làm gì (video chạy trong mắt bạn). "
+             .. "Chỉ ĐỔI CAMERA — nhân vật bạn không bị dịch chuyển; 🚫 Dừng là trả camera về ngay.",
+        TextWrapped = true, BackgroundTransparency = 1, TextColor3 = C.MUTED,
+        Font = Enum.Font.GothamMedium, TextSize = 8, TextXAlignment = Enum.TextXAlignment.Left,
+        TextYAlignment = Enum.TextYAlignment.Top, ZIndex = 7,
+    }, P)
+
+    local function paint()
+        local nm = (SP.on and SP.target) and tostring(SP.target.Name) or nil
+        watchBtn.Text = nm and ("👣 " .. nm) or "👣 Bám theo"
+        watchBtn.BackgroundColor3 = SP.on and C.GREEN or C.GRAY
+        watchBtn.TextColor3 = D.BestText(watchBtn.BackgroundColor3)
+        followBtn.Text = SP.follow and "🎥 Bám: BẬT" or "🎥 Bám: TẮT"
+        followBtn.BackgroundColor3 = SP.follow and C.GREEN or C.SURFACE3
+        followBtn.TextColor3 = D.BestText(followBtn.BackgroundColor3)
+        autoBtn.BackgroundColor3 = SP.auto and C.PURPLE or C.SURFACE3
+        autoBtn.TextColor3 = D.BestText(autoBtn.BackgroundColor3)
+        distIn.Text, hiIn.Text = tostring(SP.dist), tostring(SP.height)
+    end
+
+    -- danh sách người chơi để bấm chọn (tự dựng lại 0,5 giây/lần khi panel đang hiện)
+    S.Spec.RefreshList = function()
+        if not (list and list.Parent) then return end
+        for _, c in ipairs(list:GetChildren()) do
+            if not c:IsA("UIListLayout") then pcall(function() c:Destroy() end) end
+        end
+        local term = tostring(searchIn.Text or ""):lower()
+        local order = 0
+        local ok, players = pcall(function() return Players:GetPlayers() end)
+        if not ok or not players then return end
+        for _, p in ipairs(players) do
+            if p ~= player then
+                local nm = tostring(p.Name)
+                if term == "" or nm:lower():find(term, 1, true) then
+                    order = order + 1
+                    local c, r, h = S.Loc.CharOf(p)
+                    local fr, down = S.Loc.IsFriend(p), S.Loc.IsDown(h)
+                    local col = down and Color3.fromRGB(255, 100, 100)
+                             or (fr and Color3.fromRGB(255, 182, 193) or C.DARK)
+                    local row = New("Frame", {
+                        Size = UDim2.new(1, 0, 0, 26), LayoutOrder = order,
+                        BackgroundColor3 = (SP.target == p) and C.SURFACE3 or C.SURFACE2,
+                        BackgroundTransparency = (SP.target == p) and 0.05 or 0.25,
+                        BorderSizePixel = 0, ZIndex = 8,
+                    }, list)
+                    Corner(row, UDim.new(0, 6))
+                    local sub = {}
+                    if fr then sub[#sub + 1] = "💗" end
+                    if down then sub[#sub + 1] = "☠️" end
+                    if c then
+                        sub[#sub + 1] = (h and string.format("❤️%d", spRound(h.Health or 0)) or "❤️?")
+                    else
+                        sub[#sub + 1] = "⏳ chờ nhân vật"
+                    end
+                    local b = New("TextButton", {
+                        Size = UDim2.new(1, -74, 1, 0), Position = UDim2.new(0, 6, 0, 0),
+                        Text = (SP.target == p and "👣 " or "") .. nm .. "  " .. table.concat(sub, " "),
+                        BackgroundTransparency = 1, TextColor3 = col,
+                        Font = Enum.Font.GothamBold, TextSize = 9,
+                        TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 9,
+                    }, row)
+                    b.Activated:Connect(function()
+                        ReleaseHubFocus()
+                        pcall(function() S.Loc.SetTarget(p) end)      -- vừa định vị vừa bám theo
+                        S.Spec.Set(p)
+                        pcall(function() S.Loc.RefreshList() end)
+                        paint()
+                        if S.Spec.RefreshList then S.Spec.RefreshList() end
+                        pcall(S.Rebuild)
+                    end)
+                    local d = S.Loc.Dist(p)
+                    New("TextLabel", {
+                        Size = UDim2.new(0, 66, 1, 0), Position = UDim2.new(1, -68, 0, 0),
+                        Text = d and ("📏 " .. spRound(d) .. "m") or "📏 --m",
+                        BackgroundTransparency = 1, TextColor3 = C.MUTED,
+                        Font = Enum.Font.GothamMedium, TextSize = 9,
+                        TextXAlignment = Enum.TextXAlignment.Right, ZIndex = 9,
+                    }, row)
+                end
+            end
+        end
+        pcall(function() list.CanvasSize = UDim2.new(0, 0, 0, order * 30) end)
+        paint()
+    end
+
+    watchBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        if SP.on then
+            S.Spec.Stop()
+        else
+            local p = SP.target or S.Loc.target or S.Loc.Nearest()
+            if not p then
+                if D.hubStatus then flash(D.hubStatus, "⚠️ chưa có ai để xem (server chỉ có mình bạn)", 2, C.RED) end
+            else
+                S.Loc.SetTarget(p)
+                S.Spec.Set(p)
+            end
+        end
+        paint()
+        if S.Spec.RefreshList then S.Spec.RefreshList() end
+        pcall(function() S.Loc.RefreshList() end)
+        pcall(S.Rebuild)
+        if D.hubStatus then flash(D.hubStatus, S.Spec.Status(), 2, C.ACCENT) end
+    end)
+    followBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        S.Spec.SetFollow(not SP.follow)
+        paint()
+        if D.hubStatus then flash(D.hubStatus, SP.follow and "🎥 camera bám theo người đang xem" or "🎥 đã trả camera về cho bạn (vẫn xem được bảng 👣)", 2, C.ACCENT) end
+    end)
+    autoBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        S.Spec.SetAuto(not SP.auto)
+        paint()
+        if D.hubStatus then flash(D.hubStatus, SP.auto and "🔄 người đang xem thoát -> tự chuyển người gần nhất" or "🔄 đã tắt tự chuyển", 2, C.ACCENT) end
+    end)
+    applyBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        local d = tonumber(tostring(distIn.Text or ""):match("%-?%d+%.?%d*")) or SP.dist
+        local hh = tonumber(tostring(hiIn.Text or ""):match("%-?%d+%.?%d*")) or SP.height
+        S.Spec.SetDist(d); S.Spec.SetHeight(hh)
+        paint()
+        if D.hubStatus then flash(D.hubStatus, string.format("📏 camera: lùi %gm · cao %gm", SP.dist, SP.height), 1.8, C.ACCENT) end
+    end)
+    -- 🚫 Dừng = nút chữ nằm ngay trong khung (bấm cả vùng chữ)
+    local stopBtn2 = New("TextButton", {
+        Size = UDim2.new(0, 108, 0, 20), Position = UDim2.new(1, -116, 0, 48),
+        Text = "🚫 Dừng xem", BackgroundColor3 = C.RED, TextColor3 = D.BestText(C.RED),
+        Font = Enum.Font.GothamBold, TextSize = 9, BorderSizePixel = 0, ZIndex = 8,
+    }, P)
+    Corner(stopBtn2, UDim.new(0, 6))
+    D.Tactile(stopBtn2, 0.1)
+    stopBtn2.Activated:Connect(function()
+        ReleaseHubFocus()
+        S.Spec.Stop()
+        paint()
+        if S.Spec.RefreshList then S.Spec.RefreshList() end
+        pcall(S.Rebuild)
+        if D.hubStatus then flash(D.hubStatus, "🚫 " .. S.Spec.Status(), 2, C.ACCENT) end
+    end)
+    -- xoá nút 🚫 nhỏ "trong suốt" cũ (nhãn 🚫 Dừng ở trên chỉ là chữ trang trí)
+    pcall(function() end)
+    paint()
+    if S.Spec.RefreshList then pcall(S.Spec.RefreshList) end
 end
 
 -- chip phân loại

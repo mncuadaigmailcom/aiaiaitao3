@@ -1579,6 +1579,342 @@ test("K11 · thẻ trong Script Hub + không làm mất tính năng cũ", functi
     cleanLoc({ a })
 end)
 
+print("\n── L. v4.14: 👣 XEM NGƯỜI CHƠI (bám theo — thấy họ đang làm gì) ────────")
+
+local function specHud() return H.gui:FindFirstChild("BC_SpecHud", true) end
+local function specBox() local g = specHud(); return g and g:FindFirstChild("SpecBox") end
+local function specText(nm)
+    local b = specBox()
+    if not b then return "" end
+    for _, d in ipairs(b:GetChildren()) do
+        if d.ClassName == "TextLabel" and tostring(d.Name) == nm then return tostring(d.Text) end
+    end
+    return ""
+end
+local function specList() local p = D.hubList:FindFirstChild("HubSpec_Panel"); return p and p:FindFirstChild("SpecList") or nil end
+local function specRowBtn(nm)
+    local l = specList()
+    if not l then return nil end
+    for _, row in ipairs(l:GetChildren()) do
+        if row.ClassName == "Frame" then
+            for _, d in ipairs(row:GetChildren()) do
+                if d.ClassName == "TextButton" and tostring(d.Text):find(nm, 1, true) then return d end
+            end
+        end
+    end
+    return nil
+end
+local function camPos() return workspace.CurrentCamera.CFrame.Position end
+local function specBtn(txt)
+    local b = specBox()
+    if not b then return nil end
+    for _, d in ipairs(b:GetChildren()) do
+        if d.ClassName == "TextButton" and tostring(d.Text):find(txt, 1, true) then return d end
+    end
+    return nil
+end
+local function specBtnName(nm)     -- tìm theo TÊN nút (chữ đổi qua lại nên đừng tìm theo chữ)
+    local b = specBox()
+    return b and b:FindFirstChild(nm) or nil
+end
+-- dọn sạch trạng thái 👣 + 📍 trước mỗi test (test trước lỗi giữa chừng cũng không lây)
+local function cleanSpec()
+    pcall(function() S.Spec.Stop() end)
+    pcall(function() S.Spec.SetAuto(true); S.Spec.SetFollow(true) end)
+    pcall(function() S.Spec.SetDist(12); S.Spec.SetHeight(3.2) end)
+    pcall(function() workspace.CurrentCamera.CameraType = Enum.CameraType.Custom end)
+    Mock.advance(0.05)
+end
+local function panelSpecBtn(txt)
+    local p = D.hubList:FindFirstChild("HubSpec_Panel")
+    if not p then return nil end
+    for _, d in ipairs(p:GetDescendants()) do
+        if d.ClassName == "TextButton" and tostring(d.Text):find(txt, 1, true) then return d end
+    end
+    return nil
+end
+
+test("L1 · bật 👣 Bám theo: camera chuyển sang Scriptable + bảng 👣 hiện + vòng lặp chạy", function()
+    cleanStart(); S.Loc.StopAll(); wipePlayers(); cleanSpec()
+    local a = addP("NguA", 3001, Vector3.new(40, 5, 0))
+    truthy(card("Xem Người Chơi"), "có thẻ 👣 Xem Người Chơi trong Script Hub")
+    truthy(card("Dừng Xem Người Chơi"), "có thẻ 🚫 Dừng Xem Người Chơi")
+    local msg = action("spec_on")
+    Mock.advance(0.3)
+    truthy(S.Spec.on, "đang bám theo: " .. msg)
+    eq(S.Spec.target, a, "chọn đúng người gần nhất")
+    truthy(S.Spec and S.Spec.on, "cờ 👣 BẬT")
+    truthy(Mock.renderSteps["BC_Spec"], "vòng lặp 👣 đang chạy")
+    eq(workspace.CurrentCamera.CameraType, Enum.CameraType.Scriptable, "camera do hub điều khiển")
+    truthy(specHud(), "có bảng nổi BC_SpecHud")
+    truthy(specHud().Enabled, "bảng 👣 đang hiện")
+    truthy(tostring(specText("who")):find("NguA", 1, true), "bảng ghi tên người đang xem: " .. specText("who"))
+    S.Spec.Stop(); cleanLoc({ a })
+end)
+
+test("L2 · camera BÁM đúng: lùi 12m sau lưng + cao 3.2m, đi theo khi người đó di chuyển", function()
+    cleanStart(); S.Loc.StopAll(); wipePlayers(); cleanSpec()
+    local a = addP("NguB", 3002, Vector3.new(50, 5, 0))
+    S.Spec.SetDist(12); S.Spec.SetHeight(3.2)
+    S.Spec.Set(a)
+    Mock.advance(0.3)
+    -- hrp.CFrame.LookVector = (0,0,-1) -> camera ở SAU lưng: z + 12
+    near(camPos().X, 50, 0.01, "camera theo X của người chơi")
+    near(camPos().Y, 8.2, 0.01, "camera cao hơn 3.2m")
+    near(camPos().Z, 12, 0.01, "camera lùi 12m sau lưng")
+    Mock.setChar(a, Vector3.new(80, 6, 30))
+    Mock.advance(0.3)
+    near(camPos().X, 80, 0.01, "người chơi đi -> camera đi theo X")
+    near(camPos().Y, 9.2, 0.01, "camera theo độ cao mới")
+    near(camPos().Z, 42, 0.01, "camera theo Z")
+    S.Spec.Stop(); cleanLoc({ a })
+end)
+
+test("L3 · bấm TÊN trong khung 👣 = bám theo người đó (bấm người khác = đổi người)", function()
+    cleanStart(); S.Loc.StopAll(); wipePlayers(); cleanSpec()
+    local a = addP("Chon1", 3003, Vector3.new(0, 5, 0))
+    local b = addP("Chon2", 3004, Vector3.new(60, 5, 0))
+    local panel = D.hubList:FindFirstChild("HubSpec_Panel")
+    truthy(panel, "có khung 👣 XEM NGƯỜI CHƠI")
+    S.Spec.RefreshList()
+    local hit = specRowBtn("Chon2")
+    truthy(hit, "có hàng tên Chon2 để bấm")
+    Mock.click(hit)
+    Mock.advance(0.4)
+    eq(S.Spec.target, b, "bấm tên -> bám đúng người đó")
+    truthy(tostring(specText("who")):find("Chon2", 1, true), "bảng đổi sang người mới")
+    -- bấm người khác -> đổi người đang xem
+    S.Spec.RefreshList()
+    local hit2 = specRowBtn("Chon1")
+    truthy(hit2, "có hàng tên Chon1")
+    Mock.click(hit2)
+    Mock.advance(0.4)
+    eq(S.Spec.target, a, "bấm người khác -> đổi người đang xem")
+    S.Spec.Stop(); cleanLoc({ a, b })
+end)
+
+test("L4 · bảng 👣 nói ĐÚNG họ đang làm gì: đứng yên · chạy · nhảy · ngồi · gục", function()
+    cleanStart(); S.Loc.StopAll(); wipePlayers(); cleanSpec()
+    local a = addP("LamGi", 3005, Vector3.new(0, 5, 0))
+    S.Spec.Set(a)
+    Mock.advance(0.5)
+    truthy(tostring(specText("act")):find("ĐỨNG YÊN", 1, true), "đang đứng yên: " .. specText("act"))
+    -- chạy: mỗi frame đi 0.5 stud (30 stud/s)
+    for i = 1, 10 do
+        Mock.setChar(a, Vector3.new(i * 0.5, 5, 0))
+        Mock.advance(0.05)
+    end
+    truthy(tostring(specText("act")):find("CHẠY", 1, true), "đang chạy: " .. specText("act"))
+    truthy(tostring(specText("note") or ""):find("🚫", 1, true) or tostring(specText("act")):find("m/s", 1, true),
+        "có ghi tốc độ")
+    -- nhảy: Y vọt lên
+    local hrp = Mock.setChar(a, Vector3.new(5, 12, 0))
+    Mock.advance(0.35)      -- bảng cập nhật 4 lần/giây (0,25s) -> đợi 1 nhịp cho chữ đổi
+    truthy(tostring(specText("act")):find("NHẢY", 1, true), "đang nhảy: " .. specText("act"))
+    -- ngồi
+    humOf(a).Sit = true
+    Mock.setChar(a, Vector3.new(5, 12, 0))
+    Mock.advance(0.4)
+    truthy(tostring(specText("act")):find("NGỒI", 1, true), "đang ngồi: " .. specText("act"))
+    humOf(a).Sit = false
+    -- bị hạ gục (nằm sấp) -> có cả ⏱ đếm giờ
+    humOf(a).PlatformStand = true
+    Mock.advance(3.3)
+    truthy(tostring(specText("act")):find("HẠ GỤC", 1, true), "đang bị hạ gục: " .. specText("act"))
+    truthy(tostring(specText("act")):find("00:03", 1, true), "có đếm giờ hạ gục: " .. specText("act"))
+    S.Spec.Stop(); cleanLoc({ a })
+end)
+
+test("L5 · đổi 📏 khoảng cách + ⬆ độ cao rồi ✔ Áp dụng: camera đổi theo ngay", function()
+    cleanStart(); S.Loc.StopAll(); wipePlayers(); cleanSpec()
+    local a = addP("DoiCam", 3006, Vector3.new(0, 5, 0))
+    S.Spec.Set(a)
+    Mock.advance(0.2)
+    near(camPos().Z, 12, 0.01, "mặc định lùi 12m")
+    local panel = D.hubList:FindFirstChild("HubSpec_Panel")
+    local boxes = {}
+    for _, d in ipairs(panel:GetDescendants()) do
+        if d.ClassName == "TextBox" then boxes[#boxes + 1] = d end
+    end
+    eq(#boxes, 3, "khung 👣 có 3 ô nhập (📏 m · ⬆ cao · 🔍 tìm tên)")
+    boxes[1].Text = "25"
+    boxes[2].Text = "10"
+    Mock.click(panelSpecBtn("Áp dụng"))
+    Mock.advance(0.2)
+    near(S.Spec.dist, 25, 0.001, "đổi khoảng cách")
+    near(S.Spec.height, 10, 0.001, "đổi độ cao")
+    near(camPos().Z, 25, 0.01, "camera lùi 25m theo cài đặt mới")
+    near(camPos().Y, 15, 0.01, "camera cao 10m theo cài đặt mới")
+    S.Spec.Stop(); cleanLoc({ a })
+end)
+
+test("L6 · 🎥 Bám: TẮT = KHÔNG ghi camera nữa (vẫn xem được bảng) · bật lại bám tiếp", function()
+    cleanStart(); S.Loc.StopAll(); wipePlayers(); cleanSpec()
+    local a = addP("TatBam", 3007, Vector3.new(0, 5, 0))
+    S.Spec.Set(a)
+    Mock.advance(0.3)
+    local p1 = camPos()
+    truthy(specBtnName("followBtn"), "có nút 🎥 trên bảng nổi (không cần mở menu)")
+    truthy(tostring(specBtnName("followBtn").Text):find("Bám", 1, true), "nút ghi 🎥 Bám")
+    Mock.click(specBtnName("followBtn"))
+    Mock.advance(0.2)
+    falsy(S.Spec.follow, "đã tắt bám")
+    eq(workspace.CurrentCamera.CameraType, Enum.CameraType.Custom, "camera trả về cho game ngay")
+    Mock.setChar(a, Vector3.new(200, 5, 200))
+    Mock.advance(0.3)
+    near(camPos().X, p1.X, 0.01, "tắt bám -> hub KHÔNG ghi camera nữa")
+    truthy(S.Spec.on, "vẫn đang xem (bảng 👣 còn)")
+    truthy(tostring(specText("who")):find("TatBam", 1, true), "bảng vẫn ghi người đang xem")
+    Mock.click(specBtnName("followBtn"))          -- bật lại
+    Mock.advance(0.3)
+    near(camPos().X, 200, 0.01, "bật lại -> bám tiếp vị trí mới")
+    S.Spec.Stop(); cleanLoc({ a })
+end)
+
+test("L7 · 🔄 tự chuyển: người đang xem thoát -> sang người khác (tắt thì không)", function()
+    cleanStart(); S.Loc.StopAll(); wipePlayers(); cleanSpec()
+    local a = addP("SeThoat", 3008, Vector3.new(0, 5, 0))
+    local b = addP("ConLai", 3009, Vector3.new(6, 5, 0))
+    S.Spec.SetAuto(true)
+    S.Spec.Set(a)
+    Mock.advance(0.3)
+    eq(S.Spec.target, a, "đang xem SeThoat")
+    Mock.removePlayer(a)
+    Mock.advance(0.4)
+    eq(S.Spec.target, b, "người thoát -> tự chuyển sang người còn lại")
+    -- tắt tự chuyển: người kia thoát -> KHÔNG chuyển ai, tự tắt hẳn
+    local c = addP("NguC", 3010, Vector3.new(9, 5, 0))
+    S.Spec.SetAuto(false)
+    S.Spec.Set(b)
+    Mock.advance(0.3)
+    Mock.removePlayer(b)
+    Mock.advance(0.4)
+    falsy(S.Spec.target, "tắt tự chuyển -> không nhảy sang người khác: " .. tostring(S.Spec.target))
+    cleanLoc({ c })
+    S.Spec.SetAuto(true)
+end)
+
+test("L8 · 🚫 Dừng: trả camera (CameraType gốc) · ẩn bảng · ngắt vòng lặp", function()
+    cleanStart(); S.Loc.StopAll(); wipePlayers(); cleanSpec()
+    local a = addP("Dung", 3011, Vector3.new(0, 5, 0))
+    workspace.CurrentCamera.CameraType = Enum.CameraType.Custom
+    S.Spec.Set(a)
+    Mock.advance(0.2)
+    eq(workspace.CurrentCamera.CameraType, Enum.CameraType.Scriptable, "đang bám: Scriptable")
+    truthy(specHud().Enabled, "bảng đang hiện")
+    Mock.click(specBtn("🚫"))                     -- nút 🚫 trên bảng nổi
+    Mock.advance(0.3)
+    falsy(S.Spec.on, "đã tắt xem")
+    eq(workspace.CurrentCamera.CameraType, Enum.CameraType.Custom, "trả lại ĐÚNG kiểu camera gốc")
+    falsy(specHud().Enabled, "bảng 👣 đã ẩn")
+    falsy(Mock.renderSteps["BC_Spec"], "vòng lặp đã ngắt")
+    local msg = action("spec_on")                 -- bật lại rồi tắt bằng thẻ
+    Mock.advance(0.3)
+    truthy(S.Spec.on, "bật lại được")
+    msg = action("spec_off")
+    Mock.advance(0.2)
+    falsy(S.Spec.on, "thẻ 🚫 Dừng Xem Người Chơi cũng tắt được: " .. msg)
+    cleanLoc({ a })
+end)
+
+test("L9 · AN TOÀN: nhân vật MÌNH không bị dịch chuyển / đổi tốc độ khi xem người khác", function()
+    cleanStart(); S.Loc.StopAll(); wipePlayers(); cleanSpec()
+    local a = addP("AnToan", 3012, Vector3.new(100, 5, 100))
+    root().Position = Vector3.new(3, 7, 3)
+    hum().WalkSpeed = 16
+    local y0 = root().Position.Y
+    S.Spec.Set(a)
+    Mock.advance(1.0)
+    near(root().Position.X, 3, 0.001, "nhân vật mình đứng yên (X)")
+    near(root().Position.Z, 3, 0.001, "nhân vật mình đứng yên (Z)")
+    near(root().Position.Y, y0, 0.001, "nhân vật mình không bị nhấc lên")
+    eq(hum().WalkSpeed, 16, "tốc độ của mình không bị đổi")
+    truthy(camPos().X > 90, "camera thì đã bay tới chỗ người kia")
+    S.Spec.Stop(); cleanLoc({ a })
+end)
+
+test("L10 · không mất tính năng cũ khi đang xem: định vị · thảm + HUD · tốc độ ×3", function()
+    cleanStart(); S.Loc.StopAll(); wipePlayers(); cleanSpec()
+    local a = addP("KiemCu", 3013, Vector3.new(30, 5, 0))
+    S.Loc.Set(true)
+    S.Spec.Set(a)
+    Mock.advance(0.3)
+    truthy(bb("KiemCu"), "📍 định vị vẫn hiện nhãn người chơi")
+    eq(workspace.CurrentCamera.CameraType, Enum.CameraType.Scriptable, "👣 vẫn bám")
+    hum().WalkSpeed = 20
+    S.Move.speedMode, S.Move.speedMul = "x", 3
+    action("runmode")
+    Mock.advance(0.3)
+    truthy(H.workspace:FindFirstChild("Carpet"), "🪩 thảm vẫn trải được khi đang xem")
+    eq(hudBtn("🪩").Size.X.Offset, 50, "cụm nút nổi vẫn y hệt bản gốc")
+    eq(hum().WalkSpeed, 60, "👟 tốc độ vẫn theo game ×3")
+    truthy(bb("KiemCu"), "👣 + 📍 chạy cùng lúc không đánh nhau")
+    S.Spec.Stop(); S.Move.StopAll(); cleanLoc({ a })
+end)
+
+test("L11 · game GIÀNH LẠI camera giữa chừng: hub tự đòi lại trong 0,3 giây", function()
+    cleanStart(); S.Loc.StopAll(); wipePlayers(); cleanSpec()
+    local a = addP("GianhCam", 3014, Vector3.new(10, 5, 0))
+    S.Spec.Set(a)
+    Mock.advance(0.3)
+    eq(workspace.CurrentCamera.CameraType, Enum.CameraType.Scriptable, "đang bám")
+    workspace.CurrentCamera.CameraType = Enum.CameraType.Custom   -- game cướp camera
+    Mock.advance(0.4)
+    eq(workspace.CurrentCamera.CameraType, Enum.CameraType.Scriptable, "hub tự đòi lại quyền camera")
+    -- tắt bám thì KHÔNG đòi nữa (trả hẳn cho game)
+    Mock.click(specBtnName("followBtn"))                         -- 🎥 tắt bám
+    Mock.advance(0.4)
+    eq(workspace.CurrentCamera.CameraType, Enum.CameraType.Custom, "tắt bám -> không đòi lại nữa")
+    S.Spec.Stop(); cleanLoc({ a })
+end)
+
+test("L12 · an toàn khi CHẠY LẠI hub: kiểu camera gốc được ghi ra GLOBAL để trả lại được", function()
+    cleanStart(); S.Loc.StopAll(); wipePlayers(); cleanSpec()
+    local a = addP("ChayLai", 3015, Vector3.new(0, 5, 0))
+    workspace.CurrentCamera.CameraType = Enum.CameraType.Custom
+    _G.BananaCatHub_SpecCam = nil
+    S.Spec.Set(a)
+    Mock.advance(0.2)
+    eq(_G.BananaCatHub_SpecCam, Enum.CameraType.Custom,
+        "ghi nhớ ra GLOBAL (lần chạy sau đọc được để trả lại)")
+    S.Spec.Stop()
+    Mock.advance(0.1)
+    eq(_G.BananaCatHub_SpecCam, nil, "tắt xem -> xoá ghi nhớ (không còn gì phải trả)")
+    S.Spec.Stop(); cleanLoc({ a })
+end)
+
+test("L13 · danh sách trong menu TỰ cập nhật (người mới vào hiện lên không cần bấm gì)", function()
+    cleanStart(); S.Loc.StopAll(); wipePlayers(); cleanSpec()
+    local a = addP("CoTruoc", 3016, Vector3.new(0, 5, 0))
+    D.hubTab.Visible = true
+    S.Spec.RefreshList()
+    eq(#specList():GetChildren(), 2, "1 người + UIListLayout")
+    local b = addP("MoiVaoSau", 3017, Vector3.new(3, 5, 0))
+    Mock.advance(2.5)
+    local n = 0
+    for _, c in ipairs(specList():GetChildren()) do if c.ClassName == "Frame" then n = n + 1 end end
+    truthy(n >= 1, "danh sách vẫn đúng")
+    local found = specRowBtn("MoiVaoSau")
+    truthy(found, "người mới vào tự hiện trong danh sách 👣 (không cần bấm gì)")
+    -- đóng menu -> không dựng lại nữa (đỡ tốn)
+    D.hubTab.Visible = false
+    cleanLoc({ a, b })
+end)
+
+test("L14 · người đang xem biến mất hẳn -> tự chuyển/ tự thoát (không kẹt camera)", function()
+    cleanStart(); S.Loc.StopAll(); wipePlayers(); cleanSpec()
+    local a = addP("BienMat", 3018, Vector3.new(0, 5, 0))
+    S.Spec.Set(a)
+    Mock.advance(0.3)
+    eq(workspace.CurrentCamera.CameraType, Enum.CameraType.Scriptable, "đang bám")
+    a.Parent = nil                        -- xoá hẳn khỏi Players (không bắn PlayerRemoving)
+    Mock.advance(0.4)
+    falsy(S.Spec.target == a, "không còn bám vào người đã biến mất")
+    eq(workspace.CurrentCamera.CameraType, Enum.CameraType.Custom, "camera được TRẢ LẠI (không kẹt)")
+    falsy(S.Spec.on, "tự thoát khi không còn ai")
+    cleanLoc({ a })
+end)
+
 print("\n── C. KIỂM TRA CUỐI ─────────────────────────────────────────")
 
 test("C1 · không có lỗi runtime nào trong event / render step", function()

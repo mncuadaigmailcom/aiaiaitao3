@@ -7,7 +7,7 @@ Ngày phân tích: 2026-09-17 · Branch: `arena/01a0af79-aiaiaitao3` · Commit g
 ## 0. Cập nhật v4.12 (đã thực hiện theo yêu cầu)
 
 Port **5 tính năng di chuyển** từ `aiaiaitao3` vào trang 📚 Script Hub của `script.js`, kèm bộ test
-tự động chạy thật trong máy ảo. Kết quả: **`node tests/run.js` → 90 PASS · 0 FAIL**.
+tự động chạy thật trong máy ảo. Kết quả: **`node tests/run.js` → 104 PASS · 0 FAIL**.
 
 **Đã thêm (toàn bộ là tiện ích nội bộ, không tải gì từ mạng):**
 
@@ -23,6 +23,17 @@ Kèm **cụm nút nổi trên màn hình game** (⬆ nâng · 🪩 bật/tắt t
 khi lọc/tìm kiếm): tốc độ bay · chạy · nhảy · 3 chiều thảm · ⬆/⬇ · 🛑 Tắt hết + nhãn trạng thái.
 Tất cả state gom trong `S.Move` (không tốn slot local cấp chunk), mọi connection qua `trackConn()`,
 tự bật lại sau respawn qua `CharacterAdded`.
+
+**v4.14 — 👣 XEM NGƯỜI CHƠI (bám theo để thấy họ đang làm gì):**
+- Bật 👣 rồi bấm TÊN một người (khung 👣 hoặc 📍) = camera bay theo họ; bảng nổi trên màn hình
+  game hiện TÊN · 💗 bạn bè · ❤️ máu · 📏 khoảng cách · 💨 tốc độ · "đang làm gì" (chạy / đi chậm /
+  nhảy / rơi / ngồi / **bị hạ gục ⏱ đếm giờ** / đứng yên). Nút 🎥 (bật-tắt bám) và 🚫 (trả camera)
+  nằm ngay trên bảng, không cần mở menu.
+- **Chỉ đổi camera** (`CameraType = Scriptable`), không dịch chuyển/ghi CFrame nhân vật nào cả;
+  tắt là trả lại đúng kiểu camera gốc. Game cướp camera thì hub tự đòi lại 4 lần/giây khi đang bám.
+- 2 lỗi bộ test bắt được đã sửa: (1) ⏱ đếm giờ hạ gục chỉ chạy khi 📍 bật → nay dùng chung
+  `S.Loc.NoteDown`; (2) người đang xem biến mất hẳn → camera kẹt `Scriptable` → nay tự chuyển/tự
+  thoát + trả camera.
 
 **v4.13 — 📍 ĐỊNH VỊ NGƯỜI CHƠI (port từ "ESP System" của aiaiaitao3):**
 - Mỗi người chơi 1 nhãn nổi trên đầu + viền sáng xuyên tường. Nhãn: TÊN · 💗 Bạn Bè · ☠️ Hạ gục
