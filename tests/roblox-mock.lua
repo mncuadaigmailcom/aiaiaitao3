@@ -819,7 +819,26 @@ camera.Parent = workspace
 rawset(workspace, "CurrentCamera", camera)
 rawset(workspace, "Gravity", 196.2)          -- trọng lực mặc định của Roblox
 Mock.camera = camera
-function workspace:GetPartBoundsInRadius(pos, r, params) return {} end
+-- v4.17: TRẢ VỀ THẬT các part nằm trong bán kính (để test 🛡 Bay an toàn).
+-- Quét mọi BasePart trong workspace, so khoảng cách tâm part với tâm vùng.
+function workspace:GetPartBoundsInRadius(pos, r, params)
+    local out = {}
+    local ok, desc = pcall(function() return self:GetDescendants() end)
+    if not ok or type(desc) ~= "table" then return out end
+    for _, d in ipairs(desc) do
+        local c = tostring(rawget(d, "ClassName") or "")
+        if c == "Part" or c == "MeshPart" or c == "WedgePart" or c == "TrussPart"
+            or c == "UnionOperation" or c == "SpawnLocation" or c == "Seat" then
+            local cfv = rawget(d, "_cf")
+            local pp = cfv and cfv.Position or nil
+            if pp then
+                local dist = (pp - pos).Magnitude
+                if dist <= (r or 0) then out[#out + 1] = d end
+            end
+        end
+    end
+    return out
+end
 function workspace:Raycast(origin, dir, params) return nil end
 function workspace:FindPartOnRay(ray, ignore) return nil, v3(0, 0, 0), v3(0, 1, 0), Enum.Material.Air end
 function workspace:GetChildren() return self._children end

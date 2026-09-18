@@ -40,7 +40,31 @@
             mới (D.Tactile) nhưng connection của thẻ đã Destroy không bao giờ bị dọn khỏi
             _G.BananaCatHub_Connections -> bảng phình mãi. Nay trackConn() tự gom rác khi >300.
         • BỘ TEST TỰ ĐỘNG (thư mục tests/, chạy bằng `node tests/run.js`): nạp và CHẠY THẬT hub
-          trong máy ảo Lua 5.4 (wasmoon) + Roblox/executor giả lập. 119 test — 119 PASS (E: chạy trên thảm + nút nổi · F: sửa thảm kính · G: nhảy/chạy ở mọi game + tốc độ theo game · H: helper dùng chung sau khi rút gọn · I: Chạy Trên Thảm = Bay chạy bộ bản gốc 100% · J: hết giật khi bật thảm · K: 📍 định vị người chơi · L: 👣 xem người chơi · M: trang 👥 Người Chơi · N: ✨ phát sáng).
+          trong máy ảo Lua 5.4 (wasmoon) + Roblox/executor giả lập. 131 test — 131 PASS (E: chạy trên thảm + nút nổi · F: sửa thảm kính · G: nhảy/chạy ở mọi game + tốc độ theo game · H: helper dùng chung sau khi rút gọn · I: Chạy Trên Thảm = Bay chạy bộ bản gốc 100% · J: hết giật khi bật thảm · K: 📍 định vị người chơi · L: 👣 xem người chơi · M: trang 👥 Người Chơi · N: ✨ phát sáng · O: 🛡 bay an toàn).
+    + v4.17 (🛡 BAY AN TOÀN — tự bay + TỰ NÉ vật có dấu hiệu chuyển động — 131 test PASS):
+        • 1 THẺ MỚI "🛡 Bay An Toàn" (nhóm "Di chuyển") + KHUNG 🛡 trong 📚 Script Hub (dưới
+          khung ⚙ và ✨): 🛡 BẬT/TẮT · 📏 Né (m) · 💨 Bay · 🌀 Gắt · ➡ Tự bay · ✔ Áp dụng · 🚫 Tắt.
+        • BẬT LÀ TỰ BAY: không cần giữ phím nào vẫn bay theo hướng camera (➡ Tự bay TẮT thì chỉ
+          bay khi bấm WASD — nhưng VẪN tự né).
+        • TỰ NÉ: mỗi 0,15 giây quét mọi vật quanh mình trong bán kính 📏 bạn chỉnh. Vật có DẤU
+          HIỆU CHUYỂN ĐỘNG — đang di chuyển (vận tốc > 1,5) HOẶC VỪA ĐỔI VỊ TRÍ (dịch > 0,35
+          studs giữa 2 lần quét, bắt được cả vật bị script/tween/CFrame kéo đi mà vận tốc = 0) —
+          thì bị ĐẨY RA XA: càng gần đẩy càng mạnh (theo bình phương), tới gần hơn 40% bán kính
+          thì VỌT LÊN TRÊN. Vật đứng yên KHÔNG bị né (bay xuyên qua bình thường).
+        • CHỈNH ĐƯỢC: 💨 tốc độ bay (1–2000, dùng chung số với khung ⚙) · 📏 KHOẢNG CÁCH XÁC
+          ĐỊNH ĐỂ NÉ (1–300m) · 🌀 né gắt (1–10). Vận tốc luôn bị kẹp trần (2× tốc độ) nên
+          không bao giờ vọt vô hạn.
+        • Chạy CHUNG vòng lặp với 🚀 Bay và gọi ở CUỐI vòng đó -> chắc chắn thắng, không đánh
+          nhau với điều khiển WASD/Space/Shift. Chỉ GHI VẬN TỐC của chính mình (BodyVelocity),
+          không ghi vị trí, không đụng vào ai. Tắt 🛡 là tắt cả Bay + dọn BodyVelocity.
+        • 1 LỖI NẶNG do bộ test bắt được và đã sửa: lực né bị viết NGƯỢC DẤU (cộng hướng-tới-vật
+          thay vì trừ) -> bật lên thì bị HÚT VỀ PHÍA vật chuyển động. Bộ test O2/O4/O6/O8 phát
+          hiện ngay (đòi vận tốc phải đẩy ra xa). Test O12 còn kiểm 200 vật đứng yên + 1 vật
+          chạy -> chỉ đếm đúng 1 mối nguy, không lỗi runtime.
+        • LỖI LÂY LAN trong bộ test cũng đã sửa: test lọc chip "Di chuyển" đếm cứng "5 thẻ" nên
+          khi thêm thẻ mới thì gãy GIỮA CHỪNG, để lại bộ lọc chip đang bật -> hàng loạt test phía
+          sau tìm không ra thẻ và báo sai. Nay đếm ĐỘNG theo số thẻ thật + hàm resetChip() đặt
+          lại bộ lọc trước mỗi test tìm thẻ (không bao giờ lây lan nữa).
     + v4.16 (✨ PHÁT SÁNG — nhân vật MÌNH phát sáng, chỉnh RỘNG + ĐỘ SÁNG — 119 test PASS):
         • 1 THẺ MỚI "✨ Phát Sáng" (nhóm "Tiện ích") + KHUNG ✨ nằm TRÊN CÙNG danh sách thẻ
           trong 📚 Script Hub: ✨ BẬT/TẮT · 👁 Xuyên tường · 💡 Đèn thật · 📏 Rộng · ☀ Sáng ·
@@ -6840,12 +6864,197 @@ function MV.SetFly(on)
                 curR.Position + workspace.CurrentCamera.CFrame.LookVector)
         end
         if MV._floor then MV._floor.Position = curR.Position - Vector3.new(0, 3.5, 0) end
+        -- v4.17: 🛡 Bay an toàn chạy CUỐI vòng này -> chắc chắn thắng vận tốc vừa đặt theo phím
+        if MV.Safe and MV.Safe.on then pcall(function() MV.Safe.Step() end) end
     end)
     MV.SyncHud()
     return true
 end
 
- -- ---------- 🪩 THẢM KÍNH (chỉnh Rộng × Cao × Dài + khoảng cách tới chân) ----------
+ -- ============================================================================
+-- ===== v4.17: 🛡 BAY AN TOÀN (tự bay + NÉ vật có dấu hiệu chuyển động) =======
+-- ============================================================================
+-- Bật là TỰ BAY (không cần giữ phím) và TỰ NÉ: mỗi 0,15 giây quét mọi vật quanh mình trong
+-- bán kính 📏 (mặc định 25m); vật nào có DẤU HIỆU CHUYỂN ĐỘNG — đang di chuyển
+-- (AssemblyLinearVelocity > 1,5) HOẶC vừa ĐỔI VỊ TRÍ (dịch > 0,35 studs giữa 2 lần quét, bắt
+-- được cả vật bị script/tween/CFrame kéo đi mà vận tốc = 0) — thì bị ĐẨY RA XA: càng gần đẩy
+-- càng mạnh, quá gần (dưới 40% bán kính) thì VỌT LÊN trên. Vật đứng yên KHÔNG bị né (bay xuyên
+-- qua bình thường).
+-- Chỉnh được: 💨 TỐC ĐỘ BAY · 📏 KHOẢNG CÁCH XÁC ĐỊNH ĐỂ NÉ · 🌀 NÉ GẮT (1–10) · ➡ TỰ BAY.
+-- Chạy CHUNG vòng lặp với 🚀 Bay (gọi ở CUỐI vòng đó nên chắc chắn thắng, không đánh nhau).
+-- An toàn: chỉ GHI VẬN TỐC bay (BodyVelocity của chính bạn) — không ghi vị trí, không đụng ai.
+MV.Safe = {
+    on = false,
+    auto = true,        -- ➡ tự bay (không bấm gì vẫn bay theo hướng camera)
+    radius = 25,        -- 📏 khoảng cách xác định để né (studs)
+    speed = 60,         -- 💨 tốc độ bay
+    steer = 4,          -- 🌀 né gắt (1–10)
+    threats = 0, nearest = nil,     -- để hiện trạng thái
+    _rep = Vector3.new(0, 0, 0),    -- vector đẩy của lần quét gần nhất
+    _seen = {}, _cache = nil, _listAcc = 0, _sc = 0,
+}
+local SF = MV.Safe
+
+local function sfIsPart(d)
+    if type(d) ~= "table" or d.__isInstance ~= true then return false end
+    local c = tostring(d.ClassName or "")
+    return (c == "Part" or c == "MeshPart" or c == "WedgePart" or c == "TrussPart"
+            or c == "CornerWedgePart" or c == "UnionOperation" or c == "SpawnLocation" or c == "Seat")
+end
+-- vật này có phải "CHÍNH MÌNH / đồ của hub" không (không bao giờ né)
+local function sfIgnore(d, char)
+    local nm = tostring(d.Name or "")
+    if nm:sub(1, 3) == "BC_" then return true end
+    if char and d:IsDescendantOf(char) then return true end
+    if d:IsDescendantOf(MV._floor) then return true end
+    return false
+end
+-- danh sách ứng viên: ưu tiên GetPartBoundsInRadius (nhẹ), không có thì tự duyệt workspace
+local function sfCandidates(pos, dt)
+    local okL, list = pcall(function() return workspace:GetPartBoundsInRadius(pos, SF.radius) end)
+    if okL and type(list) == "table" and #list > 0 then return list end
+    SF._listAcc = (SF._listAcc or 0) + (dt or 0.15)
+    if not SF._cache or SF._listAcc >= 2 then
+        SF._listAcc = 0
+        local out = {}
+        local ok2, desc = pcall(function() return workspace:GetDescendants() end)
+        if ok2 and type(desc) == "table" then
+            for _, d in ipairs(desc) do
+                if #out >= 600 then break end
+                if sfIsPart(d) then out[#out + 1] = d end
+            end
+        end
+        SF._cache = out
+    end
+    return SF._cache or {}
+end
+-- QUÉT: trả về số vật chuyển động trong bán kính + khoảng cách gần nhất + vector đẩy
+function MV.Safe.Scan(pos, dt)
+    local char = MV.Char()
+    local rad = mvClamp(SF.radius, 1, 300, 25)
+    local rep = Vector3.new(0, 0, 0)
+    local n, near = 0, nil
+    local now = tick()
+    local seen = {}
+    for _, d in ipairs(sfCandidates(pos, dt)) do
+        if sfIsPart(d) and not sfIgnore(d, char) then
+            local p = d.Position
+            if p then
+                local delta = p - pos
+                local dist = delta.Magnitude
+                if dist <= rad and dist > 0.01 then
+                    -- DẤU HIỆU CHUYỂN ĐỘNG: vận tốc > 1,5 ... hoặc VỪA ĐỔI VỊ TRÍ
+                    local moving = false
+                    local okv, v = pcall(function() return d.AssemblyLinearVelocity end)
+                    if okv and v and v.Magnitude and v.Magnitude > 1.5 then moving = true end
+                    local old = SF._seen[d]
+                    if old then
+                        local dd = (p - old.p).Magnitude
+                        local ddt = math.max(now - old.t, 0.02)
+                        if dd > 0.35 or (dd / ddt) > 1.5 then moving = true end
+                    end
+                    seen[d] = { p = p, t = now }
+                    if moving then
+                        n = n + 1
+                        if near == nil or dist < near then near = dist end
+                        local w = 1 - (dist / rad)              -- càng gần càng mạnh (0 -> 1)
+                        -- LƯU Ý DẤU: delta = (vật - mình) tức là hướng TỚI vật, nên phải TRỪ đi
+                        -- mới thành lực ĐẨY RA XA. (Bản đầu viết cộng -> bị hút về phía vật; bộ
+                        -- test O2/O4/O6/O8 bắt được lỗi này.)
+                        rep = rep - (delta / dist) * (0.35 + w * w * 3)
+                    end
+                end
+            end
+        end
+    end
+    SF._seen = seen
+    SF._rep = rep
+    SF.threats, SF.nearest = n, near
+    return n, near, rep
+end
+-- NÉ + TỰ BAY: gọi ở CUỐI vòng lặp 🚀 Bay (sau khi vòng đó đặt vận tốc theo phím)
+function MV.Safe.Step(dt)
+    if not SF.on then return end
+    local r, h, bv = MV.Root(), MV.Hum(), MV._bv
+    if not r or not bv then return end
+    SF._sc = (SF._sc or 0) + (tonumber(dt) or 0.016)
+    if SF._sc >= 0.15 then                                  -- quét 6–7 lần/giây là đủ
+        local okS = pcall(function() MV.Safe.Scan(r.Position, SF._sc) end)
+        SF._sc = 0
+        if not okS then SF.threats, SF.nearest = 0, nil end
+    end
+    -- hướng bay: theo phím đang bấm, không bấm gì mà ➡ Tự bay thì bay theo hướng camera
+    local dir = (h and h.MoveDirection) or Vector3.new(0, 0, 0)
+    if dir.Magnitude < 0.01 then
+        local cam = workspace.CurrentCamera
+        if SF.auto and cam then
+            local look = cam.CFrame.LookVector
+            dir = Vector3.new(look.X, 0, look.Z)
+        end
+    end
+    if dir.Magnitude > 0 then dir = dir.Unit else dir = Vector3.new(0, 0, 0) end
+    local up = UserInputService:IsKeyDown(Enum.KeyCode.Space)
+    local down = UserInputService:IsKeyDown(Enum.KeyCode.LeftShift)
+              or UserInputService:IsKeyDown(Enum.KeyCode.LeftControl)
+    local vv = (up and 1 or 0) - (down and 1 or 0)
+    local spd = mvClamp(SF.speed, 1, 2000, 60)
+    local target = (dir + Vector3.new(0, vv, 0)) * spd
+    -- NÉ: cộng vector đẩy (đã tính theo khoảng cách) vào vận tốc
+    local rep = SF._rep
+    if rep and rep.Magnitude > 0 then
+        target = target + rep * (spd * (0.25 + 0.09 * mvClamp(SF.steer, 1, 10, 4)))
+        local cap = spd * 2
+        if target.Magnitude > cap then target = target.Unit * cap end
+    end
+    -- quá gần (dưới 40% bán kính) -> vọt lên trên cho chắc
+    if SF.nearest and SF.nearest < mvClamp(SF.radius, 1, 300, 25) * 0.4 then
+        target = target + Vector3.new(0, spd * 0.75, 0)
+    end
+    pcall(function() bv.Velocity = target end)
+end
+function MV.Safe.Set(on)
+    SF.on = (on == true)
+    if SF.on then
+        MV.SetFly(true)
+        MV.flySpeed = mvClamp(SF.speed, 1, 2000, 60)
+    else
+        MV.Safe.Reset()
+        MV.SetFly(false)
+    end
+    return SF.on
+end
+function MV.Safe.Reset()                 -- quên dấu vết cũ (không dọa ma vật đã biến mất)
+    SF._seen, SF._cache = {}, nil
+    SF._rep = Vector3.new(0, 0, 0)
+    SF.threats, SF.nearest = 0, nil
+end
+function MV.Safe.Stop() return MV.Safe.Set(false) end
+function MV.Safe.SetRadius(n)
+    SF.radius = mvClamp(n, 1, 300, 25)
+    MV.Safe.Reset()
+    return SF.radius
+end
+function MV.Safe.SetSpeed(n)
+    SF.speed = mvClamp(n, 1, 2000, 60)
+    MV.flySpeed = SF.speed            -- để khung ⚙ và bảng trạng thái hiện cùng một số
+    return SF.speed
+end
+function MV.Safe.SetSteer(n) SF.steer = mvClamp(n, 1, 10, 4); return SF.steer end
+function MV.Safe.SetAuto(b) SF.auto = (b == true); return SF.auto end
+function MV.Safe.Status()
+    if not SF.on then return "🛡 bay an toàn: đang TẮT" end
+    local s = string.format("🛡 bay an toàn: BẬT · 💨 %g · 📏 né trong %gm · 🌀 %g",
+        SF.speed, SF.radius, SF.steer)
+    if SF.auto then s = s .. " · ➡ tự bay" end
+    if (SF.threats or 0) > 0 then
+        s = s .. string.format(" · ⚠️ đang né %d vật (gần nhất %gm)", SF.threats, math.floor((SF.nearest or 0) + 0.5))
+    else
+        s = s .. " · ✅ quanh đây không có vật chuyển động"
+    end
+    return s
+end
+
+-- ---------- 🪩 THẢM KÍNH (chỉnh Rộng × Cao × Dài + khoảng cách tới chân) ----------
 -- v4.12.1: `carpetGap` = thảm nằm CÁCH MẶT ĐẤT/chân bao nhiêu stud.
 --   • 0.2 (mặc định mới): thảm nằm NGAY DƯỚI CHÂN -> bật lên là đứng được liền.
 --   • 3 (kiểu bản gốc aiaiaitao3): thảm nằm sâu 3 studs -> thường chìm trong nền đất,
@@ -7169,6 +7378,7 @@ S.MoveActionState = {
     loc_solo = function() return S.Loc and S.Loc.solo end,
     spec_on  = function() return S.Spec and S.Spec.on   end,
     glow     = function() return S.Glow and S.Glow.on   end,
+    safefly  = function() return S.Move.Safe and S.Move.Safe.on end,
 }
 
 function MV.Refresh()
@@ -7348,6 +7558,8 @@ S.ScriptHubList = {
     -- v4.13: ĐỊNH VỊ NGƯỜI CHƠI (port từ "ESP System" của menu EXECUTOR MENU trong aiaiaitao3).
     {icon="✨", name="Phát Sáng", cat="Tiện ích", ord=22, action="glow",
      desc="CHÍNH BẠN phát sáng: nhuộm sáng cả nhân vật + đèn toả sáng thật quanh người. Chỉnh CHIỀU RỘNG + ĐỘ SÁNG + MÀU ở khung ✨ ngay đầu danh sách. 👁 xuyên tường (sáng xuyên vật cản) · 💡 đèn không bị vật cản chặn · bị game xoá hay respawn thì tự gắn lại."},
+    {icon="🛡", name="Bay An Toàn", cat="Di chuyển", ord=23, action="safefly",
+     desc="Bật là TỰ BAY. Tự NÉ vật có dấu hiệu chuyển động trong bán kính bạn chỉnh (kể cả vật bị script/tween kéo đi): càng gần đẩy càng mạnh, quá gần thì vọt lên trên. Chỉnh 💨 tốc độ bay · 📏 khoảng cách để né · 🌀 né gắt ở khung 🛡 ngay đầu danh sách."},
     -- v4.15: 5 thẻ 📍👣 vẫn ở đây (bấm là chạy ngay) — khung điều khiển ĐẦY ĐỦ (danh sách
     -- người chơi, 📏 giới hạn tầm, 📏/⬆ camera...) nằm ở trang 👥 Người Chơi cho gọn trang này.
     {icon="📍", name="Định Vị Người Chơi", cat="Định vị", ord=17, action="loc_all",
@@ -7483,6 +7695,23 @@ function S.RunHubAction(id)
         return (S.Loc.solo and "🎯 ĐỊNH VỊ LẺ: " .. tostring(S.Loc.target and S.Loc.target.Name or "?")
                 .. " — chỉ hiện người này (bấm tên khác trong khung 📍 để đổi)")
                or "🎯 ĐỊNH VỊ LẺ: TẮT (trở lại bình thường)"
+    -- ---------- v4.17: 🛡 BAY AN TOÀN ----------
+    elseif id == "safefly" then
+        if not S.Move.Root() then return "⚠️ chưa có nhân vật để bay (đợi vào game xong hãy bấm)" end
+        if not S.Move.Safe.on then
+            local okf = S.Move.SetFly(true)
+            if okf == false then return "⚠️ không bật được bay" end
+        end
+        pcall(function() S.Move.Safe.Set(not S.Move.Safe.on) end)
+        pcall(function() if S.SyncSafePanel then S.SyncSafePanel() end end)
+        S.Rebuild()
+        return S.Move.Safe.Status()
+    elseif id == "safefly_off" then
+        pcall(function() S.Move.Safe.Stop() end)
+        pcall(function() if S.SyncSafePanel then S.SyncSafePanel() end end)
+        S.Rebuild()
+        return "🚫 " .. S.Move.Safe.Status()
+
     -- ---------- v4.16: ✨ PHÁT SÁNG ----------
     elseif id == "glow" then
         pcall(function() S.Glow.Set(not S.Glow.on) end)
@@ -7828,6 +8057,7 @@ function S.RebuildHubList()
     end)
     if S.RefreshMovePanel then pcall(S.RefreshMovePanel) end   -- v4.12: nhãn trạng thái di chuyển
     if S.SyncGlowPanel then pcall(S.SyncGlowPanel) end         -- v4.16: nhãn khung ✨ phát sáng
+    if S.SyncSafePanel then pcall(S.SyncSafePanel) end         -- v4.17: nhãn khung 🛡 bay an toàn
     if #items == 0 and D.hubStatus then
         D.Say("🔍 không tìm thấy gì khớp '" .. tostring(S.hubSearch or "") .. "'", C.MUTED)
     end
@@ -9178,6 +9408,129 @@ do
         S.Glow.Stop()
         paint()
         if D.hubStatus then flash(D.hubStatus, "🚫 " .. S.Glow.Status(), 1.8, C.ACCENT) end
+        pcall(S.Rebuild)
+    end)
+    paint()
+end
+
+-- ---------- KHUNG 🛡 BAY AN TOÀN (trên cùng danh sách thẻ, dưới ⚙ và ✨) ----------
+do
+    local PH = 118
+    local P = New("Frame", {
+        Name = "HubSafe_Panel",
+        Size = UDim2.new(1, 0, 0, PH), LayoutOrder = 2,
+        BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, BorderSizePixel = 0, ZIndex = 6,
+    }, D.hubList)
+    Corner(P, UDim.new(0, 10))
+    Stroke(P, C.HAIRLINE, 1)
+    D.Shade(P, Color3.fromRGB(255, 255, 255), Color3.fromRGB(188, 192, 205), 90)
+
+    New("TextLabel", {
+        Name = "SafeTitle",
+        Size = UDim2.new(1, -16, 0, 14), Position = UDim2.new(0, 8, 0, 4),
+        Text = "🛡 BAY AN TOÀN (tự bay + né vật có dấu hiệu chuyển động)", BackgroundTransparency = 1,
+        TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 10,
+        TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+    }, P)
+
+    local function act(txt, x, y, w, color, name)
+        local b = New("TextButton", {
+            Name = name or "SafeBtn",
+            Size = UDim2.new(0, w, 0, 20), Position = UDim2.new(0, x, 0, y),
+            Text = txt, BackgroundColor3 = color, TextColor3 = D.BestText(color),
+            Font = Enum.Font.GothamBold, TextSize = 9, BorderSizePixel = 0, ZIndex = 8,
+        }, P)
+        Corner(b, UDim.new(0, 6))
+        D.Shade(b, Color3.fromRGB(255, 255, 255), Color3.fromRGB(182, 187, 201), 90)
+        D.Tactile(b, 0.08)
+        return b
+    end
+    local function lab(txt, x, y, w)
+        New("TextLabel", {
+            Size = UDim2.new(0, w, 0, 20), Position = UDim2.new(0, x, 0, y),
+            Text = txt, BackgroundTransparency = 1, TextColor3 = C.MUTED,
+            Font = Enum.Font.GothamMedium, TextSize = 9,
+            TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+        }, P)
+    end
+    local function box(x, y, w, val)
+        local b = New("TextBox", {
+            Size = UDim2.new(0, w, 0, 20), Position = UDim2.new(0, x, 0, y),
+            Text = tostring(val), ClearTextOnFocus = false,
+            BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.1, TextColor3 = C.DARK,
+            PlaceholderColor3 = C.GRAY, Font = Enum.Font.GothamMedium, TextSize = 9,
+            TextXAlignment = Enum.TextXAlignment.Center, BorderSizePixel = 0, ZIndex = 7,
+        }, P)
+        Corner(b, UDim.new(0, 6))
+        return b
+    end
+
+    local onBtn = act("🛡 BẬT", 8, 22, 92, C.GRAY, "SafeOn")
+    lab("📏 Né", 104, 22, 30)
+    local radIn = box(132, 22, 44, 25)
+    lab("💨 Bay", 180, 22, 36)
+    local spdIn = box(216, 22, 44, 60)
+    lab("🌀 Gắt", 264, 22, 32)
+    local strIn = box(296, 22, 38, 4)
+
+    local autoBtn  = act("➡ Tự bay: BẬT", 8, 48, 104, C.GREEN, "SafeAuto")
+    local applyBtn = act("✔ Áp dụng", 116, 48, 84, C.SURFACE3, "SafeApply")
+    local stopBtn  = act("🚫 Tắt", 204, 48, 66, C.RED, "SafeStop")
+    local statusLbl = New("TextLabel", {
+        Name = "SafeStatus",
+        Size = UDim2.new(1, -16, 0, 26), Position = UDim2.new(0, 8, 0, 74),
+        Text = "", BackgroundTransparency = 1, TextColor3 = C.MUTED,
+        Font = Enum.Font.GothamMedium, TextSize = 8, TextWrapped = true,
+        TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, ZIndex = 7,
+    }, P)
+
+    local function paint()
+        onBtn.Text = MV.Safe.on and "🛡 TẮT" or "🛡 BẬT"
+        onBtn.BackgroundColor3 = MV.Safe.on and C.GREEN or C.GRAY
+        onBtn.TextColor3 = D.BestText(onBtn.BackgroundColor3)
+        autoBtn.Text = MV.Safe.auto and "➡ Tự bay: BẬT" or "➡ Tự bay: TẮT"
+        autoBtn.BackgroundColor3 = MV.Safe.auto and C.GREEN or C.SURFACE3
+        autoBtn.TextColor3 = D.BestText(autoBtn.BackgroundColor3)
+        radIn.Text, spdIn.Text, strIn.Text =
+            tostring(MV.Safe.radius), tostring(MV.Safe.speed), tostring(MV.Safe.steer)
+        statusLbl.Text = "💡 📏 Né = khoảng cách xác định để né (1–300m) · 💨 tốc độ bay · 🌀 né gắt (1–10). "
+            .. "Né cả vật bị script/tween kéo đi (không cần có vận tốc).\n" .. MV.Safe.Status()
+        statusLbl.TextColor3 = ((MV.Safe.threats or 0) > 0) and C.YELLOW or C.MUTED
+    end
+    S.SyncSafePanel = paint
+    MV.Safe.RefreshPanel = paint
+
+    onBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        MV.Safe.Set(not MV.Safe.on)
+        paint()
+        if D.hubStatus then flash(D.hubStatus, MV.Safe.Status(), 2.2, C.ACCENT) end
+        pcall(S.Rebuild)
+    end)
+    autoBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        MV.Safe.SetAuto(not MV.Safe.auto)
+        paint()
+        if D.hubStatus then
+            flash(D.hubStatus, MV.Safe.auto and "➡ tự bay: không bấm gì vẫn bay theo hướng camera"
+                 or "➡ tự bay TẮT: chỉ bay khi bấm WASD (nhưng vẫn tự né)", 2, C.ACCENT)
+        end
+    end)
+    applyBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        MV.Safe.SetRadius(tonumber(tostring(radIn.Text or ""):match("%-?%d+%.?%d*")) or MV.Safe.radius)
+        MV.Safe.SetSpeed(tonumber(tostring(spdIn.Text or ""):match("%-?%d+%.?%d*")) or MV.Safe.speed)
+        MV.Safe.SetSteer(tonumber(tostring(strIn.Text or ""):match("%-?%d+%.?%d*")) or MV.Safe.steer)
+        if not MV.Safe.on then MV.Safe.Set(true) end      -- áp dụng là bật luôn
+        paint()
+        if D.hubStatus then flash(D.hubStatus, MV.Safe.Status(), 2.4, C.ACCENT) end
+        pcall(S.Rebuild)
+    end)
+    stopBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        MV.Safe.Stop()
+        paint()
+        if D.hubStatus then flash(D.hubStatus, "🚫 " .. MV.Safe.Status(), 1.8, C.ACCENT) end
         pcall(S.Rebuild)
     end)
     paint()

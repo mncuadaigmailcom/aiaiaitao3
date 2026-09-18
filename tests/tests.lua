@@ -243,10 +243,13 @@ test("B2 · Script Hub có 6 thẻ di chuyển, đúng phân loại 'Di chuyển
     end
 end)
 
-test("B3 · có chip lọc 'Di chuyển' và lọc ra đúng 5 thẻ", function()
+test("B3 · có chip lọc 'Di chuyển' và lọc ra đúng số thẻ của nhóm", function()
     truthy(D.hubChipBtns["Di chuyển"], "chip Di chuyển")
+    local n = 0
+    for _, it in ipairs(S.ScriptHubList) do if it.cat == "Di chuyển" then n = n + 1 end end
+    truthy(n >= 6, "nhóm Di chuyển phải có >= 6 thẻ (thêm 🛡 Bay An Toàn): " .. n)
     S.hubCat = "Di chuyển"; S.RebuildHubList()
-    eq(#cards(), 5, "chip Di chuyển lọc đúng 5 thẻ")
+    eq(#cards(), n, "chip Di chuyển lọc đúng " .. n .. " thẻ")
     S.hubCat = "Tất cả"; S.RebuildHubList()
 end)
 
@@ -582,7 +585,9 @@ test("D8 · bấm thật chip 'Di chuyển' lọc đúng", function()
     truthy(chip, "có chip")
     Mock.click(chip)
     eq(S.hubCat, "Di chuyển", "chip đổi bộ lọc")
-    eq(#cards(), 5, "đúng 5 thẻ di chuyển")
+    local n = 0
+    for _, it in ipairs(S.ScriptHubList) do if it.cat == "Di chuyển" then n = n + 1 end end
+    eq(#cards(), n, "đúng " .. n .. " thẻ di chuyển")
     Mock.click(D.hubChipBtns["Tất cả"])
     eq(S.hubCat, "Tất cả", "trở lại Tất cả")
     truthy(#cards() >= 16, "có đủ thẻ cũ + mới: " .. #cards())
@@ -1335,6 +1340,15 @@ local function wipePlayers()
     end
     Mock.advance(0.05)
 end
+-- v4.17: ĐẶT LẠI bộ lọc chip + ô tìm kiếm trước mỗi test cần tìm thẻ. Nếu một test gãy
+-- giữa chừng khi đang lọc (ví dụ test chip "Di chuyển"), các test phía sau sẽ tìm không ra thẻ
+-- và báo sai hàng loạt — lỗi LÂY LAN đã gặp thật khi thêm thẻ 🛡 Bay An Toàn.
+local function resetChip()
+    S.hubCat = "Tất cả"
+    S.hubSearch = ""
+    if D.hubSearchBox then D.hubSearchBox.Text = "" end
+    S.RebuildHubList()
+end
 local function cleanLoc(list)
     S.Loc.StopAll()
     wipePlayers()
@@ -1343,6 +1357,7 @@ local function cleanLoc(list)
 end
 
 test("K1 · bật Định Vị: hiện NHÃN + VIỀN cho mọi người chơi khác (trừ chính mình)", function()
+    resetChip()
     cleanStart(); S.Loc.StopAll(); wipePlayers()
     local a = addP("Alpha", 2001, Vector3.new(30, 5, 0))
     local b = addP("Beta", 2002, Vector3.new(0, 5, 40))
@@ -1357,6 +1372,7 @@ test("K1 · bật Định Vị: hiện NHÃN + VIỀN cho mọi người chơi k
 end)
 
 test("K2 · phân biệt 4 loại: 🟢 thường · 💗 bạn bè · 🔴 bị hạ gục · 🟣 bạn bè bị hạ gục", function()
+    resetChip()
     cleanStart(); S.Loc.StopAll(); wipePlayers()
     local a = addP("Thuong", 2011, Vector3.new(0, 5, 0))
     local b = addP("BanBe", 2012, Vector3.new(4, 5, 0))
@@ -1386,6 +1402,7 @@ test("K2 · phân biệt 4 loại: 🟢 thường · 💗 bạn bè · 🔴 bị
 end)
 
 test("K3 · nhãn ghi đủ: TÊN + ❤️ máu + 📏 khoảng cách", function()
+    resetChip()
     cleanStart(); S.Loc.StopAll(); wipePlayers()
     local a = addP("XaXa", 2021, Vector3.new(30, 5, 0))
     root().Position = Vector3.new(0, 5, 0)
@@ -1401,6 +1418,7 @@ test("K3 · nhãn ghi đủ: TÊN + ❤️ máu + 📏 khoảng cách", function
 end)
 
 test("K4 · ⏱ đếm GIỜ BỊ HẠ GỤC (gục 3 giây -> 00:03, đứng dậy -> hết đếm)", function()
+    resetChip()
     cleanStart(); S.Loc.StopAll(); wipePlayers()
     local a = addP("NguGuc", 2031, Vector3.new(5, 5, 0))
     S.Loc.Set(true)
@@ -1423,6 +1441,7 @@ test("K4 · ⏱ đếm GIỜ BỊ HẠ GỤC (gục 3 giây -> 00:03, đứng d�
 end)
 
 test("K5 · 🎯 Định Vị Lẻ: chỉ hiện ĐÚNG 1 người (người kia bị dọn)", function()
+    resetChip()
     cleanStart(); S.Loc.StopAll(); wipePlayers()
     local a = addP("Mot", 2041, Vector3.new(0, 5, 0))
     local b = addP("Hai", 2042, Vector3.new(6, 5, 0))
@@ -1441,6 +1460,7 @@ test("K5 · 🎯 Định Vị Lẻ: chỉ hiện ĐÚNG 1 người (người kia
 end)
 
 test("K6 · BẤM TÊN trong khung 📍 = chỉ định vị người đó", function()
+    resetChip()
     cleanStart(); S.Loc.StopAll(); wipePlayers()
     local a = addP("ChonToi", 2051, Vector3.new(0, 5, 0))
     local b = addP("ChonNua", 2052, Vector3.new(9, 5, 0))
@@ -1482,6 +1502,7 @@ test("K6 · BẤM TÊN trong khung 📍 = chỉ định vị người đó", fun
 end)
 
 test("K7 · 📏 Giới hạn khoảng cách: người XA bị ẩn, người GẦN vẫn hiện", function()
+    resetChip()
     cleanStart(); S.Loc.StopAll(); wipePlayers()
     local near = addP("Gan", 2061, Vector3.new(20, 5, 0))
     local far = addP("Xa", 2062, Vector3.new(500, 5, 0))
@@ -1501,6 +1522,7 @@ test("K7 · 📏 Giới hạn khoảng cách: người XA bị ẩn, người G�
 end)
 
 test("K8 · 🚫 Tắt Định Vị: dọn SẠCH nhãn/viền + ngắt vòng lặp (không ngầm chạy nữa)", function()
+    resetChip()
     cleanStart(); S.Loc.StopAll(); wipePlayers()
     local a = addP("DonSach", 2071, Vector3.new(0, 5, 0))
     S.Loc.Set(true)
@@ -1517,6 +1539,7 @@ test("K8 · 🚫 Tắt Định Vị: dọn SẠCH nhãn/viền + ngắt vòng l�
 end)
 
 test("K9 · người thoát game / đổi nhân vật: tự dọn, không rò nhãn", function()
+    resetChip()
     cleanStart(); S.Loc.StopAll(); wipePlayers()
     local a = addP("Thoat", 2081, Vector3.new(0, 5, 0))
     local b = addP("ONai", 2082, Vector3.new(3, 5, 0))
@@ -1544,6 +1567,7 @@ test("K9 · người thoát game / đổi nhân vật: tự dọn, không rò nh
 end)
 
 test("K10 · người MỚI VÀO khi đang bật: tự có nhãn (không cần bấm lại)", function()
+    resetChip()
     cleanStart(); S.Loc.StopAll(); wipePlayers()
     local a = addP("CoSan", 2091, Vector3.new(0, 5, 0))
     S.Loc.Set(true)
@@ -1556,6 +1580,7 @@ test("K10 · người MỚI VÀO khi đang bật: tự có nhãn (không cần b
 end)
 
 test("K11 · thẻ trong Script Hub + không làm mất tính năng cũ", function()
+    resetChip()
     cleanStart(); S.Loc.StopAll(); wipePlayers()
     local a = addP("KiemTra", 2101, Vector3.new(20, 5, 0))
     -- 3 thẻ mới
@@ -1645,6 +1670,7 @@ local function panelSpecBtn(txt)
 end
 
 test("L1 · bật 👣 Bám theo: camera chuyển sang Scriptable + bảng 👣 hiện + vòng lặp chạy", function()
+    resetChip()
     cleanStart(); S.Loc.StopAll(); wipePlayers(); cleanSpec()
     local a = addP("NguA", 3001, Vector3.new(40, 5, 0))
     truthy(card("Xem Người Chơi"), "có thẻ 👣 Xem Người Chơi trong Script Hub")
@@ -1663,6 +1689,7 @@ test("L1 · bật 👣 Bám theo: camera chuyển sang Scriptable + bảng 👣 
 end)
 
 test("L2 · camera BÁM đúng: lùi 12m sau lưng + cao 3.2m, đi theo khi người đó di chuyển", function()
+    resetChip()
     cleanStart(); S.Loc.StopAll(); wipePlayers(); cleanSpec()
     local a = addP("NguB", 3002, Vector3.new(50, 5, 0))
     S.Spec.SetDist(12); S.Spec.SetHeight(3.2)
@@ -1681,6 +1708,7 @@ test("L2 · camera BÁM đúng: lùi 12m sau lưng + cao 3.2m, đi theo khi ngư
 end)
 
 test("L3 · bấm TÊN trong khung 👣 = bám theo người đó (bấm người khác = đổi người)", function()
+    resetChip()
     cleanStart(); S.Loc.StopAll(); wipePlayers(); cleanSpec()
     local a = addP("Chon1", 3003, Vector3.new(0, 5, 0))
     local b = addP("Chon2", 3004, Vector3.new(60, 5, 0))
@@ -1704,6 +1732,7 @@ test("L3 · bấm TÊN trong khung 👣 = bám theo người đó (bấm ngườ
 end)
 
 test("L4 · bảng 👣 nói ĐÚNG họ đang làm gì: đứng yên · chạy · nhảy · ngồi · gục", function()
+    resetChip()
     cleanStart(); S.Loc.StopAll(); wipePlayers(); cleanSpec()
     local a = addP("LamGi", 3005, Vector3.new(0, 5, 0))
     S.Spec.Set(a)
@@ -1736,6 +1765,7 @@ test("L4 · bảng 👣 nói ĐÚNG họ đang làm gì: đứng yên · chạy 
 end)
 
 test("L5 · đổi 📏 khoảng cách + ⬆ độ cao rồi ✔ Áp dụng: camera đổi theo ngay", function()
+    resetChip()
     cleanStart(); S.Loc.StopAll(); wipePlayers(); cleanSpec()
     local a = addP("DoiCam", 3006, Vector3.new(0, 5, 0))
     S.Spec.Set(a)
@@ -1760,6 +1790,7 @@ test("L5 · đổi 📏 khoảng cách + ⬆ độ cao rồi ✔ Áp dụng: cam
 end)
 
 test("L6 · 🎥 Bám: TẮT = KHÔNG ghi camera nữa (vẫn xem được bảng) · bật lại bám tiếp", function()
+    resetChip()
     cleanStart(); S.Loc.StopAll(); wipePlayers(); cleanSpec()
     local a = addP("TatBam", 3007, Vector3.new(0, 5, 0))
     S.Spec.Set(a)
@@ -1783,6 +1814,7 @@ test("L6 · 🎥 Bám: TẮT = KHÔNG ghi camera nữa (vẫn xem được bản
 end)
 
 test("L7 · 🔄 tự chuyển: người đang xem thoát -> sang người khác (tắt thì không)", function()
+    resetChip()
     cleanStart(); S.Loc.StopAll(); wipePlayers(); cleanSpec()
     local a = addP("SeThoat", 3008, Vector3.new(0, 5, 0))
     local b = addP("ConLai", 3009, Vector3.new(6, 5, 0))
@@ -1806,6 +1838,7 @@ test("L7 · 🔄 tự chuyển: người đang xem thoát -> sang người khác
 end)
 
 test("L8 · 🚫 Dừng: trả camera (CameraType gốc) · ẩn bảng · ngắt vòng lặp", function()
+    resetChip()
     cleanStart(); S.Loc.StopAll(); wipePlayers(); cleanSpec()
     local a = addP("Dung", 3011, Vector3.new(0, 5, 0))
     workspace.CurrentCamera.CameraType = Enum.CameraType.Custom
@@ -1829,6 +1862,7 @@ test("L8 · 🚫 Dừng: trả camera (CameraType gốc) · ẩn bảng · ngắ
 end)
 
 test("L9 · AN TOÀN: nhân vật MÌNH không bị dịch chuyển / đổi tốc độ khi xem người khác", function()
+    resetChip()
     cleanStart(); S.Loc.StopAll(); wipePlayers(); cleanSpec()
     local a = addP("AnToan", 3012, Vector3.new(100, 5, 100))
     root().Position = Vector3.new(3, 7, 3)
@@ -1845,6 +1879,7 @@ test("L9 · AN TOÀN: nhân vật MÌNH không bị dịch chuyển / đổi t�
 end)
 
 test("L10 · không mất tính năng cũ khi đang xem: định vị · thảm + HUD · tốc độ ×3", function()
+    resetChip()
     cleanStart(); S.Loc.StopAll(); wipePlayers(); cleanSpec()
     local a = addP("KiemCu", 3013, Vector3.new(30, 5, 0))
     S.Loc.Set(true)
@@ -1864,6 +1899,7 @@ test("L10 · không mất tính năng cũ khi đang xem: định vị · thảm 
 end)
 
 test("L11 · game GIÀNH LẠI camera giữa chừng: hub tự đòi lại trong 0,3 giây", function()
+    resetChip()
     cleanStart(); S.Loc.StopAll(); wipePlayers(); cleanSpec()
     local a = addP("GianhCam", 3014, Vector3.new(10, 5, 0))
     S.Spec.Set(a)
@@ -1880,6 +1916,7 @@ test("L11 · game GIÀNH LẠI camera giữa chừng: hub tự đòi lại trong
 end)
 
 test("L12 · an toàn khi CHẠY LẠI hub: kiểu camera gốc được ghi ra GLOBAL để trả lại được", function()
+    resetChip()
     cleanStart(); S.Loc.StopAll(); wipePlayers(); cleanSpec()
     local a = addP("ChayLai", 3015, Vector3.new(0, 5, 0))
     workspace.CurrentCamera.CameraType = Enum.CameraType.Custom
@@ -1895,6 +1932,7 @@ test("L12 · an toàn khi CHẠY LẠI hub: kiểu camera gốc được ghi ra 
 end)
 
 test("L13 · danh sách trong menu TỰ cập nhật (người mới vào hiện lên không cần bấm gì)", function()
+    resetChip()
     cleanStart(); S.Loc.StopAll(); wipePlayers(); cleanSpec()
     local a = addP("CoTruoc", 3016, Vector3.new(0, 5, 0))
     D.playerTab.Visible = true            -- v4.15: danh sách nằm ở trang 👥 Người Chơi
@@ -1914,6 +1952,7 @@ test("L13 · danh sách trong menu TỰ cập nhật (người mới vào hiện
 end)
 
 test("L14 · người đang xem biến mất hẳn -> tự chuyển/ tự thoát (không kẹt camera)", function()
+    resetChip()
     cleanStart(); S.Loc.StopAll(); wipePlayers(); cleanSpec()
     local a = addP("BienMat", 3018, Vector3.new(0, 5, 0))
     S.Spec.Set(a)
@@ -1984,6 +2023,7 @@ test("M2 · 2 khung 📍 + 👣 NẰM TRONG trang 👥 (không còn nằm trong 
 end)
 
 test("M3 · nút trong trang 👥 chạy được: 👁️ Tất Cả · 👣 Bám theo · 🚫 dừng/dọn", function()
+    resetChip()
     cleanStart(); S.Loc.StopAll(); wipePlayers(); cleanSpec()
     local a = addP("TrangMoi", 4001, Vector3.new(25, 5, 0))
     local panel = D.playerTab:FindFirstChild("HubLoc_Panel")
@@ -2009,6 +2049,7 @@ test("M3 · nút trong trang 👥 chạy được: 👁️ Tất Cả · 👣 B�
 end)
 
 test("M4 · bấm TÊN trong trang 👥 = bám theo người đó (đúng ý 'nhấn vào người chơi')", function()
+    resetChip()
     cleanStart(); S.Loc.StopAll(); wipePlayers(); cleanSpec()
     local a = addP("TrongTrang1", 4002, Vector3.new(0, 5, 0))
     local b = addP("TrongTrang2", 4003, Vector3.new(50, 5, 0))
@@ -2023,6 +2064,7 @@ test("M4 · bấm TÊN trong trang 👥 = bám theo người đó (đúng ý 'nh
 end)
 
 test("M5 · KHÔNG mất tính năng: 5 thẻ 📍👣 vẫn còn trong 📚 Script Hub và vẫn chạy được", function()
+    resetChip()
     cleanStart(); S.Loc.StopAll(); wipePlayers(); cleanSpec()
     local a = addP("TheCu", 4004, Vector3.new(10, 5, 0))
     for _, nm in ipairs({ "Định Vị Người Chơi", "Định Vị Lẻ", "Xem Người Chơi",
@@ -2050,6 +2092,7 @@ test("M5 · KHÔNG mất tính năng: 5 thẻ 📍👣 vẫn còn trong 📚 Scr
 end)
 
 test("M6 · trang 👥 đang MỞ: 2 danh sách tự làm mới (không cần mở 📚 Script Hub)", function()
+    resetChip()
     cleanStart(); S.Loc.StopAll(); wipePlayers(); cleanSpec()
     local a = addP("DauTien", 4005, Vector3.new(0, 5, 0))
     D.hubTab.Visible = false
@@ -2097,6 +2140,7 @@ local function cleanGlow()
 end
 
 test("N1 · bật ✨ Phát Sáng: nhân vật MÌNH có viền nhuộm sáng + đèn toả sáng quanh người", function()
+    resetChip()
     cleanStart(); cleanGlow()
     truthy(card("Phát Sáng"), "có thẻ ✨ Phát Sáng trong 📚 Script Hub")
     local p = glowPanel()
@@ -2232,6 +2276,7 @@ test("N7 · 🎨 Đổi màu: xoay vòng 7 màu, đổi cả viền nhuộm lẫ
 end)
 
 test("N8 · không mất tính năng cũ: thẻ lọc được + 2 khung cùng sống sót + thảm/HUD/tốc độ còn nguyên", function()
+    resetChip()
     cleanStart(); cleanGlow()
     -- chip 'Tiện ích' lọc ra được thẻ ✨
     truthy(D.hubChipBtns["Tiện ích"], "có chip Tiện ích")
@@ -2282,6 +2327,276 @@ test("N9 · GUI của hub bị gỡ: phát sáng KHÔNG bị trói — tự treo
     Mock.advance(0.8)
     truthy(glowHL(), "trả GUI về -> phát sáng vẫn còn")
     cleanGlow()
+end)
+
+print("\n── O. v4.17: 🛡 BAY AN TOÀN (tự bay + né vật chuyển động) ───────────────")
+
+local function safePanel() return D.hubList:FindFirstChild("HubSafe_Panel") end
+local function safeBoxes()
+    local t = {}
+    local p = safePanel()
+    if not p then return t end
+    for _, d in ipairs(p:GetChildren()) do
+        if d.ClassName == "TextBox" then t[#t + 1] = d end
+    end
+    return t                                  -- 📏 Né , 💨 Bay , 🌀 Gắt
+end
+local function safeBtn(nm) local p = safePanel(); return p and p:FindFirstChild(nm) or nil end
+local function safeVel()
+    local mv = H.S_Move
+    return (mv._bv and mv._bv.Velocity) or nil
+end
+-- tạo vật cản trong workspace; moving=true -> vật CHẠY qua lại (có vận tốc thật)
+local function addThreat(pos, moving, cframeOnly)
+    local part = Instance.new("Part")
+    part.Name = "Threat"
+    part.Size = Vector3.new(4, 4, 4)
+    part.Anchored = false
+    part.CanCollide = true
+    part.Position = pos
+    part.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+    part.Parent = H.workspace
+    local alive = true
+    if moving then
+        task.spawn(function()
+            while alive do
+                local t = tick()
+                local nx = pos.X + math.sin(t * 5) * 5
+                part.Position = Vector3.new(nx, pos.Y, pos.Z)
+                if not cframeOnly then part.AssemblyLinearVelocity = Vector3.new(-10, 0, 0) end
+                task.wait(0.05)
+            end
+        end)
+    end
+    return part, function() alive = false end
+end
+local function cleanSafe(extra)
+    pcall(function() S.Move.Safe.Stop() end)
+    pcall(function() S.Move.Safe.SetRadius(25); S.Move.Safe.SetSpeed(60); S.Move.Safe.SetSteer(4) end)
+    pcall(function() S.Move.Safe.SetAuto(true) end)
+    for _, p in ipairs(extra or {}) do pcall(function() p:Destroy() end) end
+    for _, d in ipairs(H.workspace:GetChildren()) do
+        if d.Name == "Threat" then pcall(function() d:Destroy() end) end
+    end
+    Mock.advance(0.1)
+end
+
+test("O1 · bật 🛡 Bay An Toàn: TỰ BAY (không bấm phím nào) + có thẻ + khung điều khiển", function()
+    resetChip(); cleanStart(); cleanGlow(); cleanSafe()
+    truthy(card("Bay An Toàn"), "có thẻ 🛡 Bay An Toàn")
+    local p = safePanel()
+    truthy(p, "có khung 🛡 trong Script Hub")
+    truthy(p:FindFirstChild("SafeTitle"), "có tiêu đề khung 🛡")
+    local msg = action("safefly")
+    Mock.advance(0.5)
+    truthy(S.Move.Safe.on, "đã bật: " .. msg)
+    truthy(S.Move.fly, "🚀 Bay cũng được bật theo")
+    local v = safeVel()
+    truthy(v, "có vận tốc bay (BodyVelocity)")
+    truthy(v.Magnitude > 10, string.format("KHÔNG bấm phím nào mà vẫn bay: |v| = %.1f", v.Magnitude))
+    near(v.Magnitude, 60, 2, "tốc độ đúng bằng 💨 đã đặt")
+    truthy(tostring(msg):find("BẬT", 1, true), "thao tác báo trạng thái: " .. msg)
+    cleanSafe()
+end)
+
+test("O2 · NÉ vật CÓ DẤU HIỆU CHUYỂN ĐỘNG: vận tốc bị đẩy RA XA vật đó", function()
+    resetChip(); cleanStart(); cleanGlow(); cleanSafe()
+    root().Position = Vector3.new(0, 20, 0)
+    local part, stop = addThreat(Vector3.new(14, 20, 0), true)     -- vật chạy qua lại bên phải
+    S.Move.Safe.SetRadius(30)
+    S.Move.Safe.Set(true)
+    Mock.advance(1.0)
+    local v = safeVel()
+    truthy(S.Move.Safe.threats >= 1, "phải phát hiện được vật chuyển động: " .. tostring(S.Move.Safe.threats))
+    truthy(S.Move.Safe.nearest, "có khoảng cách gần nhất")
+    truthy(v.X < -1, string.format("vận tốc phải bị đẩy NGƯỢC lại (ra xa vật): v.X = %.2f", v.X))
+    truthy(tostring(S.Move.Safe.Status()):find("đang né", 1, true), "trạng thái báo đang né: " .. S.Move.Safe.Status())
+    stop(); cleanSafe({ part })
+end)
+
+test("O3 · vật ĐỨNG YÊN thì KHÔNG né (bay xuyên qua bình thường)", function()
+    resetChip(); cleanStart(); cleanGlow(); cleanSafe()
+    root().Position = Vector3.new(0, 20, 0)
+    local part = addThreat(Vector3.new(10, 20, 0), false)          -- vật đứng yên ngay cạnh
+    S.Move.Safe.SetRadius(30)
+    S.Move.Safe.Set(true)
+    Mock.advance(1.0)
+    eq(S.Move.Safe.threats, 0, "vật đứng yên KHÔNG bị coi là mối nguy")
+    local v = safeVel()
+    near(v.X, 0, 0.5, "không có thành phần đẩy ngang")
+    truthy(v.Magnitude > 10, "vẫn bay bình thường")
+    cleanSafe({ part })
+end)
+
+test("O4 · 📏 KHOẢNG CÁCH XÁC ĐỊNH ĐỂ NÉ: ngoài bán kính thì không né, vào bán kính là né", function()
+    resetChip(); cleanStart(); cleanGlow(); cleanSafe()
+    root().Position = Vector3.new(0, 20, 0)
+    local part, stop = addThreat(Vector3.new(40, 20, 0), true)     -- vật ở cách 40 studs
+    S.Move.Safe.Set(true)
+    S.Move.Safe.SetRadius(20)                                      -- né trong 20m -> ngoài tầm
+    Mock.advance(0.8)
+    eq(S.Move.Safe.threats, 0, "cách 40m mà chỉ né trong 20m -> không né")
+    S.Move.Safe.SetRadius(60)                                      -- né trong 60m -> vào tầm
+    Mock.advance(0.8)
+    truthy(S.Move.Safe.threats >= 1, "nới bán kính -> phát hiện và né")
+    truthy(safeVel().X < -0.5, "có đẩy ra xa")
+    -- đổi bằng ô nhập 📏
+    safeBoxes()[1].Text = "25"
+    Mock.click(safeBtn("SafeApply"))
+    Mock.advance(0.3)
+    eq(S.Move.Safe.radius, 25, "ô 📏 Né đổi được bán kính")
+    stop(); cleanSafe({ part })
+end)
+
+test("O5 · 💨 TỐC ĐỘ BAY chỉnh được (và khung ⚙ hiện cùng một số)", function()
+    resetChip(); cleanStart(); cleanGlow(); cleanSafe()
+    root().Position = Vector3.new(0, 30, 0)
+    safeBoxes()[2].Text = "120"
+    local msg = action("safefly")
+    Mock.advance(0.3)
+    safeBoxes()[2].Text = "120"
+    Mock.click(safeBtn("SafeApply"))
+    Mock.advance(0.5)
+    eq(S.Move.Safe.speed, 120, "đọc đúng ô 💨 Bay")
+    near(safeVel().Magnitude, 120, 3, "bay đúng tốc độ 120")
+    eq(S.Move.flySpeed, 120, "khung ⚙ và 🛡 dùng chung một con số tốc độ bay")
+    safeBoxes()[2].Text = "35"
+    Mock.click(safeBtn("SafeApply"))
+    Mock.advance(0.5)
+    near(safeVel().Magnitude, 35, 2, "giảm xuống 35 -> bay chậm lại")
+    -- số vô lý không làm vỡ
+    S.Move.Safe.SetSpeed(99999); eq(S.Move.Safe.speed, 2000, "kẹp trần 2000")
+    S.Move.Safe.SetSpeed(-3);    eq(S.Move.Safe.speed, 1, "kẹp sàn 1")
+    cleanSafe()
+end)
+
+test("O6 · 🌀 NÉ GẮT: càng cao thì lực đẩy càng mạnh", function()
+    resetChip(); cleanStart(); cleanGlow(); cleanSafe()
+    root().Position = Vector3.new(0, 20, 0)
+    local part, stop = addThreat(Vector3.new(20, 20, 0), true)
+    S.Move.Safe.SetRadius(40)
+    S.Move.Safe.Set(true)
+    S.Move.Safe.SetSteer(1)
+    Mock.advance(0.8)
+    local soft = safeVel().X
+    S.Move.Safe.SetSteer(10)
+    Mock.advance(0.8)
+    local hard = safeVel().X
+    truthy(hard < soft, string.format("né gắt 10 phải đẩy mạnh hơn (%.1f < %.1f)", hard, soft))
+    -- và vận tốc luôn bị kẹp trần (không vọt vô hạn)
+    truthy(math.abs(hard) <= S.Move.Safe.speed * 2 + 0.01, "vận tốc bị kẹp trần an toàn")
+    stop(); cleanSafe({ part })
+end)
+
+test("O7 · ➡ Tự bay TẮT: không bấm gì thì đứng yên tại chỗ (nhưng vẫn tự né)", function()
+    resetChip(); cleanStart(); cleanGlow(); cleanSafe()
+    root().Position = Vector3.new(0, 25, 0)
+    S.Move.Safe.Set(true)
+    S.Move.Safe.SetAuto(false)
+    Mock.advance(0.5)
+    near(safeVel().Magnitude, 0, 1.5, "tắt tự bay + không bấm gì -> không bay đi")
+    local part, stop = addThreat(Vector3.new(12, 25, 0), true)
+    S.Move.Safe.SetRadius(30)
+    Mock.advance(0.9)
+    truthy(safeVel().Magnitude > 1, "có vật chuyển động tới -> VẪN tự né dù không bấm gì")
+    stop(); cleanSafe({ part })
+end)
+
+test("O8 · vật bị script/TWEEN kéo đi (vận tốc = 0) VẪN bị né (nhờ dấu hiệu đổi vị trí)", function()
+    resetChip(); cleanStart(); cleanGlow(); cleanSafe()
+    root().Position = Vector3.new(0, 20, 0)
+    -- cframeOnly = true: chỉ đổi vị trí, KHÔNG có AssemblyLinearVelocity
+    local part, stop = addThreat(Vector3.new(14, 20, 0), true, true)
+    S.Move.Safe.SetRadius(30)
+    S.Move.Safe.Set(true)
+    Mock.advance(1.2)
+    eq(part.AssemblyLinearVelocity.Magnitude, 0, "vật này vận tốc = 0 (kiểu tween/CFrame)")
+    truthy(S.Move.Safe.threats >= 1, "vẫn nhận ra là vật CHUYỂN ĐỘNG nhờ đổi vị trí")
+    truthy(safeVel().X < -1, "vẫn né được")
+    stop(); cleanSafe({ part })
+end)
+
+test("O9 · 🚫 Tắt: tắt cả Bay + dọn BodyVelocity + không còn tự bay", function()
+    resetChip(); cleanStart(); cleanGlow(); cleanSafe()
+    action("safefly")
+    Mock.advance(0.4)
+    truthy(S.Move.fly, "đang bay")
+    Mock.click(safeBtn("SafeStop"))
+    Mock.advance(0.4)
+    falsy(S.Move.Safe.on, "bay an toàn đã tắt")
+    falsy(S.Move.fly, "🚀 Bay cũng tắt theo (không còn bay lơ lửng)")
+    falsy(safeVel(), "BodyVelocity đã dọn")
+    falsy(root().Parent == nil, "nhân vật còn nguyên")
+    cleanSafe()
+end)
+
+test("O10 · không mất tính năng cũ: 3 khung điều khiển + thảm/HUD/định vị/phát sáng còn nguyên", function()
+    resetChip(); cleanStart(); cleanGlow(); cleanSafe()
+    S.RebuildHubList(); S.RebuildHubList()
+    truthy(D.hubList:FindFirstChild("HubMove_Panel"), "khung ⚙ di chuyển còn")
+    truthy(D.hubList:FindFirstChild("HubGlow_Panel"), "khung ✨ phát sáng còn")
+    truthy(safePanel(), "khung 🛡 bay an toàn còn")
+    local h = D.hubList.CanvasSize.Y.Offset
+    local need = #cards() * 62
+        + D.hubList:FindFirstChild("HubMove_Panel").Size.Y.Offset
+        + D.hubList:FindFirstChild("HubGlow_Panel").Size.Y.Offset
+        + safePanel().Size.Y.Offset
+    truthy(h >= need, string.format("CanvasSize (%d) phải >= thẻ + 3 khung (%d)", h, need))
+    eq(#panelBtns(), 7, "khung ⚙ vẫn 7 nút")
+    -- các tính năng khác vẫn chạy khi 🛡 đang bật
+    local a = addP("NguChoi", 5001, Vector3.new(30, 5, 0))
+    S.Loc.Set(true)
+    action("glow")
+    S.Move.Safe.Set(true)
+    Mock.advance(0.5)
+    truthy(bb("NguChoi"), "📍 định vị vẫn hiện")
+    truthy(H.gui:FindFirstChild("BC_GlowHL") or H.targetGui:FindFirstChild("BC_GlowHL"), "✨ phát sáng vẫn chạy")
+    truthy(safeVel().Magnitude > 5, "🛡 vẫn tự bay")
+    S.Move.Safe.Stop()
+    S.Loc.StopAll()
+    S.Glow.Stop()
+    cleanLoc({ a })
+    cleanSafe()
+end)
+
+test("O11 · vật tới QUÁ GẦN (dưới 40% bán kính): vọt LÊN TRÊN cho chắc", function()
+    resetChip(); cleanStart(); cleanGlow(); cleanSafe()
+    root().Position = Vector3.new(0, 20, 0)
+    local part, stop = addThreat(Vector3.new(8, 20, 0), true)      -- 8 studs, bán kính 40 -> 20%
+    S.Move.Safe.SetRadius(40)
+    S.Move.Safe.Set(true)
+    Mock.advance(1.0)
+    local v = safeVel()
+    truthy(S.Move.Safe.nearest <= 16, "đang có vật rất gần: " .. tostring(S.Move.Safe.nearest))
+    truthy(v.Y > 5, string.format("phải có thành phần BAY LÊN (không bấm Space): v.Y = %.1f", v.Y))
+    truthy(v.X < -1, "vẫn đẩy ra xa theo chiều ngang")
+    stop(); cleanSafe({ part })
+end)
+
+test("O12 · quét nhiều vật: 200 vật đứng yên + 1 vật chạy -> đếm ĐÚNG 1 mối nguy, không lỗi", function()
+    resetChip(); cleanStart(); cleanGlow(); cleanSafe()
+    root().Position = Vector3.new(0, 40, 0)
+    local junk = {}
+    for i = 1, 200 do
+        local p = Instance.new("Part")
+        p.Name = "Junk" .. i
+        p.Size = Vector3.new(2, 2, 2)
+        p.Anchored = true
+        p.Position = Vector3.new(math.cos(i) * 25, 40 + (i % 5), math.sin(i) * 25)
+        p.Parent = H.workspace
+        junk[#junk + 1] = p
+    end
+    local mover, stop = addThreat(Vector3.new(15, 40, 0), true)
+    local nerr = #Mock.errors
+    S.Move.Safe.SetRadius(45)
+    S.Move.Safe.Set(true)
+    Mock.advance(1.5)
+    eq(#Mock.errors, nerr, "không phát sinh lỗi runtime khi quét")
+    eq(S.Move.Safe.threats, 1, "chỉ đúng 1 vật chuyển động (200 vật đứng yên không tính)")
+    truthy(safeVel().X < -1, "vẫn né đúng vật chạy")
+    stop()
+    for _, p in ipairs(junk) do pcall(function() p:Destroy() end) end
+    cleanSafe({ mover })
 end)
 
 print("\n── C. KIỂM TRA CUỐI ─────────────────────────────────────────")

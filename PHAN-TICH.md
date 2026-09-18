@@ -7,7 +7,7 @@ Ngày phân tích: 2026-09-17 · Branch: `arena/01a0af79-aiaiaitao3` · Commit g
 ## 0. Cập nhật v4.12 (đã thực hiện theo yêu cầu)
 
 Port **5 tính năng di chuyển** từ `aiaiaitao3` vào trang 📚 Script Hub của `script.js`, kèm bộ test
-tự động chạy thật trong máy ảo. Kết quả: **`node tests/run.js` → 119 PASS · 0 FAIL**.
+tự động chạy thật trong máy ảo. Kết quả: **`node tests/run.js` → 131 PASS · 0 FAIL**.
 
 **Đã thêm (toàn bộ là tiện ích nội bộ, không tải gì từ mạng):**
 
@@ -23,6 +23,16 @@ Kèm **cụm nút nổi trên màn hình game** (⬆ nâng · 🪩 bật/tắt t
 khi lọc/tìm kiếm): tốc độ bay · chạy · nhảy · 3 chiều thảm · ⬆/⬇ · 🛑 Tắt hết + nhãn trạng thái.
 Tất cả state gom trong `S.Move` (không tốn slot local cấp chunk), mọi connection qua `trackConn()`,
 tự bật lại sau respawn qua `CharacterAdded`.
+
+**v4.17 — 🛡 BAY AN TOÀN (tự bay + tự né vật có dấu hiệu chuyển động):**
+- Thẻ "🛡 Bay An Toàn" (nhóm Di chuyển) + khung 🛡 trong 📚 Script Hub: BẬT/TẮT · 📏 Né (m) ·
+  💨 Bay · 🌀 Gắt · ➡ Tự bay · ✔ Áp dụng · 🚫 Tắt.
+- Bật là **tự bay** (không cần giữ phím) và **tự né**: quét 0,15s/lần mọi vật trong bán kính 📏;
+  vật có dấu hiệu chuyển động (vận tốc > 1,5 **hoặc** vừa đổi vị trí > 0,35 studs) bị đẩy ra xa
+  (càng gần càng mạnh), vào gần hơn 40% bán kính thì vọt lên trên. Vật đứng yên không bị né.
+- Chạy chung vòng lặp 🚀 Bay (gọi cuối vòng) nên không đánh nhau với WASD; chỉ ghi **vận tốc**
+  BodyVelocity của chính mình.
+- **Lỗi nặng do bộ test bắt**: lực né viết ngược dấu → bị hút về phía vật chuyển động.
 
 **v4.16 — ✨ PHÁT SÁNG (nhân vật mình · chỉnh CHIỀU RỘNG + ĐỘ SÁNG):**
 - Thẻ "✨ Phát Sáng" (nhóm Tiện ích) + khung ✨ trên cùng 📚 Script Hub: BẬT/TẮT · 👁 Xuyên
