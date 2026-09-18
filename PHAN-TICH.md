@@ -7,7 +7,7 @@ Ngày phân tích: 2026-09-17 · Branch: `arena/01a0af79-aiaiaitao3` · Commit g
 ## 0. Cập nhật v4.12 (đã thực hiện theo yêu cầu)
 
 Port **5 tính năng di chuyển** từ `aiaiaitao3` vào trang 📚 Script Hub của `script.js`, kèm bộ test
-tự động chạy thật trong máy ảo. Kết quả: **`node tests/run.js` → 79 PASS · 0 FAIL**.
+tự động chạy thật trong máy ảo. Kết quả: **`node tests/run.js` → 90 PASS · 0 FAIL**.
 
 **Đã thêm (toàn bộ là tiện ích nội bộ, không tải gì từ mạng):**
 
@@ -23,6 +23,17 @@ Kèm **cụm nút nổi trên màn hình game** (⬆ nâng · 🪩 bật/tắt t
 khi lọc/tìm kiếm): tốc độ bay · chạy · nhảy · 3 chiều thảm · ⬆/⬇ · 🛑 Tắt hết + nhãn trạng thái.
 Tất cả state gom trong `S.Move` (không tốn slot local cấp chunk), mọi connection qua `trackConn()`,
 tự bật lại sau respawn qua `CharacterAdded`.
+
+**v4.13 — 📍 ĐỊNH VỊ NGƯỜI CHƠI (port từ "ESP System" của aiaiaitao3):**
+- Mỗi người chơi 1 nhãn nổi trên đầu + viền sáng xuyên tường. Nhãn: TÊN · 💗 Bạn Bè · ☠️ Hạ gục
+  (kèm ⏱ đếm giờ) · ❤️ máu · 📏 khoảng cách. Màu đúng bản gốc: 🟢 thường · 💗 bạn bè ·
+  🔴 bị hạ gục · 🟣 bạn bè bị hạ gục (`player:IsFriendsWith`, có nhớ đệm).
+- 3 thẻ mới trong 📚 Script Hub (nhóm "Định vị") + khung 📍 ngay trên danh sách thẻ:
+  👁️ Tất Cả · 🎯 Lẻ · 🚫 Tắt · 📏 XA NHẤT (m, 0 = không giới hạn) · 🔍 tìm tên + danh sách
+  người chơi (bấm tên = chỉ định vị người đó, bấm lại = bỏ).
+- Tối ưu hơn bản gốc: 1 vòng lặp 0.2s cho tất cả (bản gốc mỗi người 1 luồng `task.spawn`),
+  `FindFirstChild` thay `WaitForChild(...,3)` (không treo 3 giây/người), tự dọn khi thoát/đổi
+  nhân vật, tự ngắt vòng lặp khi tắt hết. Thêm 📏 giới hạn khoảng cách (bản gốc không có).
 
 **v4.12.5 — hết GIẬT/LAG khi bật thảm (game nặng như Evade):**
 - Nguyên nhân: v4.12.1 mỗi frame đều ghi `CFrame` + xoá vận tốc của nhân vật để "đỡ khỏi rơi

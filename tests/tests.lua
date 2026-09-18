@@ -1304,6 +1304,281 @@ test("J7 · không mất tính năng: 2 công tắc ở khung ⚙ + thảm sát 
     S.Move.StopAll(); Mock.advance(0.05)
 end)
 
+print("\n── K. v4.13: ĐỊNH VỊ NGƯỜI CHƠI (xuyên tường · bạn bè · hạ gục · ⏱ · 📏) ──")
+
+local function esp() return H.gui:FindFirstChild("BC_LocEsp") end
+local function hl(n) local g = esp(); return g and g:FindFirstChild(n .. "_HL") or nil end
+local function bb(n) local g = esp(); return g and g:FindFirstChild(n .. "_BB") or nil end
+local function lbl(n)
+    local b = bb(n)
+    return b and b:FindFirstChildOfClass("TextLabel") or nil
+end
+local function humOf(p) return p.Character and p.Character:FindFirstChildOfClass("Humanoid") or nil end
+local function addP(name, uid, pos)
+    local p = Mock.addPlayer(name, uid)
+    Mock.setChar(p, pos)
+    return p
+end
+local function wipePlayers()
+    for _, p in ipairs(H.Players:GetPlayers()) do
+        if p ~= H.player then pcall(function() Mock.removePlayer(p) end) end
+    end
+    Mock.advance(0.05)
+end
+local function cleanLoc(list)
+    S.Loc.StopAll()
+    wipePlayers()
+    for _, p in ipairs(list or {}) do pcall(function() Mock.removePlayer(p) end) end
+    Mock.advance(0.05)
+end
+
+test("K1 · bật Định Vị: hiện NHÃN + VIỀN cho mọi người chơi khác (trừ chính mình)", function()
+    cleanStart(); S.Loc.StopAll(); wipePlayers()
+    local a = addP("Alpha", 2001, Vector3.new(30, 5, 0))
+    local b = addP("Beta", 2002, Vector3.new(0, 5, 40))
+    S.Loc.Set(true)
+    Mock.advance(0.3)
+    truthy(bb("Alpha"), "có nhãn tên Alpha")
+    truthy(hl("Alpha"), "có viền sáng Alpha")
+    truthy(bb("Beta"), "có nhãn tên Beta")
+    falsy(bb("LocalPlayer"), "KHÔNG định vị chính mình")
+    eq(#esp():GetChildren(), 4, "2 người × (nhãn + viền) = 4")
+    cleanLoc({ a, b })
+end)
+
+test("K2 · phân biệt 4 loại: 🟢 thường · 💗 bạn bè · 🔴 bị hạ gục · 🟣 bạn bè bị hạ gục", function()
+    cleanStart(); S.Loc.StopAll(); wipePlayers()
+    local a = addP("Thuong", 2011, Vector3.new(0, 5, 0))
+    local b = addP("BanBe", 2012, Vector3.new(4, 5, 0))
+    local c = addP("BiHa", 2013, Vector3.new(8, 5, 0))
+    local d = addP("BanBiHa", 2014, Vector3.new(12, 5, 0))
+    Mock.friends[2012] = true
+    Mock.friends[2014] = true
+    humOf(c).PlatformStand = true
+    humOf(d).PlatformStand = true
+    S.Loc.Set(true)
+    Mock.advance(0.3)
+    eq(hl("Thuong").FillColor, Color3.fromRGB(0, 255, 100), "người thường: XANH")
+    eq(hl("BanBe").FillColor, Color3.fromRGB(255, 105, 180), "bạn bè: HỒNG")
+    eq(hl("BiHa").FillColor, Color3.fromRGB(200, 0, 0), "bị hạ gục: ĐỎ")
+    eq(hl("BanBiHa").FillColor, Color3.fromRGB(138, 43, 226), "bạn bè bị hạ gục: TÍM")
+    truthy(tostring(lbl("BanBe").Text):find("Bạn Bè", 1, true), "nhãn bạn bè ghi 💗 Bạn Bè")
+    truthy(tostring(lbl("BiHa").Text):find("Hạ gục", 1, true), "nhãn người gục ghi ☠️ Hạ gục")
+    falsy(tostring(lbl("Thuong").Text):find("Bạn Bè", 1, true), "người thường không ghi bạn bè")
+    falsy(tostring(lbl("Thuong").Text):find("Hạ gục", 1, true), "người thường không ghi hạ gục")
+    -- hết máu cũng tính là bị hạ gục
+    humOf(a).Health = 0
+    Mock.advance(0.3)
+    eq(hl("Thuong").FillColor, Color3.fromRGB(200, 0, 0), "máu = 0 cũng là bị hạ gục (ĐỎ)")
+    cleanLoc({ a, b, c, d })
+    Mock.friends[2012] = nil
+    Mock.friends[2014] = nil
+end)
+
+test("K3 · nhãn ghi đủ: TÊN + ❤️ máu + 📏 khoảng cách", function()
+    cleanStart(); S.Loc.StopAll(); wipePlayers()
+    local a = addP("XaXa", 2021, Vector3.new(30, 5, 0))
+    root().Position = Vector3.new(0, 5, 0)
+    humOf(a).Health = 55
+    humOf(a).MaxHealth = 100
+    S.Loc.Set(true)
+    Mock.advance(0.3)
+    local t = tostring(lbl("XaXa").Text)
+    truthy(t:find("XaXa", 1, true), "có tên: " .. t)
+    truthy(t:find("❤️ 55/100", 1, true), "có máu: " .. t)
+    truthy(t:find("📏 30m", 1, true), "có khoảng cách 30m: " .. t)
+    cleanLoc({ a })
+end)
+
+test("K4 · ⏱ đếm GIỜ BỊ HẠ GỤC (gục 3 giây -> 00:03, đứng dậy -> hết đếm)", function()
+    cleanStart(); S.Loc.StopAll(); wipePlayers()
+    local a = addP("NguGuc", 2031, Vector3.new(5, 5, 0))
+    S.Loc.Set(true)
+    Mock.advance(0.3)
+    falsy(tostring(lbl("NguGuc").Text):find("Hạ gục", 1, true), "đầu tiên chưa gục")
+    humOf(a).PlatformStand = true
+    Mock.advance(0.3)
+    truthy(tostring(lbl("NguGuc").Text):find("Hạ gục", 1, true), "gục rồi: có chữ Hạ gục")
+    Mock.advance(3.4)
+    local t = tostring(lbl("NguGuc").Text)
+    truthy(t:find("00:03", 1, true), "đếm được 3 giây: " .. t)
+    humOf(a).PlatformStand = false
+    Mock.advance(0.3)
+    falsy(tostring(lbl("NguGuc").Text):find("Hạ gục", 1, true), "đứng dậy -> hết chữ Hạ gục")
+    Mock.advance(0.3)
+    humOf(a).PlatformStand = true
+    Mock.advance(0.3)
+    truthy(tostring(lbl("NguGuc").Text):find("00:00", 1, true), "gục lại -> đếm lại từ 00:00")
+    cleanLoc({ a })
+end)
+
+test("K5 · 🎯 Định Vị Lẻ: chỉ hiện ĐÚNG 1 người (người kia bị dọn)", function()
+    cleanStart(); S.Loc.StopAll(); wipePlayers()
+    local a = addP("Mot", 2041, Vector3.new(0, 5, 0))
+    local b = addP("Hai", 2042, Vector3.new(6, 5, 0))
+    S.Loc.Set(true)
+    Mock.advance(0.3)
+    truthy(bb("Mot") and bb("Hai"), "đầu tiên hiện cả 2")
+    S.Loc.SetTarget(a)
+    Mock.advance(0.3)
+    truthy(bb("Mot"), "người được chọn vẫn hiện")
+    falsy(bb("Hai"), "người không được chọn bị dọn")
+    eq(#esp():GetChildren(), 2, "chỉ còn 1 người × (nhãn + viền)")
+    S.Loc.SetSolo(false)
+    Mock.advance(0.3)
+    truthy(bb("Hai"), "tắt lẻ -> hiện lại tất cả")
+    cleanLoc({ a, b })
+end)
+
+test("K6 · BẤM TÊN trong khung 📍 = chỉ định vị người đó", function()
+    cleanStart(); S.Loc.StopAll(); wipePlayers()
+    local a = addP("ChonToi", 2051, Vector3.new(0, 5, 0))
+    local b = addP("ChonNua", 2052, Vector3.new(9, 5, 0))
+    local panel = D.hubList:FindFirstChild("HubLoc_Panel")
+    truthy(panel, "có khung 📍 ĐỊNH VỊ NGƯỜI CHƠI trong danh sách")
+    local listF = panel:FindFirstChild("LocList")
+    truthy(listF, "có danh sách người chơi")
+    S.Loc.RefreshList()
+    local function findRow(nm)
+        for _, row in ipairs(listF:GetChildren()) do
+            if row.ClassName == "Frame" then
+                for _, d in ipairs(row:GetChildren()) do
+                    if d.ClassName == "TextButton" and tostring(d.Text):find(nm, 1, true) then return d end
+                end
+            end
+        end
+        return nil
+    end
+    local hit = findRow("ChonNua")
+    truthy(hit, "có hàng tên ChonNua trong danh sách")
+    Mock.click(hit)
+    Mock.advance(0.3)
+    eq(S.Loc.target, b, "bấm tên -> chọn đúng người")
+    truthy(bb("ChonNua"), "người vừa bấm được định vị")
+    falsy(bb("ChonToi"), "người kia không hiện")
+    -- danh sách đã dựng lại -> lấy nút MỚI của đúng người đó rồi bấm lại = bỏ chọn
+    local hit2 = findRow("ChonNua")
+    truthy(hit2, "nút của người đang chọn còn trong danh sách (có dấu 🎯)")
+    truthy(tostring(hit2.Text):find("🎯", 1, true), "dòng đang chọn được đánh dấu 🎯: " .. tostring(hit2.Text))
+    Mock.click(hit2)
+    Mock.advance(0.3)
+    eq(S.Loc.target, nil, "bấm lại -> bỏ chọn")
+    -- bỏ chọn mà 👁️ Tất Cả cũng đang TẮT -> không còn ai cần định vị -> dọn sạch (đúng thiết kế)
+    eq(#esp():GetChildren(), 0, "bỏ chọn hết -> dọn sạch nhãn")
+    S.Loc.Set(true)                       -- mở 👁️ Tất Cả -> hiện lại cả 2
+    Mock.advance(0.3)
+    truthy(bb("ChonNua") and bb("ChonToi"), "bật Tất Cả -> hiện lại cả 2 người")
+    cleanLoc({ a, b })
+end)
+
+test("K7 · 📏 Giới hạn khoảng cách: người XA bị ẩn, người GẦN vẫn hiện", function()
+    cleanStart(); S.Loc.StopAll(); wipePlayers()
+    local near = addP("Gan", 2061, Vector3.new(20, 5, 0))
+    local far = addP("Xa", 2062, Vector3.new(500, 5, 0))
+    root().Position = Vector3.new(0, 5, 0)
+    S.Loc.Set(true)
+    Mock.advance(0.3)
+    truthy(hl("Gan").Enabled, "chưa đặt giới hạn: người gần hiện")
+    truthy(hl("Xa").Enabled, "chưa đặt giới hạn: người xa vẫn hiện")
+    S.Loc.SetMaxDist(100)
+    Mock.advance(0.3)
+    truthy(hl("Gan").Enabled, "trong 100m: vẫn hiện")
+    falsy(hl("Xa").Enabled, "xa hơn 100m: bị ẩn")
+    S.Loc.SetMaxDist(0)
+    Mock.advance(0.3)
+    truthy(hl("Xa").Enabled, "0 = không giới hạn -> hiện lại")
+    cleanLoc({ near, far })
+end)
+
+test("K8 · 🚫 Tắt Định Vị: dọn SẠCH nhãn/viền + ngắt vòng lặp (không ngầm chạy nữa)", function()
+    cleanStart(); S.Loc.StopAll(); wipePlayers()
+    local a = addP("DonSach", 2071, Vector3.new(0, 5, 0))
+    S.Loc.Set(true)
+    Mock.advance(0.3)
+    truthy(bb("DonSach"), "đang hiện")
+    truthy(Mock.renderSteps["BC_Loc"], "vòng lặp đang chạy")
+    S.Loc.StopAll()
+    Mock.advance(0.3)
+    falsy(bb("DonSach"), "nhãn đã dọn")
+    eq(#esp():GetChildren(), 0, "không còn gì trong khung định vị")
+    falsy(Mock.renderSteps["BC_Loc"], "vòng lặp đã ngắt (không tốn tài nguyên)")
+    falsy(S.Loc.on or S.Loc.solo, "mọi cờ đã tắt")
+    cleanLoc({ a })
+end)
+
+test("K9 · người thoát game / đổi nhân vật: tự dọn, không rò nhãn", function()
+    cleanStart(); S.Loc.StopAll(); wipePlayers()
+    local a = addP("Thoat", 2081, Vector3.new(0, 5, 0))
+    local b = addP("ONai", 2082, Vector3.new(3, 5, 0))
+    S.Loc.Set(true)
+    Mock.advance(0.3)
+    truthy(bb("Thoat"), "đang hiện người Thoat")
+    Mock.removePlayer(a)
+    Mock.advance(0.3)
+    falsy(bb("Thoat"), "người thoát -> nhãn biến mất")
+    truthy(bb("ONai"), "người còn lại vẫn hiện")
+    -- đổi nhân vật (respawn): dọn cái cũ, dựng lại cái mới
+    local old = b.Character
+    pcall(function() Mock.fire(b, "CharacterRemoving", old) end)
+    pcall(function() old:Destroy() end)
+    b.Character = nil
+    Mock.advance(0.3)
+    falsy(bb("ONai"), "mất nhân vật -> nhãn dọn")
+    local ch = Mock.makeCharacter(H.workspace)
+    ch.Name = "ONai"
+    b.Character = ch
+    pcall(function() Mock.fire(b, "CharacterAdded", ch) end)
+    Mock.advance(0.8)
+    truthy(bb("ONai"), "có nhân vật mới -> dựng lại nhãn")
+    cleanLoc({ b })
+end)
+
+test("K10 · người MỚI VÀO khi đang bật: tự có nhãn (không cần bấm lại)", function()
+    cleanStart(); S.Loc.StopAll(); wipePlayers()
+    local a = addP("CoSan", 2091, Vector3.new(0, 5, 0))
+    S.Loc.Set(true)
+    Mock.advance(0.3)
+    truthy(bb("CoSan"), "người có sẵn")
+    local m = addP("MoiVao", 2092, Vector3.new(7, 5, 0))
+    Mock.advance(0.3)
+    truthy(bb("MoiVao"), "người mới vào tự được định vị")
+    cleanLoc({ a, m })
+end)
+
+test("K11 · thẻ trong Script Hub + không làm mất tính năng cũ", function()
+    cleanStart(); S.Loc.StopAll(); wipePlayers()
+    local a = addP("KiemTra", 2101, Vector3.new(20, 5, 0))
+    -- 3 thẻ mới
+    for _, nm in ipairs({ "Định Vị Người Chơi", "Định Vị Lẻ", "Tắt Định Vị" }) do
+        truthy(card(nm), "thiếu thẻ: " .. nm)
+    end
+    local msg = action("loc_all")
+    Mock.advance(0.3)
+    truthy(tostring(msg):find("BẬT", 1, true), "thao tác loc_all bật được: " .. msg)
+    truthy(bb("KiemTra"), "thẻ bật -> hiện nhãn")
+    msg = action("loc_all")
+    truthy(tostring(msg):find("TẮT", 1, true), "bấm lại tắt: " .. msg)
+    msg = action("loc_solo")
+    Mock.advance(0.3)
+    truthy(tostring(msg):find("ĐỊNH VỊ LẺ", 1, true), "định vị lẻ bật được: " .. msg)
+    truthy(S.Loc.target ~= nil and S.Loc.solo, "đã chọn 1 người để định vị lẻ")
+    truthy(bb(tostring(S.Loc.target.Name)), "chỉ hiện người được chọn")
+    action("loc_stop")
+    Mock.advance(0.3)
+    falsy(bb("KiemTra"), "🚫 Tắt Định Vị dọn sạch")
+    -- tính năng CŨ vẫn sống
+    hum().WalkSpeed = 16
+    S.Move.speedMode, S.Move.speedMul = "x", 3
+    action("runmode")
+    Mock.advance(0.2)
+    truthy(H.workspace:FindFirstChild("Carpet"), "thảm vẫn trải")
+    eq(hudBtn("🪩").Size.X.Offset, 50, "HUD chạy trên thảm vẫn y hệt bản gốc")
+    eq(hum().WalkSpeed, 48, "tốc độ vẫn theo game ×3")
+    truthy(hud(), "cụm nút nổi vẫn hiện")
+    S.Move.StopAll()
+    cleanLoc({ a })
+end)
+
 print("\n── C. KIỂM TRA CUỐI ─────────────────────────────────────────")
 
 test("C1 · không có lỗi runtime nào trong event / render step", function()

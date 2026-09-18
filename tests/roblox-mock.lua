@@ -980,6 +980,44 @@ end
 function Mock.key(code, down) Mock.keysDown[tostring(code)] = (down == true) end
 function Mock.findChild(parent, name) return parent and parent:FindFirstChild(name, true) or nil end
 
+-- v4.13: THÊM / BỚT người chơi khác (để test 📍 ĐỊNH VỊ NGƯỜI CHƠI).
+-- Tự tạo luôn nhân vật (Model + HumanoidRootPart + Humanoid) và bắn event PlayerAdded /
+-- CharacterAdded y như Roblox thật, nên hub không cần code riêng cho test.
+function Mock.addPlayer(name, userId)
+    local p = makeInstance("Player")
+    p.Name = name or ("Player" .. tostring(userId or 0))
+    p.UserId = userId or (2000 + #Players._players)
+    p.Parent = Players
+    Players._players[#Players._players + 1] = p
+    local ch = Mock.makeCharacter(workspace)
+    ch.Name = tostring(p.Name)
+    p.Character = ch
+    pcall(function() Mock.fire(Players, "PlayerAdded", p) end)
+    pcall(function() Mock.fire(p, "CharacterAdded", ch) end)
+    return p
+end
+-- bắn CharacterRemoving TRƯỚC khi Destroy để hub kịp dọn nhãn (Roblox thật cũng vậy)
+function Mock.removePlayer(p)
+    for i, v in ipairs(Players._players) do
+        if v == p then table.remove(Players._players, i) break end
+    end
+    pcall(function() if p.Character then Mock.fire(p, "CharacterRemoving", p.Character) end end)
+    if p.Character then pcall(function() p.Character:Destroy() end) end
+    p.Character = nil
+    pcall(function() Mock.fire(Players, "PlayerRemoving", p) end)
+    return true
+end
+function Mock.setChar(p, pos)
+    local ch = p and p.Character
+    if not ch then return nil end
+    local hrp = ch:FindFirstChild("HumanoidRootPart")
+    if hrp then
+        hrp.Position = pos or v3(0, 5, 0)
+        hrp.CFrame = cf(hrp.Position.X, hrp.Position.Y, hrp.Position.Z)
+    end
+    return hrp
+end
+
 -- tiện ích cho test: trỏ thẳng vào các service hay dùng
 Mock.workspace = workspace
 Mock.game = game

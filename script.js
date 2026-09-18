@@ -40,7 +40,26 @@
             mới (D.Tactile) nhưng connection của thẻ đã Destroy không bao giờ bị dọn khỏi
             _G.BananaCatHub_Connections -> bảng phình mãi. Nay trackConn() tự gom rác khi >300.
         • BỘ TEST TỰ ĐỘNG (thư mục tests/, chạy bằng `node tests/run.js`): nạp và CHẠY THẬT hub
-          trong máy ảo Lua 5.4 (wasmoon) + Roblox/executor giả lập. 79 test — 79 PASS (E: chạy trên thảm + nút nổi · F: sửa thảm kính · G: nhảy/chạy ở mọi game + tốc độ theo game · H: helper dùng chung sau khi rút gọn · I: Chạy Trên Thảm = Bay chạy bộ bản gốc 100% · J: hết giật khi bật thảm).
+          trong máy ảo Lua 5.4 (wasmoon) + Roblox/executor giả lập. 90 test — 90 PASS (E: chạy trên thảm + nút nổi · F: sửa thảm kính · G: nhảy/chạy ở mọi game + tốc độ theo game · H: helper dùng chung sau khi rút gọn · I: Chạy Trên Thảm = Bay chạy bộ bản gốc 100% · J: hết giật khi bật thảm · K: 📍 định vị người chơi).
+    + v4.13 (📍 ĐỊNH VỊ NGƯỜI CHƠI — port từ "ESP System" của aiaiaitao3 — 90 test PASS):
+        • XUYÊN TƯỜNG THẤY NGƯỜI: mỗi người chơi 1 nhãn nổi trên đầu + viền sáng quanh người.
+          Nhãn ghi: TÊN · 💗 Bạn Bè · ☠️ Hạ gục (kèm ⏱ ĐẾM GIỜ đã gục) · ❤️ máu · 📏 KHOẢNG CÁCH.
+        • 4 MÀU ĐÚNG NHƯ BẢN GỐC: 🟢 xanh = người thường · 💗 hồng = bạn bè ·
+          🔴 đỏ = bị hạ gục · 🟣 tím = bạn bè bị hạ gục. (Bạn bè đọc bằng player:IsFriendsWith —
+          có nhớ đệm nên chỉ hỏi 1 lần/người, không spam.)
+        • 3 THẺ MỚI trong trang 📚 Script Hub, phân loại "Định vị" (đều là tiện ích nội bộ):
+            📍 Định Vị Người Chơi — bật/tắt xuyên tường thấy TẤT CẢ người chơi.
+            🎯 Định Vị Lẻ — chỉ 1 người (chưa chọn thì tự lấy người gần nhất).
+            🚫 Tắt Định Vị — dọn sạch nhãn/viền + NGẮT vòng lặp (không ngầm chạy nữa).
+        • KHUNG 📍 ĐỊNH VỊ nằm ngay trên danh sách thẻ (LayoutOrder 1, tên HubLoc_Panel nên không
+          bị xoá khi lọc/tìm kiếm — y như khung ⚙): 👁️ Tất Cả · 🎯 Lẻ · 🚫 Tắt · 📏 XA NHẤT (m)
+          (0 = không giới hạn — chỉ hiện người trong bán kính, đỡ rối mắt ở server đông) ·
+          ô 🔍 tìm tên + DANH SÁCH người chơi: bấm TÊN = chỉ định vị đúng người đó (bấm lại = bỏ).
+        • TỐI ƯU HƠN BẢN GỐC (không bỏ tính năng nào): bản gốc mở MỖI người 1 luồng task.spawn
+          cập nhật nhãn (server 40 người = 40 luồng) và WaitForChild(...) treo 3 giây/người khi
+          game chưa gắn part. Nay: MỘT vòng lặp 0.2 giây cho tất cả (BindToRenderStep), đọc
+          FindFirstChild (chưa có thì đợi vòng sau), tự dọn khi người thoát/đổi nhân vật, và
+          TỰ NGẮT vòng lặp khi tắt hết. Thêm 📏 giới hạn khoảng cách (bản gốc không có).
     + v4.12.5 (HẾT GIẬT/LAG KHI BẬT THẢM ở game nặng — Evade — 79 test PASS):
         • NGUYÊN NHÂN GIẬT: bản v4.12.1 cứ MỖI FRAME ghi lại CFrame + xoá vận tốc của nhân vật
           để "đỡ khỏi rơi xuyên thảm". Ở game nặng / có anti-cheat (Evade) việc đó ĐÁNH NHAU với
@@ -7079,6 +7098,9 @@ S.MoveActionState = {
     speed   = function() return S.Move.speed   end,
     carpet  = function() return S.Move.carpet  end,
     runmode = function() return S.Move.runMode end,
+    -- v4.13: nhóm 📍 Định Vị cũng dùng chung bảng này (tên bảng giữ nguyên để không phá code cũ).
+    loc_all  = function() return S.Loc and S.Loc.on   end,
+    loc_solo = function() return S.Loc and S.Loc.solo end,
 }
 
 function MV.Refresh()
@@ -7255,6 +7277,13 @@ S.ScriptHubList = {
      desc="Y HỆT '🕹️ Bay chạy bộ' của aiaiaitao3: thảm kính dưới chân + ẨN MENU + cụm nút tròn ⬆🪩⬇✕ nổi góc phải màn hình (⬆⬇ đưa cả thảm lẫn bạn lên/xuống). Thêm 2 cái tốt hơn bản gốc: KHÔNG rơi xuyên thảm và tốc độ THEO GAME ×3."},
     {icon="🪩", name="Thảm Kính", cat="Di chuyển", ord=16, action="carpet",
      desc="Trải thảm kính dưới chân để đứng/lên xuống (⬆⬇), không rơi xuyên dù KHÔNG bật Xuyên Tường. Chỉnh RỘNG × CAO × DÀI + khoảng cách tới chân ở khung ⚙."},
+    -- v4.13: ĐỊNH VỊ NGƯỜI CHƠI (port từ "ESP System" của menu EXECUTOR MENU trong aiaiaitao3).
+    {icon="📍", name="Định Vị Người Chơi", cat="Định vị", ord=17, action="loc_all",
+     desc="Xuyên tường thấy TẤT CẢ người chơi: tên + 💗 bạn bè + ☠️ bị hạ gục (kèm ⏱ đếm giờ) + ❤️ máu + 📏 khoảng cách. Màu: 🟢 thường · 💗 bạn bè · 🔴 bị hạ gục · 🟣 bạn bè bị hạ gục."},
+    {icon="🎯", name="Định Vị Lẻ", cat="Định vị", ord=18, action="loc_solo",
+     desc="Chỉ định vị ĐÚNG 1 người: bấm nút rồi BẤM TÊN trong khung 📍 ngay trên đầu danh sách (chưa chọn thì tự lấy người đứng gần nhất)."},
+    {icon="🚫", name="Tắt Định Vị", cat="Định vị", ord=19, action="loc_stop",
+     desc="Tắt sạch mọi định vị: bỏ hết nhãn tên + viền sáng khỏi tất cả người chơi, giải phóng vòng lặp."},
 }
 S.hubFavs   = S.hubFavs or {}
 S.hubCat    = "Tất cả"
@@ -7363,6 +7392,25 @@ function S.RunHubAction(id)
                  .. (S.Move.speedMode == "x" and (" (game ×" .. tostring(S.Move.speedMul) .. ")") or "")
                  .. " · dùng nút ⬆⬇ nổi GÓC PHẢI màn hình để lên/xuống, ✕ để tắt")
             or "🏃 CHẠY TRÊN THẢM: TẮT (thảm đã dọn, tốc độ về mặc định)"
+    -- ---------- v4.13: ĐỊNH VỊ NGƯỜI CHƠI ----------
+    elseif id == "loc_all" then
+        pcall(function() S.Loc.Set(not S.Loc.on) end)
+        S.Rebuild()
+        return (S.Loc.on and "📍 ĐỊNH VỊ: BẬT — " or "📍 ĐỊNH VỊ: TẮT — ") .. S.Loc.Status()
+    elseif id == "loc_solo" then
+        if S.Loc.solo then
+            pcall(function() S.Loc.SetSolo(false) end)
+        else
+            pcall(function() S.Loc.SetTarget(S.Loc.target or S.Loc.Nearest()) end)
+        end
+        S.Rebuild()
+        return (S.Loc.solo and "🎯 ĐỊNH VỊ LẺ: " .. tostring(S.Loc.target and S.Loc.target.Name or "?")
+                .. " — chỉ hiện người này (bấm tên khác trong khung 📍 để đổi)")
+               or "🎯 ĐỊNH VỊ LẺ: TẮT (trở lại bình thường)"
+    elseif id == "loc_stop" then
+        pcall(function() S.Loc.StopAll() end)
+        S.Rebuild()
+        return "🚫 đã tắt hết định vị: " .. S.Loc.Status()
     elseif id == "movestop" then
         pcall(function() S.Move.StopAll() end)
         S.Rebuild()
@@ -7890,11 +7938,489 @@ do
     end
 end
 
+-- ============================================================================
+-- ========= v4.13: ĐỊNH VỊ NGƯỜI CHƠI (port từ "ESP System" của aiaiaitao3) ===
+-- ============================================================================
+-- Xuyên tường thấy người chơi: tên · 💗 bạn bè · ☠️ bị hạ gục (kèm ⏱ đếm giờ) · ❤️ máu ·
+-- 📏 khoảng cách. MÀU: 🟢 xanh = người thường · 💗 hồng = bạn bè · 🔴 đỏ = bị hạ gục ·
+-- 🟣 tím = bạn bè bị hạ gục.
+-- Khác bản gốc ở 4 điểm (TỐI ƯU — không bỏ tính năng nào):
+--   1) Bản gốc mở MỖI người chơi MỘT luồng task.spawn để cập nhật nhãn (40 người = 40 luồng,
+--      hay rò luồng khi người thoát). Ở đây gom thành MỘT vòng lặp cập nhật hết mỗi 0.2 giây.
+--   2) Bản gốc gọi WaitForChild("HumanoidRootPart", 3) -> kẹt 3 giây/người nếu game chưa gắn
+--      part. Ở đây đọc FindFirstChild: có thì dựng, chưa có thì đợi vòng sau (không chờ).
+--   3) Thêm 📏 GIỚI HẠN KHOẢNG CÁCH (chỉ hiện người gần, đỡ rối mắt ở server đông).
+--   4) Vòng lặp TẮT HẲN khi không còn ai được định vị (bản gốc cứ chạy trong mỗi luồng).
+S.Loc = {
+    on = false,             -- 👁️ định vị TẤT CẢ người chơi
+    solo = false,           -- 🎯 chỉ định vị ĐÚNG 1 người (S.Loc.target)
+    target = nil,
+    maxDist = 0,            -- 0 = không giới hạn; >0 = chỉ hiện người trong bán kính này (stud)
+    _gui = nil, _items = {}, _friend = {}, _downAt = {},
+    _acc = 0, _listAcc = 0, _bound = false,
+}
+local LOC = S.Loc
+local LOCC = {
+    normal = { fill = Color3.fromRGB(0, 255, 100),   out = Color3.fromRGB(255, 255, 255), txt = Color3.fromRGB(0, 255, 100) },
+    friend = { fill = Color3.fromRGB(255, 105, 180), out = Color3.fromRGB(255, 182, 193), txt = Color3.fromRGB(255, 182, 193) },
+    down   = { fill = Color3.fromRGB(200, 0, 0),     out = Color3.fromRGB(255, 100, 100), txt = Color3.fromRGB(255, 100, 100) },
+    fdown  = { fill = Color3.fromRGB(138, 43, 226),  out = Color3.fromRGB(200, 150, 255), txt = Color3.fromRGB(200, 150, 255) },
+}
+local function locRound(n) return math.floor((tonumber(n) or 0) + 0.5) end
+local function locTime(sec)                      -- số giây -> "mm:ss"
+    local v = math.max(0, math.floor(tonumber(sec) or 0))
+    return string.format("%02d:%02d", math.floor(v / 60), v % 60)
+end
+function S.Loc.Root()
+    local c = player.Character
+    return (c and c:FindFirstChild("HumanoidRootPart")) or nil
+end
+function S.Loc.CharOf(p)
+    local c = p and p.Character
+    if not c then return nil end
+    local r = c:FindFirstChild("HumanoidRootPart")
+    local h = c:FindFirstChildOfClass("Humanoid")
+    if r and h then return c, r, h end
+    return nil
+end
+function S.Loc.IsFriend(p)
+    local uid = p and p.UserId
+    if uid == nil then return false end
+    if LOC._friend[uid] == nil then
+        local ok, res = pcall(function() return player:IsFriendsWith(uid) end)
+        LOC._friend[uid] = (ok and res == true) or false
+    end
+    return LOC._friend[uid] == true
+end
+-- "BỊ HẠ GỤC" = nằm sấp (PlatformStand — đa số game dùng làm trạng thái gục) hoặc HẾT MÁU.
+function S.Loc.IsDown(h)
+    if not h then return false end
+    if h.PlatformStand == true then return true end
+    if (tonumber(h.Health) or 1) <= 0 then return true end
+    return false
+end
+-- số giây ĐÃ bị hạ gục (0 = đang khoẻ)
+function S.Loc.DownSecs(p)
+    local st = LOC._downAt[p]
+    if not st then return 0 end
+    return tick() - st
+end
+function S.Loc.Dist(p)
+    local r = LOC.Root()
+    local _, pr = LOC.CharOf(p)
+    if not r or not pr then return nil end
+    return (r.Position - pr.Position).Magnitude
+end
+-- người gần nhất (dùng khi bật Định Vị Lẻ mà chưa chọn ai)
+function S.Loc.Nearest()
+    local best, bd = nil, nil
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= player then
+            local d = LOC.Dist(p)
+            if d and (bd == nil or d < bd) then best, bd = p, d end
+            if not best then best = p end
+        end
+    end
+    return best
+end
+-- người này có được định vị không (tôn trọng chế độ Tất cả / Lẻ)
+function S.Loc.Wanted(p)
+    if p == nil or p == player then return false end
+    if LOC.solo then return LOC.target == p end
+    return LOC.on == true
+end
+function S.Loc.Gui()
+    if LOC._gui and LOC._gui.Parent then return LOC._gui end
+    LOC._gui = New("ScreenGui", {
+        Name = "BC_LocEsp", ResetOnSpawn = false,
+        ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+    }, gui)
+    return LOC._gui
+end
+function S.Loc.Kill(p)
+    local it = LOC._items[p]
+    if not it then return end
+    pcall(function() if it.hl then it.hl:Destroy() end end)
+    pcall(function() if it.bb then it.bb:Destroy() end end)
+    LOC._items[p] = nil
+end
+function S.Loc.Clear()
+    for p, _ in pairs(LOC._items) do LOC.Kill(p) end
+    pcall(function() if LOC._gui then LOC._gui:ClearAllChildren() end end)
+end
+function S.Loc.Make(p)
+    local c, r = LOC.CharOf(p)
+    if not c then return end
+    LOC.Kill(p)
+    local g = LOC.Gui()
+    local hl = New("Highlight", {
+        Name = tostring(p.Name) .. "_HL", Adornee = c,
+        FillColor = LOCC.normal.fill, FillTransparency = 0.55,
+        OutlineColor = LOCC.normal.out, OutlineTransparency = 0,
+    }, g)
+    local bb = New("BillboardGui", {
+        Name = tostring(p.Name) .. "_BB", Adornee = r,
+        Size = UDim2.new(0, 170, 0, 46), StudsOffset = Vector3.new(0, 3.6, 0),
+        AlwaysOnTop = true,
+    }, g)
+    local lbl = New("TextLabel", {
+        Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1,
+        TextColor3 = LOCC.normal.txt, Font = Enum.Font.GothamBold, TextSize = 11,
+        TextStrokeColor3 = Color3.fromRGB(0, 0, 0), TextStrokeTransparency = 0.35,
+    }, bb)
+    LOC._items[p] = { hl = hl, bb = bb, lbl = lbl }
+    LOC.TickOne(p)
+end
+-- cập nhật MỘT người: màu theo trạng thái + chữ (tên/bạn bè/hạ gục ⏱/máu/khoảng cách)
+function S.Loc.TickOne(p)
+    local it = LOC._items[p]
+    if not it then return end
+    local c, r, h = LOC.CharOf(p)
+    if not c then LOC.Kill(p); return end
+    local down, fr = LOC.IsDown(h), LOC.IsFriend(p)
+    if down then
+        if not LOC._downAt[p] then LOC._downAt[p] = tick() end
+    else
+        LOC._downAt[p] = nil
+    end
+    local col = down and (fr and LOCC.fdown or LOCC.down) or (fr and LOCC.friend or LOCC.normal)
+    local r0 = LOC.Root()
+    local dist = (r0 and r) and (r0.Position - r.Position).Magnitude or nil
+    local far = (LOC.maxDist > 0 and dist ~= nil and dist > LOC.maxDist)
+    pcall(function()
+        it.hl.FillColor = col.fill
+        it.hl.OutlineColor = col.out
+        it.lbl.TextColor3 = col.txt
+        it.hl.Enabled = not far
+        it.bb.Enabled = not far
+    end)
+    local mid = {}
+    if down then mid[#mid + 1] = "☠️ Hạ gục ⏱ " .. locTime(LOC.DownSecs(p)) end
+    if h then mid[#mid + 1] = string.format("❤️ %d/%d", locRound(h.Health or 0), locRound(h.MaxHealth or 100)) end
+    mid[#mid + 1] = dist and string.format("📏 %dm", locRound(dist)) or "📏 --m"
+    it.lbl.Text = tostring(p.Name) .. (fr and "  💗 Bạn Bè" or "") .. "\n" .. table.concat(mid, " · ")
+end
+-- MỘT vòng cho TẤT CẢ (bản gốc mỗi người một luồng — gom lại cho nhẹ)
+function S.Loc.Tick()
+    for p, _ in pairs(LOC._items) do
+        if not LOC.Wanted(p) then
+            LOC.Kill(p)
+        else
+            pcall(function() LOC.TickOne(p) end)
+        end
+    end
+    if not (LOC.on or LOC.solo) then return end
+    local ok, list = pcall(function() return Players:GetPlayers() end)
+    if not ok or not list then return end
+    for _, p in ipairs(list) do
+        if LOC.Wanted(p) and not LOC._items[p] and LOC.CharOf(p) then
+            pcall(function() LOC.Make(p) end)
+        end
+    end
+end
+function S.Loc.Bind(on)
+    if on and not LOC._bound then
+        LOC._bound = true
+        pcall(function()
+            RunService:BindToRenderStep("BC_Loc", Enum.RenderPriority.Camera.Value - 2, function(dt)
+                LOC._acc = (LOC._acc or 0) + (tonumber(dt) or 0.016)
+                if LOC._acc < 0.2 then return end
+                LOC._acc = 0
+                pcall(function() LOC.Tick() end)
+                LOC._listAcc = (LOC._listAcc or 0) + 0.2
+                if LOC._listAcc >= 1 then
+                    LOC._listAcc = 0
+                    if LOC.RefreshList then pcall(LOC.RefreshList) end
+                end
+            end)
+        end)
+    elseif (not on) and LOC._bound then
+        LOC._bound = false
+        pcall(function() RunService:UnbindFromRenderStep("BC_Loc") end)
+    end
+end
+function S.Loc.Refresh()
+    if not (LOC.on or LOC.solo) then
+        LOC.Clear()
+        LOC.Bind(false)
+        return
+    end
+    for p, _ in pairs(LOC._items) do if not LOC.Wanted(p) then LOC.Kill(p) end end
+    local ok, list = pcall(function() return Players:GetPlayers() end)
+    if ok and list then
+        for _, p in ipairs(list) do
+            if LOC.Wanted(p) and not LOC._items[p] and LOC.CharOf(p) then
+                pcall(function() LOC.Make(p) end)
+            end
+        end
+    end
+    LOC.Bind(true)
+end
+function S.Loc.Set(on)
+    LOC.on = (on == true)
+    LOC.Refresh()
+    return LOC.on
+end
+function S.Loc.SetSolo(on)
+    LOC.solo = (on == true)
+    if not LOC.solo then LOC.target = nil end
+    LOC.Refresh()
+    return LOC.solo
+end
+function S.Loc.SetTarget(p)
+    LOC.target = (p ~= nil and p ~= player) and p or nil
+    LOC.solo = (LOC.target ~= nil)
+    LOC.Refresh()
+    return LOC.target
+end
+function S.Loc.SetMaxDist(n)
+    LOC.maxDist = math.max(0, tonumber(n) or 0)
+    pcall(LOC.Tick)
+    return LOC.maxDist
+end
+function S.Loc.StopAll()
+    LOC.on = false; LOC.solo = false; LOC.target = nil
+    LOC._downAt = {}
+    LOC.Clear()
+    LOC.Bind(false)
+    return true
+end
+function S.Loc.Status()
+    if not (LOC.on or LOC.solo) then return "📍 định vị: đang TẮT (chưa hiện ai)" end
+    local n = 0
+    for _ in pairs(LOC._items) do n = n + 1 end
+    local t = {}
+    if LOC.on then t[#t + 1] = "👁️ tất cả" end
+    if LOC.solo then t[#t + 1] = "🎯 lẻ: " .. tostring(LOC.target and LOC.target.Name or "chưa chọn") end
+    if LOC.maxDist > 0 then t[#t + 1] = string.format("📏 ≤ %dm", locRound(LOC.maxDist)) end
+    return string.format("📍 đang định vị %d người (%s)", n, table.concat(t, " · "))
+end
+-- người chơi ra/vào + đổi nhân vật: tự dựng lại, tự dọn (không rò bộ nhớ)
+do
+    local function hookLoc(p)
+        if p == player then return nil end
+        -- KHÔNG task.wait trong event: vòng lặp 0.2 giây bên trên tự dựng lại khi part đã sẵn sàng
+        -- (task.wait trong handler làm game phải chạy thêm luồng, có game còn nuốt luôn event).
+        trackConn(p.CharacterAdded:Connect(function()
+            if LOC.Wanted(p) then pcall(function() LOC.Make(p) end) end
+        end))
+        trackConn(p.CharacterRemoving:Connect(function() LOC.Kill(p) end))
+        if LOC.Wanted(p) then pcall(function() LOC.Make(p) end) end
+    end
+    for _, p in ipairs(Players:GetPlayers()) do if p ~= player then pcall(hookLoc, p) end end
+    trackConn(Players.PlayerAdded:Connect(function(p) pcall(hookLoc, p) end))
+    trackConn(Players.PlayerRemoving:Connect(function(p)
+        LOC._friend[p.UserId] = nil
+        LOC._downAt[p] = nil
+        if LOC.target == p then LOC.target = nil end
+        LOC.Kill(p)
+    end))
+end
+
+-- ---------- KHUNG 📍 ĐỊNH VỊ (nằm ngay trên danh sách thẻ trong Script Hub) ----------
+-- Đặt tên "HubLoc_Panel" (không phải "HubCard_...") nên S.RebuildHubList() không bao giờ xoá
+-- khi lọc/tìm kiếm — y như khung ⚙ di chuyển. Mọi biến nằm trong `do ... end`.
+do
+    local PH = 268
+    local P = New("Frame", {
+        Name = "HubLoc_Panel",
+        Size = UDim2.new(1, 0, 0, PH),
+        LayoutOrder = 1,
+        BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, BorderSizePixel = 0, ZIndex = 6,
+    }, D.hubList)
+    Corner(P, UDim.new(0, 10))
+    Stroke(P, C.HAIRLINE, 1)
+    D.Shade(P, Color3.fromRGB(255, 255, 255), Color3.fromRGB(188, 192, 205), 90)
+
+    New("TextLabel", {
+        Size = UDim2.new(1, -16, 0, 14), Position = UDim2.new(0, 8, 0, 4),
+        Text = "📍 ĐỊNH VỊ NGƯỜI CHƠI (xuyên tường)", BackgroundTransparency = 1,
+        TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 10,
+        TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+    }, P)
+
+    local function act(txt, x, y, w, color)
+        local b = New("TextButton", {
+            Size = UDim2.new(0, w, 0, 20), Position = UDim2.new(0, x, 0, y),
+            Text = txt, BackgroundColor3 = color, TextColor3 = D.BestText(color),
+            Font = Enum.Font.GothamBold, TextSize = 9, BorderSizePixel = 0, ZIndex = 8,
+        }, P)
+        Corner(b, UDim.new(0, 6))
+        D.Shade(b, Color3.fromRGB(255, 255, 255), Color3.fromRGB(182, 187, 201), 90)
+        D.Tactile(b, 0.08)
+        return b
+    end
+    local function lab(txt, x, y, w)
+        New("TextLabel", {
+            Size = UDim2.new(0, w, 0, 20), Position = UDim2.new(0, x, 0, y),
+            Text = txt, BackgroundTransparency = 1, TextColor3 = C.MUTED,
+            Font = Enum.Font.GothamMedium, TextSize = 9,
+            TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+        }, P)
+    end
+
+    local allBtn  = act("👁️ Tất Cả", 8, 22, 96, C.GRAY)
+    local soloBtn = act("🎯 Lẻ", 110, 22, 96, C.GRAY)
+    local stopBtn = act("🚫 Tắt", 212, 22, 76, C.SURFACE3)
+
+    lab("📏 Xa nhất:", 8, 48, 58)
+    local distIn = New("TextBox", {
+        Size = UDim2.new(0, 50, 0, 20), Position = UDim2.new(0, 66, 0, 48),
+        Text = "0", ClearTextOnFocus = false,
+        BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.1, TextColor3 = C.DARK,
+        PlaceholderColor3 = C.GRAY, Font = Enum.Font.GothamMedium, TextSize = 9,
+        TextXAlignment = Enum.TextXAlignment.Center, BorderSizePixel = 0, ZIndex = 7,
+    }, P)
+    Corner(distIn, UDim.new(0, 6))
+    lab("m (0 = không giới hạn)", 122, 48, 170)
+
+    local searchIn = New("TextBox", {
+        Size = UDim2.new(1, -16, 0, 22), Position = UDim2.new(0, 8, 0, 72),
+        Text = "", PlaceholderText = "🔍 Tìm tên người chơi...", ClearTextOnFocus = false,
+        PlaceholderColor3 = C.GRAY, BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.1,
+        TextColor3 = C.DARK, Font = Enum.Font.GothamMedium, TextSize = 9,
+        TextXAlignment = Enum.TextXAlignment.Left, BorderSizePixel = 0, ZIndex = 7,
+    }, P)
+    Corner(searchIn, UDim.new(0, 6))
+    New("UIPadding", { PaddingLeft = UDim.new(0, 6) }, searchIn)
+
+    local list = New("ScrollingFrame", {
+        Name = "LocList", Size = UDim2.new(1, -16, 0, 132), Position = UDim2.new(0, 8, 0, 98),
+        BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = 4,
+        CanvasSize = UDim2.new(0, 0, 0, 0), ZIndex = 7,
+    }, P)
+    New("UIListLayout", { Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder }, list)
+
+    New("TextLabel", {
+        Size = UDim2.new(1, -16, 0, 30), Position = UDim2.new(0, 8, 0, 234),
+        Text = "💡 Bấm TÊN = chỉ định vị người đó. 🟢 thường · 💗 bạn bè · 🔴 bị hạ gục (⏱ đếm giờ) · "
+             .. "🟣 bạn bè bị hạ gục. 📏 Xa nhất: chỉ hiện người trong bán kính đó.",
+        TextWrapped = true, BackgroundTransparency = 1, TextColor3 = C.MUTED,
+        Font = Enum.Font.GothamMedium, TextSize = 8, TextXAlignment = Enum.TextXAlignment.Left,
+        TextYAlignment = Enum.TextYAlignment.Top, ZIndex = 7,
+    }, P)
+
+    local function paint()
+        allBtn.Text = LOC.on and "👁️ Tất Cả: BẬT" or "👁️ Tất Cả"
+        allBtn.BackgroundColor3 = LOC.on and C.GREEN or C.GRAY
+        allBtn.TextColor3 = D.BestText(allBtn.BackgroundColor3)
+        soloBtn.Text = LOC.solo and ("🎯 " .. tostring(LOC.target and LOC.target.Name or "?")) or "🎯 Lẻ"
+        soloBtn.BackgroundColor3 = LOC.solo and C.PURPLE or C.GRAY
+        soloBtn.TextColor3 = D.BestText(soloBtn.BackgroundColor3)
+    end
+
+    -- danh sách người chơi: mỗi người 1 hàng (tên + trạng thái + khoảng cách). Bấm tên = chọn.
+    LOC.RefreshList = function()
+        for _, c in ipairs(list:GetChildren()) do
+            if not c:IsA("UIListLayout") then pcall(function() c:Destroy() end) end
+        end
+        local term = tostring(searchIn.Text or ""):lower()
+        local order = 0
+        local ok, players = pcall(function() return Players:GetPlayers() end)
+        if not ok or not players then return end
+        for _, p in ipairs(players) do
+            if p ~= player then
+                local nm = tostring(p.Name)
+                if term == "" or nm:lower():find(term, 1, true) then
+                    order = order + 1
+                    local _, _, h = LOC.CharOf(p)
+                    local fr, down = LOC.IsFriend(p), LOC.IsDown(h)
+                    local col = down and (fr and LOCC.fdown or LOCC.down) or (fr and LOCC.friend or LOCC.normal)
+                    local row = New("Frame", {
+                        Size = UDim2.new(1, 0, 0, 28), LayoutOrder = order,
+                        BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.25,
+                        BorderSizePixel = 0, ZIndex = 8,
+                    }, list)
+                    Corner(row, UDim.new(0, 6))
+                    local sub = {}
+                    if fr then sub[#sub + 1] = "💗 Bạn Bè" end
+                    if down then sub[#sub + 1] = "☠️ " .. locTime(LOC.DownSecs(p)) end
+                    local b = New("TextButton", {
+                        Size = UDim2.new(1, -86, 1, 0), Position = UDim2.new(0, 6, 0, 0),
+                        Text = (LOC.target == p and "🎯 " or "") .. nm
+                             .. (#sub > 0 and ("  " .. table.concat(sub, "  ")) or ""),
+                        BackgroundTransparency = 1, TextColor3 = col.txt,
+                        Font = Enum.Font.GothamBold, TextSize = 9,
+                        TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 9,
+                    }, row)
+                    b.Activated:Connect(function()
+                        ReleaseHubFocus()
+                        if LOC.target == p then
+                            LOC.SetSolo(false)
+                        else
+                            LOC.SetTarget(p)
+                        end
+                        paint()
+                        if LOC.RefreshList then LOC.RefreshList() end
+                        S.Rebuild()
+                    end)
+                    local d = LOC.Dist(p)
+                    New("TextLabel", {
+                        Size = UDim2.new(0, 76, 1, 0), Position = UDim2.new(1, -80, 0, 0),
+                        Text = d and string.format("📏 %dm", locRound(d)) or "📏 --m",
+                        BackgroundTransparency = 1, TextColor3 = col.txt,
+                        Font = Enum.Font.GothamMedium, TextSize = 9,
+                        TextXAlignment = Enum.TextXAlignment.Right, ZIndex = 9,
+                    }, row)
+                end
+            end
+        end
+        pcall(function() list.CanvasSize = UDim2.new(0, 0, 0, order * 32) end)
+        paint()
+    end
+
+    allBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        LOC.Set(not LOC.on)
+        paint()
+        if LOC.RefreshList then LOC.RefreshList() end
+        S.Rebuild()
+        if D.hubStatus then flash(D.hubStatus, "📍 " .. LOC.Status(), 1.8, C.ACCENT) end
+    end)
+    soloBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        if LOC.solo then
+            LOC.SetSolo(false)
+        else
+            LOC.SetTarget(LOC.target or LOC.Nearest())
+        end
+        paint()
+        if LOC.RefreshList then LOC.RefreshList() end
+        S.Rebuild()
+        if D.hubStatus then flash(D.hubStatus, "🎯 " .. LOC.Status(), 1.8, C.ACCENT) end
+    end)
+    stopBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        LOC.StopAll()
+        paint()
+        if LOC.RefreshList then LOC.RefreshList() end
+        S.Rebuild()
+        if D.hubStatus then flash(D.hubStatus, "🚫 " .. LOC.Status(), 1.8, C.ACCENT) end
+    end)
+    distIn.FocusLost:Connect(function()
+        ReleaseHubFocus()
+        local n = tonumber(tostring(distIn.Text or ""):match("%-?%d+%.?%d*")) or 0
+        LOC.SetMaxDist(n)
+        distIn.Text = tostring(LOC.maxDist)
+        if D.hubStatus then
+            flash(D.hubStatus, (LOC.maxDist > 0 and string.format("📏 chỉ hiện người trong %dm", locRound(LOC.maxDist))
+                 or "📏 không giới hạn khoảng cách"), 1.8, C.ACCENT)
+        end
+    end)
+
+    if LOC.RefreshList then pcall(LOC.RefreshList) end
+    S.SyncLocPanel = function()
+        paint()
+        distIn.Text = tostring(LOC.maxDist)
+        if LOC.RefreshList then pcall(LOC.RefreshList) end
+    end
+end
+
 -- chip phân loại
 D.hubChipBtns = {}
-for _, cname in ipairs({"Tất cả", "Admin", "Explorer", "Spy", "Tiện ích", "Server", "Di chuyển"}) do
+for _, cname in ipairs({"Tất cả", "Admin", "Explorer", "Spy", "Tiện ích", "Server", "Di chuyển", "Định vị"}) do
     local w = (cname == "Tất cả" and 58) or (cname == "Explorer" and 68) or (cname == "Tiện ích" and 64)
-              or (cname == "Server" and 56) or (cname == "Admin" and 52) or (cname == "Di chuyển" and 66) or 44
+              or (cname == "Server" and 56) or (cname == "Admin" and 52) or (cname == "Di chuyển" and 66) or (cname == "Định vị" and 58) or 44
     local chip = New("TextButton", {
         Size = UDim2.new(0, w, 0, 20), Text = cname,
         BackgroundColor3 = (S.hubCat == cname) and C.ACCENT or C.SURFACE2,
