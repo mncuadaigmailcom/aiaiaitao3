@@ -7,7 +7,7 @@ Ngày phân tích: 2026-09-17 · Branch: `arena/01a0af79-aiaiaitao3` · Commit g
 ## 0. Cập nhật v4.12 (đã thực hiện theo yêu cầu)
 
 Port **5 tính năng di chuyển** từ `aiaiaitao3` vào trang 📚 Script Hub của `script.js`, kèm bộ test
-tự động chạy thật trong máy ảo. Kết quả: **`node tests/run.js` → 104 PASS · 0 FAIL**.
+tự động chạy thật trong máy ảo. Kết quả: **`node tests/run.js` → 110 PASS · 0 FAIL**.
 
 **Đã thêm (toàn bộ là tiện ích nội bộ, không tải gì từ mạng):**
 
@@ -23,6 +23,14 @@ Kèm **cụm nút nổi trên màn hình game** (⬆ nâng · 🪩 bật/tắt t
 khi lọc/tìm kiếm): tốc độ bay · chạy · nhảy · 3 chiều thảm · ⬆/⬇ · 🛑 Tắt hết + nhãn trạng thái.
 Tất cả state gom trong `S.Move` (không tốn slot local cấp chunk), mọi connection qua `trackConn()`,
 tự bật lại sau respawn qua `CharacterAdded`.
+
+**v4.15 — TRANG 👥 NGƯỜI CHƠI (nằm giữa 📚 Script Hub và ➕ Tạo Tính Năng):**
+- Thêm 1 trang riêng gom mọi việc liên quan tới người chơi khác; thứ tự rail nay là
+  💾 💻 📚 **👥** 🛠 ⚙️ ➕ (trang 👥 ở LayoutOrder 4, giữa Script Hub 3 và Tạo Tính Năng 7).
+- Trang chứa **2 khung điều khiển đầy đủ**: 📍 ĐỊNH VỊ NGƯỜI CHƠI và 👣 XEM NGƯỜI CHƠI
+  (chuyển từ danh sách 📚 Script Hub sang — đỡ rối trang Script Hub).
+- **Không mất tính năng nào**: 5 thẻ 📍👣 trong 📚 Script Hub vẫn còn và vẫn chạy; 6 trang cũ
+  giữ nguyên (Hỗ Trợ 4→5, ⚙️ Thiết Lập 5→6, ➕ Tạo Tính Năng 6→7 chỉ là số thứ tự trên rail).
 
 **v4.14 — 👣 XEM NGƯỜI CHƠI (bám theo để thấy họ đang làm gì):**
 - Bật 👣 rồi bấm TÊN một người (khung 👣 hoặc 📍) = camera bay theo họ; bảng nổi trên màn hình

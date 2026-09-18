@@ -13,7 +13,7 @@ node run.js ../script.js            # chạy tất cả
 node run.js ../script.js noclip     # chỉ chạy test tên có chữ "noclip"
 ```
 
-Kết quả hiện tại: **104 PASS · 0 FAIL**.
+Kết quả hiện tại: **110 PASS · 0 FAIL**.
 
 ## Cấu trúc
 
@@ -21,7 +21,7 @@ Kết quả hiện tại: **104 PASS · 0 FAIL**.
 |---|---|
 | `run.js` | Tạo máy ảo, nạp mock, nạp hub, chạy `tests.lua`, tổng hợp kết quả (exit code 1 nếu FAIL). |
 | `roblox-mock.lua` | Giả lập Roblox + executor: `Instance`/event/method, `Vector3/CFrame/UDim2/Color3/Enum…`, `task.wait/spawn/defer`, service (Players, RunService, UserInputService, TweenService, HttpService, TeleportService…), JSON encode/decode, file ảo, API executor (`writefile`, `setclipboard`, `gethui`, `request`…), đồng hồ ảo (`Mock.advance`) và nhân vật mẫu (`Mock.makeCharacter`). |
-| `tests.lua` | Các test, chia 4 nhóm: **A** tính năng cũ (chống mất), **B** bộ di chuyển mới, **C** kiểm tra cuối, **D** khung ⚙ tuỳ chỉnh + ngoại lệ, **E** chế độ Chạy Trên Thảm + cụm nút nổi, **F** sửa thảm kính, **G** nhảy/chạy ở mọi game + tốc độ theo game, **H** helper dùng chung sau khi rút gọn code, **I** Chạy Trên Thảm = 'Bay chạy bộ' bản gốc 100%, **J** hết giật/lag khi bật thảm (game nặng), **K** 📍 định vị người chơi (xuyên tường · bạn bè · hạ gục · ⏱ đếm giờ · 📏 khoảng cách), **L** 👣 xem người chơi (bám theo camera — thấy họ đang làm gì). |
+| `tests.lua` | Các test, chia 4 nhóm: **A** tính năng cũ (chống mất), **B** bộ di chuyển mới, **C** kiểm tra cuối, **D** khung ⚙ tuỳ chỉnh + ngoại lệ, **E** chế độ Chạy Trên Thảm + cụm nút nổi, **F** sửa thảm kính, **G** nhảy/chạy ở mọi game + tốc độ theo game, **H** helper dùng chung sau khi rút gọn code, **I** Chạy Trên Thảm = 'Bay chạy bộ' bản gốc 100%, **J** hết giật/lag khi bật thảm (game nặng), **K** 📍 định vị người chơi (xuyên tường · bạn bè · hạ gục · ⏱ đếm giờ · 📏 khoảng cách), **L** 👣 xem người chơi (bám theo camera — thấy họ đang làm gì), **M** trang 👥 Người Chơi (nằm giữa 📚 Script Hub và ➕ Tạo Tính Năng). |
 
 ## Cách test đọc được biến `local` của hub
 
@@ -61,6 +61,7 @@ Vì đoạn này nằm **trong cùng chunk**, nó nhìn thấy mọi `local`.
 | 18 | **(mock)** không có cách thêm/bớt người chơi khác → không test được tính năng nhiều người. Đã thêm `Mock.addPlayer` / `Mock.removePlayer` / `Mock.setChar` | K1–K10 |
 | 19 | **v4.14** — ⏱ đếm giờ hạ gục chỉ chạy khi 📍 Định Vị bật: bật 👣 một mình thì đồng hồ đứng ở `00:00`. Nay 📍 và 👣 dùng chung `S.Loc.NoteDown` | L4 |
 | 20 | **v4.14** — người đang xem biến mất hẳn khỏi `Players` (không bắn `PlayerRemoving`) → camera **kẹt** ở `Scriptable` (chuột không quay được). Nay tự chuyển/tự thoát + trả camera | L14 |
+| 22 | **v4.15** — chuyển 2 khung 📍/👣 sang trang 👥 thì các test cũ (K6, L3, L5, L13) vẫn tìm trong danh sách Script Hub → FAIL. Sửa bằng helper `panelOf()` tìm ở trang 👥 trước (giữ luôn khả năng đọc vị trí cũ) | M2, K6, L3 |
 | 21 | **v4.14** — đọc trạng thái theo TỪNG FRAME làm nháy chữ (game teleport từng nhịp → "đang chạy" nhảy về "đứng yên" ngay). Nay ghi nhớ mốc thời gian 0,5s/0,9s/0,6s | L4 |
 
 ## Thêm test mới

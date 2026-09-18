@@ -40,15 +40,26 @@
             mới (D.Tactile) nhưng connection của thẻ đã Destroy không bao giờ bị dọn khỏi
             _G.BananaCatHub_Connections -> bảng phình mãi. Nay trackConn() tự gom rác khi >300.
         • BỘ TEST TỰ ĐỘNG (thư mục tests/, chạy bằng `node tests/run.js`): nạp và CHẠY THẬT hub
-          trong máy ảo Lua 5.4 (wasmoon) + Roblox/executor giả lập. 104 test — 104 PASS (E: chạy trên thảm + nút nổi · F: sửa thảm kính · G: nhảy/chạy ở mọi game + tốc độ theo game · H: helper dùng chung sau khi rút gọn · I: Chạy Trên Thảm = Bay chạy bộ bản gốc 100% · J: hết giật khi bật thảm · K: 📍 định vị người chơi · L: 👣 xem người chơi).
-    + v4.14 (👣 XEM NGƯỜI CHƠI — bám theo để thấy họ đang làm gì — 104 test PASS):
+          trong máy ảo Lua 5.4 (wasmoon) + Roblox/executor giả lập. 110 test — 110 PASS (E: chạy trên thảm + nút nổi · F: sửa thảm kính · G: nhảy/chạy ở mọi game + tốc độ theo game · H: helper dùng chung sau khi rút gọn · I: Chạy Trên Thảm = Bay chạy bộ bản gốc 100% · J: hết giật khi bật thảm · K: 📍 định vị người chơi · L: 👣 xem người chơi).
+    + v4.15 (TRANG 👥 NGƯỜI CHƠI — nằm GIỮA 📚 Script Hub và ➕ Tạo Tính Năng — 110 test PASS):
+        • THÊM 1 TRANG RIÊNG cho mọi việc liên quan tới NGƯỜI CHƠI KHÁC, đặt ngay sau
+          📚 Script Hub và trước ➕ Tạo Tính Năng (thứ tự rail: 💾 💻 📚 👥 🛠 ⚙️ ➕):
+            📍 ĐỊNH VỊ NGƯỜI CHƠI (khung đầy đủ: 👁️ Tất Cả · 🎯 Lẻ · 🚫 Tắt · 📏 Xa nhất (m) ·
+               🔍 tìm tên + danh sách người chơi: bấm TÊN = chỉ định vị người đó)
+            👣 XEM NGƯỜI CHƠI (👣 Bám theo · 🎥 Bám BẬT/TẮT · 🔄 Tự chuyển · 📏 m · ⬆ cao ·
+               ✔ Áp dụng · 🚫 Dừng xem + danh sách người chơi: bấm TÊN = bám theo xem họ làm gì)
+        • KHÔNG MẤT TÍNH NĂNG NÀO: 2 khung điều khiển chỉ CHUYỂN từ danh sách 📚 Script Hub sang
+          trang 👥 (đỡ rối trang Script Hub), còn 5 thẻ 📍👣 trong 📚 Script Hub vẫn còn nguyên
+          và vẫn bấm là chạy được. 6 trang cũ giữ nguyên thứ tự tương đối (Hỗ Trợ 5 · ⚙️ 6 · ➕ 7).
+        • Trang 👥 có tiêu đề + ghi chú, tự cuộn vừa (CanvasSize tính theo chiều cao 2 khung). — bám theo để thấy họ đang làm gì — 104 test PASS):
         • Bật 👣 rồi BẤM TÊN một người chơi (trong khung 👣 hoặc khung 📍) là CAMERA BAY THEO
           người đó: thấy tận mắt họ đang chạy/nhảy/ngồi/rơi/gục/đứng yên ở đâu. Kèm BẢNG NỔI
           trên màn hình game (menu đóng vẫn thấy): TÊN · 💗 Bạn Bè · ❤️ máu · 📏 khoảng cách ·
           💨 tốc độ · và dòng "🏃 đang CHẠY NHANH / 🚶 đang CHẠY / 🐌 đi CHẬM / 🦘 đang NHẢY /
           🪂 đang RƠI / 🪑 đang NGỒI / ☠️ đang BỊ HẠ GỤC (⏱ đếm giờ) / 🧍 đang ĐỨNG YÊN".
         • 2 THẺ MỚI ở nhóm "Định vị": 👣 Xem Người Chơi (bám người gần nhất / người đang chọn)
-          và 🚫 Dừng Xem Người Chơi. Khung 👣 nằm ngay dưới khung 📍: 👣 Bám theo · 🎥 Bám BẬT/TẮT ·
+          và 🚫 Dừng Xem Người Chơi. Khung 👣 (v4.15: đã CHUYỂN sang trang 👥 Người Chơi,
+          nằm ngay dưới khung 📍): 👣 Bám theo · 🎥 Bám BẬT/TẮT ·
           🔄 Tự chuyển · 📏 m · ⬆ cao · ✔ Áp dụng · danh sách người chơi (bấm tên = bám).
         • BẢNG NỔI có 2 nút dùng ngay: 🎥 (tắt/bật bám camera) và 🚫 (trả camera về cho bạn).
         • AN TOÀN TUYỆT ĐỐI: chỉ ĐỔI CAMERA (CameraType = Scriptable) — KHÔNG dịch chuyển nhân vật,
@@ -73,8 +84,7 @@
             📍 Định Vị Người Chơi — bật/tắt xuyên tường thấy TẤT CẢ người chơi.
             🎯 Định Vị Lẻ — chỉ 1 người (chưa chọn thì tự lấy người gần nhất).
             🚫 Tắt Định Vị — dọn sạch nhãn/viền + NGẮT vòng lặp (không ngầm chạy nữa).
-        • KHUNG 📍 ĐỊNH VỊ nằm ngay trên danh sách thẻ (LayoutOrder 1, tên HubLoc_Panel nên không
-          bị xoá khi lọc/tìm kiếm — y như khung ⚙): 👁️ Tất Cả · 🎯 Lẻ · 🚫 Tắt · 📏 XA NHẤT (m)
+        • KHUNG 📍 ĐỊNH VỊ (v4.15: đã CHUYỂN sang trang 👥 Người Chơi): 👁️ Tất Cả · 🎯 Lẻ · 🚫 Tắt · 📏 XA NHẤT (m)
           (0 = không giới hạn — chỉ hiện người trong bán kính, đỡ rối mắt ở server đông) ·
           ô 🔍 tìm tên + DANH SÁCH người chơi: bấm TÊN = chỉ định vị đúng người đó (bấm lại = bỏ).
         • TỐI ƯU HƠN BẢN GỐC (không bỏ tính năng nào): bản gốc mở MỖI người 1 luồng task.spawn
@@ -2717,7 +2727,7 @@ searchIn:GetPropertyChangedSignal("Text"):Connect(function() S.Debounce("savedSe
 RebuildScripts()
 
 -- ==================== TAB 3: HỖ TRỢ — SCRIPT NHANH + PHÂN TÍCH TỌA ĐỘ ====================
-local supportTab = AddTab("Hỗ Trợ", "🛠", 4)
+local supportTab = AddTab("Hỗ Trợ", "🛠", 5)     -- v4.15: 4 -> 5 để nhường chỗ cho 👥 Người Chơi
 
 local posY = 8
 
@@ -5892,7 +5902,7 @@ task.spawn(function()
     end
 end)
 
-local createFeatureTab = AddTab("Tạo Tính Năng", "➕", 6)
+local createFeatureTab = AddTab("Tạo Tính Năng", "➕", 7)   -- v4.15: 6 -> 7 (👥 chen vào ô 4)
 
 local cy = 8
 Label(createFeatureTab, "➕ Tạo Tab Tính Năng Tích Hợp", cy)
@@ -7314,11 +7324,13 @@ S.ScriptHubList = {
     {icon="🪩", name="Thảm Kính", cat="Di chuyển", ord=16, action="carpet",
      desc="Trải thảm kính dưới chân để đứng/lên xuống (⬆⬇), không rơi xuyên dù KHÔNG bật Xuyên Tường. Chỉnh RỘNG × CAO × DÀI + khoảng cách tới chân ở khung ⚙."},
     -- v4.13: ĐỊNH VỊ NGƯỜI CHƠI (port từ "ESP System" của menu EXECUTOR MENU trong aiaiaitao3).
+    -- v4.15: 5 thẻ 📍👣 vẫn ở đây (bấm là chạy ngay) — khung điều khiển ĐẦY ĐỦ (danh sách
+    -- người chơi, 📏 giới hạn tầm, 📏/⬆ camera...) nằm ở trang 👥 Người Chơi cho gọn trang này.
     {icon="📍", name="Định Vị Người Chơi", cat="Định vị", ord=17, action="loc_all",
      desc="Xuyên tường thấy TẤT CẢ người chơi: tên + 💗 bạn bè + ☠️ bị hạ gục (kèm ⏱ đếm giờ) + ❤️ máu + 📏 khoảng cách. Màu: 🟢 thường · 💗 bạn bè · 🔴 bị hạ gục · 🟣 bạn bè bị hạ gục."},
     {icon="🎯", name="Định Vị Lẻ", cat="Định vị", ord=18, action="loc_solo",
      desc="Chỉ định vị ĐÚNG 1 người: bấm nút rồi BẤM TÊN trong khung 📍 ngay trên đầu danh sách (chưa chọn thì tự lấy người đứng gần nhất)."},
-    {icon="👣", name="Xem Người Chơi", cat="Định vị", ord=19, action="spec_on",
+    {icon="👣", name="Xem Người Chơi", cat="Định vị", ord=19, action="spec_on",   -- v4.15: khung đầy đủ ở trang 👥
      desc="Bám theo 1 người để XEM HỌ ĐANG LÀM GÌ: camera rời khỏi bạn bay theo họ, kèm bảng nổi trên màn hình (TÊN · 💗 bạn bè · ❤️ máu · 📏 khoảng cách · 💨 tốc độ · 🏃 đang chạy/nhảy/ngồi/gục/đứng yên). Chỉ ĐỔI CAMERA — nhân vật bạn không bị dịch chuyển."},
     {icon="🚫", name="Dừng Xem Người Chơi", cat="Định vị", ord=20, action="spec_off",
      desc="Trả camera về cho bạn ngay (CameraType gốc của game) + ẩn bảng 👣. Nhân vật bạn không hề bị đụng tới."},
@@ -8277,17 +8289,48 @@ do
     end))
 end
 
--- ---------- KHUNG 📍 ĐỊNH VỊ (nằm ngay trên danh sách thẻ trong Script Hub) ----------
+-- ============================================================================
+-- ===== v4.15: TRANG 👥 NGƯỜI CHƠI (nằm GIỮA 📚 Script Hub và ➕ Tạo Tính Năng) ==
+-- ============================================================================
+-- Gom MỌI việc liên quan tới người chơi khác vào MỘT trang riêng cho dễ tìm:
+--   📍 Định Vị Người Chơi (xuyên tường: ai · bạn bè · bị hạ gục + ⏱ · máu · khoảng cách)
+--   👣 Xem Người Chơi (bám camera theo 1 người để xem họ đang làm gì)
+-- KHÔNG mất tính năng nào: 5 thẻ 📍👣 trong 📚 Script Hub vẫn còn nguyên và vẫn chạy được
+-- (khung điều khiển đầy đủ thì nay nằm trong trang 👥 cho gọn trang Script Hub).
+do
+    local tab = AddTab("Người Chơi", "👥", 4)      -- 4 = ngay sau 📚 Script Hub (3), trước ➕ (7)
+    D.playerTab = tab
+    New("TextLabel", {
+        Name = "PlayerTitle",
+        Size = UDim2.new(1, -16, 0, 18), Position = UDim2.new(0, 8, 0, 8),
+        Text = "👥 NGƯỜI CHƠI — ĐỊNH VỊ & XEM NGƯỜI CHƠI", BackgroundTransparency = 1,
+        TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 11,
+        TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+    }, tab)
+    New("TextLabel", {
+        Name = "PlayerNote",
+        Size = UDim2.new(1, -16, 0, 14), Position = UDim2.new(0, 8, 0, 26),
+        Text = "📍 = thấy người khác xuyên tường · 👣 = bám camera theo 1 người để xem họ đang làm gì."
+             .. "  (Các nút tắt/mở nhanh vẫn có thẻ trong 📚 Script Hub.)",
+        BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium, TextSize = 8,
+        TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+    }, tab)
+    D.playerY = 46
+end
+
+-- ---------- KHUNG 📍 ĐỊNH VỊ (nằm trong trang 👥 NGƯỜI CHƠI) ----------
 -- Đặt tên "HubLoc_Panel" (không phải "HubCard_...") nên S.RebuildHubList() không bao giờ xoá
 -- khi lọc/tìm kiếm — y như khung ⚙ di chuyển. Mọi biến nằm trong `do ... end`.
 do
     local PH = 268
     local P = New("Frame", {
         Name = "HubLoc_Panel",
-        Size = UDim2.new(1, 0, 0, PH),
+        Size = UDim2.new(1, -16, 0, PH),
+        Position = UDim2.new(0, 8, 0, D.playerY or 46),
         LayoutOrder = 1,
         BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, BorderSizePixel = 0, ZIndex = 6,
-    }, D.hubList)
+    }, D.playerTab)
+    D.playerY = (D.playerY or 46) + PH + 8
     Corner(P, UDim.new(0, 10))
     Stroke(P, C.HAIRLINE, 1)
     D.Shade(P, Color3.fromRGB(255, 255, 255), Color3.fromRGB(188, 192, 205), 90)
@@ -8793,8 +8836,9 @@ function S.Spec.Sync()
 end
 
 -- ---------- TỰ LÀM MỚI 2 DANH SÁCH TRONG MENU (📍 + 👣) ----------
--- Chỉ chạy khi trang 📚 Script Hub đang MỞ (đóng menu thì không tốn gì): 2 giây/lần dựng lại
--- danh sách người chơi để 💗 bạn bè · ☠️ hạ gục · ❤️ máu · 📏 khoảng cách luôn đúng.
+-- v4.15: 2 danh sách này nay nằm ở trang 👥 NGƯỜI CHƠI (LayoutOrder 4). Chỉ dựng lại khi MỘT
+-- TRONG HAI trang (👥 Người Chơi hoặc 📚 Script Hub) đang MỞ — đóng menu thì không tốn gì:
+-- 2 giây/lần, để 💗 bạn bè · ☠️ hạ gục · ❤️ máu · 📏 khoảng cách luôn đúng.
 do
     local acc = 0
     RunService:BindToRenderStep("BC_HubList", Enum.RenderPriority.Camera.Value - 4, function(dt)
@@ -8802,8 +8846,9 @@ do
         if acc < 2 then return end
         acc = 0
         pcall(function()
-            local visible = true
-            if D.hubTab and D.hubTab.Visible ~= nil then visible = (D.hubTab.Visible == true) end
+            local visible = false
+            local function open(t) if t and t.Visible == true then return true end return false end
+            if open(D.playerTab) or open(D.hubTab) then visible = true end
             if not visible then return end
             if S.Loc.RefreshList then S.Loc.RefreshList() end
             if S.Spec.RefreshList then S.Spec.RefreshList() end
@@ -8811,14 +8856,17 @@ do
     end)
 end
 
--- ---------- KHUNG 👣 XEM NGƯỜI CHƠI (ngay dưới khung 📍, cùng nằm trên danh sách thẻ) -------
+-- ---------- KHUNG 👣 XEM NGƯỜI CHƠI (ngay dưới khung 📍 trong trang 👥 NGƯỜI CHƠI) -------
 do
     local PH = 262
     local P = New("Frame", {
         Name = "HubSpec_Panel",
-        Size = UDim2.new(1, 0, 0, PH), LayoutOrder = 2,
+        Size = UDim2.new(1, -16, 0, PH),
+        Position = UDim2.new(0, 8, 0, D.playerY or 46),
+        LayoutOrder = 2,
         BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, BorderSizePixel = 0, ZIndex = 6,
-    }, D.hubList)
+    }, D.playerTab)
+    D.playerY = (D.playerY or 46) + PH + 8
     Corner(P, UDim.new(0, 10))
     Stroke(P, C.HAIRLINE, 1)
     D.Shade(P, Color3.fromRGB(255, 255, 255), Color3.fromRGB(188, 192, 205), 90)
@@ -9038,6 +9086,10 @@ do
     pcall(function() end)
     paint()
     if S.Spec.RefreshList then pcall(S.Spec.RefreshList) end
+    -- chốt chiều cao cuộn cho trang 👥 (2 khung + chỗ thở ở đáy)
+    pcall(function()
+        if D.playerTab then D.playerTab.CanvasSize = UDim2.new(0, 0, 0, (D.playerY or 600) + 16) end
+    end)
 end
 
 -- chip phân loại
@@ -9080,7 +9132,7 @@ D.SyncPageChips()
 S.SyncServerPanel()   -- v4.6.3: hiện mã server (JobId) lên khung 🌐 SERVER
 
 -- ============================================================================
--- ============== v4.11: TRANG ⚙️ THIẾT LẬP  (chiếm ô trống LayoutOrder 5) =====
+-- ============== v4.11: TRANG ⚙️ THIẾT LẬP  (v4.15: LayoutOrder 6 — 👥 Người Chơi chen ô 4) =====
 -- ============================================================================
 -- Ô số 5 trên rail bị bỏ trống từ v4.10 (khi gỡ tab 🤖 AI AI). Nay dùng nó cho trang
 -- Thiết Lập — gom 4 việc mà TRƯỚC ĐÂY HUB KHÔNG CÓ CHỖ NÀO LÀM:
@@ -9093,7 +9145,7 @@ S.SyncServerPanel()   -- v4.6.3: hiện mã server (JobId) lên khung 🌐 SERVE
 -- Toàn bộ biến nằm trong khối `do ... end` nên KHÔNG chiếm slot local của main chunk
 -- (Luau giới hạn 200 biến local mỗi chunk — main chunk của hub đã dùng gần ngưỡng).
 do
-    local setTab = AddTab("Thiết Lập", "⚙️", 5)
+    local setTab = AddTab("Thiết Lập", "⚙️", 6)   -- v4.15: 5 -> 6 (👥 chen vào ô 4)
 
     local sy = 8
     local function rule(y)

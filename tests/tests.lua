@@ -56,6 +56,16 @@ local function card(name)
     for _, c in ipairs(cards()) do if c.Name == "HubCard_" .. name then return c end end
     return nil
 end
+-- v4.15: 2 khung điều khiển (📍 Định vị · 👣 Xem người chơi) đã CHUYỂN vào trang 👥 Người Chơi.
+-- Hàm này tìm ở trang 👥 trước, rồi mới tìm trong danh sách Script Hub (để test cũ vẫn đọc được).
+local function panelOf(name)
+    local t = D.playerTab
+    if t then
+        local p = t:FindFirstChild(name)
+        if p then return p end
+    end
+    return D.hubList:FindFirstChild(name)
+end
 local function findByClass(parent, cls)
     for _, d in ipairs(parent:GetDescendants()) do
         if d.ClassName == cls then return d end
@@ -93,11 +103,11 @@ print("\n── A. NẠP HUB & TÍNH NĂNG CŨ (không được mất) ───
 test("A1 · hub nạp xong: đủ trang, không mất trang nào", function()
     truthy(H.main, "cửa sổ chính")
     truthy(H.gui, "ScreenGui")
-    -- 6 trang cố định lúc khởi động (💾 💻 📚 🛠 ⚙️ ➕); trang 🧩 GUI Ngoài (99) tạo khi cần.
-    eq(#H.tabs, 6, "số nút trang cố định trên rail")
+    -- 7 trang cố định lúc khởi động (💾 💻 📚 👥 🛠 ⚙️ ➕); trang 🧩 GUI Ngoài (99) tạo khi cần.
+    eq(#H.tabs, 7, "số nút trang cố định trên rail")
     local names = {}
     for _, b in ipairs(H.tabs) do names[#names + 1] = tostring(b:GetAttribute("BCTabName")) end
-    for _, need in ipairs({ "Code", "Code Đã Lưu", "Script Hub", "Hỗ Trợ", "Tạo Tính Năng", "Thiết Lập" }) do
+    for _, need in ipairs({ "Code", "Code Đã Lưu", "Script Hub", "Người Chơi", "Hỗ Trợ", "Tạo Tính Năng", "Thiết Lập" }) do
         local hit = false
         for _, n in ipairs(names) do if n == need then hit = true end end
         truthy(hit, "thiếu trang: " .. need)
@@ -1434,8 +1444,8 @@ test("K6 · BẤM TÊN trong khung 📍 = chỉ định vị người đó", fun
     cleanStart(); S.Loc.StopAll(); wipePlayers()
     local a = addP("ChonToi", 2051, Vector3.new(0, 5, 0))
     local b = addP("ChonNua", 2052, Vector3.new(9, 5, 0))
-    local panel = D.hubList:FindFirstChild("HubLoc_Panel")
-    truthy(panel, "có khung 📍 ĐỊNH VỊ NGƯỜI CHƠI trong danh sách")
+    local panel = panelOf("HubLoc_Panel")
+    truthy(panel, "có khung 📍 ĐỊNH VỊ NGƯỜI CHƠI")
     local listF = panel:FindFirstChild("LocList")
     truthy(listF, "có danh sách người chơi")
     S.Loc.RefreshList()
@@ -1591,7 +1601,7 @@ local function specText(nm)
     end
     return ""
 end
-local function specList() local p = D.hubList:FindFirstChild("HubSpec_Panel"); return p and p:FindFirstChild("SpecList") or nil end
+local function specList() local p = panelOf("HubSpec_Panel"); return p and p:FindFirstChild("SpecList") or nil end
 local function specRowBtn(nm)
     local l = specList()
     if not l then return nil end
@@ -1626,7 +1636,7 @@ local function cleanSpec()
     Mock.advance(0.05)
 end
 local function panelSpecBtn(txt)
-    local p = D.hubList:FindFirstChild("HubSpec_Panel")
+    local p = panelOf("HubSpec_Panel")
     if not p then return nil end
     for _, d in ipairs(p:GetDescendants()) do
         if d.ClassName == "TextButton" and tostring(d.Text):find(txt, 1, true) then return d end
@@ -1674,7 +1684,7 @@ test("L3 · bấm TÊN trong khung 👣 = bám theo người đó (bấm ngườ
     cleanStart(); S.Loc.StopAll(); wipePlayers(); cleanSpec()
     local a = addP("Chon1", 3003, Vector3.new(0, 5, 0))
     local b = addP("Chon2", 3004, Vector3.new(60, 5, 0))
-    local panel = D.hubList:FindFirstChild("HubSpec_Panel")
+    local panel = panelOf("HubSpec_Panel")
     truthy(panel, "có khung 👣 XEM NGƯỜI CHƠI")
     S.Spec.RefreshList()
     local hit = specRowBtn("Chon2")
@@ -1731,7 +1741,8 @@ test("L5 · đổi 📏 khoảng cách + ⬆ độ cao rồi ✔ Áp dụng: cam
     S.Spec.Set(a)
     Mock.advance(0.2)
     near(camPos().Z, 12, 0.01, "mặc định lùi 12m")
-    local panel = D.hubList:FindFirstChild("HubSpec_Panel")
+    local panel = panelOf("HubSpec_Panel")
+    truthy(panel, "có khung 👣 XEM NGƯỜI CHƠI")
     local boxes = {}
     for _, d in ipairs(panel:GetDescendants()) do
         if d.ClassName == "TextBox" then boxes[#boxes + 1] = d end
@@ -1886,7 +1897,7 @@ end)
 test("L13 · danh sách trong menu TỰ cập nhật (người mới vào hiện lên không cần bấm gì)", function()
     cleanStart(); S.Loc.StopAll(); wipePlayers(); cleanSpec()
     local a = addP("CoTruoc", 3016, Vector3.new(0, 5, 0))
-    D.hubTab.Visible = true
+    D.playerTab.Visible = true            -- v4.15: danh sách nằm ở trang 👥 Người Chơi
     S.Spec.RefreshList()
     eq(#specList():GetChildren(), 2, "1 người + UIListLayout")
     local b = addP("MoiVaoSau", 3017, Vector3.new(3, 5, 0))
@@ -1897,6 +1908,7 @@ test("L13 · danh sách trong menu TỰ cập nhật (người mới vào hiện
     local found = specRowBtn("MoiVaoSau")
     truthy(found, "người mới vào tự hiện trong danh sách 👣 (không cần bấm gì)")
     -- đóng menu -> không dựng lại nữa (đỡ tốn)
+    D.playerTab.Visible = false
     D.hubTab.Visible = false
     cleanLoc({ a, b })
 end)
@@ -1913,6 +1925,147 @@ test("L14 · người đang xem biến mất hẳn -> tự chuyển/ tự thoát
     eq(workspace.CurrentCamera.CameraType, Enum.CameraType.Custom, "camera được TRẢ LẠI (không kẹt)")
     falsy(S.Spec.on, "tự thoát khi không còn ai")
     cleanLoc({ a })
+end)
+
+print("\n── M. v4.15: TRANG 👥 NGƯỜI CHƠI (giữa 📚 Script Hub và ➕ Tạo Tính Năng) ─")
+
+local function tabBtnByName(nm)
+    for _, b in ipairs(H.tabs) do
+        if tostring(b:GetAttribute("BCTabName")) == nm then return b end
+    end
+    return nil
+end
+local function tabOrder(nm)
+    local b = tabBtnByName(nm)
+    return b and b.LayoutOrder or nil
+end
+
+test("M1 · trang 👥 Người Chơi CÓ trên rail và nằm ĐÚNG GIỮA 📚 Script Hub và ➕ Tạo Tính Năng", function()
+    local b = tabBtnByName("Người Chơi")
+    truthy(b, "có trang 👥 Người Chơi trên rail")
+    eq(tostring(b.Text), "👥", "icon trang là 👥")
+    local oMe, oHub, oNew = tabOrder("Người Chơi"), tabOrder("Script Hub"), tabOrder("Tạo Tính Năng")
+    truthy(oMe > oHub, string.format("phải đứng SAU 📚 Script Hub (%s > %s)", tostring(oMe), tostring(oHub)))
+    truthy(oMe < oNew, string.format("phải đứng TRƯỚC ➕ Tạo Tính Năng (%s < %s)", tostring(oMe), tostring(oNew)))
+    -- thứ tự thật trên rail (sắp theo LayoutOrder) đúng như mong đợi
+    local rail = {}
+    for _, t in ipairs(H.tabs) do
+        if t.LayoutOrder ~= 99 then rail[#rail + 1] = { nm = tostring(t:GetAttribute("BCTabName")), o = t.LayoutOrder } end
+    end
+    table.sort(rail, function(x, y) return x.o < y.o end)
+    local seq = {}
+    for _, r in ipairs(rail) do seq[#seq + 1] = r.nm end
+    local joined = table.concat(seq, " | ")
+    local iHub = joined:find("Script Hub", 1, true)
+    local iMe  = joined:find("Người Chơi", 1, true)
+    local iNew = joined:find("Tạo Tính Năng", 1, true)
+    truthy(iHub and iMe and iNew and iHub < iMe and iMe < iNew, "thứ tự rail: " .. joined)
+    -- bấm vào trang 👥 thì trang mở ra thật
+    Mock.click(b)
+    Mock.advance(0.05)
+    truthy(D.playerTab and D.playerTab.Visible, "bấm 👥 -> trang Người Chơi mở ra")
+    truthy(D.playerTab:FindFirstChild("PlayerTitle"), "có tiêu đề trang")
+end)
+
+test("M2 · 2 khung 📍 + 👣 NẰM TRONG trang 👥 (không còn nằm trong danh sách Script Hub)", function()
+    local loc  = D.playerTab and D.playerTab:FindFirstChild("HubLoc_Panel")
+    local spec = D.playerTab and D.playerTab:FindFirstChild("HubSpec_Panel")
+    truthy(loc, "khung 📍 ĐỊNH VỊ nằm trong trang 👥")
+    truthy(spec, "khung 👣 XEM NGƯỜI CHƠI nằm trong trang 👥")
+    falsy(D.hubList:FindFirstChild("HubLoc_Panel"), "danh sách Script Hub KHÔNG còn khung 📍 (đã chuyển trang)")
+    falsy(D.hubList:FindFirstChild("HubSpec_Panel"), "danh sách Script Hub KHÔNG còn khung 👣 (đã chuyển trang)")
+    -- 2 khung xếp dọc, không đè nhau
+    local y1 = loc.Position.Y.Offset
+    local y2 = spec.Position.Y.Offset
+    truthy(y2 >= y1 + loc.Size.Y.Offset, string.format(
+        "👣 phải nằm DƯỚI 📍 (📍 %d + cao %d = %d, 👣 ở %d)", y1, loc.Size.Y.Offset, y1 + loc.Size.Y.Offset, y2))
+    truthy((D.playerTab.CanvasSize.Y.Offset or 0) >= y2 + spec.Size.Y.Offset,
+        "trang 👥 cuộn đủ để thấy hết (CanvasSize)")
+end)
+
+test("M3 · nút trong trang 👥 chạy được: 👁️ Tất Cả · 👣 Bám theo · 🚫 dừng/dọn", function()
+    cleanStart(); S.Loc.StopAll(); wipePlayers(); cleanSpec()
+    local a = addP("TrangMoi", 4001, Vector3.new(25, 5, 0))
+    local panel = D.playerTab:FindFirstChild("HubLoc_Panel")
+    truthy(panel, "có khung 📍")
+    Mock.click(btnWithText(panel, "👁️ Tất Cả"))
+    Mock.advance(0.3)
+    truthy(S.Loc.on, "👁️ Tất Cả bật định vị")
+    truthy(bb("TrangMoi"), "có nhãn định vị cho người chơi")
+    -- 👣 Bám theo (trong trang 👥)
+    local spanel = D.playerTab:FindFirstChild("HubSpec_Panel")
+    Mock.click(btnWithText(spanel, "👣 Bám theo"))
+    Mock.advance(0.4)
+    truthy(S.Spec.on, "👣 Bám theo bật xem người chơi")
+    eq(workspace.CurrentCamera.CameraType, Enum.CameraType.Scriptable, "camera bám theo")
+    Mock.click(btnWithText(spanel, "🚫 Dừng xem"))
+    Mock.advance(0.3)
+    falsy(S.Spec.on, "🚫 Dừng xem tắt được")
+    Mock.click(btnWithText(panel, "🚫 Tắt"))
+    Mock.advance(0.3)
+    falsy(S.Loc.on, "🚫 Tắt dọn sạch định vị")
+    falsy(bb("TrangMoi"), "nhãn đã dọn")
+    cleanLoc({ a })
+end)
+
+test("M4 · bấm TÊN trong trang 👥 = bám theo người đó (đúng ý 'nhấn vào người chơi')", function()
+    cleanStart(); S.Loc.StopAll(); wipePlayers(); cleanSpec()
+    local a = addP("TrongTrang1", 4002, Vector3.new(0, 5, 0))
+    local b = addP("TrongTrang2", 4003, Vector3.new(50, 5, 0))
+    S.Spec.RefreshList()
+    local hit = specRowBtn("TrongTrang2")
+    truthy(hit, "có hàng để bấm trong danh sách của trang 👥")
+    Mock.click(hit)
+    Mock.advance(0.4)
+    eq(S.Spec.target, b, "bấm tên -> bám đúng người")
+    near(camPos().X, 50, 0.01, "camera đã sang chỗ người đó")
+    cleanLoc({ a, b })
+end)
+
+test("M5 · KHÔNG mất tính năng: 5 thẻ 📍👣 vẫn còn trong 📚 Script Hub và vẫn chạy được", function()
+    cleanStart(); S.Loc.StopAll(); wipePlayers(); cleanSpec()
+    local a = addP("TheCu", 4004, Vector3.new(10, 5, 0))
+    for _, nm in ipairs({ "Định Vị Người Chơi", "Định Vị Lẻ", "Xem Người Chơi",
+                          "Dừng Xem Người Chơi", "Tắt Định Vị" }) do
+        truthy(card(nm), "thiếu thẻ cũ: " .. nm)
+    end
+    local msg = action("loc_all")
+    Mock.advance(0.3)
+    truthy(S.Loc.on, "thẻ 📍 trong Script Hub vẫn chạy: " .. msg)
+    action("loc_stop")
+    Mock.advance(0.2)
+    -- 6 trang cũ còn nguyên
+    for _, nm in ipairs({ "Code", "Code Đã Lưu", "Script Hub", "Hỗ Trợ", "Tạo Tính Năng", "Thiết Lập" }) do
+        truthy(tabBtnByName(nm), "mất trang cũ: " .. nm)
+    end
+    -- tính năng di chuyển + HUD + tốc độ vẫn nguyên
+    hum().WalkSpeed = 20
+    S.Move.speedMode, S.Move.speedMul = "x", 3
+    action("runmode")
+    Mock.advance(0.3)
+    truthy(H.workspace:FindFirstChild("Carpet"), "🪩 thảm vẫn trải")
+    eq(hudBtn("🪩").Size.X.Offset, 50, "cụm nút nổi vẫn y hệt bản gốc")
+    eq(hum().WalkSpeed, 60, "👟 tốc độ vẫn theo game ×3")
+    S.Move.StopAll(); cleanLoc({ a })
+end)
+
+test("M6 · trang 👥 đang MỞ: 2 danh sách tự làm mới (không cần mở 📚 Script Hub)", function()
+    cleanStart(); S.Loc.StopAll(); wipePlayers(); cleanSpec()
+    local a = addP("DauTien", 4005, Vector3.new(0, 5, 0))
+    D.hubTab.Visible = false
+    D.playerTab.Visible = true
+    S.Spec.RefreshList(); S.Loc.RefreshList()
+    local before = 0
+    for _, c in ipairs(specList():GetChildren()) do if c.ClassName == "Frame" then before = before + 1 end end
+    eq(before, 1, "bắt đầu có 1 người")
+    local b = addP("VaoSau", 4006, Vector3.new(4, 5, 0))
+    Mock.advance(2.4)
+    local after = 0
+    for _, c in ipairs(specList():GetChildren()) do if c.ClassName == "Frame" then after = after + 1 end end
+    eq(after, 2, "người mới vào tự hiện trong danh sách của trang 👥")
+    truthy(specRowBtn("VaoSau"), "bấm được ngay tên người mới")
+    D.playerTab.Visible = false
+    cleanLoc({ a, b })
 end)
 
 print("\n── C. KIỂM TRA CUỐI ─────────────────────────────────────────")
