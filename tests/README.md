@@ -13,7 +13,7 @@ node run.js ../script.js            # chạy tất cả
 node run.js ../script.js noclip     # chỉ chạy test tên có chữ "noclip"
 ```
 
-Kết quả hiện tại: **72 PASS · 0 FAIL**.
+Kết quả hiện tại: **79 PASS · 0 FAIL**.
 
 ## Cấu trúc
 
@@ -21,7 +21,7 @@ Kết quả hiện tại: **72 PASS · 0 FAIL**.
 |---|---|
 | `run.js` | Tạo máy ảo, nạp mock, nạp hub, chạy `tests.lua`, tổng hợp kết quả (exit code 1 nếu FAIL). |
 | `roblox-mock.lua` | Giả lập Roblox + executor: `Instance`/event/method, `Vector3/CFrame/UDim2/Color3/Enum…`, `task.wait/spawn/defer`, service (Players, RunService, UserInputService, TweenService, HttpService, TeleportService…), JSON encode/decode, file ảo, API executor (`writefile`, `setclipboard`, `gethui`, `request`…), đồng hồ ảo (`Mock.advance`) và nhân vật mẫu (`Mock.makeCharacter`). |
-| `tests.lua` | Các test, chia 4 nhóm: **A** tính năng cũ (chống mất), **B** bộ di chuyển mới, **C** kiểm tra cuối, **D** khung ⚙ tuỳ chỉnh + ngoại lệ, **E** chế độ Chạy Trên Thảm + cụm nút nổi, **F** sửa thảm kính, **G** nhảy/chạy ở mọi game + tốc độ theo game, **H** helper dùng chung sau khi rút gọn code, **I** Chạy Trên Thảm = 'Bay chạy bộ' bản gốc 100%. |
+| `tests.lua` | Các test, chia 4 nhóm: **A** tính năng cũ (chống mất), **B** bộ di chuyển mới, **C** kiểm tra cuối, **D** khung ⚙ tuỳ chỉnh + ngoại lệ, **E** chế độ Chạy Trên Thảm + cụm nút nổi, **F** sửa thảm kính, **G** nhảy/chạy ở mọi game + tốc độ theo game, **H** helper dùng chung sau khi rút gọn code, **I** Chạy Trên Thảm = 'Bay chạy bộ' bản gốc 100%, **J** hết giật/lag khi bật thảm (game nặng). |
 
 ## Cách test đọc được biến `local` của hub
 
@@ -56,6 +56,7 @@ Vì đoạn này nằm **trong cùng chunk**, nó nhìn thấy mọi `local`.
 | 13 | Tốc độ chạy ÉP CỨNG 50 → lúc quá nhanh lúc quá chậm tuỳ game → mặc định mới: **tốc độ game × 3**, tự theo khi game đổi | G4, G5 |
 | 14 | Game/anti-cheat xoá thảm, trả lại WalkSpeed, đổi JumpPower → vòng canh gác 0.3s dựng lại + thảm né sang Camera sau 3 lần bị xoá | G6, G8 |
 | 15 | **Lỗi lọt khi gộp code (v4.12.3)**: nút 📋 "Sao Chép Code" để lại chữ "✅ Đã Sao Chép!" vĩnh viễn — gộp 3 nhánh clipboard làm 1 đã xoá nhầm nhánh `setclipboard` | H1, H3 |
+| 16 | **Bật thảm bị GIẬT/LAG ở game nặng (Evade)**: mỗi frame đều ghi `CFrame` + xoá vận tốc của nhân vật -> đánh nhau với vật lý game. Nay chỉ đỡ khi lún quá 0.5 stud, và có công tắc tắt hẳn | J1–J4 |
 
 ## Thêm test mới
 

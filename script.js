@@ -40,7 +40,21 @@
             mới (D.Tactile) nhưng connection của thẻ đã Destroy không bao giờ bị dọn khỏi
             _G.BananaCatHub_Connections -> bảng phình mãi. Nay trackConn() tự gom rác khi >300.
         • BỘ TEST TỰ ĐỘNG (thư mục tests/, chạy bằng `node tests/run.js`): nạp và CHẠY THẬT hub
-          trong máy ảo Lua 5.4 (wasmoon) + Roblox/executor giả lập. 72 test — 72 PASS (E: chạy trên thảm + nút nổi · F: sửa thảm kính · G: nhảy/chạy ở mọi game + tốc độ theo game · H: helper dùng chung sau khi rút gọn · I: Chạy Trên Thảm = Bay chạy bộ bản gốc 100%).
+          trong máy ảo Lua 5.4 (wasmoon) + Roblox/executor giả lập. 79 test — 79 PASS (E: chạy trên thảm + nút nổi · F: sửa thảm kính · G: nhảy/chạy ở mọi game + tốc độ theo game · H: helper dùng chung sau khi rút gọn · I: Chạy Trên Thảm = Bay chạy bộ bản gốc 100% · J: hết giật khi bật thảm).
+    + v4.12.5 (HẾT GIẬT/LAG KHI BẬT THẢM ở game nặng — Evade — 79 test PASS):
+        • NGUYÊN NHÂN GIẬT: bản v4.12.1 cứ MỖI FRAME ghi lại CFrame + xoá vận tốc của nhân vật
+          để "đỡ khỏi rơi xuyên thảm". Ở game nặng / có anti-cheat (Evade) việc đó ĐÁNH NHAU với
+          vật lý của game -> người giật, lag. Bản gốc aiaiaitao3 KHÔNG BAO GIỜ đụng vào nhân vật
+          (bạn đứng trên thảm nhờ va chạm bình thường của Roblox) nên mới mượt.
+        • CÁCH SỬA: chỉ đỡ khi bạn lún/rơi qua mặt thảm QUÁ 0.5 stud (`carpetSlack`). Đứng yên
+          trên thảm = KHÔNG ghi gì (mượt y hệt bản gốc). Rơi xuyên hay bấm ⬆⬇ (2.5 stud) vẫn
+          được đỡ / kéo theo ngay. Đang bật Xuyên Tường thì đỡ ngay (slack = 0, như bản gốc).
+        • 2 CÔNG TẮC MỚI ở hàng 4 trong khung ⚙ (dành cho game nặng):
+            🛟 Chống rơi: TẮT = y hệt bản gốc, hub không đụng vào nhân vật nữa -> hết giật hẳn.
+            🔲 Viền thảm: TẮT = bỏ đường viền sáng (thảm vẫn còn, nhẹ hơn ở game nặng).
+        • Bớt ghi: thảm chỉ đổi CFrame khi toạ độ THẬT SỰ đổi (đứng yên thì không ghi gì).
+        • 👟 Gõ "x1" vào ô Chạy = GIỮ NGUYÊN tốc độ game (y hệt bản gốc, né anti-cheat bắt tốc
+          độ). Mặc định vẫn là ×3 như bạn đã xin.
     + v4.12.4 (🏃 CHẠY TRÊN THẢM = "🕹️ BAY CHẠY BỘ" BẢN GỐC 100% — 72 test PASS):
         • Overlay dựng Y HỆT aiaiaitao3: khung 180×160 sát mép phải · 3 nút TRÒN 50×50 xếp dọc
           🪩 (y=0) · ⬆ (y=60) · ⬇ (y=120) · viền trắng 2px · mờ 0.3 · màu đúng bản gốc (🪩 xám,
@@ -6429,6 +6443,10 @@ S.Move = {
     speedMode = "x", speedMul = 3, appliedWS = nil,
     carpetW = 6, carpetH = 0.5, carpetL = 6,     -- Rộng × Cao(dày) × Dài
     carpetGap = 0.2,                             -- thảm cách bàn chân bao nhiêu stud (0 = áp sát)
+    -- v4.12.5 (chống GIẬT/LAG ở game nặng như Evade): chỉ đỡ người khi rơi lún qua mặt thảm
+    -- quá `carpetSlack` (0.5). Đứng bình thường thì KHÔNG ghi gì lên nhân vật -> mượt như bản
+    -- gốc. Tắt hẳn `carpetHold` = y hệt bản gốc (không bao giờ đụng vào nhân vật).
+    carpetSlack = 0.5, carpetHold = true, carpetEdge = true,
     carpetY = nil,
     _carpet = nil, _bv = nil, _bg = nil, _floor = nil,
     _ncConn = nil, _ncDesc = nil, _ncChar = nil, _ncLast = nil,
@@ -6790,6 +6808,44 @@ function MV.CarpetHost()
     end
     return workspace
 end
+-- v4.12.5: đường viền sáng quanh thảm (giúp NHÌN THẤY thảm trên nền sáng/tối). Là CON của thảm
+-- nên tự biến mất khi thảm bị dọn. Mấy game nặng render viền chậm thì TẮT đi (vẫn còn thảm).
+function MV._MakeEdge(cp)
+    pcall(function()
+        if not cp or cp:FindFirstChild("CarpetEdge") then return end
+        New("SelectionBox", {
+            Name = "CarpetEdge", Adornee = cp,
+            Color3 = Color3.fromRGB(120, 225, 255), LineThickness = 0.035,
+            SurfaceTransparency = 0.65, Transparency = 0,
+        }, cp)
+    end)
+end
+function MV.SetCarpetEdge(on)
+    MV.carpetEdge = (on == true)
+    local cp = MV._carpet
+    if cp and cp.Parent then
+        if MV.carpetEdge then
+            MV._MakeEdge(cp)
+        else
+            pcall(function()
+                local old = cp:FindFirstChild("CarpetEdge")
+                if old then old:Destroy() end
+            end)
+        end
+    end
+    return MV.carpetEdge
+end
+-- v4.12.5: TẮT "chống rơi" = Y HỆT bản gốc: hub KHÔNG BAO GIỜ ghi CFrame/vận tốc của nhân vật,
+-- bạn đứng trên thảm nhờ va chạm bình thường của Roblox -> hết giật ở mọi game (kể cả Evade).
+function MV.SetCarpetHold(on)
+    MV.carpetHold = (on == true)
+    return MV.carpetHold
+end
+-- Độ "lún" cho phép trước khi hub đỡ bạn lên (0 = đỡ ngay như bản gốc, càng lớn càng mượt).
+function MV.SetCarpetSlack(n)
+    MV.carpetSlack = mvClamp(n, 0, 20)
+    return MV.carpetSlack
+end
 function MV.CreateCarpet(y)
     local r = MV.Root()
     if not r then return end
@@ -6808,13 +6864,7 @@ function MV.CreateCarpet(y)
     -- v4.12.1: VIỀN SÁNG quanh thảm. Thảm trong suốt rất khó thấy trên nền sáng/tối, nhất là
     -- khi nó nằm sát mặt đất. SelectionBox chỉ là đường viền (không che tầm nhìn) và là CON của
     -- thảm nên tự biến mất khi thảm bị Destroy — không bao giờ rớt lại trong workspace.
-    pcall(function()
-        New("SelectionBox", {
-            Name = "CarpetEdge", Adornee = MV._carpet,
-            Color3 = Color3.fromRGB(120, 225, 255), LineThickness = 0.035,
-            SurfaceTransparency = 0.65, Transparency = 0,
-        }, MV._carpet)
-    end)
+    if MV.carpetEdge ~= false then MV._MakeEdge(MV._carpet) end
     RunService:BindToRenderStep("Carpet", Enum.RenderPriority.Camera.Value - 1, function()
         local curR, cp = MV.Root(), MV._carpet
         if not MV.carpet or not curR then return end
@@ -6827,19 +6877,30 @@ function MV.CreateCarpet(y)
         if cp.Size.X ~= MV.carpetW or cp.Size.Y ~= MV.carpetH or cp.Size.Z ~= MV.carpetL then
             cp.Size = Vector3.new(MV.carpetW, MV.carpetH, MV.carpetL)
         end
-        cp.CFrame = CFrame.new(curR.Position.X, MV.carpetY, curR.Position.Z)
-        -- v4.12.1: KHÔNG RƠI XUYÊN THẢM — đây là lỗi làm thảm "vô dụng": bản gốc (và bản
-        -- v4.12 đầu) CHỈ giữ người trên mặt thảm khi đang bật Xuyên Tường, nên bật thảm một
-        -- mình thì người vẫn rơi xuyên qua nó xuống đất. Nay áp dụng LUÔN.
-        -- Vẫn NHẢY được bình thường: chỉ can thiệp khi đang đứng yên/rơi (vận tốc Y <= 0).
-        local standingY = MV.carpetY + (MV.carpetH / 2) + 3.0
-        local vel = curR.AssemblyLinearVelocity
-        local vy = (type(vel) == "table" and vel.Y) or 0
-        if curR.Position.Y < standingY and vy <= 0.1 then
-            curR.CFrame = CFrame.new(curR.Position.X, standingY, curR.Position.Z)
-            if vy < 0 then
-                curR.AssemblyLinearVelocity = Vector3.new(
-                    (vel and vel.X) or 0, 0, (vel and vel.Z) or 0)
+        -- v4.12.5: chỉ ghi CFrame thảm khi THẬT SỰ đổi (người đứng yên -> không ghi gì).
+        local px, pz = curR.Position.X, curR.Position.Z
+        if math.abs(cp.Position.X - px) > 0.005 or math.abs(cp.Position.Z - pz) > 0.005
+            or cp.Position.Y ~= MV.carpetY then
+            cp.CFrame = CFrame.new(px, MV.carpetY, pz)
+        end
+        -- v4.12.5: ĐỠ KHỎI RƠI XUYÊN THẢM — nhưng KHÔNG đụng vào người mỗi frame.
+        -- (bản v4.12.1 đỡ mỗi frame -> vật lý game và hub đánh nhau -> GIẬT/LAG ở game nặng
+        -- như Evade; bản gốc thì không đụng gì, người đứng nhờ va chạm bình thường -> mượt).
+        -- Cách nay: đợi người lún/rơi qua mặt thảm quá `carpetSlack` (0.5) MỚI đỡ lên.
+        --   • đứng yên trên thảm  -> KHÔNG ghi gì (mượt y như bản gốc)
+        --   • rơi xuyên / bấm ⬆⬇ -> vượt 0.5 -> được đỡ hoặc kéo theo ngay
+        --   • đang bật Xuyên Tường -> slack = 0 (như bản gốc): không rơi xuyên tẹo nào
+        if MV.carpetHold ~= false then
+            local standingY = MV.carpetY + (MV.carpetH / 2) + 3.0
+            local slack = MV.noclip and 0 or (tonumber(MV.carpetSlack) or 0.5)
+            local vel = curR.AssemblyLinearVelocity
+            local vy = (type(vel) == "table" and vel.Y) or 0
+            if curR.Position.Y < standingY - slack and vy <= 0.1 then
+                curR.CFrame = CFrame.new(curR.Position.X, standingY, curR.Position.Z)
+                if vy < 0 then
+                    curR.AssemblyLinearVelocity = Vector3.new(
+                        (vel and vel.X) or 0, 0, (vel and vel.Z) or 0)
+                end
             end
         end
     end)
@@ -7621,7 +7682,7 @@ end
 -- (không phải "HubCard_...") nên S.RebuildHubList() không bao giờ xoá nó khi lọc/tìm kiếm.
 -- Tất cả biến nằm trong `do ... end` để không chiếm slot local của main chunk.
 do
-    local PH = 128
+    local PH = 168
     local P = New("Frame", {
         Name = "HubMove_Panel",
         Size = UDim2.new(1, 0, 0, PH),
@@ -7703,12 +7764,13 @@ do
     lab("↕ cách chân", 314, 48, 60)
     local ap2 = act("✔", 374, 48, 28, C.GREEN)
 
-    -- v4.12.2: dòng ghi chú nhỏ (đọc một lần là hiểu hết 3 tính năng mới sửa)
+    -- v4.12.2: dòng ghi chú nhỏ (đọc một lần là hiểu hết các tính năng mới sửa)
     New("TextLabel", {
-        Size = UDim2.new(1, -16, 0, 34), Position = UDim2.new(0, 8, 0, 92),
+        Size = UDim2.new(1, -16, 0, 34), Position = UDim2.new(0, 8, 0, 126),
         Text = "💡 👟 Chạy: gõ x3 = TỐC ĐỘ GAME ×3 (mặc định — game nhanh thì nhanh theo, game chậm thì chậm theo); "
-             .. "gõ 50 = cố định 50. 🦘 Nhảy tự thử 3 cách nên game cấm nhảy/ăn phím Space vẫn nhảy được. "
-             .. "🪩 Thảm có viền sáng, nằm ngay dưới chân, bị game xoá sẽ tự trải lại.",
+             .. "gõ 50 = cố định 50; gõ x1 = GIỮ NGUYÊN tốc độ game (như bản gốc). "
+             .. "🦘 Nhảy tự thử 3 cách nên game cấm nhảy/ăn phím Space vẫn nhảy được. "
+             .. "🪩 Thảm nằm ngay dưới chân, bị game xoá sẽ tự trải lại. Game nặng bị GIẬT thì TẮT 🛟 Chống rơi.",
         TextWrapped = true, BackgroundTransparency = 1, TextColor3 = C.MUTED,
         Font = Enum.Font.GothamMedium, TextSize = 8,
         TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top,
@@ -7783,6 +7845,37 @@ do
         D.Say(S.RunHubAction("movestop"), C.YELLOW)
         st.Text = S.Move.Status()
     end)
+
+    -- Hàng 4 (v4.12.5): 2 công tắc cho GAME NẶNG (Evade...). TẮT đi = y hệt bản gốc aiaiaitao3:
+    -- hub không bao giờ đụng vào nhân vật -> hết giật/lag, thảm vẫn còn để đứng nhờ va chạm.
+    local holdBtn = act("🛟 Chống rơi: BẬT", 8, 100, 108, C.GREEN)
+    local edgeBtn = act("🔲 Viền thảm: BẬT", 122, 100, 108, C.GREEN)
+    local function paintHold()
+        local on = (S.Move.carpetHold ~= false)
+        holdBtn.Text = on and "🛟 Chống rơi: BẬT" or "🛟 Chống rơi: TẮT"
+        holdBtn.BackgroundColor3 = on and C.GREEN or C.SURFACE3
+        holdBtn.TextColor3 = D.BestText(holdBtn.BackgroundColor3)
+    end
+    local function paintEdge()
+        local on = (S.Move.carpetEdge ~= false)
+        edgeBtn.Text = on and "🔲 Viền thảm: BẬT" or "🔲 Viền thảm: TẮT"
+        edgeBtn.BackgroundColor3 = on and C.GREEN or C.SURFACE3
+        edgeBtn.TextColor3 = D.BestText(edgeBtn.BackgroundColor3)
+    end
+    holdBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        S.Move.SetCarpetHold(S.Move.carpetHold == false)
+        paintHold()
+        say("🛟 đỡ khỏi rơi xuyên thảm: " .. ((S.Move.carpetHold ~= false) and "BẬT"
+            or "TẮT (y hệt bản gốc — hub không đụng vào nhân vật nữa, hết giật)"), true)
+    end)
+    edgeBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        S.Move.SetCarpetEdge(S.Move.carpetEdge == false)
+        paintEdge()
+        say("🔲 viền sáng quanh thảm: " .. ((S.Move.carpetEdge ~= false) and "BẬT" or "TẮT"), true)
+    end)
+    paintHold(); paintEdge()
 
     -- nhãn trạng thái tự cập nhật mỗi khi dựng lại danh sách thẻ
     function S.RefreshMovePanel()

@@ -7,7 +7,7 @@ Ngày phân tích: 2026-09-17 · Branch: `arena/01a0af79-aiaiaitao3` · Commit g
 ## 0. Cập nhật v4.12 (đã thực hiện theo yêu cầu)
 
 Port **5 tính năng di chuyển** từ `aiaiaitao3` vào trang 📚 Script Hub của `script.js`, kèm bộ test
-tự động chạy thật trong máy ảo. Kết quả: **`node tests/run.js` → 72 PASS · 0 FAIL**.
+tự động chạy thật trong máy ảo. Kết quả: **`node tests/run.js` → 79 PASS · 0 FAIL**.
 
 **Đã thêm (toàn bộ là tiện ích nội bộ, không tải gì từ mạng):**
 
@@ -23,6 +23,15 @@ Kèm **cụm nút nổi trên màn hình game** (⬆ nâng · 🪩 bật/tắt t
 khi lọc/tìm kiếm): tốc độ bay · chạy · nhảy · 3 chiều thảm · ⬆/⬇ · 🛑 Tắt hết + nhãn trạng thái.
 Tất cả state gom trong `S.Move` (không tốn slot local cấp chunk), mọi connection qua `trackConn()`,
 tự bật lại sau respawn qua `CharacterAdded`.
+
+**v4.12.5 — hết GIẬT/LAG khi bật thảm (game nặng như Evade):**
+- Nguyên nhân: v4.12.1 mỗi frame đều ghi `CFrame` + xoá vận tốc của nhân vật để "đỡ khỏi rơi
+  xuyên"; ở game nặng/anti-cheat việc này đánh nhau với vật lý game → giật, lag. Bản gốc
+  aiaiaitao3 không bao giờ đụng vào nhân vật (đứng nhờ va chạm thường) nên mới mượt.
+- Sửa: chỉ đỡ khi lún/rơi quá **0.5 stud** (`carpetSlack`) → đứng yên là **không ghi gì**;
+  rơi xuyên / bấm ⬆⬇ (2.5 stud) vẫn được đỡ ngay; đang Xuyên Tường thì slack = 0 (như bản gốc).
+- Thêm 2 công tắc trong khung ⚙: **🛟 Chống rơi** (TẮT = y hệt bản gốc, hết giật hẳn) và
+  **🔲 Viền thảm** (TẮT = bỏ viền SelectionBox). Gõ `x1` ở ô 👟 Chạy = giữ nguyên tốc độ game.
 
 **v4.12.4 — 🏃 Chạy Trên Thảm = "🕹️ Bay chạy bộ" của aiaiaitao3 GIỐNG 100%:**
 - Overlay dựng y hệt bản gốc: khung 180×160 sát mép phải, 3 nút TRÒN 50×50 (🪩 y=0 · ⬆ y=60 ·

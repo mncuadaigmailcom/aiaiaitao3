@@ -1178,6 +1178,132 @@ test("I7 · bật BAY khi đang chạy trên thảm -> thoát chế độ chạy
     S.Move.StopAll(); Mock.advance(0.05)
 end)
 
+
+print("\n── J. v4.12.5: HẾT GIẬT/LAG KHI BẬT THẢM (game nặng như Evade) ──")
+
+local function standingY()
+    return S.Move.carpetY + (S.Move.carpetH / 2) + 3.0
+end
+
+test("J1 · đứng trên thảm BÌNH THƯỜNG: hub KHÔNG đụng vào nhân vật (mượt như bản gốc)", function()
+    local ch = cleanStart()
+    S.Move.SetCarpetHold(true); S.Move.SetCarpetSlack(0.5)
+    action("carpet")
+    Mock.advance(0.1)
+    local y = standingY()
+    -- lún 0.3 (< slack 0.5): đứng kiểu này Roblox tự giữ, hub KHÔNG được ghi CFrame
+    root().Position = Vector3.new(0, y - 0.3, 0)
+    root().AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+    Mock.advance(0.2)
+    eq(root().Position.Y, y - 0.3, "không bị nhấc lên mỗi frame (không giật)")
+end)
+
+test("J2 · rơi/lún QUÁ 0.5 thì vẫn được ĐỠ lên mặt thảm (không rơi xuyên)", function()
+    local ch = cleanStart()
+    S.Move.SetCarpetHold(true); S.Move.SetCarpetSlack(0.5)
+    action("carpet")
+    Mock.advance(0.1)
+    local y = standingY()
+    root().Position = Vector3.new(0, y - 4, 0)
+    root().AssemblyLinearVelocity = Vector3.new(0, -25, 0)
+    Mock.advance(0.2)
+    truthy(root().Position.Y >= y - 0.01, string.format(
+        "phải được đỡ lên mặt thảm (Y=%s, đứng=%s)", tostring(root().Position.Y), tostring(y)))
+    S.Move.StopAll(); Mock.advance(0.05)
+end)
+
+test("J3 · đang bật Xuyên Tường: đỡ NGAY (slack = 0 như bản gốc)", function()
+    local ch = cleanStart()
+    S.Move.SetCarpetHold(true)
+    action("noclip"); action("carpet")
+    Mock.advance(0.1)
+    local y = standingY()
+    root().Position = Vector3.new(0, y - 0.1, 0)
+    root().AssemblyLinearVelocity = Vector3.new(0, -5, 0)
+    Mock.advance(0.2)
+    truthy(root().Position.Y >= y - 0.01, "xuyên tường thì không rơi xuyên dù chỉ 0.1")
+    S.Move.StopAll(); Mock.advance(0.05)
+end)
+
+test("J4 · TẮT 🛟 Chống rơi = Y HỆT bản gốc: rơi bao nhiêu cũng KHÔNG đụng vào nhân vật", function()
+    local ch = cleanStart()
+    S.Move.SetCarpetHold(false)
+    action("carpet")
+    Mock.advance(0.1)
+    local y = standingY()
+    root().Position = Vector3.new(0, y - 5, 0)
+    root().AssemblyLinearVelocity = Vector3.new(0, -40, 0)
+    Mock.advance(0.2)
+    eq(root().Position.Y, y - 5, "hub không ghi CFrame nữa (đúng kiểu bản gốc)")
+    truthy(H.workspace:FindFirstChild("Carpet"), "thảm vẫn còn để đứng nhờ va chạm")
+    S.Move.SetCarpetHold(true)
+    S.Move.StopAll(); Mock.advance(0.05)
+end)
+
+test("J5 · 🔲 Viền thảm: TẮT là mất viền (không tạo mới), BẬT lại có ngay trên thảm đang dùng", function()
+    local ch = cleanStart()
+    S.Move.SetCarpetEdge(false)
+    action("carpet")
+    Mock.advance(0.1)
+    local cp = H.workspace:FindFirstChild("Carpet")
+    truthy(cp, "có thảm")
+    falsy(cp:FindFirstChildOfClass("SelectionBox"), "TẮT viền -> không có SelectionBox")
+    S.Move.SetCarpetEdge(true)
+    Mock.advance(0.05)
+    truthy(cp:FindFirstChildOfClass("SelectionBox"), "BẬT lại -> viền xuất hiện ngay")
+    S.Move.SetCarpetEdge(false)
+    Mock.advance(0.05)
+    falsy(cp:FindFirstChildOfClass("SelectionBox"), "TẮT lại -> viền biến mất (thảm vẫn còn)")
+    S.Move.SetCarpetEdge(true)
+    S.Move.StopAll(); Mock.advance(0.05)
+end)
+
+test("J6 · ⬆ kéo người lên theo thảm · ⬇ hạ thảm (không kéo tuột người) · rơi lại được đỡ", function()
+    local ch = cleanStart()
+    S.Move.SetCarpetHold(true); S.Move.SetCarpetSlack(0.5)
+    action("runmode")
+    Mock.advance(0.1)
+    local y0, c0 = standingY(), S.Move.carpetY
+    Mock.click(hudBtn("⬆"))
+    Mock.advance(0.15)
+    truthy(root().Position.Y >= y0 + 2.5 - 0.01, string.format(
+        "⬆ đưa người lên theo thảm (Y=%s, mong đợi >= %s)", tostring(root().Position.Y), tostring(y0 + 2.5)))
+    Mock.click(hudBtn("⬇"))
+    Mock.advance(0.15)
+    near(S.Move.carpetY, c0, 1e-6, "⬇ hạ thảm về chỗ cũ")
+    truthy(root().Position.Y > y0, "người KHÔNG bị kéo tuột xuống (không dính chặt)")
+    root().Position = Vector3.new(0, y0 - 1.5, 0)
+    root().AssemblyLinearVelocity = Vector3.new(0, -8, 0)
+    Mock.advance(0.15)
+    truthy(root().Position.Y >= y0 - 0.01, "rơi xuống lại được đỡ trên mặt thảm")
+    S.Move.StopAll(); Mock.advance(0.05)
+end)
+
+test("J7 · không mất tính năng: 2 công tắc ở khung ⚙ + thảm sát chân + HUD + tốc độ ×3", function()
+    local ch = cleanStart()
+    local btns = panelBtns()
+    eq(#btns, 7, "khung ⚙ có 7 nút (✔ ✔ ⬆ ⬇ 🛑 + 2 công tắc mới)")
+    local before = S.Move.carpetHold
+    Mock.click(btns[6])                       -- 🛟 Chống rơi
+    eq(S.Move.carpetHold, not before, "nút 🛟 đổi trạng thái chống rơi")
+    Mock.click(btns[6])
+    eq(S.Move.carpetHold, before, "bấm lại trả về cũ")
+    local edge0 = S.Move.carpetEdge
+    Mock.click(btns[7])                       -- 🔲 Viền thảm
+    eq(S.Move.carpetEdge, not edge0, "nút 🔲 đổi trạng thái viền")
+    Mock.click(btns[7])
+    eq(S.Move.carpetEdge, edge0, "bấm lại trả về cũ")
+    -- thảm vẫn sát chân + HUD y hệt bản gốc + tốc độ theo game
+    hum().WalkSpeed = 20
+    S.Move.speedMode, S.Move.speedMul = "x", 3
+    action("runmode")
+    Mock.advance(0.1)
+    truthy(H.workspace:FindFirstChild("Carpet"), "có thảm dưới chân")
+    eq(hudBtn("🪩").Size.X.Offset, 50, "HUD vẫn y hệt bản gốc (nút tròn 50)")
+    eq(hum().WalkSpeed, 60, "tốc độ vẫn theo game ×3")
+    S.Move.StopAll(); Mock.advance(0.05)
+end)
+
 print("\n── C. KIỂM TRA CUỐI ─────────────────────────────────────────")
 
 test("C1 · không có lỗi runtime nào trong event / render step", function()
