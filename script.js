@@ -1,6 +1,353 @@
 --[[
-    🍌 Banana Cat Hub v4.11 — FULL CODE  ·  giao diện "OBSIDIAN NOIR" + layout kiểu DELTA
-    + v4.11 (bản này): CHẠY TEST THẬT + SỬA 3 LỖI + THÊM TRANG ⚙️ THIẾT LẬP.
+    🍌 Banana Cat Hub v4.12 — FULL CODE  ·  giao diện "OBSIDIAN NOIR" + layout kiểu DELTA
+    + v4.12 (bản này): THÊM BỘ DI CHUYỂN VÀO TRANG 📚 SCRIPT HUB + SỬA 4 LỖI + BỘ TEST TỰ ĐỘNG.
+        • BỘ DI CHUYỂN (port từ menu "EXECUTOR MENU" ở file aiaiaitao3) — 5 thẻ MỚI trong trang
+          📚 Script Hub, phân loại "Di chuyển", toàn bộ là TIỆN ÍCH NỘI BỘ (không tải từ mạng):
+            - 🚀 Bay: BodyVelocity/BodyGyro, Space lên · Shift/Ctrl xuống · WASD lái.
+            - 🧱 Xuyên Tường (NoClip).
+            - 🦘 Nhảy Vô Hạn.
+            - 🏃 Chạy Trên Thảm (chế độ CHẠY BỘ kiểu aiaiaitao3): bật 1 lần = trải thảm kính
+              dưới chân để chạy lên + tăng tốc chạy + ẩn menu + hiện cụm nút NỔI.
+            - 🪩 Thảm Kính: chỉnh được RỘNG × CAO (độ dày) × DÀI, ⬆⬇ nâng/hạ, bám theo người.
+              (Tốc độ chạy / lực nhảy vẫn chỉnh được ở khung ⚙ — Chạy Trên Thảm dùng chính chúng.)
+        • CỤM NÚT NỔI TRÊN MÀN HÌNH GAME (⬆ 🪩 ⬇ ✕, góc phải màn hình): tự hiện khi thảm/bay/
+          chạy-trên-thảm đang bật, tự ẩn khi tắt hết. ⬆⬇ đưa thảm (và bạn đang đứng trên đó) lên/
+          xuống 2.5 studs · 🪩 bật/tắt thảm · ✕ tắt hết. Đựng TRONG ScreenGui của hub nên KHÔNG
+          bị cơ chế nhúng 🧩 kéo vào tab, và vẫn hiện khi menu đang đóng.
+        • THẢM KÍNH DỄ NHÌN HƠN: bản gốc để Transparency 0.9 (gần tàng hình) -> nay 0.55.
+        • KHUNG ⚙ TUỲ CHỈNH nằm TRÊN CÙNG danh sách thẻ (LayoutOrder 0, tên HubMove_Panel nên
+          không bao giờ bị xoá khi lọc/tìm kiếm): tốc độ bay · tốc độ chạy · lực nhảy · 3 chiều
+          thảm · ⬆ Nâng / ⬇ Hạ / 🛑 Tắt hết + nhãn trạng thái. Toàn bộ nằm trong `do ... end`.
+        • KHÔNG MẤT TÍNH NĂNG NÀO: 16 thẻ cũ + 6 trang cũ giữ nguyên, kiểm bằng 37 test tự động.
+        • 3 ĐIỂM KHÁC BIỆT SO VỚI BẢN GỐC Ở aiaiaitao3 (sửa 3 lỗi của bản gốc luôn):
+          1) Tắt Xuyên Tường: bản gốc gán cứng CanCollide=true cho MỌI part -> mũ/phụ kiện vốn
+             không va chạm bị "cứng" lại, nhân vật hay kẹt. Nay lưu lại giá trị gốc từng part.
+          2) Vòng lặp NoClip/Đóng băng: bản gốc lặp GetDescendants() MỖI Stepped cho MỌI người
+             chơi (~1000 ghi thuộc tính/frame). Nay chỉ duyệt nhân vật mình và chỉ ghi khi khác.
+          3) Bản gốc không lưu gì xuống đĩa; ở đây trạng thái sống trong S.Move, dọn gọn bằng
+             StopAll() và tự bật lại sau respawn (CharacterAdded).
+        • SỬA 4 LỖI (2 lỗi có sẵn từ v4.11, 2 lỗi phát hiện NHỜ BỘ TEST):
+          - LỖI 1 (cũ, nghiêm trọng, v4.11 sửa chưa xong): 3 công tắc 🧩/🕵/🪟 trên header trang
+            vẫn chết. v4.11 mới chỉ dời hàm D.SyncPageChips() xuống sau `local S`, còn CHỖ GỌI
+            (handler Activated ở dòng ~1145) vẫn đứng TRƯỚC `local S` -> `S` bị hiểu là global
+            nil -> bấm là văng "attempt to index a nil value (global 'S')", không bật/tắt được gì.
+            Nay: khai báo trước `local S` ngay sau `local D = {}` và đổi `local S = {` thành
+            `S = {` (gán) để MỌI closure nhìn cùng 1 biến.
+          - LỖI 2 (cũ): `function BcFit()` thiếu `local` -> rò rỉ global `_G.BcFit`.
+          - LỖI 3 (mới): gán SỐ vào thuộc tính Text (flyIn.Text = S.Move.flySpeed) -> Roblox báo
+            "string expected, got number" và bấm ✔ không ăn. Nay bọc tostring().
+          - LỖI 4 (cũ, rò rỉ bộ nhớ): mỗi lần lọc/tìm kiếm ở Script Hub tạo hàng trăm connection
+            mới (D.Tactile) nhưng connection của thẻ đã Destroy không bao giờ bị dọn khỏi
+            _G.BananaCatHub_Connections -> bảng phình mãi. Nay trackConn() tự gom rác khi >300.
+        • BỘ TEST TỰ ĐỘNG (thư mục tests/, chạy bằng `node tests/run.js`): nạp và CHẠY THẬT hub
+          trong máy ảo Lua 5.4 (wasmoon) + Roblox/executor giả lập. 140 test — 140 PASS (E: chạy trên thảm + nút nổi · F: sửa thảm kính · G: nhảy/chạy ở mọi game + tốc độ theo game · H: helper dùng chung sau khi rút gọn · I: Chạy Trên Thảm = Bay chạy bộ bản gốc 100% · J: hết giật khi bật thảm · K: 📍 định vị người chơi · L: 👣 xem người chơi · M: trang 👥 Người Chơi · N: ✨ phát sáng · O: 🛡 bay an toàn · P: 🔲 khiên trong suốt + 👤 né người chơi + 🧱 đẩy xuyên vật cản).
+    + v4.18 (🛡 BAY AN TOÀN nâng cấp: 🔲 KHIÊN TRONG SUỐT HÌNH VUÔNG + 👤 NÉ NGƯỜI CHƠI +
+      🧱 ĐẨY XUYÊN VẬT CẢN — 140 test PASS):
+        • 🔲 BỨC TƯỜNG TRONG SUỐT HÌNH VUÔNG bao quanh mình: 4 vách kính mỏng (CanCollide = false,
+          không va chạm — chỉ để NHÌN), cạnh hình vuông = 📏 Né × 2 nên nhìn là biết mình đang được
+          né trong phạm vi nào. Khiên BÁM THEO mình (chỉ ghi khi thật sự di chuyển), đổi 📏 là đổi
+          cỡ ngay, tắt là dọn sạch. Công tắc riêng: 🔲 Khiên BẬT/TẮT.
+        • 👤 TỰ NÉ NGƯỜI CHƠI: mọi người chơi khác được coi là mối nguy KỂ CẢ KHI HỌ ĐỨNG YÊN
+          (họ đi đâu, đánh nhau, kéo theo đồ đạc... đều khó đoán) -> vẫn đẩy mình ra xa. Có công
+          tắc 👤 Né người để tắt nếu bạn không muốn. Trạng thái ghi rõ "có N người chơi".
+        • 🧱 ĐẨY XUYÊN VẬT CẢN: bật 🛡 là TỰ BẬT Xuyên Tường (nhớ trạng thái cũ) nên lực đẩy đưa
+          bạn QUA tường/sàn/cửa thay vì kẹt lại. Tắt 🛡 là TRẢ LẠI ĐÚNG trạng thái trước đó (trước
+          đang tắt thì vẫn tắt) — không cướp công tắc của bạn. Tắt công tắc 🧱 giữa chừng cũng
+          trả lại ngay lập tức.
+        • KHUNG 🛡 nay có 4 hàng: 🛡 BẬT/TẮT · 📏 Né · 💨 Bay · 🌀 Gắt | ➡ Tự bay · 🔲 Khiên ·
+          👤 Né người · 🧱 Xuyên | ✔ Áp dụng · 🚫 Tắt + nhãn trạng thái | ghi chú.
+        • 2 LỖI do bộ test bắt được và đã sửa:
+          1) Hàm quét NGƯỜI CHƠI trả về "khoảng cách gần nhất = nil" khi server không có người
+             chơi nào -> XOÁ MẤT khoảng cách gần nhất của VẬT, làm phần "quá gần thì vọt lên"
+             không còn hoạt động. Nay truyền khoảng cách hiện có vào và giữ giá trị nhỏ nhất.
+          2) Thêm 1 biến local nữa vào main chunk -> vượt TRẦN 200 LOCAL của Luau/Lua 5.4
+             ("too many local variables") làm cả hub KHÔNG NẠP ĐƯỢC. Nay toàn bộ khối 🛡 nằm
+             trong `do ... end` nên không chiếm slot local của chunk (giống các tab khác).
+    + v4.24 (🛡 BAY AN TOÀN: 🔲 KHIÊN QUAY VÒNG TRÒN quanh mình — đứng im là thấy bay vòng + dọn lại
+      hàng nút khung 🛡 — 194 test PASS):
+        → 🔲 Đúng ý "đứng im thì nhân vật tự bay vòng tròn và hình vuông quanh mình CŨNG bay vòng tròn":
+          ⭕ Vòng tròn (đứng im, không bấm WASD, quanh đây không có mối nguy -> tự bay vòng quanh chỗ
+          đang đứng) đã có từ v4.19 và vẫn nguyên; NAY thêm: cả cái hình vuông quanh mình CŨNG QUAY
+          VÒNG TRÒN — 4 vách xoay quanh trục dọc của mình, đang bay vòng tròn thì quay ăn khớp thêm
+          đúng tốc độ vòng bay, nên nhìn như cả "cái hộp" đang bay vòng quanh mình.
+        → Nút 🔲 Quay: BẬT/TẮT + ô Tốc (°/giây, mặc định 60 = 1 vòng/6 giây; 0 = không quay). Tắt
+          quay là khiên tự trả về hướng vuông góc trục như cũ. Trạng thái 🛡 ghi luôn "🔲 quay 60°/giây".
+        → Dọn lại khung 🛡: hàng 🔲 Cỡ (v4.23) nằm đè lên DÒNG TRẠNG THÁI -> nay tách ra HÀNG RIÊNG
+          (cùng 🔲 Quay + Tốc), khung cao 174 -> 200px, ghi chú ngắn lại cho vừa khung.
+        → 6 test mới V1–V6: đứng im là tự bay vòng tròn (kể cả sau khi đổi trận) · khiên quay quanh
+          mình (góc quay đổi liên tục, 4 vách vẫn cách đều tâm, cỡ không đổi) · tắt 🔲 Quay là khiên
+          đứng hướng · khiên quay vẫn theo nhân vật mới sau respawn/đổi trận · nút 🔲 Quay + ô Tốc ăn
+          đúng (quay 180°/giây thì 1 giây quay ~180°) · không mất tính năng cũ nào.
+ SỬA LỖI "hết trận sang trận mới là 🛡 không hoạt động nữa" +
+      🔲 KHIÊN VỀ CỠ HỢP LÍ — 188 test PASS):
+        → 🔲 LỖI THẬT (bạn gặp trong game): 🛡 trước đây KHÔNG có vòng lặp riêng — nó chỉ được gọi ở
+          CUỐI vòng lặp 🚀 Bay (`if MV.Safe and MV.Safe.on then MV.Safe.Step()`). Hết trận / sang trận
+          mới, BodyVelocity "BC_FlyVel" chết theo nhân vật cũ (hoặc CÒN DÍNH nhân vật cũ) -> vòng lặp
+          Bay thoát NGAY ở dòng đầu `if not MV.fly or not curR or not MV._bv then return end` -> 🛡 im
+          lặng vĩnh viễn, bật/tắt cũng không thấy gì. Nay 🛡 có VÒNG LẶP RIÊNG
+          (BindToRenderStep "BC_Safe") + TỰ CHỮA LÀNH mỗi frame: part bay mất/hỏng/dính nhân vật cũ
+          thì dựng lại đúng nhân vật đang dùng, quên dữ liệu trận cũ, dựng lại khiên, và giữ
+          PlatformStand/AutoRotate đúng trạng thái bay (game hay reset 2 cờ này sau respawn).
+          Thêm lớp cuối: watchdog 0,3s GẮN LẠI vòng lặp + chạy hộ nếu game gỡ/ngốn vòng lặp render.
+          Tắt 🛡 là gỡ vòng lặp riêng (không chạy chồm). MV.Refresh (respawn) cũng soi lại part bay.
+        → 🔲 CỠ KHIÊN HỢP LÍ (đúng ý "hình vuông bao quanh mình kích thước hợp lí"): trước đây cạnh
+          khiên = 📏 × 2 nên 📏 25 -> cái hộp 50 × 16 stud, nhìn như cái chuồng. Nay mặc định ÔM SÁT
+          nhân vật (~5,2 stud/cạnh, cao ~8 stud) và 📏 Né CHỈ còn là khoảng cách né. Muốn to/nhỏ thì
+          chỉnh ô 🔲 Cỡ trong khung ⚙ Hỗ Trợ (0 = tự động, > 0 = số stud nửa cạnh). Khiên vẫn 4 vách
+          trong suốt CanCollide = false, vẫn bám theo mình, vách nào bị game xoá là dựng lại CẢ BỘ.
+          Trạng thái 🛡 ghi luôn cỡ khiên ("🔲 khiên 5.2 m/cạnh (tự)").
+        → 🚀 Vòng lặp Bay được bọc pcall TỪNG PHẦN (game xoá part bay / camera nil / đổi nhân vật giữa
+          frame) và TỰ dựng lại "BC_FlyFloor" nếu bị xoá — trước đây 1 lỗi ở đây là chết cả vòng lặp
+          (mà 🛡 nằm cuối vòng lặp đó nên chết theo).
+        → 11 test mới U1–U11: đổi trận CÓ và KHÔNG có CharacterAdded, part bay còn dính nhân vật cũ,
+          anti-cheat xoá part bay giữa trận, game gỡ vòng lặp render (watchdog gắn lại), tự chữa lành
+          trong ~1 frame khi không có event nào, khiên đúng cỡ + KHÔNG phình theo 📏 + đi theo nhân vật
+          mới, ô 🔲 Cỡ (0 = tự), Status ghi cỡ khiên, tắt 🛡 là dọn sạch + gỡ vòng lặp, không mất tính
+          năng cũ nào.
+    + v4.22 (🧱 Xuyên Tường "CỨNG" cho mọi game + 🧲 tự đẩy xuyên khi bị chặn — 177 test PASS):
+        • 🔴 LỖI THẬT: một số tựa game/anti-cheat BẬT LẠI CanCollide cho part của người chơi MỖI FRAME
+          (hoặc đặt lại cho part mới sinh). Bản cũ chỉ quét lại 2 GIÂY/lần -> thua, bật 🧱 mà vẫn kẹt ở
+          tường. Nay hub ghi CanCollide = false MỖI FRAME trên đúng danh sách part của mình (rẻ), quét
+          đầy đủ 0,5s/lần để bắt part mới (kể cả part game thả vào mà không bắn event). Thêm lớp ghi ở
+          CUỐI frame (BindToRenderStep "BC_NoClip" · RenderPriority.Last) nên luôn là người ghi sau cùng.
+        • 🧲 TỰ ĐẨY XUYÊN: game chặn cứng (tắt va chạm vẫn không qua được) mà bấm WASD > 0,2s không nhích
+          -> hub tự nhích CFrame theo hướng đang bấm (tối đa 3 stud/frame, giữ nguyên độ cao Y) để xuyên
+          qua. Không bấm gì hoặc đi lại bình thường thì KHÔNG đụng vào người chơi. Có công tắc 🧲 trong
+          khung ⚙ Tuỳ chỉnh (mặc định BẬT) để tắt nếu game không thích.
+        • Vẫn đúng nguyên tắc cũ: chỉ sửa part TRÊN NGƯỜI MÌNH, không đụng vào tường/part của game; tắt
+          🧱 là TRẢ LẠI đúng CanCollide gốc cho từng part (phụ kiện CanCollide=false vẫn giữ false).
+        • 🐞 2 LỖI nữa do bộ test bắt được ngay khi làm tính năng này:
+          1) hàm vẽ nút 🧲 nhìn thấy biến TOÀN CỤC `pcBtn` (vì khai báo `local pcBtn` nằm SAU hàm) -> bấm
+             nút là lỗi "attempt to index a nil value" (nút chết, thêm 6 test đỏ). Nay khai báo local TRƯỚC.
+          2) MV.Refresh() (respawn) XOÁ TRẮNG bảng giá trị CanCollide gốc trong lúc 🧱 vẫn bật -> mất giá
+             trị gốc của part đang tắt va chạm -> tắt 🧱 xong nhân vật vẫn CanCollide = false và RƠI XUYÊN
+             MAP mãi. Nay chỉ quên part đã bị xoá (MV._NcForgetLost), và part nào từng bị mình tắt mà mất
+             dấu giá trị gốc thì coi gốc là true (thà va chạm lại còn hơn rơi xuyên map).
+        • 10 test mới T1–T10: game bật lại CanCollide 40 frame liên tiếp (hub THẮNG) · part mới sinh bị tắt
+          trong 1 frame · tắt 🧱 là trả lại gốc · 🧲 nhích khi kẹt cứng, KHÔNG nhích khi rảnh / tắt công tắc
+          / 🧱 đang tắt · không đẩy thêm khi đi lại bình thường · respawn · tường của game KHÔNG bị đụng ·
+          nút 🧲 trong khung ⚙ + không mất tính năng nào cũ · soi nguồn (BindToRenderStep + RenderPriority.Last).
+    + v4.21 (tab 🛠 Hỗ Trợ): 🎯 ĐỊNH VỊ TỐC ĐỘ — bật lên là thấy (1) tốc độ MẶC ĐỊNH của game
+        (lấy từ S.Move._baseWS nếu 👟 đã học, không thì lấy WalkSpeed thật của nhân vật lúc bật; tự học lại
+        mỗi khi game đổi WalkSpeed), (2) tốc độ THẬT đang chạy (studs/s đo theo quãng đường mỗi frame),
+        (3) ĐỈNH cao nhất trong phiên + thanh so sánh với vạch mặc định + HUD nổi BC_SpeedHud trong màn hình
+        game (đóng menu vẫn thấy). Khối chỉ ĐỌC — không ghi WalkSpeed/CFrame nên không thể phá tính năng khác.
+    + v4.20 (🛡 BAY AN TOÀN: SỬA LỖI BOSS/NEXTBOT GÍ MÌNH MÀ KHÔNG NÉ — 156 test PASS):
+        • 🔴 LỖI NẶNG (chỉ xảy ra trong GAME THẬT, bộ test cũ không thấy): hàm nhận diện part đòi
+          `type(d) == "table"`, nhưng trong Roblox THẬT instance là USERDATA (chỉ trong máy giả lập của
+          bộ test instance mới là bảng). Hệ quả: trong game thật 🛡 KHÔNG BAO GIỜ thấy part nào — chỉ
+          thấy NGƯỜI CHƠI — nên boss/nextbot lao tới mà không né (đúng như bạn gặp ở Evade).
+          Nay nhận part bằng `d:IsA("BasePart")` (kèm danh sách ClassName dự phòng, thêm
+          Negate/Intersect/Ball/Cylinder/VehicleSeat/Platform) — chạy đúng cả game thật lẫn bộ test.
+        • 🔴 LỖI 2: "né theo VỊ TRÍ DỰ ĐOÁN" khi vật đã gí SÁT -> điểm dự đoán (vị trí + vận tốc × 0,35s)
+          lố ra SAU LƯNG mình, thế là lực đẩy hoá ra đẩy mình BAY THẲNG VÀO CON BOSS. Nay nếu điểm dự
+          đoán nằm ở phía bên kia mình thì né theo VỊ TRÍ HIỆN TẠI (test R3 bắt được).
+        • 👾 BOSS/NEXTBOT TO: đo khoảng cách tới MẶT vật (bán kính bao, kẹp tối đa 75% 📏) chứ không
+          đo tới TÂM part — part 30 studs mà đo tâm thì nó đã chạm mình từ lâu mới "vào 📏".
+          Cổng quét cũng theo MẶT vật nên boss to (tâm ngoài tầm) vẫn được né.
+        • 🏃 NHỚ HƯỚNG NÉ ~0,9s: boss đuổi theo, hễ nó ra khỏi tầm quét là mình quay lại hướng cũ ->
+          bị gí lại ngay. Nay tiếp tục chạy RA XA hướng đó (yếu dần rồi thôi).
+        • ⚡ QUÉT DÀY 0,05s trong ~1s sau khi VỪA bị gí (không chỉ lúc đang có mối nguy) -> boss mới
+          xuất hiện là bắt ngay, không chờ 0,15s.
+        • 🧟 NPC có Humanoid ĐANG ĐI (MoveDirection > 0) cũng tính là "đang chuyển động" dù part không
+          có vận tốc và vị trí đổi rất ít (kiểu boss đi bằng Humanoid:MoveTo/Pathfinding). NPC ĐỨNG YÊN
+          (WalkSpeed 16 nhưng MoveDirection = 0) thì KHÔNG bị né bừa.
+        • 👤 Part của NGƯỜI CHƠI KHÁC do phần 👤 Né người quyết định (trước đây tính 2 lần, và 👤 TẮT
+          xong vẫn bị né vì bị coi là "vật có Humanoid đang đi").
+        • 🔍 Quét bằng OverlapParams (MaxParts = 0 = không giới hạn, bỏ qua part của chính mình) — map
+          nhiều part như Evade không hụt mối nguy.
+        • 🧮 `MV.comp(v, "Y", 0)`: đọc thành phần Vector3 an toàn cho CẢ game thật (Vector3 = userdata)
+          lẫn bộ test (bảng) — sửa luôn 2 chỗ cũ đọc `.Y` kiểu bảng nên trong game thật luôn ra 0
+          (lực nhảy mất phương ngang, thảm không biết đang đi lên).
+        • 🐾 Trạng thái giờ ghi "🐾 thấy N vật đang chạy" khi có vật chuyển động trong tầm mà chưa phải
+          mối nguy — để soi được "vì sao không né".
+        • 9 test mới (R0–R8) + máy giả lập THẬT hơn: GetPartBoundsInRadius xét BAO LỒI, tôn trọng
+          OverlapParams (MaxParts/FilterType/FilterDescendantsInstances), và có part "KIỂU INSTANCE THẬT"
+          (bảng KHÔNG có dấu hiệu riêng của mock) để bắt đúng loại lỗi mock-only này; thêm test soi
+          NGUỒN (R0) cấm dùng `type(x) == "table"` để nhận diện instance.
+    + v4.19 (🛡 BAY AN TOÀN: 👁 BẮT VẬT BAY TỚI MÌNH từ xa + ⭕ TỰ BAY VÒNG TRÒN khi rảnh — 147 test PASS):
+        • 👁 NHÌN TRƯỚC (quét xa 📏 × 1,6 + tính "tốc độ lao vào nhau"): trước đây chỉ né vật ĐANG Ở TRONG 📏,
+          nên một số vật chuyển động bay tới mình từ xa lọt qua. Nay mỗi lần quét còn tính thời gian vật tới
+          sát mình (tHit): tHit ≤ 👁 giây (mặc định 1s) là coi là MỐI NGUY và né TỪ XA, đẩy theo VỊ TRÍ DỰ ĐOÁN
+          (vị trí + vận tốc × 0,35s) nên né đúng hướng vật đang lao tới. Đang có mối nguy -> quét DÀY 0,05s
+          (bình thường 0,15s) để vật bay nhanh không lọt khe giữa 2 lần quét.
+          LƯU Ý: chỉ tính phần vận tốc CỦA VẬT bay về phía mình (KHÔNG cộng vận tốc của mình) — nếu cộng thì
+          vật ĐỨNG YÊN ngay trước mặt cũng bị coi là "lao tới" (bộ test O3/P5 bắt được lỗi này); mình bay tới
+          nó chỉ làm lực đẩy MẠNH THÊM (boost), không đổi việc nó có phải mối nguy hay không.
+        • ⭕ TỰ BAY VÒNG TRÒN: khi KHÔNG có ai/vật nào đang lao tới mình (và không bấm WASD) thì tự bay vòng
+          tròn quanh chỗ đang đứng (mặc định bán kính 20m, chỉnh ở ô ⭕). Đang né hoặc đang bấm phím thì TẠM
+          DỪNG (ghi rõ trong trạng thái), né xong TỰ BAY VÒNG LẠI. Bay quá 1,6× bán kính (do bị đẩy/va chạm)
+          thì lấy lại tâm mới, không kéo ngược về chỗ cũ.
+        • KHUNG 🛡 nay 5 hàng: thêm hàng ⭕ Vòng tròn BẬT/TẮT · ⭕ Bán kính · 👁 Nhìn trước (giây); nút ✔ Áp dụng
+          đọc luôn 2 ô mới. Ghi chú trong khung nói rõ ⭕ và 👁 làm gì.
+        • 7 test mới (Q1–Q7): vật lao tới từ NGOÀI 📏 vẫn bị bắt · 👁 chỉnh được (nhìn gần thì bỏ qua) ·
+          ⭕ bay vòng tròn khi rảnh · ⭕ tạm dừng khi đang né rồi tự bay lại · WASD tạm dừng ⭕ · nút ⭕ + ô bán
+          kính áp dụng đúng · ⭕ bật mà KHÔNG mất tính năng (vẫn né, khiên/thẻ/thảm còn nguyên).
+        • 2 LỖI do bộ test bắt được và đã sửa:
+          1) Cộng cả vận tốc của MÌNH vào "tốc độ lao vào" -> vật đứng yên trước mặt bị coi là mối nguy
+             (O3/P5 bắt được). Nay chỉ tính vận tốc của vật.
+          2) Trạng thái vẫn ghi "⭕ bay vòng tròn" trong khi đang bấm WASD (thực tế đã tạm dừng) -> nay ghi
+             rõ "⭕ tạm dừng (đang bấm phím)".
+        • Bộ test: sửa 1 lỗi của MÁY GIẢ LẬP Roblox — CFrame.lookAt() luôn cho LookVector = (0,0,-1) vì thiếu
+          nhánh cf(Vector3, lookVector) (khiến camera giả không bao giờ có hướng như test đặt). Nay giữ đúng
+          hướng; các test 🛡 còn tự trả camera về mặc định trong cleanSafe() để kết quả TẤT ĐỊNH.
+    + v4.17 (🛡 BAY AN TOÀN — tự bay + TỰ NÉ vật có dấu hiệu chuyển động — 131 test PASS):
+        • 1 THẺ MỚI "🛡 Bay An Toàn" (nhóm "Di chuyển") + KHUNG 🛡 trong 📚 Script Hub (dưới
+          khung ⚙ và ✨): 🛡 BẬT/TẮT · 📏 Né (m) · 💨 Bay · 🌀 Gắt · ➡ Tự bay · ✔ Áp dụng · 🚫 Tắt.
+        • BẬT LÀ TỰ BAY: không cần giữ phím nào vẫn bay theo hướng camera (➡ Tự bay TẮT thì chỉ
+          bay khi bấm WASD — nhưng VẪN tự né).
+        • TỰ NÉ: mỗi 0,15 giây quét mọi vật quanh mình trong bán kính 📏 bạn chỉnh. Vật có DẤU
+          HIỆU CHUYỂN ĐỘNG — đang di chuyển (vận tốc > 1,5) HOẶC VỪA ĐỔI VỊ TRÍ (dịch > 0,35
+          studs giữa 2 lần quét, bắt được cả vật bị script/tween/CFrame kéo đi mà vận tốc = 0) —
+          thì bị ĐẨY RA XA: càng gần đẩy càng mạnh (theo bình phương), tới gần hơn 40% bán kính
+          thì VỌT LÊN TRÊN. Vật đứng yên KHÔNG bị né (bay xuyên qua bình thường).
+        • CHỈNH ĐƯỢC: 💨 tốc độ bay (1–2000, dùng chung số với khung ⚙) · 📏 KHOẢNG CÁCH XÁC
+          ĐỊNH ĐỂ NÉ (1–300m) · 🌀 né gắt (1–10). Vận tốc luôn bị kẹp trần (2× tốc độ) nên
+          không bao giờ vọt vô hạn.
+        • Chạy CHUNG vòng lặp với 🚀 Bay và gọi ở CUỐI vòng đó -> chắc chắn thắng, không đánh
+          nhau với điều khiển WASD/Space/Shift. Chỉ GHI VẬN TỐC của chính mình (BodyVelocity),
+          không ghi vị trí, không đụng vào ai. Tắt 🛡 là tắt cả Bay + dọn BodyVelocity.
+        • 1 LỖI NẶNG do bộ test bắt được và đã sửa: lực né bị viết NGƯỢC DẤU (cộng hướng-tới-vật
+          thay vì trừ) -> bật lên thì bị HÚT VỀ PHÍA vật chuyển động. Bộ test O2/O4/O6/O8 phát
+          hiện ngay (đòi vận tốc phải đẩy ra xa). Test O12 còn kiểm 200 vật đứng yên + 1 vật
+          chạy -> chỉ đếm đúng 1 mối nguy, không lỗi runtime.
+        • LỖI LÂY LAN trong bộ test cũng đã sửa: test lọc chip "Di chuyển" đếm cứng "5 thẻ" nên
+          khi thêm thẻ mới thì gãy GIỮA CHỪNG, để lại bộ lọc chip đang bật -> hàng loạt test phía
+          sau tìm không ra thẻ và báo sai. Nay đếm ĐỘNG theo số thẻ thật + hàm resetChip() đặt
+          lại bộ lọc trước mỗi test tìm thẻ (không bao giờ lây lan nữa).
+    + v4.16 (✨ PHÁT SÁNG — nhân vật MÌNH phát sáng, chỉnh RỘNG + ĐỘ SÁNG — 119 test PASS):
+        • 1 THẺ MỚI "✨ Phát Sáng" (nhóm "Tiện ích") + KHUNG ✨ nằm TRÊN CÙNG danh sách thẻ
+          trong 📚 Script Hub: ✨ BẬT/TẮT · 👁 Xuyên tường · 💡 Đèn thật · 📏 Rộng · ☀ Sáng ·
+          🎨 Đổi màu · ✔ Áp dụng · 🚫 Tắt.
+        • Bật là CHÍNH BẠN phát sáng: 1 Highlight nhuộm sáng cả nhân vật + 1 PointLight toả
+          sáng thật quanh người. Chỉnh được CHIỀU RỘNG (bán kính 1–200) và ĐỘ SÁNG (0–10)
+          + 7 màu xoay vòng — đổi là thấy ngay, không cần tắt/bật lại.
+        • "ÁNH SÁNG KHÔNG BỊ TRÓI":
+            - 👁 Xuyên tường: thấy mình sáng XUYÊN QUA tường/vật cản (DepthMode = AlwaysOnTop).
+            - 💡 Đèn thật: PointLight.Shadows = false -> ánh sáng KHÔNG bị vật cản chặn;
+              toả tròn theo bán kính bạn chỉnh, đi tới đâu sáng tới đó (đèn nằm trong người).
+            - Game/anti-cheat xoá Highlight hay PointLight -> vòng canh gác 0,5 giây GẮN LẠI.
+            - Respawn: tự gắn lại vào nhân vật mới, không cần bấm lại.
+            - Game gỡ luôn GUI của hub -> tự treo viền nhuộm sang GUI khác đang sống.
+        • AN TOÀN: chỉ thêm hiệu ứng (Highlight không phải part + PointLight không va chạm) —
+          KHÔNG đụng vào vị trí, tốc độ hay chuyển động của ai. Tắt là dẹp sạch + ngắt vòng canh.
+        • 2 LỖI do bộ test bắt được khi làm tính năng này:
+          1) Dùng math.clamp() (chỉ có trong Luau) trong hàm tính độ sáng -> pcall nuốt lỗi,
+             bật lên KHÔNG thấy gì. Nay dùng mvClamp() của hub (chạy được cả Lua 5.4).
+          2) Đổi chiều cao khung điều khiển: CanvasSize cũ chỉ cộng 1 khung ⚙ -> cuộn thiếu
+             hàng thẻ cuối. Nay cộng chiều cao MỌI khung điều khiển (thêm khung nào cũng đúng).
+    + v4.15 (TRANG 👥 NGƯỜI CHƠI — nằm GIỮA 📚 Script Hub và ➕ Tạo Tính Năng — 110 test PASS):
+        • THÊM 1 TRANG RIÊNG cho mọi việc liên quan tới NGƯỜI CHƠI KHÁC, đặt ngay sau
+          📚 Script Hub và trước ➕ Tạo Tính Năng (thứ tự rail: 💾 💻 📚 👥 🛠 ⚙️ ➕):
+            📍 ĐỊNH VỊ NGƯỜI CHƠI (khung đầy đủ: 👁️ Tất Cả · 🎯 Lẻ · 🚫 Tắt · 📏 Xa nhất (m) ·
+               🔍 tìm tên + danh sách người chơi: bấm TÊN = chỉ định vị người đó)
+            👣 XEM NGƯỜI CHƠI (👣 Bám theo · 🎥 Bám BẬT/TẮT · 🔄 Tự chuyển · 📏 m · ⬆ cao ·
+               ✔ Áp dụng · 🚫 Dừng xem + danh sách người chơi: bấm TÊN = bám theo xem họ làm gì)
+        • KHÔNG MẤT TÍNH NĂNG NÀO: 2 khung điều khiển chỉ CHUYỂN từ danh sách 📚 Script Hub sang
+          trang 👥 (đỡ rối trang Script Hub), còn 5 thẻ 📍👣 trong 📚 Script Hub vẫn còn nguyên
+          và vẫn bấm là chạy được. 6 trang cũ giữ nguyên thứ tự tương đối (Hỗ Trợ 5 · ⚙️ 6 · ➕ 7).
+        • Trang 👥 có tiêu đề + ghi chú, tự cuộn vừa (CanvasSize tính theo chiều cao 2 khung). — bám theo để thấy họ đang làm gì — 104 test PASS):
+        • Bật 👣 rồi BẤM TÊN một người chơi (trong khung 👣 hoặc khung 📍) là CAMERA BAY THEO
+          người đó: thấy tận mắt họ đang chạy/nhảy/ngồi/rơi/gục/đứng yên ở đâu. Kèm BẢNG NỔI
+          trên màn hình game (menu đóng vẫn thấy): TÊN · 💗 Bạn Bè · ❤️ máu · 📏 khoảng cách ·
+          💨 tốc độ · và dòng "🏃 đang CHẠY NHANH / 🚶 đang CHẠY / 🐌 đi CHẬM / 🦘 đang NHẢY /
+          🪂 đang RƠI / 🪑 đang NGỒI / ☠️ đang BỊ HẠ GỤC (⏱ đếm giờ) / 🧍 đang ĐỨNG YÊN".
+        • 2 THẺ MỚI ở nhóm "Định vị": 👣 Xem Người Chơi (bám người gần nhất / người đang chọn)
+          và 🚫 Dừng Xem Người Chơi. Khung 👣 (v4.15: đã CHUYỂN sang trang 👥 Người Chơi,
+          nằm ngay dưới khung 📍): 👣 Bám theo · 🎥 Bám BẬT/TẮT ·
+          🔄 Tự chuyển · 📏 m · ⬆ cao · ✔ Áp dụng · danh sách người chơi (bấm tên = bám).
+        • BẢNG NỔI có 2 nút dùng ngay: 🎥 (tắt/bật bám camera) và 🚫 (trả camera về cho bạn).
+        • AN TOÀN TUYỆT ĐỐI: chỉ ĐỔI CAMERA (CameraType = Scriptable) — KHÔNG dịch chuyển nhân vật,
+          KHÔNG ghi CFrame/vận tốc của ai. Tắt là trả lại ĐÚNG kiểu camera gốc của game.
+          Game cướp camera (cutscene/respawn/anti-cheat) -> hub tự đòi lại 4 lần/giây khi đang bám.
+          Chạy lại hub giữa chừng cũng KHÔNG bao giờ để camera bị đóng băng: kiểu camera gốc được
+          ghi ra _G.BananaCatHub_SpecCam và lần chạy sau tự trả lại.
+        • Vẫn dùng chung 1 vòng lặp 0,2 giây của 📍 (BindToRenderStep, ngắt khi tắt hết) nên nhẹ;
+          danh sách trong menu tự làm mới 2 giây/lần CHỈ khi trang 📚 Script Hub đang mở.
+        • 2 LỖI do bộ test bắt được và đã sửa trong v4.14:
+          1) ⏱ đếm giờ hạ gục chỉ chạy khi 📍 Định Vị đang bật (bật 👣 một mình thì đồng hồ đứng
+             ở 00:00) -> nay 📍 và 👣 dùng CHUNG hàm ghi mốc S.Loc.NoteDown.
+          2) Người đang xem biến mất hẳn khỏi danh sách (không bắn PlayerRemoving) -> camera kẹt
+             ở chế độ Scriptable. Nay tự chuyển người (nếu bật 🔄) hoặc tự thoát + TRẢ camera.
+    + v4.13 (📍 ĐỊNH VỊ NGƯỜI CHƠI — port từ "ESP System" của aiaiaitao3 — 90 test PASS):
+        • XUYÊN TƯỜNG THẤY NGƯỜI: mỗi người chơi 1 nhãn nổi trên đầu + viền sáng quanh người.
+          Nhãn ghi: TÊN · 💗 Bạn Bè · ☠️ Hạ gục (kèm ⏱ ĐẾM GIỜ đã gục) · ❤️ máu · 📏 KHOẢNG CÁCH.
+        • 4 MÀU ĐÚNG NHƯ BẢN GỐC: 🟢 xanh = người thường · 💗 hồng = bạn bè ·
+          🔴 đỏ = bị hạ gục · 🟣 tím = bạn bè bị hạ gục. (Bạn bè đọc bằng player:IsFriendsWith —
+          có nhớ đệm nên chỉ hỏi 1 lần/người, không spam.)
+        • 3 THẺ MỚI trong trang 📚 Script Hub, phân loại "Định vị" (đều là tiện ích nội bộ):
+            📍 Định Vị Người Chơi — bật/tắt xuyên tường thấy TẤT CẢ người chơi.
+            🎯 Định Vị Lẻ — chỉ 1 người (chưa chọn thì tự lấy người gần nhất).
+            🚫 Tắt Định Vị — dọn sạch nhãn/viền + NGẮT vòng lặp (không ngầm chạy nữa).
+        • KHUNG 📍 ĐỊNH VỊ (v4.15: đã CHUYỂN sang trang 👥 Người Chơi): 👁️ Tất Cả · 🎯 Lẻ · 🚫 Tắt · 📏 XA NHẤT (m)
+          (0 = không giới hạn — chỉ hiện người trong bán kính, đỡ rối mắt ở server đông) ·
+          ô 🔍 tìm tên + DANH SÁCH người chơi: bấm TÊN = chỉ định vị đúng người đó (bấm lại = bỏ).
+        • TỐI ƯU HƠN BẢN GỐC (không bỏ tính năng nào): bản gốc mở MỖI người 1 luồng task.spawn
+          cập nhật nhãn (server 40 người = 40 luồng) và WaitForChild(...) treo 3 giây/người khi
+          game chưa gắn part. Nay: MỘT vòng lặp 0.2 giây cho tất cả (BindToRenderStep), đọc
+          FindFirstChild (chưa có thì đợi vòng sau), tự dọn khi người thoát/đổi nhân vật, và
+          TỰ NGẮT vòng lặp khi tắt hết. Thêm 📏 giới hạn khoảng cách (bản gốc không có).
+    + v4.12.5 (HẾT GIẬT/LAG KHI BẬT THẢM ở game nặng — Evade — 79 test PASS):
+        • NGUYÊN NHÂN GIẬT: bản v4.12.1 cứ MỖI FRAME ghi lại CFrame + xoá vận tốc của nhân vật
+          để "đỡ khỏi rơi xuyên thảm". Ở game nặng / có anti-cheat (Evade) việc đó ĐÁNH NHAU với
+          vật lý của game -> người giật, lag. Bản gốc aiaiaitao3 KHÔNG BAO GIỜ đụng vào nhân vật
+          (bạn đứng trên thảm nhờ va chạm bình thường của Roblox) nên mới mượt.
+        • CÁCH SỬA: chỉ đỡ khi bạn lún/rơi qua mặt thảm QUÁ 0.5 stud (`carpetSlack`). Đứng yên
+          trên thảm = KHÔNG ghi gì (mượt y hệt bản gốc). Rơi xuyên hay bấm ⬆⬇ (2.5 stud) vẫn
+          được đỡ / kéo theo ngay. Đang bật Xuyên Tường thì đỡ ngay (slack = 0, như bản gốc).
+        • 2 CÔNG TẮC MỚI ở hàng 4 trong khung ⚙ (dành cho game nặng):
+            🛟 Chống rơi: TẮT = y hệt bản gốc, hub không đụng vào nhân vật nữa -> hết giật hẳn.
+            🔲 Viền thảm: TẮT = bỏ đường viền sáng (thảm vẫn còn, nhẹ hơn ở game nặng).
+        • Bớt ghi: thảm chỉ đổi CFrame khi toạ độ THẬT SỰ đổi (đứng yên thì không ghi gì).
+        • 👟 Gõ "x1" vào ô Chạy = GIỮ NGUYÊN tốc độ game (y hệt bản gốc, né anti-cheat bắt tốc
+          độ). Mặc định vẫn là ×3 như bạn đã xin.
+    + v4.12.4 (🏃 CHẠY TRÊN THẢM = "🕹️ BAY CHẠY BỘ" BẢN GỐC 100% — 72 test PASS):
+        • Overlay dựng Y HỆT aiaiaitao3: khung 180×160 sát mép phải · 3 nút TRÒN 50×50 xếp dọc
+          🪩 (y=0) · ⬆ (y=60) · ⬇ (y=120) · viền trắng 2px · mờ 0.3 · màu đúng bản gốc (🪩 xám,
+          ⬆ xanh lá 0,150,0 · ⬇ đỏ 150,0,0) · ✕ TRÒN 34×34 ở góc trên bên phải khung.
+        • Bật chế độ Y HỆT StartFlyRun(): tắt bay → trải thảm → ẨN MENU → nút mở menu thành ⚙ →
+          hiện overlay. Tắt Y HỆT StopFlyRun(): thu thảm → ẩn overlay → trả nút mở menu về ✕/🍌.
+        • ⬆⬇ y hệt movUBtn/movDBtn: thảm đang tắt thì TỰ BẬT lại rồi mới nâng/hạ đúng 2.5.
+        • 🪩 y hệt togCBtn: bật/tắt thảm ngay trong lúc đang chạy (overlay vẫn hiện như bản gốc).
+        • Bật BAY khi đang chạy trên thảm thì THOÁT chế độ chạy (y hệt TogFly gọi StopFlyRun).
+        • Vẫn giữ 2 cái TỐT HƠN bản gốc (đã xin ở các bản trước): không rơi xuyên thảm dù KHÔNG
+          bật Xuyên Tường, và tốc độ chạy THEO GAME ×3.
+    + v4.12.3 (RÚT GỌN + TỐI ƯU CODE — 65 test PASS, KHÔNG đổi tính năng nào):
+        • RÚT GỌN (bớt 66 dòng): 11 nút kiểu "đổi chữ rồi trả lại" gom vào flash() · 13 chỗ "đặt
+          chữ + màu thanh trạng thái" gom vào D.Say() · 9 chỗ dựng lại danh sách gom vào
+          S.Rebuild() · 6 chỗ copy clipboard gom vào S.CopyToClipboard() · khung + nút trang gom
+          thành MakeTabFrame/MakeTabButton (dùng chung cho trang thường và tab tính năng) · 2 nút
+          góc tiêu đề thành TitleBtn() · 2 khối "N/A" bảng tọa độ thành coordNA().
+        • TỐI ƯU: 🧱 Xuyên Tường không còn gọi GetDescendants() MỖI frame (60 lần/giây). Nay quét
+          khi BẬT / đổi nhân vật / mỗi 2s + bắt DescendantAdded -> part mới vẫn XUYÊN NGAY.
+        • SỬA LỖI LỌT KHI GỘP CODE: nút 📋 "Sao Chép Code" kẹt chữ "✅ Đã Sao Chép!" (nhóm test H).
+    + v4.12.2 (CHO NHẢY + CHẠY CHẠY Ở MỌI GAME · TỐC ĐỘ THEO GAME — 59 test PASS):
+        • 🦘 NHẢY VÔ HẠN bị liệt ở nhiều game vì chỉ nghe JumpRequest rồi ChangeState. Nay nhảy
+          bằng 3 CÁCH: ChangeState · lệnh Jump kiểu cũ · ĐẨY VẬN TỐC (chỉ chạy khi 0.08s sau mà
+          người vẫn không nhúc nhích -> không bao giờ "nhảy đúp" ở game bình thường). Nghe thêm
+          phím Space / nút A qua InputBegan nên game ĂN MẤT JumpRequest vẫn nhảy được. Game CẤM
+          NHẢY (JumpPower/JumpHeight = 0) cũng được mở lại, tắt thì trả lại đúng 0.
+        • 🏃 CHẠY TRÊN THẢM: CHẠY + NHẢY THOẢI MÁI — thảm chỉ giữ bạn khi đứng yên hoặc đang rơi,
+          nên nhảy tự do, rơi xuống được đỡ lại (không dính chặt, không rơi xuyên).
+        • 👟 TỐC ĐỘ THEO GAME (mặc định mới): chạy = TỐC ĐỘ GAME × 3 thay vì ép cứng 50. Game để
+          8 -> 24, game để 20 -> 60, game đổi tốc độ -> đổi theo, tắt -> trả đúng tốc độ game.
+          Muốn CỐ ĐỊNH thì gõ số (vd 50) vào ô 👟 Chạy trong khung ⚙; gõ "x3"/"x4" để nhân.
+        • VÒNG CANH GÁC 0.3s: game (hoặc anti-cheat) xoá thảm / trả lại WalkSpeed / đổi JumpPower
+          / thay nhân vật -> tự dựng lại và theo số mới của game. Thảm bị xoá 3 lần thì tự né
+          sang treo vào Camera để game không dọn được nữa.
+    + v4.12.1 (SỬA THẢM KÍNH — không mất tính năng nào, 51 test PASS):
+        • LỖI CHÍNH làm thảm "vô dụng": bản gốc aiaiaitao3 (và v4.12 đầu) CHỈ giữ người đứng
+          trên mặt thảm khi đang bật Xuyên Tường -> bật thảm MỘT MÌNH thì người vẫn RƠI XUYÊN
+          qua thảm xuống đất. Nay: luôn giữ người trên mặt thảm, NHƯNG chỉ can thiệp khi đang
+          đứng yên hoặc đang rơi (vận tốc Y <= 0) -> VẪN NHẢY ĐƯỢC bình thường.
+        • Thảm nay nằm NGAY DƯỚI CHÂN (mặc định cách 0.2 stud) thay vì chìm 3 studs xuống đất
+          như bản gốc -> bật là đứng được liền, không còn "bật mà không thấy thảm". Ai quen
+          kiểu cũ thì đặt "cách chân = 3" ở ô MỚI trong khung ⚙ (kẹp 0..10).
+        • Thêm VIỀN SÁNG (SelectionBox) quanh thảm: mặt kính trong suốt rất khó nhìn; viền là
+          CON của thảm nên tự mất khi thảm bị dọn — không rớt rác trong workspace.
+        • Đổi kích thước khi thảm đang bật: thảm đổi ngay và người vẫn đứng trên mặt (có test).
+        • ⬆⬇ (nút nổi + khung ⚙) và chế độ 🏃 Chạy Trên Thảm hoạt động như cũ (có test chống mất).
+    + v4.11: CHẠY TEST THẬT + SỬA 3 LỖI + THÊM TRANG ⚙️ THIẾT LẬP.
         • BỘ TEST THẬT (thư mục tests/): lần đầu hub được NẠP VÀ CHẠY trong máy ảo Lua 5.4
           (wasmoon) trên môi trường Roblox/executor giả lập (tests/roblox-mock.lua). Kết quả:
           84 test — 84 PASS. Chạy bằng: node tests/run.js
@@ -350,6 +697,19 @@ if _G.BananaCatHub_Connections then
 end
 _G.BananaCatHub_Connections = {}
 
+-- v4.14: nếu lần chạy TRƯỚC còn để camera ở chế độ Scriptable (đang 👣 bám theo người chơi) thì
+-- TRẢ LẠI NGAY cho game. Chạy lại hub giữa chừng KHÔNG BAO GIỜ để camera bị "đóng băng" —
+-- người dùng không phải vào lại game.
+pcall(function()
+    local old = _G.BananaCatHub_SpecCam
+    if old ~= nil then
+        local cam = workspace.CurrentCamera
+        if cam then cam.CameraType = old end
+        _G.BananaCatHub_SpecCam = nil
+    end
+    pcall(function() RunService:UnbindFromRenderStep("BC_Spec") end)
+end)
+
 -- Dọn crosshair/menu cũ nếu script bị chạy lại (tránh đè 2 vòng tròn / 2 menu)
 for _, parent in ipairs({targetGui, playerGui, game:GetService("CoreGui")}) do
     pcall(function()
@@ -358,8 +718,23 @@ for _, parent in ipairs({targetGui, playerGui, game:GetService("CoreGui")}) do
     end)
 end
 
+-- v4.12: MỖI lần dựng lại danh sách thẻ ở trang 📚 Script Hub lại tạo ra hàng trăm connection
+-- mới (D.Tactile theo dõi hover/nhấn của từng nút), trong khi thẻ cũ đã bị Destroy -> connection
+-- cũ chết nhưng VẪN NẰM TRONG BẢNG này. Lọc/tìm kiếm vài chục lần là bảng phình lên hàng nghìn
+-- phần tử, giữ luôn các closure và Instance đã chết -> không bao giờ được giải phóng.
+-- Roblox tự ngắt connection khi Instance bị Destroy (khi đó conn.Connected = false), nên chỉ
+-- cần bỏ những phần tử đã chết mỗi khi bảng vượt ngưỡng.
 local function trackConn(conn)
-    table.insert(_G.BananaCatHub_Connections, conn)
+    local t = _G.BananaCatHub_Connections
+    if #t > 300 then
+        local alive, n = {}, 0
+        for i = 1, #t do
+            local c = t[i]
+            if c ~= nil and c.Connected ~= false then n = n + 1; alive[n] = c end
+        end
+        for i = 1, #t do t[i] = alive[i] end   -- dồn lên đầu; phần tử thừa tự thành nil
+    end
+    table.insert(t, conn)
     return conn
 end
 
@@ -502,6 +877,27 @@ local function Stroke(p, c, t)
 end
 
 -- v4.9: mặc định easing Quart-Out — vào nhanh, hãm mượt ở cuối (cảm giác "đắt" hơn Quad)
+-- v4.12.3: Đổi chữ nút một lát rồi TỰ TRẢ LẠI chữ (và màu) cũ — kiểu "✅ Đã copy" -> "📋 Copy".
+-- Có 11 nút trong hub làm đúng kiểu này, trước đây mỗi nút tự viết 3-5 dòng. Chữ gốc được nhớ
+-- theo NÚT nên bấm liên tục cũng không lưu nhầm chữ tạm; bảng dùng khoá yếu (__mode="k") để
+-- nút bị Destroy thì dòng nhớ tự biến mất, không rò bộ nhớ.
+local flashBack = setmetatable({}, { __mode = "k" })
+local function flash(btn, temp, secs, tempColor, back)
+    if not btn then return end
+    if flashBack[btn] == nil then flashBack[btn] = { back or btn.Text, btn.TextColor3 } end
+    pcall(function()
+        btn.Text = tostring(temp)
+        if tempColor then btn.TextColor3 = tempColor end
+    end)
+    task.delay(secs or 1.6, function()
+        if not (btn and btn.Parent) then return end
+        local old = flashBack[btn]
+        if not old then return end
+        pcall(function() btn.Text = old[1]; btn.TextColor3 = old[2] end)
+        flashBack[btn] = nil
+    end)
+end
+
 local function Tween(o, p, d, e)
     TweenService:Create(o, TweenInfo.new(d or 1.5, e or Enum.EasingStyle.Quart, Enum.EasingDirection.Out), p):Play()
 end
@@ -512,7 +908,26 @@ end
 -- ============================================================================
 local D = {}
 
+-- v4.12: KHAI BÁO TRƯỚC `local S`. Bảng S được gán ở dòng ~1340 (phải nằm sau các khối
+-- UI), nhưng CÁC CLOSURE TẠO TRƯỚC ĐÓ (nổi bật nhất: handler bấm 3 công tắc 🧩/🕵/🪟 trên
+-- header trang, dòng ~1145) cũng dùng S. Trong Lua, closure chỉ bắt được local ĐÃ khai báo
+-- trước nó -> nếu không có dòng này, `S` trong các closure đó là GLOBAL nil -> bấm công tắc
+-- văng lỗi "attempt to index a nil value (global 'S')" và không làm gì cả.
+-- Lưu ý: ở dòng 1340 phải viết `S = {` (gán) chứ KHÔNG được viết `local S = {` (khai báo
+-- lại) — viết lại sẽ tạo ra 2 biến khác tên cùng tên, closure cũ vẫn nhìn cái chưa có giá trị.
+local S
+
 -- Chữ/viền nên sáng hay đậm trên nền `bg`? (tự động tương phản, tránh chữ chìm)
+-- v4.12.3: hơn 10 chỗ trong hub chỉ làm "đặt chữ + đặt màu" cho thanh trạng thái -> gom 1 dòng.
+-- Không văng lỗi nếu thanh trạng thái chưa được dựng (ghi trực tiếp thì có thể văng).
+function D.Say(msg, color)
+    if not D.hubStatus then return end
+    pcall(function()
+        D.hubStatus.Text = tostring(msg)
+        D.hubStatus.TextColor3 = color or C.RED
+    end)
+end
+
 function D.BestText(bg)
     if typeof(bg) ~= "Color3" then return C.WHITE end
     local lum = 0.2126 * bg.R + 0.7152 * bg.G + 0.0722 * bg.B
@@ -922,33 +1337,20 @@ D.verPill = New("Frame", {
 Corner(D.verPill, UDim.new(1,0))
 Stroke(D.verPill, C.ACCENT2, 1)   -- v4.9: huy hiệu đen + viền đồng, chữ champagne
 New("TextLabel", {
-    Size=UDim2.new(1,0,1,0), Text="v4.11 · NOIR", BackgroundTransparency=1,
+    Size=UDim2.new(1,0,1,0), Text="v4.12 · NOIR", BackgroundTransparency=1,
     TextColor3=C.ACCENT3, Font=Enum.Font.GothamBold, TextSize=8, ZIndex=6,
 }, D.verPill)
 
-local dragLockBtn = New("TextButton", {
-    Size=UDim2.new(0,30,0,30),
-    Position=UDim2.new(1,-64,0,0),
-    Text="🔒",
-    BackgroundTransparency=1,
-    TextColor3=C.MUTED,
-    Font=Enum.Font.GothamBold,
-    TextSize=15,
-    BorderSizePixel=0,
-    ZIndex=4,
-}, titleBar)
-
-local closeBtn = New("TextButton", {
-    Size=UDim2.new(0,30,0,30),
-    Position=UDim2.new(1,-32,0,0),
-    Text="✕",
-    BackgroundTransparency=1,
-    TextColor3=C.MUTED,
-    Font=Enum.Font.GothamBold,
-    TextSize=15,
-    BorderSizePixel=0,
-    ZIndex=4,
-}, titleBar)
+-- v4.12.3: 2 nút góc (🔒 khoá kéo · ✕ đóng) dựng y hệt nhau, chỉ khác chữ và vị trí -> gom.
+local function TitleBtn(txt, xOff)
+    return New("TextButton", {
+        Size=UDim2.new(0,30,0,30), Position=UDim2.new(1,-xOff,0,0), Text=txt,
+        BackgroundTransparency=1, TextColor3=C.MUTED, Font=Enum.Font.GothamBold,
+        TextSize=15, BorderSizePixel=0, ZIndex=4,
+    }, titleBar)
+end
+local dragLockBtn = TitleBtn("🔒", 64)
+local closeBtn    = TitleBtn("✕", 32)
 -- v4.5: hover đổi màu (✕ đỏ, 🔒 vàng) — chỉ đổi TextColor3, không đụng layout
 D.HoverText(closeBtn, C.RED, C.RED)
 D.HoverText(dragLockBtn, C.ACCENT, C.ACCENT)
@@ -957,7 +1359,8 @@ local minW, minH = 440, 260
 
 -- v4.4c: "menu kéo to/nhỏ -> GUI của tab co giãn theo". Khu S.* được khai báo phía dưới nên
 -- ở đây chỉ gọi qua hook _G; BcFit() tự debounce để không chạy mỗi frame khi đang drag.
-function BcFit()
+-- v4.12: thêm `local` — trước đây hàm này rò rỉ thành BIẾN GLOBAL `_G.BcFit` của executor.
+local function BcFit()
     local fn = _G.BananaCatHub_SyncEmbeds
     if type(fn) ~= "function" then return end
     local ok, now = pcall(os.clock)
@@ -1243,7 +1646,29 @@ local function OpenFirstPage()
     SwitchTab(idx)
 end
 
-local function AddTab(name, icon, order, customContent)
+-- v4.12.3: AddTab và CreateFeatureTab dựng khung tab Y HỆT NHAU (13 dòng × 2 chỗ) -> gom lại.
+local function MakeTabFrame()
+    return New("ScrollingFrame", {
+        Size=UDim2.new(1,0,1,0),
+        BackgroundTransparency=1,
+        BorderSizePixel=0,
+        ScrollBarThickness=4,                                   -- v4.9: mảnh hơn
+        ScrollBarImageColor3=Color3.fromRGB(88, 96, 118),       -- v4.9: thấy rõ trên nền obsidian
+        ClipsDescendants=true,
+        CanvasSize=UDim2.new(0,0,0,0),
+        Visible=false,
+        Active=true,
+        Selectable=false,
+        ScrollingDirection=Enum.ScrollingDirection.Y,
+        ZIndex=4,
+    }, contentArea)
+end
+
+-- v4.12.3: Nút icon ở thanh tab — gắn tên/icon vào attribute (header + hover đọc), đổi màu khi
+-- rê chuột, bấm thì mở đúng tab. Index được tra ĐỘNG theo nút: khi một tab bị xoá, vị trí trong
+-- `tabs` dịch lại, nên bắt chết index sẽ mở SAI tab (hoặc không mở gì -> UI trắng).
+-- onClick (nếu có) chạy SAU khi tab đã mở (CreateFeatureTab dùng để tự nhúng lại GUI).
+local function MakeTabButton(name, icon, order, onClick)
     local btn = New("TextButton", {
         Size=UDim2.new(1,-8,0,38),        -- v4.5 Delta: ô icon 48x38
         Text=icon,                        -- CHỈ icon; tên trang hiện ở header
@@ -1262,7 +1687,7 @@ local function AddTab(name, icon, order, customContent)
         btn:SetAttribute("BCTabName", name)   -- header + hover đọc tên trang từ đây
         btn:SetAttribute("BCTabIcon", icon)
     end)
-    -- v4.5: rê chuột vào tab chưa mở thì pill hiện nhẹ. Tab ĐANG mở (chữ vàng) thì không đụng,
+    -- v4.5: rê chuột vào tab chưa mở thì pill hiện nhẹ. Tab ĐANG MỞ (chữ vàng) thì không đụng,
     -- để SwitchTab toàn quyền quyết định màu -> không đánh nhau giữa tween và trạng thái tab.
     pcall(function()
         trackConn(btn.MouseEnter:Connect(function()
@@ -1287,43 +1712,35 @@ local function AddTab(name, icon, order, customContent)
             end)
         end))
     end)
+    btn.Activated:Connect(function()
+        for i, b in ipairs(tabs) do
+            if b == btn then
+                SwitchTab(i)
+                if onClick then pcall(onClick) end
+                break
+            end
+        end
+    end)
+    return btn
+end
 
+-- v4.12.3: phần dựng khung + nút đã nằm trong MakeTabFrame/MakeTabButton -> AddTab chỉ còn lo
+-- việc riêng: nhận khung có sẵn (trang tự dựng) hay dựng khung mới.
+local function AddTab(name, icon, order, customContent)
     local sf
     if customContent then
         sf = customContent
         sf.Parent = contentArea
         sf.Visible = false
     else
-        sf = New("ScrollingFrame", {
-            Size=UDim2.new(1,0,1,0),
-            BackgroundTransparency=1,
-            BorderSizePixel=0,
-            ScrollBarThickness=4,                                   -- v4.9: mảnh hơn
-            ScrollBarImageColor3=Color3.fromRGB(88, 96, 118),       -- v4.9: thấy rõ trên nền obsidian
-            ClipsDescendants=true,
-            CanvasSize=UDim2.new(0,0,0,0),
-            Visible=false,
-            Active=true,
-            Selectable=false,
-            ScrollingDirection=Enum.ScrollingDirection.Y,
-            ZIndex=4,
-        }, contentArea)
+        sf = MakeTabFrame()
     end
-
-    -- KHONG bat chet index: khi mot tab bi xoa, vi tri trong `tabs`/`tabContent` dich lai
-    -- va index cu se mo SAI tab (hoac khong mo gi ca -> UI trang). Tra cuu dong theo nut.
-    btn.Activated:Connect(function()
-        for i, b in ipairs(tabs) do
-            if b == btn then SwitchTab(i); break end
-        end
-    end)
-
+    local btn = MakeTabButton(name, icon, order)
     table.insert(tabs, btn)
     table.insert(tabContent, sf)
     tabBar.CanvasSize = UDim2.new(0, 0, 0, #tabs * 44 + 10)
     return sf, btn
 end
-
 -- v4.6.2: thứ tự trang theo yêu cầu — 1 💾 Code Đã Lưu · 2 💻 Code · 3 📚 Script Hub ·
 -- 4 🛠 Hỗ Trợ · 6 ➕ Tạo Tính Năng · 7+ tab tính năng của bạn · 99 🧩 GUI Ngoài.
 -- (v4.11: ô LayoutOrder 5 nay là trang ⚙️ Thiết Lập. Rail vẫn liền mạch vì LayoutOrder
@@ -1337,7 +1754,10 @@ OpenFirstPage()   -- v4.6.2: mở trang ĐẦU TIÊN theo thứ tự rail (💾 
 -- Bang trang thai. Chua ca cac bien keo/tha menu: Luau gioi han 200 bien local moi function
 -- (loi "Out of local registers ... exceeded limit 200"), main chunk cua script nay da gan
 -- nguong do nen moi bien dem duoc deu phai nam trong bang thay vi la local rieng.
-local S = {
+-- v4.12: bo chu `local` o day (da khai bao truoc o dong ~516) de cac closure duoc tao
+-- TRUOC day (cong tac header, BcFit...) nhin thay CUNG MOT bien S. `S = {` la phep GAN vao
+-- bien da khai bao, KHONG phai khai bao bien moi -> chi co dung 1 bien S trong ca chunk.
+S = {
     dragMenu     = false,
     dragging     = false,
     dragStart    = nil,
@@ -2302,17 +2722,14 @@ S.DoReload = function()
     Store.load()
     RebuildScripts()
     -- v4.5: nạp lại cả ⭐ yêu thích của trang 📚 Script Hub (Store.load vừa đọc xong)
-    pcall(function() if S.RebuildHubList then S.RebuildHubList() end end)
+    S.Rebuild()
     -- v4.4b: Waypoint cũng phải dựng lại (trước đây thiếu: local RebuildWaypoints được khai
     -- báo ở TAB3, SAU closure này, nên gọi thẳng ở đây sẽ thành global nil -> lỗi).
     if Store.restoreWaypoints then pcall(Store.restoreWaypoints) end
     if Store.restoreFeatures then pcall(Store.restoreFeatures) end
     -- v4.4b: BỎ Store.save() ở đây. Nạp lại là thao tác ĐỌC; lưu ngay sau đó sẽ ghi đè
     -- file vừa đọc (đang muốn cứu) bằng dữ liệu trong RAM -> mất dữ liệu không cứu được.
-    Store.reloadBtn.Text = "✅ Đã nạp"
-    task.delay(1.4, function()
-        if Store.reloadBtn and Store.reloadBtn.Parent then Store.reloadBtn.Text = "🔄 Nạp lại" end
-    end)
+    flash(Store.reloadBtn, "✅ Đã nạp", 1.4)
 end
 Store.reloadBtn.Activated:Connect(S.DoReload)
 
@@ -2419,23 +2836,14 @@ RebuildScripts = function()
             Corner(copyBtn, UDim.new(0,5))
 
             copyBtn.Activated:Connect(function()
-                if setclipboard then
-                    pcall(setclipboard, d.code)
-                    copyBtn.Text = "✅ Đã Sao Chép!"
-                elseif toclipboard then
-                    pcall(toclipboard, d.code)
-                    copyBtn.Text = "✅ Đã Sao Chép!"
+                if S.CopyToClipboard(d.code) then
+                    flash(copyBtn, "✅ Đã Sao Chép!", 1.5)
                 else
                     codeLbl:CaptureFocus()
                     codeLbl.SelectionStart = 1
                     codeLbl.CursorPosition = #d.code + 1
-                    copyBtn.Text = "⚠️ Đã Bôi Đen Code"
+                    flash(copyBtn, "⚠️ Đã Bôi Đen Code", 1.5)
                 end
-                task.delay(1.5, function()
-                    if copyBtn and copyBtn.Parent then
-                        copyBtn.Text = "📋 Sao Chép Code"
-                    end
-                end)
             end)
         end
 
@@ -2514,7 +2922,7 @@ searchIn:GetPropertyChangedSignal("Text"):Connect(function() S.Debounce("savedSe
 RebuildScripts()
 
 -- ==================== TAB 3: HỖ TRỢ — SCRIPT NHANH + PHÂN TÍCH TỌA ĐỘ ====================
-local supportTab = AddTab("Hỗ Trợ", "🛠", 4)
+local supportTab = AddTab("Hỗ Trợ", "🛠", 5)     -- v4.15: 4 -> 5 để nhường chỗ cho 👥 Người Chơi
 
 local posY = 8
 
@@ -2855,6 +3263,20 @@ end
 --   • tối đa ~20 lần/giây: mắt đọc số không phân biệt được 20Hz với 144Hz, còn CPU thì có;
 --   • đóng menu = vòng này tốn đúng 2 phép cộng, không raycast, không ghi nhãn nào.
 local coordAcc = 0
+-- v4.12.3: 2 nhánh "không có nhân vật / không có RootPart" xoá 12 ô y hệt nhau -> gom 1 hàm.
+-- all=true thì xoá cả 3 ô Look/State/HP (nhánh kia giữ nguyên giá trị cũ).
+local coordLbls
+local function coordNA(all)
+    coordLbls = coordLbls or {xValLbl, yValLbl, zValLbl, sizeXValLbl, sizeYValLbl, sizeZValLbl,
+                              rotPValLbl, rotYValLbl, rotRValLbl}
+    for _, l in ipairs(coordLbls) do pcall(function() l.Text = "N/A" end) end
+    if all then
+        lookValLbl.Text = "Look: N/A"
+        stateValLbl.Text = "State: N/A"
+        hpValLbl.Text = "HP: N/A"
+    end
+end
+
 local coordUpdateConn = RunService.RenderStepped:Connect(function(stepDt)
     coordAcc = coordAcc + (tonumber(stepDt) or 0.016)
     if coordAcc < 0.05 then return end
@@ -2863,12 +3285,7 @@ local coordUpdateConn = RunService.RenderStepped:Connect(function(stepDt)
     if not (supportTab and supportTab.Visible) then return end
     local char = player.Character
     if not char then
-        xValLbl.Text = "N/A"; yValLbl.Text = "N/A"; zValLbl.Text = "N/A"
-        sizeXValLbl.Text = "N/A"; sizeYValLbl.Text = "N/A"; sizeZValLbl.Text = "N/A"
-        rotPValLbl.Text = "N/A"; rotYValLbl.Text = "N/A"; rotRValLbl.Text = "N/A"
-        lookValLbl.Text = "Look: N/A"
-        stateValLbl.Text = "State: N/A"
-        hpValLbl.Text = "HP: N/A"
+        coordNA(true)
         return
     end
 
@@ -2876,9 +3293,7 @@ local coordUpdateConn = RunService.RenderStepped:Connect(function(stepDt)
     local rootPart = GetRootPart()
 
     if not rootPart then
-        xValLbl.Text = "N/A"; yValLbl.Text = "N/A"; zValLbl.Text = "N/A"
-        sizeXValLbl.Text = "N/A"; sizeYValLbl.Text = "N/A"; sizeZValLbl.Text = "N/A"
-        rotPValLbl.Text = "N/A"; rotYValLbl.Text = "N/A"; rotRValLbl.Text = "N/A"
+        coordNA()
         return
     end
 
@@ -3438,22 +3853,16 @@ end)
 copyObjBtn.Activated:Connect(function()
     local pos = objResultPanel:GetAttribute("LastHitPos")
     if pos and pos ~= "" then
-        if setclipboard then pcall(setclipboard, pos) elseif toclipboard then pcall(toclipboard, pos) end
-        copyObjBtn.Text = "✅ Đã Copy!"
-        task.delay(1.2, function()
-            if copyObjBtn and copyObjBtn.Parent then copyObjBtn.Text = "📋 Copy Tọa Độ" end
-        end)
+        S.CopyToClipboard(pos)
+        flash(copyObjBtn, "✅ Đã Copy!", 1.2)
     end
 end)
 
 copyPathBtn.Activated:Connect(function()
     local path = objResultPanel:GetAttribute("LastPath")
     if path and path ~= "" then
-        if setclipboard then pcall(setclipboard, path) elseif toclipboard then pcall(toclipboard, path) end
-        copyPathBtn.Text = "✅ Đã Copy!"
-        task.delay(1.2, function()
-            if copyPathBtn and copyPathBtn.Parent then copyPathBtn.Text = "📋 Copy Path" end
-        end)
+        S.CopyToClipboard(path)
+        flash(copyPathBtn, "✅ Đã Copy!", 1.2)
     end
 end)
 
@@ -3468,17 +3877,8 @@ copyCoordBtn.Activated:Connect(function()
     local finalPos = groundPos or (rootPart and rootPart.CFrame.Position)
     if not finalPos then return end
     local text = string.format("%.3f, %.3f, %.3f", finalPos.X, finalPos.Y, finalPos.Z)
-    if setclipboard then
-        pcall(setclipboard, text)
-    elseif toclipboard then
-        pcall(toclipboard, text)
-    end
-    copyCoordBtn.Text = "✅ Đã Copy: "..text
-    task.delay(2, function()
-        if copyCoordBtn and copyCoordBtn.Parent then
-            copyCoordBtn.Text = "📋 Copy Tọa Độ Dưới Chân"
-        end
-    end)
+    S.CopyToClipboard(text)
+    flash(copyCoordBtn, "✅ Đã Copy: " .. text, 2)
 end)
 
 Label(supportTab, "🚀 Teleport Tới Tọa Độ", posY)
@@ -3542,12 +3942,305 @@ tpBtn.Activated:Connect(function()
     local y = tonumber(tpYIn.Text) or 0
     local z = tonumber(tpZIn.Text) or 0
     rootPart.CFrame = CFrame.new(Vector3.new(x, y, z))
-    tpBtn.Text = "✅ Đã Teleport!"
-    task.delay(1.5, function()
-        if tpBtn and tpBtn.Parent then tpBtn.Text = "🚀 Teleport" end
-    end)
+    flash(tpBtn, "✅ Đã Teleport!", 1.5)
 end)
 
+-- ==================== v4.21: 🎯 ĐỊNH VỊ TỐC ĐỘ (mặc định game · hiện tại · cao nhất) ====================
+-- "Tốc độ mặc định của game" = WalkSpeed mà CHÍNH GAME đặt cho nhân vật (8 / 16 / 20 / 30 / 50... mỗi game một kiểu).
+--   Nguồn 1 (chắc nhất): S.Move._baseWS — hub đã học được khi 👟 CHẠY ĐỘ bật lần đầu / khi game đổi tốc độ.
+--   Nguồn 2: Humanoid.WalkSpeed ngay lúc bật 🎯 (lúc đó hub chưa can thiệp) -> chính là mặc định thật của game.
+--   Tự học lại: mỗi khi game đổi WalkSpeed trong lúc hub KHÔNG áp tốc độ -> nhận là mặc định mới.
+-- Tốc độ HIỆN TẠI = tốc độ di chuyển THẬT (studs/s) đo bằng quãng đường mỗi frame -> đúng với mọi game
+--   (không phụ thuộc physics/anti-cheat), kèm WalkSpeed hiện tại của Humanoid.
+-- CAO NHẤT = đỉnh (max) đo được trong phiên; bỏ qua mẫu nhảy > 25 studs/frame (teleport/respawn/lag đứng hình).
+-- Bật lên là THẤY: widget trong tab 🛠 Hỗ Trợ + HUD nổi BC_SpeedHud trong màn hình game (đóng menu vẫn thấy).
+-- [SM-READONLY] Khối này CHỈ ĐỌC: không ghi WalkSpeed / JumpPower / CFrame / thuộc tính nào của nhân vật.
+S.SpeedMeter = S.SpeedMeter or {}
+do            -- do..end: main chunk gần cạn 200 slot local -> KHÔNG khai báo local ở scope chunk
+local SV = S.SpeedMeter
+
+SV.on     = (SV.on == true)
+SV.live   = tonumber(SV.live) or 0        -- tốc độ hiện tại (studs/s, đã làm mượt)
+SV.max    = tonumber(SV.max)  or 0        -- đỉnh cao nhất đo được trong phiên
+SV.base   = tonumber(SV.base)             -- mặc định của game (studs/s) — nil = chưa dò được
+SV.src    = SV.src or "chưa dò"
+SV.ws     = tonumber(SV.ws) or 0          -- WalkSpeed hiện tại của Humanoid
+SV._bound = (SV._bound == true)
+
+local function num(v)
+    v = tonumber(v)
+    if v == nil or v ~= v then return nil end          -- NaN -> nil
+    return v
+end
+local function fmt(n) return string.format("%.1f", num(n) or 0) end
+local function say(msg) pcall(function() if D.hubStatus then D.hubStatus.Text = msg end end) end
+
+-- S.Move được khai báo SAU khối này -> phải lấy LÚC GỌI (không thể bắt biến local `MV` ở đây).
+local function move() return S.Move end
+local function myHum()
+    local m = move()
+    if m and m.Hum then
+        local ok, h = pcall(m.Hum)
+        if ok and h then return h end
+    end
+    local ch = player.Character
+    if not ch then return nil end
+    local ok, h = pcall(function() return ch:FindFirstChildOfClass("Humanoid") end)
+    if ok and h then return h end
+    return ch:FindFirstChild("Humanoid")
+end
+local function myRoot()
+    local m = move()
+    if m and m.Root then
+        local ok, r = pcall(m.Root)
+        if ok and r then return r end
+    end
+    local ch = player.Character
+    return ch and ch:FindFirstChild("HumanoidRootPart") or nil
+end
+local function readWS(h)
+    if not h then return nil end
+    local ok, v = pcall(function() return h.WalkSpeed end)
+    if ok then local n = num(v); if n then return n end end
+    local m = move()
+    if m and m.comp then return num(m.comp(h, "WalkSpeed", nil)) end
+    return nil
+end
+local function readPos(r)
+    if not r then return nil end
+    local m = move()
+    local x, y, z
+    if m and m.comp then
+        local p
+        pcall(function() p = r.Position end)
+        x, y, z = m.comp(p, "X", nil), m.comp(p, "Y", nil), m.comp(p, "Z", nil)
+    else
+        pcall(function() local p = r.Position; x, y, z = p.X, p.Y, p.Z end)
+    end
+    x, y, z = num(x), num(y), num(z)
+    if x == nil or y == nil or z == nil then return nil end
+    return x, y, z
+end
+
+-- ---------- dò tốc độ MẶC ĐỊNH của game ----------
+function SV.Detect()
+    local m = move()
+    local h = myHum()
+    local hws = readWS(h)
+    local baseWS = m and num(m._baseWS) or nil
+    local applying = (m ~= nil) and (m.speed == true or m.runMode == true)
+    local src
+    if applying and baseWS then
+        SV.base = baseWS
+        src = "game (hub đã học khi 👟 bật)"
+    elseif hws and hws > 0 then
+        if (not applying) and SV._lastWS and math.abs(hws - SV._lastWS) > 0.01 then
+            src = "game VỪA ĐỔI tốc độ → mặc định mới"
+        else
+            src = "game (WalkSpeed của nhân vật)"
+        end
+        SV.base = hws
+    elseif baseWS then
+        SV.base = baseWS
+        src = "hub (đã học)"
+    else
+        SV.base = 16
+        src = "mặc định Roblox"
+    end
+    if hws and hws > 0 and not applying then SV._lastWS = hws end
+    if hws then SV.ws = hws end
+    SV.src = src
+    return SV.base, SV.src
+end
+
+-- ---------- đo tốc độ HIỆN TẠI + giữ đỉnh CAO NHẤT ----------
+function SV.Step(dt)
+    dt = num(dt)
+    if not dt or dt <= 0 then dt = 1 / 60 end
+    if dt > 0.5 then dt = 0.5 end
+    local h = myHum()
+    local x, y, z = readPos(myRoot())
+    if x then
+        if SV._px then
+            local dx, dy, dz = x - SV._px, y - SV._py, z - SV._pz
+            local d = math.sqrt(dx * dx + dy * dy + dz * dz)
+            if d <= 25 then                                  -- > 25 studs/frame = teleport/respawn/lag -> bỏ mẫu
+                local inst = d / dt
+                if d > 0.001 then                            -- chỉ tính mẫu CÓ dịch chuyển (đứng yên không phá số liệu)
+                    SV._n = (SV._n or 0) + 1
+                    -- mẫu CHUYỂN ĐỘNG đầu tiên -> lấy số thật ngay (không trễ); sau đó làm mượt 0,35 cho đỡ rung
+                    SV.live = (SV._n <= 1) and inst or (SV.live + (inst - SV.live) * 0.35)
+                    if inst >= 0.5 and inst > SV.max then SV.max = inst end
+                end
+            end
+        end
+        SV._px, SV._py, SV._pz = x, y, z
+    else
+        SV._px = nil
+        SV.live = 0
+    end
+    if h then SV.ws = readWS(h) or SV.ws end
+    SV.Detect()
+    SV.Sync()
+    return SV.live
+end
+
+local function setText(lbl, s)
+    if lbl and lbl.Text ~= s then lbl.Text = s end
+end
+
+-- ---------- vẽ số liệu ra widget + HUD ----------
+function SV.Sync()
+    local base = num(SV.base) or 0
+    local ratio = (base > 0) and (SV.ws / base) or 0
+    local scale = math.max(SV.max, base, 1)
+    local pct = SV.live / scale
+    if pct < 0 then pct = 0 elseif pct > 1 then pct = 1 end   -- KHÔNG dùng math.clamp (chỉ có trong Luau)
+    local bpct = base / scale
+    if bpct < 0 then bpct = 0 elseif bpct > 1 then bpct = 1 end
+    setText(SV.baseLbl, string.format("🎯 Mặc định game: %s studs/s · nguồn: %s", fmt(base), tostring(SV.src)))
+    setText(SV.wsLbl, string.format("🚶 WalkSpeed hiện tại: %s%s", fmt(SV.ws),
+        (ratio > 0) and string.format("  (×%.2f mặc định)", ratio) or ""))
+    setText(SV.liveLbl, string.format("⚡ Tốc độ thật: %s studs/s", fmt(SV.live)))
+    setText(SV.maxLbl, string.format("🏁 Cao nhất: %s studs/s", fmt(SV.max)))
+    if SV.btn then
+        setText(SV.btn, SV.on and "🎯 Định vị tốc độ: BẬT" or "🎯 Định vị tốc độ: TẮT")
+        if SV._btnOn ~= SV.on then
+            SV._btnOn = SV.on
+            SV.btn.BackgroundColor3 = SV.on and C.GREEN or C.GRAY
+        end
+    end
+    if SV.barFill and SV._barPct ~= pct then
+        SV._barPct = pct
+        SV.barFill.Size = UDim2.new(pct, 0, 1, 0)
+    end
+    if SV.barBase and SV._barBase ~= bpct then
+        SV._barBase = bpct
+        SV.barBase.Position = UDim2.new(bpct, -1, 0, 0)
+    end
+    if SV.hud then
+        if SV.hud.Visible ~= SV.on then SV.hud.Visible = SV.on end
+        setText(SV.hudLbl, string.format("🎯 %s (mặc định game) · 🚶 %s\n⚡ %s · 🏁 %s studs/s",
+            fmt(base), fmt(SV.ws), fmt(SV.live), fmt(SV.max)))
+    end
+end
+
+function SV.Status()
+    return string.format("🎯 %s · ⚡ %s · 🏁 %s", fmt(SV.base), fmt(SV.live), fmt(SV.max))
+end
+
+-- ---------- bật/tắt vòng đo (chỉ chạy khi BẬT -> không tốn tài nguyên) ----------
+function SV.Bind(on)
+    if on and not SV._bound then
+        SV._bound = true
+        local ok = pcall(function()
+            RunService:BindToRenderStep("BC_SpeedMeter", Enum.RenderPriority.Camera.Value - 6, function(dt)
+                pcall(function() SV.Step(dt) end)
+            end)
+        end)
+        if not ok then SV._bound = false end
+    elseif (not on) and SV._bound then
+        SV._bound = false
+        pcall(function() RunService:UnbindFromRenderStep("BC_SpeedMeter") end)
+    end
+    return SV._bound
+end
+function SV.Set(on)
+    SV.on = (on == true)
+    if SV.on then
+        SV._px, SV._n = nil, 0
+        SV.Detect()
+        SV._lastWS = nil
+        SV.Bind(true)
+        SV.Step(1 / 60)                 -- có số ngay, không phải đợi frame sau
+    else
+        SV.Bind(false)
+        SV._px, SV._n = nil, 0
+    end
+    SV.Sync()
+    return SV.on
+end
+function SV.Toggle() return SV.Set(not SV.on) end
+function SV.Reset()                     -- xoá đỉnh, vẫn đo tiếp
+    SV.max, SV.live = 0, 0
+    SV._n = 0
+    SV.Sync()
+    return SV.max
+end
+
+-- ---------- widget trong tab 🛠 Hỗ Trợ ----------
+Label(supportTab, "🎯 Định vị tốc độ game (mặc định · hiện tại · cao nhất)", posY)
+posY = posY + 18
+SV.btn      = Button(supportTab, "🎯 Định vị tốc độ: TẮT", 8, posY, 300, 26, C.GRAY)
+SV.resetBtn = Button(supportTab, "🗑 Xoá đỉnh", 314, posY, 162, 26, C.RED)
+posY = posY + 30
+SV.baseLbl = Label(supportTab, "🎯 Mặc định game: — studs/s", posY)
+SV.baseLbl.TextColor3 = C.ACCENT
+SV.baseLbl.TextSize = 9
+posY = posY + 16
+SV.wsLbl = Label(supportTab, "🚶 WalkSpeed hiện tại: —", posY)
+SV.wsLbl.TextSize = 9
+posY = posY + 16
+SV.liveLbl = Label(supportTab, "⚡ Tốc độ thật: 0.0 studs/s", posY)
+SV.liveLbl.TextColor3 = C.GREEN
+SV.liveLbl.TextSize = 9
+posY = posY + 16
+SV.maxLbl = Label(supportTab, "🏁 Cao nhất: 0.0 studs/s", posY)
+SV.maxLbl.TextColor3 = C.ORANGE
+SV.maxLbl.TextSize = 9
+posY = posY + 16
+
+local smBarBg = New("Frame", {
+    Size=UDim2.new(1,-16,0,10), Position=UDim2.new(0,8,0,posY),
+    BackgroundColor3=Color3.fromRGB(24, 28, 38), BackgroundTransparency=0.15,
+    BorderSizePixel=0, ZIndex=6,
+}, supportTab)
+Corner(smBarBg, UDim.new(0,5)); Stroke(smBarBg, C.BORDER, 1)
+SV.barFill = New("Frame", {
+    Size=UDim2.new(0,0,1,0), Position=UDim2.new(0,0,0,0),
+    BackgroundColor3=C.BLUE, BackgroundTransparency=0.15, BorderSizePixel=0, ZIndex=7,
+}, smBarBg)
+Corner(SV.barFill, UDim.new(0,5))
+SV.barBase = New("Frame", {                -- vạch xanh = tốc độ MẶC ĐỊNH của game (mốc so sánh)
+    Size=UDim2.new(0,2,1,0), Position=UDim2.new(0.25,-1,0,0),
+    BackgroundColor3=C.GREEN, BackgroundTransparency=0, BorderSizePixel=0, ZIndex=8,
+}, smBarBg)
+posY = posY + 16
+
+SV.hintLbl = Label(supportTab, "ℹ️ Chỉ ĐO, không sửa gì · Vạch xanh = mặc định game · Tự học lại khi game đổi.", posY)
+SV.hintLbl.TextSize = 9
+posY = posY + 18
+
+-- ---------- HUD nổi trong màn hình game (đóng menu vẫn thấy) ----------
+SV.hud = New("Frame", {
+    Name = "BC_SpeedHud",
+    Size = UDim2.new(0, 214, 0, 44), Position = UDim2.new(0, 12, 0.5, -22),
+    BackgroundColor3 = Color3.fromRGB(16, 19, 26), BackgroundTransparency = 0.25,
+    BorderSizePixel = 0, Visible = false, ZIndex = 24,
+}, gui)
+Corner(SV.hud, UDim.new(0,8)); Stroke(SV.hud, C.ACCENT, 1.4)
+SV.hudLbl = New("TextLabel", {
+    Size = UDim2.new(1,-12,1,0), Position = UDim2.new(0,6,0,0), Text = "🎯 ...",
+    BackgroundTransparency = 1, TextColor3 = C.WHITE,
+    Font = Enum.Font.GothamBold, TextSize = 9,
+    TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Center,
+    ZIndex = 25, TextWrapped = true,
+}, SV.hud)
+
+SV.btn.Activated:Connect(function()
+    local on = SV.Set(not SV.on)
+    say(on and ("🎯 định vị tốc độ: BẬT · mặc định game " .. fmt(SV.base) .. " studs/s")
+           or "🎯 định vị tốc độ: TẮT")
+end)
+SV.resetBtn.Activated:Connect(function()
+    SV.Reset()
+    say("🎯 đã xoá đỉnh · cao nhất = 0")
+end)
+
+SV.Detect()
+SV.Sync()
+end
+-- ===== HẾT 🎯 ĐỊNH VỊ TỐC ĐỘ (v4.21) =====
 Label(supportTab, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", posY)
 posY = posY + 16
 Label(supportTab, "💾 Waypoint Đã Lưu", posY)
@@ -5475,76 +6168,11 @@ local function CreateFeatureTab(name, icon, codeContent)
     -- muộn thì Lua biên dịch tên đó thành GLOBAL trong closure -> nil -> không tự nhúng lại được.
     local featureData
 
-    local sf = New("ScrollingFrame", {
-        Size=UDim2.new(1,0,1,0),
-        BackgroundTransparency=1,
-        BorderSizePixel=0,
-        ScrollBarThickness=4,                                       -- v4.9: mảnh hơn
-        ScrollBarImageColor3=Color3.fromRGB(88, 96, 118),           -- v4.9: thấy rõ trên nền obsidian
-        ClipsDescendants=true,
-        CanvasSize=UDim2.new(0,0,0,0),
-        Visible=false,
-        Active=true,
-        Selectable=false,
-        ScrollingDirection=Enum.ScrollingDirection.Y,
-        ZIndex=4,
-    }, contentArea)
-
-    local btn = New("TextButton", {
-        Size=UDim2.new(1,-8,0,38),        -- v4.5 Delta: ô icon 48x38
-        Text=icon,                        -- CHỈ icon; tên trang hiện ở header
-        BackgroundColor3=C.SURFACE2,      -- pill ghost (SwitchTab tô màu khi trang mở)
-        BackgroundTransparency=1,
-        TextColor3=C.MUTED,
-        Font=Enum.Font.GothamBold,
-        TextSize=16,
-        BorderSizePixel=0,
-        LayoutOrder=featureTabIndex + #featureTabs,
-        TextXAlignment=Enum.TextXAlignment.Center,
-        ZIndex=4,
-    }, tabBar)
-    Corner(btn, UDim.new(0,10))           -- v4.5 Delta: bo 10px cho ô icon
-    pcall(function()
-        btn:SetAttribute("BCTabName", name)   -- header + hover đọc tên trang từ đây
-        btn:SetAttribute("BCTabIcon", icon)
-    end)
-    -- v4.5: rê chuột vào tab chưa mở thì pill hiện nhẹ. Tab ĐANG mở (chữ vàng) thì không đụng,
-    -- để SwitchTab toàn quyền quyết định màu -> không đánh nhau giữa tween và trạng thái tab.
-    pcall(function()
-        trackConn(btn.MouseEnter:Connect(function()
-            if btn.BackgroundTransparency > 0.5 then Tween(btn, {BackgroundTransparency = 0.62}, 0.16) end
-            pcall(function()   -- v4.5 Delta: rê vào icon nào thì header hiện TÊN trang đó (mờ nhẹ)
-                if D.pageTitle then
-                    D.hoverName = btn:GetAttribute("BCTabName")
-                    local ic = btn:GetAttribute("BCTabIcon")
-                    D.pageTitle.Text = (ic and (ic .. "  ") or "") .. tostring(D.hoverName or "")
-                    D.pageTitle.TextTransparency = 0.4
-                end
-            end)
-        end))
-        trackConn(btn.MouseLeave:Connect(function()
-            if btn.TextColor3 ~= C.ACCENT then Tween(btn, {BackgroundTransparency = 1}, 0.2) end
-            pcall(function()   -- rời chuột: header trả về tên trang ĐANG MỞ
-                D.hoverName = nil
-                if D.pageTitle and D.activeName then
-                    D.pageTitle.Text = D.activeName
-                    D.pageTitle.TextTransparency = 0
-                end
-            end)
-        end))
-    end)
-
-    -- tra cuu index dong (xem giai thich o AddTab)
-    btn.Activated:Connect(function()
-        for i, b in ipairs(tabs) do
-            if b == btn then
-                SwitchTab(i)
-                -- v4.4g: MỞ tab -> nếu lần bấm ▶ trước GUI bị "rớt" ngoài menu thì TỰ nhúng lại.
-                -- task.defer để tab kịp hiện + AbsoluteSize kịp đúng trước khi đo.
-                task.defer(function() S.OnFeatureTabOpened(featureData) end)
-                break
-            end
-        end
+    local sf  = MakeTabFrame()
+    local btn = MakeTabButton(name, icon, featureTabIndex + #featureTabs, function()
+        -- v4.4g: MỞ tab -> nếu lần bấm ▶ trước GUI bị "rớt" ngoài menu thì TỰ nhúng lại.
+        -- task.defer để tab kịp hiện + AbsoluteSize kịp đúng trước khi đo.
+        task.defer(function() S.OnFeatureTabOpened(featureData) end)
     end)
 
     table.insert(tabs, btn)
@@ -5765,7 +6393,7 @@ task.spawn(function()
     end
 end)
 
-local createFeatureTab = AddTab("Tạo Tính Năng", "➕", 6)
+local createFeatureTab = AddTab("Tạo Tính Năng", "➕", 7)   -- v4.15: 6 -> 7 (👥 chen vào ô 4)
 
 local cy = 8
 Label(createFeatureTab, "➕ Tạo Tab Tính Năng Tích Hợp", cy)
@@ -6117,14 +6745,8 @@ copyTemplateBtn.Activated:Connect(function()
     pcall(function() stamp = os.date("sinh %H:%M %d/%m/%Y") end)
     local code = S.FeatureTemplate(nm, ic, stamp)
 
-    -- copy ra clipboard: executor nào cũng có 1 trong 3 hàm này
-    local copied = false
-    for _, fname in ipairs({"setclipboard", "toclipboard", "set_clipboard"}) do
-        if not copied then
-            local f = _G[fname]
-            if type(f) == "function" then copied = (pcall(f, code)) end
-        end
-    end
+    -- copy ra clipboard: hàm này tự thử cả 3 tên (setclipboard / toclipboard / set_clipboard)
+    local copied = S.CopyToClipboard(code)
     -- điền vào ô code CHỈ KHI đang trống -> không bao giờ làm mất code bạn đang soạn
     local inBox = false
     if #featureCodeIn.Text == 0 then
@@ -6349,6 +6971,1594 @@ if #Store.loadedFeatures > 0 then
     createStatus.Text = string.format("💾 Đã khôi phục %d tab tính năng từ bộ nhớ", #Store.loadedFeatures)
 end
 
+-- ============================================================================
+-- ============== v4.12: BỘ DI CHUYỂN — port từ menu "EXECUTOR MENU" =========
+-- 5 tính năng: 🚀 Bay · 🧱 Xuyên tường · 🦘 Nhảy vô hạn · 👟 Chạy độ · 🪩 Thảm kính.
+-- Thảm kính chỉnh được 3 chiều: RỘNG × CAO (độ dày) × DÀI.
+--
+-- NGUYÊN TẮC KHI PORT (3 điểm, đều là chỗ bản gốc đang yếu):
+--   1) Mọi trạng thái nằm trong bảng S.Move -> KHÔNG tốn thêm slot local cấp chunk
+--      (Luau giới hạn 200 local/hàm, main chunk đã dùng ~129).
+--   2) Mọi connection đi qua trackConn() -> chạy lại hub không bị nhân bản vòng lặp.
+--   3) TẮT tính năng phải TRẢ LẠI ĐÚNG giá trị gốc. Bản gốc (menu Executor) khi tắt
+--      NoClip gán cứng CanCollide = true cho MỌI part -> mũ/phụ kiện/đồ vật vốn dĩ
+--      không va chạm bị "cứng" lại, nhân vật hay kẹt. Ở đây lưu CanCollide gốc của
+--      từng part rồi trả lại y hệt.
+--   4) Xuyên tường/không xuyên tường bản gốc lặp GetDescendants() MỖI Stepped cho mọi
+--      người chơi (~1000 ghi thuộc tính/frame ở server đông). Ở đây chỉ duyệt nhân vật
+--      của mình và chỉ ghi khi giá trị thật sự khác.
+-- ============================================================================
+S.Move = {
+    fly = false, noclip = false, infJump = false, speed = false, carpet = false,
+    runMode = false,                         -- 🏃 chế độ "chạy trên thảm" (gộp thảm + tốc độ + HUD)
+    _hud = nil, _hudUp = nil, _hudDown = nil, _hudCarpet = nil, _hudClose = nil, _menuWasOpen = nil,
+    flySpeed = 50, walkSpeed = 16, jumpPower = 50,
+    -- v4.12.2: TỐC ĐỘ THEO GAME. speedMode="x" (mặc định) -> chạy = TỐC ĐỘ GAME × speedMul;
+    -- speedMode="num" -> ép cứng = walkSpeed. Gõ "x3" hay "50" vào ô 👟 Chạy trong khung ⚙.
+    speedMode = "x", speedMul = 3, appliedWS = nil,
+    carpetW = 6, carpetH = 0.5, carpetL = 6,     -- Rộng × Cao(dày) × Dài
+    carpetGap = 0.2,                             -- thảm cách bàn chân bao nhiêu stud (0 = áp sát)
+    -- v4.12.5 (chống GIẬT/LAG ở game nặng như Evade): chỉ đỡ người khi rơi lún qua mặt thảm
+    -- quá `carpetSlack` (0.5). Đứng bình thường thì KHÔNG ghi gì lên nhân vật -> mượt như bản
+    -- gốc. Tắt hẳn `carpetHold` = y hệt bản gốc (không bao giờ đụng vào nhân vật).
+    carpetSlack = 0.5, carpetHold = true, carpetEdge = true,
+    carpetY = nil,
+    _carpet = nil, _bv = nil, _bg = nil, _floor = nil,
+    _ncConn = nil, _ncDesc = nil, _ncChar = nil, _ncLast = nil,
+    _ijConn = nil, _ijConn2 = nil, _speedThread = nil,
+    _origCC = {},                                 -- [part] = CanCollide gốc
+    _baseWS = 16, _baseJP = 50,                   -- tốc độ / lực nhảy GỐC CỦA GAME
+    _wd = nil, _lastJump = nil, _ijBaseJP = nil, _ijBaseJH = nil,
+    _carpetRetries = 0,                           -- số lần thảm bị game xoá
+}
+local MV = S.Move
+
+-- Đọc 1 thành phần vector an toàn: game THẬT trả Vector3 = userdata (KHÔNG phải bảng như mock), nên
+-- kiểu `type(v) == "table" and v.Y` cho ra 0/nil SAI trong game thật.
+function MV.comp(v, k, dft)
+    if v == nil then return dft end
+    local ok, val = pcall(function() return v[k] end)
+    if ok and type(val) == "number" then return val end
+    return dft
+end
+local function mvClamp(n, lo, hi, dft)
+    n = tonumber(n)
+    if n == nil or n ~= n then return dft end
+    if n < lo then return lo end
+    if n > hi then return hi end
+    return n
+end
+
+function MV.Char() return player.Character end
+function MV.Hum()
+    local c = player.Character
+    return c and c:FindFirstChildOfClass("Humanoid") or nil
+end
+function MV.Root()
+    local c = player.Character
+    return c and c:FindFirstChild("HumanoidRootPart") or nil
+end
+
+-- ---------- 🧱 XUYÊN TƯỜNG (NoClip) ----------
+-- v4.12.3: bản cũ gọi GetDescendants() MỖI Stepped (60 lần/giây — mỗi lần cấp phát cả 1 bảng ->
+-- rác cho GC dọn). Nay quét đầy đủ khi BẬT / khi ĐỔI NHÂN VẬT / mỗi 2s, còn bình thường chỉ
+-- bắt sự kiện DescendantAdded (phụ kiện, áo, vũ khí gắn thêm) -> gần như không tốn gì mỗi frame.
+function MV._NcPart(p)
+    if not (p and p.IsA and p:IsA("BasePart")) then return end
+    MV._ncParts = MV._ncParts or {}
+    if MV._origCC[p] == nil then
+        -- Nếu part NÀY đã bị mình tắt từ trước mà không còn dấu giá trị gốc -> coi gốc là true
+        -- (thà bật lại va chạm còn hơn để nhân vật rơi xuyên map vĩnh viễn).
+        MV._origCC[p] = MV._ncParts[p] and true or p.CanCollide
+    end
+    if p.CanCollide ~= false then pcall(function() p.CanCollide = false end) end
+    -- v4.22: ghi vào DANH SÁCH ÉP LẠI mỗi frame (game bật lại CanCollide -> mình tắt lại ngay)
+    MV._ncParts[p] = true
+end
+function MV._NcScan()
+    local c = MV.Char()
+    if not c then return end
+    if MV._ncChar ~= c then                    -- đổi nhân vật (respawn) -> dọn kết nối cũ
+        if MV._ncDesc then pcall(function() MV._ncDesc:Disconnect() end) end
+        MV._ncChar = c
+        MV._ncParts = {}                       -- nhân vật mới -> danh sách part mới
+        MV._ncDesc = trackConn(c.DescendantAdded:Connect(MV._NcPart))
+    end
+    for _, p in ipairs(c:GetDescendants()) do MV._NcPart(p) end
+end
+-- v4.22 (LỖI THẬT gặp trong game): vài tựa game/anti-cheat BẬT LẠI CanCollide cho part của người chơi
+-- mỗi frame (hoặc đặt lại cho part mới sinh). Bản cũ chỉ quét lại 2 GIÂY/lần -> thua, người chơi bị
+-- kẹt ở tường dù đã bật 🧱. Nay: ghi lại CanCollide = false MỖI FRAME, và chỉ kiểm đúng danh sách
+-- part đã tắt (rẻ), quét đầy đủ 0,5s/lần để bắt part mới (kể cả part game thả vào không bắn event).
+function MV._NcEnforce()
+    if not MV.noclip then return end
+    local c = MV.Char()
+    local parts = MV._ncParts
+    if not c or not parts then return end
+    for p in pairs(parts) do
+        local ok = pcall(function()
+            if p:IsDescendantOf(c) then
+                if p.CanCollide ~= false then p.CanCollide = false end
+            else
+                parts[p] = nil                 -- part đã rời khỏi người (game xoá) -> thôi theo dõi
+            end
+        end)
+        if not ok then parts[p] = nil end
+    end
+end
+-- ---------- v4.22: 🧲 ĐẨY XUYÊN khi bị chặn CỨNG ----------
+-- Bấm WASD mà người KHÔNG nhích (tường/anti-cheat chặn cứng, tắt CanCollide vẫn không qua) thì tự nhích
+-- CFrame theo hướng đang bấm -> xuyên qua. Chỉ nhích khi THẬT SỰ bị chặn (> 0,2s) nên đi bộ bình thường
+-- không bị ảnh hưởng. Tắt bằng công tắc 🧲 trong khung ⚙ (MV.ncPass = false).
+function MV._NcAssist()
+    if not (MV.noclip and MV.ncPass ~= false) then
+        MV._passBlocked, MV._passPX, MV._passPZ, MV._passAt = 0, nil, nil, nil
+        return
+    end
+    local h, r = MV.Hum(), MV.Root()
+    if not h or not r then
+        MV._passBlocked, MV._passPX, MV._passPZ, MV._passAt = 0, nil, nil, nil
+        return
+    end
+    local now = os.clock()
+    local dt = now - (MV._passAt or now)
+    MV._passAt = now
+    if dt <= 0 or dt > 0.5 then dt = 1 / 60 end          -- frame đầu / lag -> coi như 1 frame
+    local okMD, md = pcall(function() return h.MoveDirection end)
+    local mx = okMD and MV.comp(md, "X", 0) or 0
+    local mz = okMD and MV.comp(md, "Z", 0) or 0
+    local want = math.sqrt(mx * mx + mz * mz)            -- 0..1: đang bấm hướng nào
+    local px, pz = MV.comp(r.Position, "X", nil), MV.comp(r.Position, "Z", nil)
+    if not (px and pz) then return end
+    local moved = 0
+    if MV._passPX then
+        local dx, dz = px - MV._passPX, pz - MV._passPZ
+        moved = math.sqrt(dx * dx + dz * dz)
+    end
+    MV._passPX, MV._passPZ = px, pz
+    local spd = mvClamp(tonumber(MV.WantSpeed()) or 16, 6, 120)
+    -- đi được bao nhiêu mới gọi là "không bị chặn"? lấy theo TỐC ĐỘ ĐANG CÓ (không phải tốc độ mơ ước)
+    local ws = tonumber(MV.comp(h, "WalkSpeed", nil)) or spd
+    local expect = math.min(spd, ws) * want * dt
+    if want <= 0.1 then
+        MV._passBlocked = 0                              -- không bấm gì -> không đẩy
+    elseif moved < expect * 0.35 then
+        MV._passBlocked = (MV._passBlocked or 0) + dt    -- bị chặn -> đếm thời gian kẹt
+    else
+        MV._passBlocked = (MV._passBlocked or 0) * 0.5   -- đi được -> quên dần
+    end
+    if (MV._passBlocked or 0) < 0.2 or want <= 0.1 then return end
+    local ux, uz = mx / want, mz / want
+    local stepLen = math.min(spd * dt * 1.15, 3)         -- 1 frame không nhích quá 3 stud
+    local y = MV.comp(r.Position, "Y", nil)
+    if y == nil then return end
+    pcall(function() r.CFrame = CFrame.new(px + ux * stepLen, y, pz + uz * stepLen) end)
+end
+function MV._NcStep()
+    if not MV.noclip then return end
+    local c = MV.Char()
+    if not c then return end
+    local now = os.clock()
+    if MV._ncChar ~= c or not MV._ncLast or (now - MV._ncLast) > 0.5 then
+        MV._ncLast = now
+        MV._NcScan()                                  -- quét đầy đủ: bắt part mới / nhân vật mới
+    end
+    MV._NcEnforce()                                   -- MỖI FRAME: thắng game bật lại CanCollide
+    MV._NcAssist()                                    -- 🧲 bị chặn cứng -> tự đẩy xuyên
+end
+-- v4.22: ghi CanCollide ở CUỐI frame (sau khi script của game ghi) — thêm 1 lớp nữa cho chắc
+function MV._NcBind(on)
+    if on and not MV._ncBound then
+        MV._ncBound = true
+        local ok = pcall(function()
+            RunService:BindToRenderStep("BC_NoClip", Enum.RenderPriority.Last.Value, function()
+                pcall(MV._NcStep)
+            end)
+        end)
+        if not ok then MV._ncBound = false end
+    elseif (not on) and MV._ncBound then
+        MV._ncBound = false
+        pcall(function() RunService:UnbindFromRenderStep("BC_NoClip") end)
+    end
+    return MV._ncBound
+end
+-- Dọn các part đã chết (respawn) khỏi bảng nhớ, rồi trả lại giá trị gốc cho part còn sống.
+-- v4.22: respawn chỉ QUÊN part đã mất, KHÔNG xoá sạch bảng giá trị gốc.
+-- (Bản cũ: MV.Refresh() đặt MV._origCC = {} trong lúc 🧱 vẫn bật -> giá trị gốc của part đang tắt
+--  va chạm bị mất -> tắt 🧱 xong nhân vật vẫn CanCollide = false, rơi xuyên map mãi.)
+function MV._NcForgetLost()
+    for p in pairs(MV._origCC) do
+        if not (p and p.Parent) then MV._origCC[p] = nil end
+    end
+end
+function MV._NcRestore()
+    for p, v in pairs(MV._origCC) do
+        if p and p.Parent then
+            pcall(function() p.CanCollide = v end)
+        end
+        MV._origCC[p] = nil
+    end
+    MV._origCC = {}
+    MV._ncParts = {}
+end
+function MV.SetNoclip(on)
+    on = (on == true)
+    if on == MV.noclip then return MV.noclip end
+    MV.noclip = on
+    if on then
+        MV._ncLast = nil
+        MV._ncParts = {}
+        MV._passBlocked, MV._passPX, MV._passPZ, MV._passAt = 0, nil, nil, nil
+        if MV.ncPass == nil then MV.ncPass = true end   -- v4.22: 🧲 mặc định BẬT
+        MV._NcScan()                                   -- quét ngay lần đầu cho chắc
+        MV._ncConn = trackConn(RunService.Stepped:Connect(MV._NcStep))
+        MV._NcBind(true)                               -- v4.22: thêm lớp ghi cuối frame
+    else
+        for _, c in ipairs({ MV._ncConn, MV._ncDesc }) do
+            if c then pcall(function() c:Disconnect() end) end
+        end
+        MV._ncConn, MV._ncDesc, MV._ncChar, MV._ncLast = nil, nil, nil, nil
+        MV._NcBind(false)
+        MV._passBlocked, MV._passPX, MV._passPZ, MV._passAt = 0, nil, nil, nil
+        MV._NcRestore()
+    end
+    MV._Watchdog()
+    return MV.noclip
+end
+
+-- ---------- 🦘 NHẢY VÔ HẠN ----------
+-- v4.12.2: NHIỀU GAME KHÔNG NHẬN kiểu cũ (chỉ nghe JumpRequest rồi ChangeState) vì:
+--   • game gọi ContextActionService:BindActionAtPriority ăn mất Space -> JumpRequest không bốc
+--   • game để JumpPower / JumpHeight = 0 (cấm nhảy) -> ChangeState vô tác dụng
+--   • game bật PlatformStand / tắt StateEnabled / dùng rig tự chế -> Humanoid phớt lờ lệnh nhảy
+-- Nên nhảy bằng 3 ĐƯỜNG, đường nào được thì được:
+--   1) Humanoid:ChangeState(Jumping)            — chuẩn
+--   2) Humanoid.Jump = true                     — API cũ, game đời cũ vẫn ăn
+--   3) đẩy thẳng vận tốc vào HumanoidRootPart   — cách cuối, luôn có tác dụng
+-- Đường 3 chỉ chạy khi 0.08s sau mà người VẪN chưa nhúc nhích (tức 1+2 bị game bỏ qua) ->
+-- không bao giờ bị "nhảy đúp" ở những game vốn nhảy bình thường.
+-- Ngoài ra: ép JumpPower/JumpHeight về mức NHẢY ĐƯỢC nếu game đang để 0 (trả lại khi tắt),
+-- và nghe thêm phím Space / A (tay cầm) qua InputBegan để vẫn nhảy được khi game ăn JumpRequest.
+function MV._JumpGuard()
+    local h = MV.Hum()
+    if not h then return end
+    pcall(function()
+        local jp = mvClamp(MV.jumpPower, 1, 500)
+        if h.UseJumpPower ~= false then
+            if (tonumber(h.JumpPower) or 0) < 1 then h.JumpPower = jp end
+        end
+        if (tonumber(h.JumpHeight) or 0) < 0.1 then
+            local g = tonumber(workspace.Gravity) or 0
+            if g < 1 then g = 196.2 end
+            h.JumpHeight = mvClamp((jp * jp) / (2 * g), 1, 500)
+        end
+    end)
+end
+function MV._JumpConfirm(y0)
+    if not MV.infJump then return end
+    local r2 = MV.Root()
+    if not r2 then return end
+    local up = r2.Position.Y - y0
+    local v  = r2.AssemblyLinearVelocity
+    local vy = MV.comp(v, "Y", 0)
+    if up < 0.4 and vy < 10 then        -- chưa nhúc nhích -> game đã bỏ qua lệnh nhảy
+        pcall(function()
+            r2.AssemblyLinearVelocity = Vector3.new(
+                MV.comp(v, "X", 0), mvClamp(MV.jumpPower, 1, 500), MV.comp(v, "Z", 0))
+        end)
+    end
+end
+function MV._DoJump()
+    if not MV.infJump then return false end
+    local h, r = MV.Hum(), MV.Root()
+    if not h or not r then return false end
+    if h.Sit or h.PlatformStand then return false end      -- đang ngồi ghế/xe: không nhảy
+    local now = os.clock()
+    if MV._lastJump and (now - MV._lastJump) < 0.12 then return false end   -- chống bốc đúp
+    MV._lastJump = now
+    MV._JumpGuard()
+    local y0 = r.Position.Y
+    pcall(function() h:ChangeState(Enum.HumanoidStateType.Jumping) end)
+    pcall(function() h.Jump = true end)
+    task.delay(0.08, function() pcall(MV._JumpConfirm, y0) end)
+    return true
+end
+function MV.SetInfJump(on)
+    on = (on == true)
+    if on == MV.infJump then return MV.infJump end
+    MV.infJump = on
+    if on then
+        local h = MV.Hum()
+        if h then MV._ijBaseJP, MV._ijBaseJH = h.JumpPower, h.JumpHeight end
+        MV._JumpGuard()
+        MV._ijConn  = trackConn(UserInputService.JumpRequest:Connect(function()
+            pcall(MV._DoJump)
+        end))
+        -- dự phòng: game ăn mất JumpRequest thì bấm Space / A vẫn nhảy (trừ khi đang gõ trong hub)
+        MV._ijConn2 = trackConn(UserInputService.InputBegan:Connect(function(i, gp)
+            if not MV.infJump then return end
+            pcall(function()
+                local tb = UserInputService:GetFocusedTextBox()
+                if tb and tb:IsDescendantOf(gui) then return end   -- đang gõ trong hub thì thôi
+                local k = i and i.KeyCode
+                if k == Enum.KeyCode.Space or k == Enum.KeyCode.ButtonA then MV._DoJump() end
+            end)
+        end))
+    else
+        for _, c in ipairs({ MV._ijConn, MV._ijConn2 }) do
+            if c then pcall(function() c:Disconnect() end) end
+        end
+        MV._ijConn, MV._ijConn2 = nil, nil
+        local h = MV.Hum()
+        if h then
+            if MV._ijBaseJP ~= nil then pcall(function() h.JumpPower  = MV._ijBaseJP end) end
+            if MV._ijBaseJH ~= nil then pcall(function() h.JumpHeight = MV._ijBaseJH end) end
+        end
+        MV._ijBaseJP, MV._ijBaseJH = nil, nil
+    end
+    MV._Watchdog()
+    return MV.infJump
+end
+
+-- ---------- 👟 CHẠY ĐỘ (WalkSpeed / JumpPower) ----------
+-- v4.12.2 — TỐC ĐỘ PHỤ THUỘC VÀO GAME (điều bạn muốn):
+--   • speedMode = "x"   (MẶC ĐỊNH): tốc độ = TỐC ĐỘ CỦA GAME × speedMul (×3).
+--     Game để 8 thì chạy 24, game để 20 thì chạy 60, game đổi tốc độ (cúp, nhân vật khác,
+--     leo thang, đổi map...) thì chạy ĐỔI THEO — không còn chuyện "ép 50 rồi văng khỏi map"
+--     hay "game chậm mà mình vẫn chậm". Tắt đi trả lại ĐÚNG tốc độ game đang có.
+--   • speedMode = "num": ép cứng = walkSpeed (kiểu cũ) — dành khi bạn muốn một con số cố định.
+--   Gõ "x3" hoặc "50" vào ô 👟 Chạy trong khung ⚙ (ô chạy nhận cả 2 kiểu).
+function MV.WantSpeed()
+    if MV.speedMode == "x" then
+        local base = tonumber(MV._baseWS) or 16
+        return mvClamp(base * mvClamp(MV.speedMul, 1, 20), 0, 500)
+    end
+    return mvClamp(MV.walkSpeed, 0, 500)
+end
+function MV.ApplyChar()
+    local h = MV.Hum()
+    if not h then return end
+    if MV.speed then
+        local want = MV.WantSpeed()
+        h.WalkSpeed = want
+        MV.appliedWS = want
+        local jp = mvClamp(MV.jumpPower, 0, 500)
+        if h.JumpPower ~= jp then h.JumpPower = jp end
+    else
+        h.WalkSpeed  = MV._baseWS or 16
+        h.JumpPower  = MV._baseJP or 50
+        MV.appliedWS = nil
+    end
+end
+-- Game đổi tốc độ (cắt cảnh, leo thang, đổi nhân vật, anti-cheat trả lại 16...) -> THEO GAME:
+-- lấy số mới làm NỀN rồi nhân lại. Nhờ vậy không bao giờ cãi nhau với game.
+function MV.SpeedStep()
+    local h = MV.Hum()
+    if not h or not MV.speed then return end
+    if MV.appliedWS ~= nil and math.abs((tonumber(h.WalkSpeed) or 0) - MV.appliedWS) > 0.01 then
+        MV._baseWS = tonumber(h.WalkSpeed) or MV._baseWS
+    end
+    MV.ApplyChar()
+end
+function MV.SetSpeed(on)
+    on = (on == true)
+    local h = MV.Hum()
+    if on and not MV.speed and h then          -- chỉ nhớ mặc định ở lần BẬT đầu tiên
+        MV._baseWS = h.WalkSpeed  or 16
+        MV._baseJP = h.JumpPower  or 50
+    end
+    MV.speed = on
+    MV.ApplyChar()
+    MV._Watchdog()
+    return MV.speed
+end
+
+-- ---------- v4.12.2: VÒNG CANH GÁC (lý do nhiều game "không hoạt động") ----------
+-- Rất nhiều game (hoặc anti-cheat) chủ động DỌN đồ của mình: xoá part lạ trong workspace,
+-- trả WalkSpeed về mặc định mỗi frame, để JumpPower = 0, thay nhân vật... Vòng này chạy mỗi
+-- 0.3s khi có tính năng đang bật: thấy mất là dựng lại ngay, thấy game đổi là theo game.
+function MV._NeedWatch()
+    -- v4.23: + 🛡 Bay An Toàn (phải tự sống qua respawn/đổi trận kể cả khi game gỡ vòng lặp render)
+    return (MV.fly or MV.noclip or MV.infJump or MV.speed or MV.carpet or MV.runMode
+            or (MV.Safe and MV.Safe.on)) == true
+end
+function MV._KeepAlive()
+    if MV.speed or MV.runMode then pcall(MV.SpeedStep) end
+    if MV.infJump or MV.runMode then pcall(MV._JumpGuard) end
+    if MV.carpet and (not MV._carpet or not MV._carpet.Parent) then
+        pcall(function() MV.CreateCarpet(MV.carpetY) end)
+    end
+    -- v4.23: 🚀 vòng lặp Bay bị game gỡ/ngốn (quá 0,6s không chạy) hoặc part bay dính nhân vật cũ
+    -- -> dựng lại. Trước đây mất vòng lặp Bay là mất luôn (và 🛡 nằm trong đó nên chết theo).
+    local keepR = MV.Root()
+    if MV.fly and keepR and (not MV._bv or MV._bv.Parent ~= keepR
+       or (tick() - (MV._flyFrameAt or 0)) > 0.6) then
+        pcall(function() MV.SetFly(false) end)
+        pcall(function() MV.SetFly(true) end)
+    end
+    -- v4.23: 🛡 — quá 0,6s không thấy vòng lặp riêng chạy (game gỡ/ngốn) thì GẮN LẠI + chạy hộ 1 nhịp,
+    -- để 🛡 KHÔNG BAO GIỜ chết lặng sau khi đổi trận.
+    if MV.Safe and MV.Safe.on and (tick() - (MV.Safe._lastFrameAt or 0)) > 0.6 then
+        MV.Safe._bound = false
+        pcall(MV.Safe.Bind)
+        pcall(MV.Safe.Step, 0.1)
+    end
+end
+function MV._Watchdog()
+    if MV._wd then return end
+    MV._wd = task.spawn(function()
+        while MV._NeedWatch() and MV._wd do
+            pcall(MV._KeepAlive)
+            task.wait(0.3)
+        end
+        MV._wd = nil
+    end)
+    if MV._wd == nil then MV._wd = true end      -- executor nào spawn không trả thread thì gắn cờ
+end
+
+-- ---------- 🚀 BAY ----------
+function MV._StopFly()
+    if MV._bv then pcall(function() MV._bv:Destroy() end) end
+    if MV._bg then pcall(function() MV._bg:Destroy() end) end
+    if MV._floor then pcall(function() MV._floor:Destroy() end) end
+    MV._bv, MV._bg, MV._floor = nil, nil, nil
+    local h = MV.Hum()
+    if h then
+        h.AutoRotate = true
+        h.PlatformStand = false
+    end
+    pcall(function() RunService:UnbindFromRenderStep("Fly") end)
+end
+function MV.SetFly(on)
+    on = (on == true)
+    local r = MV.Root()
+    if on and not r then return false, "chưa có nhân vật để bay" end
+    -- v4.12.4: y hệt bản gốc (TogFly gọi StopFlyRun) — bật BAY thì thoát chế độ CHẠY TRÊN THẢM
+    if on and MV.runMode then MV.SetRunMode(false) end
+    MV.fly = on
+    if not on then MV._StopFly(); MV._Watchdog(); MV.SyncHud(); return false end
+    local h = MV.Hum()
+    MV._bv = New("BodyVelocity", { Name = "BC_FlyVel", MaxForce = Vector3.new(4000, 4000, 4000) }, r)
+    MV._bg = New("BodyGyro",     { Name = "BC_FlyGyro", MaxTorque = Vector3.new(4000, 4000, 4000) }, r)
+    if h then h.AutoRotate = false; h.PlatformStand = true end
+    if not MV._floor then
+        MV._floor = New("Part", {
+            Name = "BC_FlyFloor", Size = Vector3.new(6, 0.2, 6), Transparency = 0.7,
+            Color = Color3.fromRGB(200, 230, 255), Material = Enum.Material.Glass,
+            Anchored = true, CanCollide = false,
+        }, workspace)
+    end
+    RunService:BindToRenderStep("Fly", 1, function()
+        MV._flyFrameAt = tick()                 -- v4.23: watchdog soi vòng lặp 🚀 Bay còn sống không
+        local curR, curH = MV.Root(), MV.Hum()
+        if not MV.fly or not curR or not MV._bv then return end
+        local d = (curH and curH.MoveDirection) or Vector3.zero
+        local t = curR.CFrame:VectorToWorldSpace(d)
+        if t.Magnitude > 0 then t = t.Unit end
+        local up   = UserInputService:IsKeyDown(Enum.KeyCode.Space)
+        local down = UserInputService:IsKeyDown(Enum.KeyCode.LeftShift)
+                  or UserInputService:IsKeyDown(Enum.KeyCode.LeftControl)
+        local vv = (up and 1 or 0) - (down and 1 or 0)
+        -- v4.23: BỌC pcall TỪNG PHẦN — game/anti-cheat xoá part bay, camera nil, nhân vật đổi giữa
+        -- frame... trước đây 1 lỗi ở đây là vòng lặp chết ngay frame đó (và 🛡 chết theo vì nằm cuối).
+        -- v4.23: 🛡 BẬT thì NHƯỜNG vận tốc cho 🛡 (nó tự đặt vận tốc + né vật). Trước đây 2 vòng lặp
+        -- cùng ghi vận tốc nên vòng nào chạy sau là thắng — 🛡 có lúc bị ghi đè về "bay thẳng" (im lặng).
+        if MV.Safe and MV.Safe.on then
+            if not MV.Safe._bound then pcall(function() MV.Safe.Step() end) end
+        else
+            pcall(function() MV._bv.Velocity = (t + Vector3.new(0, vv, 0)) * MV.flySpeed end)
+        end
+        local cam = workspace.CurrentCamera
+        if MV._bg and cam then
+            pcall(function()
+                MV._bg.CFrame = CFrame.new(curR.Position, curR.Position + cam.CFrame.LookVector)
+            end)
+        end
+        if MV._floor and not MV._floor.Parent then MV._floor = nil end
+        if not MV._floor then
+            pcall(function()
+                MV._floor = New("Part", {
+                    Name = "BC_FlyFloor", Size = Vector3.new(6, 0.2, 6), Transparency = 0.7,
+                    Color = Color3.fromRGB(200, 230, 255), Material = Enum.Material.Glass,
+                    Anchored = true, CanCollide = false,
+                }, workspace)
+            end)
+        end
+        if MV._floor then pcall(function() MV._floor.Position = curR.Position - Vector3.new(0, 3.5, 0) end) end
+    end)
+    MV.SyncHud()
+    return true
+end
+
+ -- ============================================================================
+-- ===== v4.17: 🛡 BAY AN TOÀN (tự bay + NÉ vật có dấu hiệu chuyển động) =======
+-- ============================================================================
+-- Bật là TỰ BAY (không cần giữ phím) và TỰ NÉ: mỗi 0,15 giây quét mọi vật quanh mình trong
+-- bán kính 📏 (mặc định 25m); vật nào có DẤU HIỆU CHUYỂN ĐỘNG — đang di chuyển
+-- (AssemblyLinearVelocity > 1,5) HOẶC vừa ĐỔI VỊ TRÍ (dịch > 0,35 studs giữa 2 lần quét, bắt
+-- được cả vật bị script/tween/CFrame kéo đi mà vận tốc = 0) — thì bị ĐẨY RA XA: càng gần đẩy
+-- càng mạnh, quá gần (dưới 40% bán kính) thì VỌT LÊN trên. Vật đứng yên KHÔNG bị né (bay xuyên
+-- qua bình thường).
+-- Chỉnh được: 💨 TỐC ĐỘ BAY · 📏 KHOẢNG CÁCH XÁC ĐỊNH ĐỂ NÉ · 🌀 NÉ GẮT (1–10) · ➡ TỰ BAY.
+-- Chạy CHUNG vòng lặp với 🚀 Bay (gọi ở CUỐI vòng đó nên chắc chắn thắng, không đánh nhau).
+-- An toàn: chỉ GHI VẬN TỐC bay (BodyVelocity của chính bạn) — không ghi vị trí, không đụng ai.
+-- (v4.18) Toàn bộ khối này nằm trong `do ... end`: mọi biến local (SF, sfIsPart, sfPlayers...) không
+-- chiếm slot local của main chunk — main chunk của hub đã sát trần 200 local của Luau/Lua 5.4.
+do
+MV.Safe = {
+    on = false,
+    auto = true,        -- ➡ tự bay (không bấm gì vẫn bay theo hướng camera)
+    radius = 25,        -- 📏 khoảng cách xác định để né (studs)
+    speed = 60,         -- 💨 tốc độ bay
+    steer = 4,          -- 🌀 né gắt (1–10)
+    -- v4.18
+    shield = true,      -- 🔲 bức tường trong suốt hình vuông bao quanh (nhìn thấy vùng né)
+    shieldThk = 0.4,    -- độ dày vách
+    shieldH = 0,        -- v4.23: 0 = chiều cao TỰ ĐỘNG theo nhân vật (trước đây cố định 16)
+    shieldSize = 0,     -- v4.23: nửa cạnh khiên (studs). 0 = TỰ ĐỘNG ôm sát nhân vật; 📏 Né KHÔNG kéo giãn khiên
+    shieldSpin = true,  -- v4.24: 🔲 khiên QUAY VÒNG TRÒN quanh mình (đứng im là thấy nó bay vòng)
+    spinDeg = 60,       -- v4.24: 🔲 tốc độ quay (độ/giây) — 0 = không quay
+    _spinAng = 0,       -- v4.24: góc quay hiện tại của khiên (radian)
+    _circleRate = nil,  -- v4.24: tốc độ quay của vòng bay (độ/giây) để khiên quay ăn khớp
+    shieldT = 0.86,     -- độ trong suốt (càng nhỏ càng thấy rõ)
+    avoidPlayers = true,-- 👤 né cả NGƯỜI CHƠI khác (dù họ đứng yên)
+    -- v4.19
+    circle = true,      -- ⭕ không có mối nguy nào -> tự bay VÒNG TRÒN
+    circleR = 20,       -- ⭕ bán kính vòng tròn
+    lookTime = 1.0,     -- 👁 nhìn trước bao nhiêu giây để né vật ĐANG BAY TỚI mình
+    lookMul = 1.6,      -- 👁 quét xa hơn vùng né bấy nhiêu lần (bắt vật từ xa lao tới)
+    _holdAt = 0,        -- thời điểm cuối cùng còn mối nguy (né thêm 0,35s cho chắc)
+    _myV = Vector3.new(0, 0, 0),   -- vận tốc mình ĐANG định bay (để tính tốc độ lao vào nhau)
+    _ang = 0, _center = nil,       -- ⭕ góc + tâm vòng tròn
+    noclip = true,      -- 🧱 tự bật Xuyên Tường để đẩy được xuyên vật cản
+    _ncPrev = nil,      -- trạng thái Xuyên Tường TRƯỚC KHI bật 🛡 (để trả lại đúng)
+    _shield = nil,      -- 4 vách trong suốt
+    _shieldPos = nil,
+    _root = nil,        -- v4.23: nhân vật đang gắn (đổi là tự dựng lại part bay + khiên)
+    _bound = false,     -- v4.23: vòng lặp riêng "BC_Safe" đã gắn chưa
+    _lastFrameAt = 0,   -- v4.23: lần cuối vòng lặp 🛡 chạy (watchdog soi còn sống không)
+    playerThreats = 0,
+    threats = 0, nearest = nil,     -- để hiện trạng thái
+    _rep = Vector3.new(0, 0, 0),    -- vector đẩy của lần quét gần nhất
+    _seen = {}, _cache = nil, _listAcc = 0, _sc = 0,
+}
+local SF = MV.Safe
+
+local function sfIsPart(d)
+    -- ⚠️ v4.20: TUYỆT ĐỐI không đòi `type(d) == "table"`.
+    -- Trong Roblox THẬT instance là USERDATA (type = "userdata"), chỉ trong máy giả lập của bộ test
+    -- instance mới là bảng có `__isInstance`. Bản v4.19 kiểm tra `type(d) == "table"` nên trong game
+    -- thật KHÔNG BAO GIỜ thấy part nào -> boss/nextbot lao tới mà 🛡 không né (chỉ né được người chơi).
+    if d == nil then return false end
+    local okA, isPart = pcall(function() return d:IsA("BasePart") end)   -- game thật: IsA có sẵn
+    if okA and isPart ~= nil then return isPart == true end
+    local okC, cls = pcall(function() return tostring(d.ClassName or "") end)
+    if not okC then return false end
+    return (cls == "Part" or cls == "MeshPart" or cls == "WedgePart" or cls == "TrussPart"
+            or cls == "CornerWedgePart" or cls == "UnionOperation" or cls == "NegateOperation"
+            or cls == "IntersectOperation" or cls == "Ball" or cls == "Cylinder"
+            or cls == "SpawnLocation" or cls == "Seat" or cls == "VehicleSeat" or cls == "Platform")
+end
+-- vật này có phải "CHÍNH MÌNH / đồ của hub" không (không bao giờ né)
+local function sfIgnore(d, char)
+    local nm = tostring(d.Name or "")
+    if nm:sub(1, 3) == "BC_" then return true end
+    if char and d:IsDescendantOf(char) then return true end
+    if d:IsDescendantOf(MV._floor) then return true end
+    return false
+end
+-- danh sách ứng viên: ưu tiên GetPartBoundsInRadius (nhẹ), không có thì tự duyệt workspace
+-- v4.20: quét bằng OverlapParams (MaxParts = 0 = KHÔNG giới hạn, bỏ qua chính mình). Map nhiều part
+-- như Evade mà không truyền params thì engine dùng mặc định — dễ hụt mối nguy.
+local function sfOverlap(char)
+    if SF._op and SF._opChar == char then return SF._op end
+    local ok, op = pcall(function() return OverlapParams.new() end)
+    if not ok or op == nil then return nil end
+    pcall(function() op.MaxParts = 0 end)                                  -- 0 = không giới hạn
+    pcall(function() op.RespectCanCollide = false end)                     -- vật không va chạm vẫn tính
+    pcall(function() op.FilterType = Enum.RaycastFilterType.Exclude end)   -- API mới
+    pcall(function() op.FilterDescendantsInstances = { char } end)         -- bỏ qua part của chính mình
+    SF._op, SF._opChar = op, char
+    return op
+end
+local function sfCandidates(pos, dt, reach)
+    local r0 = reach or SF.radius
+    local char0 = MV.Char()
+    local op0 = sfOverlap(char0)
+    local okL, list = pcall(function() return workspace:GetPartBoundsInRadius(pos, r0, op0) end)
+    if not okL then okL, list = pcall(function() return workspace:GetPartBoundsInRadius(pos, r0) end) end
+    if okL and type(list) == "table" and #list > 0 then return list end
+    SF._listAcc = (SF._listAcc or 0) + (dt or 0.15)
+    if not SF._cache or SF._listAcc >= 2 then
+        SF._listAcc = 0
+        local out = {}
+        local ok2, desc = pcall(function() return workspace:GetDescendants() end)
+        if ok2 and type(desc) == "table" then
+            for _, d in ipairs(desc) do
+                if #out >= 600 then break end
+                if sfIsPart(d) then out[#out + 1] = d end
+            end
+        end
+        SF._cache = out
+    end
+    return SF._cache or {}
+end
+-- v4.18: NGƯỜI CHƠI KHÁC luôn được coi là mối nguy (họ đi đâu, đánh nhau, kéo theo đồ... đều
+-- khó đoán) — kể cả khi họ ĐANG ĐỨNG YÊN. Tắt bằng 👤 Né người chơi nếu không muốn.
+local function sfPlayers(pos, rad, rep0, near0)
+    local rep, n, near = rep0, 0, near0
+    if not SF.avoidPlayers then return rep, n, near end
+    local char = MV.Char()
+    local ok, list = pcall(function() return Players:GetPlayers() end)
+    if not ok or type(list) ~= "table" then return rep, n, near end
+    for _, pl in ipairs(list) do
+        if pl ~= player then
+            local ch = pl.Character
+            if ch and ch ~= char then
+                local hrp = ch:FindFirstChild("HumanoidRootPart") or ch:FindFirstChildOfClass("BasePart")
+                local pp = hrp and hrp.Position
+                if pp then
+                    local delta = pp - pos
+                    local dist = delta.Magnitude
+                    if dist <= rad and dist > 0.01 then
+                        n = n + 1
+                        if near == nil or dist < near then near = dist end
+                        local w = 1 - (dist / rad)
+                        rep = rep - (delta / dist) * (0.5 + w * w * 3)   -- TRỪ = đẩy RA XA
+                    end
+                end
+            end
+        end
+    end
+    return rep, n, near
+end
+-- QUÉT: trả về số vật chuyển động trong bán kính + khoảng cách gần nhất + vector đẩy
+function MV.Safe.Scan(pos, dt)
+    local char = MV.Char()
+    local rad = mvClamp(SF.radius, 1, 300, 25)
+    -- v4.19: quét XA hơn vùng né (lookMul lần) + TÍNH THỜI ĐIỂM ĐÂM NHAU. Vật đang lao tới
+    -- mình mà còn ở ngoài vùng né thì trước đây KHÔNG bị né (tới lúc vào vùng là quá muộn) —
+    -- đây chính là lỗi "vật chuyển động bay tới mình mà không né".
+    local reach = rad * mvClamp(SF.lookMul, 1, 4, 1.6)
+    local lookT = mvClamp(SF.lookTime, 0.1, 3, 1.0)
+    local myV = SF._myV or Vector3.new(0, 0, 0)     -- vận tốc MÌNH (mình bay tới nó cũng tính)
+    local rep = Vector3.new(0, 0, 0)
+    local n, near = 0, nil
+    local now = tick()
+    local seen = {}
+    -- v4.20: part thuộc NHÂN VẬT NGƯỜI CHƠI KHÁC -> để phần 👤 Né người quyết định. Nếu tính ở đây
+    -- thì đếm 2 lần, và 👤 TẮT xong vẫn bị né (test P5 bắt được).
+    local pchars = {}
+    local okPLS, pls = pcall(function() return Players:GetPlayers() end)
+    if okPLS and type(pls) == "table" then
+        for _, pl in ipairs(pls) do
+            if pl ~= player then
+                local ch2 = pl.Character
+                if ch2 ~= nil and ch2 ~= char then pchars[ch2] = true end
+            end
+        end
+    end
+    local hasPChar = (next(pchars) ~= nil)
+    local function inPChar(d)
+        if not hasPChar then return false end
+        for ch2 in pairs(pchars) do
+            local ok2, res = pcall(function() return d:IsDescendantOf(ch2) end)
+            if ok2 and res then return true end
+        end
+        return false
+    end
+    SF._mvCount = 0                       -- v4.20: đếm vật ĐANG CHẠY trong tầm (để soi trạng thái)
+    for _, d in ipairs(sfCandidates(pos, dt, reach)) do
+        if sfIsPart(d) and not sfIgnore(d, char) and not inPChar(d) then
+            local p = d.Position
+            if p then
+                local delta = p - pos
+                local dist = delta.Magnitude
+                -- KHOẢNG CÁCH TỚI MẶT vật (tính TRƯỚC cổng vào): boss/nextbot to (part 20-40 studs)
+                -- mà đo tới TÂM thì tâm còn ngoài tầm quét trong khi MẶT đã sát mình -> không bao giờ
+                -- né. Kẹp bán kính bao tối đa 50% 📏 để part khổng lồ của map không tính bừa.
+                local rr = 0
+                local okSz, sz = pcall(function() return d.Size end)
+                if okSz and sz then
+                    local okM, mx = pcall(function() return math.max(sz.X, sz.Y, sz.Z) end)
+                    if okM and type(mx) == "number" then rr = mx * 0.5 end
+                end
+                if rr > rad * 0.75 then rr = rad * 0.75 end
+                local surf = dist - rr
+                if surf < 0 then surf = 0 end
+                if surf <= reach and dist > 0.01 then
+                    local dir = delta / dist                 -- hướng TỚI vật
+                    -- DẤU HIỆU CHUYỂN ĐỘNG: vận tốc > 1,5 ... hoặc VỪA ĐỔI VỊ TRÍ
+                    local moving, closing = false, 0
+                    local okv, v = pcall(function() return d.AssemblyLinearVelocity end)
+                    if okv and v and v.Magnitude then
+                        if v.Magnitude > 1.5 then moving = true end
+                        -- tốc độ LAO VÀO = VẬT bay về phía mình. KHÔNG cộng vận tốc của mình vào
+                        -- đây: nếu cộng thì mọi vật đứng yên ở trước mặt cũng bị coi là "lao tới"
+                        -- (bộ test O3/P5 bắt được lỗi này). Mình bay tới nó chỉ làm lực đẩy MẠNH
+                        -- THÊM (xem `boost` bên dưới), không đổi việc nó có phải mối nguy hay không.
+                        closing = -(v.X * dir.X + v.Y * dir.Y + v.Z * dir.Z)
+                    end
+                    local old = SF._seen[d]
+                    if old then
+                        local dd = (p - old.p).Magnitude
+                        local ddt = math.max(now - old.t, 0.02)
+                        if dd > 0.35 or (dd / ddt) > 1.5 then moving = true end
+                        -- vật bị SCRIPT/TWEEN kéo đi (vận tốc = 0) mà đang tiến lại gần mình
+                        if closing <= 0.5 and dd > 0.1 then
+                            closing = math.max(closing, dd / ddt)
+                        end
+                    end
+                    -- BOSS/NEXTBOT: part đi theo Humanoid (MoveTo/Pathfinding) — vận tốc part có thể = 0
+                    -- và vị trí đổi rất ít giữa 2 lần quét, nhưng Humanoid ĐANG đi -> vẫn phải né.
+                    if not moving then
+                        local okH, hum0 = pcall(function() return d:FindFirstAncestorOfClass("Humanoid") end)
+                        if not okH then hum0 = nil end
+                        if hum0 == nil then
+                            local okP, anc = pcall(function() return d.Parent end)
+                            if okP and anc then
+                                local okF, h2 = pcall(function() return anc:FindFirstChildOfClass("Humanoid") end)
+                                if okF then hum0 = h2 end
+                            end
+                        end
+                        if hum0 ~= nil then
+                            local okMd, md = pcall(function() return hum0.MoveDirection end)
+                            local mdMag = 0
+                            if okMd and md then
+                                local okm2, m2 = pcall(function() return md.Magnitude end)
+                                if okm2 and type(m2) == "number" then mdMag = m2 end
+                            end
+                            -- CHỈ tin HƯỚNG ĐI: NPC đứng yên vẫn có WalkSpeed = 16, tin WalkSpeed là né bừa.
+                            if mdMag > 0.05 then moving = true end
+                        end
+                    end
+                    if moving and surf <= reach then SF._mvCount = (SF._mvCount or 0) + 1 end
+                    seen[d] = { p = p, t = now }
+                    -- NGUY HIỂM = (đang trong vùng né VÀ có chuyển động)
+                    --         HOẶC (ĐANG LAO TỚI MÌNH, sẽ tới nơi trong lookTime giây)
+                    local danger = (surf <= rad and moving)
+                    local tHit = nil
+                    if closing > 0.5 then
+                        tHit = (surf - rad * 0.35) / closing      -- còn bao lâu thì MẶT vật tới sát mình
+                        if tHit <= lookT then danger = true end
+                    end
+                    if danger then
+                        n = n + 1
+                        if near == nil or surf < near then near = surf end
+                        -- Càng gần càng mạnh; riêng vật LAO TỚI thì mạnh theo tốc độ lao vào
+                        local w = mvClamp(1 - (surf / (rad * mvClamp(SF.lookMul, 1, 4, 1.6))), 0.2, 1)
+                        local myDot = mvClamp(myV.X * dir.X + myV.Y * dir.Y + myV.Z * dir.Z, 0, 200)
+                        local boost = 1 + mvClamp(closing, 0, 200) / 60 + myDot / 240
+                        -- LƯU Ý DẤU: delta = (vật - mình) tức là hướng TỚI vật, nên phải TRỪ đi
+                        -- mới thành lực ĐẨY RA XA. (Bản đầu viết cộng -> bị hút về phía vật; bộ
+                        -- test O2/O4/O6/O8 bắt được lỗi này.)
+                        -- Đẩy theo VỊ TRÍ DỰ ĐOÁN: vật sắp ở đâu trong ~0,35s tới.
+                        local pv = p
+                        if okv and v and v.Magnitude and v.Magnitude > 0.1 then pv = p + v * 0.35 end
+                        local pdir = pv - pos
+                        if pdir.Magnitude > 0.01 then
+                            pdir = pdir.Unit
+                            -- ⚠️ v4.20: điểm DỰ ĐOÁN lố ra phía BÊN KIA mình (vật đã gí sát, 0,35s nữa nó
+                            -- ở sau lưng) thì "né theo dự đoán" hoá ra đẩy mình BAY THẲNG VÀO NÓ.
+                            -- Test R3 bắt được (boss gí sát -> vận tốc hướng +X, tới thẳng boss).
+                            if (pdir.X * dir.X + pdir.Y * dir.Y + pdir.Z * dir.Z) < 0 then pdir = dir end
+                        else
+                            pdir = dir
+                        end
+                        rep = rep - pdir * (0.35 + w * w * 3) * boost
+                    end
+                end
+            end
+        end
+    end
+    -- cộng thêm NGƯỜI CHƠI khác (luôn là mối nguy)
+    local pn0 = n
+    rep, n, near = sfPlayers(pos, rad, rep, near)
+    SF.playerThreats = n
+    n = pn0 + n
+    SF._seen = seen
+    SF._rep = rep
+    SF.movers = SF._mvCount or 0
+    SF._mvCount = nil
+    SF.threats, SF.nearest = n, near
+    if n > 0 then
+        SF._holdAt = now
+        SF._lastThreatAt = now                                     -- v4.20: nhớ vừa bị gí (để né tiếp)
+        if rep.Magnitude > 0 then SF._lastRep = rep end            -- nhớ HƯỚNG đang né
+    end
+    return n, near, rep
+end
+-- ---------- v4.18: 🔲 BỨC TƯỜNG TRONG SUỐT HÌNH VUÔNG bao quanh mình ----------
+-- 4 vách kính mỏng xếp thành hình vuông quanh nhân vật. CanCollide = false (không phải để va chạm) —
+-- nó HIỆN vùng an toàn; lực đẩy vẫn do BodyVelocity làm. Tên BC_* nên máy quét không né chính nó.
+-- v4.23 (SỬA THEO Ý BẠN — "hình vuông bao quanh mình kích thước hợp lí"): cỡ khiên nay HỢP LÍ,
+-- mặc định ÔM SÁT nhân vật (~5 stud một cạnh) thay vì cạnh = 📏 × 2 (📏 25 -> cái hộp 50 × 16 stud,
+-- nhìn như cái chuồng). 📏 Né GIỜ CHỈ là KHOẢNG CÁCH NÉ, không kéo giãn khiên; muốn to/nhỏ thì chỉnh
+-- ô 🔲 Cỡ trong khung ⚙ (0 = tự động theo nhân vật, > 0 = số stud mình muốn).
+function MV.Safe.KillShield()
+    for i = 1, 4 do
+        local w = SF._shield and SF._shield[i]
+        if w then pcall(function() w:Destroy() end) end
+    end
+    SF._shield, SF._shieldPos = nil, nil
+end
+function MV.Safe.ShieldHalf()
+    local n = tonumber(SF.shieldSize)
+    if n and n > 0 then return mvClamp(n, 0.5, 300, 3) end          -- chỉnh tay
+    local w = 2
+    local r = MV.Root()
+    if r then pcall(function() w = math.max(tonumber(r.Size.X) or 2, tonumber(r.Size.Z) or 2) end) end
+    return mvClamp(w * 0.5 + 1.6, 2, 8, 3)                          -- người thường: 2,6 stud (cạnh ~5,2)
+end
+function MV.Safe.ShieldHeight()
+    local n = tonumber(SF.shieldH)
+    if n and n > 0 then return mvClamp(n, 1, 100, 8) end
+    local hh = 2
+    local r = MV.Root()
+    if r then pcall(function() hh = tonumber(r.Size.Y) or 2 end) end
+    return mvClamp(hh * 3 + 2, 4, 14, 8)                            -- người thường: 8 stud
+end
+function MV.Safe.BuildShield()
+    MV.Safe.KillShield()
+    local side, h = MV.Safe.ShieldHalf(), MV.Safe.ShieldHeight()
+    local thk = SF.shieldThk
+    SF._shield = {}
+    for i = 1, 4 do
+        local long = (i <= 2)
+        local w = New("Part", {
+            Name = "BC_Shield" .. i,
+            Size = long and Vector3.new(side * 2 + thk, h, thk) or Vector3.new(thk, h, side * 2 + thk),
+            Transparency = SF.shieldT,
+            Color = Color3.fromRGB(120, 225, 255),
+            Material = Enum.Material.Glass,
+            Anchored = true, CanCollide = false, CastShadow = false,
+        }, workspace)
+        SF._shield[i] = w
+    end
+end
+-- thả khiên theo mình (chỉ ghi khi THẬT SỰ đổi — đứng yên thì không ghi gì)
+function MV.Safe.UpdateShield(pos)
+    if not (SF.on and SF.shield) then
+        if SF._shield then MV.Safe.KillShield() end
+        return
+    end
+    local side = MV.Safe.ShieldHalf()
+    local wallH = MV.Safe.ShieldHeight()
+    -- v4.24: 🔲 KHIÊN QUAY VÒNG TRÒN — cả cái hình vuông xoay quanh mình (đứng im ở ⭕ là thấy nó bay vòng)
+    local ang = 0
+    if SF.shieldSpin then ang = tonumber(SF._spinAng) or 0 end
+    -- v4.23: game/anti-cheat xoá 1 vách bất kì -> dựng lại CẢ BỘ (trước đây chỉ kiểm tra vách 1)
+    local need = (SF._shield == nil)
+    if not need then
+        for i = 1, 4 do
+            local w = SF._shield[i]
+            if not w or not w.Parent then need = true break end
+        end
+    end
+    if need then pcall(MV.Safe.BuildShield) end
+    if not SF._shield or not SF._shield[1] then return end
+    local q = SF._shieldPos
+    if q and math.abs(q.X - pos.X) < 0.05 and math.abs(q.Y - pos.Y) < 0.05 and math.abs(q.Z - pos.Z) < 0.05
+       and math.abs((q.S or 0) - side) < 0.01 and math.abs((q.H or 0) - wallH) < 0.01
+       and math.abs((q.A or 0) - ang) < 0.01 then
+        return
+    end
+    SF._shieldPos = { X = pos.X, Y = pos.Y, Z = pos.Z, S = side, H = wallH, A = ang }
+    local ca, sa = math.cos(ang), math.sin(ang)
+    for i = 1, 4 do
+        local w = SF._shield[i]
+        if w then
+            local ox, oz = 0, 0
+            if i == 1 then oz = side elseif i == 2 then oz = -side
+            elseif i == 3 then ox = side else ox = -side end
+            -- quay quanh trục Y: (x, z) -> (x·cos + z·sin, −x·sin + z·cos) — giống CFrame.Angles(0, ang, 0)
+            local dx = ox * ca + oz * sa
+            local dz = -ox * sa + oz * ca
+            local okS = pcall(function()
+                w.Size = (i <= 2) and Vector3.new(side * 2 + SF.shieldThk, wallH, SF.shieldThk)
+                                      or Vector3.new(SF.shieldThk, wallH, side * 2 + SF.shieldThk)
+                w.CFrame = CFrame.new(pos.X + dx, pos.Y, pos.Z + dz) * CFrame.Angles(0, ang, 0)
+            end)
+            if not okS then MV.Safe.KillShield(); return end
+        end
+    end
+end
+-- NÉ + TỰ BAY: 🛡 có VÒNG LẶP RIÊNG (BindToRenderStep "BC_Safe") + được watchdog gọi hộ nếu bị gỡ.
+-- v4.23 (LỖI THẬT bạn gặp: "chơi xong trận rồi sang trận mới là 🛡 không hoạt động nữa"): trước đây 🛡
+-- chỉ chạy nhờ vòng lặp 🚀 Bay. Hết trận/sang trận mới, part bay (BodyVelocity) chết theo nhân vật cũ
+-- (hoặc CÒN DÍNH nhân vật cũ) -> vòng lặp Bay thoát NGAY ở dòng
+-- `if not MV.fly or not curR or not MV._bv then return end` nên 🛡 KHÔNG BAO GIỜ chạy nữa.
+-- Nay 🛡 TỰ CHỮA LÀNH: part bay mất/hỏng/dính nhân vật cũ là dựng lại ngay trên nhân vật đang dùng.
+function MV.Safe.Repair()
+    local r = MV.Root()
+    if not r then return false end
+    local ok1 = pcall(function() MV.SetFly(false) end)
+    local ok2 = pcall(function() MV.SetFly(true) end)
+    if not (ok1 and ok2) or MV._bv == nil or MV.Root() ~= r then
+        pcall(function() if MV.fly == false then MV.SetFly(true) end end)
+        return false
+    end
+    MV.flySpeed = mvClamp(SF.speed, 1, 2000, 60)
+    return true
+end
+-- v4.23: vòng lặp riêng của 🛡 — gắn khi bật, gỡ khi tắt (không phụ thuộc 🚀 Bay nữa)
+function MV.Safe.Bind()
+    if SF._bound then return true end
+    SF._bound = pcall(function() RunService:BindToRenderStep("BC_Safe", 2, MV.Safe._Frame) end)
+    return SF._bound == true
+end
+function MV.Safe.Unbind()
+    SF._bound = false
+    pcall(function() RunService:UnbindFromRenderStep("BC_Safe") end)
+end
+function MV.Safe._Frame(dt) pcall(MV.Safe.Step, dt) end
+function MV.Safe.Step(dt)
+    if not SF.on then return end
+    SF._lastFrameAt = tick()                    -- v4.23: watchdog soi xem vòng lặp còn sống không
+    local r, h = MV.Root(), MV.Hum()
+    if not r then
+        -- đang hồi sinh (nhân vật mới chưa mọc): dọn khiên cũ kẻo nó treo lại giữa map
+        if SF._shield then pcall(MV.Safe.KillShield) end
+        SF._root = nil
+        return
+    end
+    -- ĐỔI TRẬN / RESPAWN: nhân vật mới -> quên dữ liệu trận cũ + dựng khiên lại sạch sẽ
+    if SF._root ~= r then
+        SF._root = r
+        pcall(MV.Safe.Reset)
+        SF._shieldPos = nil
+        if SF.shield then pcall(MV.Safe.KillShield) end
+        if MV.fly == false then pcall(function() MV.SetFly(true) end) end
+    end
+    -- part bay chết / CÒN DÍNH NHÂN VẬT CŨ / anti-cheat xoá -> dựng lại đúng nhân vật đang dùng
+    if MV.fly and not (MV._bv and MV._bv.Parent == r) then pcall(MV.Safe.Repair) end
+    local bv = MV._bv
+    if not (bv and bv.Parent == r) then return end
+    -- game hay reset 2 cờ này sau respawn/đổi trận -> giữ đúng trạng thái bay
+    if h then
+        if h.PlatformStand ~= true then pcall(function() h.PlatformStand = true end) end
+        if h.AutoRotate ~= false then pcall(function() h.AutoRotate = false end) end
+    end
+    local dtv = tonumber(dt) or 0.016
+    SF._sc = (SF._sc or 0) + dtv
+    -- v4.19: đang có mối nguy -> quét DÀY hơn (0,05s) để vật bay nhanh không lọt giữa 2 lần quét
+    local sinceThreat = tick() - (SF._lastThreatAt or 0)
+    local ivScan = (((SF.threats or 0) > 0) or sinceThreat < 1.0) and 0.05 or 0.15
+    if SF._sc >= ivScan then
+        local okS = pcall(function() MV.Safe.Scan(r.Position, SF._sc) end)
+        SF._sc = 0
+        if not okS then SF.threats, SF.nearest = 0, nil end
+    end
+    local now = tick()
+    local contact = ((SF.threats or 0) > 0) or ((now - (SF._holdAt or 0)) < 0.35)
+    -- v4.20: NHỚ HƯỚNG NÉ ~0,9s. Boss đuổi theo mà hễ ra khỏi tầm quét là mình quay lại hướng cũ
+    -- -> bị gí lại ngay. Nay tiếp tục chạy RA XA hướng đó, yếu dần rồi mới thôi.
+    -- hướng bay: theo phím đang bấm, không bấm gì mà ➡ Tự bay thì bay theo hướng camera
+    local keys = (h and h.MoveDirection) or Vector3.new(0, 0, 0)
+    local busy = keys.Magnitude >= 0.01                  -- đang bấm WASD -> nhường quyền cho bạn
+    local dir = keys
+    if dir.Magnitude < 0.01 and SF.auto then
+        local cam = workspace.CurrentCamera
+        if cam then
+            local look = cam.CFrame.LookVector
+            dir = Vector3.new(look.X, 0, look.Z)
+        end
+    end
+    if dir.Magnitude > 0 then dir = dir.Unit else dir = Vector3.new(0, 0, 0) end
+    local up = UserInputService:IsKeyDown(Enum.KeyCode.Space)
+    local down = UserInputService:IsKeyDown(Enum.KeyCode.LeftShift)
+              or UserInputService:IsKeyDown(Enum.KeyCode.LeftControl)
+    local vv = (up and 1 or 0) - (down and 1 or 0)
+    local spd = mvClamp(SF.speed, 1, 2000, 60)
+    -- ⭕ VÒNG TRÒN: chỉ khi ➡ Tự bay đang bật, KHÔNG bấm phím, và quanh đây KHÔNG có mối nguy
+    -- nào (đúng ý "khi không có ai / vật chuyển động bay tới mình thì tự bay vòng tròn").
+    local target
+    if SF.circle and SF.auto and (not busy) and (not contact) then
+        local R = mvClamp(SF.circleR, 3, 300, 20)
+        local cx, cy, cz = r.Position.X, r.Position.Y, r.Position.Z
+        if SF._center then cx, cy, cz = SF._center.X, SF._center.Y, SF._center.Z end
+        local dxz = math.sqrt((r.Position.X - cx) ^ 2 + (r.Position.Z - cz) ^ 2)
+        -- bị đẩy đi quá xa vòng tròn (va chạm/né) -> lấy chỗ mình làm tâm mới, không kéo ngược
+        if dxz > R * 1.6 then
+            SF._center = nil
+            cx, cy, cz = r.Position.X, r.Position.Y, r.Position.Z
+        elseif SF._center == nil then
+            SF._center = { X = cx, Y = cy, Z = cz }
+        end
+        SF._ang = (SF._ang or 0) + dtv * (spd / math.max(R, 1))     -- bay đều quanh tâm
+        SF._circleRate = math.deg(spd / math.max(R, 1))             -- v4.24: để 🔲 khiên quay ăn khớp với vòng bay
+        local tx = cx + math.cos(SF._ang) * R
+        local tz = cz + math.sin(SF._ang) * R
+        -- vận tốc = tiếp tuyến (đi vòng) + kéo về đúng vòng tròn + bạn muốn lên/xuống thì cho
+        local tang = Vector3.new(-math.sin(SF._ang), 0, math.cos(SF._ang)) * spd
+        local want = Vector3.new(tx - r.Position.X, cy - r.Position.Y, tz - r.Position.Z)
+        target = tang + want * 2.2 + Vector3.new(0, vv * spd, 0)
+        if target.Magnitude > spd then target = target.Unit * spd end
+    else
+        SF._center = nil                                    -- rời chế độ vòng tròn -> tâm mới lần sau
+        SF._circleRate = nil                                -- v4.24: không bay vòng tròn -> khiên quay đúng tốc độ đã chỉnh
+        target = (dir + Vector3.new(0, vv, 0)) * spd
+    end
+    -- NÉ: cộng vector đẩy (đã tính theo khoảng cách) vào vận tốc
+    local rep = SF._rep
+    if (rep == nil or rep.Magnitude < 0.01) and SF._lastRep ~= nil then
+        local el = now - (SF._lastThreatAt or 0)
+        if el < 0.9 then rep = SF._lastRep * (1 - el / 0.9) end       -- vơi dần, không lật hướng
+    end
+    if rep and rep.Magnitude > 0 then
+        target = target + rep * (spd * (0.25 + 0.09 * mvClamp(SF.steer, 1, 10, 4)))
+        local cap = spd * 2
+        if target.Magnitude > cap then target = target.Unit * cap end
+    end
+    -- quá gần (dưới 40% bán kính) -> vọt lên trên cho chắc
+    if SF.nearest and SF.nearest < mvClamp(SF.radius, 1, 300, 25) * 0.4 then
+        target = target + Vector3.new(0, spd * 0.75, 0)
+    end
+    SF._myV = target                                        -- để lần quét sau tính tốc độ lao vào nhau
+    pcall(function() bv.Velocity = target end)
+    -- 🔲 v4.24: KHIÊN QUAY VÒNG TRÒN quanh mình. Đang bay vòng tròn (⭕ ở trên) thì quay CỘNG THÊM
+    -- đúng tốc độ vòng bay -> nhìn như cả "cái hộp" cũng đang bay vòng quanh mình; đứng im vẫn thấy nó quay.
+    if SF.shieldSpin then
+        local rate = mvClamp(SF.spinDeg, 0, 720, 60)
+        if SF._circleRate then rate = rate + SF._circleRate end
+        SF._spinAng = (SF._spinAng or 0) + math.rad(dtv * rate)     -- rate là ĐỘ/giây -> đổi sang radian
+    elseif (SF._spinAng or 0) ~= 0 then
+        SF._spinAng, SF._shieldPos = 0, nil                 -- tắt quay -> trả khiên về hướng cũ (vuông góc trục)
+    end
+    -- 🔲 khiên trong suốt bám theo mình (vẽ vùng né cho thấy)
+    if SF.shield then pcall(function() MV.Safe.UpdateShield(r.Position) end) end
+end
+function MV.Safe.Set(on)
+    SF.on = (on == true)
+    if SF.on then
+        -- 🧱 nhớ trạng thái Xuyên Tường cũ rồi tự bật lên: lực đẩy mới đưa được mình XUYÊN QUA
+        -- vật cản (tường, sàn, cửa) mà không bị kẹt lại.
+        if SF.noclip and SF._ncPrev == nil then
+            SF._ncPrev = MV.noclip == true
+            pcall(function() MV.SetNoclip(true) end)
+        end
+        MV.SetFly(true)
+        MV.flySpeed = mvClamp(SF.speed, 1, 2000, 60)
+        SF._root = MV.Root()                     -- v4.23: nhớ nhân vật hiện tại (đổi trận là tự dựng lại)
+        pcall(MV._Watchdog)                      -- v4.23: watchdog phải chạy khi 🛡 bật (nó cứu 🛡 sau đổi trận)
+        SF._lastFrameAt = tick()
+        pcall(MV.Safe.Bind)                      -- v4.23: vòng lặp RIÊNG của 🛡 (không nhờ 🚀 Bay nữa)
+        pcall(function() MV.Safe.UpdateShield(MV.Root() and MV.Root().Position or Vector3.new(0, 0, 0)) end)
+    else
+        pcall(MV.Safe.Unbind)                    -- v4.23: gỡ vòng lặp riêng của 🛡
+        MV.Safe.Reset()
+        MV.SetFly(false)
+        MV.Safe.KillShield()
+        SF._root = nil
+        -- trả Xuyên Tường về ĐÚNG như trước khi bật 🛡 (đang tắt thì vẫn tắt)
+        if SF._ncPrev ~= nil then
+            local was = SF._ncPrev
+            SF._ncPrev = nil
+            pcall(function() MV.SetNoclip(was) end)   -- SetNoclip đã tự bỏ qua nếu trùng trạng thái
+        end
+    end
+    return SF.on
+end
+-- 🧱 công tắc "đẩy xuyên vật cản": tắt/bật giữa chừng cũng đúng
+function MV.Safe.SetNoclipAuto(b)
+    SF.noclip = (b == true)
+    if SF.on then
+        if SF.noclip then
+            if SF._ncPrev == nil then SF._ncPrev = MV.noclip == true end
+            pcall(function() MV.SetNoclip(true) end)
+        elseif SF._ncPrev ~= nil then
+            local was = SF._ncPrev
+            SF._ncPrev = nil
+            pcall(function() MV.SetNoclip(was) end)
+        end
+    end
+    return SF.noclip
+end
+-- 🔲 công tắc bức tường trong suốt
+function MV.Safe.SetShield(b)
+    SF.shield = (b == true)
+    if SF.on and SF.shield then
+        local r = MV.Root()
+        if r then pcall(function() MV.Safe.UpdateShield(r.Position) end) end
+    else
+        MV.Safe.KillShield()
+    end
+    return SF.shield
+end
+-- 👤 công tắc né người chơi khác
+function MV.Safe.SetAvoidPlayers(b)
+    SF.avoidPlayers = (b == true)
+    MV.Safe.Reset()
+    return SF.avoidPlayers
+end
+function MV.Safe.Reset()                 -- quên dấu vết cũ (không dọa ma vật đã biến mất)
+    SF._seen, SF._cache = {}, nil
+    SF._rep = Vector3.new(0, 0, 0)
+    SF.threats, SF.nearest, SF.playerThreats = 0, nil, 0
+    SF.movers, SF._lastRep, SF._lastThreatAt, SF._mvCount = 0, nil, nil, nil   -- v4.20
+    SF._holdAt, SF._center, SF._ang = 0, nil, 0
+    SF._myV = Vector3.new(0, 0, 0)
+end
+function MV.Safe.Stop() return MV.Safe.Set(false) end
+-- ⭕ công tắc / bán kính vòng tròn + đặt lại tâm
+function MV.Safe.SetCircle(b)
+    SF.circle = (b == true)
+    SF._center = nil
+    return SF.circle
+end
+function MV.Safe.SetCircleR(n)
+    SF.circleR = mvClamp(n, 3, 300, 20)
+    SF._center = nil
+    return SF.circleR
+end
+function MV.Safe.Recenter()
+    SF._center = nil
+    return true
+end
+function MV.Safe.SetLook(t)        -- 👁 nhìn trước (giây) để né vật đang bay tới
+    SF.lookTime = mvClamp(t, 0.1, 3, 1.0)
+    return SF.lookTime
+end
+function MV.Safe.SetRadius(n)
+    SF.radius = mvClamp(n, 1, 300, 25)
+    MV.Safe.Reset()
+    SF._shieldPos = nil                    -- đổi bán kính -> vẽ lại khiên theo cỡ mới
+    if SF.on and SF.shield then
+        local r = MV.Root()
+        if r then pcall(function() MV.Safe.UpdateShield(r.Position) end) end
+    end
+    return SF.radius
+end
+
+-- 🔲 v4.23: cỡ khiên (nửa cạnh, studs). 0 = TỰ ĐỘNG ôm sát nhân vật; > 0 = chỉnh tay.
+function MV.Safe.SetShieldSize(n)
+    SF.shieldSize = mvClamp(n, 0, 300, 0)
+    SF._shieldPos = nil
+    if SF.on and SF.shield then
+        local r = MV.Root()
+        if r then pcall(function() MV.Safe.UpdateShield(r.Position) end) end
+    end
+    return SF.shieldSize
+end
+-- 🔲 v4.24: bật/tắt khiên quay vòng tròn + tốc độ quay (độ/giây)
+function MV.Safe.SetShieldSpin(b)
+    SF.shieldSpin = (b == true)
+    if not SF.shieldSpin then
+        SF._spinAng, SF._shieldPos = 0, nil
+        if SF.on and SF.shield then
+            local r = MV.Root()
+            if r then pcall(function() MV.Safe.UpdateShield(r.Position) end) end
+        end
+    end
+    return SF.shieldSpin
+end
+function MV.Safe.SetSpinDeg(n)
+    SF.spinDeg = mvClamp(n, 0, 720, 60)
+    SF._shieldPos = nil                                     -- để vẽ lại ngay theo tốc độ mới
+    return SF.spinDeg
+end
+function MV.Safe.SetSpeed(n)
+    SF.speed = mvClamp(n, 1, 2000, 60)
+    MV.flySpeed = SF.speed            -- để khung ⚙ và bảng trạng thái hiện cùng một số
+    return SF.speed
+end
+function MV.Safe.SetSteer(n) SF.steer = mvClamp(n, 1, 10, 4); return SF.steer end
+function MV.Safe.SetAuto(b) SF.auto = (b == true); return SF.auto end
+function MV.Safe.Status()
+    if not SF.on then return "🛡 bay an toàn: đang TẮT (khiên đã dọn, Xuyên Tường trả lại như cũ)" end
+    local s = string.format("🛡 bay an toàn: BẬT · 💨 %g · 📏 né trong %gm · 🌀 %g",
+        SF.speed, SF.radius, SF.steer)
+    if SF.auto then s = s .. " · ➡ tự bay" end
+    if SF.shield then
+        local half = MV.Safe.ShieldHalf()
+        s = s .. string.format(" · 🔲 khiên %g m/cạnh%s", half * 2, (tonumber(SF.shieldSize) or 0) > 0 and "" or " (tự)")
+        if SF.shieldSpin then
+            s = s .. string.format(" · 🔲 quay %g°/giây", mvClamp(SF.spinDeg, 0, 720, 60))
+        end
+    end
+    if SF.circle and SF.auto then
+        -- v4.19: nói RÕ vì sao đang tạm dừng — đang né hoặc đang bấm WASD (Step cũng tạm dừng như vậy)
+        local busy = false
+        local hum0 = MV.Hum()
+        local md0 = hum0 and hum0.MoveDirection
+        if md0 and md0.Magnitude and md0.Magnitude >= 0.01 then busy = true end
+        if (SF.threats or 0) > 0 then
+            s = s .. " · ⭕ tạm dừng (đang né)"
+        elseif busy then
+            s = s .. " · ⭕ tạm dừng (đang bấm phím)"
+        else
+            s = s .. " · ⭕ bay vòng tròn " .. tostring(math.floor(SF.circleR + 0.5)) .. "m"
+        end
+    end
+    -- v4.20: soi được "vì sao không né" — thấy bao nhiêu vật ĐANG CHẠY trong tầm quét
+    if (SF.movers or 0) > 0 and (SF.threats or 0) == 0 then
+        s = s .. string.format(" · 🐾 thấy %d vật đang chạy", SF.movers)
+    end
+    if SF.noclip then s = s .. " · 🧱 xuyên vật cản" end
+    if (SF.threats or 0) > 0 then
+        s = s .. string.format(" · ⚠️ đang né %d mối nguy (gần nhất %gm)", SF.threats,
+            math.floor((SF.nearest or 0) + 0.5))
+        if (SF.playerThreats or 0) > 0 then s = s .. string.format(" — có %d người chơi", SF.playerThreats) end
+    else
+        s = s .. " · ✅ quanh đây không có gì lao tới mình"
+    end
+    return s
+end
+
+end   -- hết khối 🛡 BAY AN TOÀN (v4.18)
+
+-- ---------- 🪩 THẢM KÍNH (chỉnh Rộng × Cao × Dài + khoảng cách tới chân) ----------
+-- v4.12.1: `carpetGap` = thảm nằm CÁCH MẶT ĐẤT/chân bao nhiêu stud.
+--   • 0.2 (mặc định mới): thảm nằm NGAY DƯỚI CHÂN -> bật lên là đứng được liền.
+--   • 3 (kiểu bản gốc aiaiaitao3): thảm nằm sâu 3 studs -> thường chìm trong nền đất,
+--     chỉ dùng được khi bật kèm Xuyên Tường. Vẫn chọn được ở khung ⚙.
+function MV.SetCarpetSize(w, h, l)
+    MV.carpetW = mvClamp(w, 1, 50, MV.carpetW)
+    MV.carpetH = mvClamp(h, 0.05, 10, MV.carpetH)
+    MV.carpetL = mvClamp(l, 1, 50, MV.carpetL)
+    if MV._carpet then
+        pcall(function()
+            MV._carpet.Size = Vector3.new(MV.carpetW, MV.carpetH, MV.carpetL)
+        end)
+    end
+    return MV.carpetW, MV.carpetH, MV.carpetL
+end
+function MV.SetCarpetGap(g)
+    MV.carpetGap = mvClamp(g, 0, 10, MV.carpetGap)
+    -- đang bật thì dời thảm ngay theo khoảng cách mới (không cần tắt bật lại)
+    if MV.carpet then
+        local r = MV.Root()
+        if r then MV.carpetY = r.Position.Y - 3.0 - (MV.carpetH / 2) - MV.carpetGap end
+    end
+    return MV.carpetGap
+end
+-- Chiều cao (Y) mà thảm phải nằm: 3.0 = khoảng cách từ HumanoidRootPart xuống bàn chân,
+-- trừ nửa độ dày thảm để MẶT TRÊN của thảm áp sát chân, trừ thêm gap nếu muốn thả thấp.
+function MV.FootY()
+    local r = MV.Root()
+    if not r then return nil end
+    return r.Position.Y - 3.0 - (MV.carpetH / 2) - (MV.carpetGap or 0)
+end
+function MV._StopCarpet()
+    if MV._carpet then pcall(function() MV._carpet:Destroy() end) end
+    MV._carpet = nil
+    MV.carpetY = nil
+    pcall(function() RunService:UnbindFromRenderStep("Carpet") end)
+end
+-- v4.12.2: một số game / anti-cheat XOÁ part lạ trong workspace -> thảm biến mất dù vẫn BẬT.
+-- Bị xoá 3 lần thì chuyển sang treo thảm vào Camera: vẫn nằm trong thế giới 3D, vẫn đứng được
+-- trên đó, mà không nằm trong danh sách part của workspace để game dọn.
+function MV.CarpetHost()
+    if (MV._carpetRetries or 0) >= 3 then
+        local cam = workspace.CurrentCamera
+        if cam then return cam end
+    end
+    return workspace
+end
+-- v4.12.5: đường viền sáng quanh thảm (giúp NHÌN THẤY thảm trên nền sáng/tối). Là CON của thảm
+-- nên tự biến mất khi thảm bị dọn. Mấy game nặng render viền chậm thì TẮT đi (vẫn còn thảm).
+function MV._MakeEdge(cp)
+    pcall(function()
+        if not cp or cp:FindFirstChild("CarpetEdge") then return end
+        New("SelectionBox", {
+            Name = "CarpetEdge", Adornee = cp,
+            Color3 = Color3.fromRGB(120, 225, 255), LineThickness = 0.035,
+            SurfaceTransparency = 0.65, Transparency = 0,
+        }, cp)
+    end)
+end
+function MV.SetCarpetEdge(on)
+    MV.carpetEdge = (on == true)
+    local cp = MV._carpet
+    if cp and cp.Parent then
+        if MV.carpetEdge then
+            MV._MakeEdge(cp)
+        else
+            pcall(function()
+                local old = cp:FindFirstChild("CarpetEdge")
+                if old then old:Destroy() end
+            end)
+        end
+    end
+    return MV.carpetEdge
+end
+-- v4.12.5: TẮT "chống rơi" = Y HỆT bản gốc: hub KHÔNG BAO GIỜ ghi CFrame/vận tốc của nhân vật,
+-- bạn đứng trên thảm nhờ va chạm bình thường của Roblox -> hết giật ở mọi game (kể cả Evade).
+function MV.SetCarpetHold(on)
+    MV.carpetHold = (on == true)
+    return MV.carpetHold
+end
+-- Độ "lún" cho phép trước khi hub đỡ bạn lên (0 = đỡ ngay như bản gốc, càng lớn càng mượt).
+function MV.SetCarpetSlack(n)
+    MV.carpetSlack = mvClamp(n, 0, 20)
+    return MV.carpetSlack
+end
+function MV.CreateCarpet(y)
+    local r = MV.Root()
+    if not r then return end
+    if MV._carpet then pcall(function() MV._carpet:Destroy() end) end
+    MV.carpetY = y or MV.FootY()
+    MV._carpet = New("Part", {
+        Name = "Carpet",
+        Size = Vector3.new(MV.carpetW, MV.carpetH, MV.carpetL),
+        -- v4.12: transparency 0.9 của bản gốc làm thảm gần như tàng hình -> 0.55 để NHÌN THẤY
+        Transparency = 0.55,
+        Color = Color3.fromRGB(150, 210, 255),
+        Material = Enum.Material.Glass,
+        Anchored = true, CanCollide = true, Friction = 1,
+        Position = Vector3.new(r.Position.X, MV.carpetY, r.Position.Z),
+    }, MV.CarpetHost())
+    -- v4.12.1: VIỀN SÁNG quanh thảm. Thảm trong suốt rất khó thấy trên nền sáng/tối, nhất là
+    -- khi nó nằm sát mặt đất. SelectionBox chỉ là đường viền (không che tầm nhìn) và là CON của
+    -- thảm nên tự biến mất khi thảm bị Destroy — không bao giờ rớt lại trong workspace.
+    if MV.carpetEdge ~= false then MV._MakeEdge(MV._carpet) end
+    RunService:BindToRenderStep("Carpet", Enum.RenderPriority.Camera.Value - 1, function()
+        local curR, cp = MV.Root(), MV._carpet
+        if not MV.carpet or not curR then return end
+        if not cp or not cp.Parent then                     -- v4.12.2: bị xoá -> trải lại ngay
+            MV._carpetRetries = (MV._carpetRetries or 0) + 1
+            pcall(function() MV.CreateCarpet(MV.carpetY) end)
+            cp = MV._carpet
+            if not cp or not cp.Parent then return end
+        end
+        if cp.Size.X ~= MV.carpetW or cp.Size.Y ~= MV.carpetH or cp.Size.Z ~= MV.carpetL then
+            cp.Size = Vector3.new(MV.carpetW, MV.carpetH, MV.carpetL)
+        end
+        -- v4.12.5: chỉ ghi CFrame thảm khi THẬT SỰ đổi (người đứng yên -> không ghi gì).
+        local px, pz = curR.Position.X, curR.Position.Z
+        if math.abs(cp.Position.X - px) > 0.005 or math.abs(cp.Position.Z - pz) > 0.005
+            or cp.Position.Y ~= MV.carpetY then
+            cp.CFrame = CFrame.new(px, MV.carpetY, pz)
+        end
+        -- v4.12.5: ĐỠ KHỎI RƠI XUYÊN THẢM — nhưng KHÔNG đụng vào người mỗi frame.
+        -- (bản v4.12.1 đỡ mỗi frame -> vật lý game và hub đánh nhau -> GIẬT/LAG ở game nặng
+        -- như Evade; bản gốc thì không đụng gì, người đứng nhờ va chạm bình thường -> mượt).
+        -- Cách nay: đợi người lún/rơi qua mặt thảm quá `carpetSlack` (0.5) MỚI đỡ lên.
+        --   • đứng yên trên thảm  -> KHÔNG ghi gì (mượt y như bản gốc)
+        --   • rơi xuyên / bấm ⬆⬇ -> vượt 0.5 -> được đỡ hoặc kéo theo ngay
+        --   • đang bật Xuyên Tường -> slack = 0 (như bản gốc): không rơi xuyên tẹo nào
+        if MV.carpetHold ~= false then
+            local standingY = MV.carpetY + (MV.carpetH / 2) + 3.0
+            local slack = MV.noclip and 0 or (tonumber(MV.carpetSlack) or 0.5)
+            local vel = curR.AssemblyLinearVelocity
+            local vy = MV.comp(vel, "Y", 0)
+            if curR.Position.Y < standingY - slack and vy <= 0.1 then
+                curR.CFrame = CFrame.new(curR.Position.X, standingY, curR.Position.Z)
+                if vy < 0 then
+                    curR.AssemblyLinearVelocity = Vector3.new(
+                        (vel and vel.X) or 0, 0, (vel and vel.Z) or 0)
+                end
+            end
+        end
+    end)
+end
+function MV.SetCarpet(on)
+    on = (on == true)
+    local r = MV.Root()
+    if on and not r then return false, "chưa có nhân vật để trải thảm" end
+    if on and MV.fly then MV.SetFly(false) end      -- bay và thảm không đi cùng (như bản gốc)
+    MV.carpet = on
+    if on then
+        MV._carpetRetries = 0
+        MV.CreateCarpet(on and MV.FootY() or nil)
+    else
+        MV._StopCarpet()
+    end
+    MV._Watchdog()
+    MV.SyncHud()
+    return MV.carpet
+end
+
+-- ---------- ⬆⬇ nâng/hạ: thảm thì đổi độ cao, bay thì đẩy người ----------
+function MV.Nudge(dy)
+    if MV.carpet then
+        MV.carpetY = (MV.carpetY or MV.FootY() or 0) + dy
+        return true, "thảm"
+    elseif MV.fly then
+        local r = MV.Root()
+        if r then r.CFrame = CFrame.new(r.Position.X, r.Position.Y + dy, r.Position.Z) end
+        return true, "bay"
+    end
+    return false, nil
+end
+
+-- ---------- HUD: cụm nút NỔI TRÊN MÀN HÌNH GAME (⬆ 🪩 ⬇ ✕) ----------
+-- Bản gốc (aiaiaitao3) cũng có overlay này. Ở đây dựng TRONG `gui` của hub (không tạo
+-- ScreenGui riêng) để: (1) luôn nằm trên màn hình game, kể cả khi menu đang đóng;
+-- (2) KHÔNG bị cơ chế nhúng GUI (🧩) kéo vào tab — vì nút này là của hub, không phải của
+-- script người dùng. Hiện mỗi khi thảm/bay/chạy-trên-thảm đang bật, ẨN khi tắt hết.
+-- ⬆⬇ nâng/hạ y hệt bản gốc: đang ở chế độ chạy mà thảm chưa bật thì TỰ BẬT thảm rồi mới nâng/hạ
+function MV._HudNudge(dy)
+    if MV.runMode and not MV.carpet then MV.SetCarpet(true) end
+    local ok, what = MV.Nudge(dy)
+    MV._HudSay(ok and ((dy > 0 and "⬆ nâng " or "⬇ hạ ") .. tostring(what) .. " 2.5")
+                   or "⬆⬇ bật Thảm Kính hoặc Bay trước đã")
+end
+function MV._BuildHud()
+    if MV._hud then return MV._hud end
+    -- v4.12.4: dựng Y HỆT overlay "🕹️ Bay chạy bộ" của aiaiaitao3 — khung 180x160 sát mép phải,
+    -- 3 nút TRÒN 50x50 xếp dọc 🪩 (y=0) · ⬆ (y=60) · ⬇ (y=120), viền trắng 2px, mờ 0.3, và
+    -- nút ✕ TRÒN 34x34 nằm ở góc trên bên phải khung. Màu cũng lấy đúng bản gốc:
+    -- 🪩 xám · ⬆ xanh lá (0,150,0) · ⬇ đỏ (150,0,0) · ✕ đỏ.
+    -- Nút vẫn dựng TRONG `gui` của hub (như bản gốc) nên luôn nằm trên màn hình game.
+    local hud = New("Frame", {
+        Name = "BC_MoveHud",
+        Size = UDim2.new(0, 180, 0, 160), Position = UDim2.new(1, -190, 0.5, -80),
+        BackgroundTransparency = 1, Visible = false, ZIndex = 20,
+    }, gui)
+    -- Corner = UDim.new(1,0) -> bo TRÒN hoàn toàn (bản gốc dùng cho mọi nút overlay)
+    local function obtn(txt, y, size, color, cb)
+        local b = New("TextButton", {
+            Size = UDim2.new(0, size, 0, size), Position = UDim2.new(0.5, -size / 2, 0, y),
+            Text = txt, BackgroundColor3 = color or C.BLUE, BackgroundTransparency = 0.3,
+            TextColor3 = C.WHITE, Font = Enum.Font.GothamBold, TextSize = 20,
+            BorderSizePixel = 0, ZIndex = 21,
+        }, hud)
+        Corner(b, UDim.new(1, 0))
+        Stroke(b, C.WHITE, 2)
+        b.Activated:Connect(function() pcall(cb) end)
+        return b
+    end
+    MV._hudCarpet = obtn("🪩", 0, 50, C.GRAY, function()
+        if not (MV.runMode or MV.carpet or MV.fly) then
+            MV.SetCarpet(true)
+        else
+            MV.SetCarpet(not MV.carpet)
+        end
+        MV._HudSay(MV.carpet and "🪩 thảm: BẬT" or "🪩 thảm: TẮT")
+    end)
+    MV._hudUp   = obtn("⬆", 60,  50, Color3.fromRGB(0, 150, 0),   function() MV._HudNudge(2.5) end)
+    MV._hudDown = obtn("⬇", 120, 50, Color3.fromRGB(150, 0, 0),   function() MV._HudNudge(-2.5) end)
+    MV._hudClose = New("TextButton", {
+        Size = UDim2.new(0, 34, 0, 34), Position = UDim2.new(1, -44, 0, 10),
+        Text = "✕", BackgroundColor3 = C.RED, BackgroundTransparency = 0.3,
+        TextColor3 = C.WHITE, Font = Enum.Font.GothamBold, TextSize = 18,
+        BorderSizePixel = 0, ZIndex = 21,
+    }, hud)
+    Corner(MV._hudClose, UDim.new(1, 0))
+    Stroke(MV._hudClose, C.WHITE, 2)
+    MV._hudClose.Activated:Connect(function()
+        MV.SetRunMode(false)
+        MV._HudSay("🛑 đã tắt chế độ chạy trên thảm")
+    end)
+    MV._hud = hud
+    return hud
+end
+function MV._HudSay(msg)
+    pcall(function() if D.hubStatus then D.hubStatus.Text = msg end end)
+end
+-- Hiện/ẩn + tô màu theo trạng thái thật (gọi sau mỗi lần bật/tắt)
+function MV.SyncHud()
+    pcall(function()
+        local hud = MV._BuildHud()
+        local on = (MV.carpet or MV.fly or MV.runMode)
+        hud.Visible = (on == true)
+        if MV._hudCarpet then                       -- xám như bản gốc, XANH khi thảm đang bật
+            MV._hudCarpet.BackgroundColor3 = MV.carpet and C.GREEN or C.GRAY
+        end
+        -- ⬆⬇ giữ nguyên độ mờ 0.3 như bản gốc (chúng LUÔN dùng được: thảm tắt thì tự bật lại)
+    end)
+end
+
+-- ---------- 🏃 CHẠY TRÊN THẢM = "🕹️ BAY CHẠY BỘ" của aiaiaitao3 (v4.12.4: GIỐNG 100%) ----------
+-- Bản gốc aiaiaitao3 có 3 hàm + overlay ⬆🪩⬇✕; ở đây bê Y HỆT từng hành động:
+--   StartFlyRun = tắt bay · trải thảm · main.Visible=false · togBtn.Text="⚙" · hiện overlay
+--   StopFlyRun  = thu thảm · ẩn overlay · togBtn.Text = (menu đang mở) and "✕" or "🍌"
+--   togCBtn 🪩  = bật/tắt thảm (overlay vẫn hiện, như bản gốc)   · clsOBtn ✕ = thoát chế độ
+--   movUBtn ⬆   = thảm tắt thì TỰ BẬT rồi nâng 2.5              · movDBtn ⬇ = hạ 2.5
+--   TogFly      = bật BAY thì THOÁT chế độ chạy (bay và chạy bộ không đi cùng)
+-- Bật 1 lần = trải thảm kính dưới chân + tăng tốc chạy + hiện cụm nút ⬆🪩⬇✕ trên màn hình
+-- + ẩn menu để nhìn game. Thảm CanCollide = true nên người CHẠY ĐƯỢC TRÊN MẶT THẢM; ⬆⬇
+-- đưa cả thảm (và người đang đứng trên đó) lên/xuống.
+-- v4.12.2: CHẠY + NHẢY THOẢI MÁI — vòng lặp thảm chỉ can thiệp khi bạn đứng yên hoặc đang RƠI,
+-- nên nhảy lên bao nhiêu cũng được, rơi xuống lại được thảm đỡ (không dính, không rơi xuyên).
+-- Tốc độ = TỐC ĐỘ CỦA GAME × speedMul (mặc định ×3; đổi ở ô 👟 Chạy trong khung ⚙).
+function MV.SetRunMode(on)
+    on = (on == true)
+    local r = MV.Root()
+    if on and not r then return false, "chưa có nhân vật để chạy" end
+    if on == MV.runMode then MV.SyncHud(); return MV.runMode end
+    MV.runMode = on
+    if on then
+        -- ▼ y hệt StartFlyRun() của bản gốc: tắt bay, trải thảm, ẨN MENU, nút mở menu thành "⚙"
+        if MV.fly then MV.SetFly(false) end          -- bay và chạy bộ không đi cùng (như bản gốc)
+        MV._menuWasOpen = (main and main.Visible) or false
+        pcall(function()
+            if main then main.Visible = false end
+            if togBtn then togBtn.Text = "⚙" end     -- bản gốc dùng "⚙" lúc đang chạy trên thảm
+        end)
+        if not MV.carpet then MV.SetCarpet(true) end  -- 🪩 thảm dưới chân
+        MV.SetSpeed(true)                            -- 👟 tăng tốc (THEO tốc độ game × speedMul)
+        MV._JumpGuard()                              -- 🦘 game cấm nhảy thì mở lại để NHẢY TRÊN THẢM
+    else
+        -- ▼ y hệt StopFlyRun() của bản gốc: thu thảm, ẩn overlay, trả nút mở menu về ✕/🍌
+        MV.SetCarpet(false)
+        MV.SetSpeed(false)
+        if MV.fly then MV.SetFly(false) end
+        if MV._menuWasOpen then
+            pcall(function() if main then main.Visible = true end end)
+        end
+        pcall(function()
+            if togBtn then togBtn.Text = (main and main.Visible) and "✕" or "🍌" end
+        end)
+        MV._menuWasOpen = nil
+    end
+    MV.SyncHud()
+    return MV.runMode
+end
+
+-- ---------- tắt hết / khôi phục sau respawn / tóm tắt trạng thái ----------
+function MV.StopAll()
+    MV.SetFly(false)
+    MV.SetCarpet(false)
+    MV.SetNoclip(false)
+    MV.SetInfJump(false)
+    MV.SetSpeed(false)
+    MV.SetRunMode(false)     -- v4.12: thoát cả chế độ chạy trên thảm (trả menu + ẩn HUD)
+    MV.SyncHud()
+end
+-- Bảng để thẻ trong Script Hub tự hiện trạng thái (BẬT/TẮT): thêm tính năng mới thì chỉ
+-- cần thêm 1 dòng ở đây, không phải sửa hàm dựng thẻ.
+S.MoveActionState = {
+    fly     = function() return S.Move.fly     end,
+    noclip  = function() return S.Move.noclip  end,
+    infjump = function() return S.Move.infJump end,
+    speed   = function() return S.Move.speed   end,
+    carpet  = function() return S.Move.carpet  end,
+    runmode = function() return S.Move.runMode end,
+    -- v4.13: nhóm 📍 Định Vị cũng dùng chung bảng này (tên bảng giữ nguyên để không phá code cũ).
+    loc_all  = function() return S.Loc and S.Loc.on   end,
+    loc_solo = function() return S.Loc and S.Loc.solo end,
+    spec_on  = function() return S.Spec and S.Spec.on   end,
+    glow     = function() return S.Glow and S.Glow.on   end,
+    safefly  = function() return S.Move.Safe and S.Move.Safe.on end,
+}
+
+function MV.Refresh()
+    -- respawn: nhân vật MỚI -> part cũ mất, phải dọn bảng nhớ rồi áp lại.
+    -- CHỈ dựng lại cái THẬT SỰ MẤT: nếu còn nguyên (ví dụ thảm vẫn nằm trong workspace) thì
+    -- giữ y — tạo lại vô điều kiện sẽ làm mất tham chiếu đang dùng và giật hình.
+    MV._NcForgetLost()      -- v4.22: chỉ quên part đã mất (giữ giá trị gốc của part đang bật 🧱)
+    MV.ApplyChar()
+    if MV.noclip then MV._NcStep() end
+    -- v4.23: part bay phải nằm ĐÚNG nhân vật đang dùng. Trước đây chỉ soi ".Parent ~= nil" nên part
+    -- còn dính NHÂN VẬT CŨ (game đổi trận nhưng không xoá ngay) vẫn bị coi là "còn sống" -> bay/🛡 chết lặng.
+    local curRoot = MV.Root()
+    if MV.fly and (not MV._bv or not MV._bv.Parent or (curRoot ~= nil and MV._bv.Parent ~= curRoot)) then
+        MV.SetFly(false); MV.SetFly(true)
+    end
+    if MV.Safe and MV.Safe.on then pcall(MV.Safe.Step, 0.05) end     -- v4.23: 🛡 tự chữa lành sau respawn
+    if MV.carpet and (not MV._carpet or not MV._carpet.Parent) then
+        MV.CreateCarpet(MV.carpetY)
+    end
+    MV.SyncHud()
+end
+function MV.Status()
+    local t = {}
+    if MV.fly then t[#t + 1] = string.format("🚀 bay %d", MV.flySpeed) end
+    if MV.noclip then t[#t + 1] = "🧱 xuyên tường" end
+    if MV.infJump then t[#t + 1] = "🦘 nhảy vô hạn" end
+    if MV.speed then
+        if MV.speedMode == "x" then
+            t[#t + 1] = string.format("👟 chạy ×%g (game %g)", MV.speedMul, MV._baseWS or 16)
+        else
+            t[#t + 1] = string.format("👟 chạy %g", MV.walkSpeed)
+        end
+    end
+    if MV.carpet then
+        t[#t + 1] = string.format("🪩 thảm %g×%g×%g", MV.carpetW, MV.carpetH, MV.carpetL)
+    end
+    if #t == 0 then return "🚶 di chuyển: đang TẮT hết" end
+    return "🚶 đang BẬT: " .. table.concat(t, " · ")
+end
+-- respawn: nhân vật mới -> dựng lại những gì đang bật (task.wait để game kịp gắn part)
+trackConn(player.CharacterAdded:Connect(function()
+    task.spawn(function()
+        task.wait(0.3)
+        pcall(MV.Refresh)
+    end)
+end))
+
 -- ==================== v4.5: TRANG 📚 SCRIPT HUB (menu kiểu Delta) ====================
 -- "Menu giống Delta": ô tìm kiếm + dãy chip phân loại + danh sách THẺ script (icon, tên, mô tả,
 -- nút chạy/copy/lưu/yêu thích). Vẫn đúng tông Midnight Gold của v4.5.
@@ -6470,6 +8680,35 @@ S.ScriptHubList = {
      desc="Tự đi lấy mã server: đọc danh sách server công khai, bỏ server hiện tại + server đầy, nhảy sang 1 server khác."},
     {icon="🌐", name="Lấy mã server (JobId)", cat="Server", ord=11, action="getjobid",
      desc="Đọc mã server hiện tại, copy ra clipboard và điền sẵn vào ô 🎟 để gửi cho bạn bè vào cùng."},
+    -- v4.12: BỘ DI CHUYỂN (port từ menu "EXECUTOR MENU"). Tất cả là TIỆN ÍCH NỘI BỘ:
+    -- gọi thẳng hàm của hub -> không tải gì từ mạng, không bao giờ "chạy không được".
+    {icon="🚀", name="Bay", cat="Di chuyển", ord=12, action="fly",
+     desc="Bay lượn tự do (Space lên · Shift/Ctrl xuống · WASD lái). Tốc độ chỉnh ở khung ⚙ ngay trên đầu danh sách."},
+    {icon="🧱", name="Xuyên Tường", cat="Di chuyển", ord=13, action="noclip",
+     desc="Đi xuyên mọi vật cản. Tắt đi trả lại ĐÚNG CanCollide gốc của từng part (không gán cứng như bản cũ)."},
+    {icon="🦘", name="Nhảy Vô Hạn", cat="Di chuyển", ord=14, action="infjump",
+     desc="Nhảy mãi không chạm đất. Tự thử 3 cách nhảy (ChangeState · lệnh Jump · đẩy vận tốc) nên cả game cấm nhảy, để JumpPower=0 hay ăn mất phím Space vẫn nhảy được."},
+    {icon="🏃", name="Chạy Trên Thảm", cat="Di chuyển", ord=15, action="runmode",
+     desc="Y HỆT '🕹️ Bay chạy bộ' của aiaiaitao3: thảm kính dưới chân + ẨN MENU + cụm nút tròn ⬆🪩⬇✕ nổi góc phải màn hình (⬆⬇ đưa cả thảm lẫn bạn lên/xuống). Thêm 2 cái tốt hơn bản gốc: KHÔNG rơi xuyên thảm và tốc độ THEO GAME ×3."},
+    {icon="🪩", name="Thảm Kính", cat="Di chuyển", ord=16, action="carpet",
+     desc="Trải thảm kính dưới chân để đứng/lên xuống (⬆⬇), không rơi xuyên dù KHÔNG bật Xuyên Tường. Chỉnh RỘNG × CAO × DÀI + khoảng cách tới chân ở khung ⚙."},
+    -- v4.13: ĐỊNH VỊ NGƯỜI CHƠI (port từ "ESP System" của menu EXECUTOR MENU trong aiaiaitao3).
+    {icon="✨", name="Phát Sáng", cat="Tiện ích", ord=22, action="glow",
+     desc="CHÍNH BẠN phát sáng: nhuộm sáng cả nhân vật + đèn toả sáng thật quanh người. Chỉnh CHIỀU RỘNG + ĐỘ SÁNG + MÀU ở khung ✨ ngay đầu danh sách. 👁 xuyên tường (sáng xuyên vật cản) · 💡 đèn không bị vật cản chặn · bị game xoá hay respawn thì tự gắn lại."},
+    {icon="🛡", name="Bay An Toàn", cat="Di chuyển", ord=23, action="safefly",
+     desc="Bật là TỰ BAY + TỰ NÉ NGƯỜI CHƠI và mọi vật có dấu hiệu chuyển động (kể cả vật bị script/tween kéo đi) trong bán kính bạn chỉnh: càng gần đẩy càng mạnh, quá gần thì vọt lên trên. 🔲 Có BỨC TƯỜNG TRONG SUỐT HÌNH VUÔNG bao quanh cho thấy vùng né · 🧱 tự bật Xuyên Tường để đẩy bạn QUA vật cản. Chỉnh 💨 tốc độ · 📏 khoảng cách né · 🌀 né gắt ở khung 🛡 ngay đầu danh sách."},
+    -- v4.15: 5 thẻ 📍👣 vẫn ở đây (bấm là chạy ngay) — khung điều khiển ĐẦY ĐỦ (danh sách
+    -- người chơi, 📏 giới hạn tầm, 📏/⬆ camera...) nằm ở trang 👥 Người Chơi cho gọn trang này.
+    {icon="📍", name="Định Vị Người Chơi", cat="Định vị", ord=17, action="loc_all",
+     desc="Xuyên tường thấy TẤT CẢ người chơi: tên + 💗 bạn bè + ☠️ bị hạ gục (kèm ⏱ đếm giờ) + ❤️ máu + 📏 khoảng cách. Màu: 🟢 thường · 💗 bạn bè · 🔴 bị hạ gục · 🟣 bạn bè bị hạ gục."},
+    {icon="🎯", name="Định Vị Lẻ", cat="Định vị", ord=18, action="loc_solo",
+     desc="Chỉ định vị ĐÚNG 1 người: bấm nút rồi BẤM TÊN trong khung 📍 ngay trên đầu danh sách (chưa chọn thì tự lấy người đứng gần nhất)."},
+    {icon="👣", name="Xem Người Chơi", cat="Định vị", ord=19, action="spec_on",   -- v4.15: khung đầy đủ ở trang 👥
+     desc="Bám theo 1 người để XEM HỌ ĐANG LÀM GÌ: camera rời khỏi bạn bay theo họ, kèm bảng nổi trên màn hình (TÊN · 💗 bạn bè · ❤️ máu · 📏 khoảng cách · 💨 tốc độ · 🏃 đang chạy/nhảy/ngồi/gục/đứng yên). Chỉ ĐỔI CAMERA — nhân vật bạn không bị dịch chuyển."},
+    {icon="🚫", name="Dừng Xem Người Chơi", cat="Định vị", ord=20, action="spec_off",
+     desc="Trả camera về cho bạn ngay (CameraType gốc của game) + ẩn bảng 👣. Nhân vật bạn không hề bị đụng tới."},
+    {icon="🚫", name="Tắt Định Vị", cat="Định vị", ord=21, action="loc_stop",
+     desc="Tắt sạch mọi định vị: bỏ hết nhãn tên + viền sáng khỏi tất cả người chơi, giải phóng vòng lặp."},
 }
 S.hubFavs   = S.hubFavs or {}
 S.hubCat    = "Tất cả"
@@ -6480,7 +8719,7 @@ function S.RunHubAction(id)
     if id == "crosshair" then
         local okC = pcall(function() S.ToggleCrosshair() end)
         if not okC then return "⚠️ chưa bật được niêm tâm" end
-        pcall(function() if S.RebuildHubList then S.RebuildHubList() end end)   -- cập nhật nhãn nút
+        S.Rebuild()                                        -- cập nhật nhãn nút
         return "🎯 Niêm tâm: " .. (S.crosshairOn and "BẬT (giữa màn hình game)" or "TẮT")
     elseif id == "unpark" then
         local n = 0
@@ -6530,6 +8769,120 @@ function S.RunHubAction(id)
         pcall(function() if D.hubJobIn then D.hubJobIn.Text = jid end end)
         pcall(function() if S.SyncServerPanel then S.SyncServerPanel() end end)
         return (okCp and "🌐 Đã copy mã server: " or "🌐 Mã server (executor không cho copy, hãy chép tay): ") .. jid
+
+    -- ---------- v4.12: BỘ DI CHUYỂN ----------
+    elseif id == "fly" then
+        if not S.Move.Root() then return "⚠️ chưa có nhân vật để bay (đợi vào game xong hãy bấm)" end
+        local okF = pcall(function() S.Move.SetFly(not S.Move.fly) end)
+        if not okF then return "⚠️ không bật được bay" end
+        S.Rebuild()                                        -- cập nhật nhãn nút
+        return S.Move.fly and ("🚀 Bay: BẬT — Space lên · Shift/Ctrl xuống · tốc độ " .. tostring(S.Move.flySpeed))
+                            or "🚀 Bay: TẮT (nhân vật trở lại bình thường)"
+    elseif id == "noclip" then
+        if not S.Move.Root() then return "⚠️ chưa có nhân vật (đợi vào game xong hãy bấm)" end
+        pcall(function() S.Move.SetNoclip(not S.Move.noclip) end)
+        S.Rebuild()
+        return S.Move.noclip and "🧱 Xuyên tường: BẬT (đi xuyên mọi vật cản)"
+                              or "🧱 Xuyên tường: TẮT (CanCollide đã trả lại giá trị gốc)"
+    elseif id == "infjump" then
+        pcall(function() S.Move.SetInfJump(not S.Move.infJump) end)
+        S.Rebuild()
+        return S.Move.infJump and "🦘 Nhảy vô hạn: BẬT (Space/🐸 A — nhảy được cả game cấm nhảy/không bốc JumpRequest)"
+                               or "🦘 Nhảy vô hạn: TẮT (JumpPower/JumpHeight đã trả lại game)"
+    elseif id == "speed" then
+        pcall(function() S.Move.SetSpeed(not S.Move.speed) end)
+        S.Rebuild()
+        return S.Move.speed and ("👟 Chạy độ: BẬT — " .. (S.Move.speedMode == "x"
+                                     and ("theo game ×" .. tostring(S.Move.speedMul)
+                                          .. " = " .. tostring(S.Move.WantSpeed()))
+                                     or  ("cố định " .. tostring(S.Move.walkSpeed)))
+                                 .. " · JumpPower " .. tostring(S.Move.jumpPower))
+                            or ("👟 Chạy độ: TẮT — về tốc độ game (" .. tostring(S.Move._baseWS) .. ")")
+    elseif id == "carpet" then
+        if not S.Move.Root() then return "⚠️ chưa có nhân vật để trải thảm (đợi vào game xong hãy bấm)" end
+        pcall(function() S.Move.SetCarpet(not S.Move.carpet) end)
+        S.Rebuild()
+        return S.Move.carpet and string.format("🪩 Thảm kính: BẬT — %g×%g×%g (Rộng×Cao×Dài) · ⬆⬇ chỉnh độ cao",
+                                               S.Move.carpetW, S.Move.carpetH, S.Move.carpetL)
+                            or "🪩 Thảm kính: TẮT (thảm đã dọn khỏi workspace)"
+    elseif id == "runmode" then
+        if not S.Move.Root() then return "⚠️ chưa có nhân vật (đợi vào game xong hãy bấm)" end
+        local okR = pcall(function() S.Move.SetRunMode(not S.Move.runMode) end)
+        if not okR then return "⚠️ không bật được chế độ chạy trên thảm" end
+        S.Rebuild()
+        return S.Move.runMode
+            and ("🏃 CHẠY TRÊN THẢM (như 🕹️ Bay chạy bộ): BẬT — thảm " .. string.format("%g×%g×%g",
+                    S.Move.carpetW, S.Move.carpetH, S.Move.carpetL)
+                 .. " dưới chân · chạy " .. tostring(S.Move.WantSpeed())
+                 .. (S.Move.speedMode == "x" and (" (game ×" .. tostring(S.Move.speedMul) .. ")") or "")
+                 .. " · dùng nút ⬆⬇ nổi GÓC PHẢI màn hình để lên/xuống, ✕ để tắt")
+            or "🏃 CHẠY TRÊN THẢM: TẮT (thảm đã dọn, tốc độ về mặc định)"
+    -- ---------- v4.13: ĐỊNH VỊ NGƯỜI CHƠI ----------
+    elseif id == "loc_all" then
+        pcall(function() S.Loc.Set(not S.Loc.on) end)
+        S.Rebuild()
+        return (S.Loc.on and "📍 ĐỊNH VỊ: BẬT — " or "📍 ĐỊNH VỊ: TẮT — ") .. S.Loc.Status()
+    elseif id == "loc_solo" then
+        if S.Loc.solo then
+            pcall(function() S.Loc.SetSolo(false) end)
+        else
+            pcall(function() S.Loc.SetTarget(S.Loc.target or S.Loc.Nearest()) end)
+        end
+        S.Rebuild()
+        return (S.Loc.solo and "🎯 ĐỊNH VỊ LẺ: " .. tostring(S.Loc.target and S.Loc.target.Name or "?")
+                .. " — chỉ hiện người này (bấm tên khác trong khung 📍 để đổi)")
+               or "🎯 ĐỊNH VỊ LẺ: TẮT (trở lại bình thường)"
+    -- ---------- v4.17: 🛡 BAY AN TOÀN ----------
+    elseif id == "safefly" then
+        if not S.Move.Root() then return "⚠️ chưa có nhân vật để bay (đợi vào game xong hãy bấm)" end
+        if not S.Move.Safe.on then
+            local okf = S.Move.SetFly(true)
+            if okf == false then return "⚠️ không bật được bay" end
+        end
+        pcall(function() S.Move.Safe.Set(not S.Move.Safe.on) end)
+        pcall(function() if S.SyncSafePanel then S.SyncSafePanel() end end)
+        S.Rebuild()
+        return S.Move.Safe.Status()
+    elseif id == "safefly_off" then
+        pcall(function() S.Move.Safe.Stop() end)
+        pcall(function() if S.SyncSafePanel then S.SyncSafePanel() end end)
+        S.Rebuild()
+        return "🚫 " .. S.Move.Safe.Status()
+
+    -- ---------- v4.16: ✨ PHÁT SÁNG ----------
+    elseif id == "glow" then
+        pcall(function() S.Glow.Set(not S.Glow.on) end)
+        pcall(function() if S.SyncGlowPanel then S.SyncGlowPanel() end end)
+        S.Rebuild()
+        return S.Glow.Status()
+    elseif id == "glow_off" then
+        pcall(function() S.Glow.Stop() end)
+        pcall(function() if S.SyncGlowPanel then S.SyncGlowPanel() end end)
+        S.Rebuild()
+        return "🚫 " .. S.Glow.Status()
+
+    -- ---------- v4.14: 👣 XEM NGƯỜI CHƠI ----------
+    elseif id == "spec_on" then
+        local p = S.Spec.target or S.Loc.target or S.Loc.Nearest()
+        if not p then return "⚠️ chưa có ai để xem (server chỉ có mình bạn)" end
+        pcall(function() S.Loc.SetTarget(p) end)
+        pcall(function() S.Spec.Set(p) end)
+        pcall(function() if S.Spec.RefreshList then S.Spec.RefreshList() end end)
+        S.Rebuild()
+        return "👣 " .. S.Spec.Status() .. " (bấm tên người khác trong khung 👣 để đổi)"
+    elseif id == "spec_off" then
+        pcall(function() S.Spec.Stop() end)
+        pcall(function() if S.Spec.RefreshList then S.Spec.RefreshList() end end)
+        S.Rebuild()
+        return "🚫 " .. S.Spec.Status()
+    elseif id == "loc_stop" then
+        pcall(function() S.Loc.StopAll() end)
+        S.Rebuild()
+        return "🚫 đã tắt hết định vị: " .. S.Loc.Status()
+    elseif id == "movestop" then
+        pcall(function() S.Move.StopAll() end)
+        S.Rebuild()
+        return "🛑 đã tắt hết: " .. S.Move.Status()
     end
     return "⚠️ không rõ thao tác: " .. tostring(id)
 end
@@ -6651,15 +9004,13 @@ end
 D.hubJobCopy.Activated:Connect(function()
     local jid = S.GetJobId()
     if not jid then
-        D.hubStatus.Text = "⚠️ Không có mã server để copy (đang ở Studio / server đơn)"
-        D.hubStatus.TextColor3 = C.RED
+        D.Say("⚠️ Không có mã server để copy (đang ở Studio / server đơn)")
         return
     end
     local okCp = S.CopyToClipboard(jid)
     pcall(function() D.hubJobIn.Text = jid end)
-    D.hubStatus.Text = okCp and ("📋 Đã copy mã server: " .. jid)
-                             or ("⚠️ Executor không cho copy — mã server là: " .. jid)
-    D.hubStatus.TextColor3 = okCp and C.GREEN or C.YELLOW
+    D.Say(okCp and ("📋 Đã copy mã server: " .. jid)
+              or ("⚠️ Executor không cho copy — mã server là: " .. jid), okCp and C.GREEN or C.YELLOW)
 end)
 
 -- 🚀 Vào server theo mã vừa dán
@@ -6669,30 +9020,31 @@ D.hubJoinBtn.Activated:Connect(function()
     id = id:gsub("^%s+", ""):gsub("%s+$", "")
     id = id:gsub('^"', ""):gsub('"$', ""):gsub("^'", ""):gsub("'$", "")
     if id == "" then
-        D.hubStatus.Text = "⚠️ Hãy DÁN mã server (JobId) vào ô 🎟 trước khi bấm 🚀 Vào"
-        D.hubStatus.TextColor3 = C.RED
+        D.Say("⚠️ Hãy DÁN mã server (JobId) vào ô 🎟 trước khi bấm 🚀 Vào")
         ReleaseHubFocus()
         return
     end
-    D.hubStatus.Text = "🚀 Đang vào server " .. id .. " ..."
-    D.hubStatus.TextColor3 = C.YELLOW
+    D.Say("🚀 Đang vào server " .. id .. " ...", C.YELLOW)
     ReleaseHubFocus()   -- nhả focus ô nhập, không thì game chặn input sau khi teleport
     local okJ, errJ = pcall(function() S.JoinServer(id) end)
     if not okJ then
-        D.hubStatus.Text = "⚠️ Không vào được server này (mã sai/hết chỗ/game chặn): " .. tostring(errJ)
-        D.hubStatus.TextColor3 = C.RED
+        D.Say("⚠️ Không vào được server này (mã sai/hết chỗ/game chặn): " .. tostring(errJ))
     end
 end)
 
 -- 🔀 Hop ngay trên khung (cùng một hàm với thẻ 🔀 Hop Server trong danh sách)
 D.hubHopBtn.Activated:Connect(function()
     ReleaseHubFocus()
-    D.hubStatus.Text = "🔀 Đang đi lấy mã server..."
-    D.hubStatus.TextColor3 = C.YELLOW
+    D.Say("🔀 Đang đi lấy mã server...", C.YELLOW)
     D.hubStatus.Text = S.RunHubAction("hopserver")
 end)
 
 -- dựng lại danh sách theo từ khóa + phân loại + yêu thích
+-- v4.12.3: 9 chỗ gọi y hệt 1 dòng này -> gom thành hàm.
+function S.Rebuild()
+    pcall(function() if S.RebuildHubList then S.RebuildHubList() end end)
+end
+
 function S.RebuildHubList()
     local list = D.hubList
     if not list or not list.Parent then return end
@@ -6724,7 +9076,7 @@ function S.RebuildHubList()
 
     for i, it in ipairs(items) do
         local card = New("Frame", {
-            Name = "HubCard_" .. tostring(it.name), Size = UDim2.new(1, 0, 0, 56), LayoutOrder = i,
+            Name = "HubCard_" .. tostring(it.name), Size = UDim2.new(1, 0, 0, 56), LayoutOrder = i + 1,
             BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, BorderSizePixel = 0, ZIndex = 6,
         }, list)
         Corner(card, UDim.new(0, 10))
@@ -6764,9 +9116,17 @@ function S.RebuildHubList()
         local isAction = (it.action ~= nil)
         local runText
         if isAction then
-            runText = (it.action == "crosshair")
-                and ((S.crosshairOn and "🎯 TẮT") or "🎯 BẬT")
-                or  "⚡ Chạy"
+            if it.action == "crosshair" then
+                runText = (S.crosshairOn and "🎯 TẮT") or "🎯 BẬT"
+            elseif S.MoveActionState and S.MoveActionState[it.action] then
+                -- v4.12: thẻ di chuyển hiện sẵn trạng thái. Nhãn ghi việc BẤM VÀO SẼ LÀM
+                -- (đang BẬT thì nút ghi "TẮT") — cùng quy ước với nút 🎯 Niêm tâm.
+                local on = false
+                pcall(function() on = S.MoveActionState[it.action]() end)
+                runText = tostring(it.icon) .. " " .. ((on and "TẮT") or "BẬT")
+            else
+                runText = "⚡ Chạy"
+            end
         else
             runText = "▶ Chạy"
         end
@@ -6775,27 +9135,20 @@ function S.RebuildHubList()
             ReleaseHubFocus()
             if it.code then
                 local okR = RunCode(it.code, it.name, nil, 1, 0, it.noPark == true)
-                D.hubStatus.Text = (okR and "▶ đã chạy '" or "⚠️ không chạy được '") .. it.name .. "'"
+                D.Say((okR and "▶ đã chạy '" or "⚠️ không chạy được '") .. it.name .. "'"
                     .. (it.noPark and " · 🪟 GUI của nó ở NGOÀI màn hình game (đúng như tab 🛠)" or "")
-                    .. " · xem chi tiết ở tab 💻 Code"
+                    .. " · xem chi tiết ở tab 💻 Code", C.YELLOW)
             else
-                D.hubStatus.Text = S.RunHubAction(it.action)
+                D.Say(S.RunHubAction(it.action), C.YELLOW)
             end
-            D.hubStatus.TextColor3 = C.YELLOW
         end)
 
         if it.code then
             local copyBtn = D.CardBtn(card, "📋", -84, 24, C.BLUE)
             copyBtn.Activated:Connect(function()
-                local did = false
-                pcall(function()
-                    if setclipboard then setclipboard(it.code) did = true
-                    elseif toclipboard then toclipboard(it.code) did = true
-                    elseif set_clipboard then set_clipboard(it.code) did = true end
-                end)
-                D.hubStatus.Text = did and ("📋 đã copy loadstring của '" .. it.name .. "'")
-                                       or "⚠️ executor này không hỗ trợ clipboard"
-                D.hubStatus.TextColor3 = did and C.GREEN or C.RED
+                local did = S.CopyToClipboard(it.code)
+                D.Say(did and ("📋 đã copy loadstring của '" .. it.name .. "'")
+                           or "⚠️ executor này không hỗ trợ clipboard", did and C.GREEN or C.RED)
             end)
             local saveBtn = D.CardBtn(card, "💾", -56, 24, C.PURPLE)
             saveBtn.Activated:Connect(function()
@@ -6811,8 +9164,7 @@ function S.RebuildHubList()
                 table.insert(scripts, {name = nm, code = it.code, expanded = false})
                 pcall(function() if RebuildScripts then RebuildScripts() end end)
                 pcall(function() Store.saveSoon() end)
-                D.hubStatus.Text = "💾 đã lưu '" .. nm .. "' sang tab 💾 Code Đã Lưu"
-                D.hubStatus.TextColor3 = C.GREEN
+                D.Say("💾 đã lưu '" .. nm .. "' sang tab 💾 Code Đã Lưu", C.GREEN)
             end)
         end
 
@@ -6822,26 +9174,1896 @@ function S.RebuildHubList()
             if S.hubFavs[it.name] then S.hubFavs[it.name] = nil else S.hubFavs[it.name] = true end
             pcall(function() Store.saveSoon() end)   -- lưu yêu thích xuống đĩa
             S.RebuildHubList()
-            D.hubStatus.Text = S.hubFavs[it.name] and ("⭐ đã ghim '" .. it.name .. "' lên đầu")
-                                                   or ("☆ đã bỏ ghim '" .. it.name .. "'")
-            D.hubStatus.TextColor3 = C.MUTED
+            D.Say(S.hubFavs[it.name] and ("⭐ đã ghim '" .. it.name .. "' lên đầu")
+                                      or ("☆ đã bỏ ghim '" .. it.name .. "'"), C.MUTED)
         end)
     end
 
+    -- v4.12: CanvasSize phải tính CẢ khung ⚙ tuỳ chỉnh (nằm trên cùng danh sách), nếu không
+    -- cuộn xuống sẽ thiếu đúng 1 hàng thẻ cuối.
     pcall(function()
-        list.CanvasSize = UDim2.new(0, 0, 0, #items * 62 + 6)
+        -- v4.16: cộng chiều cao MỌI khung điều khiển (⚙ di chuyển + ✨ phát sáng; sau này thêm
+        -- khung nào cũng tự đúng), nếu không cuộn xuống sẽ thiếu đúng hàng thẻ cuối.
+        local panelH = 0
+        for _, c in ipairs(list:GetChildren()) do
+            if c:IsA("Frame") and c.Name:sub(1, 8) ~= "HubCard_" then
+                panelH = panelH + ((c.Size and c.Size.Y.Offset) or 0) + 6
+            end
+        end
+        list.CanvasSize = UDim2.new(0, 0, 0, #items * 62 + 6 + panelH)
     end)
+    if S.RefreshMovePanel then pcall(S.RefreshMovePanel) end   -- v4.12: nhãn trạng thái di chuyển
+    if S.SyncGlowPanel then pcall(S.SyncGlowPanel) end         -- v4.16: nhãn khung ✨ phát sáng
+    if S.SyncSafePanel then pcall(S.SyncSafePanel) end         -- v4.17: nhãn khung 🛡 bay an toàn
     if #items == 0 and D.hubStatus then
-        D.hubStatus.Text = "🔍 không tìm thấy gì khớp '" .. tostring(S.hubSearch or "") .. "'"
-        D.hubStatus.TextColor3 = C.MUTED
+        D.Say("🔍 không tìm thấy gì khớp '" .. tostring(S.hubSearch or "") .. "'", C.MUTED)
     end
+end
+
+-- ---------- v4.12: KHUNG ⚙ TUỲ CHỈNH DI CHUYỂN ----------
+-- Nằm TRÊN CÙNG của danh sách thẻ (LayoutOrder = 0) và được đặt tên "HubMove_Panel"
+-- (không phải "HubCard_...") nên S.RebuildHubList() không bao giờ xoá nó khi lọc/tìm kiếm.
+-- Tất cả biến nằm trong `do ... end` để không chiếm slot local của main chunk.
+do
+    local PH = 168
+    local P = New("Frame", {
+        Name = "HubMove_Panel",
+        Size = UDim2.new(1, 0, 0, PH),
+        LayoutOrder = 0,
+        BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, BorderSizePixel = 0, ZIndex = 6,
+    }, D.hubList)
+    Corner(P, UDim.new(0, 10))
+    Stroke(P, C.HAIRLINE, 1)
+    D.Shade(P, Color3.fromRGB(255, 255, 255), Color3.fromRGB(188, 192, 205), 90)
+
+    local function title(txt)
+        New("TextLabel", {
+            Size = UDim2.new(1, -16, 0, 14), Position = UDim2.new(0, 8, 0, 4),
+            Text = txt, BackgroundTransparency = 1, TextColor3 = C.ACCENT,
+            Font = Enum.Font.GothamBold, TextSize = 10,
+            TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+        }, P)
+    end
+    local function lab(txt, x, y, w)
+        New("TextLabel", {
+            Size = UDim2.new(0, w, 0, 20), Position = UDim2.new(0, x, 0, y),
+            Text = txt, BackgroundTransparency = 1, TextColor3 = C.MUTED,
+            Font = Enum.Font.GothamMedium, TextSize = 9,
+            TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+        }, P)
+    end
+    local function box(x, y, w, val)
+        local b = New("TextBox", {
+            Size = UDim2.new(0, w, 0, 20), Position = UDim2.new(0, x, 0, y),
+            Text = tostring(val), ClearTextOnFocus = false,
+            BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.1, TextColor3 = C.DARK,
+            PlaceholderColor3 = C.GRAY, Font = Enum.Font.GothamMedium, TextSize = 9,
+            TextXAlignment = Enum.TextXAlignment.Center, BorderSizePixel = 0, ZIndex = 7,
+        }, P)
+        Corner(b, UDim.new(0, 6))
+        Stroke(b, C.BORDER, 1)
+        return b
+    end
+    local function act(txt, x, y, w, color)
+        local b = New("TextButton", {
+            Size = UDim2.new(0, w, 0, 20), Position = UDim2.new(0, x, 0, y),
+            Text = txt, BackgroundColor3 = color or C.SURFACE3, BackgroundTransparency = 0.08,
+            TextColor3 = D.BestText(color or C.SURFACE3), Font = Enum.Font.GothamBold,
+            TextSize = 9, BorderSizePixel = 0, ZIndex = 8,
+        }, P)
+        Corner(b, UDim.new(0, 6))
+        D.Tactile(b, 0.08)
+        return b
+    end
+    local function say(msg, good) D.Say(msg, good and C.GREEN or C.RED) end
+
+    title("⚙ Tuỳ chỉnh di chuyển (áp dụng ngay, không cần bật lại)")
+
+    -- Hàng 1: tốc độ bay / tốc độ chạy / lực nhảy
+    lab("🚀 Bay", 8, 22, 52)
+    local flyIn = box(62, 22, 44, S.Move.flySpeed)
+    lab("👟 Chạy", 114, 22, 50)
+    -- v4.12.2: ô này nhận 2 kiểu: "x3" = TỐC ĐỘ GAME ×3 (mặc định) · "50" = cố định 50
+    local wsIn = box(166, 22, 40, (S.Move.speedMode == "x") and ("x" .. tostring(S.Move.speedMul))
+                                                             or tostring(S.Move.walkSpeed))
+    lab("🦘 Nhảy", 214, 22, 46)
+    local jpIn = box(262, 22, 40, S.Move.jumpPower)
+    local ap1 = act("✔", 308, 22, 28, C.GREEN)
+
+    -- Hàng 2: kích thước thảm RỘNG × CAO × DÀI
+    lab("🪩 Thảm Rộng×Cao×Dài", 8, 48, 116)
+    local cwIn = box(128, 48, 40, S.Move.carpetW)
+    local chIn = box(176, 48, 40, S.Move.carpetH)
+    local clIn = box(224, 48, 40, S.Move.carpetL)
+    -- v4.12.1: ô thứ 4 = KHOẢNG CÁCH thảm tới bàn chân (0 = áp sát chân, 3 = kiểu bản gốc)
+    local gapIn = New("TextBox", {
+        Size = UDim2.new(0, 40, 0, 20), Position = UDim2.new(0, 272, 0, 48),
+        Text = tostring(S.Move.carpetGap), PlaceholderText = "gap", ClearTextOnFocus = false,
+        BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.1, TextColor3 = C.DARK,
+        PlaceholderColor3 = C.GRAY, Font = Enum.Font.GothamMedium, TextSize = 9,
+        TextXAlignment = Enum.TextXAlignment.Center, BorderSizePixel = 0, ZIndex = 7,
+    }, P)
+    Corner(gapIn, UDim.new(0, 6)); Stroke(gapIn, C.BORDER, 1)
+    lab("↕ cách chân", 314, 48, 60)
+    local ap2 = act("✔", 374, 48, 28, C.GREEN)
+
+    -- v4.12.2: dòng ghi chú nhỏ (đọc một lần là hiểu hết các tính năng mới sửa)
+    New("TextLabel", {
+        Size = UDim2.new(1, -16, 0, 34), Position = UDim2.new(0, 8, 0, 126),
+        Text = "💡 👟 Chạy: gõ x3 = TỐC ĐỘ GAME ×3 (mặc định — game nhanh thì nhanh theo, game chậm thì chậm theo); "
+             .. "gõ 50 = cố định 50; gõ x1 = GIỮ NGUYÊN tốc độ game (như bản gốc). "
+             .. "🦘 Nhảy tự thử 3 cách nên game cấm nhảy/ăn phím Space vẫn nhảy được. "
+             .. "🪩 Thảm nằm ngay dưới chân, bị game xoá sẽ tự trải lại. Game nặng bị GIẬT thì TẮT 🛟 Chống rơi.",
+        TextWrapped = true, BackgroundTransparency = 1, TextColor3 = C.MUTED,
+        Font = Enum.Font.GothamMedium, TextSize = 8,
+        TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top,
+        ZIndex = 7,
+    }, P)
+
+    -- Hàng 3: nâng/hạ (thảm hoặc bay) + tắt hết + nhãn trạng thái
+    local upBtn  = act("⬆ Nâng", 8, 74, 62, C.BLUE)
+    local dnBtn  = act("⬇ Hạ", 76, 74, 56, C.BLUE)
+    local stopBtn = act("🛑 Tắt hết", 138, 74, 76, C.RED)
+    local st = New("TextLabel", {
+        Size = UDim2.new(1, -230, 0, 20), Position = UDim2.new(0, 222, 0, 74),
+        Text = S.Move.Status(), BackgroundTransparency = 1, TextColor3 = C.MUTED,
+        Font = Enum.Font.GothamMedium, TextSize = 9,
+        TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+    }, P)
+
+    ap1.Activated:Connect(function()
+        ReleaseHubFocus()
+        local f = tonumber(flyIn.Text); local w = tonumber(wsIn.Text); local j = tonumber(jpIn.Text)
+        if f then S.Move.flySpeed = (f >= 1 and f <= 500) and f or S.Move.flySpeed end
+        -- ô 👟 Chạy: "x3"/"×3" = NHÂN THEO GAME · số trơn = CỐ ĐỊNH
+        local wmul = tostring(wsIn.Text or ""):match("^[xX×]%s*([%d%.]+)")
+        if wmul then
+            S.Move.speedMode = "x"
+            S.Move.speedMul  = mvClamp(tonumber(wmul), 1, 20)
+        elseif w then
+            S.Move.speedMode = "num"
+            S.Move.walkSpeed = (w >= 1 and w <= 500) and w or S.Move.walkSpeed
+        end
+        if j then S.Move.jumpPower = (j >= 0 and j <= 500) and j or S.Move.jumpPower end
+        -- Text là THUỘC TÍNH CHUỖI: gán số -> Roblox văng lỗi 'string expected, got number'
+        flyIn.Text = tostring(S.Move.flySpeed)
+        wsIn.Text  = (S.Move.speedMode == "x") and ("x" .. tostring(S.Move.speedMul)) or tostring(S.Move.walkSpeed)
+        jpIn.Text  = tostring(S.Move.jumpPower)
+        pcall(function() if S.Move.speed then S.Move.ApplyChar() end end)
+        say(string.format("⚙ đã áp dụng: bay %d · chạy %s · nhảy %d%s",
+            S.Move.flySpeed,
+            (S.Move.speedMode == "x") and ("×" .. tostring(S.Move.speedMul) .. " (theo game)")
+                                       or tostring(S.Move.walkSpeed),
+            S.Move.jumpPower,
+            (S.Move.speedMode == "x" and S.Move.speed) and (" = " .. tostring(S.Move.WantSpeed())) or ""), true)
+    end)
+
+    ap2.Activated:Connect(function()
+        ReleaseHubFocus()
+        S.Move.SetCarpetSize(tonumber(cwIn.Text), tonumber(chIn.Text), tonumber(clIn.Text))
+        S.Move.SetCarpetGap(tonumber(gapIn.Text))
+        cwIn.Text, chIn.Text, clIn.Text = tostring(S.Move.carpetW), tostring(S.Move.carpetH), tostring(S.Move.carpetL)
+        gapIn.Text = tostring(S.Move.carpetGap)
+        say(string.format("🪩 thảm: Rộng %g × Cao %g × Dài %g · cách chân %g%s",
+            S.Move.carpetW, S.Move.carpetH, S.Move.carpetL, S.Move.carpetGap,
+            (S.Move.carpet and " (đang bật, đổi ngay)") or " (bật thảm để thấy)"), true)
+    end)
+
+    upBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        local ok, what = S.Move.Nudge(2.5)
+        say(ok and ("⬆ đã nâng " .. tostring(what) .. " lên 2.5") or "⬆ bật Bay hoặc Thảm Kính trước đã",
+            ok == true)
+        st.Text = S.Move.Status()
+    end)
+    dnBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        local ok, what = S.Move.Nudge(-2.5)
+        say(ok and ("⬇ đã hạ " .. tostring(what) .. " xuống 2.5") or "⬇ bật Bay hoặc Thảm Kính trước đã",
+            ok == true)
+        st.Text = S.Move.Status()
+    end)
+    stopBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        D.Say(S.RunHubAction("movestop"), C.YELLOW)
+        st.Text = S.Move.Status()
+    end)
+
+    -- Hàng 4 (v4.12.5): 2 công tắc cho GAME NẶNG (Evade...). TẮT đi = y hệt bản gốc aiaiaitao3:
+    -- hub không bao giờ đụng vào nhân vật -> hết giật/lag, thảm vẫn còn để đứng nhờ va chạm.
+    -- v4.22: nút 🧲 (nhãn ngắn cho vừa 168px cạnh 2 công tắc) + hàm vẽ lại
+    -- ⚠️ phải KHAI BÁO `local pcBtn` TRƯỚC paintPass(), không thì paintPass nhìn thấy biến TOÀN CỤC
+    -- trùng tên (nil) -> bấm nút là lỗi "attempt to index a nil value" (bộ test bắt được).
+    local pcBtn
+    local TXT_PASS_ON  = "🧲 Đẩy xuyên khi kẹt: BẬT"
+    local TXT_PASS_OFF = "🧲 Đẩy xuyên khi kẹt: TẮT"
+    local function paintPass()
+        local on = (S.Move.ncPass ~= false)
+        pcBtn.Text = on and TXT_PASS_ON or TXT_PASS_OFF
+        pcBtn.BackgroundColor3 = on and C.GREEN or C.GRAY
+        pcBtn.TextColor3 = D.BestText(pcBtn.BackgroundColor3)
+    end
+    local holdBtn = act("🛟 Chống rơi: BẬT", 8, 100, 108, C.GREEN)
+    local edgeBtn = act("🔲 Viền thảm: BẬT", 122, 100, 108, C.GREEN)
+    local function paintHold()
+        local on = (S.Move.carpetHold ~= false)
+        holdBtn.Text = on and "🛟 Chống rơi: BẬT" or "🛟 Chống rơi: TẮT"
+        holdBtn.BackgroundColor3 = on and C.GREEN or C.SURFACE3
+        holdBtn.TextColor3 = D.BestText(holdBtn.BackgroundColor3)
+    end
+    local function paintEdge()
+        local on = (S.Move.carpetEdge ~= false)
+        edgeBtn.Text = on and "🔲 Viền thảm: BẬT" or "🔲 Viền thảm: TẮT"
+        edgeBtn.BackgroundColor3 = on and C.GREEN or C.SURFACE3
+        edgeBtn.TextColor3 = D.BestText(edgeBtn.BackgroundColor3)
+    end
+    holdBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        S.Move.SetCarpetHold(S.Move.carpetHold == false)
+        paintHold()
+        say("🛟 đỡ khỏi rơi xuyên thảm: " .. ((S.Move.carpetHold ~= false) and "BẬT"
+            or "TẮT (y hệt bản gốc — hub không đụng vào nhân vật nữa, hết giật)"), true)
+    end)
+    edgeBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        S.Move.SetCarpetEdge(S.Move.carpetEdge == false)
+        paintEdge()
+        say("🔲 viền sáng quanh thảm: " .. ((S.Move.carpetEdge ~= false) and "BẬT" or "TẮT"), true)
+    end)
+    paintHold(); paintEdge()
+    -- v4.22: cùng hàng 4 — 🧲 tự đẩy xuyên khi game chặn cứng (đi kèm 🧱 Xuyên Tường)
+    pcBtn = act(TXT_PASS_ON, 234, 100, 168, C.GREEN)
+    S.Move._passBtn = pcBtn
+    pcBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        S.Move.ncPass = (S.Move.ncPass == false)        -- đang TẮT -> BẬT, và ngược lại
+        paintPass()
+        say(S.Move.ncPass and "🧲 tự đẩy xuyên: BẬT (kẹt cứng là tự nhích xuyên qua)"
+                           or "🧲 tự đẩy xuyên: TẮT (chỉ tắt va chạm như cũ)", true)
+    end)
+
+
+    -- nhãn trạng thái tự cập nhật mỗi khi dựng lại danh sách thẻ
+    function S.RefreshMovePanel()
+        pcall(function()
+            st.Text = S.Move.Status()
+            cwIn.Text, chIn.Text, clIn.Text = tostring(S.Move.carpetW), tostring(S.Move.carpetH), tostring(S.Move.carpetL)
+            gapIn.Text = tostring(S.Move.carpetGap)
+            flyIn.Text = S.Move.flySpeed
+            wsIn.Text = (S.Move.speedMode == "x") and ("x" .. tostring(S.Move.speedMul)) or tostring(S.Move.walkSpeed)
+            jpIn.Text = S.Move.jumpPower
+            -- v4.22: nút 🧲 đọc lại đúng trạng thái (respawn không làm lệch chữ so với thực tế)
+            paintPass()
+        end)
+    end
+end
+
+-- ============================================================================
+-- ========= v4.13: ĐỊNH VỊ NGƯỜI CHƠI (port từ "ESP System" của aiaiaitao3) ===
+-- ============================================================================
+-- Xuyên tường thấy người chơi: tên · 💗 bạn bè · ☠️ bị hạ gục (kèm ⏱ đếm giờ) · ❤️ máu ·
+-- 📏 khoảng cách. MÀU: 🟢 xanh = người thường · 💗 hồng = bạn bè · 🔴 đỏ = bị hạ gục ·
+-- 🟣 tím = bạn bè bị hạ gục.
+-- Khác bản gốc ở 4 điểm (TỐI ƯU — không bỏ tính năng nào):
+--   1) Bản gốc mở MỖI người chơi MỘT luồng task.spawn để cập nhật nhãn (40 người = 40 luồng,
+--      hay rò luồng khi người thoát). Ở đây gom thành MỘT vòng lặp cập nhật hết mỗi 0.2 giây.
+--   2) Bản gốc gọi WaitForChild("HumanoidRootPart", 3) -> kẹt 3 giây/người nếu game chưa gắn
+--      part. Ở đây đọc FindFirstChild: có thì dựng, chưa có thì đợi vòng sau (không chờ).
+--   3) Thêm 📏 GIỚI HẠN KHOẢNG CÁCH (chỉ hiện người gần, đỡ rối mắt ở server đông).
+--   4) Vòng lặp TẮT HẲN khi không còn ai được định vị (bản gốc cứ chạy trong mỗi luồng).
+S.Loc = {
+    on = false,             -- 👁️ định vị TẤT CẢ người chơi
+    solo = false,           -- 🎯 chỉ định vị ĐÚNG 1 người (S.Loc.target)
+    target = nil,
+    maxDist = 0,            -- 0 = không giới hạn; >0 = chỉ hiện người trong bán kính này (stud)
+    _gui = nil, _items = {}, _friend = {}, _downAt = {},
+    _acc = 0, _listAcc = 0, _bound = false,
+}
+local LOC = S.Loc
+local LOCC = {
+    normal = { fill = Color3.fromRGB(0, 255, 100),   out = Color3.fromRGB(255, 255, 255), txt = Color3.fromRGB(0, 255, 100) },
+    friend = { fill = Color3.fromRGB(255, 105, 180), out = Color3.fromRGB(255, 182, 193), txt = Color3.fromRGB(255, 182, 193) },
+    down   = { fill = Color3.fromRGB(200, 0, 0),     out = Color3.fromRGB(255, 100, 100), txt = Color3.fromRGB(255, 100, 100) },
+    fdown  = { fill = Color3.fromRGB(138, 43, 226),  out = Color3.fromRGB(200, 150, 255), txt = Color3.fromRGB(200, 150, 255) },
+}
+local function locRound(n) return math.floor((tonumber(n) or 0) + 0.5) end
+local function locTime(sec)                      -- số giây -> "mm:ss"
+    local v = math.max(0, math.floor(tonumber(sec) or 0))
+    return string.format("%02d:%02d", math.floor(v / 60), v % 60)
+end
+function S.Loc.Root()
+    local c = player.Character
+    return (c and c:FindFirstChild("HumanoidRootPart")) or nil
+end
+function S.Loc.CharOf(p)
+    local c = p and p.Character
+    if not c then return nil end
+    local r = c:FindFirstChild("HumanoidRootPart")
+    local h = c:FindFirstChildOfClass("Humanoid")
+    if r and h then return c, r, h end
+    return nil
+end
+function S.Loc.IsFriend(p)
+    local uid = p and p.UserId
+    if uid == nil then return false end
+    if LOC._friend[uid] == nil then
+        local ok, res = pcall(function() return player:IsFriendsWith(uid) end)
+        LOC._friend[uid] = (ok and res == true) or false
+    end
+    return LOC._friend[uid] == true
+end
+-- "BỊ HẠ GỤC" = nằm sấp (PlatformStand — đa số game dùng làm trạng thái gục) hoặc HẾT MÁU.
+function S.Loc.IsDown(h)
+    if not h then return false end
+    if h.PlatformStand == true then return true end
+    if (tonumber(h.Health) or 1) <= 0 then return true end
+    return false
+end
+-- v4.14: ghi mốc "vừa bị hạ gục" — DÙNG CHUNG cho 📍 Định vị và 👣 Xem người chơi.
+-- (Trước đây chỉ 📍 ghi mốc, nên bật 👣 một mình thì đồng hồ ⏱ cứ đứng ở 0 — lỗi này bộ test bắt.)
+function S.Loc.NoteDown(p, down)
+    if p == nil then return end
+    if down then
+        if not LOC._downAt[p] then LOC._downAt[p] = tick() end
+    else
+        LOC._downAt[p] = nil
+    end
+end
+-- số giây ĐÃ bị hạ gục (0 = đang khoẻ)
+function S.Loc.DownSecs(p)
+    local st = LOC._downAt[p]
+    if not st then return 0 end
+    return tick() - st
+end
+function S.Loc.Dist(p)
+    local r = LOC.Root()
+    local _, pr = LOC.CharOf(p)
+    if not r or not pr then return nil end
+    return (r.Position - pr.Position).Magnitude
+end
+-- người gần nhất (dùng khi bật Định Vị Lẻ mà chưa chọn ai)
+function S.Loc.Nearest()
+    local best, bd = nil, nil
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= player then
+            local d = LOC.Dist(p)
+            if d and (bd == nil or d < bd) then best, bd = p, d end
+            if not best then best = p end
+        end
+    end
+    return best
+end
+-- người này có được định vị không (tôn trọng chế độ Tất cả / Lẻ)
+function S.Loc.Wanted(p)
+    if p == nil or p == player then return false end
+    if LOC.solo then return LOC.target == p end
+    return LOC.on == true
+end
+function S.Loc.Gui()
+    if LOC._gui and LOC._gui.Parent then return LOC._gui end
+    LOC._gui = New("ScreenGui", {
+        Name = "BC_LocEsp", ResetOnSpawn = false,
+        ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+    }, gui)
+    return LOC._gui
+end
+function S.Loc.Kill(p)
+    local it = LOC._items[p]
+    if not it then return end
+    pcall(function() if it.hl then it.hl:Destroy() end end)
+    pcall(function() if it.bb then it.bb:Destroy() end end)
+    LOC._items[p] = nil
+end
+function S.Loc.Clear()
+    for p, _ in pairs(LOC._items) do LOC.Kill(p) end
+    pcall(function() if LOC._gui then LOC._gui:ClearAllChildren() end end)
+end
+function S.Loc.Make(p)
+    local c, r = LOC.CharOf(p)
+    if not c then return end
+    LOC.Kill(p)
+    local g = LOC.Gui()
+    local hl = New("Highlight", {
+        Name = tostring(p.Name) .. "_HL", Adornee = c,
+        FillColor = LOCC.normal.fill, FillTransparency = 0.55,
+        OutlineColor = LOCC.normal.out, OutlineTransparency = 0,
+    }, g)
+    local bb = New("BillboardGui", {
+        Name = tostring(p.Name) .. "_BB", Adornee = r,
+        Size = UDim2.new(0, 170, 0, 46), StudsOffset = Vector3.new(0, 3.6, 0),
+        AlwaysOnTop = true,
+    }, g)
+    local lbl = New("TextLabel", {
+        Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1,
+        TextColor3 = LOCC.normal.txt, Font = Enum.Font.GothamBold, TextSize = 11,
+        TextStrokeColor3 = Color3.fromRGB(0, 0, 0), TextStrokeTransparency = 0.35,
+    }, bb)
+    LOC._items[p] = { hl = hl, bb = bb, lbl = lbl }
+    LOC.TickOne(p)
+end
+-- cập nhật MỘT người: màu theo trạng thái + chữ (tên/bạn bè/hạ gục ⏱/máu/khoảng cách)
+function S.Loc.TickOne(p)
+    local it = LOC._items[p]
+    if not it then return end
+    local c, r, h = LOC.CharOf(p)
+    if not c then LOC.Kill(p); return end
+    local down, fr = LOC.IsDown(h), LOC.IsFriend(p)
+    S.Loc.NoteDown(p, down)
+    local col = down and (fr and LOCC.fdown or LOCC.down) or (fr and LOCC.friend or LOCC.normal)
+    local r0 = LOC.Root()
+    local dist = (r0 and r) and (r0.Position - r.Position).Magnitude or nil
+    local far = (LOC.maxDist > 0 and dist ~= nil and dist > LOC.maxDist)
+    pcall(function()
+        it.hl.FillColor = col.fill
+        it.hl.OutlineColor = col.out
+        it.lbl.TextColor3 = col.txt
+        it.hl.Enabled = not far
+        it.bb.Enabled = not far
+    end)
+    local mid = {}
+    if down then mid[#mid + 1] = "☠️ Hạ gục ⏱ " .. locTime(LOC.DownSecs(p)) end
+    if h then mid[#mid + 1] = string.format("❤️ %d/%d", locRound(h.Health or 0), locRound(h.MaxHealth or 100)) end
+    mid[#mid + 1] = dist and string.format("📏 %dm", locRound(dist)) or "📏 --m"
+    it.lbl.Text = tostring(p.Name) .. (fr and "  💗 Bạn Bè" or "") .. "\n" .. table.concat(mid, " · ")
+end
+-- MỘT vòng cho TẤT CẢ (bản gốc mỗi người một luồng — gom lại cho nhẹ)
+function S.Loc.Tick()
+    for p, _ in pairs(LOC._items) do
+        if not LOC.Wanted(p) then
+            LOC.Kill(p)
+        else
+            pcall(function() LOC.TickOne(p) end)
+        end
+    end
+    if not (LOC.on or LOC.solo) then return end
+    local ok, list = pcall(function() return Players:GetPlayers() end)
+    if not ok or not list then return end
+    for _, p in ipairs(list) do
+        if LOC.Wanted(p) and not LOC._items[p] and LOC.CharOf(p) then
+            pcall(function() LOC.Make(p) end)
+        end
+    end
+end
+function S.Loc.Bind(on)
+    if on and not LOC._bound then
+        LOC._bound = true
+        pcall(function()
+            RunService:BindToRenderStep("BC_Loc", Enum.RenderPriority.Camera.Value - 2, function(dt)
+                LOC._acc = (LOC._acc or 0) + (tonumber(dt) or 0.016)
+                if LOC._acc < 0.2 then return end
+                LOC._acc = 0
+                pcall(function() LOC.Tick() end)
+                LOC._listAcc = (LOC._listAcc or 0) + 0.2
+                if LOC._listAcc >= 1 then
+                    LOC._listAcc = 0
+                    if LOC.RefreshList then pcall(LOC.RefreshList) end
+                end
+            end)
+        end)
+    elseif (not on) and LOC._bound then
+        LOC._bound = false
+        pcall(function() RunService:UnbindFromRenderStep("BC_Loc") end)
+    end
+end
+function S.Loc.Refresh()
+    if not (LOC.on or LOC.solo) then
+        LOC.Clear()
+        LOC.Bind(false)
+        return
+    end
+    for p, _ in pairs(LOC._items) do if not LOC.Wanted(p) then LOC.Kill(p) end end
+    local ok, list = pcall(function() return Players:GetPlayers() end)
+    if ok and list then
+        for _, p in ipairs(list) do
+            if LOC.Wanted(p) and not LOC._items[p] and LOC.CharOf(p) then
+                pcall(function() LOC.Make(p) end)
+            end
+        end
+    end
+    LOC.Bind(true)
+end
+function S.Loc.Set(on)
+    LOC.on = (on == true)
+    LOC.Refresh()
+    return LOC.on
+end
+function S.Loc.SetSolo(on)
+    LOC.solo = (on == true)
+    if not LOC.solo then LOC.target = nil end
+    LOC.Refresh()
+    return LOC.solo
+end
+function S.Loc.SetTarget(p)
+    LOC.target = (p ~= nil and p ~= player) and p or nil
+    LOC.solo = (LOC.target ~= nil)
+    LOC.Refresh()
+    return LOC.target
+end
+function S.Loc.SetMaxDist(n)
+    LOC.maxDist = math.max(0, tonumber(n) or 0)
+    pcall(LOC.Tick)
+    return LOC.maxDist
+end
+function S.Loc.StopAll()
+    LOC.on = false; LOC.solo = false; LOC.target = nil
+    LOC._downAt = {}
+    LOC.Clear()
+    LOC.Bind(false)
+    return true
+end
+function S.Loc.Status()
+    if not (LOC.on or LOC.solo) then return "📍 định vị: đang TẮT (chưa hiện ai)" end
+    local n = 0
+    for _ in pairs(LOC._items) do n = n + 1 end
+    local t = {}
+    if LOC.on then t[#t + 1] = "👁️ tất cả" end
+    if LOC.solo then t[#t + 1] = "🎯 lẻ: " .. tostring(LOC.target and LOC.target.Name or "chưa chọn") end
+    if LOC.maxDist > 0 then t[#t + 1] = string.format("📏 ≤ %dm", locRound(LOC.maxDist)) end
+    return string.format("📍 đang định vị %d người (%s)", n, table.concat(t, " · "))
+end
+-- người chơi ra/vào + đổi nhân vật: tự dựng lại, tự dọn (không rò bộ nhớ)
+do
+    local function hookLoc(p)
+        if p == player then return nil end
+        -- KHÔNG task.wait trong event: vòng lặp 0.2 giây bên trên tự dựng lại khi part đã sẵn sàng
+        -- (task.wait trong handler làm game phải chạy thêm luồng, có game còn nuốt luôn event).
+        trackConn(p.CharacterAdded:Connect(function()
+            if LOC.Wanted(p) then pcall(function() LOC.Make(p) end) end
+        end))
+        trackConn(p.CharacterRemoving:Connect(function() LOC.Kill(p) end))
+        if LOC.Wanted(p) then pcall(function() LOC.Make(p) end) end
+    end
+    for _, p in ipairs(Players:GetPlayers()) do if p ~= player then pcall(hookLoc, p) end end
+    trackConn(Players.PlayerAdded:Connect(function(p) pcall(hookLoc, p) end))
+    trackConn(Players.PlayerRemoving:Connect(function(p)
+        LOC._friend[p.UserId] = nil
+        LOC._downAt[p] = nil
+        if LOC.target == p then LOC.target = nil end
+        LOC.Kill(p)
+    end))
+end
+
+-- ============================================================================
+-- ===== v4.15: TRANG 👥 NGƯỜI CHƠI (nằm GIỮA 📚 Script Hub và ➕ Tạo Tính Năng) ==
+-- ============================================================================
+-- Gom MỌI việc liên quan tới người chơi khác vào MỘT trang riêng cho dễ tìm:
+--   📍 Định Vị Người Chơi (xuyên tường: ai · bạn bè · bị hạ gục + ⏱ · máu · khoảng cách)
+--   👣 Xem Người Chơi (bám camera theo 1 người để xem họ đang làm gì)
+-- KHÔNG mất tính năng nào: 5 thẻ 📍👣 trong 📚 Script Hub vẫn còn nguyên và vẫn chạy được
+-- (khung điều khiển đầy đủ thì nay nằm trong trang 👥 cho gọn trang Script Hub).
+do
+    local tab = AddTab("Người Chơi", "👥", 4)      -- 4 = ngay sau 📚 Script Hub (3), trước ➕ (7)
+    D.playerTab = tab
+    New("TextLabel", {
+        Name = "PlayerTitle",
+        Size = UDim2.new(1, -16, 0, 18), Position = UDim2.new(0, 8, 0, 8),
+        Text = "👥 NGƯỜI CHƠI — ĐỊNH VỊ & XEM NGƯỜI CHƠI", BackgroundTransparency = 1,
+        TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 11,
+        TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+    }, tab)
+    New("TextLabel", {
+        Name = "PlayerNote",
+        Size = UDim2.new(1, -16, 0, 14), Position = UDim2.new(0, 8, 0, 26),
+        Text = "📍 = thấy người khác xuyên tường · 👣 = bám camera theo 1 người để xem họ đang làm gì."
+             .. "  (Các nút tắt/mở nhanh vẫn có thẻ trong 📚 Script Hub.)",
+        BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium, TextSize = 8,
+        TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+    }, tab)
+    D.playerY = 46
+end
+
+-- ---------- KHUNG 📍 ĐỊNH VỊ (nằm trong trang 👥 NGƯỜI CHƠI) ----------
+-- Đặt tên "HubLoc_Panel" (không phải "HubCard_...") nên S.RebuildHubList() không bao giờ xoá
+-- khi lọc/tìm kiếm — y như khung ⚙ di chuyển. Mọi biến nằm trong `do ... end`.
+do
+    local PH = 268
+    local P = New("Frame", {
+        Name = "HubLoc_Panel",
+        Size = UDim2.new(1, -16, 0, PH),
+        Position = UDim2.new(0, 8, 0, D.playerY or 46),
+        LayoutOrder = 1,
+        BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, BorderSizePixel = 0, ZIndex = 6,
+    }, D.playerTab)
+    D.playerY = (D.playerY or 46) + PH + 8
+    Corner(P, UDim.new(0, 10))
+    Stroke(P, C.HAIRLINE, 1)
+    D.Shade(P, Color3.fromRGB(255, 255, 255), Color3.fromRGB(188, 192, 205), 90)
+
+    New("TextLabel", {
+        Size = UDim2.new(1, -16, 0, 14), Position = UDim2.new(0, 8, 0, 4),
+        Text = "📍 ĐỊNH VỊ NGƯỜI CHƠI (xuyên tường)", BackgroundTransparency = 1,
+        TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 10,
+        TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+    }, P)
+
+    local function act(txt, x, y, w, color)
+        local b = New("TextButton", {
+            Size = UDim2.new(0, w, 0, 20), Position = UDim2.new(0, x, 0, y),
+            Text = txt, BackgroundColor3 = color, TextColor3 = D.BestText(color),
+            Font = Enum.Font.GothamBold, TextSize = 9, BorderSizePixel = 0, ZIndex = 8,
+        }, P)
+        Corner(b, UDim.new(0, 6))
+        D.Shade(b, Color3.fromRGB(255, 255, 255), Color3.fromRGB(182, 187, 201), 90)
+        D.Tactile(b, 0.08)
+        return b
+    end
+    local function lab(txt, x, y, w)
+        New("TextLabel", {
+            Size = UDim2.new(0, w, 0, 20), Position = UDim2.new(0, x, 0, y),
+            Text = txt, BackgroundTransparency = 1, TextColor3 = C.MUTED,
+            Font = Enum.Font.GothamMedium, TextSize = 9,
+            TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+        }, P)
+    end
+
+    local allBtn  = act("👁️ Tất Cả", 8, 22, 96, C.GRAY)
+    local soloBtn = act("🎯 Lẻ", 110, 22, 96, C.GRAY)
+    local stopBtn = act("🚫 Tắt", 212, 22, 76, C.SURFACE3)
+
+    lab("📏 Xa nhất:", 8, 48, 58)
+    local distIn = New("TextBox", {
+        Size = UDim2.new(0, 50, 0, 20), Position = UDim2.new(0, 66, 0, 48),
+        Text = "0", ClearTextOnFocus = false,
+        BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.1, TextColor3 = C.DARK,
+        PlaceholderColor3 = C.GRAY, Font = Enum.Font.GothamMedium, TextSize = 9,
+        TextXAlignment = Enum.TextXAlignment.Center, BorderSizePixel = 0, ZIndex = 7,
+    }, P)
+    Corner(distIn, UDim.new(0, 6))
+    lab("m (0 = không giới hạn)", 122, 48, 170)
+
+    local searchIn = New("TextBox", {
+        Size = UDim2.new(1, -16, 0, 22), Position = UDim2.new(0, 8, 0, 72),
+        Text = "", PlaceholderText = "🔍 Tìm tên người chơi...", ClearTextOnFocus = false,
+        PlaceholderColor3 = C.GRAY, BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.1,
+        TextColor3 = C.DARK, Font = Enum.Font.GothamMedium, TextSize = 9,
+        TextXAlignment = Enum.TextXAlignment.Left, BorderSizePixel = 0, ZIndex = 7,
+    }, P)
+    Corner(searchIn, UDim.new(0, 6))
+    New("UIPadding", { PaddingLeft = UDim.new(0, 6) }, searchIn)
+
+    local list = New("ScrollingFrame", {
+        Name = "LocList", Size = UDim2.new(1, -16, 0, 132), Position = UDim2.new(0, 8, 0, 98),
+        BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = 4,
+        CanvasSize = UDim2.new(0, 0, 0, 0), ZIndex = 7,
+    }, P)
+    New("UIListLayout", { Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder }, list)
+
+    New("TextLabel", {
+        Size = UDim2.new(1, -16, 0, 30), Position = UDim2.new(0, 8, 0, 234),
+        Text = "💡 Bấm TÊN = chỉ định vị người đó. 🟢 thường · 💗 bạn bè · 🔴 bị hạ gục (⏱ đếm giờ) · "
+             .. "🟣 bạn bè bị hạ gục. 📏 Xa nhất: chỉ hiện người trong bán kính đó.",
+        TextWrapped = true, BackgroundTransparency = 1, TextColor3 = C.MUTED,
+        Font = Enum.Font.GothamMedium, TextSize = 8, TextXAlignment = Enum.TextXAlignment.Left,
+        TextYAlignment = Enum.TextYAlignment.Top, ZIndex = 7,
+    }, P)
+
+    local function paint()
+        allBtn.Text = LOC.on and "👁️ Tất Cả: BẬT" or "👁️ Tất Cả"
+        allBtn.BackgroundColor3 = LOC.on and C.GREEN or C.GRAY
+        allBtn.TextColor3 = D.BestText(allBtn.BackgroundColor3)
+        soloBtn.Text = LOC.solo and ("🎯 " .. tostring(LOC.target and LOC.target.Name or "?")) or "🎯 Lẻ"
+        soloBtn.BackgroundColor3 = LOC.solo and C.PURPLE or C.GRAY
+        soloBtn.TextColor3 = D.BestText(soloBtn.BackgroundColor3)
+    end
+
+    -- danh sách người chơi: mỗi người 1 hàng (tên + trạng thái + khoảng cách). Bấm tên = chọn.
+    LOC.RefreshList = function()
+        for _, c in ipairs(list:GetChildren()) do
+            if not c:IsA("UIListLayout") then pcall(function() c:Destroy() end) end
+        end
+        local term = tostring(searchIn.Text or ""):lower()
+        local order = 0
+        local ok, players = pcall(function() return Players:GetPlayers() end)
+        if not ok or not players then return end
+        for _, p in ipairs(players) do
+            if p ~= player then
+                local nm = tostring(p.Name)
+                if term == "" or nm:lower():find(term, 1, true) then
+                    order = order + 1
+                    local _, _, h = LOC.CharOf(p)
+                    local fr, down = LOC.IsFriend(p), LOC.IsDown(h)
+                    local col = down and (fr and LOCC.fdown or LOCC.down) or (fr and LOCC.friend or LOCC.normal)
+                    local row = New("Frame", {
+                        Size = UDim2.new(1, 0, 0, 28), LayoutOrder = order,
+                        BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.25,
+                        BorderSizePixel = 0, ZIndex = 8,
+                    }, list)
+                    Corner(row, UDim.new(0, 6))
+                    local sub = {}
+                    if fr then sub[#sub + 1] = "💗 Bạn Bè" end
+                    if down then sub[#sub + 1] = "☠️ " .. locTime(LOC.DownSecs(p)) end
+                    local b = New("TextButton", {
+                        Size = UDim2.new(1, -86, 1, 0), Position = UDim2.new(0, 6, 0, 0),
+                        Text = (LOC.target == p and "🎯 " or "") .. nm
+                             .. (#sub > 0 and ("  " .. table.concat(sub, "  ")) or ""),
+                        BackgroundTransparency = 1, TextColor3 = col.txt,
+                        Font = Enum.Font.GothamBold, TextSize = 9,
+                        TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 9,
+                    }, row)
+                    b.Activated:Connect(function()
+                        ReleaseHubFocus()
+                        if LOC.target == p then
+                            LOC.SetSolo(false)
+                            -- v4.14: đang xem chính người này mà bỏ chọn -> trả camera về luôn
+                            if S.Spec and S.Spec.on and S.Spec.target == p then pcall(function() S.Spec.Stop() end) end
+                        else
+                            LOC.SetTarget(p)
+                            -- v4.14: 👣 đang bật thì bấm tên = BÁM THEO xem họ đang làm gì
+                            if S.Spec and S.Spec.on then
+                                pcall(function() S.Spec.Set(p) end)
+                                pcall(function() if S.Spec.RefreshList then S.Spec.RefreshList() end end)
+                            end
+                        end
+                        paint()
+                        if LOC.RefreshList then LOC.RefreshList() end
+                        S.Rebuild()
+                    end)
+                    local d = LOC.Dist(p)
+                    New("TextLabel", {
+                        Size = UDim2.new(0, 76, 1, 0), Position = UDim2.new(1, -80, 0, 0),
+                        Text = d and string.format("📏 %dm", locRound(d)) or "📏 --m",
+                        BackgroundTransparency = 1, TextColor3 = col.txt,
+                        Font = Enum.Font.GothamMedium, TextSize = 9,
+                        TextXAlignment = Enum.TextXAlignment.Right, ZIndex = 9,
+                    }, row)
+                end
+            end
+        end
+        pcall(function() list.CanvasSize = UDim2.new(0, 0, 0, order * 32) end)
+        paint()
+    end
+
+    allBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        LOC.Set(not LOC.on)
+        paint()
+        if LOC.RefreshList then LOC.RefreshList() end
+        S.Rebuild()
+        if D.hubStatus then flash(D.hubStatus, "📍 " .. LOC.Status(), 1.8, C.ACCENT) end
+    end)
+    soloBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        if LOC.solo then
+            LOC.SetSolo(false)
+        else
+            LOC.SetTarget(LOC.target or LOC.Nearest())
+        end
+        paint()
+        if LOC.RefreshList then LOC.RefreshList() end
+        S.Rebuild()
+        if D.hubStatus then flash(D.hubStatus, "🎯 " .. LOC.Status(), 1.8, C.ACCENT) end
+    end)
+    stopBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        LOC.StopAll()
+        paint()
+        if LOC.RefreshList then LOC.RefreshList() end
+        S.Rebuild()
+        if D.hubStatus then flash(D.hubStatus, "🚫 " .. LOC.Status(), 1.8, C.ACCENT) end
+    end)
+    distIn.FocusLost:Connect(function()
+        ReleaseHubFocus()
+        local n = tonumber(tostring(distIn.Text or ""):match("%-?%d+%.?%d*")) or 0
+        LOC.SetMaxDist(n)
+        distIn.Text = tostring(LOC.maxDist)
+        if D.hubStatus then
+            flash(D.hubStatus, (LOC.maxDist > 0 and string.format("📏 chỉ hiện người trong %dm", locRound(LOC.maxDist))
+                 or "📏 không giới hạn khoảng cách"), 1.8, C.ACCENT)
+        end
+    end)
+
+    if LOC.RefreshList then pcall(LOC.RefreshList) end
+    S.SyncLocPanel = function()
+        paint()
+        distIn.Text = tostring(LOC.maxDist)
+        if LOC.RefreshList then pcall(LOC.RefreshList) end
+    end
+end
+
+-- ============================================================================
+-- ===== v4.14: 👣 XEM NGƯỜI CHƠI (bám theo để xem họ đang làm gì) ============
+-- ============================================================================
+-- Bật 👣 rồi BẤM TÊN một người (trong khung 📍 hoặc khung 👣) -> camera rời khỏi bạn và
+-- BÁM THEO người đó: thấy tận mắt họ đang chạy/nhảy/ngồi/gục/đứng yên ở đâu, kèm bảng nổi
+-- trên màn hình game hiện: TÊN · 💗 bạn bè · ❤️ máu · 📏 khoảng cách · 💨 tốc độ · 🏃 họ đang làm gì.
+-- Không cần hé mắt khỏi màn hình game (menu đóng vẫn thấy bảng).
+-- An toàn cho nhân vật bạn: CHỈ đổi camera (CameraType = Scriptable) — KHÔNG dịch chuyển,
+-- KHÔNG ghi CFrame, KHÔNG đụng vận tốc của ai cả; tắt đi là trả lại camera y như cũ.
+S.Spec = {
+    on = false, target = nil,       -- 👣 đang xem ai
+    auto = true,                    -- người đang xem thoát thì tự chuyển sang người gần nhất
+    follow = true, dist = 12, height = 3.2,
+    moving = false, jumping = false, falling = false, speed = 0, act = "",
+    -- v4.14: ghi NHỚ MỐC THỜI GIAN "vừa mới chạy/nhảy/rơi" thay vì so từng frame. Nhiều game
+    -- teleport/dịch chuyển từng nhịp nên so frame sẽ nháy trạng thái (đang chạy -> đứng yên ngay).
+    lastMove = 0, lastJump = 0, lastFall = 0,
+    _prev = nil, _oldType = nil, _bound = false, _ui = {},
+}
+local SP = S.Spec
+local function spRound(n) return math.floor((tonumber(n) or 0) + 0.5) end
+
+-- Camera bám: nhớ KIỂU camera gốc của game (Custom/Follow/Observe...) để trả lại đúng cái cũ
+function S.Spec.CamOn()
+    local cam = workspace.CurrentCamera
+    if not cam then return end
+    if SP._oldType == nil then pcall(function() SP._oldType = cam.CameraType end) end
+    _G.BananaCatHub_SpecCam = SP._oldType          -- để lần chạy sau (chạy lại hub) trả lại được
+    pcall(function() cam.CameraType = Enum.CameraType.Scriptable end)
+end
+function S.Spec.CamOff()
+    local cam = workspace.CurrentCamera
+    if cam and SP._oldType ~= nil then
+        pcall(function() cam.CameraType = SP._oldType end)
+    end
+    SP._oldType = nil
+    _G.BananaCatHub_SpecCam = nil
+end
+-- Họ đang LÀM GÌ (đây là thứ người dùng xin: "thấy người chơi đó đang làm gì")
+function S.Spec.Acting(p)
+    if not p or not SP.on then return "—" end
+    local c, r, h = S.Loc.CharOf(p)
+    if not c then return "⏳ đang chờ nhân vật (đang hồi sinh?)" end
+    if S.Loc.IsDown(h) then
+        local t = S.Loc.DownSecs(p)
+        return "☠️ đang BỊ HẠ GỤC" .. (t > 0 and (" (⏱ " .. string.format("%02d:%02d", math.floor(t / 60), math.floor(t % 60)) .. ")") or "")
+    end
+    if h and h.Sit == true then return "🪑 đang NGỒI" end
+    if SP.jumping then return "🦘 đang NHẢY" end
+    if SP.falling then return "🪂 đang RƠI" end
+    local sp = tonumber(SP.speed) or 0
+    if sp > 0.6 then
+        local base = (h and tonumber(h.WalkSpeed)) or 16
+        if sp >= base * 1.25 then return "🏃 đang CHẠY NHANH (" .. spRound(sp) .. " m/s)"
+        elseif sp >= base * 0.6 then return "🚶 đang CHẠY (" .. spRound(sp) .. " m/s)"
+        else return "🐌 đang đi CHẬM (" .. spRound(sp) .. " m/s)" end
+    end
+    return "🧍 đang ĐỨNG YÊN"
+end
+-- một nhịp: đo chuyển động của người đang xem + kéo camera theo (chạy mỗi frame)
+function S.Spec.Step(dt)
+    if not (SP.on and SP.target) then return end
+    local p = SP.target
+    if p.Parent == nil then
+        -- người đang xem biến mất hẳn khỏi danh sách -> tự chuyển (nếu bật 🔄) hoặc tự thoát,
+        -- KHÔNG để camera kẹt ở chế độ Scriptable.
+        SP.target = nil
+        if SP.auto then
+            local n = S.Loc.Nearest()
+            if n then pcall(function() S.Spec.Set(n) end) end
+        end
+        if not SP.target then pcall(function() S.Spec.Stop() end) end
+        pcall(function() if S.Spec.RefreshList then S.Spec.RefreshList() end end)
+        return
+    end
+    local c, r = S.Loc.CharOf(p)
+    if not c or not r then
+        -- đang hồi sinh / chưa có nhân vật: giữ camera, chờ frame sau; 👣 tự chuyển thì đổi người
+        if SP.auto then
+            local n = S.Loc.Nearest()
+            if n and n ~= p and S.Loc.CharOf(n) then
+                SP.target = n
+                SP._prev = nil
+                SP.lastMove, SP.lastJump, SP.lastFall = 0, 0, 0
+                S.Spec.RefreshList()
+            end
+        end
+        SP.moving, SP.jumping, SP.falling, SP.speed = false, false, false, 0
+        S.Loc.NoteDown(p, false)
+        S.Spec.Sync()
+        return
+    end
+    -- ⏱ đồng hồ hạ gục của RIÊNG người đang xem (📍 có bật hay không đều đếm đúng)
+    pcall(function() S.Loc.NoteDown(p, S.Loc.IsDown(c:FindFirstChildOfClass("Humanoid"))) end)
+    local pos = r.Position
+    local now = tick()
+    local pv = SP._prev
+    if pv and pv.p == p then
+        local d = math.max(now - pv.t, 0.001)
+        local dx, dz = pos.X - pv.x, pos.Z - pv.z
+        local sp = math.sqrt(dx * dx + dz * dz) / d
+        if sp > 0.6 then SP.lastMove = now; SP.speed = sp end
+        local dy = pos.Y - pv.y
+        if dy > 0.8 then SP.lastJump = now end
+        if dy < -0.8 then SP.lastFall = now end
+    end
+    -- giữ trạng thái trong một khoảng ngắn để mắt người xem đọc kịp (0,5s chạy · 0,9s nhảy · 0,6s rơi)
+    SP.moving = (SP.lastMove > 0) and (now - SP.lastMove < 0.5) or false
+    SP.jumping = (SP.lastJump > 0) and (now - SP.lastJump < 0.9) or false
+    SP.falling = (SP.lastFall > 0) and (now - SP.lastFall < 0.6) or false
+    if not SP.moving then SP.speed = 0 end
+    SP._prev = { p = p, t = now, x = pos.X, y = pos.Y, z = pos.Z }
+    if SP.follow then
+        local cam = workspace.CurrentCamera
+        if cam then
+            local look = r.CFrame.LookVector
+            local want = pos - look * SP.dist + Vector3.new(0, SP.height, 0)
+            pcall(function() cam.CFrame = CFrame.lookAt(want, pos + Vector3.new(0, 1.5, 0)) end)
+        end
+    end
+    SP._acc = (SP._acc or 0) + (tonumber(dt) or 0.016)
+    if SP._acc >= 0.25 then
+        SP._acc = 0
+        S.Spec.Sync()
+        -- game (cutscene/respawn/anti-cheat) đổi lại camera -> tự đòi quyền, 4 lần/giây
+        if SP.follow then
+            local cam = workspace.CurrentCamera
+            if cam and cam.CameraType ~= Enum.CameraType.Scriptable then
+                pcall(function() cam.CameraType = Enum.CameraType.Scriptable end)
+            end
+        end
+    end
+end
+function S.Spec.Bind(on)
+    if on and not SP._bound then
+        SP._bound = true
+        pcall(function()
+            RunService:BindToRenderStep("BC_Spec", Enum.RenderPriority.Camera.Value - 3, function(dt)
+                pcall(function() S.Spec.Step(dt) end)
+            end)
+        end)
+    elseif (not on) and SP._bound then
+        SP._bound = false
+        pcall(function() RunService:UnbindFromRenderStep("BC_Spec") end)
+    end
+end
+-- chọn người để xem (nil = tắt)
+function S.Spec.Set(p)
+    if p == nil or p == player or p.Parent == nil then
+        SP.on = false; SP.target = nil; SP._prev = nil
+        SP.moving, SP.jumping, SP.falling, SP.speed = false, false, false, 0
+        SP.lastMove, SP.lastJump, SP.lastFall = 0, 0, 0
+        S.Spec.Bind(false)
+        S.Spec.CamOff()
+        S.Spec.Sync()
+        return false
+    end
+    SP.target, SP.on, SP._prev = p, true, nil
+    SP.lastMove, SP.lastJump, SP.lastFall = 0, 0, 0
+    SP.moving, SP.jumping, SP.falling, SP.speed = false, false, false, 0
+    S.Spec.Bind(true)
+    if SP.follow then S.Spec.CamOn() end
+    S.Spec.Sync()
+    return true
+end
+function S.Spec.Stop() return S.Spec.Set(nil) end
+function S.Spec.SetFollow(on)
+    SP.follow = (on == true)
+    if SP.follow and SP.on then S.Spec.CamOn() else S.Spec.CamOff() end
+    S.Spec.Sync()
+    return SP.follow
+end
+function S.Spec.SetAuto(on) SP.auto = (on == true); S.Spec.Sync(); return SP.auto end
+function S.Spec.SetDist(n) SP.dist = mvClamp(n, 3, 200); S.Spec.Sync(); return SP.dist end
+function S.Spec.SetHeight(n) SP.height = mvClamp(n, -30, 60); S.Spec.Sync(); return SP.height end
+function S.Spec.Status()
+    if not (SP.on and SP.target) then return "👣 xem người chơi: đang TẮT (camera của bạn bình thường)" end
+    return "👣 đang xem " .. tostring(SP.target.Name) .. " — " .. S.Spec.Acting(SP.target)
+end
+-- người đang xem thoát game: tự dọn (hoặc tự chuyển người nếu 👣 bật Tự chuyển)
+do
+    trackConn(Players.PlayerRemoving:Connect(function(p)
+        if SP.target == p then
+            SP.target = nil
+            if SP.on and SP.auto then
+                local n = S.Loc.Nearest()
+                if n then pcall(function() S.Spec.Set(n) end) end
+            end
+            if not SP.target then pcall(function() S.Spec.Stop() end) end
+            pcall(function() S.Spec.RefreshList() end)
+        end
+    end))
+end
+
+-- ---------- BẢNG NỔI 👣 (hiện trên màn hình game, menu đóng vẫn thấy) ----------
+do
+    local g = New("ScreenGui", {
+        Name = "BC_SpecHud", ResetOnSpawn = false,
+        ZIndexBehavior = Enum.ZIndexBehavior.Sibling, Enabled = false,
+    }, gui)
+    local F = New("Frame", {
+        Name = "SpecBox", Size = UDim2.new(0, 250, 0, 92), Position = UDim2.new(0, 10, 0, 10),
+        BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, BorderSizePixel = 0, ZIndex = 20,
+    }, g)
+    Corner(F, UDim.new(0, 10))
+    Stroke(F, C.ACCENT, 1.2)
+    D.Shade(F, Color3.fromRGB(255, 255, 255), Color3.fromRGB(188, 192, 205), 90)
+    SP._ui.gui = g
+    SP._ui.title = New("TextLabel", {
+        Name = "title",
+        Size = UDim2.new(1, -46, 0, 14), Position = UDim2.new(0, 8, 0, 4),
+        Text = "👣 ĐANG XEM", BackgroundTransparency = 1, TextColor3 = C.ACCENT,
+        Font = Enum.Font.GothamBold, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left,
+        ZIndex = 21,
+    }, F)
+    SP._ui.who = New("TextLabel", {
+        Name = "who",
+        Size = UDim2.new(1, -16, 0, 16), Position = UDim2.new(0, 8, 0, 19),
+        Text = "", BackgroundTransparency = 1, TextColor3 = C.DARK,
+        Font = Enum.Font.GothamBold, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Left,
+        TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = 21,
+    }, F)
+    SP._ui.info = New("TextLabel", {
+        Name = "info",
+        Size = UDim2.new(1, -16, 0, 14), Position = UDim2.new(0, 8, 0, 37),
+        Text = "", BackgroundTransparency = 1, TextColor3 = C.MUTED,
+        Font = Enum.Font.GothamMedium, TextSize = 9, TextXAlignment = Enum.TextXAlignment.Left,
+        ZIndex = 21,
+    }, F)
+    SP._ui.act = New("TextLabel", {
+        Name = "act",
+        Size = UDim2.new(1, -16, 0, 16), Position = UDim2.new(0, 8, 0, 52),
+        Text = "", BackgroundTransparency = 1, TextColor3 = C.GREEN,
+        Font = Enum.Font.GothamBold, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Left,
+        TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = 21,
+    }, F)
+    local stopBtn = New("TextButton", {
+        Name = "stopBtn",
+        Size = UDim2.new(0, 30, 0, 20), Position = UDim2.new(1, -38, 0, 4),
+        Text = "🚫", BackgroundColor3 = C.RED, TextColor3 = D.BestText(C.RED),
+        Font = Enum.Font.GothamBold, TextSize = 11, BorderSizePixel = 0, ZIndex = 22,
+    }, F)
+    Corner(stopBtn, UDim.new(0, 7))
+    D.Tactile(stopBtn, 0.1)
+    stopBtn.Activated:Connect(function()
+        pcall(function() S.Spec.Stop() end)
+        pcall(function() S.Spec.RefreshList() end)
+        pcall(S.Rebuild)
+    end)
+    -- v4.14: nút 🎥 NGAY TRÊN BẢNG NỔI — bật/tắt bám camera mà không cần mở menu
+    local followBtnHud = New("TextButton", {
+        Name = "followBtn",
+        Size = UDim2.new(0, 46, 0, 20), Position = UDim2.new(1, -88, 0, 4),
+        Text = "🎥 Bám", BackgroundColor3 = C.GREEN, TextColor3 = D.BestText(C.GREEN),
+        Font = Enum.Font.GothamBold, TextSize = 9, BorderSizePixel = 0, ZIndex = 22,
+    }, F)
+    Corner(followBtnHud, UDim.new(0, 7))
+    D.Tactile(followBtnHud, 0.1)
+    followBtnHud.Activated:Connect(function()
+        pcall(function() S.Spec.SetFollow(not SP.follow) end)
+        pcall(function() S.Spec.RefreshList() end)
+    end)
+    SP._ui.followBtn = followBtnHud
+    -- nhãn "đang làm gì" bên dưới (dòng thứ 4) cho dễ đọc khi chạy nhanh
+    SP._ui.note = New("TextLabel", {
+        Name = "note",
+        Size = UDim2.new(1, -16, 0, 16), Position = UDim2.new(0, 8, 0, 70),
+        Text = "💡 bấm 🚫 để trả camera về cho bạn", BackgroundTransparency = 1, TextColor3 = C.GRAY,
+        Font = Enum.Font.GothamMedium, TextSize = 8, TextXAlignment = Enum.TextXAlignment.Left,
+        ZIndex = 21,
+    }, F)
+end
+-- cập nhật chữ trên bảng nổi (gọi từ vòng lặp ~4 lần/giây, không phải mỗi frame)
+function S.Spec.Sync()
+    local u = SP._ui
+    if not u then return end
+    local on = (SP.on and SP.target ~= nil)
+    pcall(function() if u.gui then u.gui.Enabled = on end end)
+    if not on then return end
+    pcall(function()
+        if u.followBtn then
+            u.followBtn.Text = SP.follow and "🎥 Bám" or "🎥 Thôi"
+            u.followBtn.BackgroundColor3 = SP.follow and C.GREEN or C.SURFACE3
+            u.followBtn.TextColor3 = D.BestText(u.followBtn.BackgroundColor3)
+        end
+    end)
+    local p = SP.target
+    local c, r, h = S.Loc.CharOf(p)
+    local fr = S.Loc.IsFriend(p)
+    local nm = tostring(p.Name) .. (fr and "  💗 Bạn Bè" or "")
+    local dist = S.Loc.Dist(p)
+    local lines = {}
+    if h then lines[#lines + 1] = string.format("❤️ %d/%d", spRound(h.Health or 0), spRound(h.MaxHealth or 100)) end
+    lines[#lines + 1] = dist and ("📏 " .. spRound(dist) .. "m") or "📏 --m"
+    lines[#lines + 1] = "💨 " .. spRound(SP.speed) .. " m/s"
+    pcall(function()
+        if u.who then u.who.Text = "👣 " .. nm end
+        if u.info then u.info.Text = table.concat(lines, "   ") end
+        if u.act then
+            local txt = S.Spec.Acting(p)
+            u.act.Text = txt
+            u.act.TextColor3 = S.Loc.IsDown(h) and Color3.fromRGB(255, 100, 100) or C.GREEN
+        end
+        if u.title then
+            u.title.Text = "👣 ĐANG XEM" .. (SP.follow and "" or " (KHÔNG bám)") .. (SP.auto and " · 🔄" or "")
+        end
+    end)
+end
+
+-- ============================================================================
+-- ===== v4.16: ✨ PHÁT SÁNG (nhân vật MÌNH phát sáng — chỉnh RỘNG + ĐỘ SÁNG) ===
+-- ============================================================================
+-- Bật là CHÍNH BẠN phát sáng: 1 Highlight nhuộm sáng cả nhân vật + 1 PointLight toả sáng
+-- thật quanh người. Chỉnh được CHIỀU RỘNG (bán kính toả sáng) và ĐỘ SÁNG + MÀU ngay trong
+-- trang 📚 Script Hub (khung ✨ nằm trên cùng danh sách thẻ).
+-- "ÁNH SÁNG KHÔNG BỊ TRÓI":
+--   • 👁 Xuyên tường: DepthMode = AlwaysOnTop -> thấy mình sáng xuyên qua tường/vật cản.
+--   • 💡 Đèn thật: PointLight.Shadows = false -> ánh sáng KHÔNG bị vật cản chặn, không bị
+--     "trói" vào một chỗ — nó toả tròn theo bán kính bạn chỉnh.
+--   • Không bị game trói: game/anti-cheat xoá Highlight/PointLight thì vòng canh gác 0,5 giây
+--     gắn lại; respawn (CharacterAdded) tự gắn lại vào nhân vật mới.
+-- An toàn: chỉ thêm Highlight (không phải part, không va chạm) + PointLight (không va chạm,
+-- không đẩy ai) — KHÔNG đụng vào chuyển động, tốc độ hay vị trí của ai.
+S.Glow = {
+    on = false, width = 18, bright = 3,
+    color = Color3.fromRGB(120, 220, 255),
+    thru = true,          -- 👁 xuyên tường (mặc định BẬT — đúng ý "ánh sáng không bị trói")
+    light = true,         -- 💡 đèn thật toả sáng quanh người
+    _hl = nil, _pl = nil, _char = nil, _bound = false, _acc = 0, palIdx = 1,
+}
+local GL = S.Glow
+local function glowRound(n) return math.floor((tonumber(n) or 0) + 0.5) end
+-- bảng màu xoay vòng khi bấm 🎨 Đổi màu
+GL.palette = {
+    { name = "Xanh băng", c = Color3.fromRGB(120, 220, 255) },
+    { name = "Xanh lá",  c = Color3.fromRGB(80, 255, 140) },
+    { name = "Hồng",     c = Color3.fromRGB(255, 120, 210) },
+    { name = "Vàng",     c = Color3.fromRGB(255, 220, 90) },
+    { name = "Đỏ",       c = Color3.fromRGB(255, 80, 80) },
+    { name = "Tím",      c = Color3.fromRGB(170, 120, 255) },
+    { name = "Trắng",    c = Color3.fromRGB(255, 255, 255) },
+}
+-- ĐỘ SÁNG (0..10) -> độ ĐẶC của lớp nhuộm sáng. Càng sáng càng đặc (0 = gần như không thấy).
+function S.Glow.FillT() return mvClamp(0.94 - (tonumber(GL.bright) or 0) * 0.088, 0, 1, 1) end
+function S.Glow.EdgeT() return mvClamp(0.60 - (tonumber(GL.bright) or 0) * 0.058, 0, 1, 1) end
+function S.Glow.Char() return player and player.Character or nil end
+function S.Glow.Kill()
+    pcall(function() if GL._hl then GL._hl:Destroy() end end)
+    pcall(function() if GL._pl then GL._pl:Destroy() end end)
+    GL._hl, GL._pl, GL._char = nil, nil, nil
+end
+-- GẮN LẠI mọi thứ theo trạng thái hiện tại (gọi mỗi frame cũng an toàn, chỉ ghi khi cần)
+function S.Glow.Apply()
+    if not GL.on then return end
+    local ch = S.Glow.Char()
+    if not ch then return end
+    if GL._char ~= ch then S.Glow.Kill(); GL._char = ch end          -- respawn -> nhân vật mới
+    local hrp = ch:FindFirstChild("HumanoidRootPart") or ch:FindFirstChildOfClass("BasePart")
+    local mode = GL.thru and Enum.HighlightDepthMode.AlwaysOnTop or Enum.HighlightDepthMode.Occluded
+    -- chỗ treo Highlight: GUI của hub; nếu game/anti-cheat gỡ luôn GUI của hub thì treo sang
+    -- GUI khác đang sống (gethui/CoreGui/PlayerGui) -> phát sáng KHÔNG bị "trói" vào một GUI.
+    local host = (gui and gui.Parent and gui) or targetGui or playerGui
+    if not host then return end
+    if not (GL._hl and GL._hl.Parent) then                            -- bị game xoá -> dựng lại
+        GL._hl = New("Highlight", {
+            Name = "BC_GlowHL", Adornee = ch,
+            FillColor = GL.color, OutlineColor = GL.color,
+            FillTransparency = S.Glow.FillT(), OutlineTransparency = S.Glow.EdgeT(),
+            DepthMode = mode,
+        }, host)
+    end
+    pcall(function()
+        if GL._hl.Parent ~= host then GL._hl.Parent = host end
+        GL._hl.Adornee = ch
+        GL._hl.FillColor = GL.color
+        GL._hl.OutlineColor = GL.color
+        GL._hl.FillTransparency = S.Glow.FillT()
+        GL._hl.OutlineTransparency = S.Glow.EdgeT()
+        GL._hl.DepthMode = mode
+    end)
+    if GL.light and hrp then
+        if not (GL._pl and GL._pl.Parent) then                        -- bị xoá -> dựng lại
+            GL._pl = New("PointLight", {
+                Name = "BC_GlowLight", Brightness = GL.bright, Range = GL.width,
+                Color = GL.color, Shadows = false,
+            }, hrp)
+        end
+        pcall(function()
+            GL._pl.Brightness = GL.bright
+            GL._pl.Range = GL.width
+            GL._pl.Color = GL.color
+            GL._pl.Shadows = false                                     -- không bị vật cản chặn
+            if GL._pl.Parent ~= hrp then GL._pl.Parent = hrp end
+        end)
+    elseif not GL.light then
+        pcall(function() if GL._pl then GL._pl:Destroy() end end)
+        GL._pl = nil
+    end
+end
+function S.Glow.Bind(on)
+    if on and not GL._bound then
+        GL._bound = true
+        pcall(function()
+            RunService:BindToRenderStep("BC_Glow", Enum.RenderPriority.Camera.Value - 5, function(dt)
+                GL._acc = (GL._acc or 0) + (tonumber(dt) or 0.016)
+                if GL._acc < 0.5 then return end      -- 2 lần/giây là đủ để canh, không tốn gì
+                GL._acc = 0
+                pcall(function() S.Glow.Apply() end)
+            end)
+        end)
+    elseif (not on) and GL._bound then
+        GL._bound = false
+        pcall(function() RunService:UnbindFromRenderStep("BC_Glow") end)
+    end
+end
+function S.Glow.Set(on)
+    GL.on = (on == true)
+    if GL.on then S.Glow.Bind(true); S.Glow.Apply() else S.Glow.Kill(); S.Glow.Bind(false) end
+    return GL.on
+end
+function S.Glow.SetWidth(n)  GL.width  = mvClamp(n, 1, 200, GL.width);  S.Glow.Apply(); return GL.width  end
+function S.Glow.SetBright(n) GL.bright = mvClamp(n, 0, 10, GL.bright); S.Glow.Apply(); return GL.bright end
+function S.Glow.SetThru(b)   GL.thru   = (b == true); S.Glow.Apply(); return GL.thru end
+function S.Glow.SetLight(b)  GL.light  = (b == true); S.Glow.Apply(); return GL.light end
+function S.Glow.SetColor(c)
+    if typeof(c) == "Color3" then
+        GL.color = c
+    elseif type(c) == "number" and GL.palette[c] then
+        GL.palIdx = c
+        GL.color = GL.palette[c].c
+    end
+    S.Glow.Apply()
+    return GL.color
+end
+-- bấm 🎨 Đổi màu: xoay vòng qua 7 màu
+function S.Glow.CycleColor()
+    local n = #GL.palette
+    GL.palIdx = ((GL.palIdx or 1) % n) + 1
+    GL.color = GL.palette[GL.palIdx].c
+    S.Glow.Apply()
+    return GL.palette[GL.palIdx].name
+end
+function S.Glow.Stop() return S.Glow.Set(false) end
+function S.Glow.ColorName()
+    for _, p in ipairs(GL.palette) do
+        if p.c == GL.color then return p.name end
+    end
+    return "tự chọn"
+end
+function S.Glow.Status()
+    if not GL.on then return "✨ phát sáng: đang TẮT" end
+    local t = { string.format("📏 rộng %g", GL.width), string.format("☀ sáng %g", GL.bright),
+                "🎨 " .. S.Glow.ColorName() }
+    if GL.thru then t[#t + 1] = "👁 xuyên tường" end
+    if GL.light then t[#t + 1] = "💡 đèn thật" end
+    return "✨ phát sáng: BẬT · " .. table.concat(t, " · ")
+end
+-- respawn: gắn lại vào nhân vật mới (không cần bấm lại)
+do
+    trackConn(player.CharacterAdded:Connect(function()
+        if GL.on then pcall(function() S.Glow.Apply() end) end
+    end))
+end
+
+-- ---------- KHUNG ✨ PHÁT SÁNG (trên cùng danh sách thẻ trong 📚 Script Hub) ----------
+do
+    local PH = 132
+    local P = New("Frame", {
+        Name = "HubGlow_Panel",
+        Size = UDim2.new(1, 0, 0, PH), LayoutOrder = 1,
+        BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, BorderSizePixel = 0, ZIndex = 6,
+    }, D.hubList)
+    Corner(P, UDim.new(0, 10))
+    Stroke(P, C.HAIRLINE, 1)
+    D.Shade(P, Color3.fromRGB(255, 255, 255), Color3.fromRGB(188, 192, 205), 90)
+
+    New("TextLabel", {
+        Name = "GlowTitle",
+        Size = UDim2.new(1, -16, 0, 14), Position = UDim2.new(0, 8, 0, 4),
+        Text = "✨ PHÁT SÁNG (nhân vật của MÌNH)", BackgroundTransparency = 1,
+        TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 10,
+        TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+    }, P)
+
+    local function act(txt, x, y, w, color, name)
+        local b = New("TextButton", {
+            Name = name or "GlowBtn",
+            Size = UDim2.new(0, w, 0, 20), Position = UDim2.new(0, x, 0, y),
+            Text = txt, BackgroundColor3 = color, TextColor3 = D.BestText(color),
+            Font = Enum.Font.GothamBold, TextSize = 9, BorderSizePixel = 0, ZIndex = 8,
+        }, P)
+        Corner(b, UDim.new(0, 6))
+        D.Shade(b, Color3.fromRGB(255, 255, 255), Color3.fromRGB(182, 187, 201), 90)
+        D.Tactile(b, 0.08)
+        return b
+    end
+    local function lab(txt, x, y, w)
+        New("TextLabel", {
+            Size = UDim2.new(0, w, 0, 20), Position = UDim2.new(0, x, 0, y),
+            Text = txt, BackgroundTransparency = 1, TextColor3 = C.MUTED,
+            Font = Enum.Font.GothamMedium, TextSize = 9,
+            TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+        }, P)
+    end
+    local function box(x, y, w, val)
+        local b = New("TextBox", {
+            Size = UDim2.new(0, w, 0, 20), Position = UDim2.new(0, x, 0, y),
+            Text = tostring(val), ClearTextOnFocus = false,
+            BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.1, TextColor3 = C.DARK,
+            PlaceholderColor3 = C.GRAY, Font = Enum.Font.GothamMedium, TextSize = 9,
+            TextXAlignment = Enum.TextXAlignment.Center, BorderSizePixel = 0, ZIndex = 7,
+        }, P)
+        Corner(b, UDim.new(0, 6))
+        return b
+    end
+
+    local onBtn   = act("✨ BẬT", 8, 22, 92, C.GRAY, "GlowOn")
+    local thruBtn = act("👁 Xuyên tường: BẬT", 106, 22, 112, C.GREEN, "GlowThru")
+    local litBtn  = act("💡 Đèn thật: BẬT", 224, 22, 104, C.GREEN, "GlowLight")
+
+    lab("📏 Rộng", 8, 48, 44)
+    local wIn = box(52, 48, 46, 18)
+    lab("☀ Sáng", 106, 48, 44)
+    local bIn = box(150, 48, 46, 3)
+    local colBtn = act("🎨 Đổi màu", 204, 48, 124, C.PURPLE, "GlowColor")
+
+    local applyBtn = act("✔ Áp dụng", 8, 74, 84, C.SURFACE3, "GlowApply")
+    local stopBtn  = act("🚫 Tắt", 98, 74, 70, C.RED, "GlowStop")
+    local statusLbl = New("TextLabel", {
+        Name = "GlowStatus",
+        Size = UDim2.new(1, -188, 0, 20), Position = UDim2.new(0, 174, 0, 74),
+        Text = "", BackgroundTransparency = 1, TextColor3 = C.MUTED,
+        Font = Enum.Font.GothamMedium, TextSize = 8, TextXAlignment = Enum.TextXAlignment.Left,
+        TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = 7,
+    }, P)
+
+    New("TextLabel", {
+        Size = UDim2.new(1, -16, 0, 30), Position = UDim2.new(0, 8, 0, 98),
+        Text = "💡 📏 Rộng = bán kính toả sáng (1–200) · ☀ Sáng = độ sáng (0–10). "
+             .. "👁 Xuyên tường = thấy mình sáng qua tường · 💡 Đèn thật = ánh sáng KHÔNG bị vật cản chặn. "
+             .. "Bị game xoá hay respawn thì tự gắn lại; chỉ thêm hiệu ứng, KHÔNG đụng vào di chuyển.",
+        TextWrapped = true, BackgroundTransparency = 1, TextColor3 = C.MUTED,
+        Font = Enum.Font.GothamMedium, TextSize = 8, TextXAlignment = Enum.TextXAlignment.Left,
+        TextYAlignment = Enum.TextYAlignment.Top, ZIndex = 7,
+    }, P)
+
+    local function paint()
+        onBtn.Text = GL.on and "✨ TẮT" or "✨ BẬT"
+        onBtn.BackgroundColor3 = GL.on and C.GREEN or C.GRAY
+        onBtn.TextColor3 = D.BestText(onBtn.BackgroundColor3)
+        thruBtn.Text = GL.thru and "👁 Xuyên tường: BẬT" or "👁 Xuyên tường: TẮT"
+        thruBtn.BackgroundColor3 = GL.thru and C.GREEN or C.SURFACE3
+        thruBtn.TextColor3 = D.BestText(thruBtn.BackgroundColor3)
+        litBtn.Text = GL.light and "💡 Đèn thật: BẬT" or "💡 Đèn thật: TẮT"
+        litBtn.BackgroundColor3 = GL.light and C.GREEN or C.SURFACE3
+        litBtn.TextColor3 = D.BestText(litBtn.BackgroundColor3)
+        wIn.Text, bIn.Text = tostring(GL.width), tostring(GL.bright)
+        colBtn.Text = "🎨 " .. S.Glow.ColorName()
+        statusLbl.Text = S.Glow.Status()
+    end
+    S.SyncGlowPanel = paint                     -- S.RebuildHubList gọi để nhãn luôn đúng
+    S.Glow.RefreshPanel = paint
+
+    onBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        S.Glow.Set(not GL.on)
+        paint()
+        if D.hubStatus then flash(D.hubStatus, S.Glow.Status(), 2, C.ACCENT) end
+        pcall(S.Rebuild)   -- đổi chữ thẻ ✨ trong danh sách
+    end)
+    thruBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        S.Glow.SetThru(not GL.thru)
+        paint()
+        if D.hubStatus then
+            flash(D.hubStatus, GL.thru and "👁 xuyên tường: thấy mình sáng qua vật cản"
+                 or "👁 chỉ sáng khi không bị vật cản che", 2, C.ACCENT)
+        end
+    end)
+    litBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        S.Glow.SetLight(not GL.light)
+        paint()
+        if D.hubStatus then
+            flash(D.hubStatus, GL.light and "💡 đèn thật: toả sáng quanh người, không bị vật cản chặn"
+                 or "💡 đã tắt đèn (chỉ còn nhuộm sáng nhân vật)", 2, C.ACCENT)
+        end
+    end)
+    colBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        local nm = S.Glow.CycleColor()
+        paint()
+        if D.hubStatus then flash(D.hubStatus, "🎨 màu phát sáng: " .. nm, 1.8, C.ACCENT) end
+    end)
+    applyBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        local w = tonumber(tostring(wIn.Text or ""):match("%-?%d+%.?%d*"))
+        local b = tonumber(tostring(bIn.Text or ""):match("%-?%d+%.?%d*"))
+        if w then S.Glow.SetWidth(w) end
+        if b then S.Glow.SetBright(b) end
+        if not GL.on then S.Glow.Set(true) end          -- áp dụng là bật luôn cho khỏi phải bấm 2 lần
+        paint()
+        if D.hubStatus then flash(D.hubStatus, S.Glow.Status(), 2, C.ACCENT) end
+        pcall(S.Rebuild)
+    end)
+    stopBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        S.Glow.Stop()
+        paint()
+        if D.hubStatus then flash(D.hubStatus, "🚫 " .. S.Glow.Status(), 1.8, C.ACCENT) end
+        pcall(S.Rebuild)
+    end)
+    paint()
+end
+
+-- ---------- KHUNG 🛡 BAY AN TOÀN (trên cùng danh sách thẻ, dưới ⚙ và ✨) ----------
+do
+    local PH = 200                                        -- v4.24: +26px cho hàng riêng 🔲 Cỡ/🔲 Quay (hàng 🔲 Cỡ của v4.23 đè lên dòng trạng thái)
+    local P = New("Frame", {
+        Name = "HubSafe_Panel",
+        Size = UDim2.new(1, 0, 0, PH), LayoutOrder = 2,
+        BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, BorderSizePixel = 0, ZIndex = 6,
+    }, D.hubList)
+    Corner(P, UDim.new(0, 10))
+    Stroke(P, C.HAIRLINE, 1)
+    D.Shade(P, Color3.fromRGB(255, 255, 255), Color3.fromRGB(188, 192, 205), 90)
+
+    New("TextLabel", {
+        Name = "SafeTitle",
+        Size = UDim2.new(1, -16, 0, 14), Position = UDim2.new(0, 8, 0, 4),
+        Text = "🛡 BAY AN TOÀN (tự bay + né vật có dấu hiệu chuyển động)", BackgroundTransparency = 1,
+        TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 10,
+        TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+    }, P)
+
+    local function act(txt, x, y, w, color, name)
+        local b = New("TextButton", {
+            Name = name or "SafeBtn",
+            Size = UDim2.new(0, w, 0, 20), Position = UDim2.new(0, x, 0, y),
+            Text = txt, BackgroundColor3 = color, TextColor3 = D.BestText(color),
+            Font = Enum.Font.GothamBold, TextSize = 9, BorderSizePixel = 0, ZIndex = 8,
+        }, P)
+        Corner(b, UDim.new(0, 6))
+        D.Shade(b, Color3.fromRGB(255, 255, 255), Color3.fromRGB(182, 187, 201), 90)
+        D.Tactile(b, 0.08)
+        return b
+    end
+    local function lab(txt, x, y, w)
+        New("TextLabel", {
+            Size = UDim2.new(0, w, 0, 20), Position = UDim2.new(0, x, 0, y),
+            Text = txt, BackgroundTransparency = 1, TextColor3 = C.MUTED,
+            Font = Enum.Font.GothamMedium, TextSize = 9,
+            TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+        }, P)
+    end
+    local function box(x, y, w, val)
+        local b = New("TextBox", {
+            Size = UDim2.new(0, w, 0, 20), Position = UDim2.new(0, x, 0, y),
+            Text = tostring(val), ClearTextOnFocus = false,
+            BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.1, TextColor3 = C.DARK,
+            PlaceholderColor3 = C.GRAY, Font = Enum.Font.GothamMedium, TextSize = 9,
+            TextXAlignment = Enum.TextXAlignment.Center, BorderSizePixel = 0, ZIndex = 7,
+        }, P)
+        Corner(b, UDim.new(0, 6))
+        return b
+    end
+
+    local onBtn = act("🛡 BẬT", 8, 22, 92, C.GRAY, "SafeOn")
+    lab("📏 Né", 104, 22, 30)
+    local radIn = box(132, 22, 44, 25)
+    lab("💨 Bay", 180, 22, 36)
+    local spdIn = box(216, 22, 44, 60)
+    lab("🌀 Gắt", 264, 22, 32)
+    local strIn = box(296, 22, 38, 4)
+
+    -- Hàng 2 (v4.18): tự bay · 🔲 khiên trong suốt · 👤 né người chơi · 🧱 đẩy xuyên vật cản
+    local autoBtn  = act("➡ Tự bay: BẬT", 8, 48, 96, C.GREEN, "SafeAuto")
+    local shBtn    = act("🔲 Khiên: BẬT", 108, 48, 82, C.GREEN, "SafeShield")
+    local plBtn    = act("👤 Né người: BẬT", 194, 48, 92, C.GREEN, "SafePlayers")
+    local ncBtn    = act("🧱 Xuyên: BẬT", 290, 48, 44, C.GREEN, "SafeNoclip")
+
+    -- Hàng 3 (v4.19): ⭕ tự bay VÒNG TRÒN khi không có gì lao tới mình + bán kính vòng tròn + 👁 nhìn trước
+    local ciBtn    = act("⭕ Vòng tròn: BẬT", 8, 74, 104, C.GREEN, "SafeCircle")
+    lab("⭕ Bán kính", 116, 74, 48)
+    local cirIn    = box(166, 74, 40, 20)
+    lab("👁 Nhìn trước", 210, 74, 54)
+    local lookIn   = box(266, 74, 34, 1)
+    lab("giây", 302, 74, 30)
+
+    local applyBtn = act("✔ Áp dụng", 8, 100, 84, C.SURFACE3, "SafeApply")
+    local stopBtn  = act("🚫 Tắt", 98, 100, 70, C.RED, "SafeStop")
+    -- v4.23/4.24: HÀNG RIÊNG cho 🔲 khiên — cỡ (nửa cạnh) + QUAY VÒNG TRÒN + tốc độ quay.
+    -- (v4.23 để hàng này ở y=100 chồng lên dòng trạng thái 🛡 -> đã dọn xuống hàng dưới.)
+    lab("🔲 Cỡ", 8, 126, 44)
+    local szIn = box(54, 126, 40, 0)
+    lab("(0=tự)", 96, 126, 44)
+    lab("🔲 Quay", 146, 126, 44)
+    local spinBtn = act("🔲 Quay: BẬT", 192, 126, 84, C.GREEN, "SafeSpin")
+    lab("Tốc", 280, 126, 26)
+    local spinIn = box(308, 126, 40, 60)
+    lab("°/giây", 350, 126, 40)
+    local statusLbl = New("TextLabel", {
+        Name = "SafeStatus",
+        Size = UDim2.new(1, -186, 0, 20), Position = UDim2.new(0, 174, 0, 100),
+        Text = "", BackgroundTransparency = 1, TextColor3 = C.MUTED,
+        Font = Enum.Font.GothamMedium, TextSize = 8, TextWrapped = true,
+        TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, ZIndex = 7,
+    }, P)
+    New("TextLabel", {
+        Name = "SafeNote",
+        Size = UDim2.new(1, -16, 0, 44), Position = UDim2.new(0, 8, 0, 152),
+        Text = "💡 🔲 Khiên = tường trong suốt hình vuông ÔM QUANH mình (ô 🔲 Cỡ: 0 = tự động ôm sát) · "
+             .. "🔲 Quay = khiên quay VÒNG TRÒN quanh mình (Tốc = độ/giây) · 📏 Né = khoảng cách né, "
+             .. "KHÔNG kéo giãn khiên · ⭕ Vòng tròn = đứng im là tự bay vòng tròn quanh chỗ đang đứng "
+             .. "(đang né hoặc bấm WASD thì tạm dừng) · 👤 Né người · 🧱 tự Xuyên Tường · 👁 Nhìn trước "
+             .. "bắt vật lao tới từ xa. 🛡 tự sống qua respawn / hết trận sang trận mới.",
+        BackgroundTransparency = 1, TextColor3 = C.MUTED,
+        Font = Enum.Font.GothamMedium, TextSize = 8, TextWrapped = true,
+        TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, ZIndex = 7,
+    }, P)
+
+    local function paint()
+        onBtn.Text = MV.Safe.on and "🛡 TẮT" or "🛡 BẬT"
+        onBtn.BackgroundColor3 = MV.Safe.on and C.GREEN or C.GRAY
+        onBtn.TextColor3 = D.BestText(onBtn.BackgroundColor3)
+        autoBtn.Text = MV.Safe.auto and "➡ Tự bay: BẬT" or "➡ Tự bay: TẮT"
+        autoBtn.BackgroundColor3 = MV.Safe.auto and C.GREEN or C.SURFACE3
+        autoBtn.TextColor3 = D.BestText(autoBtn.BackgroundColor3)
+        shBtn.Text = MV.Safe.shield and "🔲 Khiên: BẬT" or "🔲 Khiên: TẮT"
+        shBtn.BackgroundColor3 = MV.Safe.shield and C.GREEN or C.SURFACE3
+        shBtn.TextColor3 = D.BestText(shBtn.BackgroundColor3)
+        plBtn.Text = MV.Safe.avoidPlayers and "👤 Né người: BẬT" or "👤 Né người: TẮT"
+        plBtn.BackgroundColor3 = MV.Safe.avoidPlayers and C.GREEN or C.SURFACE3
+        plBtn.TextColor3 = D.BestText(plBtn.BackgroundColor3)
+        ncBtn.Text = MV.Safe.noclip and "🧱 Xuyên: BẬT" or "🧱 Xuyên: TẮT"
+        ncBtn.BackgroundColor3 = MV.Safe.noclip and C.GREEN or C.SURFACE3
+        ncBtn.TextColor3 = D.BestText(ncBtn.BackgroundColor3)
+        ciBtn.Text = MV.Safe.circle and "⭕ Vòng tròn: BẬT" or "⭕ Vòng tròn: TẮT"
+        ciBtn.BackgroundColor3 = MV.Safe.circle and C.GREEN or C.SURFACE3
+        ciBtn.TextColor3 = D.BestText(ciBtn.BackgroundColor3)
+        radIn.Text, spdIn.Text, strIn.Text =
+            tostring(MV.Safe.radius), tostring(MV.Safe.speed), tostring(MV.Safe.steer)
+        cirIn.Text, lookIn.Text = tostring(MV.Safe.circleR), tostring(MV.Safe.lookTime)
+        szIn.Text, spinIn.Text = tostring(MV.Safe.shieldSize), tostring(MV.Safe.spinDeg)
+        spinBtn.Text = MV.Safe.shieldSpin and "🔲 Quay: BẬT" or "🔲 Quay: TẮT"      -- v4.24
+        spinBtn.BackgroundColor3 = MV.Safe.shieldSpin and C.GREEN or C.SURFACE3
+        spinBtn.TextColor3 = D.BestText(spinBtn.BackgroundColor3)
+        statusLbl.Text = MV.Safe.Status()
+        statusLbl.TextColor3 = ((MV.Safe.threats or 0) > 0) and C.YELLOW or C.MUTED
+    end
+    S.SyncSafePanel = paint
+    MV.Safe.RefreshPanel = paint
+
+    onBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        MV.Safe.Set(not MV.Safe.on)
+        paint()
+        if D.hubStatus then flash(D.hubStatus, MV.Safe.Status(), 2.2, C.ACCENT) end
+        pcall(S.Rebuild)
+    end)
+    autoBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        MV.Safe.SetAuto(not MV.Safe.auto)
+        paint()
+        if D.hubStatus then
+            flash(D.hubStatus, MV.Safe.auto and "➡ tự bay: không bấm gì vẫn bay theo hướng camera"
+                 or "➡ tự bay TẮT: chỉ bay khi bấm WASD (nhưng vẫn tự né)", 2, C.ACCENT)
+        end
+    end)
+    shBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        MV.Safe.SetShield(not MV.Safe.shield)
+        paint()
+        if D.hubStatus then
+            flash(D.hubStatus, MV.Safe.shield and ("🔲 khiên trong suốt hình vuông: BẬT · "
+                 .. string.format("%g m/cạnh%s", MV.Safe.ShieldHalf() * 2,
+                      (tonumber(MV.Safe.shieldSize) or 0) > 0 and " (chỉnh tay)" or " (tự động)"))
+                 or "🔲 đã ẩn khiên (vẫn né y như cũ)", 2, C.ACCENT)
+        end
+    end)
+    spinBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        MV.Safe.SetShieldSpin(not MV.Safe.shieldSpin)
+        paint()
+        if D.hubStatus then
+            flash(D.hubStatus, MV.Safe.shieldSpin and ("🔲 khiên QUAY VÒNG TRÒN quanh mình (" ..
+                      tostring(MV.Safe.spinDeg) .. "°/giây)")
+                 or "🔲 khiên đứng hướng (không quay)", 2, C.ACCENT)
+        end
+        pcall(S.Rebuild)
+    end)
+    plBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        MV.Safe.SetAvoidPlayers(not MV.Safe.avoidPlayers)
+        paint()
+        if D.hubStatus then
+            flash(D.hubStatus, MV.Safe.avoidPlayers and "👤 coi NGƯỜI CHƠI khác là mối nguy (né dù họ đứng yên)"
+                 or "👤 đã bỏ qua người chơi (chỉ né vật chuyển động)", 2, C.ACCENT)
+        end
+    end)
+    ncBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        MV.Safe.SetNoclipAuto(not MV.Safe.noclip)
+        paint()
+        if D.hubStatus then
+            flash(D.hubStatus, MV.Safe.noclip and "🧱 lực đẩy đưa bạn XUYÊN QUA vật cản (Xuyên Tường tự bật)"
+                 or "🧱 đã trả Xuyên Tường về như trước", 2, C.ACCENT)
+        end
+    end)
+    ciBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        MV.Safe.SetCircle(not MV.Safe.circle)
+        paint()
+        if D.hubStatus then
+            flash(D.hubStatus, MV.Safe.circle and ("⭕ không có gì lao tới mình -> tự bay VÒNG TRÒN bán kính " .. tostring(math.floor(MV.Safe.circleR + 0.5)) .. "m")
+                 or "⭕ đã tắt bay vòng tròn (chỉ bay theo hướng đang nhìn)", 2, C.ACCENT)
+        end
+    end)
+    applyBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        MV.Safe.SetRadius(tonumber(tostring(radIn.Text or ""):match("%-?%d+%.?%d*")) or MV.Safe.radius)
+        MV.Safe.SetSpeed(tonumber(tostring(spdIn.Text or ""):match("%-?%d+%.?%d*")) or MV.Safe.speed)
+        MV.Safe.SetSteer(tonumber(tostring(strIn.Text or ""):match("%-?%d+%.?%d*")) or MV.Safe.steer)
+        MV.Safe.SetCircleR(tonumber(tostring(cirIn.Text or ""):match("%-?%d+%.?%d*")) or MV.Safe.circleR)
+        MV.Safe.SetLook(tonumber(tostring(lookIn.Text or ""):match("%-?%d+%.?%d*")) or MV.Safe.lookTime)
+        MV.Safe.SetShieldSize(tonumber(tostring(szIn.Text or ""):match("%-?%d+%.?%d*")) or MV.Safe.shieldSize)
+        MV.Safe.SetSpinDeg(tonumber(tostring(spinIn.Text or ""):match("%-?%d+%.?%d*")) or MV.Safe.spinDeg)
+        if not MV.Safe.on then MV.Safe.Set(true) end      -- áp dụng là bật luôn
+        paint()
+        if D.hubStatus then flash(D.hubStatus, MV.Safe.Status(), 2.4, C.ACCENT) end
+        pcall(S.Rebuild)
+    end)
+    stopBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        MV.Safe.Stop()
+        paint()
+        if D.hubStatus then flash(D.hubStatus, "🚫 " .. MV.Safe.Status(), 1.8, C.ACCENT) end
+        pcall(S.Rebuild)
+    end)
+    paint()
+end
+
+-- ---------- TỰ LÀM MỚI 2 DANH SÁCH TRONG MENU (📍 + 👣) ----------
+-- v4.15: 2 danh sách này nay nằm ở trang 👥 NGƯỜI CHƠI (LayoutOrder 4). Chỉ dựng lại khi MỘT
+-- TRONG HAI trang (👥 Người Chơi hoặc 📚 Script Hub) đang MỞ — đóng menu thì không tốn gì:
+-- 2 giây/lần, để 💗 bạn bè · ☠️ hạ gục · ❤️ máu · 📏 khoảng cách luôn đúng.
+do
+    local acc = 0
+    RunService:BindToRenderStep("BC_HubList", Enum.RenderPriority.Camera.Value - 4, function(dt)
+        acc = acc + (tonumber(dt) or 0.016)
+        if acc < 2 then return end
+        acc = 0
+        pcall(function()
+            local visible = false
+            local function open(t) if t and t.Visible == true then return true end return false end
+            if open(D.playerTab) or open(D.hubTab) then visible = true end
+            if not visible then return end
+            if S.Loc.RefreshList then S.Loc.RefreshList() end
+            if S.Spec.RefreshList then S.Spec.RefreshList() end
+        end)
+    end)
+end
+
+-- ---------- KHUNG 👣 XEM NGƯỜI CHƠI (ngay dưới khung 📍 trong trang 👥 NGƯỜI CHƠI) -------
+do
+    local PH = 262
+    local P = New("Frame", {
+        Name = "HubSpec_Panel",
+        Size = UDim2.new(1, -16, 0, PH),
+        Position = UDim2.new(0, 8, 0, D.playerY or 46),
+        LayoutOrder = 2,
+        BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, BorderSizePixel = 0, ZIndex = 6,
+    }, D.playerTab)
+    D.playerY = (D.playerY or 46) + PH + 8
+    Corner(P, UDim.new(0, 10))
+    Stroke(P, C.HAIRLINE, 1)
+    D.Shade(P, Color3.fromRGB(255, 255, 255), Color3.fromRGB(188, 192, 205), 90)
+
+    New("TextLabel", {
+        Size = UDim2.new(1, -16, 0, 14), Position = UDim2.new(0, 8, 0, 4),
+        Text = "👣 XEM NGƯỜI CHƠI (bám theo — xem họ đang làm gì)", BackgroundTransparency = 1,
+        TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 10,
+        TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+    }, P)
+
+    local function act(txt, x, y, w, color)
+        local b = New("TextButton", {
+            Size = UDim2.new(0, w, 0, 20), Position = UDim2.new(0, x, 0, y),
+            Text = txt, BackgroundColor3 = color, TextColor3 = D.BestText(color),
+            Font = Enum.Font.GothamBold, TextSize = 9, BorderSizePixel = 0, ZIndex = 8,
+        }, P)
+        Corner(b, UDim.new(0, 6))
+        D.Shade(b, Color3.fromRGB(255, 255, 255), Color3.fromRGB(182, 187, 201), 90)
+        D.Tactile(b, 0.08)
+        return b
+    end
+    local function lab(txt, x, y, w)
+        New("TextLabel", {
+            Size = UDim2.new(0, w, 0, 20), Position = UDim2.new(0, x, 0, y),
+            Text = txt, BackgroundTransparency = 1, TextColor3 = C.MUTED,
+            Font = Enum.Font.GothamMedium, TextSize = 9,
+            TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+        }, P)
+    end
+
+    local watchBtn = act("👣 Bám theo", 8, 22, 106, C.GRAY)
+    local followBtn = act("🎥 Bám: BẬT", 120, 22, 96, C.GREEN)
+    local autoBtn = act("🔄 Tự chuyển", 222, 22, 66, C.GRAY)
+
+    lab("📏", 8, 48, 14)
+    local distIn = New("TextBox", {
+        Size = UDim2.new(0, 44, 0, 20), Position = UDim2.new(0, 22, 0, 48),
+        Text = "12", ClearTextOnFocus = false,
+        BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.1, TextColor3 = C.DARK,
+        PlaceholderColor3 = C.GRAY, Font = Enum.Font.GothamMedium, TextSize = 9,
+        TextXAlignment = Enum.TextXAlignment.Center, BorderSizePixel = 0, ZIndex = 7,
+    }, P)
+    Corner(distIn, UDim.new(0, 6))
+    lab("m · ⬆", 70, 48, 30)
+    local hiIn = New("TextBox", {
+        Size = UDim2.new(0, 44, 0, 20), Position = UDim2.new(0, 100, 0, 48),
+        Text = "3.2", ClearTextOnFocus = false,
+        BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.1, TextColor3 = C.DARK,
+        PlaceholderColor3 = C.GRAY, Font = Enum.Font.GothamMedium, TextSize = 9,
+        TextXAlignment = Enum.TextXAlignment.Center, BorderSizePixel = 0, ZIndex = 7,
+    }, P)
+    Corner(hiIn, UDim.new(0, 6))
+    local applyBtn = act("✔ Áp dụng", 150, 48, 70, C.SURFACE3)
+    lab("🚫 Dừng", 226, 48, 62)
+
+    local searchIn = New("TextBox", {
+        Size = UDim2.new(1, -16, 0, 22), Position = UDim2.new(0, 8, 0, 72),
+        Text = "", PlaceholderText = "🔍 Tìm tên người chơi...", ClearTextOnFocus = false,
+        PlaceholderColor3 = C.GRAY, BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.1,
+        TextColor3 = C.DARK, Font = Enum.Font.GothamMedium, TextSize = 9,
+        TextXAlignment = Enum.TextXAlignment.Left, BorderSizePixel = 0, ZIndex = 7,
+    }, P)
+    Corner(searchIn, UDim.new(0, 6))
+    New("UIPadding", { PaddingLeft = UDim.new(0, 6) }, searchIn)
+
+    local list = New("ScrollingFrame", {
+        Name = "SpecList", Size = UDim2.new(1, -16, 0, 130), Position = UDim2.new(0, 8, 0, 98),
+        BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = 4,
+        CanvasSize = UDim2.new(0, 0, 0, 0), ZIndex = 7,
+    }, P)
+    New("UIListLayout", { Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder }, list)
+
+    New("TextLabel", {
+        Size = UDim2.new(1, -16, 0, 30), Position = UDim2.new(0, 8, 0, 230),
+        Text = "💡 Bấm TÊN = bám theo xem họ đang làm gì (video chạy trong mắt bạn). "
+             .. "Chỉ ĐỔI CAMERA — nhân vật bạn không bị dịch chuyển; 🚫 Dừng là trả camera về ngay.",
+        TextWrapped = true, BackgroundTransparency = 1, TextColor3 = C.MUTED,
+        Font = Enum.Font.GothamMedium, TextSize = 8, TextXAlignment = Enum.TextXAlignment.Left,
+        TextYAlignment = Enum.TextYAlignment.Top, ZIndex = 7,
+    }, P)
+
+    local function paint()
+        local nm = (SP.on and SP.target) and tostring(SP.target.Name) or nil
+        watchBtn.Text = nm and ("👣 " .. nm) or "👣 Bám theo"
+        watchBtn.BackgroundColor3 = SP.on and C.GREEN or C.GRAY
+        watchBtn.TextColor3 = D.BestText(watchBtn.BackgroundColor3)
+        followBtn.Text = SP.follow and "🎥 Bám: BẬT" or "🎥 Bám: TẮT"
+        followBtn.BackgroundColor3 = SP.follow and C.GREEN or C.SURFACE3
+        followBtn.TextColor3 = D.BestText(followBtn.BackgroundColor3)
+        autoBtn.BackgroundColor3 = SP.auto and C.PURPLE or C.SURFACE3
+        autoBtn.TextColor3 = D.BestText(autoBtn.BackgroundColor3)
+        distIn.Text, hiIn.Text = tostring(SP.dist), tostring(SP.height)
+    end
+
+    -- danh sách người chơi để bấm chọn (tự dựng lại 0,5 giây/lần khi panel đang hiện)
+    S.Spec.RefreshList = function()
+        if not (list and list.Parent) then return end
+        for _, c in ipairs(list:GetChildren()) do
+            if not c:IsA("UIListLayout") then pcall(function() c:Destroy() end) end
+        end
+        local term = tostring(searchIn.Text or ""):lower()
+        local order = 0
+        local ok, players = pcall(function() return Players:GetPlayers() end)
+        if not ok or not players then return end
+        for _, p in ipairs(players) do
+            if p ~= player then
+                local nm = tostring(p.Name)
+                if term == "" or nm:lower():find(term, 1, true) then
+                    order = order + 1
+                    local c, r, h = S.Loc.CharOf(p)
+                    local fr, down = S.Loc.IsFriend(p), S.Loc.IsDown(h)
+                    local col = down and Color3.fromRGB(255, 100, 100)
+                             or (fr and Color3.fromRGB(255, 182, 193) or C.DARK)
+                    local row = New("Frame", {
+                        Size = UDim2.new(1, 0, 0, 26), LayoutOrder = order,
+                        BackgroundColor3 = (SP.target == p) and C.SURFACE3 or C.SURFACE2,
+                        BackgroundTransparency = (SP.target == p) and 0.05 or 0.25,
+                        BorderSizePixel = 0, ZIndex = 8,
+                    }, list)
+                    Corner(row, UDim.new(0, 6))
+                    local sub = {}
+                    if fr then sub[#sub + 1] = "💗" end
+                    if down then sub[#sub + 1] = "☠️" end
+                    if c then
+                        sub[#sub + 1] = (h and string.format("❤️%d", spRound(h.Health or 0)) or "❤️?")
+                    else
+                        sub[#sub + 1] = "⏳ chờ nhân vật"
+                    end
+                    local b = New("TextButton", {
+                        Size = UDim2.new(1, -74, 1, 0), Position = UDim2.new(0, 6, 0, 0),
+                        Text = (SP.target == p and "👣 " or "") .. nm .. "  " .. table.concat(sub, " "),
+                        BackgroundTransparency = 1, TextColor3 = col,
+                        Font = Enum.Font.GothamBold, TextSize = 9,
+                        TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 9,
+                    }, row)
+                    b.Activated:Connect(function()
+                        ReleaseHubFocus()
+                        pcall(function() S.Loc.SetTarget(p) end)      -- vừa định vị vừa bám theo
+                        S.Spec.Set(p)
+                        pcall(function() S.Loc.RefreshList() end)
+                        paint()
+                        if S.Spec.RefreshList then S.Spec.RefreshList() end
+                        pcall(S.Rebuild)
+                    end)
+                    local d = S.Loc.Dist(p)
+                    New("TextLabel", {
+                        Size = UDim2.new(0, 66, 1, 0), Position = UDim2.new(1, -68, 0, 0),
+                        Text = d and ("📏 " .. spRound(d) .. "m") or "📏 --m",
+                        BackgroundTransparency = 1, TextColor3 = C.MUTED,
+                        Font = Enum.Font.GothamMedium, TextSize = 9,
+                        TextXAlignment = Enum.TextXAlignment.Right, ZIndex = 9,
+                    }, row)
+                end
+            end
+        end
+        pcall(function() list.CanvasSize = UDim2.new(0, 0, 0, order * 30) end)
+        paint()
+    end
+
+    watchBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        if SP.on then
+            S.Spec.Stop()
+        else
+            local p = SP.target or S.Loc.target or S.Loc.Nearest()
+            if not p then
+                if D.hubStatus then flash(D.hubStatus, "⚠️ chưa có ai để xem (server chỉ có mình bạn)", 2, C.RED) end
+            else
+                S.Loc.SetTarget(p)
+                S.Spec.Set(p)
+            end
+        end
+        paint()
+        if S.Spec.RefreshList then S.Spec.RefreshList() end
+        pcall(function() S.Loc.RefreshList() end)
+        pcall(S.Rebuild)
+        if D.hubStatus then flash(D.hubStatus, S.Spec.Status(), 2, C.ACCENT) end
+    end)
+    followBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        S.Spec.SetFollow(not SP.follow)
+        paint()
+        if D.hubStatus then flash(D.hubStatus, SP.follow and "🎥 camera bám theo người đang xem" or "🎥 đã trả camera về cho bạn (vẫn xem được bảng 👣)", 2, C.ACCENT) end
+    end)
+    autoBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        S.Spec.SetAuto(not SP.auto)
+        paint()
+        if D.hubStatus then flash(D.hubStatus, SP.auto and "🔄 người đang xem thoát -> tự chuyển người gần nhất" or "🔄 đã tắt tự chuyển", 2, C.ACCENT) end
+    end)
+    applyBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        local d = tonumber(tostring(distIn.Text or ""):match("%-?%d+%.?%d*")) or SP.dist
+        local hh = tonumber(tostring(hiIn.Text or ""):match("%-?%d+%.?%d*")) or SP.height
+        S.Spec.SetDist(d); S.Spec.SetHeight(hh)
+        paint()
+        if D.hubStatus then flash(D.hubStatus, string.format("📏 camera: lùi %gm · cao %gm", SP.dist, SP.height), 1.8, C.ACCENT) end
+    end)
+    -- 🚫 Dừng = nút chữ nằm ngay trong khung (bấm cả vùng chữ)
+    local stopBtn2 = New("TextButton", {
+        Size = UDim2.new(0, 108, 0, 20), Position = UDim2.new(1, -116, 0, 48),
+        Text = "🚫 Dừng xem", BackgroundColor3 = C.RED, TextColor3 = D.BestText(C.RED),
+        Font = Enum.Font.GothamBold, TextSize = 9, BorderSizePixel = 0, ZIndex = 8,
+    }, P)
+    Corner(stopBtn2, UDim.new(0, 6))
+    D.Tactile(stopBtn2, 0.1)
+    stopBtn2.Activated:Connect(function()
+        ReleaseHubFocus()
+        S.Spec.Stop()
+        paint()
+        if S.Spec.RefreshList then S.Spec.RefreshList() end
+        pcall(S.Rebuild)
+        if D.hubStatus then flash(D.hubStatus, "🚫 " .. S.Spec.Status(), 2, C.ACCENT) end
+    end)
+    -- xoá nút 🚫 nhỏ "trong suốt" cũ (nhãn 🚫 Dừng ở trên chỉ là chữ trang trí)
+    pcall(function() end)
+    paint()
+    if S.Spec.RefreshList then pcall(S.Spec.RefreshList) end
+    -- chốt chiều cao cuộn cho trang 👥 (2 khung + chỗ thở ở đáy)
+    pcall(function()
+        if D.playerTab then D.playerTab.CanvasSize = UDim2.new(0, 0, 0, (D.playerY or 600) + 16) end
+    end)
 end
 
 -- chip phân loại
 D.hubChipBtns = {}
-for _, cname in ipairs({"Tất cả", "Admin", "Explorer", "Spy", "Tiện ích", "Server"}) do
+for _, cname in ipairs({"Tất cả", "Admin", "Explorer", "Spy", "Tiện ích", "Server", "Di chuyển", "Định vị"}) do
     local w = (cname == "Tất cả" and 58) or (cname == "Explorer" and 68) or (cname == "Tiện ích" and 64)
-              or (cname == "Server" and 56) or (cname == "Admin" and 52) or 44
+              or (cname == "Server" and 56) or (cname == "Admin" and 52) or (cname == "Di chuyển" and 66) or (cname == "Định vị" and 58) or 44
     local chip = New("TextButton", {
         Size = UDim2.new(0, w, 0, 20), Text = cname,
         BackgroundColor3 = (S.hubCat == cname) and C.ACCENT or C.SURFACE2,
@@ -6877,7 +11099,7 @@ D.SyncPageChips()
 S.SyncServerPanel()   -- v4.6.3: hiện mã server (JobId) lên khung 🌐 SERVER
 
 -- ============================================================================
--- ============== v4.11: TRANG ⚙️ THIẾT LẬP  (chiếm ô trống LayoutOrder 5) =====
+-- ============== v4.11: TRANG ⚙️ THIẾT LẬP  (v4.15: LayoutOrder 6 — 👥 Người Chơi chen ô 4) =====
 -- ============================================================================
 -- Ô số 5 trên rail bị bỏ trống từ v4.10 (khi gỡ tab 🤖 AI AI). Nay dùng nó cho trang
 -- Thiết Lập — gom 4 việc mà TRƯỚC ĐÂY HUB KHÔNG CÓ CHỖ NÀO LÀM:
@@ -6890,7 +11112,7 @@ S.SyncServerPanel()   -- v4.6.3: hiện mã server (JobId) lên khung 🌐 SERVE
 -- Toàn bộ biến nằm trong khối `do ... end` nên KHÔNG chiếm slot local của main chunk
 -- (Luau giới hạn 200 biến local mỗi chunk — main chunk của hub đã dùng gần ngưỡng).
 do
-    local setTab = AddTab("Thiết Lập", "⚙️", 5)
+    local setTab = AddTab("Thiết Lập", "⚙️", 6)   -- v4.15: 5 -> 6 (👥 chen vào ô 4)
 
     local sy = 8
     local function rule(y)
@@ -6966,10 +11188,7 @@ do
     saveNow.Activated:Connect(function()
         local ok = Store.save()
         refreshStorage()
-        saveNow.Text = ok and "✅ Đã lưu" or "❌ Lỗi"
-        task.delay(1.4, function()
-            if saveNow and saveNow.Parent then saveNow.Text = "💾 Lưu ngay" end
-        end)
+        flash(saveNow, ok and "✅ Đã lưu" or "❌ Lỗi", 1.4)
     end)
     reload.Activated:Connect(function()
         pcall(function() if S.DoReload then S.DoReload() end end)
@@ -6995,30 +11214,27 @@ do
     expBtn.Activated:Connect(function()
         local ok, json = pcall(function() return HttpService:JSONEncode(Store.serialize()) end)
         if not ok or type(json) ~= "string" then
-            expBtn.Text = "❌ Lỗi JSON"; task.delay(1.6, function() if expBtn.Parent then expBtn.Text = "📤 Xuất ra clipboard" end end)
+            flash(expBtn, "❌ Lỗi JSON", 1.6)
             return
         end
-        local done = false
-        if setclipboard then done = pcall(setclipboard, json)
-        elseif toclipboard then done = pcall(toclipboard, json) end
+        local done = S.CopyToClipboard(json)
         if not done then
             -- không có clipboard: đưa thẳng vào ô dán để người dùng tự copy
             paste.Text = json
-            expBtn.Text = "⚠️ Đã dán vào ô"
+            flash(expBtn, "⚠️ Đã dán vào ô", 1.8)
         else
-            expBtn.Text = "✅ Đã copy"
+            flash(expBtn, "✅ Đã copy", 1.8)
         end
-        task.delay(1.8, function() if expBtn and expBtn.Parent then expBtn.Text = "📤 Xuất ra clipboard" end end)
     end)
 
     impBtn.Activated:Connect(function()
         local txt = paste.Text
         if type(txt) ~= "string" or #txt < 2 then
-            impBtn.Text = "⚠️ Trống"; task.delay(1.6, function() if impBtn.Parent then impBtn.Text = "📥 Nhập" end end); return
+            flash(impBtn, "⚠️ Trống", 1.6); return
         end
         local ok, data = pcall(function() return HttpService:JSONDecode(txt) end)
         if not ok or type(data) ~= "table" or type(data.scripts) ~= "table" then
-            impBtn.Text = "❌ JSON sai"; task.delay(1.8, function() if impBtn.Parent then impBtn.Text = "📥 Nhập" end end); return
+            flash(impBtn, "❌ JSON sai", 1.8); return
         end
         local have = {}
         for _, s in ipairs(scripts) do have[tostring(s.name)] = true end
@@ -7040,8 +11256,7 @@ do
         refreshStorage()
         Store.saveSoon()
         paste.Text = ""
-        impBtn.Text = "✅ +" .. added
-        task.delay(1.8, function() if impBtn and impBtn.Parent then impBtn.Text = "📥 Nhập" end end)
+        flash(impBtn, "✅ +" .. added, 1.8)
     end)
 
     -- ---------- [3] MÔI TRƯỜNG EXECUTOR ----------
@@ -7090,8 +11305,7 @@ do
         pcall(function() if Store.restoreWaypoints then Store.restoreWaypoints() end end)
         Store.save()
         refreshStorage()
-        clearBtn.Text = "✅ Đã xoá"
-        task.delay(1.6, function() if clearBtn and clearBtn.Parent then clearBtn.Text = "🗑 Xoá sạch dữ liệu" end end)
+        flash(clearBtn, "✅ Đã xoá", 1.6)
     end)
 
     setTab.CanvasSize = UDim2.new(0, 0, 0, sy + 8)
@@ -7223,9 +11437,10 @@ main.Visible = true
 togBtn.Text = "✕"
 
 print(string.format(
-    "✅ Banana Cat Hub v4.11 — sẵn sàng! Đã nạp lại %d script + %d waypoint + %d tab tính năng từ bộ nhớ (chế độ: %s%s)",
+    "✅ Banana Cat Hub v4.12 — sẵn sàng! Đã nạp lại %d script + %d waypoint + %d tab tính năng từ bộ nhớ (chế độ: %s%s)",
     Store.loadedScripts, Store.loadedWp, #Store.loadedFeatures, Store.mode,
     Store.lastError and (" | ⚠️ " .. Store.lastError) or ""
 ))
 print("   💾 File lưu: " .. Store.SAVE_FILE .. " (trong thư mục workspace của executor — sống qua cả lần rejoin)")
 print("   Tính năng: Code + Code Đã Lưu + Script Hub + Hỗ Trợ (POS+SIZE+ROT+LOOK+VẬT THỂ+HIGHLIGHT TÍM) + Thiết Lập + Tạo Tính Năng")
+print("   🆕 v4.12.2: Di chuyển — 🦘 nhảy được ở MỌI game (3 cách nhảy) · 🏃 chạy trên thảm NHẢY THOẢI MÁI · 👟 tốc độ THEO GAME ×3 (gõ x4 hay 50 ở ô 👟 Chạy) · 🪩 thảm tự trải lại khi bị game xoá")
