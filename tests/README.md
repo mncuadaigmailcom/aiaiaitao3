@@ -13,7 +13,7 @@ node run.js ../script.js            # chạy tất cả
 node run.js ../script.js noclip     # chỉ chạy test tên có chữ "noclip"
 ```
 
-Kết quả hiện tại: **177 PASS · 0 FAIL**.
+Kết quả hiện tại: **188 PASS · 0 FAIL**.
 
 ## Cấu trúc
 
@@ -160,6 +160,32 @@ step tự dịch nhân vật 1 stud/frame để chắc rằng 🧲 **không** đ
 - quay lại hành vi cũ (quét 2 giây/lần, không ép mỗi frame) → **T1, T2, T7 FAIL**;
 - cho `MV.Refresh()` xoá trắng bảng giá trị gốc như bản cũ → **T3 FAIL**;
 - bỏ `local pcBtn` khai báo trước hàm vẽ → 6 test đỏ vì `attempt to index a nil value`.
+
+## 🛡 Test "sống qua hết trận / sang trận mới" + 🔲 khiên cỡ hợp lí (nhóm U) — v4.23
+
+Người dùng báo 2 việc: (1) *"chơi xong trận rồi chuyển sang trận mới thì tính năng bay an toàn không
+hoạt động nữa"*, (2) *"chỉnh lại hình vuông bao quanh mình cho kích thước hợp lí"*.
+
+**Lỗi thật (1):** 🛡 không có vòng lặp riêng — nó chỉ được gọi ở **cuối vòng lặp 🚀 Bay**
+(`if MV.Safe and MV.Safe.on then MV.Safe.Step()`). Sang trận mới, `BodyVelocity "BC_FlyVel"` chết theo
+nhân vật cũ (hoặc **còn dính** nhân vật cũ nếu game không xoá ngay) → vòng lặp Bay thoát ngay ở dòng
+đầu `if not MV.fly or not curR or not MV._bv then return end` → 🛡 im lặng vĩnh viễn.
+
+| Việc | Cách làm mới | Test |
+|---|---|---|
+| 🛡 không chết theo 🚀 Bay | vòng lặp RIÊNG `BindToRenderStep("BC_Safe", …)`, bật thì gắn, tắt thì gỡ | U5, U8 |
+| Đổi trận / respawn | `Step` so `SF._root` với nhân vật hiện tại: khác là quên dữ liệu trận cũ + dựng lại khiên | U1, U3, U11 |
+| Part bay còn dính nhân vật CŨ | soi `_bv.Parent == HRP hiện tại` (không chỉ khác `nil`) → dựng lại | U2, U3 |
+| Game tự đổi nhân vật mà không bắn `CharacterAdded` | tự chữa lành **trong ~1 frame** + watchdog 0,3s gắn lại vòng lặp nếu game gỡ | U3, U11, U5 |
+| Anti-cheat xoá part bay / 1 vách khiên | thấy mất là dựng lại (khiên kiểm tra **cả 4 vách**, không chỉ vách 1) | U4 |
+| 🔲 cỡ khiên | mặc định **ôm sát nhân vật** (~5,2 stud/cạnh, cao ~8), 📏 Né **chỉ còn là khoảng cách né**; ô 🔲 Cỡ (0 = tự động) để chỉnh tay | P1, P2, U6, U7 |
+
+**Mutation check** (đã chạy để chứng minh test có giá trị):
+- bỏ phần tự chữa lành của `Step` → **U11 FAIL**; bỏ **tất cả** đường chữa lành (quay lại v4.22) →
+  **U2, U3, U4, U5, U11 + O8 FAIL**;
+- bỏ watchdog dựng lại vòng lặp 🚀 Bay → **U5 FAIL**;
+- trả cỡ khiên về "cạnh = 📏 × 2" → **P1, P2 FAIL**;
+- không gắn / không gỡ vòng lặp riêng → **U5, U8, U10 FAIL**.
 
 ## Thêm test mới
 

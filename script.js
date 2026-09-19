@@ -63,6 +63,32 @@
           2) Thêm 1 biến local nữa vào main chunk -> vượt TRẦN 200 LOCAL của Luau/Lua 5.4
              ("too many local variables") làm cả hub KHÔNG NẠP ĐƯỢC. Nay toàn bộ khối 🛡 nằm
              trong `do ... end` nên không chiếm slot local của chunk (giống các tab khác).
+    + v4.23 (🛡 BAY AN TOÀN: SỬA LỖI "hết trận sang trận mới là 🛡 không hoạt động nữa" +
+      🔲 KHIÊN VỀ CỠ HỢP LÍ — 188 test PASS):
+        → 🔲 LỖI THẬT (bạn gặp trong game): 🛡 trước đây KHÔNG có vòng lặp riêng — nó chỉ được gọi ở
+          CUỐI vòng lặp 🚀 Bay (`if MV.Safe and MV.Safe.on then MV.Safe.Step()`). Hết trận / sang trận
+          mới, BodyVelocity "BC_FlyVel" chết theo nhân vật cũ (hoặc CÒN DÍNH nhân vật cũ) -> vòng lặp
+          Bay thoát NGAY ở dòng đầu `if not MV.fly or not curR or not MV._bv then return end` -> 🛡 im
+          lặng vĩnh viễn, bật/tắt cũng không thấy gì. Nay 🛡 có VÒNG LẶP RIÊNG
+          (BindToRenderStep "BC_Safe") + TỰ CHỮA LÀNH mỗi frame: part bay mất/hỏng/dính nhân vật cũ
+          thì dựng lại đúng nhân vật đang dùng, quên dữ liệu trận cũ, dựng lại khiên, và giữ
+          PlatformStand/AutoRotate đúng trạng thái bay (game hay reset 2 cờ này sau respawn).
+          Thêm lớp cuối: watchdog 0,3s GẮN LẠI vòng lặp + chạy hộ nếu game gỡ/ngốn vòng lặp render.
+          Tắt 🛡 là gỡ vòng lặp riêng (không chạy chồm). MV.Refresh (respawn) cũng soi lại part bay.
+        → 🔲 CỠ KHIÊN HỢP LÍ (đúng ý "hình vuông bao quanh mình kích thước hợp lí"): trước đây cạnh
+          khiên = 📏 × 2 nên 📏 25 -> cái hộp 50 × 16 stud, nhìn như cái chuồng. Nay mặc định ÔM SÁT
+          nhân vật (~5,2 stud/cạnh, cao ~8 stud) và 📏 Né CHỈ còn là khoảng cách né. Muốn to/nhỏ thì
+          chỉnh ô 🔲 Cỡ trong khung ⚙ Hỗ Trợ (0 = tự động, > 0 = số stud nửa cạnh). Khiên vẫn 4 vách
+          trong suốt CanCollide = false, vẫn bám theo mình, vách nào bị game xoá là dựng lại CẢ BỘ.
+          Trạng thái 🛡 ghi luôn cỡ khiên ("🔲 khiên 5.2 m/cạnh (tự)").
+        → 🚀 Vòng lặp Bay được bọc pcall TỪNG PHẦN (game xoá part bay / camera nil / đổi nhân vật giữa
+          frame) và TỰ dựng lại "BC_FlyFloor" nếu bị xoá — trước đây 1 lỗi ở đây là chết cả vòng lặp
+          (mà 🛡 nằm cuối vòng lặp đó nên chết theo).
+        → 11 test mới U1–U11: đổi trận CÓ và KHÔNG có CharacterAdded, part bay còn dính nhân vật cũ,
+          anti-cheat xoá part bay giữa trận, game gỡ vòng lặp render (watchdog gắn lại), tự chữa lành
+          trong ~1 frame khi không có event nào, khiên đúng cỡ + KHÔNG phình theo 📏 + đi theo nhân vật
+          mới, ô 🔲 Cỡ (0 = tự), Status ghi cỡ khiên, tắt 🛡 là dọn sạch + gỡ vòng lặp, không mất tính
+          năng cũ nào.
     + v4.22 (🧱 Xuyên Tường "CỨNG" cho mọi game + 🧲 tự đẩy xuyên khi bị chặn — 177 test PASS):
         • 🔴 LỖI THẬT: một số tựa game/anti-cheat BẬT LẠI CanCollide cho part của người chơi MỖI FRAME
           (hoặc đặt lại cho part mới sinh). Bản cũ chỉ quét lại 2 GIÂY/lần -> thua, bật 🧱 mà vẫn kẹt ở
@@ -7317,13 +7343,30 @@ end
 -- trả WalkSpeed về mặc định mỗi frame, để JumpPower = 0, thay nhân vật... Vòng này chạy mỗi
 -- 0.3s khi có tính năng đang bật: thấy mất là dựng lại ngay, thấy game đổi là theo game.
 function MV._NeedWatch()
-    return (MV.fly or MV.noclip or MV.infJump or MV.speed or MV.carpet or MV.runMode) == true
+    -- v4.23: + 🛡 Bay An Toàn (phải tự sống qua respawn/đổi trận kể cả khi game gỡ vòng lặp render)
+    return (MV.fly or MV.noclip or MV.infJump or MV.speed or MV.carpet or MV.runMode
+            or (MV.Safe and MV.Safe.on)) == true
 end
 function MV._KeepAlive()
     if MV.speed or MV.runMode then pcall(MV.SpeedStep) end
     if MV.infJump or MV.runMode then pcall(MV._JumpGuard) end
     if MV.carpet and (not MV._carpet or not MV._carpet.Parent) then
         pcall(function() MV.CreateCarpet(MV.carpetY) end)
+    end
+    -- v4.23: 🚀 vòng lặp Bay bị game gỡ/ngốn (quá 0,6s không chạy) hoặc part bay dính nhân vật cũ
+    -- -> dựng lại. Trước đây mất vòng lặp Bay là mất luôn (và 🛡 nằm trong đó nên chết theo).
+    local keepR = MV.Root()
+    if MV.fly and keepR and (not MV._bv or MV._bv.Parent ~= keepR
+       or (tick() - (MV._flyFrameAt or 0)) > 0.6) then
+        pcall(function() MV.SetFly(false) end)
+        pcall(function() MV.SetFly(true) end)
+    end
+    -- v4.23: 🛡 — quá 0,6s không thấy vòng lặp riêng chạy (game gỡ/ngốn) thì GẮN LẠI + chạy hộ 1 nhịp,
+    -- để 🛡 KHÔNG BAO GIỜ chết lặng sau khi đổi trận.
+    if MV.Safe and MV.Safe.on and (tick() - (MV.Safe._lastFrameAt or 0)) > 0.6 then
+        MV.Safe._bound = false
+        pcall(MV.Safe.Bind)
+        pcall(MV.Safe.Step, 0.1)
     end
 end
 function MV._Watchdog()
@@ -7371,6 +7414,7 @@ function MV.SetFly(on)
         }, workspace)
     end
     RunService:BindToRenderStep("Fly", 1, function()
+        MV._flyFrameAt = tick()                 -- v4.23: watchdog soi vòng lặp 🚀 Bay còn sống không
         local curR, curH = MV.Root(), MV.Hum()
         if not MV.fly or not curR or not MV._bv then return end
         local d = (curH and curH.MoveDirection) or Vector3.zero
@@ -7380,14 +7424,32 @@ function MV.SetFly(on)
         local down = UserInputService:IsKeyDown(Enum.KeyCode.LeftShift)
                   or UserInputService:IsKeyDown(Enum.KeyCode.LeftControl)
         local vv = (up and 1 or 0) - (down and 1 or 0)
-        MV._bv.Velocity = (t + Vector3.new(0, vv, 0)) * MV.flySpeed
-        if MV._bg then
-            MV._bg.CFrame = CFrame.new(curR.Position,
-                curR.Position + workspace.CurrentCamera.CFrame.LookVector)
+        -- v4.23: BỌC pcall TỪNG PHẦN — game/anti-cheat xoá part bay, camera nil, nhân vật đổi giữa
+        -- frame... trước đây 1 lỗi ở đây là vòng lặp chết ngay frame đó (và 🛡 chết theo vì nằm cuối).
+        -- v4.23: 🛡 BẬT thì NHƯỜNG vận tốc cho 🛡 (nó tự đặt vận tốc + né vật). Trước đây 2 vòng lặp
+        -- cùng ghi vận tốc nên vòng nào chạy sau là thắng — 🛡 có lúc bị ghi đè về "bay thẳng" (im lặng).
+        if MV.Safe and MV.Safe.on then
+            if not MV.Safe._bound then pcall(function() MV.Safe.Step() end) end
+        else
+            pcall(function() MV._bv.Velocity = (t + Vector3.new(0, vv, 0)) * MV.flySpeed end)
         end
-        if MV._floor then MV._floor.Position = curR.Position - Vector3.new(0, 3.5, 0) end
-        -- v4.17: 🛡 Bay an toàn chạy CUỐI vòng này -> chắc chắn thắng vận tốc vừa đặt theo phím
-        if MV.Safe and MV.Safe.on then pcall(function() MV.Safe.Step() end) end
+        local cam = workspace.CurrentCamera
+        if MV._bg and cam then
+            pcall(function()
+                MV._bg.CFrame = CFrame.new(curR.Position, curR.Position + cam.CFrame.LookVector)
+            end)
+        end
+        if MV._floor and not MV._floor.Parent then MV._floor = nil end
+        if not MV._floor then
+            pcall(function()
+                MV._floor = New("Part", {
+                    Name = "BC_FlyFloor", Size = Vector3.new(6, 0.2, 6), Transparency = 0.7,
+                    Color = Color3.fromRGB(200, 230, 255), Material = Enum.Material.Glass,
+                    Anchored = true, CanCollide = false,
+                }, workspace)
+            end)
+        end
+        if MV._floor then pcall(function() MV._floor.Position = curR.Position - Vector3.new(0, 3.5, 0) end) end
     end)
     MV.SyncHud()
     return true
@@ -7417,7 +7479,8 @@ MV.Safe = {
     -- v4.18
     shield = true,      -- 🔲 bức tường trong suốt hình vuông bao quanh (nhìn thấy vùng né)
     shieldThk = 0.4,    -- độ dày vách
-    shieldH = 16,       -- chiều cao vách
+    shieldH = 0,        -- v4.23: 0 = chiều cao TỰ ĐỘNG theo nhân vật (trước đây cố định 16)
+    shieldSize = 0,     -- v4.23: nửa cạnh khiên (studs). 0 = TỰ ĐỘNG ôm sát nhân vật; 📏 Né KHÔNG kéo giãn khiên
     shieldT = 0.86,     -- độ trong suốt (càng nhỏ càng thấy rõ)
     avoidPlayers = true,-- 👤 né cả NGƯỜI CHƠI khác (dù họ đứng yên)
     -- v4.19
@@ -7432,6 +7495,9 @@ MV.Safe = {
     _ncPrev = nil,      -- trạng thái Xuyên Tường TRƯỚC KHI bật 🛡 (để trả lại đúng)
     _shield = nil,      -- 4 vách trong suốt
     _shieldPos = nil,
+    _root = nil,        -- v4.23: nhân vật đang gắn (đổi là tự dựng lại part bay + khiên)
+    _bound = false,     -- v4.23: vòng lặp riêng "BC_Safe" đã gắn chưa
+    _lastFrameAt = 0,   -- v4.23: lần cuối vòng lặp 🛡 chạy (watchdog soi còn sống không)
     playerThreats = 0,
     threats = 0, nearest = nil,     -- để hiện trạng thái
     _rep = Vector3.new(0, 0, 0),    -- vector đẩy của lần quét gần nhất
@@ -7684,9 +7750,12 @@ function MV.Safe.Scan(pos, dt)
     return n, near, rep
 end
 -- ---------- v4.18: 🔲 BỨC TƯỜNG TRONG SUỐT HÌNH VUÔNG bao quanh mình ----------
--- 4 vách kính mỏng xếp thành hình vuông, cạnh = ĐƯỜNG KÍNH vùng né (📏 × 2) nên nhìn là biết
--- mình đang được né trong phạm vi nào. CanCollide = false (không phải để va chạm) — nó chỉ
--- HIỆN vùng an toàn; lực đẩy vẫn do BodyVelocity làm. Tên BC_* nên máy quét không né chính nó.
+-- 4 vách kính mỏng xếp thành hình vuông quanh nhân vật. CanCollide = false (không phải để va chạm) —
+-- nó HIỆN vùng an toàn; lực đẩy vẫn do BodyVelocity làm. Tên BC_* nên máy quét không né chính nó.
+-- v4.23 (SỬA THEO Ý BẠN — "hình vuông bao quanh mình kích thước hợp lí"): cỡ khiên nay HỢP LÍ,
+-- mặc định ÔM SÁT nhân vật (~5 stud một cạnh) thay vì cạnh = 📏 × 2 (📏 25 -> cái hộp 50 × 16 stud,
+-- nhìn như cái chuồng). 📏 Né GIỜ CHỈ là KHOẢNG CÁCH NÉ, không kéo giãn khiên; muốn to/nhỏ thì chỉnh
+-- ô 🔲 Cỡ trong khung ⚙ (0 = tự động theo nhân vật, > 0 = số stud mình muốn).
 function MV.Safe.KillShield()
     for i = 1, 4 do
         local w = SF._shield and SF._shield[i]
@@ -7694,16 +7763,32 @@ function MV.Safe.KillShield()
     end
     SF._shield, SF._shieldPos = nil, nil
 end
+function MV.Safe.ShieldHalf()
+    local n = tonumber(SF.shieldSize)
+    if n and n > 0 then return mvClamp(n, 0.5, 300, 3) end          -- chỉnh tay
+    local w = 2
+    local r = MV.Root()
+    if r then pcall(function() w = math.max(tonumber(r.Size.X) or 2, tonumber(r.Size.Z) or 2) end) end
+    return mvClamp(w * 0.5 + 1.6, 2, 8, 3)                          -- người thường: 2,6 stud (cạnh ~5,2)
+end
+function MV.Safe.ShieldHeight()
+    local n = tonumber(SF.shieldH)
+    if n and n > 0 then return mvClamp(n, 1, 100, 8) end
+    local hh = 2
+    local r = MV.Root()
+    if r then pcall(function() hh = tonumber(r.Size.Y) or 2 end) end
+    return mvClamp(hh * 3 + 2, 4, 14, 8)                            -- người thường: 8 stud
+end
 function MV.Safe.BuildShield()
     MV.Safe.KillShield()
-    local side = mvClamp(SF.radius, 1, 300, 25) * 2
-    local thk, h = SF.shieldThk, SF.shieldH
+    local side, h = MV.Safe.ShieldHalf(), MV.Safe.ShieldHeight()
+    local thk = SF.shieldThk
     SF._shield = {}
     for i = 1, 4 do
         local long = (i <= 2)
         local w = New("Part", {
             Name = "BC_Shield" .. i,
-            Size = long and Vector3.new(side + thk, h, thk) or Vector3.new(thk, h, side + thk),
+            Size = long and Vector3.new(side * 2 + thk, h, thk) or Vector3.new(thk, h, side * 2 + thk),
             Transparency = SF.shieldT,
             Color = Color3.fromRGB(120, 225, 255),
             Material = Enum.Material.Glass,
@@ -7718,17 +7803,24 @@ function MV.Safe.UpdateShield(pos)
         if SF._shield then MV.Safe.KillShield() end
         return
     end
-    local side = mvClamp(SF.radius, 1, 300, 25)
-    if not SF._shield or not SF._shield[1] or not SF._shield[1].Parent then
-        pcall(MV.Safe.BuildShield)
+    local side = MV.Safe.ShieldHalf()
+    local wallH = MV.Safe.ShieldHeight()
+    -- v4.23: game/anti-cheat xoá 1 vách bất kì -> dựng lại CẢ BỘ (trước đây chỉ kiểm tra vách 1)
+    local need = (SF._shield == nil)
+    if not need then
+        for i = 1, 4 do
+            local w = SF._shield[i]
+            if not w or not w.Parent then need = true break end
+        end
     end
+    if need then pcall(MV.Safe.BuildShield) end
     if not SF._shield or not SF._shield[1] then return end
     local q = SF._shieldPos
     if q and math.abs(q.X - pos.X) < 0.05 and math.abs(q.Y - pos.Y) < 0.05 and math.abs(q.Z - pos.Z) < 0.05
-       and math.abs((q.S or 0) - side) < 0.01 then
+       and math.abs((q.S or 0) - side) < 0.01 and math.abs((q.H or 0) - wallH) < 0.01 then
         return
     end
-    SF._shieldPos = { X = pos.X, Y = pos.Y, Z = pos.Z, S = side }
+    SF._shieldPos = { X = pos.X, Y = pos.Y, Z = pos.Z, S = side, H = wallH }
     for i = 1, 4 do
         local w = SF._shield[i]
         if w then
@@ -7736,19 +7828,70 @@ function MV.Safe.UpdateShield(pos)
             if i == 1 then dz = side elseif i == 2 then dz = -side
             elseif i == 3 then dx = side else dx = -side end
             local okS = pcall(function()
-                w.Size = (i <= 2) and Vector3.new(side * 2 + SF.shieldThk, SF.shieldH, SF.shieldThk)
-                                      or Vector3.new(SF.shieldThk, SF.shieldH, side * 2 + SF.shieldThk)
+                w.Size = (i <= 2) and Vector3.new(side * 2 + SF.shieldThk, wallH, SF.shieldThk)
+                                      or Vector3.new(SF.shieldThk, wallH, side * 2 + SF.shieldThk)
                 w.CFrame = CFrame.new(pos.X + dx, pos.Y, pos.Z + dz)
             end)
             if not okS then MV.Safe.KillShield(); return end
         end
     end
 end
--- NÉ + TỰ BAY: gọi ở CUỐI vòng lặp 🚀 Bay (sau khi vòng đó đặt vận tốc theo phím)
+-- NÉ + TỰ BAY: 🛡 có VÒNG LẶP RIÊNG (BindToRenderStep "BC_Safe") + được watchdog gọi hộ nếu bị gỡ.
+-- v4.23 (LỖI THẬT bạn gặp: "chơi xong trận rồi sang trận mới là 🛡 không hoạt động nữa"): trước đây 🛡
+-- chỉ chạy nhờ vòng lặp 🚀 Bay. Hết trận/sang trận mới, part bay (BodyVelocity) chết theo nhân vật cũ
+-- (hoặc CÒN DÍNH nhân vật cũ) -> vòng lặp Bay thoát NGAY ở dòng
+-- `if not MV.fly or not curR or not MV._bv then return end` nên 🛡 KHÔNG BAO GIỜ chạy nữa.
+-- Nay 🛡 TỰ CHỮA LÀNH: part bay mất/hỏng/dính nhân vật cũ là dựng lại ngay trên nhân vật đang dùng.
+function MV.Safe.Repair()
+    local r = MV.Root()
+    if not r then return false end
+    local ok1 = pcall(function() MV.SetFly(false) end)
+    local ok2 = pcall(function() MV.SetFly(true) end)
+    if not (ok1 and ok2) or MV._bv == nil or MV.Root() ~= r then
+        pcall(function() if MV.fly == false then MV.SetFly(true) end end)
+        return false
+    end
+    MV.flySpeed = mvClamp(SF.speed, 1, 2000, 60)
+    return true
+end
+-- v4.23: vòng lặp riêng của 🛡 — gắn khi bật, gỡ khi tắt (không phụ thuộc 🚀 Bay nữa)
+function MV.Safe.Bind()
+    if SF._bound then return true end
+    SF._bound = pcall(function() RunService:BindToRenderStep("BC_Safe", 2, MV.Safe._Frame) end)
+    return SF._bound == true
+end
+function MV.Safe.Unbind()
+    SF._bound = false
+    pcall(function() RunService:UnbindFromRenderStep("BC_Safe") end)
+end
+function MV.Safe._Frame(dt) pcall(MV.Safe.Step, dt) end
 function MV.Safe.Step(dt)
     if not SF.on then return end
-    local r, h, bv = MV.Root(), MV.Hum(), MV._bv
-    if not r or not bv then return end
+    SF._lastFrameAt = tick()                    -- v4.23: watchdog soi xem vòng lặp còn sống không
+    local r, h = MV.Root(), MV.Hum()
+    if not r then
+        -- đang hồi sinh (nhân vật mới chưa mọc): dọn khiên cũ kẻo nó treo lại giữa map
+        if SF._shield then pcall(MV.Safe.KillShield) end
+        SF._root = nil
+        return
+    end
+    -- ĐỔI TRẬN / RESPAWN: nhân vật mới -> quên dữ liệu trận cũ + dựng khiên lại sạch sẽ
+    if SF._root ~= r then
+        SF._root = r
+        pcall(MV.Safe.Reset)
+        SF._shieldPos = nil
+        if SF.shield then pcall(MV.Safe.KillShield) end
+        if MV.fly == false then pcall(function() MV.SetFly(true) end) end
+    end
+    -- part bay chết / CÒN DÍNH NHÂN VẬT CŨ / anti-cheat xoá -> dựng lại đúng nhân vật đang dùng
+    if MV.fly and not (MV._bv and MV._bv.Parent == r) then pcall(MV.Safe.Repair) end
+    local bv = MV._bv
+    if not (bv and bv.Parent == r) then return end
+    -- game hay reset 2 cờ này sau respawn/đổi trận -> giữ đúng trạng thái bay
+    if h then
+        if h.PlatformStand ~= true then pcall(function() h.PlatformStand = true end) end
+        if h.AutoRotate ~= false then pcall(function() h.AutoRotate = false end) end
+    end
     local dtv = tonumber(dt) or 0.016
     SF._sc = (SF._sc or 0) + dtv
     -- v4.19: đang có mối nguy -> quét DÀY hơn (0,05s) để vật bay nhanh không lọt giữa 2 lần quét
@@ -7838,11 +7981,17 @@ function MV.Safe.Set(on)
         end
         MV.SetFly(true)
         MV.flySpeed = mvClamp(SF.speed, 1, 2000, 60)
+        SF._root = MV.Root()                     -- v4.23: nhớ nhân vật hiện tại (đổi trận là tự dựng lại)
+        pcall(MV._Watchdog)                      -- v4.23: watchdog phải chạy khi 🛡 bật (nó cứu 🛡 sau đổi trận)
+        SF._lastFrameAt = tick()
+        pcall(MV.Safe.Bind)                      -- v4.23: vòng lặp RIÊNG của 🛡 (không nhờ 🚀 Bay nữa)
         pcall(function() MV.Safe.UpdateShield(MV.Root() and MV.Root().Position or Vector3.new(0, 0, 0)) end)
     else
+        pcall(MV.Safe.Unbind)                    -- v4.23: gỡ vòng lặp riêng của 🛡
         MV.Safe.Reset()
         MV.SetFly(false)
         MV.Safe.KillShield()
+        SF._root = nil
         -- trả Xuyên Tường về ĐÚNG như trước khi bật 🛡 (đang tắt thì vẫn tắt)
         if SF._ncPrev ~= nil then
             local was = SF._ncPrev
@@ -7922,6 +8071,17 @@ function MV.Safe.SetRadius(n)
     end
     return SF.radius
 end
+
+-- 🔲 v4.23: cỡ khiên (nửa cạnh, studs). 0 = TỰ ĐỘNG ôm sát nhân vật; > 0 = chỉnh tay.
+function MV.Safe.SetShieldSize(n)
+    SF.shieldSize = mvClamp(n, 0, 300, 0)
+    SF._shieldPos = nil
+    if SF.on and SF.shield then
+        local r = MV.Root()
+        if r then pcall(function() MV.Safe.UpdateShield(r.Position) end) end
+    end
+    return SF.shieldSize
+end
 function MV.Safe.SetSpeed(n)
     SF.speed = mvClamp(n, 1, 2000, 60)
     MV.flySpeed = SF.speed            -- để khung ⚙ và bảng trạng thái hiện cùng một số
@@ -7934,7 +8094,10 @@ function MV.Safe.Status()
     local s = string.format("🛡 bay an toàn: BẬT · 💨 %g · 📏 né trong %gm · 🌀 %g",
         SF.speed, SF.radius, SF.steer)
     if SF.auto then s = s .. " · ➡ tự bay" end
-    if SF.shield then s = s .. " · 🔲 khiên" end
+    if SF.shield then
+        local half = MV.Safe.ShieldHalf()
+        s = s .. string.format(" · 🔲 khiên %g m/cạnh%s", half * 2, (tonumber(SF.shieldSize) or 0) > 0 and "" or " (tự)")
+    end
     if SF.circle and SF.auto then
         -- v4.19: nói RÕ vì sao đang tạm dừng — đang né hoặc đang bấm WASD (Step cũng tạm dừng như vậy)
         local busy = false
@@ -8300,9 +8463,13 @@ function MV.Refresh()
     MV._NcForgetLost()      -- v4.22: chỉ quên part đã mất (giữ giá trị gốc của part đang bật 🧱)
     MV.ApplyChar()
     if MV.noclip then MV._NcStep() end
-    if MV.fly and (not MV._bv or not MV._bv.Parent) then
+    -- v4.23: part bay phải nằm ĐÚNG nhân vật đang dùng. Trước đây chỉ soi ".Parent ~= nil" nên part
+    -- còn dính NHÂN VẬT CŨ (game đổi trận nhưng không xoá ngay) vẫn bị coi là "còn sống" -> bay/🛡 chết lặng.
+    local curRoot = MV.Root()
+    if MV.fly and (not MV._bv or not MV._bv.Parent or (curRoot ~= nil and MV._bv.Parent ~= curRoot)) then
         MV.SetFly(false); MV.SetFly(true)
     end
+    if MV.Safe and MV.Safe.on then pcall(MV.Safe.Step, 0.05) end     -- v4.23: 🛡 tự chữa lành sau respawn
     if MV.carpet and (not MV._carpet or not MV._carpet.Parent) then
         MV.CreateCarpet(MV.carpetY)
     end
@@ -10426,6 +10593,10 @@ do
 
     local applyBtn = act("✔ Áp dụng", 8, 100, 84, C.SURFACE3, "SafeApply")
     local stopBtn  = act("🚫 Tắt", 98, 100, 70, C.RED, "SafeStop")
+    -- v4.23: ô 🔲 Cỡ — cỡ khiên (nửa cạnh). 0 = tự động ôm sát nhân vật
+    lab("🔲 Cỡ", 174, 100, 32)
+    local szIn = box(208, 100, 40, 0)
+    lab("(0 = tự)", 250, 100, 64)
     local statusLbl = New("TextLabel", {
         Name = "SafeStatus",
         Size = UDim2.new(1, -186, 0, 20), Position = UDim2.new(0, 174, 0, 100),
@@ -10436,15 +10607,17 @@ do
     New("TextLabel", {
         Name = "SafeNote",
         Size = UDim2.new(1, -16, 0, 66), Position = UDim2.new(0, 8, 0, 124),
-        Text = "💡 🔲 Khiên = bức tường trong suốt hình vuông bao quanh, cạnh = 📏 × 2 (nhìn là biết "
-             .. "vùng né) · 👤 Né người = coi NGƯỜI CHƠI khác là mối nguy dù họ đứng yên · "
-             .. "🧱 Xuyên = tự bật Xuyên Tường để lực đẩy đưa bạn QUA vật cản, tắt 🛡 là trả lại như cũ. "
-             .. "⭕ Vòng tròn = khi KHÔNG có ai/vật nào đang lao tới mình thì tự bay vòng tròn quanh chỗ đang đứng "
-             .. "(bán kính chỉnh ở ô ⭕), đang né hoặc đang bấm WASD thì TẠM DỪNG, né xong tự bay vòng lại. "
-             .. "👁 Nhìn trước = quét xa 📏 × 1,6 và bắt vật ĐANG LAO TỚI từ ngoài tầm trong bao nhiêu giây.",
-        TextWrapped = true, BackgroundTransparency = 1, TextColor3 = C.MUTED,
-        Font = Enum.Font.GothamMedium, TextSize = 8, TextXAlignment = Enum.TextXAlignment.Left,
-        TextYAlignment = Enum.TextYAlignment.Top, ZIndex = 7,
+        Text = "💡 🔲 Khiên = bức tường trong suốt hình vuông ÔM QUANH nhân vật (cỡ hợp lí; muốn to/nhỏ "
+             .. "thì chỉnh ô 🔲 Cỡ — 0 = tự động. 📏 Né chỉ là khoảng cách né, không kéo giãn khiên) · "
+             .. "👤 Né người = coi NGƯỜI CHƠI khác là mối nguy dù họ đứng yên · 🧱 Xuyên = tự bật Xuyên "
+             .. "Tường để lực đẩy đưa bạn QUA vật cản, tắt 🛡 là trả lại như cũ. ⭕ Vòng tròn = khi KHÔNG "
+             .. "có ai/vật nào đang lao tới mình thì tự bay vòng tròn quanh chỗ đang đứng (bán kính "
+             .. "chỉnh ở ô ⭕), đang né hoặc đang bấm WASD thì TẠM DỪNG, né xong tự bay vòng lại. "
+             .. "👁 Nhìn trước = quét xa 📏 × 1,6 và bắt vật ĐANG LAO TỚI từ ngoài tầm. 🛡 tự sống qua "
+             .. "respawn / hết trận sang trận mới — không phải bật lại.",
+        BackgroundTransparency = 1, TextColor3 = C.MUTED,
+        Font = Enum.Font.GothamMedium, TextSize = 8, TextWrapped = true,
+        TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, ZIndex = 7,
     }, P)
 
     local function paint()
@@ -10469,6 +10642,7 @@ do
         radIn.Text, spdIn.Text, strIn.Text =
             tostring(MV.Safe.radius), tostring(MV.Safe.speed), tostring(MV.Safe.steer)
         cirIn.Text, lookIn.Text = tostring(MV.Safe.circleR), tostring(MV.Safe.lookTime)
+        szIn.Text = tostring(MV.Safe.shieldSize)
         statusLbl.Text = MV.Safe.Status()
         statusLbl.TextColor3 = ((MV.Safe.threats or 0) > 0) and C.YELLOW or C.MUTED
     end
@@ -10496,7 +10670,9 @@ do
         MV.Safe.SetShield(not MV.Safe.shield)
         paint()
         if D.hubStatus then
-            flash(D.hubStatus, MV.Safe.shield and "🔲 khiên trong suốt hình vuông: BẬT (cạnh = 📏 × 2)"
+            flash(D.hubStatus, MV.Safe.shield and ("🔲 khiên trong suốt hình vuông: BẬT · "
+                 .. string.format("%g m/cạnh%s", MV.Safe.ShieldHalf() * 2,
+                      (tonumber(MV.Safe.shieldSize) or 0) > 0 and " (chỉnh tay)" or " (tự động)"))
                  or "🔲 đã ẩn khiên (vẫn né y như cũ)", 2, C.ACCENT)
         end
     end)
@@ -10534,6 +10710,7 @@ do
         MV.Safe.SetSteer(tonumber(tostring(strIn.Text or ""):match("%-?%d+%.?%d*")) or MV.Safe.steer)
         MV.Safe.SetCircleR(tonumber(tostring(cirIn.Text or ""):match("%-?%d+%.?%d*")) or MV.Safe.circleR)
         MV.Safe.SetLook(tonumber(tostring(lookIn.Text or ""):match("%-?%d+%.?%d*")) or MV.Safe.lookTime)
+        MV.Safe.SetShieldSize(tonumber(tostring(szIn.Text or ""):match("%-?%d+%.?%d*")) or MV.Safe.shieldSize)
         if not MV.Safe.on then MV.Safe.Set(true) end      -- áp dụng là bật luôn
         paint()
         if D.hubStatus then flash(D.hubStatus, MV.Safe.Status(), 2.4, C.ACCENT) end

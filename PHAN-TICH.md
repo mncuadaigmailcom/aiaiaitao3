@@ -7,7 +7,7 @@ Ngày phân tích: 2026-09-17 · Branch: `arena/01a0af79-aiaiaitao3` · Commit g
 ## 0. Cập nhật v4.12 (đã thực hiện theo yêu cầu)
 
 Port **5 tính năng di chuyển** từ `aiaiaitao3` vào trang 📚 Script Hub của `script.js`, kèm bộ test
-tự động chạy thật trong máy ảo. Kết quả: **`node tests/run.js` → 177 PASS · 0 FAIL**.
+tự động chạy thật trong máy ảo. Kết quả: **`node tests/run.js` → 188 PASS · 0 FAIL**.
 
 **Đã thêm (toàn bộ là tiện ích nội bộ, không tải gì từ mạng):**
 
@@ -42,6 +42,31 @@ tự bật lại sau respawn qua `CharacterAdded`.
      trị gốc thì coi gốc là `true`.
 - 10 test mới **T1–T10** (177 PASS · 0 FAIL). **Mutation check**: quay lại hành vi cũ → T1/T2/T7 FAIL;
   xoá trắng bảng gốc như bản cũ → T3 FAIL; bỏ khai báo local → 6 test đỏ.
+
+**v4.23 — 🛡 BAY AN TOÀN sống qua "hết trận → trận mới" + 🔲 khiên về cỡ hợp lí (188 test PASS):**
+- 🔴 **Lỗi thật người dùng gặp** ("chơi xong trận rồi chuyển sang trận mới thì 🛡 không hoạt động nữa"):
+  🛡 trước đây **không có vòng lặp riêng**, nó chỉ được gọi ở **cuối vòng lặp 🚀 Bay**. Sang trận mới,
+  `BodyVelocity "BC_FlyVel"` chết theo nhân vật cũ (**hoặc còn dính nhân vật cũ** khi game không xoá
+  ngay) → vòng lặp Bay thoát ở dòng đầu `if not MV.fly or not curR or not MV._bv then return end` →
+  🛡 im lặng vĩnh viễn, bật/tắt không thấy gì. Nay:
+  - 🛡 có **vòng lặp riêng** `BindToRenderStep("BC_Safe")` (bật thì gắn, tắt thì gỡ — không tốn tài nguyên);
+  - `MV.Safe.Step` **tự chữa lành mỗi frame**: part bay mất/hỏng/**dính nhân vật cũ** → dựng lại đúng
+    nhân vật đang dùng; nhân vật mới → quên dữ liệu trận cũ + dựng lại khiên + giữ `PlatformStand`/
+    `AutoRotate` đúng trạng thái bay (game hay reset 2 cờ này sau respawn);
+  - **watchdog 0,3s** (nay chạy cả khi chỉ bật 🛡): quá 0,6s không thấy vòng lặp chạy → gắn lại + chạy hộ;
+    vòng lặp 🚀 Bay bị game gỡ cũng được dựng lại;
+  - `MV.Refresh` (respawn) soi **đúng nhân vật** chứ không chỉ "Parent khác nil".
+- 🔲 **Cỡ khiên hợp lí** (đúng ý *"hình vuông bao quanh mình kích thước hợp lí"*): trước đây cạnh khiên
+  = 📏 × 2 nên 📏 25 → cái hộp **50 × 16 stud** (nhìn như cái chuồng). Nay mặc định **ôm sát nhân vật**
+  (~5,2 stud/cạnh, cao ~8 stud) và **📏 Né chỉ còn là khoảng cách né**; muốn to/nhỏ thì chỉnh ô **🔲 Cỡ**
+  trong khung ⚙ (0 = tự động, > 0 = số stud nửa cạnh). Khiên vẫn 4 vách trong suốt `CanCollide = false`,
+  vẫn bám theo mình, **vách nào bị game xoá là dựng lại cả bộ**; trạng thái 🛡 ghi luôn cỡ khiên.
+- 🚀 Vòng lặp Bay được bọc `pcall` **từng phần** (game xoá part bay / camera nil / nhân vật đổi giữa
+  frame) và **tự dựng lại `BC_FlyFloor`** nếu bị xoá — trước đây 1 lỗi ở đây là chết cả vòng lặp (mà 🛡
+  nằm cuối vòng lặp đó nên chết theo).
+- 11 test mới **U1–U11**. **Mutation check**: bỏ tự chữa lành của `Step` → U11 FAIL; bỏ **mọi** đường
+  chữa lành (quay lại v4.22) → U2/U3/U4/U5/U11 + O8 FAIL; bỏ watchdog dựng lại vòng lặp 🚀 → U5 FAIL;
+  trả cỡ khiên về "📏 × 2" → P1/P2 FAIL; không gỡ vòng lặp riêng khi tắt → U8/U10 FAIL.
 
 **v4.21 — 🎯 ĐỊNH VỊ TỐC ĐỘ (tab 🛠 Hỗ Trợ): biết game cho mình chạy bao nhiêu và mình đang chạy bao nhiêu:**
 - Bật 🎯 là **thấy ngay trên màn hình game** (HUD nổi `BC_SpeedHud`, đóng menu vẫn thấy) 3 con số:

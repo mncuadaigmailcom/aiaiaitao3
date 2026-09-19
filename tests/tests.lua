@@ -2391,6 +2391,7 @@ local function cleanSafe(extra)
         S.Move.Safe.SetCircle(true)
         S.Move.Safe.SetCircleR(20)
         S.Move.Safe.SetLook(1.0)
+        S.Move.Safe.SetShieldSize(0)        -- v4.23: ô 🔲 Cỡ về 0 = tự động (test gãy không lây sang sau)
         S.Move.Safe.Recenter()
     end)
     wipePlayers()                      -- v4.19: dọn người chơi test còn sót (test gãy giữa chừng -> không lây)
@@ -2650,21 +2651,28 @@ local function cleanShieldFly()
     for _, d in ipairs(shieldParts()) do pcall(function() d:Destroy() end) end
 end
 
-test("P1 · 🔲 Khiên: 4 vách trong suốt hình vuông bao quanh mình, đúng cỡ 📏 × 2", function()
+test("P1 · 🔲 Khiên: 4 vách trong suốt hình vuông ÔM QUANH mình — cỡ HỢP LÍ, không phình theo 📏", function()
     resetChip(); cleanStart(); cleanGlow(); cleanSafe()
     Mock.advance(0.1)
     eq(#shieldParts(), 0, "chưa bật thì chưa có khiên")
-    S.Move.Safe.SetRadius(25)
+    S.Move.Safe.SetRadius(25)          -- 📏 Né to (25m) — KHÔNG được kéo khiên to theo (v4.23)
     S.Move.Safe.Set(true)
     Mock.advance(0.4)
     local w = shieldParts()
     eq(#w, 4, "có đúng 4 vách (hình vuông)")
-    local rad = S.Move.Safe.radius
+    local half = S.Move.Safe.ShieldHalf()
+    local hh   = S.Move.Safe.ShieldHeight()
+    local rw = math.max(root().Size.X, root().Size.Z)
+    truthy(half >= rw * 0.5 and half <= rw * 0.5 + 2.1,
+        string.format("nửa cạnh ÔM SÁT nhân vật (%.2f stud · người rộng %.1f)", half, rw))
+    truthy(half * 2 <= 20, string.format("cạnh khiên HỢP LÍ, không phình thành cái chuồng (%.1f stud)", half * 2))
     for _, p in ipairs(w) do
         eq(p.CanCollide, false, "vách KHÔNG va chạm (chỉ để nhìn)")
         eq(p.Anchored, true, "vách đứng yên tại chỗ")
         truthy(p.Transparency >= 0.5, "vách TRONG SUỐT (transparency " .. tostring(p.Transparency) .. ")")
-        truthy(p.Size.X >= rad * 2 - 1 or p.Size.Z >= rad * 2 - 1, "cạnh dài = 📏 × 2")
+        truthy(math.abs(p.Size.Y - hh) < 0.01, "vách cao đúng bằng chiều cao khiên (" .. hh .. ")")
+        truthy(math.abs(math.max(p.Size.X, p.Size.Z) - (half * 2 + S.Move.Safe.shieldThk)) < 0.05,
+            string.format("cạnh dài = nửa cạnh × 2 + độ dày (%.2f)", math.max(p.Size.X, p.Size.Z)))
     end
     -- 2 vách ngang (dài theo X) + 2 vách dọc (dài theo Z)
     local long = 0
@@ -2673,7 +2681,7 @@ test("P1 · 🔲 Khiên: 4 vách trong suốt hình vuông bao quanh mình, đú
     cleanShieldFly()
 end)
 
-test("P2 · 🔲 Khiên BÁM THEO mình (di chuyển là khiên theo) + đổi 📏 là đổi cỡ", function()
+test("P2 · 🔲 Khiên BÁM THEO mình · 📏 Né KHÔNG kéo giãn khiên · chỉnh cỡ bằng ô 🔲 Cỡ", function()
     resetChip(); cleanStart(); cleanGlow(); cleanSafe()
     root().Position = Vector3.new(0, 30, 0)
     S.Move.Safe.SetRadius(20)
@@ -2683,21 +2691,36 @@ test("P2 · 🔲 Khiên BÁM THEO mình (di chuyển là khiên theo) + đổi �
     local cx = 0
     for _, p in ipairs(w) do cx = cx + p.Position.X end
     near(cx / 4, 0, 0.01, "tâm khiên nằm đúng chỗ mình (X)")
+    local size1 = 0
+    for _, p in ipairs(w) do size1 = math.max(size1, p.Size.X, p.Size.Z) end
+    -- 📏 Né to lên gấp 3 -> khiên PHẢI giữ nguyên cỡ (v4.23: 📏 chỉ là KHOẢNG CÁCH NÉ)
+    S.Move.Safe.SetRadius(60)
+    Mock.advance(0.4)
+    local size2 = 0
+    for _, p in ipairs(shieldParts()) do size2 = math.max(size2, p.Size.X, p.Size.Z) end
+    truthy(math.abs(size2 - size1) < 0.05,
+        string.format("📏 Né đổi -> khiên KHÔNG phình theo (%.2f -> %.2f)", size1, size2))
     -- đi sang chỗ khác -> khiên theo
     root().Position = Vector3.new(100, 45, -60)
     Mock.advance(0.4)
     local cy, cz = 0, 0
-    for _, p in ipairs(w) do cy = cy + p.Position.Y; cz = cz + p.Position.Z end
+    for _, p in ipairs(shieldParts()) do cy = cy + p.Position.Y; cz = cz + p.Position.Z end
     near(cy / 4, 45, 0.01, "khiên theo độ cao mới")
     near(cz / 4, -60, 0.01, "khiên theo trục Z mới")
-    -- đổi bán kính -> cỡ khiên đổi ngay
-    S.Move.Safe.SetRadius(60)
+    -- chỉnh tay: 🔲 Cỡ = 10 -> cạnh 20 stud
+    S.Move.Safe.SetShieldSize(10)
     Mock.advance(0.4)
-    local okBig = false
+    local maxSide, okBig = 0, false
     for _, p in ipairs(shieldParts()) do
-        if p.Size.X >= 119 or p.Size.Z >= 119 then okBig = true end
+        maxSide = math.max(maxSide, p.Size.X, p.Size.Z)
+        if p.Size.X >= 20 or p.Size.Z >= 20 then okBig = true end
     end
-    truthy(okBig, "tăng 📏 Né -> khiên to ra theo (cạnh >= 120)")
+    truthy(okBig, string.format("đặt 🔲 Cỡ = 10 -> cạnh khiên ~20 stud (nhận %.2f)", maxSide))
+    S.Move.Safe.SetShieldSize(0)          -- 0 = tự động
+    Mock.advance(0.4)
+    local okAuto = false
+    for _, p in ipairs(shieldParts()) do if p.Size.X <= 7 or p.Size.Z <= 7 then okAuto = true end end
+    truthy(okAuto, "🔲 Cỡ = 0 -> tự động ôm sát lại như cũ")
     cleanShieldFly()
 end)
 
@@ -3635,6 +3658,249 @@ test("T10 · nguồn: 🧱 ép CanCollide MỖI FRAME + ghi ở CUỐI frame; �
     local body = src:sub(a, a + 2500)
     truthy(body:find("MV.ncPass", 1, true), "🧲 có công tắc MV.ncPass")
     truthy(body:find("MoveDirection", 1, true), "🧲 đi theo hướng đang bấm")
+end)
+
+print("\n── U. v4.23: 🛡 SỐNG QUA HẾT TRẬN / SANG TRẬN MỚI + 🔲 KHIÊN CỠ HỢP LÍ ──")
+
+-- ===== helper cho nhóm U =====
+-- tạo "TRẬN MỚI": game gán nhân vật mới cho người chơi.
+--   keepOld  = true  -> GIỮ nhân vật cũ sống trong workspace (nhiều game làm vậy; part bay còn dính nó)
+--   fireAdded= false -> KHÔNG bắn CharacterAdded (game tự đổi nhân vật) -> chỉ còn 🛡 + watchdog cứu
+newRound = function(keepOld, fireAdded)
+    local old = H.player.Character
+    local ch = Mock.makeCharacter(H.workspace)
+    ch.Name = tostring(H.player.Name)
+    H.player.Character = ch
+    if not keepOld and old then pcall(function() old:Destroy() end) end
+    if fireAdded ~= false then pcall(function() Mock.fire(H.player, "CharacterAdded", ch) end) end
+    Mock.advance(0.05)
+    return ch, old
+end
+flyPartOf = function(ch) return ch and ch:FindFirstChild("BC_FlyVel", true) or nil end
+shieldFollows = function(ch)
+    local w = shieldParts()
+    if #w ~= 4 then return false end
+    local rp = ch and ch:FindFirstChild("HumanoidRootPart")
+    if not rp then return false end
+    local cx, cz = 0, 0
+    for _, p in ipairs(w) do cx = cx + p.Position.X; cz = cz + p.Position.Z end
+    return math.abs(cx / 4 - rp.Position.X) < 0.6 and math.abs(cz / 4 - rp.Position.Z) < 0.6
+end
+
+test("U1 · 🛡 sống qua TRẬN MỚI (respawn thường): part bay + khiên tự dựng lại trên nhân vật mới", function()
+    resetChip(); cleanStart(); cleanGlow(); cleanSafe()
+    root().Position = Vector3.new(0, 30, 0)
+    S.Move.Safe.Set(true)
+    Mock.advance(0.4)
+    truthy(safeVel() and safeVel().Magnitude > 0, "trận 1: đang tự bay")
+    local ch2 = resetChar()                                   -- hết trận -> respawn
+    ch2:FindFirstChild("HumanoidRootPart").Position = Vector3.new(0, 30, 0)
+    Mock.advance(0.6)
+    local bv = flyPartOf(ch2)
+    truthy(bv, "trận mới: part bay dựng lại trên nhân vật MỚI")
+    truthy(bv and bv.Velocity.Magnitude > 0,
+        "trận mới: 🛡 VẪN điều khiển bay (|v| = " .. tostring(bv and bv.Velocity.Magnitude) .. ")")
+    truthy(bv and bv.Parent == ch2:FindFirstChild("HumanoidRootPart"), "part bay dính ĐÚNG nhân vật mới")
+    eq(#shieldParts(), 4, "trận mới: khiên có lại đủ 4 vách")
+    truthy(shieldFollows(ch2), "trận mới: khiên bám đúng nhân vật mới")
+    truthy(S.Move.Safe.on, "🛡 vẫn đang bật")
+    cleanShieldFly()
+end)
+
+test("U2 · 🛡 trận mới khi game KHÔNG xoá nhân vật cũ (part bay còn dính nhân vật CŨ)", function()
+    resetChip(); cleanStart(); cleanGlow(); cleanSafe()
+    root().Position = Vector3.new(0, 30, 0)
+    S.Move.Safe.Set(true)
+    Mock.advance(0.4)
+    local old = H.player.Character
+    local bvOld = flyPartOf(old)
+    truthy(bvOld, "trận 1: có part bay")
+    local ch2 = newRound(true, true)                          -- GIỮ nhân vật cũ sống
+    ch2:FindFirstChild("HumanoidRootPart").Position = Vector3.new(0, 30, 0)
+    Mock.advance(0.8)
+    local bv2 = flyPartOf(ch2)
+    truthy(bv2, "part bay được chuyển sang nhân vật MỚI")
+    truthy(bv2 and bv2.Velocity.Magnitude > 0,
+        "🛡 vẫn bay được (không 'im lặng' như lỗi cũ · |v| = " .. tostring(bv2 and bv2.Velocity.Magnitude) .. ")")
+    truthy((bvOld.Parent == nil) or (bvOld.Parent == ch2:FindFirstChild("HumanoidRootPart")),
+        "part bay cũ KHÔNG còn dính nhân vật cũ")
+    truthy(shieldFollows(ch2), "khiên bám nhân vật mới")
+    pcall(function() old:Destroy() end)
+    cleanShieldFly()
+end)
+
+test("U3 · 🛡 trận mới khi game ĐỔI NHÂN VẬT mà KHÔNG bắn CharacterAdded — vẫn tự chữa lành", function()
+    resetChip(); cleanStart(); cleanGlow(); cleanSafe()
+    root().Position = Vector3.new(0, 30, 0)
+    S.Move.Safe.Set(true)
+    Mock.advance(0.4)
+    local ch2 = newRound(true, false)                          -- không có event nào cả
+    ch2:FindFirstChild("HumanoidRootPart").Position = Vector3.new(0, 30, 0)
+    Mock.advance(1.2)
+    local bv2 = flyPartOf(ch2)
+    truthy(bv2, "tự dựng lại part bay trên nhân vật mới")
+    truthy(bv2 and bv2.Velocity.Magnitude > 0,
+        "🛡 vẫn điều khiển bay (|v| = " .. tostring(bv2 and bv2.Velocity.Magnitude) .. ")")
+    eq(#shieldParts(), 4, "khiên dựng lại đủ 4 vách")
+    truthy(shieldFollows(ch2), "khiên bám nhân vật mới")
+    truthy(S.Move.Safe._root == ch2:FindFirstChild("HumanoidRootPart"), "nhớ đúng nhân vật đang dùng")
+    cleanShieldFly()
+end)
+
+test("U4 · 🚀 anti-cheat XOÁ part bay giữa trận + xoá 1 vách khiên -> 🛡 tự dựng lại", function()
+    resetChip(); cleanStart(); cleanGlow(); cleanSafe()
+    root().Position = Vector3.new(0, 30, 0)
+    S.Move.Safe.Set(true)
+    Mock.advance(0.4)
+    local ch = H.player.Character
+    local bv = flyPartOf(ch)
+    truthy(bv, "có part bay")
+    pcall(function() bv:Destroy() end)                        -- game xoá
+    local w = shieldParts()
+    eq(#w, 4, "đang có 4 vách")
+    pcall(function() w[2]:Destroy() end)                      -- xoá 1 vách
+    Mock.advance(0.6)
+    truthy(flyPartOf(ch), "part bay được dựng lại")
+    truthy(safeVel() and safeVel().Magnitude > 0, "🛡 lại điều khiển bay")
+    eq(#shieldParts(), 4, "khiên thiếu vách -> dựng lại đủ 4")
+    cleanShieldFly()
+end)
+
+test("U5 · 🧯 game GỠ vòng lặp render (cả 🚀 Bay lẫn 🛡) -> watchdog gắn lại, 🛡 không chết", function()
+    resetChip(); cleanStart(); cleanGlow(); cleanSafe()
+    root().Position = Vector3.new(0, 30, 0)
+    S.Move.Safe.Set(true)
+    Mock.advance(0.4)
+    H.RunService:UnbindFromRenderStep("BC_Safe")
+    H.RunService:UnbindFromRenderStep("Fly")
+    truthy(Mock.renderSteps["BC_Safe"] == nil, "vòng lặp 🛡 đã bị gỡ")
+    Mock.advance(1.2)
+    truthy(Mock.renderSteps["BC_Safe"], "watchdog GẮN LẠI vòng lặp 🛡")
+    truthy(Mock.renderSteps["Fly"], "watchdog dựng lại cả vòng lặp 🚀 Bay")
+    truthy(safeVel() and safeVel().Magnitude > 0, "🛡 vẫn điều khiển bay")
+    eq(#shieldParts(), 4, "khiên còn nguyên")
+    cleanShieldFly()
+end)
+
+test("U6 · 🔲 ô Cỡ trong khung ⚙: áp dụng được + ô tự cập nhật theo trạng thái thật", function()
+    resetChip(); cleanStart(); cleanGlow(); cleanSafe()
+    root().Position = Vector3.new(0, 30, 0)
+    S.Move.Safe.Set(true)
+    Mock.advance(0.3)
+    local boxes = safeBoxes()
+    truthy(#boxes >= 6, "khung 🛡 có thêm ô 🔲 Cỡ (đang có " .. #boxes .. " ô)")
+    local sz = boxes[6]
+    eq(tonumber(sz.Text), 0, "mặc định 0 = tự động")
+    sz.Text = "8"
+    Mock.click(safeBtn("SafeApply"))
+    Mock.advance(0.4)
+    eq(S.Move.Safe.shieldSize, 8, "áp dụng cỡ 8")
+    local maxSide = 0
+    for _, p in ipairs(shieldParts()) do maxSide = math.max(maxSide, p.Size.X, p.Size.Z) end
+    truthy(maxSide >= 16 and maxSide <= 17, string.format("cạnh khiên ~16 stud (nhận %.2f)", maxSide))
+    S.Move.Safe.SetShieldSize(0)
+    pcall(function() S.SyncSafePanel() end)
+    Mock.advance(0.2)
+    eq(tonumber(sz.Text), 0, "ô 🔲 Cỡ hiện lại 0 (tự động)")
+    cleanShieldFly()
+end)
+
+test("U7 · trạng thái 🛡 ghi rõ cỡ khiên (tự động / chỉnh tay)", function()
+    resetChip(); cleanStart(); cleanGlow(); cleanSafe()
+    S.Move.Safe.SetShieldSize(0)
+    S.Move.Safe.Set(true)
+    Mock.advance(0.3)
+    local st = S.Move.Safe.Status()
+    truthy(st:find("khiên", 1, true), "có ghi 🔲 khiên: " .. st)
+    truthy(st:find("(tự)", 1, true), "0 -> ghi (tự): " .. st)
+    S.Move.Safe.SetShieldSize(7)
+    local st2 = S.Move.Safe.Status()
+    truthy(st2:find("khiên 14", 1, true), "cỡ 14 m/cạnh: " .. st2)
+    truthy(not st2:find("(tự)", 1, true), "chỉnh tay -> không ghi (tự)")
+    S.Move.Safe.SetShieldSize(0)
+    cleanShieldFly()
+end)
+
+test("U8 · tắt 🛡 là GỠ vòng lặp riêng (không tốn tài nguyên) + dọn khiên + tắt bay theo", function()
+    resetChip(); cleanStart(); cleanGlow(); cleanSafe()
+    root().Position = Vector3.new(0, 30, 0)
+    S.Move.Safe.Set(true)
+    Mock.advance(0.4)
+    truthy(Mock.renderSteps["BC_Safe"], "vòng lặp 🛡 đang chạy khi bật")
+    S.Move.Safe.Stop()
+    Mock.advance(0.3)
+    falsy(Mock.renderSteps["BC_Safe"], "đã gỡ vòng lặp 🛡")
+    falsy(S.Move.Safe._bound, "cờ vòng lặp đã tắt")
+    eq(#shieldParts(), 0, "khiên dọn sạch")
+    falsy(H.S_Move.fly, "🚀 Bay tắt theo (như cũ)")
+    falsy(S.Move.Safe.on, "🛡 đã tắt")
+    cleanShieldFly()
+end)
+
+test("U9 · sau trận mới, 🛡 VẪN NÉ vật chuyển động (không chỉ bay suông)", function()
+    resetChip(); cleanStart(); cleanGlow(); cleanSafe()
+    root().Position = Vector3.new(0, 30, 0)
+    S.Move.Safe.SetCircle(false)
+    S.Move.Safe.SetAuto(false)
+    S.Move.Safe.SetRadius(30)
+    S.Move.Safe.Set(true)
+    Mock.advance(0.4)
+    local ch2 = newRound(true, false)                          -- trận mới, KHÔNG có CharacterAdded
+    ch2:FindFirstChild("HumanoidRootPart").Position = Vector3.new(0, 30, 0)
+    Mock.advance(1.0)
+    local part, stop = addThreat(Vector3.new(14, 30, 0), true)  -- vật CHẠY qua lại bên phải
+    Mock.advance(1.0)
+    local v = safeVel()
+    truthy(v, "có vận tốc")
+    truthy(S.Move.Safe.threats >= 1, "nhận ra vật chuyển động: " .. tostring(S.Move.Safe.threats))
+    truthy(v and v.X < -1, string.format("vẫn bị đẩy RA XA vật (v.X = %.2f)", v and v.X or 0))
+    stop(); cleanSafe({ part })
+    cleanShieldFly()
+end)
+
+test("U11 · đổi nhân vật (KHÔNG event, KHÔNG watchdog) -> 🛡 tự chữa lành trong ~1 frame", function()
+    resetChip(); cleanStart(); cleanGlow(); cleanSafe()
+    root().Position = Vector3.new(0, 30, 0)
+    S.Move.Safe.Set(true)
+    Mock.advance(0.4)
+    -- tắt watchdog để CHỈ còn đường tự chữa lành của chính 🛡 (đo được đúng cơ chế)
+    H.S_Move._wd = nil
+    Mock.advance(0.05)
+    local ch2 = newRound(true, false)              -- không CharacterAdded, không watchdog
+    ch2:FindFirstChild("HumanoidRootPart").Position = Vector3.new(0, 30, 0)
+    local t0 = tick()
+    Mock.advance(0.1)                              -- ~6 frame
+    local bv2 = flyPartOf(ch2)
+    truthy(bv2, string.format("tự dựng lại part bay sau %.2fs (không đợi watchdog)", tick() - t0))
+    truthy(bv2 and bv2.Velocity.Magnitude > 0, "và bay được ngay (|v| = " .. tostring(bv2 and bv2.Velocity.Magnitude) .. ")")
+    truthy(shieldFollows(ch2), "khiên theo nhân vật mới")
+    cleanShieldFly()
+end)
+
+test("U10 · sau trận mới KHÔNG mất tính năng: nút trên khung vẫn ăn + các khung khác còn nguyên", function()
+    resetChip(); cleanStart(); cleanGlow(); cleanSafe()
+    S.RebuildHubList()
+    truthy(card("Bay An Toàn"), "thẻ 🛡 còn")
+    local p = safePanel()
+    for _, nm in ipairs({ "SafeOn", "SafeAuto", "SafeShield", "SafePlayers", "SafeNoclip",
+                          "SafeCircle", "SafeApply", "SafeStop", "SafeNote" }) do
+        truthy(p and p:FindFirstChild(nm), "còn " .. nm)
+    end
+    truthy(hudBtn("🪩"), "cụm nút nổi còn")
+    truthy(D.hubList:FindFirstChild("HubMove_Panel"), "khung ⚙ còn")
+    truthy(D.hubList:FindFirstChild("HubGlow_Panel"), "khung ✨ còn")
+    root().Position = Vector3.new(0, 30, 0)
+    S.Move.Safe.Set(true)
+    Mock.advance(0.3)
+    local ch2 = newRound(true, false)
+    ch2:FindFirstChild("HumanoidRootPart").Position = Vector3.new(0, 30, 0)
+    Mock.advance(0.8)
+    Mock.click(safeBtn("SafeStop"))                            -- tắt bằng NÚT sau khi đổi trận
+    Mock.advance(0.3)
+    falsy(S.Move.Safe.on, "nút 🚫 Tắt VẪN ĂN sau khi đổi trận")
+    eq(#shieldParts(), 0, "khiên dọn sạch")
+    falsy(Mock.renderSteps["BC_Safe"], "vòng lặp 🛡 gỡ theo")
+    cleanShieldFly()
 end)
 
 print("\n── C. KIỂM TRA CUỐI ─────────────────────────────────────────")
