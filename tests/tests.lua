@@ -2599,6 +2599,233 @@ test("O12 · quét nhiều vật: 200 vật đứng yên + 1 vật chạy -> đ�
     cleanSafe({ mover })
 end)
 
+print("\n── P. v4.18: 🔲 KHIÊN TRONG SUỐT + 👤 NÉ NGƯỜI CHƠI + 🧱 ĐẨY XUYÊN VẬT CẢN ──")
+
+local function shieldParts()
+    local t = {}
+    for _, d in ipairs(H.workspace:GetChildren()) do
+        if tostring(d.Name):sub(1, 9) == "BC_Shield" then t[#t + 1] = d end
+    end
+    return t
+end
+local function cleanShieldFly()
+    cleanSafe()
+    for _, d in ipairs(shieldParts()) do pcall(function() d:Destroy() end) end
+end
+
+test("P1 · 🔲 Khiên: 4 vách trong suốt hình vuông bao quanh mình, đúng cỡ 📏 × 2", function()
+    resetChip(); cleanStart(); cleanGlow(); cleanSafe()
+    Mock.advance(0.1)
+    eq(#shieldParts(), 0, "chưa bật thì chưa có khiên")
+    S.Move.Safe.SetRadius(25)
+    S.Move.Safe.Set(true)
+    Mock.advance(0.4)
+    local w = shieldParts()
+    eq(#w, 4, "có đúng 4 vách (hình vuông)")
+    local rad = S.Move.Safe.radius
+    for _, p in ipairs(w) do
+        eq(p.CanCollide, false, "vách KHÔNG va chạm (chỉ để nhìn)")
+        eq(p.Anchored, true, "vách đứng yên tại chỗ")
+        truthy(p.Transparency >= 0.5, "vách TRONG SUỐT (transparency " .. tostring(p.Transparency) .. ")")
+        truthy(p.Size.X >= rad * 2 - 1 or p.Size.Z >= rad * 2 - 1, "cạnh dài = 📏 × 2")
+    end
+    -- 2 vách ngang (dài theo X) + 2 vách dọc (dài theo Z)
+    local long = 0
+    for _, p in ipairs(w) do if p.Size.X > p.Size.Z then long = long + 1 end end
+    eq(long, 2, "đúng 2 vách dài theo X")
+    cleanShieldFly()
+end)
+
+test("P2 · 🔲 Khiên BÁM THEO mình (di chuyển là khiên theo) + đổi 📏 là đổi cỡ", function()
+    resetChip(); cleanStart(); cleanGlow(); cleanSafe()
+    root().Position = Vector3.new(0, 30, 0)
+    S.Move.Safe.SetRadius(20)
+    S.Move.Safe.Set(true)
+    Mock.advance(0.3)
+    local w = shieldParts()
+    local cx = 0
+    for _, p in ipairs(w) do cx = cx + p.Position.X end
+    near(cx / 4, 0, 0.01, "tâm khiên nằm đúng chỗ mình (X)")
+    -- đi sang chỗ khác -> khiên theo
+    root().Position = Vector3.new(100, 45, -60)
+    Mock.advance(0.4)
+    local cy, cz = 0, 0
+    for _, p in ipairs(w) do cy = cy + p.Position.Y; cz = cz + p.Position.Z end
+    near(cy / 4, 45, 0.01, "khiên theo độ cao mới")
+    near(cz / 4, -60, 0.01, "khiên theo trục Z mới")
+    -- đổi bán kính -> cỡ khiên đổi ngay
+    S.Move.Safe.SetRadius(60)
+    Mock.advance(0.4)
+    local okBig = false
+    for _, p in ipairs(shieldParts()) do
+        if p.Size.X >= 119 or p.Size.Z >= 119 then okBig = true end
+    end
+    truthy(okBig, "tăng 📏 Né -> khiên to ra theo (cạnh >= 120)")
+    cleanShieldFly()
+end)
+
+test("P3 · 🔲 Tắt khiên (hoặc tắt 🛡) là DỌN SẠCH, không để rác trong workspace", function()
+    resetChip(); cleanStart(); cleanGlow(); cleanSafe()
+    S.Move.Safe.Set(true)
+    Mock.advance(0.3)
+    eq(#shieldParts(), 4, "đang có khiên")
+    Mock.click(safeBtn("SafeShield"))                 -- 🔲 Khiên: TẮT
+    Mock.advance(0.3)
+    falsy(S.Move.Safe.shield, "cờ khiên đã tắt")
+    eq(#shieldParts(), 0, "vách đã dọn sạch")
+    truthy(S.Move.Safe.on, "vẫn đang né bình thường (chỉ ẩn khiên)")
+    Mock.click(safeBtn("SafeShield"))                 -- bật lại
+    Mock.advance(0.3)
+    eq(#shieldParts(), 4, "bật lại -> khiên có lại")
+    S.Move.Safe.Stop()
+    Mock.advance(0.3)
+    eq(#shieldParts(), 0, "tắt 🛡 -> khiên cũng dọn")
+    cleanShieldFly()
+end)
+
+test("P4 · 👤 NÉ NGƯỜI CHƠI: người chơi khác ĐỨNG YÊN vẫn bị né (đẩy ra xa họ)", function()
+    resetChip(); cleanStart(); cleanGlow(); cleanSafe()
+    root().Position = Vector3.new(0, 30, 0)
+    local a = addP("NguoiDung", 6001, Vector3.new(15, 30, 0))   -- đứng yên, cách 15m
+    S.Move.Safe.SetRadius(30)
+    S.Move.Safe.Set(true)
+    Mock.advance(1.0)
+    eq(S.Move.Safe.playerThreats, 1, "đếm được 1 người chơi là mối nguy: " .. tostring(S.Move.Safe.playerThreats))
+    truthy(S.Move.Safe.threats >= 1, "tổng mối nguy >= 1")
+    local v = safeVel()
+    truthy(v.X < -1, string.format("bị đẩy RA XA người chơi đó: v.X = %.2f", v.X))
+    truthy(tostring(S.Move.Safe.Status()):find("người chơi", 1, true), "trạng thái có nhắc người chơi")
+    -- CHÍNH MÌNH không bao giờ bị tính là mối nguy
+    eq(shieldParts() and #shieldParts() or 0, 4, "khiên cũng không tự né chính nó")
+    cleanLoc({ a }); cleanShieldFly()
+end)
+
+test("P5 · 👤 Né người: TẮT -> bỏ qua người chơi, chỉ né vật chuyển động", function()
+    resetChip(); cleanStart(); cleanGlow(); cleanSafe()
+    root().Position = Vector3.new(0, 30, 0)
+    local a = addP("DungYen", 6002, Vector3.new(12, 30, 0))
+    S.Move.Safe.SetRadius(30)
+    S.Move.Safe.Set(true)
+    Mock.advance(0.8)
+    eq(S.Move.Safe.playerThreats, 1, "đang né người chơi")
+    Mock.click(safeBtn("SafePlayers"))                -- 👤 Né người: TẮT
+    Mock.advance(0.8)
+    falsy(S.Move.Safe.avoidPlayers, "đã tắt né người chơi")
+    eq(S.Move.Safe.playerThreats, 0, "không còn coi người chơi là mối nguy")
+    eq(S.Move.Safe.threats, 0, "không còn mối nguy nào (người đứng yên)")
+    near(safeVel().X, 0, 0.6, "không bị đẩy nữa")
+    Mock.click(safeBtn("SafePlayers"))                -- bật lại
+    Mock.advance(0.8)
+    eq(S.Move.Safe.playerThreats, 1, "bật lại -> né người chơi trở lại")
+    cleanLoc({ a }); cleanShieldFly()
+end)
+
+test("P6 · 🧱 ĐẨY XUYÊN VẬT CẢN: bật 🛡 là tự bật Xuyên Tường, tắt 🛡 là TRẢ LẠI như cũ", function()
+    resetChip(); cleanStart(); cleanGlow(); cleanSafe()
+    -- trường hợp 1: Xuyên Tường đang TẮT -> bật 🛡 rồi tắt 🛡 phải trả về TẮT
+    S.Move.SetNoclip(false)
+    S.Move.Safe.SetNoclipAuto(true)
+    S.Move.Safe.Set(true)
+    Mock.advance(0.3)
+    truthy(S.Move.noclip, "bật 🛡 -> Xuyên Tường tự BẬT (để đẩy xuyên qua vật cản)")
+    truthy(tostring(S.Move.Safe.Status()):find("xuyên", 1, true), "trạng thái ghi rõ đang xuyên vật cản")
+    S.Move.Safe.Stop()
+    Mock.advance(0.3)
+    falsy(S.Move.noclip, "tắt 🛡 -> Xuyên Tường trả về TẮT như trước")
+    -- trường hợp 2: Xuyên Tường ĐANG BẬT từ trước -> tắt 🛡 phải GIỮ BẬT (không cướp của người dùng)
+    S.Move.SetNoclip(true)
+    S.Move.Safe.Set(true)
+    Mock.advance(0.3)
+    S.Move.Safe.Stop()
+    Mock.advance(0.3)
+    truthy(S.Move.noclip, "trước đó đang bật thì tắt 🛡 vẫn giữ BẬT")
+    S.Move.SetNoclip(false)
+    cleanShieldFly()
+end)
+
+test("P7 · 🧱 tắt công tắc Xuyên giữa chừng: trả lại ngay, không đợi tắt 🛡", function()
+    resetChip(); cleanStart(); cleanGlow(); cleanSafe()
+    S.Move.SetNoclip(false)
+    S.Move.Safe.SetNoclipAuto(true)
+    S.Move.Safe.Set(true)
+    Mock.advance(0.3)
+    truthy(S.Move.noclip, "đang xuyên")
+    Mock.click(safeBtn("SafeNoclip"))                 -- 🧱 Xuyên: TẮT
+    Mock.advance(0.3)
+    falsy(S.Move.Safe.noclip, "cờ đã tắt")
+    falsy(S.Move.noclip, "Xuyên Tường trả lại ngay (không đợi tắt 🛡)")
+    Mock.click(safeBtn("SafeNoclip"))                 -- bật lại
+    Mock.advance(0.3)
+    truthy(S.Move.noclip, "bật lại -> xuyên trở lại")
+    S.Move.Safe.Stop()
+    Mock.advance(0.3)
+    falsy(S.Move.noclip, "tắt 🛡 -> trả về TẮT")
+    S.Move.Safe.SetNoclipAuto(true)
+    cleanShieldFly()
+end)
+
+test("P8 · đẩy XUYÊN QUA tường: có vật cản ngay cạnh mà vẫn bị đẩy ra xa (không kẹt)", function()
+    resetChip(); cleanStart(); cleanGlow(); cleanSafe()
+    root().Position = Vector3.new(0, 30, 0)
+    -- bức tường ĐỨNG YÊN (không né) ngay bên phải + vật chạy ở xa hơn
+    local wall = Instance.new("Part")
+    wall.Name = "Tuong"
+    wall.Size = Vector3.new(2, 40, 40)
+    wall.Anchored = true
+    wall.CanCollide = true
+    wall.Position = Vector3.new(6, 30, 0)
+    wall.Parent = H.workspace
+    local mover, stop = addThreat(Vector3.new(20, 30, 0), true)
+    S.Move.Safe.SetRadius(40)
+    S.Move.Safe.Set(true)
+    Mock.advance(1.0)
+    truthy(S.Move.noclip, "Xuyên Tường đang bật -> lực đẩy không bị tường chặn")
+    local v = safeVel()
+    truthy(v.X < -1, string.format("vẫn bị đẩy ra xa dù có tường: v.X = %.2f", v.X))
+    -- Xuyên Tường của hub hoạt động đúng kiểu Roblox: tắt va chạm của CÁC PART TRÊN NGƯỜI MÌNH
+    -- (không đụng vào tường của game) -> mình xuyên qua được mọi vật cản.
+    eq(root().CanCollide, false, "part trên người mình đã tắt va chạm -> xuyên qua tường được")
+    eq(wall.CanCollide, true, "tường của game KHÔNG bị hub sửa (không phá game)")
+    stop()
+    pcall(function() wall:Destroy() end)
+    cleanShieldFly()
+end)
+
+test("P9 · không mất tính năng cũ: thẻ/khung + thảm/HUD/📍/✨ + đếm đúng mối nguy khi đông người", function()
+    resetChip(); cleanStart(); cleanGlow(); cleanSafe()
+    S.RebuildHubList()
+    truthy(card("Bay An Toàn"), "thẻ 🛡 còn")
+    local p = safePanel()
+    truthy(p and p:FindFirstChild("SafeShield"), "nút 🔲 Khiên còn")
+    truthy(p and p:FindFirstChild("SafePlayers"), "nút 👤 Né người còn")
+    truthy(p and p:FindFirstChild("SafeNoclip"), "nút 🧱 Xuyên còn")
+    truthy(p and p:FindFirstChild("SafeNote"), "còn dòng ghi chú")
+    truthy(D.hubList:FindFirstChild("HubMove_Panel"), "khung ⚙ còn")
+    truthy(D.hubList:FindFirstChild("HubGlow_Panel"), "khung ✨ còn")
+    local h = D.hubList.CanvasSize.Y.Offset
+    local need = #cards() * 62 + D.hubList:FindFirstChild("HubMove_Panel").Size.Y.Offset
+        + D.hubList:FindFirstChild("HubGlow_Panel").Size.Y.Offset + safePanel().Size.Y.Offset
+    truthy(h >= need, string.format("CanvasSize (%d) >= thẻ + 3 khung (%d)", h, need))
+    -- đông người: 3 người chơi quanh mình -> đếm đủ
+    root().Position = Vector3.new(0, 30, 0)
+    local a = addP("P_A", 6011, Vector3.new(10, 30, 0))
+    local b = addP("P_B", 6012, Vector3.new(-12, 30, 0))
+    local c = addP("P_C", 6013, Vector3.new(0, 30, 14))
+    S.Move.Safe.SetRadius(30)
+    S.Move.Safe.Set(true)
+    Mock.advance(1.0)
+    eq(S.Move.Safe.playerThreats, 3, "đếm đủ 3 người chơi")
+    -- 🛡 đang bật mà tính năng khác vẫn chạy
+    action("runmode")
+    Mock.advance(0.4)
+    truthy(H.workspace:FindFirstChild("Carpet"), "🪩 thảm vẫn trải khi 🛡 đang bay")
+    eq(hudBtn("🪩").Size.X.Offset, 50, "cụm nút nổi vẫn y hệt bản gốc")
+    truthy(S.Move.Safe.on, "🛡 vẫn đang bật")
+    S.Move.StopAll()
+    cleanLoc({ a, b, c })
+    cleanShieldFly()
+end)
+
 print("\n── C. KIỂM TRA CUỐI ─────────────────────────────────────────")
 
 test("C1 · không có lỗi runtime nào trong event / render step", function()

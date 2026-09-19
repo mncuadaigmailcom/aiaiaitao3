@@ -7,7 +7,7 @@ Ngày phân tích: 2026-09-17 · Branch: `arena/01a0af79-aiaiaitao3` · Commit g
 ## 0. Cập nhật v4.12 (đã thực hiện theo yêu cầu)
 
 Port **5 tính năng di chuyển** từ `aiaiaitao3` vào trang 📚 Script Hub của `script.js`, kèm bộ test
-tự động chạy thật trong máy ảo. Kết quả: **`node tests/run.js` → 131 PASS · 0 FAIL**.
+tự động chạy thật trong máy ảo. Kết quả: **`node tests/run.js` → 140 PASS · 0 FAIL**.
 
 **Đã thêm (toàn bộ là tiện ích nội bộ, không tải gì từ mạng):**
 
@@ -23,6 +23,16 @@ Kèm **cụm nút nổi trên màn hình game** (⬆ nâng · 🪩 bật/tắt t
 khi lọc/tìm kiếm): tốc độ bay · chạy · nhảy · 3 chiều thảm · ⬆/⬇ · 🛑 Tắt hết + nhãn trạng thái.
 Tất cả state gom trong `S.Move` (không tốn slot local cấp chunk), mọi connection qua `trackConn()`,
 tự bật lại sau respawn qua `CharacterAdded`.
+
+**v4.18 — 🛡 Bay An Toàn nâng cấp (khiên trong suốt · né người chơi · đẩy xuyên vật cản):**
+- **🔲 Khiên**: 4 vách kính trong suốt xếp thành hình vuông quanh mình, cạnh = 📏 Né × 2 (nhìn là
+  biết vùng né). `CanCollide = false` — chỉ để nhìn, không va chạm; bám theo mình, đổi 📏 là đổi
+  cỡ, tắt là dọn sạch.
+- **👤 Né người chơi**: mọi người chơi khác là mối nguy **kể cả khi đứng yên**; có công tắc riêng.
+- **🧱 Đẩy xuyên vật cản**: bật 🛡 là tự bật Xuyên Tường (nhớ trạng thái cũ, tắt 🛡 trả lại đúng
+  như trước) → lực đẩy đưa bạn qua tường/sàn thay vì kẹt.
+- 2 lỗi bộ test bắt được: `sfPlayers` trả `nearest = nil` (mất khoảng cách gần nhất của vật) và
+  vượt **trần 200 local** của Luau khi thêm biến vào main chunk (nay bọc `do ... end`).
 
 **v4.17 — 🛡 BAY AN TOÀN (tự bay + tự né vật có dấu hiệu chuyển động):**
 - Thẻ "🛡 Bay An Toàn" (nhóm Di chuyển) + khung 🛡 trong 📚 Script Hub: BẬT/TẮT · 📏 Né (m) ·

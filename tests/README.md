@@ -13,7 +13,7 @@ node run.js ../script.js            # chạy tất cả
 node run.js ../script.js noclip     # chỉ chạy test tên có chữ "noclip"
 ```
 
-Kết quả hiện tại: **131 PASS · 0 FAIL**.
+Kết quả hiện tại: **140 PASS · 0 FAIL**.
 
 ## Cấu trúc
 
@@ -21,7 +21,7 @@ Kết quả hiện tại: **131 PASS · 0 FAIL**.
 |---|---|
 | `run.js` | Tạo máy ảo, nạp mock, nạp hub, chạy `tests.lua`, tổng hợp kết quả (exit code 1 nếu FAIL). |
 | `roblox-mock.lua` | Giả lập Roblox + executor: `Instance`/event/method, `Vector3/CFrame/UDim2/Color3/Enum…`, `task.wait/spawn/defer`, service (Players, RunService, UserInputService, TweenService, HttpService, TeleportService…), JSON encode/decode, file ảo, API executor (`writefile`, `setclipboard`, `gethui`, `request`…), đồng hồ ảo (`Mock.advance`) và nhân vật mẫu (`Mock.makeCharacter`). |
-| `tests.lua` | Các test, chia 4 nhóm: **A** tính năng cũ (chống mất), **B** bộ di chuyển mới, **C** kiểm tra cuối, **D** khung ⚙ tuỳ chỉnh + ngoại lệ, **E** chế độ Chạy Trên Thảm + cụm nút nổi, **F** sửa thảm kính, **G** nhảy/chạy ở mọi game + tốc độ theo game, **H** helper dùng chung sau khi rút gọn code, **I** Chạy Trên Thảm = 'Bay chạy bộ' bản gốc 100%, **J** hết giật/lag khi bật thảm (game nặng), **K** 📍 định vị người chơi (xuyên tường · bạn bè · hạ gục · ⏱ đếm giờ · 📏 khoảng cách), **L** 👣 xem người chơi (bám theo camera — thấy họ đang làm gì), **M** trang 👥 Người Chơi (nằm giữa 📚 Script Hub và ➕ Tạo Tính Năng), **N** ✨ phát sáng (nhân vật mình · rộng + độ sáng + màu), **O** 🛡 bay an toàn (tự bay + né vật chuyển động). |
+| `tests.lua` | Các test, chia 4 nhóm: **A** tính năng cũ (chống mất), **B** bộ di chuyển mới, **C** kiểm tra cuối, **D** khung ⚙ tuỳ chỉnh + ngoại lệ, **E** chế độ Chạy Trên Thảm + cụm nút nổi, **F** sửa thảm kính, **G** nhảy/chạy ở mọi game + tốc độ theo game, **H** helper dùng chung sau khi rút gọn code, **I** Chạy Trên Thảm = 'Bay chạy bộ' bản gốc 100%, **J** hết giật/lag khi bật thảm (game nặng), **K** 📍 định vị người chơi (xuyên tường · bạn bè · hạ gục · ⏱ đếm giờ · 📏 khoảng cách), **L** 👣 xem người chơi (bám theo camera — thấy họ đang làm gì), **M** trang 👥 Người Chơi (nằm giữa 📚 Script Hub và ➕ Tạo Tính Năng), **N** ✨ phát sáng (nhân vật mình · rộng + độ sáng + màu), **O** 🛡 bay an toàn (tự bay + né vật chuyển động), **P** 🔲 khiên trong suốt · 👤 né người chơi · 🧱 đẩy xuyên vật cản. |
 
 ## Cách test đọc được biến `local` của hub
 
@@ -61,6 +61,8 @@ Vì đoạn này nằm **trong cùng chunk**, nó nhìn thấy mọi `local`.
 | 18 | **(mock)** không có cách thêm/bớt người chơi khác → không test được tính năng nhiều người. Đã thêm `Mock.addPlayer` / `Mock.removePlayer` / `Mock.setChar` | K1–K10 |
 | 19 | **v4.14** — ⏱ đếm giờ hạ gục chỉ chạy khi 📍 Định Vị bật: bật 👣 một mình thì đồng hồ đứng ở `00:00`. Nay 📍 và 👣 dùng chung `S.Loc.NoteDown` | L4 |
 | 20 | **v4.14** — người đang xem biến mất hẳn khỏi `Players` (không bắn `PlayerRemoving`) → camera **kẹt** ở `Scriptable` (chuột không quay được). Nay tự chuyển/tự thoát + trả camera | L14 |
+| 28 | **v4.18** — hàm quét NGƯỜI CHƠI trả `nearest = nil` khi server không có người chơi → **xoá mất khoảng cách gần nhất của vật**, phần "quá gần thì vọt lên" chết | O2, O11 |
+| 29 | **v4.18** — thêm 1 biến `local` nữa vào main chunk → vượt **trần 200 local** của Luau (`too many local variables`) làm hub KHÔNG NẠP ĐƯỢC. Nay khối 🛡 nằm trong `do ... end` | (nạp hub) |
 | 26 | **v4.17** — **lực né viết NGƯỢC DẤU** (cộng hướng-tới-vật thay vì trừ) → bật 🛡 Bay An Toàn thì bị **HÚT VỀ PHÍA** vật chuyển động thay vì né | O2, O4, O6, O8 |
 | 27 | **v4.17** — test lọc chip đếm cứng "5 thẻ" → thêm thẻ mới là gãy giữa chừng, **để lại bộ lọc chip đang bật** → hàng loạt test sau báo sai (lỗi lây lan). Nay đếm động + `resetChip()` trước mỗi test | B3, D8, K11, L1, M5, N1 |
 | 23 | **v4.16** — `math.clamp()` (chỉ có trong Luau) nằm trong hàm tính độ sáng: pcall nuốt lỗi → bật ✨ mà **không thấy gì**. Nay dùng `mvClamp()` của hub (chạy được cả Lua 5.4 lẫn Luau) | N1, N2 |
