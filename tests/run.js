@@ -59,6 +59,9 @@ function fmtList(arr, max) {
 
     const factory = new LuaFactory();
     const lua = await factory.createEngine();
+    // Nguồn hub cho test "soi nguồn" (vd: cấm đòi type(x) == "table" để nhận diện instance —
+    // instance trong máy giả lập là BẢNG, còn trong game thật là USERDATA).
+    lua.global.set('__HUBSRC', raw);
 
     // 1) nạp mock
     const t0 = Date.now();

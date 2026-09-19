@@ -7,7 +7,7 @@ Ngày phân tích: 2026-09-17 · Branch: `arena/01a0af79-aiaiaitao3` · Commit g
 ## 0. Cập nhật v4.12 (đã thực hiện theo yêu cầu)
 
 Port **5 tính năng di chuyển** từ `aiaiaitao3` vào trang 📚 Script Hub của `script.js`, kèm bộ test
-tự động chạy thật trong máy ảo. Kết quả: **`node tests/run.js` → 147 PASS · 0 FAIL**.
+tự động chạy thật trong máy ảo. Kết quả: **`node tests/run.js` → 156 PASS · 0 FAIL**.
 
 **Đã thêm (toàn bộ là tiện ích nội bộ, không tải gì từ mạng):**
 
@@ -23,6 +23,23 @@ Kèm **cụm nút nổi trên màn hình game** (⬆ nâng · 🪩 bật/tắt t
 khi lọc/tìm kiếm): tốc độ bay · chạy · nhảy · 3 chiều thảm · ⬆/⬇ · 🛑 Tắt hết + nhãn trạng thái.
 Tất cả state gom trong `S.Move` (không tốn slot local cấp chunk), mọi connection qua `trackConn()`,
 tự bật lại sau respawn qua `CharacterAdded`.
+
+**v4.20 — 🛡 Bay An Toàn: SỬA LỖI "BOSS/NEXTBOT GÍ MÌNH MÀ KHÔNG NÉ" (Evade):**
+- 🔴 **Lỗi nặng, chỉ xảy ra trong game thật**: hàm nhận diện part đòi `type(d) == "table"`, nhưng trong
+  Roblox instance là **userdata** (chỉ trong máy giả lập instance mới là bảng) → 🛡 **không bao giờ thấy
+  part nào**, chỉ thấy người chơi → boss/nextbot lao tới mà không né. Nay nhận part bằng
+  `d:IsA("BasePart")` + danh sách ClassName dự phòng.
+- 🔴 **Lỗi 2**: "né theo vị trí dự đoán" khi vật đã gí sát → điểm dự đoán lố ra sau lưng → lực đẩy đẩy
+  mình **bay thẳng vào con boss**. Nay nếu điểm dự đoán ở phía bên kia mình thì né theo vị trí hiện tại.
+- Boss **to**: đo tới **MẶT** vật (kẹp 75% 📏) thay vì tới tâm; cổng quét cũng theo mặt vật.
+- Boss **đuổi theo**: nhớ hướng né ~0,9s (không quay lại hướng cũ ngay khi nó ra khỏi tầm quét), quét
+  dày 0,05s trong ~1s sau khi vừa bị gí.
+- NPC có Humanoid đang đi (MoveDirection) tính là đang chuyển động; NPC đứng yên thì không né bừa;
+  part của người chơi khác do phần 👤 quyết định (👤 TẮT là bỏ qua thật, không đếm 2 lần).
+- Quét bằng OverlapParams (MaxParts = 0, lọc chính mình); `MV.comp()` đọc Vector3 an toàn cho cả
+  userdata (game thật) lẫn bảng (mock) — sửa luôn 2 chỗ cũ đọc `.Y` luôn ra 0 trong game thật.
+- Trạng thái có "🐾 thấy N vật đang chạy" để soi vì sao không né; 9 test mới R0–R8 + mock thật hơn
+  (bao lồi, OverlapParams, part "kiểu instance thật") + test soi nguồn.
 
 **v4.19 — 🛡 Bay An Toàn: 👁 BẮT VẬT BAY TỚI MÌNH từ xa + ⭕ TỰ BAY VÒNG TRÒN khi rảnh:**
 - **👁 Nhìn trước**: mỗi lần quét không chỉ xét vật đang Ở TRONG 📏 mà còn tính `tHit` — còn bao lâu

@@ -13,7 +13,7 @@ node run.js ../script.js            # chạy tất cả
 node run.js ../script.js noclip     # chỉ chạy test tên có chữ "noclip"
 ```
 
-Kết quả hiện tại: **147 PASS · 0 FAIL**.
+Kết quả hiện tại: **156 PASS · 0 FAIL**.
 
 ## Cấu trúc
 
@@ -21,7 +21,7 @@ Kết quả hiện tại: **147 PASS · 0 FAIL**.
 |---|---|
 | `run.js` | Tạo máy ảo, nạp mock, nạp hub, chạy `tests.lua`, tổng hợp kết quả (exit code 1 nếu FAIL). |
 | `roblox-mock.lua` | Giả lập Roblox + executor: `Instance`/event/method, `Vector3/CFrame/UDim2/Color3/Enum…`, `task.wait/spawn/defer`, service (Players, RunService, UserInputService, TweenService, HttpService, TeleportService…), JSON encode/decode, file ảo, API executor (`writefile`, `setclipboard`, `gethui`, `request`…), đồng hồ ảo (`Mock.advance`) và nhân vật mẫu (`Mock.makeCharacter`). |
-| `tests.lua` | Các test, chia 4 nhóm: **A** tính năng cũ (chống mất), **B** bộ di chuyển mới, **C** kiểm tra cuối, **D** khung ⚙ tuỳ chỉnh + ngoại lệ, **E** chế độ Chạy Trên Thảm + cụm nút nổi, **F** sửa thảm kính, **G** nhảy/chạy ở mọi game + tốc độ theo game, **H** helper dùng chung sau khi rút gọn code, **I** Chạy Trên Thảm = 'Bay chạy bộ' bản gốc 100%, **J** hết giật/lag khi bật thảm (game nặng), **K** 📍 định vị người chơi (xuyên tường · bạn bè · hạ gục · ⏱ đếm giờ · 📏 khoảng cách), **L** 👣 xem người chơi (bám theo camera — thấy họ đang làm gì), **M** trang 👥 Người Chơi (nằm giữa 📚 Script Hub và ➕ Tạo Tính Năng), **N** ✨ phát sáng (nhân vật mình · rộng + độ sáng + màu), **O** 🛡 bay an toàn (tự bay + né vật chuyển động), **P** 🔲 khiên trong suốt · 👤 né người chơi · 🧱 đẩy xuyên vật cản, **Q** 👁 bắt vật LAO TỚI mình từ ngoài 📏 + ⭕ tự bay vòng tròn khi không có gì lao tới. |
+| `tests.lua` | Các test, chia 4 nhóm: **A** tính năng cũ (chống mất), **B** bộ di chuyển mới, **C** kiểm tra cuối, **D** khung ⚙ tuỳ chỉnh + ngoại lệ, **E** chế độ Chạy Trên Thảm + cụm nút nổi, **F** sửa thảm kính, **G** nhảy/chạy ở mọi game + tốc độ theo game, **H** helper dùng chung sau khi rút gọn code, **I** Chạy Trên Thảm = 'Bay chạy bộ' bản gốc 100%, **J** hết giật/lag khi bật thảm (game nặng), **K** 📍 định vị người chơi (xuyên tường · bạn bè · hạ gục · ⏱ đếm giờ · 📏 khoảng cách), **L** 👣 xem người chơi (bám theo camera — thấy họ đang làm gì), **M** trang 👥 Người Chơi (nằm giữa 📚 Script Hub và ➕ Tạo Tính Năng), **N** ✨ phát sáng (nhân vật mình · rộng + độ sáng + màu), **O** 🛡 bay an toàn (tự bay + né vật chuyển động), **P** 🔲 khiên trong suốt · 👤 né người chơi · 🧱 đẩy xuyên vật cản, **Q** 👁 bắt vật LAO TỚI mình từ ngoài 📏 + ⭕ tự bay vòng tròn khi không có gì lao tới, **R** 👾 boss/nextbot gí mình (instance kiểu game thật · né theo MẶT vật · nhớ hướng né · soi nguồn chống lỗi mock-only). |
 
 ## Cách test đọc được biến `local` của hub
 
@@ -66,6 +66,10 @@ Vì đoạn này nằm **trong cùng chunk**, nó nhìn thấy mọi `local`.
 | 30 | **v4.19** — 👁 tính "tốc độ lao vào nhau" **cộng cả vận tốc của MÌNH** → vật **ĐỨNG YÊN** ngay trước mặt cũng bị coi là lao tới, 🛡 đẩy mình tránh vô cớ. Nay chỉ tính vận tốc **của vật**; mình bay tới nó chỉ làm lực đẩy mạnh thêm | O3, P5 |
 | 31 | **v4.19** — trạng thái vẫn ghi "⭕ bay vòng tròn" trong khi đang **bấm WASD** (thực tế ⭕ đã tạm dừng) → người dùng tưởng tính năng chạy sai. Nay ghi rõ "⭕ tạm dừng (đang bấm phím)" | Q5 |
 | 32 | **(mock)** `CFrame.lookAt()` luôn cho `LookVector = (0,0,-1)` (thiếu nhánh `cf(Vector3, lookVector)`) → camera giả không bao giờ có hướng như test đặt, các test hướng bay của 🛡 vô tình đúng nhờ lỗi này. Nay giữ đúng hướng + `cleanSafe()` trả camera về mặc định để kết quả **tất định** | O3, P4, Q1–Q6 |
+| 33 | **v4.20** — 🔴 **LỖI CHỈ XẢY RA TRONG GAME THẬT**: hàm nhận diện part đòi `type(d) == "table"`, mà trong Roblox instance là **userdata** (chỉ trong máy giả lập instance mới là bảng) → 🛡 **không bao giờ thấy part nào**, chỉ thấy người chơi → **boss/nextbot gí mình mà không né**. Nay dùng `d:IsA("BasePart")` | R0, R1–R8 |
+| 34 | **v4.20** — 🔴 "né theo **vị trí dự đoán**" khi vật đã **gí sát**: điểm dự đoán (vị trí + vận tốc × 0,35s) lố ra **sau lưng** mình → lực đẩy hoá ra đẩy mình **bay thẳng VÀO vật**. Nay nếu điểm dự đoán ở phía bên kia mình thì né theo vị trí HIỆN TẠI | R3 |
+| 35 | **v4.20** — boss/nextbot **TO**: đo khoảng cách tới **TÂM** part nên part 30 studs phải chờ tâm vào 📏 mới né (đã chạm từ lâu). Nay đo tới **MẶT** vật (kẹp 75% 📏) + boss đuổi theo thì 🛡 "quên" ngay khi nó ra khỏi tầm quét (nay nhớ hướng né ~0,9s) | R2, R4, R7 |
+| 36 | **v4.20** — 👤 tắt rồi mà part của người chơi khác vẫn bị coi là "vật có Humanoid đang đi" → vẫn né người; và NPC đứng yên (WalkSpeed 16, MoveDirection 0) cũng bị né bừa. Nay part người chơi khác do phần 👤 quyết định, chỉ tin **MoveDirection** | P5, R6 |
 | 26 | **v4.17** — **lực né viết NGƯỢC DẤU** (cộng hướng-tới-vật thay vì trừ) → bật 🛡 Bay An Toàn thì bị **HÚT VỀ PHÍA** vật chuyển động thay vì né | O2, O4, O6, O8 |
 | 27 | **v4.17** — test lọc chip đếm cứng "5 thẻ" → thêm thẻ mới là gãy giữa chừng, **để lại bộ lọc chip đang bật** → hàng loạt test sau báo sai (lỗi lây lan). Nay đếm động + `resetChip()` trước mỗi test | B3, D8, K11, L1, M5, N1 |
 | 23 | **v4.16** — `math.clamp()` (chỉ có trong Luau) nằm trong hàm tính độ sáng: pcall nuốt lỗi → bật ✨ mà **không thấy gì**. Nay dùng `mvClamp()` của hub (chạy được cả Lua 5.4 lẫn Luau) | N1, N2 |
@@ -87,6 +91,25 @@ Máy giả lập **không có vật lý** (part chỉ nhúc nhích khi test tự
 - **camera**: 🛡 bay theo hướng camera khi không bấm phím, nên `cleanSafe()` trả camera về `CFrame.new(0, 10, 0)`
   (nhìn −Z) để kết quả **tất định** giữa các test. `CFrame.lookAt()` của mock nay giữ đúng LookVector.
 - **WASD**: `hum().MoveDirection = Vector3.new(0, 0, -1)` (bấm) / `Vector3.new(0, 0, 0)` (nhả).
+
+## 👾 Test "boss gí mình" (nhóm R) — và bài học mock vs game thật
+
+Máy giả lập tạo instance bằng **bảng Lua**, còn Roblox thật trả instance là **userdata**
+(`type(part) == "userdata"`). Vì vậy code viết kiểu `if type(d) == "table"` **chạy đúng trong test mà
+chết trong game thật** — đúng lỗi làm 🛡 Bay An Toàn không né boss/nextbot ở Evade (chỉ né người chơi).
+
+Cách bộ test chống lại:
+
+- `Mock.addRealPart{ pos=..., vel=..., size=..., name=... }` tạo part **"kiểu instance thật"**: bảng
+  KHÔNG có dấu hiệu riêng của mock (`__isInstance`), chỉ có `IsA/Position/Size/AssemblyLinearVelocity…`
+  → nếu hub lại đòi `type(d) == "table"` thì các test R1–R8 **FAIL** ngay.
+- `R0` soi thẳng **nguồn** `script.js` (run.js đưa nguồn sang Lua qua `_G.__HUBSRC`): cấm
+  `sfIsPart` dùng `type(d) ~= "table"` và buộc nhận part qua `IsA("BasePart")`.
+- `GetPartBoundsInRadius` của mock giờ giống engine hơn: xét **bao lồi** (bounding box), tôn trọng
+  `OverlapParams` (`MaxParts`, `FilterType`, `FilterDescendantsInstances`) và trả cả `Mock.realParts`.
+
+Viết test mới cho nhóm này: `Mock.clearRealParts()` (đã có trong `cleanSafe()`), tạo boss bằng
+`Mock.addRealPart{...}`, đổi vận tốc bằng `boss.AssemblyLinearVelocity = Vector3.new(...)`.
 
 ## Thêm test mới
 

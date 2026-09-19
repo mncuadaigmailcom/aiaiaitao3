@@ -2383,6 +2383,7 @@ local function cleanSafe(extra)
         S.Move.Safe.Recenter()
     end)
     wipePlayers()                      -- v4.19: dọn người chơi test còn sót (test gãy giữa chừng -> không lây)
+    pcall(function() Mock.clearRealParts() end)   -- v4.20: dọn boss "kiểu instance thật" còn sót
     -- v4.19: trả camera về mặc định (nhìn -Z) — test trước (👣 theo dõi) để lại hướng camera khác,
     -- mà 🛡 lại bay theo hướng camera khi không bấm phím -> kết quả phải TẤT ĐỊNH.
     pcall(function() H.workspace.CurrentCamera.CFrame = CFrame.new(0, 10, 0) end)
@@ -3029,6 +3030,165 @@ test("Q7 · ⭕ BẬT mà KHÔNG mất tính năng: vẫn né vật lao tới, k
     truthy(H.workspace:FindFirstChild("Carpet"), "🪩 thảm vẫn trải khi ⭕ đang bật")
     truthy(S.Move.Safe.on, "🛡 vẫn đang bật")
     cleanShieldFly({ part })
+end)
+
+print("\n── R. 👾 BOSS/NEXTBOT GÍ MÌNH (instance thật · mặt vật · nhớ hướng né) ──")
+
+-- v4.20: boss "kiểu INSTANCE THẬT" (bảng KHÔNG có __isInstance như instance của mock) — vì trong
+-- Roblox thật instance là USERDATA; bản v4.19 đòi type(d) == "table" nên trong game thật 🛡 KHÔNG
+-- BAO GIỜ thấy part nào -> boss gí mình mà không né. Đây là test chống tái phát cho đúng lỗi đó.
+function addBoss(cfg) return Mock.addRealPart(cfg) end
+
+test("R0 · (soi nguồn) hub nhận diện part bằng IsA, KHÔNG đòi type(x)=='table' (mock=bảng, game thật=userdata)", function()
+    local src = tostring(_G.__HUBSRC or "")
+    truthy(#src > 1000, "đọc được nguồn hub để soi")
+    local i = src:find("local function sfIsPart(d)", 1, true)
+    truthy(i, "còn hàm sfIsPart")
+    local seg = src:sub(i, i + 1200)
+    falsy(seg:find('type(d) ~= "table"', 1, true),
+          "sfIsPart KHÔNG được đòi type(d) == \"table\" (mock thì instance là bảng, game thật là userdata)")
+    truthy(seg:find('IsA("BasePart")', 1, true), 'phải nhận part qua IsA("BasePart")')
+end)
+
+test("R1 · 👾 BOSS (instance kiểu GAME THẬT) lao tới -> PHẢI né", function()
+    resetChip(); cleanStart(); cleanGlow(); cleanSafe()
+    root().Position = Vector3.new(0, 30, 0)
+    addBoss({ name = "Boss", pos = Vector3.new(20, 30, 0), vel = Vector3.new(-20, 0, 0) })
+    S.Move.Safe.SetRadius(30)
+    S.Move.Safe.Set(true)
+    Mock.advance(1.0)
+    truthy(S.Move.Safe.threats >= 1, "phải THẤY boss: " .. tostring(S.Move.Safe.threats))
+    truthy(safeVel().X < -1, string.format("phải né ra xa boss: v.X = %.2f", safeVel().X))
+    truthy(tostring(S.Move.Safe.Status()):find("đang né", 1, true), "trạng thái: " .. S.Move.Safe.Status())
+    cleanSafe()
+end)
+
+test("R2 · 👾 BOSS TO: né theo MẶT vật (tâm còn ngoài tầm quét) chứ không đợi tâm vào 📏", function()
+    resetChip(); cleanStart(); cleanGlow(); cleanSafe()
+    root().Position = Vector3.new(0, 30, 0)
+    -- part 30 studs -> bán kính bao 15; tâm ở 34 studs (ngoài tầm quét 32) mà MẶT chỉ cách 19
+    addBoss({ name = "BossTo", pos = Vector3.new(34, 30, 0), size = Vector3.new(30, 30, 30),
+              vel = Vector3.new(-25, 0, 0) })
+    S.Move.Safe.SetRadius(20)
+    S.Move.Safe.Set(true)
+    Mock.advance(1.0)
+    truthy(S.Move.Safe.threats >= 1, "thấy boss TO dù TÂM ở ngoài tầm: " .. tostring(S.Move.Safe.threats))
+    truthy(S.Move.Safe.nearest and S.Move.Safe.nearest < 20, "đo theo MẶT vật: " .. tostring(S.Move.Safe.nearest))
+    truthy(safeVel().X < -1, "né ra xa")
+    cleanSafe()
+end)
+
+test("R3 · 👾 BOSS GÍ SÁT: chạm người -> bay THOÁT (lên trên + ra xa), vẫn xuyên vật cản", function()
+    resetChip(); cleanStart(); cleanGlow(); cleanSafe()
+    root().Position = Vector3.new(0, 30, 0)
+    addBoss({ name = "BossSat", pos = Vector3.new(3, 30, 0), size = Vector3.new(10, 10, 10),
+              vel = Vector3.new(-30, 0, 0) })
+    S.Move.Safe.SetRadius(30)
+    S.Move.Safe.Set(true)
+    Mock.advance(1.0)
+    local v = safeVel()
+    truthy(S.Move.Safe.threats >= 1, "thấy boss đang gí sát")
+    truthy(v.Y > 5, string.format("phải VỌT LÊN cho thoát: v.Y = %.1f", v.Y))
+    truthy(v.X < -1, "và đẩy ra xa")
+    truthy(v.Magnitude > 20, "bay thoát chứ không đứng im: |v| = " .. string.format("%.1f", v.Magnitude))
+    truthy(S.Move.noclip, "vẫn bật Xuyên Tường để thoát khỏi chỗ kẹt")
+    cleanSafe()
+end)
+
+test("R4 · 👾 NHỚ HƯỚNG NÉ ~0,9s: boss đuổi theo, vừa rời tầm là KHÔNG quay lại hướng cũ", function()
+    resetChip(); cleanStart(); cleanGlow(); cleanSafe()
+    root().Position = Vector3.new(0, 30, 0)
+    S.Move.Safe.SetCircle(false)                    -- tắt ⭕ cho dễ đo hướng bay thường (theo camera)
+    S.Move.Safe.SetRadius(30)
+    addBoss({ name = "BossDuoi", pos = Vector3.new(20, 30, 0), vel = Vector3.new(-25, 0, 0) })
+    S.Move.Safe.Set(true)
+    Mock.advance(0.8)
+    truthy(safeVel().X < -1, "đang né (bay ra xa boss)")
+    Mock.clearRealParts()                           -- boss biến mất khỏi tầm quét
+    Mock.advance(0.25)
+    truthy(safeVel().X < -1, string.format("VẪN bay ra xa (nhớ hướng né): v.X = %.2f", safeVel().X))
+    Mock.advance(1.4)                               -- hết ký ức -> bay theo hướng camera (-Z)
+    near(safeVel().X, 0, 1.5, "hết ký ức né -> không nghiêng ngang nữa")
+    truthy(safeVel().Z < -10, "bay theo hướng camera")
+    cleanSafe()
+end)
+
+test("R5 · 👾 QUÉT DÀY sau khi vừa bị gí: boss mới xuất hiện là bắt NGAY (không chờ 0,15s)", function()
+    resetChip(); cleanStart(); cleanGlow(); cleanSafe()
+    root().Position = Vector3.new(0, 30, 0)
+    S.Move.Safe.SetRadius(30)
+    addBoss({ name = "Boss1", pos = Vector3.new(20, 30, 0), vel = Vector3.new(-25, 0, 0) })
+    S.Move.Safe.Set(true)
+    Mock.advance(0.5)
+    truthy(S.Move.Safe.threats >= 1, "đang có mối nguy")
+    Mock.clearRealParts()
+    Mock.advance(0.06)                              -- vừa hết nguy hiểm: còn trong "nhớ" 1s -> quét dày
+    addBoss({ name = "Boss2", pos = Vector3.new(16, 30, 0), vel = Vector3.new(-25, 0, 0) })
+    Mock.advance(0.08)                              -- 0,08s < 0,15s: quét thường sẽ HỤT
+    truthy(S.Move.Safe.threats >= 1, "bắt được boss mới trong 0,08s nhờ quét dày")
+    cleanSafe()
+end)
+
+test("R6 · 👾 NPC có Humanoid ĐANG ĐI (part vận tốc 0, vị trí không đổi) -> vẫn bị né", function()
+    resetChip(); cleanStart(); cleanGlow(); cleanSafe()
+    root().Position = Vector3.new(0, 30, 0)
+    local m = Instance.new("Model"); m.Name = "NpcBoss"; m.Parent = H.workspace
+    local body = Instance.new("Part"); body.Name = "Than"; body.Size = Vector3.new(4, 6, 4)
+    body.Position = Vector3.new(12, 30, 0); body.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+    body.Parent = m
+    local npcHum = Instance.new("Humanoid"); npcHum.Parent = m
+    npcHum.MoveDirection = Vector3.new(-1, 0, 0)    -- đang đi về phía mình
+    S.Move.Safe.SetRadius(30)
+    S.Move.Safe.Set(true)
+    Mock.advance(1.0)
+    truthy(S.Move.Safe.threats >= 1, "thấy NPC đang đi tới: " .. tostring(S.Move.Safe.threats))
+    truthy(safeVel().X < -1, "né ra xa NPC")
+    -- NPC ĐỨNG YÊN (MoveDirection = 0) -> KHÔNG né bừa
+    npcHum.MoveDirection = Vector3.new(0, 0, 0)
+    Mock.advance(1.4)
+    eq(S.Move.Safe.threats, 0, "NPC đứng yên thì KHÔNG bị coi là mối nguy")
+    m:Destroy()
+    cleanSafe()
+end)
+
+test("R7 · 👾 KHÔNG né bừa: boss TO ĐỨNG YÊN thì không né, nhưng vừa CHẠY là né ngay", function()
+    resetChip(); cleanStart(); cleanGlow(); cleanSafe()
+    root().Position = Vector3.new(0, 30, 0)
+    local boss = addBoss({ name = "BossToDungYen", pos = Vector3.new(25, 30, 0),
+                           size = Vector3.new(30, 30, 30), vel = Vector3.new(0, 0, 0) })
+    S.Move.Safe.SetRadius(30)
+    S.Move.Safe.Set(true)
+    Mock.advance(1.0)
+    eq(S.Move.Safe.threats, 0, "boss TO đứng yên (mặt đã gần) vẫn KHÔNG bị né")
+    local rp = S.Move.Safe._rep
+    truthy((rp == nil) or rp.Magnitude < 0.5, "không có lực đẩy nào")
+    boss.AssemblyLinearVelocity = Vector3.new(-25, 0, 0)     -- bắt đầu lao tới
+    Mock.advance(0.6)
+    truthy(S.Move.Safe.threats >= 1, "vừa CHẠY là bị né ngay")
+    truthy(safeVel().X < -1, "né ra xa")
+    cleanSafe()
+end)
+
+test("R8 · 👾 BOSS gí mà KHÔNG mất tính năng: ⭕ tạm dừng, khiên/thẻ/thảm còn nguyên", function()
+    resetChip(); cleanStart(); cleanGlow(); cleanSafe()
+    root().Position = Vector3.new(0, 30, 0)
+    addBoss({ name = "Boss9", pos = Vector3.new(22, 30, 0), size = Vector3.new(8, 8, 8),
+              vel = Vector3.new(-25, 0, 0) })
+    S.Move.Safe.SetRadius(30)
+    S.Move.Safe.Set(true)
+    Mock.advance(0.8)
+    truthy(S.Move.Safe.threats >= 1, "thấy boss")
+    truthy(safeVel().X < -1, "đang né")
+    eq(#shieldParts(), 4, "🔲 khiên vẫn còn")
+    local st = tostring(S.Move.Safe.Status())
+    truthy(st:find("đang né", 1, true), "trạng thái: đang né")
+    truthy(st:find("⭕", 1, true), "trạng thái còn ⭕")
+    truthy(card("Bay An Toàn"), "thẻ 🛡 còn")
+    action("runmode")
+    Mock.advance(0.4)
+    truthy(H.workspace:FindFirstChild("Carpet"), "🪩 thảm vẫn trải khi đang né boss")
+    truthy(S.Move.Safe.on, "🛡 vẫn đang bật")
+    cleanShieldFly()
 end)
 
 print("\n── C. KIỂM TRA CUỐI ─────────────────────────────────────────")

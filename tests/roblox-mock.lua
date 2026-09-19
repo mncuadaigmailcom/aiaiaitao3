@@ -460,6 +460,9 @@ instMT.__methods = {
         local SUPER = { TextButton = "GuiButton", ImageButton = "GuiButton", TextBox = "GuiObject",
             TextLabel = "GuiObject", Frame = "GuiObject", ScrollingFrame = "GuiObject",
             Part = "BasePart", MeshPart = "BasePart", WedgePart = "BasePart", UnionOperation = "BasePart",
+            CornerWedgePart = "BasePart", TrussPart = "BasePart", NegateOperation = "BasePart",
+            IntersectOperation = "BasePart", Ball = "BasePart", Cylinder = "BasePart",
+            SpawnLocation = "BasePart", Seat = "BasePart", VehicleSeat = "BasePart", Platform = "BasePart",
             Model = "Instance", Folder = "Instance", ScreenGui = "LayerCollector", BillboardGui = "LayerCollector",
             UICorner = "UIComponent", UIStroke = "UIComponent", UIGradient = "UIComponent",
             UIPadding = "UIComponent", UIListLayout = "UILayout", Highlight = "Instance",
@@ -825,21 +828,76 @@ rawset(workspace, "CurrentCamera", camera)
 rawset(workspace, "Gravity", 196.2)          -- trọng lực mặc định của Roblox
 Mock.camera = camera
 -- v4.17: TRẢ VỀ THẬT các part nằm trong bán kính (để test 🛡 Bay an toàn).
--- Quét mọi BasePart trong workspace, so khoảng cách tâm part với tâm vùng.
+-- v4.20: giống engine hơn — xét BAO LỒI (bounding box) chứ không chỉ tâm part; tôn trọng
+-- OverlapParams (MaxParts: 0/nil = KHÔNG giới hạn; FilterDescendantsInstances + FilterType
+-- Include/Exclude). Nhờ vậy test bắt được lỗi "quên truyền params" / "part to mà đo tâm".
+local function mockIsPartClass(c)
+    return c == "Part" or c == "MeshPart" or c == "WedgePart" or c == "TrussPart"
+        or c == "UnionOperation" or c == "NegateOperation" or c == "IntersectOperation"
+        or c == "CornerWedgePart" or c == "SpawnLocation" or c == "Seat"
+        or c == "VehicleSeat" or c == "Ball" or c == "Cylinder" or c == "Platform"
+end
 function workspace:GetPartBoundsInRadius(pos, r, params)
     local out = {}
+    local maxParts, filter, includeOnly = 0, nil, false
+    if type(params) == "table" then
+        local mp = rawget(params, "MaxParts")
+        if type(mp) == "number" and mp > 0 then maxParts = mp end
+        local fd = rawget(params, "FilterDescendantsInstances")
+        if type(fd) == "table" then filter = fd end
+        local ft = rawget(params, "FilterType")
+        local nm = ""
+        if ft ~= nil then
+            local okN, n2 = pcall(function() return tostring(ft.Name) end)
+            nm = (okN and n2) or tostring(ft)
+        end
+        includeOnly = (nm == "Include" or nm == "Whitelist")
+    end
+    local function inFilter(d)
+        if not filter then return false end
+        for _, f in ipairs(filter) do
+            if f == d then return true end
+            local okI, res = pcall(function() return d:IsDescendantOf(f) end)
+            if okI and res then return true end
+        end
+        return false
+    end
+    local function add(d, pp, rr)
+        if pp == nil then return end
+        local inf = inFilter(d)
+        if includeOnly then
+            if not inf then return end
+        elseif inf then
+            return
+        end
+        if (pp - pos).Magnitude - (rr or 0) <= (r or 0) then
+            out[#out + 1] = d
+            if maxParts > 0 and #out >= maxParts then return true end   -- đầy -> dừng
+        end
+        return false
+    end
     local ok, desc = pcall(function() return self:GetDescendants() end)
-    if not ok or type(desc) ~= "table" then return out end
-    for _, d in ipairs(desc) do
-        local c = tostring(rawget(d, "ClassName") or "")
-        if c == "Part" or c == "MeshPart" or c == "WedgePart" or c == "TrussPart"
-            or c == "UnionOperation" or c == "SpawnLocation" or c == "Seat" then
-            local cfv = rawget(d, "_cf")
-            local pp = cfv and cfv.Position or nil
-            if pp then
-                local dist = (pp - pos).Magnitude
-                if dist <= (r or 0) then out[#out + 1] = d end
+    if ok and type(desc) == "table" then
+        for _, d in ipairs(desc) do
+            if mockIsPartClass(tostring(rawget(d, "ClassName") or "")) then
+                local cfv = rawget(d, "_cf")
+                local pp = cfv and cfv.Position or nil
+                local sz = rawget(d, "Size")
+                local rr = 0
+                if sz then pcall(function() rr = math.max(sz.X, sz.Y, sz.Z) * 0.5 end) end
+                if add(d, pp, rr) then break end
             end
+        end
+    end
+    -- part "KIỂU INSTANCE THẬT": bảng KHÔNG có __isInstance (mock không tạo được userdata) — dùng để
+    -- kiểm tra hub không phụ thuộc dấu hiệu riêng của máy giả lập.
+    for _, d in ipairs(Mock.realParts or {}) do
+        local okP, pp = pcall(function() return d.Position end)
+        if okP and pp then
+            local rr = 0
+            local okS, sz = pcall(function() return d.Size end)
+            if okS and sz then pcall(function() rr = math.max(sz.X, sz.Y, sz.Z) * 0.5 end) end
+            if add(d, pp, rr) then break end
         end
     end
     return out
@@ -1031,6 +1089,33 @@ function Mock.removePlayer(p)
     pcall(function() Mock.fire(Players, "PlayerRemoving", p) end)
     return true
 end
+-- v4.20: part "kiểu instance thật" — bảng KHÔNG có __isInstance, chỉ có IsA/Position/Size/... giống
+-- instance thật (mock không tạo được userdata thật). Dùng để test hub không phụ thuộc dấu hiệu mock.
+Mock.realParts = {}
+function Mock.addRealPart(cfg)
+    cfg = cfg or {}
+    local pos = cfg.pos or v3(0, 0, 0)
+    local size = cfg.size or v3(4, 4, 4)
+    local cls = cfg.class or "Part"
+    local parent = cfg.parent or workspace
+    local p = {
+        Name = cfg.name or "RealLike",
+        ClassName = cls,
+        Position = pos,
+        Size = size,
+        AssemblyLinearVelocity = cfg.vel or v3(0, 0, 0),
+        Parent = parent,
+        IsA = function(_, c2) return c2 == "BasePart" or c2 == cls or c2 == "Part" end,
+        IsDescendantOf = function(_, anc) return anc == parent end,
+        FindFirstAncestorOfClass = function(_, c2) return nil end,
+        FindFirstChildOfClass = function(_, c2) return nil end,
+        GetChildren = function() return {} end,
+    }
+    Mock.realParts[#Mock.realParts + 1] = p
+    return p
+end
+function Mock.clearRealParts() Mock.realParts = {} end
+
 function Mock.setChar(p, pos)
     local ch = p and p.Character
     if not ch then return nil end

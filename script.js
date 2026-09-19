@@ -63,6 +63,39 @@
           2) Thêm 1 biến local nữa vào main chunk -> vượt TRẦN 200 LOCAL của Luau/Lua 5.4
              ("too many local variables") làm cả hub KHÔNG NẠP ĐƯỢC. Nay toàn bộ khối 🛡 nằm
              trong `do ... end` nên không chiếm slot local của chunk (giống các tab khác).
+    + v4.20 (🛡 BAY AN TOÀN: SỬA LỖI BOSS/NEXTBOT GÍ MÌNH MÀ KHÔNG NÉ — 156 test PASS):
+        • 🔴 LỖI NẶNG (chỉ xảy ra trong GAME THẬT, bộ test cũ không thấy): hàm nhận diện part đòi
+          `type(d) == "table"`, nhưng trong Roblox THẬT instance là USERDATA (chỉ trong máy giả lập của
+          bộ test instance mới là bảng). Hệ quả: trong game thật 🛡 KHÔNG BAO GIỜ thấy part nào — chỉ
+          thấy NGƯỜI CHƠI — nên boss/nextbot lao tới mà không né (đúng như bạn gặp ở Evade).
+          Nay nhận part bằng `d:IsA("BasePart")` (kèm danh sách ClassName dự phòng, thêm
+          Negate/Intersect/Ball/Cylinder/VehicleSeat/Platform) — chạy đúng cả game thật lẫn bộ test.
+        • 🔴 LỖI 2: "né theo VỊ TRÍ DỰ ĐOÁN" khi vật đã gí SÁT -> điểm dự đoán (vị trí + vận tốc × 0,35s)
+          lố ra SAU LƯNG mình, thế là lực đẩy hoá ra đẩy mình BAY THẲNG VÀO CON BOSS. Nay nếu điểm dự
+          đoán nằm ở phía bên kia mình thì né theo VỊ TRÍ HIỆN TẠI (test R3 bắt được).
+        • 👾 BOSS/NEXTBOT TO: đo khoảng cách tới MẶT vật (bán kính bao, kẹp tối đa 75% 📏) chứ không
+          đo tới TÂM part — part 30 studs mà đo tâm thì nó đã chạm mình từ lâu mới "vào 📏".
+          Cổng quét cũng theo MẶT vật nên boss to (tâm ngoài tầm) vẫn được né.
+        • 🏃 NHỚ HƯỚNG NÉ ~0,9s: boss đuổi theo, hễ nó ra khỏi tầm quét là mình quay lại hướng cũ ->
+          bị gí lại ngay. Nay tiếp tục chạy RA XA hướng đó (yếu dần rồi thôi).
+        • ⚡ QUÉT DÀY 0,05s trong ~1s sau khi VỪA bị gí (không chỉ lúc đang có mối nguy) -> boss mới
+          xuất hiện là bắt ngay, không chờ 0,15s.
+        • 🧟 NPC có Humanoid ĐANG ĐI (MoveDirection > 0) cũng tính là "đang chuyển động" dù part không
+          có vận tốc và vị trí đổi rất ít (kiểu boss đi bằng Humanoid:MoveTo/Pathfinding). NPC ĐỨNG YÊN
+          (WalkSpeed 16 nhưng MoveDirection = 0) thì KHÔNG bị né bừa.
+        • 👤 Part của NGƯỜI CHƠI KHÁC do phần 👤 Né người quyết định (trước đây tính 2 lần, và 👤 TẮT
+          xong vẫn bị né vì bị coi là "vật có Humanoid đang đi").
+        • 🔍 Quét bằng OverlapParams (MaxParts = 0 = không giới hạn, bỏ qua part của chính mình) — map
+          nhiều part như Evade không hụt mối nguy.
+        • 🧮 `MV.comp(v, "Y", 0)`: đọc thành phần Vector3 an toàn cho CẢ game thật (Vector3 = userdata)
+          lẫn bộ test (bảng) — sửa luôn 2 chỗ cũ đọc `.Y` kiểu bảng nên trong game thật luôn ra 0
+          (lực nhảy mất phương ngang, thảm không biết đang đi lên).
+        • 🐾 Trạng thái giờ ghi "🐾 thấy N vật đang chạy" khi có vật chuyển động trong tầm mà chưa phải
+          mối nguy — để soi được "vì sao không né".
+        • 9 test mới (R0–R8) + máy giả lập THẬT hơn: GetPartBoundsInRadius xét BAO LỒI, tôn trọng
+          OverlapParams (MaxParts/FilterType/FilterDescendantsInstances), và có part "KIỂU INSTANCE THẬT"
+          (bảng KHÔNG có dấu hiệu riêng của mock) để bắt đúng loại lỗi mock-only này; thêm test soi
+          NGUỒN (R0) cấm dùng `type(x) == "table"` để nhận diện instance.
     + v4.19 (🛡 BAY AN TOÀN: 👁 BẮT VẬT BAY TỚI MÌNH từ xa + ⭕ TỰ BAY VÒNG TRÒN khi rảnh — 147 test PASS):
         • 👁 NHÌN TRƯỚC (quét xa 📏 × 1,6 + tính "tốc độ lao vào nhau"): trước đây chỉ né vật ĐANG Ở TRONG 📏,
           nên một số vật chuyển động bay tới mình từ xa lọt qua. Nay mỗi lần quét còn tính thời gian vật tới
@@ -6615,6 +6648,14 @@ S.Move = {
 }
 local MV = S.Move
 
+-- Đọc 1 thành phần vector an toàn: game THẬT trả Vector3 = userdata (KHÔNG phải bảng như mock), nên
+-- kiểu `type(v) == "table" and v.Y` cho ra 0/nil SAI trong game thật.
+function MV.comp(v, k, dft)
+    if v == nil then return dft end
+    local ok, val = pcall(function() return v[k] end)
+    if ok and type(val) == "number" then return val end
+    return dft
+end
 local function mvClamp(n, lo, hi, dft)
     n = tonumber(n)
     if n == nil or n ~= n then return dft end
@@ -6724,12 +6765,11 @@ function MV._JumpConfirm(y0)
     if not r2 then return end
     local up = r2.Position.Y - y0
     local v  = r2.AssemblyLinearVelocity
-    local vy = (type(v) == "table" and v.Y) or 0
+    local vy = MV.comp(v, "Y", 0)
     if up < 0.4 and vy < 10 then        -- chưa nhúc nhích -> game đã bỏ qua lệnh nhảy
         pcall(function()
             r2.AssemblyLinearVelocity = Vector3.new(
-                (type(v) == "table" and v.X) or 0, mvClamp(MV.jumpPower, 1, 500),
-                (type(v) == "table" and v.Z) or 0)
+                MV.comp(v, "X", 0), mvClamp(MV.jumpPower, 1, 500), MV.comp(v, "Z", 0))
         end)
     end
 end
@@ -6966,10 +7006,19 @@ MV.Safe = {
 local SF = MV.Safe
 
 local function sfIsPart(d)
-    if type(d) ~= "table" or d.__isInstance ~= true then return false end
-    local c = tostring(d.ClassName or "")
-    return (c == "Part" or c == "MeshPart" or c == "WedgePart" or c == "TrussPart"
-            or c == "CornerWedgePart" or c == "UnionOperation" or c == "SpawnLocation" or c == "Seat")
+    -- ⚠️ v4.20: TUYỆT ĐỐI không đòi `type(d) == "table"`.
+    -- Trong Roblox THẬT instance là USERDATA (type = "userdata"), chỉ trong máy giả lập của bộ test
+    -- instance mới là bảng có `__isInstance`. Bản v4.19 kiểm tra `type(d) == "table"` nên trong game
+    -- thật KHÔNG BAO GIỜ thấy part nào -> boss/nextbot lao tới mà 🛡 không né (chỉ né được người chơi).
+    if d == nil then return false end
+    local okA, isPart = pcall(function() return d:IsA("BasePart") end)   -- game thật: IsA có sẵn
+    if okA and isPart ~= nil then return isPart == true end
+    local okC, cls = pcall(function() return tostring(d.ClassName or "") end)
+    if not okC then return false end
+    return (cls == "Part" or cls == "MeshPart" or cls == "WedgePart" or cls == "TrussPart"
+            or cls == "CornerWedgePart" or cls == "UnionOperation" or cls == "NegateOperation"
+            or cls == "IntersectOperation" or cls == "Ball" or cls == "Cylinder"
+            or cls == "SpawnLocation" or cls == "Seat" or cls == "VehicleSeat" or cls == "Platform")
 end
 -- vật này có phải "CHÍNH MÌNH / đồ của hub" không (không bao giờ né)
 local function sfIgnore(d, char)
@@ -6980,8 +7029,25 @@ local function sfIgnore(d, char)
     return false
 end
 -- danh sách ứng viên: ưu tiên GetPartBoundsInRadius (nhẹ), không có thì tự duyệt workspace
+-- v4.20: quét bằng OverlapParams (MaxParts = 0 = KHÔNG giới hạn, bỏ qua chính mình). Map nhiều part
+-- như Evade mà không truyền params thì engine dùng mặc định — dễ hụt mối nguy.
+local function sfOverlap(char)
+    if SF._op and SF._opChar == char then return SF._op end
+    local ok, op = pcall(function() return OverlapParams.new() end)
+    if not ok or op == nil then return nil end
+    pcall(function() op.MaxParts = 0 end)                                  -- 0 = không giới hạn
+    pcall(function() op.RespectCanCollide = false end)                     -- vật không va chạm vẫn tính
+    pcall(function() op.FilterType = Enum.RaycastFilterType.Exclude end)   -- API mới
+    pcall(function() op.FilterDescendantsInstances = { char } end)         -- bỏ qua part của chính mình
+    SF._op, SF._opChar = op, char
+    return op
+end
 local function sfCandidates(pos, dt, reach)
-    local okL, list = pcall(function() return workspace:GetPartBoundsInRadius(pos, reach or SF.radius) end)
+    local r0 = reach or SF.radius
+    local char0 = MV.Char()
+    local op0 = sfOverlap(char0)
+    local okL, list = pcall(function() return workspace:GetPartBoundsInRadius(pos, r0, op0) end)
+    if not okL then okL, list = pcall(function() return workspace:GetPartBoundsInRadius(pos, r0) end) end
     if okL and type(list) == "table" and #list > 0 then return list end
     SF._listAcc = (SF._listAcc or 0) + (dt or 0.15)
     if not SF._cache or SF._listAcc >= 2 then
@@ -7041,13 +7107,47 @@ function MV.Safe.Scan(pos, dt)
     local n, near = 0, nil
     local now = tick()
     local seen = {}
+    -- v4.20: part thuộc NHÂN VẬT NGƯỜI CHƠI KHÁC -> để phần 👤 Né người quyết định. Nếu tính ở đây
+    -- thì đếm 2 lần, và 👤 TẮT xong vẫn bị né (test P5 bắt được).
+    local pchars = {}
+    local okPLS, pls = pcall(function() return Players:GetPlayers() end)
+    if okPLS and type(pls) == "table" then
+        for _, pl in ipairs(pls) do
+            if pl ~= player then
+                local ch2 = pl.Character
+                if ch2 ~= nil and ch2 ~= char then pchars[ch2] = true end
+            end
+        end
+    end
+    local hasPChar = (next(pchars) ~= nil)
+    local function inPChar(d)
+        if not hasPChar then return false end
+        for ch2 in pairs(pchars) do
+            local ok2, res = pcall(function() return d:IsDescendantOf(ch2) end)
+            if ok2 and res then return true end
+        end
+        return false
+    end
+    SF._mvCount = 0                       -- v4.20: đếm vật ĐANG CHẠY trong tầm (để soi trạng thái)
     for _, d in ipairs(sfCandidates(pos, dt, reach)) do
-        if sfIsPart(d) and not sfIgnore(d, char) then
+        if sfIsPart(d) and not sfIgnore(d, char) and not inPChar(d) then
             local p = d.Position
             if p then
                 local delta = p - pos
                 local dist = delta.Magnitude
-                if dist <= reach and dist > 0.01 then
+                -- KHOẢNG CÁCH TỚI MẶT vật (tính TRƯỚC cổng vào): boss/nextbot to (part 20-40 studs)
+                -- mà đo tới TÂM thì tâm còn ngoài tầm quét trong khi MẶT đã sát mình -> không bao giờ
+                -- né. Kẹp bán kính bao tối đa 50% 📏 để part khổng lồ của map không tính bừa.
+                local rr = 0
+                local okSz, sz = pcall(function() return d.Size end)
+                if okSz and sz then
+                    local okM, mx = pcall(function() return math.max(sz.X, sz.Y, sz.Z) end)
+                    if okM and type(mx) == "number" then rr = mx * 0.5 end
+                end
+                if rr > rad * 0.75 then rr = rad * 0.75 end
+                local surf = dist - rr
+                if surf < 0 then surf = 0 end
+                if surf <= reach and dist > 0.01 then
                     local dir = delta / dist                 -- hướng TỚI vật
                     -- DẤU HIỆU CHUYỂN ĐỘNG: vận tốc > 1,5 ... hoặc VỪA ĐỔI VỊ TRÍ
                     local moving, closing = false, 0
@@ -7070,20 +7170,44 @@ function MV.Safe.Scan(pos, dt)
                             closing = math.max(closing, dd / ddt)
                         end
                     end
+                    -- BOSS/NEXTBOT: part đi theo Humanoid (MoveTo/Pathfinding) — vận tốc part có thể = 0
+                    -- và vị trí đổi rất ít giữa 2 lần quét, nhưng Humanoid ĐANG đi -> vẫn phải né.
+                    if not moving then
+                        local okH, hum0 = pcall(function() return d:FindFirstAncestorOfClass("Humanoid") end)
+                        if not okH then hum0 = nil end
+                        if hum0 == nil then
+                            local okP, anc = pcall(function() return d.Parent end)
+                            if okP and anc then
+                                local okF, h2 = pcall(function() return anc:FindFirstChildOfClass("Humanoid") end)
+                                if okF then hum0 = h2 end
+                            end
+                        end
+                        if hum0 ~= nil then
+                            local okMd, md = pcall(function() return hum0.MoveDirection end)
+                            local mdMag = 0
+                            if okMd and md then
+                                local okm2, m2 = pcall(function() return md.Magnitude end)
+                                if okm2 and type(m2) == "number" then mdMag = m2 end
+                            end
+                            -- CHỈ tin HƯỚNG ĐI: NPC đứng yên vẫn có WalkSpeed = 16, tin WalkSpeed là né bừa.
+                            if mdMag > 0.05 then moving = true end
+                        end
+                    end
+                    if moving and surf <= reach then SF._mvCount = (SF._mvCount or 0) + 1 end
                     seen[d] = { p = p, t = now }
                     -- NGUY HIỂM = (đang trong vùng né VÀ có chuyển động)
                     --         HOẶC (ĐANG LAO TỚI MÌNH, sẽ tới nơi trong lookTime giây)
-                    local danger = (dist <= rad and moving)
+                    local danger = (surf <= rad and moving)
                     local tHit = nil
                     if closing > 0.5 then
-                        tHit = (dist - rad * 0.35) / closing      -- còn bao lâu thì tới sát mình
+                        tHit = (surf - rad * 0.35) / closing      -- còn bao lâu thì MẶT vật tới sát mình
                         if tHit <= lookT then danger = true end
                     end
                     if danger then
                         n = n + 1
-                        if near == nil or dist < near then near = dist end
+                        if near == nil or surf < near then near = surf end
                         -- Càng gần càng mạnh; riêng vật LAO TỚI thì mạnh theo tốc độ lao vào
-                        local w = mvClamp(1 - (dist / (rad * mvClamp(SF.lookMul, 1, 4, 1.6))), 0.2, 1)
+                        local w = mvClamp(1 - (surf / (rad * mvClamp(SF.lookMul, 1, 4, 1.6))), 0.2, 1)
                         local myDot = mvClamp(myV.X * dir.X + myV.Y * dir.Y + myV.Z * dir.Z, 0, 200)
                         local boost = 1 + mvClamp(closing, 0, 200) / 60 + myDot / 240
                         -- LƯU Ý DẤU: delta = (vật - mình) tức là hướng TỚI vật, nên phải TRỪ đi
@@ -7093,7 +7217,15 @@ function MV.Safe.Scan(pos, dt)
                         local pv = p
                         if okv and v and v.Magnitude and v.Magnitude > 0.1 then pv = p + v * 0.35 end
                         local pdir = pv - pos
-                        if pdir.Magnitude > 0.01 then pdir = pdir.Unit else pdir = dir end
+                        if pdir.Magnitude > 0.01 then
+                            pdir = pdir.Unit
+                            -- ⚠️ v4.20: điểm DỰ ĐOÁN lố ra phía BÊN KIA mình (vật đã gí sát, 0,35s nữa nó
+                            -- ở sau lưng) thì "né theo dự đoán" hoá ra đẩy mình BAY THẲNG VÀO NÓ.
+                            -- Test R3 bắt được (boss gí sát -> vận tốc hướng +X, tới thẳng boss).
+                            if (pdir.X * dir.X + pdir.Y * dir.Y + pdir.Z * dir.Z) < 0 then pdir = dir end
+                        else
+                            pdir = dir
+                        end
                         rep = rep - pdir * (0.35 + w * w * 3) * boost
                     end
                 end
@@ -7107,8 +7239,14 @@ function MV.Safe.Scan(pos, dt)
     n = pn0 + n
     SF._seen = seen
     SF._rep = rep
+    SF.movers = SF._mvCount or 0
+    SF._mvCount = nil
     SF.threats, SF.nearest = n, near
-    if n > 0 then SF._holdAt = now end
+    if n > 0 then
+        SF._holdAt = now
+        SF._lastThreatAt = now                                     -- v4.20: nhớ vừa bị gí (để né tiếp)
+        if rep.Magnitude > 0 then SF._lastRep = rep end            -- nhớ HƯỚNG đang né
+    end
     return n, near, rep
 end
 -- ---------- v4.18: 🔲 BỨC TƯỜNG TRONG SUỐT HÌNH VUÔNG bao quanh mình ----------
@@ -7180,7 +7318,8 @@ function MV.Safe.Step(dt)
     local dtv = tonumber(dt) or 0.016
     SF._sc = (SF._sc or 0) + dtv
     -- v4.19: đang có mối nguy -> quét DÀY hơn (0,05s) để vật bay nhanh không lọt giữa 2 lần quét
-    local ivScan = ((SF.threats or 0) > 0) and 0.05 or 0.15
+    local sinceThreat = tick() - (SF._lastThreatAt or 0)
+    local ivScan = (((SF.threats or 0) > 0) or sinceThreat < 1.0) and 0.05 or 0.15
     if SF._sc >= ivScan then
         local okS = pcall(function() MV.Safe.Scan(r.Position, SF._sc) end)
         SF._sc = 0
@@ -7188,6 +7327,8 @@ function MV.Safe.Step(dt)
     end
     local now = tick()
     local contact = ((SF.threats or 0) > 0) or ((now - (SF._holdAt or 0)) < 0.35)
+    -- v4.20: NHỚ HƯỚNG NÉ ~0,9s. Boss đuổi theo mà hễ ra khỏi tầm quét là mình quay lại hướng cũ
+    -- -> bị gí lại ngay. Nay tiếp tục chạy RA XA hướng đó, yếu dần rồi mới thôi.
     -- hướng bay: theo phím đang bấm, không bấm gì mà ➡ Tự bay thì bay theo hướng camera
     local keys = (h and h.MoveDirection) or Vector3.new(0, 0, 0)
     local busy = keys.Magnitude >= 0.01                  -- đang bấm WASD -> nhường quyền cho bạn
@@ -7234,6 +7375,10 @@ function MV.Safe.Step(dt)
     end
     -- NÉ: cộng vector đẩy (đã tính theo khoảng cách) vào vận tốc
     local rep = SF._rep
+    if (rep == nil or rep.Magnitude < 0.01) and SF._lastRep ~= nil then
+        local el = now - (SF._lastThreatAt or 0)
+        if el < 0.9 then rep = SF._lastRep * (1 - el / 0.9) end       -- vơi dần, không lật hướng
+    end
     if rep and rep.Magnitude > 0 then
         target = target + rep * (spd * (0.25 + 0.09 * mvClamp(SF.steer, 1, 10, 4)))
         local cap = spd * 2
@@ -7309,6 +7454,7 @@ function MV.Safe.Reset()                 -- quên dấu vết cũ (không dọa 
     SF._seen, SF._cache = {}, nil
     SF._rep = Vector3.new(0, 0, 0)
     SF.threats, SF.nearest, SF.playerThreats = 0, nil, 0
+    SF.movers, SF._lastRep, SF._lastThreatAt, SF._mvCount = 0, nil, nil, nil   -- v4.20
     SF._holdAt, SF._center, SF._ang = 0, nil, 0
     SF._myV = Vector3.new(0, 0, 0)
 end
@@ -7368,6 +7514,10 @@ function MV.Safe.Status()
         else
             s = s .. " · ⭕ bay vòng tròn " .. tostring(math.floor(SF.circleR + 0.5)) .. "m"
         end
+    end
+    -- v4.20: soi được "vì sao không né" — thấy bao nhiêu vật ĐANG CHẠY trong tầm quét
+    if (SF.movers or 0) > 0 and (SF.threats or 0) == 0 then
+        s = s .. string.format(" · 🐾 thấy %d vật đang chạy", SF.movers)
     end
     if SF.noclip then s = s .. " · 🧱 xuyên vật cản" end
     if (SF.threats or 0) > 0 then
@@ -7516,7 +7666,7 @@ function MV.CreateCarpet(y)
             local standingY = MV.carpetY + (MV.carpetH / 2) + 3.0
             local slack = MV.noclip and 0 or (tonumber(MV.carpetSlack) or 0.5)
             local vel = curR.AssemblyLinearVelocity
-            local vy = (type(vel) == "table" and vel.Y) or 0
+            local vy = MV.comp(vel, "Y", 0)
             if curR.Position.Y < standingY - slack and vy <= 0.1 then
                 curR.CFrame = CFrame.new(curR.Position.X, standingY, curR.Position.Z)
                 if vy < 0 then
