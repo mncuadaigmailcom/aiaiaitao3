@@ -486,7 +486,14 @@ local function panelBtns()
     for _, d in ipairs(movePanel():GetDescendants()) do
         if d.ClassName == "TextButton" then t[#t + 1] = d end
     end
-    return t           -- ✔ , ✔ , ⬆ Nâng, ⬇ Hạ, 🛑 Tắt hết
+    return t           -- ✔ , ✔ , ⬆ Nâng, ⬇ Hạ, 🛑 Tắt hết (+ nút mới thêm sau)
+end
+-- v4.22: tìm nút theo CHỮ thay vì đếm cứng vị trí (thêm nút mới là test cũ gãy oan)
+local function panelBtnWith(txt)
+    for _, d in ipairs(movePanel():GetDescendants()) do
+        if d.ClassName == "TextButton" and tostring(d.Text):find(txt, 1, true) then return d end
+    end
+    return nil
 end
 
 test("D1 · ô nhập trong khung ⚙: đổi tốc độ bay / chạy / nhảy", function()
@@ -532,9 +539,9 @@ test("D3 · ⬆ Nâng / ⬇ Hạ đổi độ cao thảm", function()
     Mock.advance(0.1)
     local y0 = S.Move.carpetY
     truthy(y0, "có độ cao thảm")
-    Mock.click(panelBtns()[3])                       -- ⬆
+    Mock.click(panelBtnWith("Nâng"))                 -- ⬆
     near(S.Move.carpetY, y0 + 2.5, 1e-6, "nâng 2.5")
-    Mock.click(panelBtns()[4])                       -- ⬇
+    Mock.click(panelBtnWith("Hạ"))                   -- ⬇
     near(S.Move.carpetY, y0, 1e-6, "hạ về chỗ cũ")
     S.Move.StopAll(); Mock.advance(0.05)
 end)
@@ -543,7 +550,7 @@ test("D4 · 🛑 Tắt hết trong khung ⚙ tắt được tất cả", functio
     local ch = resetChar()
     action("fly"); action("noclip"); action("infjump"); action("speed")
     Mock.advance(0.1)
-    Mock.click(panelBtns()[5])
+    Mock.click(panelBtnWith("Tắt hết"))
     Mock.advance(0.1)
     falsy(S.Move.fly or S.Move.noclip or S.Move.infJump or S.Move.speed or S.Move.carpet, "mọi cờ false")
     eq(findByClass(ch, "BodyVelocity"), nil, "không còn BodyVelocity")
@@ -1297,7 +1304,11 @@ end)
 test("J7 · không mất tính năng: 2 công tắc ở khung ⚙ + thảm sát chân + HUD + tốc độ ×3", function()
     local ch = cleanStart()
     local btns = panelBtns()
-    eq(#btns, 7, "khung ⚙ có 7 nút (✔ ✔ ⬆ ⬇ 🛑 + 2 công tắc mới)")
+    -- v4.22: KHÔNG đếm cứng số nút nữa (thêm 🧲 là gãy oan) — đòi đủ nút cũ + không mất nút nào
+    truthy(#btns >= 7, "khung ⚙ vẫn đủ nút cũ (>= 7), nay có: " .. #btns)
+    for _, nd in ipairs({ "Nâng", "Hạ", "Tắt hết", "🧲" }) do
+        truthy(panelBtnWith(nd), "khung ⚙ còn nút '" .. nd .. "'")
+    end
     local before = S.Move.carpetHold
     Mock.click(btns[6])                       -- 🛟 Chống rơi
     eq(S.Move.carpetHold, not before, "nút 🛟 đổi trạng thái chống rơi")
@@ -2293,7 +2304,7 @@ test("N8 · không mất tính năng cũ: thẻ lọc được + 2 khung cùng s
         + glowPanel().Size.Y.Offset
     truthy(h >= need, string.format("CanvasSize (%d) phải >= thẻ + 2 khung (%d)", h, need))
     -- khung ⚙ vẫn đủ 7 nút, khung ✨ đủ 6 nút
-    eq(#panelBtns(), 7, "khung ⚙ vẫn 7 nút")
+    truthy(#panelBtns() >= 7, "khung ⚙ vẫn đủ nút cũ (>= 7): " .. #panelBtns())
     local n = 0
     for _, d in ipairs(glowPanel():GetDescendants()) do
         if d.ClassName == "TextButton" then n = n + 1 end
@@ -2568,7 +2579,7 @@ test("O10 · không mất tính năng cũ: 3 khung điều khiển + thảm/HUD/
         + D.hubList:FindFirstChild("HubGlow_Panel").Size.Y.Offset
         + safePanel().Size.Y.Offset
     truthy(h >= need, string.format("CanvasSize (%d) phải >= thẻ + 3 khung (%d)", h, need))
-    eq(#panelBtns(), 7, "khung ⚙ vẫn 7 nút")
+    truthy(#panelBtns() >= 7, "khung ⚙ vẫn đủ nút cũ (>= 7): " .. #panelBtns())
     -- các tính năng khác vẫn chạy khi 🛡 đang bật
     local a = addP("NguChoi", 5001, Vector3.new(30, 5, 0))
     S.Loc.Set(true)
@@ -3409,6 +3420,221 @@ test("S11 · thanh so sánh: vạch xanh = mặc định game, cột xanh = tố
     truthy(m.barFill.Size.X.Scale < 0.5, "chậm lại -> cột tụt xuống: " .. tostring(m.barFill.Size.X.Scale))
     truthy(m.barFill.Size.X.Scale > 0, "cột vẫn dương khi còn chạy")
     m.Set(false)
+end)
+
+-- ============================================================================
+-- T. 🧱 XUYÊN TƯỜNG "CỨNG" + 🧲 TỰ ĐẨY XUYÊN (v4.22)
+-- ============================================================================
+print("\n── T. 🧱 XUYÊN TƯỜNG CỨNG + 🧲 ĐẨY XUYÊN ──────────────────────")
+
+local function ncOff()
+    pcall(function() S.Move.SetNoclip(false) end)
+    pcall(function() if hum() then hum().MoveDirection = Vector3.new(0, 0, 0) end end)
+end
+local function ncBad(ch)
+    for _, p in ipairs(ch:GetDescendants()) do
+        if p:IsA("BasePart") and p.CanCollide ~= false then return p.Name end
+    end
+    return nil
+end
+local function gameArm(ch)                  -- "game chống xuyên tường": bật lại va chạm cho MỌI part
+    for _, p in ipairs(ch:GetDescendants()) do
+        if p:IsA("BasePart") then p.CanCollide = true end
+    end
+end
+
+test("T1 · 🧱 THẮNG game BẬT LẠI CanCollide mỗi frame (hết kẹt tường)", function()
+    local ch = resetChar()
+    ncOff()
+    gameArm(ch)
+    action("noclip")
+    Mock.advance(1 / 60)
+    truthy(S.Move.noclip, "🧱 đang bật")
+    for i = 1, 40 do
+        gameArm(ch)                                  -- game ghi trước...
+        Mock.advance(1 / 60)                         -- ...đúng 1 frame -> hub phải tắt lại trong frame đó
+        local bad = ncBad(ch)
+        falsy(bad, "frame " .. i .. ": part '" .. tostring(bad) .. "' vẫn còn va chạm -> kẹt tường")
+    end
+    truthy(S.Move.ncPass ~= false, "🧲 tự đẩy xuyên mặc định BẬT")
+    truthy(Mock.renderSteps["BC_NoClip"], "có lớp ghi CanCollide ở CUỐI frame")
+    ncOff(); Mock.advance(0.05)
+    eq(#Mock.errors, 0, table.concat(Mock.errors, " | "))
+end)
+
+test("T2 · 🧱 part MỚI sinh giữa lúc game chống vẫn bị tắt trong 1 frame", function()
+    local ch = resetChar()
+    ncOff()
+    action("noclip")
+    Mock.advance(0.1)
+    local extra = Instance.new("Part")
+    extra.Name = "TuongAo"; extra.CanCollide = true; extra.Parent = ch
+    Mock.advance(1 / 60)
+    eq(extra.CanCollide, false, "part mới cũng bị tắt ngay")
+    gameArm(ch)
+    Mock.advance(1 / 60)
+    eq(extra.CanCollide, false, "game bật lại -> hub tắt lại trong frame")
+    extra:Destroy()
+    ncOff(); Mock.advance(0.05)
+    eq(#Mock.errors, 0, table.concat(Mock.errors, " | "))
+end)
+
+test("T3 · tắt 🧱 -> trả lại CanCollide GỐC từng part + gỡ lớp cuối frame", function()
+    local ch = resetChar()
+    local hat = ch:FindFirstChild("HatPart")
+    ncOff()
+    action("noclip"); Mock.advance(0.1)
+    eq(root().CanCollide, false, "đang xuyên: thân tắt va chạm")
+    truthy(Mock.renderSteps["BC_NoClip"], "có lớp cuối frame khi bật")
+    action("noclip"); Mock.advance(0.1)
+    falsy(S.Move.noclip, "đã tắt")
+    falsy(Mock.renderSteps["BC_NoClip"], "gỡ lớp cuối frame (không tốn tài nguyên)")
+    eq(root().CanCollide, true, "trả lại đúng gốc (true)")
+    eq(hat.CanCollide, false, "phụ kiện vẫn false như gốc")
+    -- tắt rồi thì game bật lại CanCollide là chuyện của game — hub KHÔNG đụng vào nữa
+    gameArm(ch)
+    Mock.advance(0.2)
+    eq(root().CanCollide, true, "tắt 🧱 là thôi không ghi nữa")
+    eq(#Mock.errors, 0, table.concat(Mock.errors, " | "))
+end)
+
+test("T4 · 🧲 kẹt cứng (bấm WASD mà không nhích) -> tự nhích xuyên qua", function()
+    resetChip(); cleanStart(); cleanGlow(); cleanSafe()
+    resetChar()
+    root().Position = Vector3.new(0, 30, 0)
+    ncOff()
+    action("noclip")
+    truthy(S.Move.ncPass ~= false, "🧲 đang BẬT")
+    hum().MoveDirection = Vector3.new(1, 0, 0)        -- bấm D
+    local x0 = root().Position.X
+    Mock.advance(0.5)                                 -- không nhích chút nào = bị chặn CỨNG
+    local dx = root().Position.X - x0
+    truthy(dx > 3, string.format("phải tự nhích xuyên qua: dx = %.2f", dx))
+    near(root().Position.Y, 30, 0.01, "giữ nguyên độ cao Y")
+    near(root().Position.Z, 0, 0.5, "không lệch sang hướng khác")
+    ncOff(); Mock.advance(0.05)
+    eq(#Mock.errors, 0, table.concat(Mock.errors, " | "))
+end)
+
+test("T5 · 🧲 KHÔNG nhích khi: không bấm gì · công tắc TẮT · 🧱 đang tắt", function()
+    resetChip(); cleanStart(); cleanGlow(); cleanSafe()
+    resetChar()
+    root().Position = Vector3.new(0, 30, 0)
+    ncOff()
+    action("noclip")
+    hum().MoveDirection = Vector3.new(0, 0, 0)        -- (a) không bấm gì
+    local x0 = root().Position.X
+    Mock.advance(0.4)
+    near(root().Position.X, x0, 1e-6, "không bấm gì -> đứng yên")
+    Mock.click(S.Move._passBtn)                       -- (b) tắt công tắc 🧲
+    falsy(S.Move.ncPass, "công tắc 🧲 đã TẮT")
+    hum().MoveDirection = Vector3.new(1, 0, 0)
+    x0 = root().Position.X
+    Mock.advance(0.4)
+    near(root().Position.X, x0, 1e-6, "tắt 🧲 -> không tự nhích")
+    Mock.click(S.Move._passBtn)
+    truthy(S.Move.ncPass, "bật lại 🧲")
+    action("noclip")                                  -- (c) tắt 🧱
+    Mock.advance(0.1)
+    x0 = root().Position.X
+    Mock.advance(0.4)
+    near(root().Position.X, x0, 1e-6, "🧱 tắt -> không tự nhích")
+    ncOff(); Mock.advance(0.05)
+    eq(#Mock.errors, 0, table.concat(Mock.errors, " | "))
+end)
+
+test("T6 · 🧲 không đẩy thêm khi đi lại BÌNH THƯỜNG (không bị chặn)", function()
+    resetChip(); cleanStart(); cleanGlow(); cleanSafe()
+    resetChar()
+    root().Position = Vector3.new(0, 30, 0)
+    ncOff()
+    action("noclip")
+    truthy(S.Move.ncPass ~= false, "🧲 BẬT")
+    hum().MoveDirection = Vector3.new(1, 0, 0)
+    -- "game cho đi bình thường": mỗi frame nhân vật tiến 1 stud (60 stud/s)
+    local stop = false
+    H.RunService:BindToRenderStep("GameDiChuyen", 100, function()
+        if stop then return end
+        local p = root().Position
+        root().Position = Vector3.new(p.X + 1, p.Y, p.Z)
+    end)
+    Mock.advance(0.5)
+    stop = true
+    pcall(function() H.RunService:UnbindFromRenderStep("GameDiChuyen") end)
+    local x = root().Position.X
+    truthy(x > 25 and x < 34, string.format("chỉ do game di chuyển, 🧲 không đẩy thêm: x = %.2f", x))
+    ncOff(); Mock.advance(0.05)
+    eq(#Mock.errors, 0, table.concat(Mock.errors, " | "))
+end)
+
+test("T7 · 🧱 sống sót qua respawn: nhân vật mới bị tắt va chạm trong 1 frame", function()
+    resetChip(); cleanStart(); cleanGlow(); cleanSafe()
+    ncOff()
+    action("noclip"); Mock.advance(0.05)
+    local ch2 = resetChar()
+    gameArm(ch2)
+    Mock.advance(1 / 60)
+    local bad = ncBad(ch2)
+    falsy(bad, "nhân vật mới vẫn xuyên được: " .. tostring(bad))
+    truthy(Mock.renderSteps["BC_NoClip"], "lớp cuối frame vẫn còn")
+    truthy(S.Move.noclip, "🧱 vẫn đang bật")
+    ncOff(); Mock.advance(0.05)
+    eq(#Mock.errors, 0, table.concat(Mock.errors, " | "))
+end)
+
+test("T8 · 🧱 chỉ sửa part TRÊN NGƯỜI MÌNH — tường/vật của game KHÔNG bị đụng", function()
+    resetChip(); cleanStart(); cleanGlow(); cleanSafe()
+    resetChar()
+    local wall = Instance.new("Part")
+    wall.Name = "TuongGame"; wall.Size = Vector3.new(4, 40, 40); wall.Anchored = true
+    wall.CanCollide = true; wall.Position = Vector3.new(4, 30, 0); wall.Parent = H.workspace
+    ncOff()
+    action("noclip")
+    for i = 1, 20 do
+        wall.CanCollide = true                        -- game giữ tường chắc
+        Mock.advance(1 / 60)
+        eq(wall.CanCollide, true, "frame " .. i .. ": tường của game KHÔNG bị hub sửa")
+    end
+    wall:Destroy()
+    ncOff(); Mock.advance(0.05)
+    eq(#Mock.errors, 0, table.concat(Mock.errors, " | "))
+end)
+
+test("T9 · nút 🧲 trong khung ⚙ + KHÔNG mất tính năng nào", function()
+    resetChip(); cleanStart(); cleanGlow(); cleanSafe()
+    local b = S.Move._passBtn
+    truthy(b, "có nút 🧲 trong khung ⚙")
+    eq(b.Parent, D.hubList:FindFirstChild("HubMove_Panel"), "nút nằm trong khung ⚙")
+    truthy(tostring(b.Text):find("🧲", 1, true), "chữ có 🧲: " .. tostring(b.Text))
+    local st = (S.Move.ncPass ~= false)
+    Mock.click(b)
+    eq(S.Move.ncPass ~= false, not st, "bấm 🧲 đổi trạng thái")
+    Mock.click(b)
+    eq(S.Move.ncPass ~= false, st, "bấm lại trả về cũ")
+    truthy(panelBtnWith("Nâng") and panelBtnWith("Hạ") and panelBtnWith("Tắt hết") and panelBtnWith("Chống rơi"),
+        "các nút cũ của khung ⚙ vẫn còn")
+    truthy(card("Xuyên Tường"), "thẻ 🧱 còn")
+    truthy(card("Bay"), "thẻ 🚀 còn")
+    truthy(card("Chạy Trên Thảm"), "thẻ 🏃 còn")
+    truthy(S.Move.Safe, "🛡 còn")
+    truthy(H.S.SpeedMeter, "🎯 còn")
+    truthy(H.S.Spec and H.S.Glow, "👣/✨ còn")
+    truthy(#H.tabs >= 7, "đủ tab: " .. #H.tabs)
+    S.Move.StopAll(); Mock.advance(0.05)
+    eq(#Mock.errors, 0, table.concat(Mock.errors, " | "))
+end)
+
+test("T10 · nguồn: 🧱 ép CanCollide MỖI FRAME + ghi ở CUỐI frame; 🧲 có công tắc", function()
+    local src = _G.__HUBSRC
+    truthy(type(src) == "string", "có nguồn hub để soi")
+    truthy(src:find('BindToRenderStep("BC_NoClip"', 1, true), "có lớp BindToRenderStep BC_NoClip")
+    truthy(src:find("Enum.RenderPriority.Last.Value", 1, true), "ghi ở ưu tiên CUỐI (sau script của game)")
+    truthy(src:find("function MV._NcEnforce", 1, true), "có hàm ép lại CanCollide mỗi frame")
+    local a = src:find("function MV._NcAssist", 1, true)
+    truthy(a, "có hàm 🧲 đẩy xuyên")
+    local body = src:sub(a, a + 2500)
+    truthy(body:find("MV.ncPass", 1, true), "🧲 có công tắc MV.ncPass")
+    truthy(body:find("MoveDirection", 1, true), "🧲 đi theo hướng đang bấm")
 end)
 
 print("\n── C. KIỂM TRA CUỐI ─────────────────────────────────────────")

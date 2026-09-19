@@ -7,7 +7,7 @@ Ngày phân tích: 2026-09-17 · Branch: `arena/01a0af79-aiaiaitao3` · Commit g
 ## 0. Cập nhật v4.12 (đã thực hiện theo yêu cầu)
 
 Port **5 tính năng di chuyển** từ `aiaiaitao3` vào trang 📚 Script Hub của `script.js`, kèm bộ test
-tự động chạy thật trong máy ảo. Kết quả: **`node tests/run.js` → 167 PASS · 0 FAIL**.
+tự động chạy thật trong máy ảo. Kết quả: **`node tests/run.js` → 177 PASS · 0 FAIL**.
 
 **Đã thêm (toàn bộ là tiện ích nội bộ, không tải gì từ mạng):**
 
@@ -23,6 +23,25 @@ Kèm **cụm nút nổi trên màn hình game** (⬆ nâng · 🪩 bật/tắt t
 khi lọc/tìm kiếm): tốc độ bay · chạy · nhảy · 3 chiều thảm · ⬆/⬇ · 🛑 Tắt hết + nhãn trạng thái.
 Tất cả state gom trong `S.Move` (không tốn slot local cấp chunk), mọi connection qua `trackConn()`,
 tự bật lại sau respawn qua `CharacterAdded`.
+
+**v4.22 — 🧱 XUYÊN TƯỜNG "CỨNG" cho mọi game + 🧲 tự đẩy xuyên khi bị chặn cứng:**
+- 🔴 **Lỗi thật (đúng như người dùng báo "có game/tường không xuyên được")**: hub cũ chỉ **quét lại 2
+  giây/lần**, nên game/anti-cheat nào **bật lại `CanCollide` mỗi frame** là thắng → bật 🧱 mà vẫn kẹt
+  tường. Nay hub ghi `CanCollide = false` **MỖI FRAME** trên đúng danh sách part của mình (rẻ), quét đầy
+  đủ 0,5s/lần để bắt part mới (kể cả part game thả vào mà không bắn event), và thêm lớp ghi ở **CUỐI
+  frame** (`BindToRenderStep("BC_NoClip", Enum.RenderPriority.Last.Value)`) nên luôn là người ghi sau cùng.
+- 🧲 **Tự đẩy xuyên**: game chặn CỨNG (tắt va chạm vẫn không qua) mà bấm WASD > 0,2s không nhích → hub tự
+  nhích `CFrame` theo hướng đang bấm (tối đa 3 stud/frame, giữ nguyên độ cao Y). Không bấm gì, đi lại
+  bình thường, hoặc tắt công tắc 🧲 trong khung ⚙ thì **không đụng vào người chơi**.
+- 🐞 **2 lỗi do bộ test bắt được ngay khi làm tính năng**:
+  1) hàm vẽ nút 🧲 nhìn thấy biến **toàn cục** `pcBtn` (vì `local pcBtn` khai báo sau hàm) → bấm nút là
+     `attempt to index a nil value` (nút chết). Nay khai báo local TRƯỚC hàm vẽ.
+  2) `MV.Refresh()` (respawn) **xoá trắng** bảng giá trị `CanCollide` gốc trong lúc 🧱 vẫn bật → mất giá
+     trị gốc của part đang tắt va chạm → tắt 🧱 xong nhân vật vẫn `CanCollide = false` và **rơi xuyên map
+     mãi**. Nay chỉ quên part đã bị xoá (`MV._NcForgetLost`), và part nào từng bị mình tắt mà mất dấu giá
+     trị gốc thì coi gốc là `true`.
+- 10 test mới **T1–T10** (177 PASS · 0 FAIL). **Mutation check**: quay lại hành vi cũ → T1/T2/T7 FAIL;
+  xoá trắng bảng gốc như bản cũ → T3 FAIL; bỏ khai báo local → 6 test đỏ.
 
 **v4.21 — 🎯 ĐỊNH VỊ TỐC ĐỘ (tab 🛠 Hỗ Trợ): biết game cho mình chạy bao nhiêu và mình đang chạy bao nhiêu:**
 - Bật 🎯 là **thấy ngay trên màn hình game** (HUD nổi `BC_SpeedHud`, đóng menu vẫn thấy) 3 con số:

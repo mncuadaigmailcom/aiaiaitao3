@@ -63,6 +63,29 @@
           2) Thêm 1 biến local nữa vào main chunk -> vượt TRẦN 200 LOCAL của Luau/Lua 5.4
              ("too many local variables") làm cả hub KHÔNG NẠP ĐƯỢC. Nay toàn bộ khối 🛡 nằm
              trong `do ... end` nên không chiếm slot local của chunk (giống các tab khác).
+    + v4.22 (🧱 Xuyên Tường "CỨNG" cho mọi game + 🧲 tự đẩy xuyên khi bị chặn — 177 test PASS):
+        • 🔴 LỖI THẬT: một số tựa game/anti-cheat BẬT LẠI CanCollide cho part của người chơi MỖI FRAME
+          (hoặc đặt lại cho part mới sinh). Bản cũ chỉ quét lại 2 GIÂY/lần -> thua, bật 🧱 mà vẫn kẹt ở
+          tường. Nay hub ghi CanCollide = false MỖI FRAME trên đúng danh sách part của mình (rẻ), quét
+          đầy đủ 0,5s/lần để bắt part mới (kể cả part game thả vào mà không bắn event). Thêm lớp ghi ở
+          CUỐI frame (BindToRenderStep "BC_NoClip" · RenderPriority.Last) nên luôn là người ghi sau cùng.
+        • 🧲 TỰ ĐẨY XUYÊN: game chặn cứng (tắt va chạm vẫn không qua được) mà bấm WASD > 0,2s không nhích
+          -> hub tự nhích CFrame theo hướng đang bấm (tối đa 3 stud/frame, giữ nguyên độ cao Y) để xuyên
+          qua. Không bấm gì hoặc đi lại bình thường thì KHÔNG đụng vào người chơi. Có công tắc 🧲 trong
+          khung ⚙ Tuỳ chỉnh (mặc định BẬT) để tắt nếu game không thích.
+        • Vẫn đúng nguyên tắc cũ: chỉ sửa part TRÊN NGƯỜI MÌNH, không đụng vào tường/part của game; tắt
+          🧱 là TRẢ LẠI đúng CanCollide gốc cho từng part (phụ kiện CanCollide=false vẫn giữ false).
+        • 🐞 2 LỖI nữa do bộ test bắt được ngay khi làm tính năng này:
+          1) hàm vẽ nút 🧲 nhìn thấy biến TOÀN CỤC `pcBtn` (vì khai báo `local pcBtn` nằm SAU hàm) -> bấm
+             nút là lỗi "attempt to index a nil value" (nút chết, thêm 6 test đỏ). Nay khai báo local TRƯỚC.
+          2) MV.Refresh() (respawn) XOÁ TRẮNG bảng giá trị CanCollide gốc trong lúc 🧱 vẫn bật -> mất giá
+             trị gốc của part đang tắt va chạm -> tắt 🧱 xong nhân vật vẫn CanCollide = false và RƠI XUYÊN
+             MAP mãi. Nay chỉ quên part đã bị xoá (MV._NcForgetLost), và part nào từng bị mình tắt mà mất
+             dấu giá trị gốc thì coi gốc là true (thà va chạm lại còn hơn rơi xuyên map).
+        • 10 test mới T1–T10: game bật lại CanCollide 40 frame liên tiếp (hub THẮNG) · part mới sinh bị tắt
+          trong 1 frame · tắt 🧱 là trả lại gốc · 🧲 nhích khi kẹt cứng, KHÔNG nhích khi rảnh / tắt công tắc
+          / 🧱 đang tắt · không đẩy thêm khi đi lại bình thường · respawn · tường của game KHÔNG bị đụng ·
+          nút 🧲 trong khung ⚙ + không mất tính năng nào cũ · soi nguồn (BindToRenderStep + RenderPriority.Last).
     + v4.21 (tab 🛠 Hỗ Trợ): 🎯 ĐỊNH VỊ TỐC ĐỘ — bật lên là thấy (1) tốc độ MẶC ĐỊNH của game
         (lấy từ S.Move._baseWS nếu 👟 đã học, không thì lấy WalkSpeed thật của nhân vật lúc bật; tự học lại
         mỗi khi game đổi WalkSpeed), (2) tốc độ THẬT đang chạy (studs/s đo theo quãng đường mỗi frame),
@@ -6981,8 +7004,15 @@ end
 -- bắt sự kiện DescendantAdded (phụ kiện, áo, vũ khí gắn thêm) -> gần như không tốn gì mỗi frame.
 function MV._NcPart(p)
     if not (p and p.IsA and p:IsA("BasePart")) then return end
-    if MV._origCC[p] == nil then MV._origCC[p] = p.CanCollide end  -- nhớ giá trị gốc
-    if p.CanCollide ~= false then p.CanCollide = false end
+    MV._ncParts = MV._ncParts or {}
+    if MV._origCC[p] == nil then
+        -- Nếu part NÀY đã bị mình tắt từ trước mà không còn dấu giá trị gốc -> coi gốc là true
+        -- (thà bật lại va chạm còn hơn để nhân vật rơi xuyên map vĩnh viễn).
+        MV._origCC[p] = MV._ncParts[p] and true or p.CanCollide
+    end
+    if p.CanCollide ~= false then pcall(function() p.CanCollide = false end) end
+    -- v4.22: ghi vào DANH SÁCH ÉP LẠI mỗi frame (game bật lại CanCollide -> mình tắt lại ngay)
+    MV._ncParts[p] = true
 end
 function MV._NcScan()
     local c = MV.Char()
@@ -6990,20 +7020,116 @@ function MV._NcScan()
     if MV._ncChar ~= c then                    -- đổi nhân vật (respawn) -> dọn kết nối cũ
         if MV._ncDesc then pcall(function() MV._ncDesc:Disconnect() end) end
         MV._ncChar = c
+        MV._ncParts = {}                       -- nhân vật mới -> danh sách part mới
         MV._ncDesc = trackConn(c.DescendantAdded:Connect(MV._NcPart))
     end
     for _, p in ipairs(c:GetDescendants()) do MV._NcPart(p) end
 end
+-- v4.22 (LỖI THẬT gặp trong game): vài tựa game/anti-cheat BẬT LẠI CanCollide cho part của người chơi
+-- mỗi frame (hoặc đặt lại cho part mới sinh). Bản cũ chỉ quét lại 2 GIÂY/lần -> thua, người chơi bị
+-- kẹt ở tường dù đã bật 🧱. Nay: ghi lại CanCollide = false MỖI FRAME, và chỉ kiểm đúng danh sách
+-- part đã tắt (rẻ), quét đầy đủ 0,5s/lần để bắt part mới (kể cả part game thả vào không bắn event).
+function MV._NcEnforce()
+    if not MV.noclip then return end
+    local c = MV.Char()
+    local parts = MV._ncParts
+    if not c or not parts then return end
+    for p in pairs(parts) do
+        local ok = pcall(function()
+            if p:IsDescendantOf(c) then
+                if p.CanCollide ~= false then p.CanCollide = false end
+            else
+                parts[p] = nil                 -- part đã rời khỏi người (game xoá) -> thôi theo dõi
+            end
+        end)
+        if not ok then parts[p] = nil end
+    end
+end
+-- ---------- v4.22: 🧲 ĐẨY XUYÊN khi bị chặn CỨNG ----------
+-- Bấm WASD mà người KHÔNG nhích (tường/anti-cheat chặn cứng, tắt CanCollide vẫn không qua) thì tự nhích
+-- CFrame theo hướng đang bấm -> xuyên qua. Chỉ nhích khi THẬT SỰ bị chặn (> 0,2s) nên đi bộ bình thường
+-- không bị ảnh hưởng. Tắt bằng công tắc 🧲 trong khung ⚙ (MV.ncPass = false).
+function MV._NcAssist()
+    if not (MV.noclip and MV.ncPass ~= false) then
+        MV._passBlocked, MV._passPX, MV._passPZ, MV._passAt = 0, nil, nil, nil
+        return
+    end
+    local h, r = MV.Hum(), MV.Root()
+    if not h or not r then
+        MV._passBlocked, MV._passPX, MV._passPZ, MV._passAt = 0, nil, nil, nil
+        return
+    end
+    local now = os.clock()
+    local dt = now - (MV._passAt or now)
+    MV._passAt = now
+    if dt <= 0 or dt > 0.5 then dt = 1 / 60 end          -- frame đầu / lag -> coi như 1 frame
+    local okMD, md = pcall(function() return h.MoveDirection end)
+    local mx = okMD and MV.comp(md, "X", 0) or 0
+    local mz = okMD and MV.comp(md, "Z", 0) or 0
+    local want = math.sqrt(mx * mx + mz * mz)            -- 0..1: đang bấm hướng nào
+    local px, pz = MV.comp(r.Position, "X", nil), MV.comp(r.Position, "Z", nil)
+    if not (px and pz) then return end
+    local moved = 0
+    if MV._passPX then
+        local dx, dz = px - MV._passPX, pz - MV._passPZ
+        moved = math.sqrt(dx * dx + dz * dz)
+    end
+    MV._passPX, MV._passPZ = px, pz
+    local spd = mvClamp(tonumber(MV.WantSpeed()) or 16, 6, 120)
+    -- đi được bao nhiêu mới gọi là "không bị chặn"? lấy theo TỐC ĐỘ ĐANG CÓ (không phải tốc độ mơ ước)
+    local ws = tonumber(MV.comp(h, "WalkSpeed", nil)) or spd
+    local expect = math.min(spd, ws) * want * dt
+    if want <= 0.1 then
+        MV._passBlocked = 0                              -- không bấm gì -> không đẩy
+    elseif moved < expect * 0.35 then
+        MV._passBlocked = (MV._passBlocked or 0) + dt    -- bị chặn -> đếm thời gian kẹt
+    else
+        MV._passBlocked = (MV._passBlocked or 0) * 0.5   -- đi được -> quên dần
+    end
+    if (MV._passBlocked or 0) < 0.2 or want <= 0.1 then return end
+    local ux, uz = mx / want, mz / want
+    local stepLen = math.min(spd * dt * 1.15, 3)         -- 1 frame không nhích quá 3 stud
+    local y = MV.comp(r.Position, "Y", nil)
+    if y == nil then return end
+    pcall(function() r.CFrame = CFrame.new(px + ux * stepLen, y, pz + uz * stepLen) end)
+end
 function MV._NcStep()
+    if not MV.noclip then return end
     local c = MV.Char()
     if not c then return end
     local now = os.clock()
-    if MV._ncChar ~= c or not MV._ncLast or (now - MV._ncLast) > 2 then
+    if MV._ncChar ~= c or not MV._ncLast or (now - MV._ncLast) > 0.5 then
         MV._ncLast = now
-        MV._NcScan()
+        MV._NcScan()                                  -- quét đầy đủ: bắt part mới / nhân vật mới
     end
+    MV._NcEnforce()                                   -- MỖI FRAME: thắng game bật lại CanCollide
+    MV._NcAssist()                                    -- 🧲 bị chặn cứng -> tự đẩy xuyên
+end
+-- v4.22: ghi CanCollide ở CUỐI frame (sau khi script của game ghi) — thêm 1 lớp nữa cho chắc
+function MV._NcBind(on)
+    if on and not MV._ncBound then
+        MV._ncBound = true
+        local ok = pcall(function()
+            RunService:BindToRenderStep("BC_NoClip", Enum.RenderPriority.Last.Value, function()
+                pcall(MV._NcStep)
+            end)
+        end)
+        if not ok then MV._ncBound = false end
+    elseif (not on) and MV._ncBound then
+        MV._ncBound = false
+        pcall(function() RunService:UnbindFromRenderStep("BC_NoClip") end)
+    end
+    return MV._ncBound
 end
 -- Dọn các part đã chết (respawn) khỏi bảng nhớ, rồi trả lại giá trị gốc cho part còn sống.
+-- v4.22: respawn chỉ QUÊN part đã mất, KHÔNG xoá sạch bảng giá trị gốc.
+-- (Bản cũ: MV.Refresh() đặt MV._origCC = {} trong lúc 🧱 vẫn bật -> giá trị gốc của part đang tắt
+--  va chạm bị mất -> tắt 🧱 xong nhân vật vẫn CanCollide = false, rơi xuyên map mãi.)
+function MV._NcForgetLost()
+    for p in pairs(MV._origCC) do
+        if not (p and p.Parent) then MV._origCC[p] = nil end
+    end
+end
 function MV._NcRestore()
     for p, v in pairs(MV._origCC) do
         if p and p.Parent then
@@ -7012,6 +7138,7 @@ function MV._NcRestore()
         MV._origCC[p] = nil
     end
     MV._origCC = {}
+    MV._ncParts = {}
 end
 function MV.SetNoclip(on)
     on = (on == true)
@@ -7019,13 +7146,19 @@ function MV.SetNoclip(on)
     MV.noclip = on
     if on then
         MV._ncLast = nil
+        MV._ncParts = {}
+        MV._passBlocked, MV._passPX, MV._passPZ, MV._passAt = 0, nil, nil, nil
+        if MV.ncPass == nil then MV.ncPass = true end   -- v4.22: 🧲 mặc định BẬT
         MV._NcScan()                                   -- quét ngay lần đầu cho chắc
         MV._ncConn = trackConn(RunService.Stepped:Connect(MV._NcStep))
+        MV._NcBind(true)                               -- v4.22: thêm lớp ghi cuối frame
     else
         for _, c in ipairs({ MV._ncConn, MV._ncDesc }) do
             if c then pcall(function() c:Disconnect() end) end
         end
         MV._ncConn, MV._ncDesc, MV._ncChar, MV._ncLast = nil, nil, nil, nil
+        MV._NcBind(false)
+        MV._passBlocked, MV._passPX, MV._passPZ, MV._passAt = 0, nil, nil, nil
         MV._NcRestore()
     end
     MV._Watchdog()
@@ -8164,7 +8297,7 @@ function MV.Refresh()
     -- respawn: nhân vật MỚI -> part cũ mất, phải dọn bảng nhớ rồi áp lại.
     -- CHỈ dựng lại cái THẬT SỰ MẤT: nếu còn nguyên (ví dụ thảm vẫn nằm trong workspace) thì
     -- giữ y — tạo lại vô điều kiện sẽ làm mất tham chiếu đang dùng và giật hình.
-    MV._origCC = {}
+    MV._NcForgetLost()      -- v4.22: chỉ quên part đã mất (giữ giá trị gốc của part đang bật 🧱)
     MV.ApplyChar()
     if MV.noclip then MV._NcStep() end
     if MV.fly and (not MV._bv or not MV._bv.Parent) then
@@ -9013,6 +9146,18 @@ do
 
     -- Hàng 4 (v4.12.5): 2 công tắc cho GAME NẶNG (Evade...). TẮT đi = y hệt bản gốc aiaiaitao3:
     -- hub không bao giờ đụng vào nhân vật -> hết giật/lag, thảm vẫn còn để đứng nhờ va chạm.
+    -- v4.22: nút 🧲 (nhãn ngắn cho vừa 168px cạnh 2 công tắc) + hàm vẽ lại
+    -- ⚠️ phải KHAI BÁO `local pcBtn` TRƯỚC paintPass(), không thì paintPass nhìn thấy biến TOÀN CỤC
+    -- trùng tên (nil) -> bấm nút là lỗi "attempt to index a nil value" (bộ test bắt được).
+    local pcBtn
+    local TXT_PASS_ON  = "🧲 Đẩy xuyên khi kẹt: BẬT"
+    local TXT_PASS_OFF = "🧲 Đẩy xuyên khi kẹt: TẮT"
+    local function paintPass()
+        local on = (S.Move.ncPass ~= false)
+        pcBtn.Text = on and TXT_PASS_ON or TXT_PASS_OFF
+        pcBtn.BackgroundColor3 = on and C.GREEN or C.GRAY
+        pcBtn.TextColor3 = D.BestText(pcBtn.BackgroundColor3)
+    end
     local holdBtn = act("🛟 Chống rơi: BẬT", 8, 100, 108, C.GREEN)
     local edgeBtn = act("🔲 Viền thảm: BẬT", 122, 100, 108, C.GREEN)
     local function paintHold()
@@ -9041,6 +9186,17 @@ do
         say("🔲 viền sáng quanh thảm: " .. ((S.Move.carpetEdge ~= false) and "BẬT" or "TẮT"), true)
     end)
     paintHold(); paintEdge()
+    -- v4.22: cùng hàng 4 — 🧲 tự đẩy xuyên khi game chặn cứng (đi kèm 🧱 Xuyên Tường)
+    pcBtn = act(TXT_PASS_ON, 234, 100, 168, C.GREEN)
+    S.Move._passBtn = pcBtn
+    pcBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        S.Move.ncPass = (S.Move.ncPass == false)        -- đang TẮT -> BẬT, và ngược lại
+        paintPass()
+        say(S.Move.ncPass and "🧲 tự đẩy xuyên: BẬT (kẹt cứng là tự nhích xuyên qua)"
+                           or "🧲 tự đẩy xuyên: TẮT (chỉ tắt va chạm như cũ)", true)
+    end)
+
 
     -- nhãn trạng thái tự cập nhật mỗi khi dựng lại danh sách thẻ
     function S.RefreshMovePanel()
@@ -9051,6 +9207,8 @@ do
             flyIn.Text = S.Move.flySpeed
             wsIn.Text = (S.Move.speedMode == "x") and ("x" .. tostring(S.Move.speedMul)) or tostring(S.Move.walkSpeed)
             jpIn.Text = S.Move.jumpPower
+            -- v4.22: nút 🧲 đọc lại đúng trạng thái (respawn không làm lệch chữ so với thực tế)
+            paintPass()
         end)
     end
 end

@@ -13,7 +13,7 @@ node run.js ../script.js            # chạy tất cả
 node run.js ../script.js noclip     # chỉ chạy test tên có chữ "noclip"
 ```
 
-Kết quả hiện tại: **167 PASS · 0 FAIL**.
+Kết quả hiện tại: **177 PASS · 0 FAIL**.
 
 ## Cấu trúc
 
@@ -21,7 +21,7 @@ Kết quả hiện tại: **167 PASS · 0 FAIL**.
 |---|---|
 | `run.js` | Tạo máy ảo, nạp mock, nạp hub, chạy `tests.lua`, tổng hợp kết quả (exit code 1 nếu FAIL). |
 | `roblox-mock.lua` | Giả lập Roblox + executor: `Instance`/event/method, `Vector3/CFrame/UDim2/Color3/Enum…`, `task.wait/spawn/defer`, service (Players, RunService, UserInputService, TweenService, HttpService, TeleportService…), JSON encode/decode, file ảo, API executor (`writefile`, `setclipboard`, `gethui`, `request`…), đồng hồ ảo (`Mock.advance`) và nhân vật mẫu (`Mock.makeCharacter`). |
-| `tests.lua` | Các test, chia 4 nhóm: **A** tính năng cũ (chống mất), **B** bộ di chuyển mới, **C** kiểm tra cuối, **D** khung ⚙ tuỳ chỉnh + ngoại lệ, **E** chế độ Chạy Trên Thảm + cụm nút nổi, **F** sửa thảm kính, **G** nhảy/chạy ở mọi game + tốc độ theo game, **H** helper dùng chung sau khi rút gọn code, **I** Chạy Trên Thảm = 'Bay chạy bộ' bản gốc 100%, **J** hết giật/lag khi bật thảm (game nặng), **K** 📍 định vị người chơi (xuyên tường · bạn bè · hạ gục · ⏱ đếm giờ · 📏 khoảng cách), **L** 👣 xem người chơi (bám theo camera — thấy họ đang làm gì), **M** trang 👥 Người Chơi (nằm giữa 📚 Script Hub và ➕ Tạo Tính Năng), **N** ✨ phát sáng (nhân vật mình · rộng + độ sáng + màu), **O** 🛡 bay an toàn (tự bay + né vật chuyển động), **P** 🔲 khiên trong suốt · 👤 né người chơi · 🧱 đẩy xuyên vật cản, **Q** 👁 bắt vật LAO TỚI mình từ ngoài 📏 + ⭕ tự bay vòng tròn khi không có gì lao tới, **R** 👾 boss/nextbot gí mình (instance kiểu game thật · né theo MẶT vật · nhớ hướng né · soi nguồn chống lỗi mock-only), **S** 🎯 định vị tốc độ (mặc định game · hiện tại · cao nhất + HUD nổi · chỉ ĐỌC nên không phá tính năng khác). |
+| `tests.lua` | Các test, chia 4 nhóm: **A** tính năng cũ (chống mất), **B** bộ di chuyển mới, **C** kiểm tra cuối, **D** khung ⚙ tuỳ chỉnh + ngoại lệ, **E** chế độ Chạy Trên Thảm + cụm nút nổi, **F** sửa thảm kính, **G** nhảy/chạy ở mọi game + tốc độ theo game, **H** helper dùng chung sau khi rút gọn code, **I** Chạy Trên Thảm = 'Bay chạy bộ' bản gốc 100%, **J** hết giật/lag khi bật thảm (game nặng), **K** 📍 định vị người chơi (xuyên tường · bạn bè · hạ gục · ⏱ đếm giờ · 📏 khoảng cách), **L** 👣 xem người chơi (bám theo camera — thấy họ đang làm gì), **M** trang 👥 Người Chơi (nằm giữa 📚 Script Hub và ➕ Tạo Tính Năng), **N** ✨ phát sáng (nhân vật mình · rộng + độ sáng + màu), **O** 🛡 bay an toàn (tự bay + né vật chuyển động), **P** 🔲 khiên trong suốt · 👤 né người chơi · 🧱 đẩy xuyên vật cản, **Q** 👁 bắt vật LAO TỚI mình từ ngoài 📏 + ⭕ tự bay vòng tròn khi không có gì lao tới, **R** 👾 boss/nextbot gí mình (instance kiểu game thật · né theo MẶT vật · nhớ hướng né · soi nguồn chống lỗi mock-only), **S** 🎯 định vị tốc độ (mặc định game · hiện tại · cao nhất + HUD nổi · chỉ ĐỌC nên không phá tính năng khác), **T** 🧱 xuyên tường "cứng" (thắng game bật lại CanCollide mỗi frame) + 🧲 tự đẩy xuyên khi bị chặn cứng. |
 
 ## Cách test đọc được biến `local` của hub
 
@@ -136,6 +136,30 @@ Vài điểm đáng chú ý:
 - **S6 chống số ảo**: teleport 495 studs trong 1 frame không được nhảy vào 🏁.
 - **Mutation check** (đã chạy): cố tình bỏ ưu tiên `_baseWS` khi 👟 đang bật → S7 FAIL; cố tình cho
   `max = live` → S5, S6 FAIL. Tức là các test này thật sự bắt lỗi, không phải test cho có.
+
+## 🧱 Test "xuyên tường cứng" + 🧲 tự đẩy xuyên (nhóm T) — v4.22
+
+Người dùng báo: *"một số tựa game hoặc bức tường mình không thể xuyên tường được"*. Nguyên nhân thật
+(không phải hub quên bật): **một số game/anti-cheat BẬT LẠI `CanCollide` cho part của người chơi mỗi
+frame**, còn hub cũ chỉ quét lại **2 giây/lần** → thua, người chơi vẫn kẹt ở tường.
+
+| Việc | Cách làm mới | Test |
+|---|---|---|
+| Thắng game bật lại CanCollide | ghi `CanCollide = false` **mỗi frame** (chỉ trên part của mình) + quét đầy đủ 0,5s/lần | T1, T2, T7 |
+| Ghi **sau cùng** trong frame | thêm lớp `BindToRenderStep("BC_NoClip", Enum.RenderPriority.Last.Value, …)` | T1, T10 |
+| Game chặn CỨNG (tắt va chạm vẫn không qua) | 🧲 tự nhích `CFrame` theo hướng đang bấm, chỉ khi kẹt > 0,2s | T4, T5, T6 |
+| Không phá gì | chỉ part trên người mình; tắt 🧱 là trả lại **đúng** `CanCollide` gốc | T3, T8, T9 |
+
+Cách bộ test mô phỏng "game chống xuyên tường": gọi thẳng `p:CanCollide = true` cho mọi part rồi
+`Mock.advance(1/60)` — **đúng 1 frame** — và đòi hub phải tắt lại ngay trong frame đó, lặp 40 lần.
+Trong mock không có vật lý nên nhân vật KHÔNG tự nhích khi bấm WASD — đó chính là "bị chặn cứng",
+nhờ vậy test được 🧲 một cách xác định (T4), và T6 giả lập "game cho đi bình thường" bằng một render
+step tự dịch nhân vật 1 stud/frame để chắc rằng 🧲 **không** đẩy thêm.
+
+**Mutation check** (đã chạy để chứng minh test có giá trị):
+- quay lại hành vi cũ (quét 2 giây/lần, không ép mỗi frame) → **T1, T2, T7 FAIL**;
+- cho `MV.Refresh()` xoá trắng bảng giá trị gốc như bản cũ → **T3 FAIL**;
+- bỏ `local pcBtn` khai báo trước hàm vẽ → 6 test đỏ vì `attempt to index a nil value`.
 
 ## Thêm test mới
 
