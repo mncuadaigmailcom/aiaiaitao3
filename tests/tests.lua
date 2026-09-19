@@ -3191,6 +3191,226 @@ test("R8 · 👾 BOSS gí mà KHÔNG mất tính năng: ⭕ tạm dừng, khiên
     cleanShieldFly()
 end)
 
+-- ============================================================================
+-- S. 🎯 ĐỊNH VỊ TỐC ĐỘ (tab 🛠 Hỗ Trợ) — v4.21
+-- ============================================================================
+print("\n── S. 🎯 ĐỊNH VỊ TỐC ĐỘ (tab 🛠 Hỗ Trợ) ──────────────────────")
+
+local function sm() return H.S.SpeedMeter end
+local function smOff()
+    pcall(function() S.Move.SetSpeed(false) end)
+    pcall(function() sm().Set(false) end)
+end
+local function textIn(parent, needle)
+    for _, d in ipairs(parent:GetDescendants()) do
+        if type(d.Text) == "string" and d.Text:find(needle, 1, true) then return d end
+    end
+    return nil
+end
+
+test("S1 · 🎯 nằm trong tab 🛠 Hỗ Trợ và KHÔNG làm mất tính năng nào của tab", function()
+    resetChip(); cleanStart(); cleanGlow(); cleanSafe()
+    local m = sm()
+    truthy(m and m.btn, "có nút 🎯 Định vị tốc độ")
+    truthy(m.hud and m.hud.Parent == H.gui, "HUD nổi nằm trong màn hình game (gui)")
+    eq(m.btn.Parent, S.AnaUi.devLbl.Parent, "cùng 1 tab với 🎯 Phân Tích Vật Thể (tab 🛠 Hỗ Trợ)")
+    truthy(textIn(m.btn.Parent, "Dex Explorer"), "Script Nhanh (Dex) vẫn còn")
+    truthy(textIn(m.btn.Parent, "SimpleSpy"), "Script Nhanh (SimpleSpy) vẫn còn")
+    truthy(textIn(m.btn.Parent, "Phân Tích Vật Thể"), "mục Phân Tích Vật Thể vẫn còn")
+    truthy(textIn(m.btn.Parent, "Waypoint"), "mục Waypoint vẫn còn")
+    truthy(textIn(m.btn.Parent, "Định vị tốc độ"), "mục 🎯 mới có mặt")
+    local tab = m.btn.Parent
+    truthy(tab.CanvasSize.Y.Offset >= m.hintLbl.Position.Y.Offset + 14,
+        string.format("tab đủ chỗ cuộn tới 🎯: canvas %d ≥ %d",
+            tab.CanvasSize.Y.Offset, m.hintLbl.Position.Y.Offset + 14))
+end)
+
+test("S2 · 🎯 chỉ ĐỌC — không ghi WalkSpeed/JumpPower/CFrame (không thể phá tính năng khác)", function()
+    local src = _G.__HUBSRC
+    truthy(type(src) == "string", "có nguồn hub để soi")
+    local a = src:find("v4.21: 🎯 ĐỊNH VỊ TỐC ĐỘ", 1, true)
+    local b = src:find("-- ===== HẾT 🎯 ĐỊNH VỊ TỐC ĐỘ (v4.21) =====", 1, true)
+    truthy(a and b and b > a, "tìm thấy khối 🎯 trong nguồn")
+    local body = src:sub(a, b)
+    falsy(body:find("WalkSpeed =", 1, true), "khối 🎯 KHÔNG ghi WalkSpeed")
+    falsy(body:find("JumpPower =", 1, true), "khối 🎯 KHÔNG ghi JumpPower")
+    falsy(body:find("CFrame = ", 1, true), "khối 🎯 KHÔNG ghi CFrame")
+    truthy(body:find("BC_SpeedHud", 1, true), "có HUD nổi BC_SpeedHud cho màn hình game")
+    truthy(body:find("[SM-READONLY]", 1, true), "có ghi chú chỉ-đọc trong nguồn")
+end)
+
+test("S3 · bật 🎯 (bấm nút thật) -> thấy MẶC ĐỊNH + HIỆN TẠI + CAO NHẤT, HUD hiện trên màn hình", function()
+    resetChip(); cleanStart(); cleanGlow(); cleanSafe()
+    smOff()
+    local h = hum(); h.WalkSpeed = 20                 -- "game" đặt mặc định 20
+    local m = sm()
+    m.Step(0.05)
+    Mock.click(m.btn)                                 -- bấm nút trong tab 🛠
+    truthy(m.on, "nút 🎯 bật được (bấm là chạy)")
+    eq(h.WalkSpeed, 20, "🎯 KHÔNG đổi WalkSpeed của nhân vật")
+    truthy(m.hud.Visible, "HUD hiện ra khi bật (thấy trên màn hình game)")
+    near(m.base, 20, 0.01, "dò đúng tốc độ mặc định của game = 20")
+    truthy(m.baseLbl.Text:find("20.0", 1, true), "label mặc định: " .. m.baseLbl.Text)
+    truthy(m.liveLbl.Text:find("studs/s", 1, true), "label tốc độ hiện tại: " .. m.liveLbl.Text)
+    truthy(m.maxLbl.Text:find("studs/s", 1, true), "label cao nhất: " .. m.maxLbl.Text)
+    truthy(m.hudLbl.Text:find("mặc định game", 1, true), "HUD nói tốc độ mặc định: " .. m.hudLbl.Text)
+    truthy(m.hudLbl.Text:find("🏁", 1, true), "HUD có cả cao nhất")
+    truthy(Mock.renderSteps["BC_SpeedMeter"], "vòng đo đang chạy khi bật")
+    truthy(tostring(m.Status()):find("🎯", 1, true), "Status: " .. tostring(m.Status()))
+    smOff()
+end)
+
+test("S4 · ⚡ đo TỐC ĐỘ THẬT đúng theo quãng đường (studs/s)", function()
+    resetChip(); cleanStart(); cleanGlow(); cleanSafe()
+    smOff()
+    local m = sm()
+    root().Position = Vector3.new(0, 30, 0)
+    m.Reset(); m.Set(true)                            -- mốc = vị trí hiện tại
+    root().Position = Vector3.new(0, 30, 3)
+    m.Step(0.1)                                       -- 3 studs / 0.1s = 30 studs/s
+    near(m.live, 30, 0.5, "tốc độ hiện tại = 30 studs/s")
+    root().Position = Vector3.new(0, 30, 6)
+    m.Step(0.1)
+    near(m.live, 30, 0.5, "chạy đều thì vẫn 30")
+    near(m.max, 30, 0.5, "đỉnh = 30")
+    truthy(m.liveLbl.Text:find("30.0", 1, true), "label hiện tại hiện 30.0: " .. m.liveLbl.Text)
+    smOff()
+end)
+
+test("S5 · 🏁 đỉnh GIỮ NGUYÊN khi chậm lại; nút 🗑 Xoá đỉnh đưa về 0", function()
+    resetChip(); cleanStart(); cleanGlow(); cleanSafe()
+    smOff()
+    local m = sm()
+    root().Position = Vector3.new(0, 30, 0)
+    m.Reset(); m.Set(true)
+    root().Position = Vector3.new(0, 30, 8)
+    m.Step(0.1)                                       -- 80 studs/s
+    near(m.max, 80, 1, "đỉnh = 80")
+    for i = 1, 6 do                                   -- chậm lại: 1 studs/0.1s = 10
+        root().Position = Vector3.new(0, 30, 8 + i)
+        m.Step(0.1)
+    end
+    truthy(m.live < 20, "tốc độ hiện tại đã chậm lại: " .. tostring(m.live))
+    truthy(m.max >= 79, "đỉnh VẪN giữ 80: " .. tostring(m.max))
+    truthy(m.maxLbl.Text:find("80", 1, true), "label cao nhất: " .. m.maxLbl.Text)
+    Mock.click(m.resetBtn)
+    eq(m.max, 0, "🗑 xoá đỉnh -> cao nhất = 0")
+    truthy(m.maxLbl.Text:find("0.0", 1, true), "label cao nhất về 0: " .. m.maxLbl.Text)
+    smOff()
+end)
+
+test("S6 · 🛡 teleport / respawn KHÔNG tạo đỉnh ảo (bỏ mẫu > 25 studs/frame)", function()
+    resetChip(); cleanStart(); cleanGlow(); cleanSafe()
+    smOff()
+    local m = sm()
+    root().Position = Vector3.new(0, 30, 0)
+    m.Reset(); m.Set(true)
+    root().Position = Vector3.new(0, 30, 5)
+    m.Step(0.1)                                       -- 50 studs/s
+    local top = m.max
+    truthy(top > 45, "đỉnh thật = 50: " .. tostring(top))
+    root().Position = Vector3.new(0, 30, 500)         -- teleport 495 studs / 0.1s
+    m.Step(0.1)
+    eq(m.max, top, "teleport KHÔNG nhảy vào đỉnh")
+    truthy(m.live < 60, "tốc độ hiện tại không nhảy theo teleport: " .. tostring(m.live))
+    root().Position = Vector3.new(0, 30, 503)
+    m.Step(0.1)                                       -- chạy tiếp bình thường: 30
+    near(m.max, top, 0.001, "vẫn giữ đỉnh cũ")
+    eq(#Mock.errors, 0, table.concat(Mock.errors, " | "))
+    smOff()
+end)
+
+test("S7 · 🎯 hợp tác với 👟 CHẠY ĐỘ: mặc định vẫn 16 chứ KHÔNG nhầm thành 48 (×3)", function()
+    resetChip(); cleanStart(); cleanGlow(); cleanSafe()
+    smOff()
+    local h = hum(); h.WalkSpeed = 16
+    local m = sm()
+    S.Move.SetSpeed(true)                             -- hub học mặc định 16 rồi áp 48
+    eq(h.WalkSpeed, 48, "👟 đang áp 16 × 3")
+    m.Set(true)
+    m.Step(0.05)
+    near(m.base, 16, 0.01, "mặc định = 16 (KHÔNG nhầm thành 48)")
+    eq(h.WalkSpeed, 48, "🎯 không hạ tốc độ đang chạy của 👟")
+    truthy(m.wsLbl.Text:find("×3.00", 1, true), "label cho biết đang ×3 mặc định: " .. m.wsLbl.Text)
+    near(m.ws, 48, 0.01, "WalkSpeed hiện tại = 48")
+    smOff()
+    eq(h.WalkSpeed, 16, "tắt 👟 -> về 16")
+end)
+
+test("S8 · HUD nổi cập nhật SỐ THẬT + tắt 🎯 là ngắt vòng đo, tính năng khác còn nguyên", function()
+    resetChip(); cleanStart(); cleanGlow(); cleanSafe()
+    smOff()
+    local m = sm()
+    root().Position = Vector3.new(0, 30, 0)
+    m.Reset(); m.Set(true)
+    root().Position = Vector3.new(0, 30, 4)
+    m.Step(0.1)                                       -- 40 studs/s
+    truthy(m.hud.Visible, "HUD đang hiện")
+    truthy(m.hudLbl.Text:find("40.0", 1, true), "HUD hiện tốc độ hiện tại 40.0: " .. m.hudLbl.Text)
+    truthy(m.hudLbl.Text:find("studs/s", 1, true), "HUD có đơn vị studs/s")
+    m.Set(false)
+    falsy(m.hud.Visible, "tắt 🎯 -> HUD ẩn")
+    falsy(Mock.renderSteps["BC_SpeedMeter"], "vòng đo đã ngắt (không tốn tài nguyên)")
+    truthy(card("Bay An Toàn"), "thẻ 🛡 vẫn còn")
+    truthy(H.S.Move.Safe, "API 🛡 vẫn còn")
+    S.Move.Safe.Set(true)
+    Mock.advance(0.3)
+    truthy(S.Move.Safe.on, "🛡 vẫn bật chạy được sau khi dùng 🎯")
+    S.Move.Safe.Set(false)
+    eq(#Mock.errors, 0, table.concat(Mock.errors, " | "))
+end)
+
+test("S9 · 🎯 sống sót qua respawn (nhân vật mới) và không văng lỗi", function()
+    resetChip(); cleanStart(); cleanGlow(); cleanSafe()
+    smOff()
+    local m = sm()
+    m.Set(true)
+    resetChar()                                       -- nhân vật mới, vị trí khác hẳn
+    m.Step(0.1)
+    Mock.advance(0.3)
+    truthy(m.on, "🎯 vẫn đang bật sau respawn")
+    truthy(m.max >= 0 and m.live >= 0, "số liệu vẫn hợp lệ")
+    eq(#Mock.errors, 0, table.concat(Mock.errors, " | "))
+    smOff()
+end)
+
+test("S10 · game ĐỔI tốc độ -> 🎯 tự học lại mặc định mới", function()
+    resetChip(); cleanStart(); cleanGlow(); cleanSafe()
+    smOff()
+    local h = hum(); h.WalkSpeed = 16
+    local m = sm()
+    m.Set(true)
+    m.Step(0.05)
+    near(m.base, 16, 0.01, "mặc định ban đầu 16")
+    h.WalkSpeed = 24                                  -- game đổi (map mới / anti-cheat đổi tốc độ)
+    m.Step(0.05)
+    near(m.base, 24, 0.01, "học lại mặc định mới = 24")
+    truthy(m.baseLbl.Text:find("24.0", 1, true), "label mặc định mới: " .. m.baseLbl.Text)
+    truthy(tostring(m.src):find("VỪA ĐỔI", 1, true), "nói rõ vừa học lại: " .. tostring(m.src))
+    smOff()
+end)
+
+test("S11 · thanh so sánh: vạch xanh = mặc định game, cột xanh = tốc độ hiện tại", function()
+    resetChip(); cleanStart(); cleanGlow(); cleanSafe()
+    smOff()
+    local h = hum(); h.WalkSpeed = 16
+    local m = sm()
+    root().Position = Vector3.new(0, 30, 0)
+    m.Reset(); m.Set(true); m.Step(0.05)
+    near(m.base, 16, 0.01, "mặc định 16")
+    root().Position = Vector3.new(0, 30, 3.2)
+    m.Step(0.1)                                       -- 32 = 2× mặc định
+    truthy(m.barFill.Size.X.Scale > 0.9, "cột đầy khi đang chạy nhanh: " .. tostring(m.barFill.Size.X.Scale))
+    near(m.barBase.Position.X.Scale, 0.5, 0.02, "vạch mặc định nằm ở đúng vị trí so với đỉnh")
+    for i = 1, 6 do
+        root().Position = Vector3.new(0, 30, 3.2 + i * 0.5)
+        m.Step(0.1)                                   -- chậm lại: 5 studs/s
+    end
+    truthy(m.barFill.Size.X.Scale < 0.5, "chậm lại -> cột tụt xuống: " .. tostring(m.barFill.Size.X.Scale))
+    truthy(m.barFill.Size.X.Scale > 0, "cột vẫn dương khi còn chạy")
+    m.Set(false)
+end)
+
 print("\n── C. KIỂM TRA CUỐI ─────────────────────────────────────────")
 
 test("C1 · không có lỗi runtime nào trong event / render step", function()

@@ -13,7 +13,7 @@ node run.js ../script.js            # chạy tất cả
 node run.js ../script.js noclip     # chỉ chạy test tên có chữ "noclip"
 ```
 
-Kết quả hiện tại: **156 PASS · 0 FAIL**.
+Kết quả hiện tại: **167 PASS · 0 FAIL**.
 
 ## Cấu trúc
 
@@ -21,7 +21,7 @@ Kết quả hiện tại: **156 PASS · 0 FAIL**.
 |---|---|
 | `run.js` | Tạo máy ảo, nạp mock, nạp hub, chạy `tests.lua`, tổng hợp kết quả (exit code 1 nếu FAIL). |
 | `roblox-mock.lua` | Giả lập Roblox + executor: `Instance`/event/method, `Vector3/CFrame/UDim2/Color3/Enum…`, `task.wait/spawn/defer`, service (Players, RunService, UserInputService, TweenService, HttpService, TeleportService…), JSON encode/decode, file ảo, API executor (`writefile`, `setclipboard`, `gethui`, `request`…), đồng hồ ảo (`Mock.advance`) và nhân vật mẫu (`Mock.makeCharacter`). |
-| `tests.lua` | Các test, chia 4 nhóm: **A** tính năng cũ (chống mất), **B** bộ di chuyển mới, **C** kiểm tra cuối, **D** khung ⚙ tuỳ chỉnh + ngoại lệ, **E** chế độ Chạy Trên Thảm + cụm nút nổi, **F** sửa thảm kính, **G** nhảy/chạy ở mọi game + tốc độ theo game, **H** helper dùng chung sau khi rút gọn code, **I** Chạy Trên Thảm = 'Bay chạy bộ' bản gốc 100%, **J** hết giật/lag khi bật thảm (game nặng), **K** 📍 định vị người chơi (xuyên tường · bạn bè · hạ gục · ⏱ đếm giờ · 📏 khoảng cách), **L** 👣 xem người chơi (bám theo camera — thấy họ đang làm gì), **M** trang 👥 Người Chơi (nằm giữa 📚 Script Hub và ➕ Tạo Tính Năng), **N** ✨ phát sáng (nhân vật mình · rộng + độ sáng + màu), **O** 🛡 bay an toàn (tự bay + né vật chuyển động), **P** 🔲 khiên trong suốt · 👤 né người chơi · 🧱 đẩy xuyên vật cản, **Q** 👁 bắt vật LAO TỚI mình từ ngoài 📏 + ⭕ tự bay vòng tròn khi không có gì lao tới, **R** 👾 boss/nextbot gí mình (instance kiểu game thật · né theo MẶT vật · nhớ hướng né · soi nguồn chống lỗi mock-only). |
+| `tests.lua` | Các test, chia 4 nhóm: **A** tính năng cũ (chống mất), **B** bộ di chuyển mới, **C** kiểm tra cuối, **D** khung ⚙ tuỳ chỉnh + ngoại lệ, **E** chế độ Chạy Trên Thảm + cụm nút nổi, **F** sửa thảm kính, **G** nhảy/chạy ở mọi game + tốc độ theo game, **H** helper dùng chung sau khi rút gọn code, **I** Chạy Trên Thảm = 'Bay chạy bộ' bản gốc 100%, **J** hết giật/lag khi bật thảm (game nặng), **K** 📍 định vị người chơi (xuyên tường · bạn bè · hạ gục · ⏱ đếm giờ · 📏 khoảng cách), **L** 👣 xem người chơi (bám theo camera — thấy họ đang làm gì), **M** trang 👥 Người Chơi (nằm giữa 📚 Script Hub và ➕ Tạo Tính Năng), **N** ✨ phát sáng (nhân vật mình · rộng + độ sáng + màu), **O** 🛡 bay an toàn (tự bay + né vật chuyển động), **P** 🔲 khiên trong suốt · 👤 né người chơi · 🧱 đẩy xuyên vật cản, **Q** 👁 bắt vật LAO TỚI mình từ ngoài 📏 + ⭕ tự bay vòng tròn khi không có gì lao tới, **R** 👾 boss/nextbot gí mình (instance kiểu game thật · né theo MẶT vật · nhớ hướng né · soi nguồn chống lỗi mock-only), **S** 🎯 định vị tốc độ (mặc định game · hiện tại · cao nhất + HUD nổi · chỉ ĐỌC nên không phá tính năng khác). |
 
 ## Cách test đọc được biến `local` của hub
 
@@ -110,6 +110,32 @@ Cách bộ test chống lại:
 
 Viết test mới cho nhóm này: `Mock.clearRealParts()` (đã có trong `cleanSafe()`), tạo boss bằng
 `Mock.addRealPart{...}`, đổi vận tốc bằng `boss.AssemblyLinearVelocity = Vector3.new(...)`.
+
+## 🎯 Test "định vị tốc độ" (nhóm S) — v4.21
+
+Tính năng 🎯 trong tab 🛠 Hỗ Trợ phải **thấy được bằng mắt**: vừa có widget trong tab, vừa có HUD nổi
+`BC_SpeedHud` trong màn hình game (đóng menu vẫn thấy). Nhóm S kiểm tra đúng 3 con số mà người dùng cần:
+
+| Số | Lấy từ đâu | Test |
+|---|---|---|
+| 🎯 **mặc định game** | `S.Move._baseWS` nếu 👟 đã học; không thì `Humanoid.WalkSpeed` lúc bật; tự học lại khi game đổi | S3, S7, S10 |
+| ⚡ **hiện tại** | quãng đường đi được mỗi frame ÷ thời gian (studs/s), làm mượt 0,35 — đúng với mọi game | S4, S8, S11 |
+| 🏁 **cao nhất** | đỉnh đo được trong phiên; bỏ mẫu > 25 studs/frame (teleport/respawn/lag đứng hình) | S5, S6 |
+
+Vài điểm đáng chú ý:
+
+- **Bấm nút thật**: S3/S5 dùng `Mock.click(m.btn)` / `Mock.click(m.resetBtn)` để chạy đúng đường
+  `Activated` → `SV.Set` chứ không gọi hàm tắt.
+- **Không phá tính năng khác**: S1 kiểm tra 🎯 nằm **cùng tab** với 🎯 Phân Tích Vật Thể
+  (`m.btn.Parent == S.AnaUi.devLbl.Parent`) và tab vẫn còn Dex/SimpleSpy/Waypoint; S8 bật 🛡 sau khi
+  dùng 🎯; S9 respawn (nhân vật mới) rồi chạy tiếp; C1 bắt mọi lỗi runtime của render step.
+- **S2 soi thẳng nguồn** `script.js` (`_G.__HUBSRC`): khối 🎯 **không được** chứa `WalkSpeed =`,
+  `JumpPower =`, `CFrame = ` — tức là chỉ ĐO, không thể làm lệch tốc độ của 👟/game.
+- **S7 là ca dễ sai nhất**: khi 👟 đang áp ×3 (WalkSpeed = 48), 🎯 phải hiểu mặc định là **16** chứ
+  không phải 48 (nhãn còn ghi "×3.00 mặc định").
+- **S6 chống số ảo**: teleport 495 studs trong 1 frame không được nhảy vào 🏁.
+- **Mutation check** (đã chạy): cố tình bỏ ưu tiên `_baseWS` khi 👟 đang bật → S7 FAIL; cố tình cho
+  `max = live` → S5, S6 FAIL. Tức là các test này thật sự bắt lỗi, không phải test cho có.
 
 ## Thêm test mới
 

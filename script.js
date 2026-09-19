@@ -63,6 +63,11 @@
           2) Thêm 1 biến local nữa vào main chunk -> vượt TRẦN 200 LOCAL của Luau/Lua 5.4
              ("too many local variables") làm cả hub KHÔNG NẠP ĐƯỢC. Nay toàn bộ khối 🛡 nằm
              trong `do ... end` nên không chiếm slot local của chunk (giống các tab khác).
+    + v4.21 (tab 🛠 Hỗ Trợ): 🎯 ĐỊNH VỊ TỐC ĐỘ — bật lên là thấy (1) tốc độ MẶC ĐỊNH của game
+        (lấy từ S.Move._baseWS nếu 👟 đã học, không thì lấy WalkSpeed thật của nhân vật lúc bật; tự học lại
+        mỗi khi game đổi WalkSpeed), (2) tốc độ THẬT đang chạy (studs/s đo theo quãng đường mỗi frame),
+        (3) ĐỈNH cao nhất trong phiên + thanh so sánh với vạch mặc định + HUD nổi BC_SpeedHud trong màn hình
+        game (đóng menu vẫn thấy). Khối chỉ ĐỌC — không ghi WalkSpeed/CFrame nên không thể phá tính năng khác.
     + v4.20 (🛡 BAY AN TOÀN: SỬA LỖI BOSS/NEXTBOT GÍ MÌNH MÀ KHÔNG NÉ — 156 test PASS):
         • 🔴 LỖI NẶNG (chỉ xảy ra trong GAME THẬT, bộ test cũ không thấy): hàm nhận diện part đòi
           `type(d) == "table"`, nhưng trong Roblox THẬT instance là USERDATA (chỉ trong máy giả lập của
@@ -3876,6 +3881,302 @@ tpBtn.Activated:Connect(function()
     flash(tpBtn, "✅ Đã Teleport!", 1.5)
 end)
 
+-- ==================== v4.21: 🎯 ĐỊNH VỊ TỐC ĐỘ (mặc định game · hiện tại · cao nhất) ====================
+-- "Tốc độ mặc định của game" = WalkSpeed mà CHÍNH GAME đặt cho nhân vật (8 / 16 / 20 / 30 / 50... mỗi game một kiểu).
+--   Nguồn 1 (chắc nhất): S.Move._baseWS — hub đã học được khi 👟 CHẠY ĐỘ bật lần đầu / khi game đổi tốc độ.
+--   Nguồn 2: Humanoid.WalkSpeed ngay lúc bật 🎯 (lúc đó hub chưa can thiệp) -> chính là mặc định thật của game.
+--   Tự học lại: mỗi khi game đổi WalkSpeed trong lúc hub KHÔNG áp tốc độ -> nhận là mặc định mới.
+-- Tốc độ HIỆN TẠI = tốc độ di chuyển THẬT (studs/s) đo bằng quãng đường mỗi frame -> đúng với mọi game
+--   (không phụ thuộc physics/anti-cheat), kèm WalkSpeed hiện tại của Humanoid.
+-- CAO NHẤT = đỉnh (max) đo được trong phiên; bỏ qua mẫu nhảy > 25 studs/frame (teleport/respawn/lag đứng hình).
+-- Bật lên là THẤY: widget trong tab 🛠 Hỗ Trợ + HUD nổi BC_SpeedHud trong màn hình game (đóng menu vẫn thấy).
+-- [SM-READONLY] Khối này CHỈ ĐỌC: không ghi WalkSpeed / JumpPower / CFrame / thuộc tính nào của nhân vật.
+S.SpeedMeter = S.SpeedMeter or {}
+do            -- do..end: main chunk gần cạn 200 slot local -> KHÔNG khai báo local ở scope chunk
+local SV = S.SpeedMeter
+
+SV.on     = (SV.on == true)
+SV.live   = tonumber(SV.live) or 0        -- tốc độ hiện tại (studs/s, đã làm mượt)
+SV.max    = tonumber(SV.max)  or 0        -- đỉnh cao nhất đo được trong phiên
+SV.base   = tonumber(SV.base)             -- mặc định của game (studs/s) — nil = chưa dò được
+SV.src    = SV.src or "chưa dò"
+SV.ws     = tonumber(SV.ws) or 0          -- WalkSpeed hiện tại của Humanoid
+SV._bound = (SV._bound == true)
+
+local function num(v)
+    v = tonumber(v)
+    if v == nil or v ~= v then return nil end          -- NaN -> nil
+    return v
+end
+local function fmt(n) return string.format("%.1f", num(n) or 0) end
+local function say(msg) pcall(function() if D.hubStatus then D.hubStatus.Text = msg end end) end
+
+-- S.Move được khai báo SAU khối này -> phải lấy LÚC GỌI (không thể bắt biến local `MV` ở đây).
+local function move() return S.Move end
+local function myHum()
+    local m = move()
+    if m and m.Hum then
+        local ok, h = pcall(m.Hum)
+        if ok and h then return h end
+    end
+    local ch = player.Character
+    if not ch then return nil end
+    local ok, h = pcall(function() return ch:FindFirstChildOfClass("Humanoid") end)
+    if ok and h then return h end
+    return ch:FindFirstChild("Humanoid")
+end
+local function myRoot()
+    local m = move()
+    if m and m.Root then
+        local ok, r = pcall(m.Root)
+        if ok and r then return r end
+    end
+    local ch = player.Character
+    return ch and ch:FindFirstChild("HumanoidRootPart") or nil
+end
+local function readWS(h)
+    if not h then return nil end
+    local ok, v = pcall(function() return h.WalkSpeed end)
+    if ok then local n = num(v); if n then return n end end
+    local m = move()
+    if m and m.comp then return num(m.comp(h, "WalkSpeed", nil)) end
+    return nil
+end
+local function readPos(r)
+    if not r then return nil end
+    local m = move()
+    local x, y, z
+    if m and m.comp then
+        local p
+        pcall(function() p = r.Position end)
+        x, y, z = m.comp(p, "X", nil), m.comp(p, "Y", nil), m.comp(p, "Z", nil)
+    else
+        pcall(function() local p = r.Position; x, y, z = p.X, p.Y, p.Z end)
+    end
+    x, y, z = num(x), num(y), num(z)
+    if x == nil or y == nil or z == nil then return nil end
+    return x, y, z
+end
+
+-- ---------- dò tốc độ MẶC ĐỊNH của game ----------
+function SV.Detect()
+    local m = move()
+    local h = myHum()
+    local hws = readWS(h)
+    local baseWS = m and num(m._baseWS) or nil
+    local applying = (m ~= nil) and (m.speed == true or m.runMode == true)
+    local src
+    if applying and baseWS then
+        SV.base = baseWS
+        src = "game (hub đã học khi 👟 bật)"
+    elseif hws and hws > 0 then
+        if (not applying) and SV._lastWS and math.abs(hws - SV._lastWS) > 0.01 then
+            src = "game VỪA ĐỔI tốc độ → mặc định mới"
+        else
+            src = "game (WalkSpeed của nhân vật)"
+        end
+        SV.base = hws
+    elseif baseWS then
+        SV.base = baseWS
+        src = "hub (đã học)"
+    else
+        SV.base = 16
+        src = "mặc định Roblox"
+    end
+    if hws and hws > 0 and not applying then SV._lastWS = hws end
+    if hws then SV.ws = hws end
+    SV.src = src
+    return SV.base, SV.src
+end
+
+-- ---------- đo tốc độ HIỆN TẠI + giữ đỉnh CAO NHẤT ----------
+function SV.Step(dt)
+    dt = num(dt)
+    if not dt or dt <= 0 then dt = 1 / 60 end
+    if dt > 0.5 then dt = 0.5 end
+    local h = myHum()
+    local x, y, z = readPos(myRoot())
+    if x then
+        if SV._px then
+            local dx, dy, dz = x - SV._px, y - SV._py, z - SV._pz
+            local d = math.sqrt(dx * dx + dy * dy + dz * dz)
+            if d <= 25 then                                  -- > 25 studs/frame = teleport/respawn/lag -> bỏ mẫu
+                local inst = d / dt
+                if d > 0.001 then                            -- chỉ tính mẫu CÓ dịch chuyển (đứng yên không phá số liệu)
+                    SV._n = (SV._n or 0) + 1
+                    -- mẫu CHUYỂN ĐỘNG đầu tiên -> lấy số thật ngay (không trễ); sau đó làm mượt 0,35 cho đỡ rung
+                    SV.live = (SV._n <= 1) and inst or (SV.live + (inst - SV.live) * 0.35)
+                    if inst >= 0.5 and inst > SV.max then SV.max = inst end
+                end
+            end
+        end
+        SV._px, SV._py, SV._pz = x, y, z
+    else
+        SV._px = nil
+        SV.live = 0
+    end
+    if h then SV.ws = readWS(h) or SV.ws end
+    SV.Detect()
+    SV.Sync()
+    return SV.live
+end
+
+local function setText(lbl, s)
+    if lbl and lbl.Text ~= s then lbl.Text = s end
+end
+
+-- ---------- vẽ số liệu ra widget + HUD ----------
+function SV.Sync()
+    local base = num(SV.base) or 0
+    local ratio = (base > 0) and (SV.ws / base) or 0
+    local scale = math.max(SV.max, base, 1)
+    local pct = SV.live / scale
+    if pct < 0 then pct = 0 elseif pct > 1 then pct = 1 end   -- KHÔNG dùng math.clamp (chỉ có trong Luau)
+    local bpct = base / scale
+    if bpct < 0 then bpct = 0 elseif bpct > 1 then bpct = 1 end
+    setText(SV.baseLbl, string.format("🎯 Mặc định game: %s studs/s · nguồn: %s", fmt(base), tostring(SV.src)))
+    setText(SV.wsLbl, string.format("🚶 WalkSpeed hiện tại: %s%s", fmt(SV.ws),
+        (ratio > 0) and string.format("  (×%.2f mặc định)", ratio) or ""))
+    setText(SV.liveLbl, string.format("⚡ Tốc độ thật: %s studs/s", fmt(SV.live)))
+    setText(SV.maxLbl, string.format("🏁 Cao nhất: %s studs/s", fmt(SV.max)))
+    if SV.btn then
+        setText(SV.btn, SV.on and "🎯 Định vị tốc độ: BẬT" or "🎯 Định vị tốc độ: TẮT")
+        if SV._btnOn ~= SV.on then
+            SV._btnOn = SV.on
+            SV.btn.BackgroundColor3 = SV.on and C.GREEN or C.GRAY
+        end
+    end
+    if SV.barFill and SV._barPct ~= pct then
+        SV._barPct = pct
+        SV.barFill.Size = UDim2.new(pct, 0, 1, 0)
+    end
+    if SV.barBase and SV._barBase ~= bpct then
+        SV._barBase = bpct
+        SV.barBase.Position = UDim2.new(bpct, -1, 0, 0)
+    end
+    if SV.hud then
+        if SV.hud.Visible ~= SV.on then SV.hud.Visible = SV.on end
+        setText(SV.hudLbl, string.format("🎯 %s (mặc định game) · 🚶 %s\n⚡ %s · 🏁 %s studs/s",
+            fmt(base), fmt(SV.ws), fmt(SV.live), fmt(SV.max)))
+    end
+end
+
+function SV.Status()
+    return string.format("🎯 %s · ⚡ %s · 🏁 %s", fmt(SV.base), fmt(SV.live), fmt(SV.max))
+end
+
+-- ---------- bật/tắt vòng đo (chỉ chạy khi BẬT -> không tốn tài nguyên) ----------
+function SV.Bind(on)
+    if on and not SV._bound then
+        SV._bound = true
+        local ok = pcall(function()
+            RunService:BindToRenderStep("BC_SpeedMeter", Enum.RenderPriority.Camera.Value - 6, function(dt)
+                pcall(function() SV.Step(dt) end)
+            end)
+        end)
+        if not ok then SV._bound = false end
+    elseif (not on) and SV._bound then
+        SV._bound = false
+        pcall(function() RunService:UnbindFromRenderStep("BC_SpeedMeter") end)
+    end
+    return SV._bound
+end
+function SV.Set(on)
+    SV.on = (on == true)
+    if SV.on then
+        SV._px, SV._n = nil, 0
+        SV.Detect()
+        SV._lastWS = nil
+        SV.Bind(true)
+        SV.Step(1 / 60)                 -- có số ngay, không phải đợi frame sau
+    else
+        SV.Bind(false)
+        SV._px, SV._n = nil, 0
+    end
+    SV.Sync()
+    return SV.on
+end
+function SV.Toggle() return SV.Set(not SV.on) end
+function SV.Reset()                     -- xoá đỉnh, vẫn đo tiếp
+    SV.max, SV.live = 0, 0
+    SV._n = 0
+    SV.Sync()
+    return SV.max
+end
+
+-- ---------- widget trong tab 🛠 Hỗ Trợ ----------
+Label(supportTab, "🎯 Định vị tốc độ game (mặc định · hiện tại · cao nhất)", posY)
+posY = posY + 18
+SV.btn      = Button(supportTab, "🎯 Định vị tốc độ: TẮT", 8, posY, 300, 26, C.GRAY)
+SV.resetBtn = Button(supportTab, "🗑 Xoá đỉnh", 314, posY, 162, 26, C.RED)
+posY = posY + 30
+SV.baseLbl = Label(supportTab, "🎯 Mặc định game: — studs/s", posY)
+SV.baseLbl.TextColor3 = C.ACCENT
+SV.baseLbl.TextSize = 9
+posY = posY + 16
+SV.wsLbl = Label(supportTab, "🚶 WalkSpeed hiện tại: —", posY)
+SV.wsLbl.TextSize = 9
+posY = posY + 16
+SV.liveLbl = Label(supportTab, "⚡ Tốc độ thật: 0.0 studs/s", posY)
+SV.liveLbl.TextColor3 = C.GREEN
+SV.liveLbl.TextSize = 9
+posY = posY + 16
+SV.maxLbl = Label(supportTab, "🏁 Cao nhất: 0.0 studs/s", posY)
+SV.maxLbl.TextColor3 = C.ORANGE
+SV.maxLbl.TextSize = 9
+posY = posY + 16
+
+local smBarBg = New("Frame", {
+    Size=UDim2.new(1,-16,0,10), Position=UDim2.new(0,8,0,posY),
+    BackgroundColor3=Color3.fromRGB(24, 28, 38), BackgroundTransparency=0.15,
+    BorderSizePixel=0, ZIndex=6,
+}, supportTab)
+Corner(smBarBg, UDim.new(0,5)); Stroke(smBarBg, C.BORDER, 1)
+SV.barFill = New("Frame", {
+    Size=UDim2.new(0,0,1,0), Position=UDim2.new(0,0,0,0),
+    BackgroundColor3=C.BLUE, BackgroundTransparency=0.15, BorderSizePixel=0, ZIndex=7,
+}, smBarBg)
+Corner(SV.barFill, UDim.new(0,5))
+SV.barBase = New("Frame", {                -- vạch xanh = tốc độ MẶC ĐỊNH của game (mốc so sánh)
+    Size=UDim2.new(0,2,1,0), Position=UDim2.new(0.25,-1,0,0),
+    BackgroundColor3=C.GREEN, BackgroundTransparency=0, BorderSizePixel=0, ZIndex=8,
+}, smBarBg)
+posY = posY + 16
+
+SV.hintLbl = Label(supportTab, "ℹ️ Chỉ ĐO, không sửa gì · Vạch xanh = mặc định game · Tự học lại khi game đổi.", posY)
+SV.hintLbl.TextSize = 9
+posY = posY + 18
+
+-- ---------- HUD nổi trong màn hình game (đóng menu vẫn thấy) ----------
+SV.hud = New("Frame", {
+    Name = "BC_SpeedHud",
+    Size = UDim2.new(0, 214, 0, 44), Position = UDim2.new(0, 12, 0.5, -22),
+    BackgroundColor3 = Color3.fromRGB(16, 19, 26), BackgroundTransparency = 0.25,
+    BorderSizePixel = 0, Visible = false, ZIndex = 24,
+}, gui)
+Corner(SV.hud, UDim.new(0,8)); Stroke(SV.hud, C.ACCENT, 1.4)
+SV.hudLbl = New("TextLabel", {
+    Size = UDim2.new(1,-12,1,0), Position = UDim2.new(0,6,0,0), Text = "🎯 ...",
+    BackgroundTransparency = 1, TextColor3 = C.WHITE,
+    Font = Enum.Font.GothamBold, TextSize = 9,
+    TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Center,
+    ZIndex = 25, TextWrapped = true,
+}, SV.hud)
+
+SV.btn.Activated:Connect(function()
+    local on = SV.Set(not SV.on)
+    say(on and ("🎯 định vị tốc độ: BẬT · mặc định game " .. fmt(SV.base) .. " studs/s")
+           or "🎯 định vị tốc độ: TẮT")
+end)
+SV.resetBtn.Activated:Connect(function()
+    SV.Reset()
+    say("🎯 đã xoá đỉnh · cao nhất = 0")
+end)
+
+SV.Detect()
+SV.Sync()
+end
+-- ===== HẾT 🎯 ĐỊNH VỊ TỐC ĐỘ (v4.21) =====
 Label(supportTab, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", posY)
 posY = posY + 16
 Label(supportTab, "💾 Waypoint Đã Lưu", posY)

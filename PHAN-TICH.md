@@ -7,7 +7,7 @@ Ngày phân tích: 2026-09-17 · Branch: `arena/01a0af79-aiaiaitao3` · Commit g
 ## 0. Cập nhật v4.12 (đã thực hiện theo yêu cầu)
 
 Port **5 tính năng di chuyển** từ `aiaiaitao3` vào trang 📚 Script Hub của `script.js`, kèm bộ test
-tự động chạy thật trong máy ảo. Kết quả: **`node tests/run.js` → 156 PASS · 0 FAIL**.
+tự động chạy thật trong máy ảo. Kết quả: **`node tests/run.js` → 167 PASS · 0 FAIL**.
 
 **Đã thêm (toàn bộ là tiện ích nội bộ, không tải gì từ mạng):**
 
@@ -23,6 +23,25 @@ Kèm **cụm nút nổi trên màn hình game** (⬆ nâng · 🪩 bật/tắt t
 khi lọc/tìm kiếm): tốc độ bay · chạy · nhảy · 3 chiều thảm · ⬆/⬇ · 🛑 Tắt hết + nhãn trạng thái.
 Tất cả state gom trong `S.Move` (không tốn slot local cấp chunk), mọi connection qua `trackConn()`,
 tự bật lại sau respawn qua `CharacterAdded`.
+
+**v4.21 — 🎯 ĐỊNH VỊ TỐC ĐỘ (tab 🛠 Hỗ Trợ): biết game cho mình chạy bao nhiêu và mình đang chạy bao nhiêu:**
+- Bật 🎯 là **thấy ngay trên màn hình game** (HUD nổi `BC_SpeedHud`, đóng menu vẫn thấy) 3 con số:
+  **🎯 mặc định của game** · **⚡ tốc độ thật đang chạy (studs/s)** · **🏁 cao nhất trong phiên**, kèm
+  **🚶 WalkSpeed hiện tại** và "đang ×mấy mặc định" — cùng lúc có widget trong tab 🛠 Hỗ Trợ
+  (nút bật/tắt · nút 🗑 xoá đỉnh · 4 nhãn số · thanh so sánh có **vạch xanh = mặc định game**).
+- **Dò mặc định** theo 3 lớp: (1) `S.Move._baseWS` — hub đã học khi 👟 CHẠY ĐỘ bật lần đầu (hoặc khi game
+  đổi tốc độ); (2) `Humanoid.WalkSpeed` ngay lúc bật 🎯 (lúc đó hub chưa can thiệp) → chính là mặc định
+  thật của game; (3) 16 (mặc định Roblox). Mỗi khi game đổi WalkSpeed trong lúc hub KHÔNG áp tốc độ thì
+  🎯 **tự học lại** và nói rõ "game VỪA ĐỔI tốc độ → mặc định mới".
+- **Đo tốc độ** bằng quãng đường mỗi frame ÷ thời gian (không tin `AssemblyLinearVelocity` vì nhiều game
+  bịa/sửa số đó), mẫu chuyển động đầu tiên lấy số thật ngay rồi mới làm mượt 0,35 cho đỡ rung; mẫu
+  > 25 studs/frame bị bỏ (teleport/respawn/lag đứng hình không tạo đỉnh ảo). Vòng đo chỉ chạy khi BẬT
+  (`BindToRenderStep("BC_SpeedMeter")`), tắt là ngắt.
+- **KHÔNG phá gì**: khối chỉ ĐỌC — không ghi `WalkSpeed`/`JumpPower`/`CFrame` (test S2 soi thẳng nguồn
+  `script.js` để cấm); bật 🎯 khi 👟 đang ×3 thì tốc độ vẫn 48 và mặc định vẫn hiểu là 16 (S7); sống sót
+  qua respawn (S9); 🛡/thẻ/thảm vẫn nguyên (S8). Toàn bộ nằm trong `do ... end` (không thêm local cấp chunk).
+- **11 test mới S1–S11** (167 PASS · 0 FAIL) + **mutation check** để chứng minh test có giá trị: bỏ ưu
+  tiên `_baseWS` → S7 FAIL; cho `max = live` → S5, S6 FAIL.
 
 **v4.20 — 🛡 Bay An Toàn: SỬA LỖI "BOSS/NEXTBOT GÍ MÌNH MÀ KHÔNG NÉ" (Evade):**
 - 🔴 **Lỗi nặng, chỉ xảy ra trong game thật**: hàm nhận diện part đòi `type(d) == "table"`, nhưng trong
