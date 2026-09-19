@@ -133,7 +133,12 @@ Color3 = {
 
 -- ---------- CFrame ----------
 local function cf(x, y, z, look)
-    if type(x) == "table" then x, y, z = x.X or 0, x.Y or 0, x.Z or 0 end
+    -- cf(Vector3, lookVector) — dạng dùng trong CFrame.lookAt và khi gán part.Position (giữ hướng cũ).
+    -- (Trước đây thiếu nhánh này nên MỌI CFrame đều có LookVector = (0,0,-1) -> camera test nhìn sai hướng.)
+    if type(x) == "table" then
+        if look == nil and type(y) == "table" and rawget(y, "X") ~= nil then look = y end
+        x, y, z = x.X or 0, x.Y or 0, x.Z or 0
+    end
     local pos = v3(x or 0, y or 0, z or 0)
     local lookVec = look or v3(0, 0, -1)
     return setmetatable({ Position = pos, LookVector = lookVec, RightVector = v3(1, 0, 0), UpVector = v3(0, 1, 0) }, {

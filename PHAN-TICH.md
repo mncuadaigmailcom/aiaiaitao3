@@ -7,7 +7,7 @@ Ngày phân tích: 2026-09-17 · Branch: `arena/01a0af79-aiaiaitao3` · Commit g
 ## 0. Cập nhật v4.12 (đã thực hiện theo yêu cầu)
 
 Port **5 tính năng di chuyển** từ `aiaiaitao3` vào trang 📚 Script Hub của `script.js`, kèm bộ test
-tự động chạy thật trong máy ảo. Kết quả: **`node tests/run.js` → 140 PASS · 0 FAIL**.
+tự động chạy thật trong máy ảo. Kết quả: **`node tests/run.js` → 147 PASS · 0 FAIL**.
 
 **Đã thêm (toàn bộ là tiện ích nội bộ, không tải gì từ mạng):**
 
@@ -23,6 +23,24 @@ Kèm **cụm nút nổi trên màn hình game** (⬆ nâng · 🪩 bật/tắt t
 khi lọc/tìm kiếm): tốc độ bay · chạy · nhảy · 3 chiều thảm · ⬆/⬇ · 🛑 Tắt hết + nhãn trạng thái.
 Tất cả state gom trong `S.Move` (không tốn slot local cấp chunk), mọi connection qua `trackConn()`,
 tự bật lại sau respawn qua `CharacterAdded`.
+
+**v4.19 — 🛡 Bay An Toàn: 👁 BẮT VẬT BAY TỚI MÌNH từ xa + ⭕ TỰ BAY VÒNG TRÒN khi rảnh:**
+- **👁 Nhìn trước**: mỗi lần quét không chỉ xét vật đang Ở TRONG 📏 mà còn tính `tHit` — còn bao lâu
+  thì vật tới sát mình (`tHit = (khoảng cách − 0,35×📏) / tốc độ lao vào`). `tHit ≤ 👁 giây` (mặc định
+  1s) là **mối nguy**, né từ xa; đẩy theo **vị trí dự đoán** (vị trí + vận tốc × 0,35s) nên né đúng
+  hướng vật đang lao tới. Tầm quét = 📏 × 1,6. Đang có mối nguy -> quét dày **0,05s** (thường 0,15s)
+  để vật bay nhanh không lọt khe giữa 2 lần quét.
+- **⭕ Tự bay vòng tròn**: khi KHÔNG có ai/vật nào lao tới mình và không bấm WASD thì tự bay vòng tròn
+  quanh chỗ đang đứng (bán kính 20m, chỉnh được). Đang né hoặc đang bấm phím -> **tạm dừng** (ghi rõ
+  trong trạng thái), né xong tự bay vòng lại; bay quá 1,6× bán kính thì lấy lại tâm mới.
+- Khung 🛡 thêm hàng 3: ⭕ Vòng tròn BẬT/TẮT · ⭕ Bán kính · 👁 Nhìn trước (giây); ✔ Áp dụng đọc luôn
+  2 ô mới; ghi chú trong khung nói rõ ⭕/👁 làm gì.
+- **2 lỗi bộ test bắt được**: (1) phần tính "tốc độ lao vào" cộng cả vận tốc CỦA MÌNH → vật ĐỨNG YÊN
+  trước mặt bị coi là lao tới (O3/P5) — nay chỉ tính vận tốc của vật; (2) trạng thái vẫn ghi
+  "⭕ bay vòng tròn" khi đang bấm WASD — nay ghi "⭕ tạm dừng (đang bấm phím)".
+- **Sửa luôn 1 lỗi của máy giả lập**: `CFrame.lookAt()` luôn cho `LookVector = (0,0,-1)` (thiếu nhánh
+  `cf(Vector3, lookVector)`), nên camera giả không bao giờ có hướng như test đặt; nay giữ đúng hướng và
+  các test 🛡 tự trả camera về mặc định trong `cleanSafe()` cho kết quả **tất định**. Thêm 7 test Q1–Q7.
 
 **v4.18 — 🛡 Bay An Toàn nâng cấp (khiên trong suốt · né người chơi · đẩy xuyên vật cản):**
 - **🔲 Khiên**: 4 vách kính trong suốt xếp thành hình vuông quanh mình, cạnh = 📏 Né × 2 (nhìn là

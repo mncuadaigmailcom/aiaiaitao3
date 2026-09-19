@@ -13,7 +13,7 @@ node run.js ../script.js            # chạy tất cả
 node run.js ../script.js noclip     # chỉ chạy test tên có chữ "noclip"
 ```
 
-Kết quả hiện tại: **140 PASS · 0 FAIL**.
+Kết quả hiện tại: **147 PASS · 0 FAIL**.
 
 ## Cấu trúc
 
@@ -21,7 +21,7 @@ Kết quả hiện tại: **140 PASS · 0 FAIL**.
 |---|---|
 | `run.js` | Tạo máy ảo, nạp mock, nạp hub, chạy `tests.lua`, tổng hợp kết quả (exit code 1 nếu FAIL). |
 | `roblox-mock.lua` | Giả lập Roblox + executor: `Instance`/event/method, `Vector3/CFrame/UDim2/Color3/Enum…`, `task.wait/spawn/defer`, service (Players, RunService, UserInputService, TweenService, HttpService, TeleportService…), JSON encode/decode, file ảo, API executor (`writefile`, `setclipboard`, `gethui`, `request`…), đồng hồ ảo (`Mock.advance`) và nhân vật mẫu (`Mock.makeCharacter`). |
-| `tests.lua` | Các test, chia 4 nhóm: **A** tính năng cũ (chống mất), **B** bộ di chuyển mới, **C** kiểm tra cuối, **D** khung ⚙ tuỳ chỉnh + ngoại lệ, **E** chế độ Chạy Trên Thảm + cụm nút nổi, **F** sửa thảm kính, **G** nhảy/chạy ở mọi game + tốc độ theo game, **H** helper dùng chung sau khi rút gọn code, **I** Chạy Trên Thảm = 'Bay chạy bộ' bản gốc 100%, **J** hết giật/lag khi bật thảm (game nặng), **K** 📍 định vị người chơi (xuyên tường · bạn bè · hạ gục · ⏱ đếm giờ · 📏 khoảng cách), **L** 👣 xem người chơi (bám theo camera — thấy họ đang làm gì), **M** trang 👥 Người Chơi (nằm giữa 📚 Script Hub và ➕ Tạo Tính Năng), **N** ✨ phát sáng (nhân vật mình · rộng + độ sáng + màu), **O** 🛡 bay an toàn (tự bay + né vật chuyển động), **P** 🔲 khiên trong suốt · 👤 né người chơi · 🧱 đẩy xuyên vật cản. |
+| `tests.lua` | Các test, chia 4 nhóm: **A** tính năng cũ (chống mất), **B** bộ di chuyển mới, **C** kiểm tra cuối, **D** khung ⚙ tuỳ chỉnh + ngoại lệ, **E** chế độ Chạy Trên Thảm + cụm nút nổi, **F** sửa thảm kính, **G** nhảy/chạy ở mọi game + tốc độ theo game, **H** helper dùng chung sau khi rút gọn code, **I** Chạy Trên Thảm = 'Bay chạy bộ' bản gốc 100%, **J** hết giật/lag khi bật thảm (game nặng), **K** 📍 định vị người chơi (xuyên tường · bạn bè · hạ gục · ⏱ đếm giờ · 📏 khoảng cách), **L** 👣 xem người chơi (bám theo camera — thấy họ đang làm gì), **M** trang 👥 Người Chơi (nằm giữa 📚 Script Hub và ➕ Tạo Tính Năng), **N** ✨ phát sáng (nhân vật mình · rộng + độ sáng + màu), **O** 🛡 bay an toàn (tự bay + né vật chuyển động), **P** 🔲 khiên trong suốt · 👤 né người chơi · 🧱 đẩy xuyên vật cản, **Q** 👁 bắt vật LAO TỚI mình từ ngoài 📏 + ⭕ tự bay vòng tròn khi không có gì lao tới. |
 
 ## Cách test đọc được biến `local` của hub
 
@@ -63,6 +63,9 @@ Vì đoạn này nằm **trong cùng chunk**, nó nhìn thấy mọi `local`.
 | 20 | **v4.14** — người đang xem biến mất hẳn khỏi `Players` (không bắn `PlayerRemoving`) → camera **kẹt** ở `Scriptable` (chuột không quay được). Nay tự chuyển/tự thoát + trả camera | L14 |
 | 28 | **v4.18** — hàm quét NGƯỜI CHƠI trả `nearest = nil` khi server không có người chơi → **xoá mất khoảng cách gần nhất của vật**, phần "quá gần thì vọt lên" chết | O2, O11 |
 | 29 | **v4.18** — thêm 1 biến `local` nữa vào main chunk → vượt **trần 200 local** của Luau (`too many local variables`) làm hub KHÔNG NẠP ĐƯỢC. Nay khối 🛡 nằm trong `do ... end` | (nạp hub) |
+| 30 | **v4.19** — 👁 tính "tốc độ lao vào nhau" **cộng cả vận tốc của MÌNH** → vật **ĐỨNG YÊN** ngay trước mặt cũng bị coi là lao tới, 🛡 đẩy mình tránh vô cớ. Nay chỉ tính vận tốc **của vật**; mình bay tới nó chỉ làm lực đẩy mạnh thêm | O3, P5 |
+| 31 | **v4.19** — trạng thái vẫn ghi "⭕ bay vòng tròn" trong khi đang **bấm WASD** (thực tế ⭕ đã tạm dừng) → người dùng tưởng tính năng chạy sai. Nay ghi rõ "⭕ tạm dừng (đang bấm phím)" | Q5 |
+| 32 | **(mock)** `CFrame.lookAt()` luôn cho `LookVector = (0,0,-1)` (thiếu nhánh `cf(Vector3, lookVector)`) → camera giả không bao giờ có hướng như test đặt, các test hướng bay của 🛡 vô tình đúng nhờ lỗi này. Nay giữ đúng hướng + `cleanSafe()` trả camera về mặc định để kết quả **tất định** | O3, P4, Q1–Q6 |
 | 26 | **v4.17** — **lực né viết NGƯỢC DẤU** (cộng hướng-tới-vật thay vì trừ) → bật 🛡 Bay An Toàn thì bị **HÚT VỀ PHÍA** vật chuyển động thay vì né | O2, O4, O6, O8 |
 | 27 | **v4.17** — test lọc chip đếm cứng "5 thẻ" → thêm thẻ mới là gãy giữa chừng, **để lại bộ lọc chip đang bật** → hàng loạt test sau báo sai (lỗi lây lan). Nay đếm động + `resetChip()` trước mỗi test | B3, D8, K11, L1, M5, N1 |
 | 23 | **v4.16** — `math.clamp()` (chỉ có trong Luau) nằm trong hàm tính độ sáng: pcall nuốt lỗi → bật ✨ mà **không thấy gì**. Nay dùng `mvClamp()` của hub (chạy được cả Lua 5.4 lẫn Luau) | N1, N2 |
@@ -70,6 +73,20 @@ Vì đoạn này nằm **trong cùng chunk**, nó nhìn thấy mọi `local`.
 | 25 | **v4.16** — game gỡ luôn GUI của hub → Highlight mồ côi, không hiện. Nay tự treo sang GUI khác đang sống | N9 |
 | 22 | **v4.15** — chuyển 2 khung 📍/👣 sang trang 👥 thì các test cũ (K6, L3, L5, L13) vẫn tìm trong danh sách Script Hub → FAIL. Sửa bằng helper `panelOf()` tìm ở trang 👥 trước (giữ luôn khả năng đọc vị trí cũ) | M2, K6, L3 |
 | 21 | **v4.14** — đọc trạng thái theo TỪNG FRAME làm nháy chữ (game teleport từng nhịp → "đang chạy" nhảy về "đứng yên" ngay). Nay ghi nhớ mốc thời gian 0,5s/0,9s/0,6s | L4 |
+
+## 👁 & ⭕ test thế nào (v4.19)
+
+Máy giả lập **không có vật lý** (part chỉ nhúc nhích khi test tự đổi vị trí), nên:
+
+- **"vật lao tới mình"**: đặt `part.AssemblyLinearVelocity = Vector3.new(-30, 0, 0)` — vận tốc ≠ 0 là đủ
+  để 👁 tính `tHit = (khoảng cách − 0,35×📏) / tốc độ lao vào` và coi là mối nguy khi `tHit ≤ 👁 giây`.
+  Muốn "vật bay RA XA" thì đảo dấu vận tốc.
+- **vật đứng yên** (để chắc chắn KHÔNG né): `part.AssemblyLinearVelocity = Vector3.new(0, 0, 0)`.
+- **⭕ vòng tròn**: `_ang` phải tăng và hướng vận tốc phải đổi — kiểm tra bằng `qdot(v1, v2) < 0,999`
+  (mock không có `Vector3:Dot`, tests.lua có hàm `qdot`).
+- **camera**: 🛡 bay theo hướng camera khi không bấm phím, nên `cleanSafe()` trả camera về `CFrame.new(0, 10, 0)`
+  (nhìn −Z) để kết quả **tất định** giữa các test. `CFrame.lookAt()` của mock nay giữ đúng LookVector.
+- **WASD**: `hum().MoveDirection = Vector3.new(0, 0, -1)` (bấm) / `Vector3.new(0, 0, 0)` (nhả).
 
 ## Thêm test mới
 

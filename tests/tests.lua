@@ -2374,6 +2374,18 @@ local function cleanSafe(extra)
     pcall(function() S.Move.Safe.Stop() end)
     pcall(function() S.Move.Safe.SetRadius(25); S.Move.Safe.SetSpeed(60); S.Move.Safe.SetSteer(4) end)
     pcall(function() S.Move.Safe.SetAuto(true) end)
+    -- v4.19: trả cả công tắc mới về mặc định — test gãy giữa chừng không lây sang test sau
+    pcall(function()
+        S.Move.Safe.SetAvoidPlayers(true)
+        S.Move.Safe.SetCircle(true)
+        S.Move.Safe.SetCircleR(20)
+        S.Move.Safe.SetLook(1.0)
+        S.Move.Safe.Recenter()
+    end)
+    wipePlayers()                      -- v4.19: dọn người chơi test còn sót (test gãy giữa chừng -> không lây)
+    -- v4.19: trả camera về mặc định (nhìn -Z) — test trước (👣 theo dõi) để lại hướng camera khác,
+    -- mà 🛡 lại bay theo hướng camera khi không bấm phím -> kết quả phải TẤT ĐỊNH.
+    pcall(function() H.workspace.CurrentCamera.CFrame = CFrame.new(0, 10, 0) end)
     for _, p in ipairs(extra or {}) do pcall(function() p:Destroy() end) end
     for _, d in ipairs(H.workspace:GetChildren()) do
         if d.Name == "Threat" then pcall(function() d:Destroy() end) end
@@ -2418,13 +2430,26 @@ test("O3 · vật ĐỨNG YÊN thì KHÔNG né (bay xuyên qua bình thường)"
     resetChip(); cleanStart(); cleanGlow(); cleanSafe()
     root().Position = Vector3.new(0, 20, 0)
     local part = addThreat(Vector3.new(10, 20, 0), false)          -- vật đứng yên ngay cạnh
+    -- v4.19: ⭕ khiến vận tốc luôn khác 0 khi rảnh, nên tắt ⭕ + nhìn thẳng vào vật
+    -- để thấy rõ "KHÔNG né, bay xuyên qua bình thường".
+    S.Move.Safe.SetCircle(false)
     S.Move.Safe.SetRadius(30)
+    H.workspace.CurrentCamera.CFrame = CFrame.lookAt(Vector3.new(0, 20, 0), Vector3.new(1, 20, 0))
     S.Move.Safe.Set(true)
     Mock.advance(1.0)
     eq(S.Move.Safe.threats, 0, "vật đứng yên KHÔNG bị coi là mối nguy")
     local v = safeVel()
-    near(v.X, 0, 0.5, "không có thành phần đẩy ngang")
+    truthy(v.X > 5, string.format("vẫn bay THẲNG vào vật, không bị né: v.X = %.2f", v.X))
+    near(v.Y, 0, 0.8, "không có thành phần đẩy ngang/lên")
+    local rp = S.Move.Safe._rep
+    truthy((rp == nil) or rp.Magnitude < 0.5, "không sinh lực đẩy nào với vật đứng yên")
     truthy(v.Magnitude > 10, "vẫn bay bình thường")
+    Mock.advance(0.6)                     -- bay tiếp: hướng phải GIỮ NGUYÊN (không bị né/lệch)
+    local h1 = Vector3.new(v.X, 0, v.Z)
+    local v2 = safeVel()
+    local h2 = Vector3.new(v2.X, 0, v2.Z)
+    truthy(h1.X * h2.X + h1.Z * h2.Z > 0.99 * h1.Magnitude * h2.Magnitude,
+           "hướng bay KHÔNG đổi -> bay xuyên qua vật đứng yên")
     cleanSafe({ part })
 end)
 
@@ -2713,7 +2738,18 @@ test("P5 · 👤 Né người: TẮT -> bỏ qua người chơi, chỉ né vật
     falsy(S.Move.Safe.avoidPlayers, "đã tắt né người chơi")
     eq(S.Move.Safe.playerThreats, 0, "không còn coi người chơi là mối nguy")
     eq(S.Move.Safe.threats, 0, "không còn mối nguy nào (người đứng yên)")
-    near(safeVel().X, 0, 0.6, "không bị đẩy nữa")
+    -- v4.19: ⭕ làm vận tốc luôn khác 0 khi rảnh -> soi TRỰC TIẾP lực đẩy (không còn đẩy vì người đứng yên)
+    local rp = S.Move.Safe._rep
+    truthy((rp == nil) or rp.Magnitude < 0.5, "không bị đẩy bởi người đứng yên nữa")
+    truthy(safeVel().Magnitude > 5, "vẫn tự bay bình thường")
+    -- TẮT né người nhưng VẬT CHUYỂN ĐỘNG thì vẫn né (đúng tên test)
+    local mvPart, stopMv = addThreat(Vector3.new(14, 30, 0), true)
+    Mock.advance(1.0)
+    truthy(S.Move.Safe.threats >= 1, "vật chuyển động vẫn bị coi là mối nguy khi 👤 TẮT")
+    truthy(safeVel().X < -0.5, "vẫn đẩy ra xa vật chuyển động")
+    stopMv()
+    pcall(function() mvPart:Destroy() end)            -- chỉ dọn vật, GIỮ người chơi để kiểm tra bật lại
+    Mock.advance(0.4)
     Mock.click(safeBtn("SafePlayers"))                -- bật lại
     Mock.advance(0.8)
     eq(S.Move.Safe.playerThreats, 1, "bật lại -> né người chơi trở lại")
@@ -2824,6 +2860,175 @@ test("P9 · không mất tính năng cũ: thẻ/khung + thảm/HUD/📍/✨ + đ
     S.Move.StopAll()
     cleanLoc({ a, b, c })
     cleanShieldFly()
+end)
+
+print("\n── Q. 👁 BẮT VẬT BAY TỚI MÌNH + ⭕ TỰ BAY VÒNG TRÒN (v4.19) ───")
+
+-- mock không có Vector3:Dot -> tự tính cos góc giữa 2 vector trên mặt phẳng ngang
+qdot = function(a, b)
+    local h1 = Vector3.new(a.X, 0, a.Z)
+    local h2 = Vector3.new(b.X, 0, b.Z)
+    local m = h1.Magnitude * h2.Magnitude
+    if m < 0.0001 then return 1 end
+    return (h1.X * h2.X + h1.Z * h2.Z) / m
+end
+
+test("Q1 · 👁 NHÌN TRƯỚC: vật LAO TỚI từ NGOÀI 📏 vẫn bị bắt và né", function()
+    resetChip(); cleanStart(); cleanGlow(); cleanSafe()
+    root().Position = Vector3.new(0, 30, 0)
+    S.Move.Safe.SetRadius(20)                              -- 📏 = 20 -> quét tới 32
+    local part = addThreat(Vector3.new(28, 30, 0), false)  -- NGOÀI 📏 (28 > 20), vẫn trong tầm quét
+    part.AssemblyLinearVelocity = Vector3.new(-30, 0, 0)   -- lao tới mình 30 m/s
+    S.Move.Safe.Set(true)
+    Mock.advance(1.0)
+    truthy(S.Move.Safe.threats >= 1, "bắt được vật lao tới dù còn NGOÀI 📏: " .. tostring(S.Move.Safe.threats))
+    truthy(S.Move.Safe.nearest and S.Move.Safe.nearest > 20, "lúc bắt được thì vật vẫn ở ngoài 📏")
+    truthy(safeVel().X < -1, string.format("né TRƯỚC khi nó tới: v.X = %.2f", safeVel().X))
+    truthy(tostring(S.Move.Safe.Status()):find("đang né", 1, true), "trạng thái báo đang né")
+    -- vật bay RA XA thì không phải mối nguy
+    part.AssemblyLinearVelocity = Vector3.new(30, 0, 0)
+    Mock.advance(0.8)
+    eq(S.Move.Safe.threats, 0, "vật bay RA XA thì KHÔNG né")
+    cleanSafe({ part })
+end)
+
+test("Q2 · 👁 NHÌN TRƯỚC chỉnh được: nhìn xa thì bắt sớm, nhìn gần thì bỏ qua", function()
+    resetChip(); cleanStart(); cleanGlow(); cleanSafe()
+    root().Position = Vector3.new(0, 30, 0)
+    S.Move.Safe.SetRadius(20)
+    local part = addThreat(Vector3.new(28, 30, 0), false)
+    part.AssemblyLinearVelocity = Vector3.new(-30, 0, 0)   -- tới nơi sau ~0,7s
+    S.Move.Safe.SetLook(0.2)                               -- chỉ nhìn trước 0,2s -> chưa bắt
+    S.Move.Safe.Set(true)
+    Mock.advance(0.8)
+    eq(S.Move.Safe.threats, 0, "👁 0,2s -> chưa bắt (vật còn ngoài 📏)")
+    S.Move.Safe.SetLook(3)                                 -- nhìn xa 3s -> bắt được
+    Mock.advance(0.8)
+    truthy(S.Move.Safe.threats >= 1, "👁 3s -> bắt được vật lao tới")
+    truthy(safeVel().X < -1, "và né ra xa")
+    safeBoxes()[5].Text = "2.5"                            -- ô 👁 trên khung điều khiển
+    Mock.click(safeBtn("SafeApply"))
+    eq(S.Move.Safe.lookTime, 2.5, "ô 👁 Nhìn trước trên khung áp dụng đúng")
+    cleanSafe({ part })
+end)
+
+test("Q3 · ⭕ KHÔNG có gì lao tới -> TỰ BAY VÒNG TRÒN (hướng bay đổi liên tục)", function()
+    resetChip(); cleanStart(); cleanGlow(); cleanSafe()
+    root().Position = Vector3.new(0, 30, 0)
+    S.Move.Safe.SetRadius(25)
+    S.Move.Safe.SetCircle(true)
+    S.Move.Safe.SetCircleR(20)
+    S.Move.Safe.Set(true)
+    Mock.advance(0.4)
+    local v1 = safeVel()
+    truthy(v1 and v1.Magnitude > 10, "vẫn tự bay khi rảnh")
+    near(v1.Magnitude, 60, 2, "bay đúng tốc độ 💨")
+    Mock.advance(0.6)
+    local v2 = safeVel()
+    local dc = qdot(v1, v2)
+    truthy(dc < 0.999, string.format("hướng bay ĐỔI (đang vòng tròn): cos = %.3f", dc))
+    truthy(S.Move.Safe._ang and S.Move.Safe._ang > 0.5, "góc vòng tròn đang tăng: " .. tostring(S.Move.Safe._ang))
+    truthy(S.Move.Safe._center, "có tâm vòng tròn")
+    truthy(tostring(S.Move.Safe.Status()):find("vòng tròn", 1, true), "trạng thái ghi rõ: " .. S.Move.Safe.Status())
+    cleanSafe()
+end)
+
+test("Q4 · ⭕ TẠM DỪNG khi đang né, né xong tự bay vòng tròn lại", function()
+    resetChip(); cleanStart(); cleanGlow(); cleanSafe()
+    root().Position = Vector3.new(0, 30, 0)
+    S.Move.Safe.SetRadius(30)
+    S.Move.Safe.Set(true)
+    Mock.advance(0.5)
+    truthy(tostring(S.Move.Safe.Status()):find("vòng tròn", 1, true), "lúc rảnh: bay vòng tròn")
+    local part, stop = addThreat(Vector3.new(20, 30, 0), true)   -- vật chạy qua lại (có vận tốc thật)
+    Mock.advance(0.5)
+    truthy(S.Move.Safe.threats >= 1, "đã thấy vật chuyển động")
+    truthy(tostring(S.Move.Safe.Status()):find("tạm dừng", 1, true),
+           "trạng thái: ⭕ tạm dừng khi đang né -> " .. S.Move.Safe.Status())
+    truthy(safeVel().X < -1, "ưu tiên NÉ: bị đẩy ra xa")
+    stop()
+    part.AssemblyLinearVelocity = Vector3.new(0, 0, 0)     -- đứng hẳn lại -> hết mối nguy
+    Mock.advance(1.5)                                      -- hết mối nguy + hết giữ 0,35s
+    eq(S.Move.Safe.threats, 0, "không còn mối nguy")
+    truthy(tostring(S.Move.Safe.Status()):find("vòng tròn", 1, true), "né xong -> tự bay VÒNG TRÒN lại")
+    cleanSafe({ part })
+end)
+
+test("Q5 · ⭕ BẤM WASD -> tạm dừng vòng tròn, bay theo phím; NHẢ ra bay vòng tròn lại", function()
+    resetChip(); cleanStart(); cleanGlow(); cleanSafe()
+    root().Position = Vector3.new(0, 30, 0)
+    S.Move.Safe.Set(true)
+    Mock.advance(0.4)
+    truthy(tostring(S.Move.Safe.Status()):find("vòng tròn", 1, true), "lúc rảnh: bay vòng tròn")
+    hum().MoveDirection = Vector3.new(0, 0, -1)            -- bấm W
+    Mock.advance(0.3)
+    local v = safeVel()
+    near(v.Z, -60, 2, "bay đúng theo phím W")
+    near(v.X, 0, 1.5, "không còn nghiêng theo vòng tròn")
+    falsy(tostring(S.Move.Safe.Status()):find("vòng tròn", 1, true), "đang bấm phím -> không bay vòng tròn")
+    hum().MoveDirection = Vector3.new(0, 0, 0)             -- nhả phím
+    Mock.advance(0.6)
+    local a1 = safeVel()
+    Mock.advance(0.6)
+    local a2 = safeVel()
+    truthy(qdot(a1, a2) < 0.999, "nhả phím -> tự bay vòng tròn lại (hướng đổi)")
+    truthy(tostring(S.Move.Safe.Status()):find("vòng tròn", 1, true), "trạng thái lại là bay vòng tròn")
+    cleanSafe()
+end)
+
+test("Q6 · ⭕ nút trên khung: TẮT -> bay THẲNG; bật lại -> vòng tròn; ô ⭕ Bán kính áp dụng", function()
+    resetChip(); cleanStart(); cleanGlow(); cleanSafe()
+    S.RebuildHubList()
+    local ci = safeBtn("SafeCircle")
+    truthy(ci, "có nút ⭕ Vòng tròn trên khung")
+    truthy(tostring(ci.Text):find("BẬT", 1, true), "đang BẬT: " .. tostring(ci.Text))
+    Mock.click(ci)
+    falsy(S.Move.Safe.circle, "đã tắt bay vòng tròn")
+    truthy(tostring(safeBtn("SafeCircle").Text):find("TẮT", 1, true), "nút hiện TẮT")
+    root().Position = Vector3.new(0, 30, 0)
+    H.workspace.CurrentCamera.CFrame = CFrame.lookAt(Vector3.new(0, 30, 0), Vector3.new(1, 30, 0))
+    S.Move.Safe.Set(true)
+    Mock.advance(0.5)
+    local a1 = safeVel()
+    Mock.advance(0.6)
+    local a2 = safeVel()
+    truthy(qdot(a1, a2) > 0.999, "TẮT ⭕ -> bay THẲNG một hướng")
+    truthy(safeVel().X > 5, "bay theo hướng đang nhìn")
+    Mock.click(safeBtn("SafeCircle"))
+    truthy(S.Move.Safe.circle, "bật lại vòng tròn")
+    safeBoxes()[4].Text = "40"                              -- ô ⭕ Bán kính
+    Mock.click(safeBtn("SafeApply"))
+    eq(S.Move.Safe.circleR, 40, "ô ⭕ Bán kính áp dụng đúng")
+    Mock.advance(0.6)
+    local b1 = safeVel()
+    Mock.advance(0.6)
+    local b2 = safeVel()
+    truthy(qdot(b1, b2) < 0.999, "bật lại -> lại bay vòng tròn")
+    cleanSafe()
+end)
+
+test("Q7 · ⭕ BẬT mà KHÔNG mất tính năng: vẫn né vật lao tới, khiên/thẻ/thảm còn nguyên", function()
+    resetChip(); cleanStart(); cleanGlow(); cleanSafe()
+    root().Position = Vector3.new(0, 30, 0)
+    S.Move.Safe.SetRadius(30)
+    S.Move.Safe.Set(true)
+    Mock.advance(0.4)
+    local part = addThreat(Vector3.new(24, 30, 0), false)
+    part.AssemblyLinearVelocity = Vector3.new(-45, 0, 0)   -- lao tới mình rất nhanh
+    Mock.advance(0.5)
+    truthy(S.Move.Safe.threats >= 1, "vẫn bắt được vật lao tới khi ⭕ đang bật")
+    truthy(safeVel().X < -1, "vẫn né được")
+    eq(#shieldParts(), 4, "🔲 khiên vẫn còn")
+    local st = tostring(S.Move.Safe.Status())
+    truthy(st:find("khiên", 1, true), "trạng thái còn 🔲 khiên")
+    truthy(st:find("⭕", 1, true), "trạng thái còn ⭕")
+    truthy(card("Bay An Toàn"), "thẻ 🛡 còn")
+    truthy(safeBtn("SafeNote"), "dòng ghi chú còn")
+    action("runmode")
+    Mock.advance(0.4)
+    truthy(H.workspace:FindFirstChild("Carpet"), "🪩 thảm vẫn trải khi ⭕ đang bật")
+    truthy(S.Move.Safe.on, "🛡 vẫn đang bật")
+    cleanShieldFly({ part })
 end)
 
 print("\n── C. KIỂM TRA CUỐI ─────────────────────────────────────────")
