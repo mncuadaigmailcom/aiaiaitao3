@@ -2392,6 +2392,8 @@ local function cleanSafe(extra)
         S.Move.Safe.SetCircleR(20)
         S.Move.Safe.SetLook(1.0)
         S.Move.Safe.SetShieldSize(0)        -- v4.23: ô 🔲 Cỡ về 0 = tự động (test gãy không lây sang sau)
+        S.Move.Safe.SetShieldSpin(true)     -- v4.24: 🔲 Quay về BẬT
+        S.Move.Safe.SetSpinDeg(60)          -- v4.24: tốc độ quay về 60°/giây
         S.Move.Safe.Recenter()
     end)
     wipePlayers()                      -- v4.19: dọn người chơi test còn sót (test gãy giữa chừng -> không lây)
@@ -3900,6 +3902,234 @@ test("U10 · sau trận mới KHÔNG mất tính năng: nút trên khung vẫn �
     falsy(S.Move.Safe.on, "nút 🚫 Tắt VẪN ĂN sau khi đổi trận")
     eq(#shieldParts(), 0, "khiên dọn sạch")
     falsy(Mock.renderSteps["BC_Safe"], "vòng lặp 🛡 gỡ theo")
+    cleanShieldFly()
+end)
+
+print("\n── V. v4.24: 🛡 ĐỨNG IM LÀ TỰ BAY VÒNG TRÒN + 🔲 KHIÊN QUAY VÒNG TRÒN ──")
+
+-- ===== helper cho nhóm V =====
+-- góc phương vị (độ) của vector (X,Z) — để biết hướng bay có ĐỔI không
+local function azim(v) return math.deg(math.atan(v.Z, v.X)) end
+-- hiệu 2 góc, đã chuẩn hoá về [-180, 180]
+local function adiff(a, b) return math.abs(((a - b + 180) % 360) - 180) end
+-- góc xoay quanh trục dọc của một vách khiên (mock trả về đúng góc của CFrame)
+local function shieldYaw(w)
+    local _, y = w.CFrame:ToOrientation()
+    return math.deg(y)
+end
+-- chạy `secs` giây mà KHÔNG bấm phím nào; trả về tổng số độ hướng bay đã đổi
+local function turnOver(secs)
+    local prev, total = nil, 0
+    for _ = 1, math.floor(secs / 0.1) do
+        Mock.advance(0.1)
+        local v = safeVel()
+        if v then
+            local a = azim(v)
+            if prev then total = total + adiff(a, prev) end
+            prev = a
+        end
+    end
+    return total
+end
+
+test("V1 · 🛡 ĐỨNG IM (không bấm WASD) -> nhân vật tự bay VÒNG TRÒN, đổi trận vẫn lượn", function()
+    resetChip(); cleanStart(); cleanGlow(); cleanSafe()
+    root().Position = Vector3.new(0, 30, 0)
+    S.Move.Safe.SetCircle(true)          -- ⭕ Vòng tròn: BẬT
+    S.Move.Safe.SetAuto(true)            -- ➡ Tự bay: BẬT
+    S.Move.Safe.SetCircleR(20)
+    S.Move.Safe.Set(true)
+    Mock.advance(0.5)
+    truthy(safeVel() and safeVel().Magnitude > 1, "đứng im vẫn có vận tốc bay")
+    local t1 = turnOver(1.2)             -- KHÔNG bấm phím nào
+    truthy(t1 > 60, string.format("hướng bay ĐỔI liên tục = đang lượn vòng (đổi %.0f° trong 1,2s)", t1))
+    truthy(S.Move.Safe._center, "có tâm vòng tròn (bay quanh chỗ đang đứng)")
+    -- ĐỔI TRẬN: nhân vật mới, không bắn CharacterAdded
+    local ch2 = newRound(true, false)
+    ch2:FindFirstChild("HumanoidRootPart").Position = Vector3.new(0, 30, 0)
+    Mock.advance(1.0)
+    local t2 = turnOver(1.2)
+    truthy(t2 > 60, string.format("SAU ĐỔI TRẬN vẫn tự lượn vòng khi đứng im (đổi %.0f°)", t2))
+    truthy(S.Move.Safe._center, "có lại tâm vòng tròn trên nhân vật mới")
+    -- BẤM WASD thì nhường quyền cho bạn (tạm dừng vòng tròn)
+    hum().MoveDirection = Vector3.new(0, 0, -1)
+    Mock.advance(1.0)
+    local v = safeVel()
+    truthy(v and v.Z < -1 and math.abs(v.X) < 2, string.format("bấm WASD -> bay thẳng theo phím (X=%.2f Z=%.2f)", v.X, v.Z))
+    hum().MoveDirection = Vector3.new(0, 0, 0)
+    cleanShieldFly()
+end)
+
+test("V2 · 🔲 Khiên QUAY VÒNG TRÒN quanh mình: đúng tốc độ ô Tốc, vẫn vuông + vẫn bám theo", function()
+    resetChip(); cleanStart(); cleanGlow(); cleanSafe()
+    root().Position = Vector3.new(0, 30, 0)
+    S.Move.Safe.SetCircle(false)         -- tắt ⭕ để tốc độ quay ĐO ĐƯỢC đúng bằng ô Tốc
+    S.Move.Safe.SetShieldSpin(true)
+    S.Move.Safe.SetSpinDeg(90)
+    S.Move.Safe.Set(true)
+    Mock.advance(0.4)
+    local w = shieldParts()
+    eq(#w, 4, "vẫn đúng 4 vách (hình vuông)")
+    local rp = root()
+    local y0 = shieldYaw(w[1])
+    local size0x, size0z = w[1].Size.X, w[1].Size.Z
+    Mock.advance(1.0)                    -- 90°/giây -> ~90°
+    local d = adiff(shieldYaw(w[1]), y0)
+    truthy(d > 45 and d < 140, string.format("1 giây quay ~90° (nhận %.1f°)", d))
+    -- 4 vách vẫn là 1 hình vuông bao quanh mình: cách tâm đúng nửa cạnh, cùng độ cao
+    local half = S.Move.Safe.ShieldHalf()
+    for _, p in ipairs(w) do
+        local off = p.Position - rp.Position
+        near(math.sqrt(off.X ^ 2 + off.Z ^ 2), half, 0.4, "vách vẫn cách mình đúng nửa cạnh (quay mà không lệch)")
+        near(p.Position.Y, rp.Position.Y, 0.01, "vách cùng độ cao với mình")
+    end
+    -- 2 vách dài theo X + 2 vách dài theo Z (vẫn là hình vuông chứ không méo)
+    local long = 0
+    for _, p in ipairs(shieldParts()) do if p.Size.X > p.Size.Z then long = long + 1 end end
+    eq(long, 2, "vẫn 2 vách dài theo X")
+    near(w[1].Size.X, size0x, 0.01, "cạnh vách KHÔNG đổi khi quay")
+    near(w[1].Size.Z, size0z, 0.01, "độ dày vách KHÔNG đổi khi quay")
+    -- quay + bám theo: đi chỗ khác thì tâm khiên theo mình (4 vách đối xứng -> trung bình = vị trí mình)
+    rp.Position = Vector3.new(120, 44, -70)
+    Mock.advance(0.5)
+    local cx, cz = 0, 0
+    for _, p in ipairs(shieldParts()) do cx = cx + p.Position.X; cz = cz + p.Position.Z end
+    near(cx / 4, rp.Position.X, 0.6, "khiên vẫn bám theo mình (X)")
+    near(cz / 4, rp.Position.Z, 0.6, "khiên vẫn bám theo mình (Z)")
+    local y1 = shieldYaw(shieldParts()[1])
+    Mock.advance(0.5)
+    truthy(adiff(shieldYaw(shieldParts()[1]), y1) > 20, "vừa bay vừa quay (quay không bị đứng lại)")
+    cleanShieldFly()
+end)
+
+test("V3 · tắt 🔲 Quay -> khiên ĐỨNG HƯỚNG như cũ; bật lại -> quay tiếp", function()
+    resetChip(); cleanStart(); cleanGlow(); cleanSafe()
+    root().Position = Vector3.new(0, 30, 0)
+    S.Move.Safe.SetCircle(false)
+    S.Move.Safe.SetSpinDeg(90)
+    S.Move.Safe.Set(true)
+    Mock.advance(0.4)
+    local y0 = shieldYaw(shieldParts()[1])
+    Mock.advance(0.7)
+    truthy(adiff(shieldYaw(shieldParts()[1]), y0) > 25, "đang quay (BẬT mặc định)")
+    Mock.click(safeBtn("SafeSpin"))                     -- 🔲 Quay: TẮT
+    Mock.advance(0.3)
+    falsy(S.Move.Safe.shieldSpin, "cờ quay đã tắt")
+    local y1 = shieldYaw(shieldParts()[1])
+    near(y1, 0, 0.5, "khiên trả về hướng vuông góc trục như bản cũ")
+    Mock.advance(1.0)
+    near(shieldYaw(shieldParts()[1]), y1, 0.5, "tắt quay -> khiên ĐỨNG HƯỚNG (không quay nữa)")
+    eq(#shieldParts(), 4, "khiên vẫn còn đủ 4 vách")
+    Mock.click(safeBtn("SafeSpin"))                     -- bật lại
+    Mock.advance(0.6)
+    truthy(S.Move.Safe.shieldSpin, "bật lại")
+    truthy(adiff(shieldYaw(shieldParts()[1]), y1) > 20, "bật lại -> quay tiếp")
+    cleanShieldFly()
+end)
+
+test("V4 · khiên quay vẫn theo NHÂN VẬT MỚI (đổi trận) + tắt 🛡 là dọn sạch", function()
+    resetChip(); cleanStart(); cleanGlow(); cleanSafe()
+    root().Position = Vector3.new(0, 30, 0)
+    S.Move.Safe.SetCircle(false)
+    S.Move.Safe.Set(true)
+    Mock.advance(0.4)
+    eq(#shieldParts(), 4, "trận 1: có khiên")
+    local ch2 = newRound(true, false)                    -- trận mới, không có CharacterAdded
+    ch2:FindFirstChild("HumanoidRootPart").Position = Vector3.new(0, 30, 0)
+    Mock.advance(1.0)
+    eq(#shieldParts(), 4, "trận mới: khiên dựng lại đủ 4 vách")
+    truthy(shieldFollows(ch2), "trận mới: khiên bám đúng nhân vật mới")
+    local y0 = shieldYaw(shieldParts()[1])
+    Mock.advance(0.8)
+    truthy(adiff(shieldYaw(shieldParts()[1]), y0) > 20, "trận mới: khiên vẫn QUAY vòng tròn")
+    S.Move.Safe.Stop()
+    Mock.advance(0.3)
+    eq(#shieldParts(), 0, "tắt 🛡 -> dọn sạch khiên")
+    cleanShieldFly()
+end)
+
+test("V5 · nút 🔲 Quay + ô Tốc ăn ngay: 180°/giây thì 1 giây quay ~180°", function()
+    resetChip(); cleanStart(); cleanGlow(); cleanSafe()
+    root().Position = Vector3.new(0, 30, 0)
+    S.Move.Safe.SetCircle(false)
+    S.Move.Safe.Set(true)
+    Mock.advance(0.3)
+    eq(S.Move.Safe.spinDeg, 60, "mặc định 60°/giây (1 vòng/6 giây)")
+    truthy(S.Move.Safe.shieldSpin, "mặc định 🔲 Quay: BẬT")
+    local btn = safeBtn("SafeSpin")
+    truthy(btn, "có nút 🔲 Quay")
+    truthy(tostring(btn.Text):find("BẬT", 1, true), "nút ghi BẬT: " .. tostring(btn.Text))
+    Mock.click(btn)
+    Mock.advance(0.2)
+    falsy(S.Move.Safe.shieldSpin, "bấm -> TẮT")
+    truthy(tostring(btn.Text):find("TẮT", 1, true), "nút ghi TẮT: " .. tostring(btn.Text))
+    Mock.click(btn)
+    Mock.advance(0.2)
+    truthy(S.Move.Safe.shieldSpin, "bấm lại -> BẬT")
+    -- ô Tốc (ô nhập thứ 7) + 🔳 Áp dụng
+    local boxes = safeBoxes()
+    eq(#boxes, 7, "khung 🛡 có 7 ô nhập (thêm ô Tốc quay)")
+    eq(tonumber(boxes[7].Text), 60, "ô Tốc hiện đúng 60")
+    boxes[7].Text = "180"
+    Mock.click(safeBtn("SafeApply"))
+    Mock.advance(0.4)
+    eq(S.Move.Safe.spinDeg, 180, "áp dụng 180°/giây")
+    eq(tonumber(boxes[7].Text), 180, "ô Tốc cập nhật lại theo trạng thái thật")
+    local y0 = shieldYaw(shieldParts()[1])
+    Mock.advance(1.0)
+    local d = adiff(shieldYaw(shieldParts()[1]), y0)
+    truthy(d > 130 and d < 230, string.format("180°/giây -> 1 giây quay ~180° (nhận %.1f°)", d))
+    -- kẹp giá trị: số vô lí không làm hỏng
+    S.Move.Safe.SetSpinDeg(99999); eq(S.Move.Safe.spinDeg, 720, "kẹp trần 720")
+    S.Move.Safe.SetSpinDeg(-5);    eq(S.Move.Safe.spinDeg, 0, "kẹp sàn 0 (0 = không quay)")
+    S.Move.Safe.SetSpinDeg(60)
+    cleanShieldFly()
+end)
+
+test("V6 · không mất tính năng cũ: đủ nút/ô + canvas đủ chỗ + trạng thái ghi 🔲 quay", function()
+    resetChip(); cleanStart(); cleanGlow(); cleanSafe()
+    S.RebuildHubList()
+    truthy(card("Bay An Toàn"), "thẻ 🛡 còn")
+    local p = safePanel()
+    for _, nm in ipairs({ "SafeOn", "SafeAuto", "SafeShield", "SafePlayers", "SafeNoclip",
+                          "SafeCircle", "SafeApply", "SafeStop", "SafeSpin", "SafeNote", "SafeStatus" }) do
+        truthy(p and p:FindFirstChild(nm), "còn " .. nm)
+    end
+    eq(#safeBoxes(), 7, "7 ô nhập (📏 💨 🌀 ⭕ 👁 🔲Cỡ 🔲Tốc)")
+    local h = D.hubList.CanvasSize.Y.Offset
+    local need = #cards() * 62 + D.hubList:FindFirstChild("HubMove_Panel").Size.Y.Offset
+        + D.hubList:FindFirstChild("HubGlow_Panel").Size.Y.Offset + p.Size.Y.Offset
+    truthy(h >= need, string.format("CanvasSize (%d) >= thẻ + 3 khung (%d)", h, need))
+    truthy(hudBtn("🪩"), "cụm nút nổi còn")
+    truthy(D.hubList:FindFirstChild("HubMove_Panel"), "khung ⚙ còn")
+    truthy(D.hubList:FindFirstChild("HubGlow_Panel"), "khung ✨ còn")
+    -- trạng thái ghi cỡ + quay
+    S.Move.Safe.Set(true)
+    Mock.advance(0.3)
+    local st = S.Move.Safe.Status()
+    truthy(st:find("khiên", 1, true), "trạng thái ghi khiên: " .. st)
+    truthy(st:find("quay", 1, true), "trạng thái ghi 🔲 quay: " .. st)
+    -- khiên vẫn trong suốt + không va chạm (và vẫn quay)
+    local w = shieldParts()
+    eq(#w, 4, "4 vách")
+    for _, q in ipairs(w) do
+        eq(q.CanCollide, false, "vách không va chạm")
+        truthy(q.Transparency >= 0.5, "vách trong suốt")
+    end
+    local y0 = shieldYaw(w[1])
+    Mock.advance(0.6)
+    truthy(adiff(shieldYaw(shieldParts()[1]), y0) > 15, "khiên đang quay")
+    -- các công tắc cũ vẫn ăn
+    Mock.click(safeBtn("SafeCircle"))
+    Mock.advance(0.2)
+    falsy(S.Move.Safe.circle, "nút ⭕ cũ vẫn ăn")
+    Mock.click(safeBtn("SafeCircle"))
+    Mock.click(safeBtn("SafeShield"))
+    Mock.advance(0.3)
+    eq(#shieldParts(), 0, "nút 🔲 Khiên cũ vẫn tắt được khiên")
+    Mock.click(safeBtn("SafeShield"))
+    Mock.advance(0.3)
+    eq(#shieldParts(), 4, "và bật lại được")
     cleanShieldFly()
 end)
 

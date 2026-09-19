@@ -63,7 +63,22 @@
           2) Thêm 1 biến local nữa vào main chunk -> vượt TRẦN 200 LOCAL của Luau/Lua 5.4
              ("too many local variables") làm cả hub KHÔNG NẠP ĐƯỢC. Nay toàn bộ khối 🛡 nằm
              trong `do ... end` nên không chiếm slot local của chunk (giống các tab khác).
-    + v4.23 (🛡 BAY AN TOÀN: SỬA LỖI "hết trận sang trận mới là 🛡 không hoạt động nữa" +
+    + v4.24 (🛡 BAY AN TOÀN: 🔲 KHIÊN QUAY VÒNG TRÒN quanh mình — đứng im là thấy bay vòng + dọn lại
+      hàng nút khung 🛡 — 194 test PASS):
+        → 🔲 Đúng ý "đứng im thì nhân vật tự bay vòng tròn và hình vuông quanh mình CŨNG bay vòng tròn":
+          ⭕ Vòng tròn (đứng im, không bấm WASD, quanh đây không có mối nguy -> tự bay vòng quanh chỗ
+          đang đứng) đã có từ v4.19 và vẫn nguyên; NAY thêm: cả cái hình vuông quanh mình CŨNG QUAY
+          VÒNG TRÒN — 4 vách xoay quanh trục dọc của mình, đang bay vòng tròn thì quay ăn khớp thêm
+          đúng tốc độ vòng bay, nên nhìn như cả "cái hộp" đang bay vòng quanh mình.
+        → Nút 🔲 Quay: BẬT/TẮT + ô Tốc (°/giây, mặc định 60 = 1 vòng/6 giây; 0 = không quay). Tắt
+          quay là khiên tự trả về hướng vuông góc trục như cũ. Trạng thái 🛡 ghi luôn "🔲 quay 60°/giây".
+        → Dọn lại khung 🛡: hàng 🔲 Cỡ (v4.23) nằm đè lên DÒNG TRẠNG THÁI -> nay tách ra HÀNG RIÊNG
+          (cùng 🔲 Quay + Tốc), khung cao 174 -> 200px, ghi chú ngắn lại cho vừa khung.
+        → 6 test mới V1–V6: đứng im là tự bay vòng tròn (kể cả sau khi đổi trận) · khiên quay quanh
+          mình (góc quay đổi liên tục, 4 vách vẫn cách đều tâm, cỡ không đổi) · tắt 🔲 Quay là khiên
+          đứng hướng · khiên quay vẫn theo nhân vật mới sau respawn/đổi trận · nút 🔲 Quay + ô Tốc ăn
+          đúng (quay 180°/giây thì 1 giây quay ~180°) · không mất tính năng cũ nào.
+ SỬA LỖI "hết trận sang trận mới là 🛡 không hoạt động nữa" +
       🔲 KHIÊN VỀ CỠ HỢP LÍ — 188 test PASS):
         → 🔲 LỖI THẬT (bạn gặp trong game): 🛡 trước đây KHÔNG có vòng lặp riêng — nó chỉ được gọi ở
           CUỐI vòng lặp 🚀 Bay (`if MV.Safe and MV.Safe.on then MV.Safe.Step()`). Hết trận / sang trận
@@ -7481,6 +7496,10 @@ MV.Safe = {
     shieldThk = 0.4,    -- độ dày vách
     shieldH = 0,        -- v4.23: 0 = chiều cao TỰ ĐỘNG theo nhân vật (trước đây cố định 16)
     shieldSize = 0,     -- v4.23: nửa cạnh khiên (studs). 0 = TỰ ĐỘNG ôm sát nhân vật; 📏 Né KHÔNG kéo giãn khiên
+    shieldSpin = true,  -- v4.24: 🔲 khiên QUAY VÒNG TRÒN quanh mình (đứng im là thấy nó bay vòng)
+    spinDeg = 60,       -- v4.24: 🔲 tốc độ quay (độ/giây) — 0 = không quay
+    _spinAng = 0,       -- v4.24: góc quay hiện tại của khiên (radian)
+    _circleRate = nil,  -- v4.24: tốc độ quay của vòng bay (độ/giây) để khiên quay ăn khớp
     shieldT = 0.86,     -- độ trong suốt (càng nhỏ càng thấy rõ)
     avoidPlayers = true,-- 👤 né cả NGƯỜI CHƠI khác (dù họ đứng yên)
     -- v4.19
@@ -7805,6 +7824,9 @@ function MV.Safe.UpdateShield(pos)
     end
     local side = MV.Safe.ShieldHalf()
     local wallH = MV.Safe.ShieldHeight()
+    -- v4.24: 🔲 KHIÊN QUAY VÒNG TRÒN — cả cái hình vuông xoay quanh mình (đứng im ở ⭕ là thấy nó bay vòng)
+    local ang = 0
+    if SF.shieldSpin then ang = tonumber(SF._spinAng) or 0 end
     -- v4.23: game/anti-cheat xoá 1 vách bất kì -> dựng lại CẢ BỘ (trước đây chỉ kiểm tra vách 1)
     local need = (SF._shield == nil)
     if not need then
@@ -7817,20 +7839,25 @@ function MV.Safe.UpdateShield(pos)
     if not SF._shield or not SF._shield[1] then return end
     local q = SF._shieldPos
     if q and math.abs(q.X - pos.X) < 0.05 and math.abs(q.Y - pos.Y) < 0.05 and math.abs(q.Z - pos.Z) < 0.05
-       and math.abs((q.S or 0) - side) < 0.01 and math.abs((q.H or 0) - wallH) < 0.01 then
+       and math.abs((q.S or 0) - side) < 0.01 and math.abs((q.H or 0) - wallH) < 0.01
+       and math.abs((q.A or 0) - ang) < 0.01 then
         return
     end
-    SF._shieldPos = { X = pos.X, Y = pos.Y, Z = pos.Z, S = side, H = wallH }
+    SF._shieldPos = { X = pos.X, Y = pos.Y, Z = pos.Z, S = side, H = wallH, A = ang }
+    local ca, sa = math.cos(ang), math.sin(ang)
     for i = 1, 4 do
         local w = SF._shield[i]
         if w then
-            local dx, dz = 0, 0
-            if i == 1 then dz = side elseif i == 2 then dz = -side
-            elseif i == 3 then dx = side else dx = -side end
+            local ox, oz = 0, 0
+            if i == 1 then oz = side elseif i == 2 then oz = -side
+            elseif i == 3 then ox = side else ox = -side end
+            -- quay quanh trục Y: (x, z) -> (x·cos + z·sin, −x·sin + z·cos) — giống CFrame.Angles(0, ang, 0)
+            local dx = ox * ca + oz * sa
+            local dz = -ox * sa + oz * ca
             local okS = pcall(function()
                 w.Size = (i <= 2) and Vector3.new(side * 2 + SF.shieldThk, wallH, SF.shieldThk)
                                       or Vector3.new(SF.shieldThk, wallH, side * 2 + SF.shieldThk)
-                w.CFrame = CFrame.new(pos.X + dx, pos.Y, pos.Z + dz)
+                w.CFrame = CFrame.new(pos.X + dx, pos.Y, pos.Z + dz) * CFrame.Angles(0, ang, 0)
             end)
             if not okS then MV.Safe.KillShield(); return end
         end
@@ -7939,6 +7966,7 @@ function MV.Safe.Step(dt)
             SF._center = { X = cx, Y = cy, Z = cz }
         end
         SF._ang = (SF._ang or 0) + dtv * (spd / math.max(R, 1))     -- bay đều quanh tâm
+        SF._circleRate = math.deg(spd / math.max(R, 1))             -- v4.24: để 🔲 khiên quay ăn khớp với vòng bay
         local tx = cx + math.cos(SF._ang) * R
         local tz = cz + math.sin(SF._ang) * R
         -- vận tốc = tiếp tuyến (đi vòng) + kéo về đúng vòng tròn + bạn muốn lên/xuống thì cho
@@ -7948,6 +7976,7 @@ function MV.Safe.Step(dt)
         if target.Magnitude > spd then target = target.Unit * spd end
     else
         SF._center = nil                                    -- rời chế độ vòng tròn -> tâm mới lần sau
+        SF._circleRate = nil                                -- v4.24: không bay vòng tròn -> khiên quay đúng tốc độ đã chỉnh
         target = (dir + Vector3.new(0, vv, 0)) * spd
     end
     -- NÉ: cộng vector đẩy (đã tính theo khoảng cách) vào vận tốc
@@ -7967,6 +7996,15 @@ function MV.Safe.Step(dt)
     end
     SF._myV = target                                        -- để lần quét sau tính tốc độ lao vào nhau
     pcall(function() bv.Velocity = target end)
+    -- 🔲 v4.24: KHIÊN QUAY VÒNG TRÒN quanh mình. Đang bay vòng tròn (⭕ ở trên) thì quay CỘNG THÊM
+    -- đúng tốc độ vòng bay -> nhìn như cả "cái hộp" cũng đang bay vòng quanh mình; đứng im vẫn thấy nó quay.
+    if SF.shieldSpin then
+        local rate = mvClamp(SF.spinDeg, 0, 720, 60)
+        if SF._circleRate then rate = rate + SF._circleRate end
+        SF._spinAng = (SF._spinAng or 0) + math.rad(dtv * rate)     -- rate là ĐỘ/giây -> đổi sang radian
+    elseif (SF._spinAng or 0) ~= 0 then
+        SF._spinAng, SF._shieldPos = 0, nil                 -- tắt quay -> trả khiên về hướng cũ (vuông góc trục)
+    end
     -- 🔲 khiên trong suốt bám theo mình (vẽ vùng né cho thấy)
     if SF.shield then pcall(function() MV.Safe.UpdateShield(r.Position) end) end
 end
@@ -8082,6 +8120,23 @@ function MV.Safe.SetShieldSize(n)
     end
     return SF.shieldSize
 end
+-- 🔲 v4.24: bật/tắt khiên quay vòng tròn + tốc độ quay (độ/giây)
+function MV.Safe.SetShieldSpin(b)
+    SF.shieldSpin = (b == true)
+    if not SF.shieldSpin then
+        SF._spinAng, SF._shieldPos = 0, nil
+        if SF.on and SF.shield then
+            local r = MV.Root()
+            if r then pcall(function() MV.Safe.UpdateShield(r.Position) end) end
+        end
+    end
+    return SF.shieldSpin
+end
+function MV.Safe.SetSpinDeg(n)
+    SF.spinDeg = mvClamp(n, 0, 720, 60)
+    SF._shieldPos = nil                                     -- để vẽ lại ngay theo tốc độ mới
+    return SF.spinDeg
+end
 function MV.Safe.SetSpeed(n)
     SF.speed = mvClamp(n, 1, 2000, 60)
     MV.flySpeed = SF.speed            -- để khung ⚙ và bảng trạng thái hiện cùng một số
@@ -8097,6 +8152,9 @@ function MV.Safe.Status()
     if SF.shield then
         local half = MV.Safe.ShieldHalf()
         s = s .. string.format(" · 🔲 khiên %g m/cạnh%s", half * 2, (tonumber(SF.shieldSize) or 0) > 0 and "" or " (tự)")
+        if SF.shieldSpin then
+            s = s .. string.format(" · 🔲 quay %g°/giây", mvClamp(SF.spinDeg, 0, 720, 60))
+        end
     end
     if SF.circle and SF.auto then
         -- v4.19: nói RÕ vì sao đang tạm dừng — đang né hoặc đang bấm WASD (Step cũng tạm dừng như vậy)
@@ -10519,7 +10577,7 @@ end
 
 -- ---------- KHUNG 🛡 BAY AN TOÀN (trên cùng danh sách thẻ, dưới ⚙ và ✨) ----------
 do
-    local PH = 174
+    local PH = 200                                        -- v4.24: +26px cho hàng riêng 🔲 Cỡ/🔲 Quay (hàng 🔲 Cỡ của v4.23 đè lên dòng trạng thái)
     local P = New("Frame", {
         Name = "HubSafe_Panel",
         Size = UDim2.new(1, 0, 0, PH), LayoutOrder = 2,
@@ -10593,10 +10651,16 @@ do
 
     local applyBtn = act("✔ Áp dụng", 8, 100, 84, C.SURFACE3, "SafeApply")
     local stopBtn  = act("🚫 Tắt", 98, 100, 70, C.RED, "SafeStop")
-    -- v4.23: ô 🔲 Cỡ — cỡ khiên (nửa cạnh). 0 = tự động ôm sát nhân vật
-    lab("🔲 Cỡ", 174, 100, 32)
-    local szIn = box(208, 100, 40, 0)
-    lab("(0 = tự)", 250, 100, 64)
+    -- v4.23/4.24: HÀNG RIÊNG cho 🔲 khiên — cỡ (nửa cạnh) + QUAY VÒNG TRÒN + tốc độ quay.
+    -- (v4.23 để hàng này ở y=100 chồng lên dòng trạng thái 🛡 -> đã dọn xuống hàng dưới.)
+    lab("🔲 Cỡ", 8, 126, 44)
+    local szIn = box(54, 126, 40, 0)
+    lab("(0=tự)", 96, 126, 44)
+    lab("🔲 Quay", 146, 126, 44)
+    local spinBtn = act("🔲 Quay: BẬT", 192, 126, 84, C.GREEN, "SafeSpin")
+    lab("Tốc", 280, 126, 26)
+    local spinIn = box(308, 126, 40, 60)
+    lab("°/giây", 350, 126, 40)
     local statusLbl = New("TextLabel", {
         Name = "SafeStatus",
         Size = UDim2.new(1, -186, 0, 20), Position = UDim2.new(0, 174, 0, 100),
@@ -10606,15 +10670,12 @@ do
     }, P)
     New("TextLabel", {
         Name = "SafeNote",
-        Size = UDim2.new(1, -16, 0, 66), Position = UDim2.new(0, 8, 0, 124),
-        Text = "💡 🔲 Khiên = bức tường trong suốt hình vuông ÔM QUANH nhân vật (cỡ hợp lí; muốn to/nhỏ "
-             .. "thì chỉnh ô 🔲 Cỡ — 0 = tự động. 📏 Né chỉ là khoảng cách né, không kéo giãn khiên) · "
-             .. "👤 Né người = coi NGƯỜI CHƠI khác là mối nguy dù họ đứng yên · 🧱 Xuyên = tự bật Xuyên "
-             .. "Tường để lực đẩy đưa bạn QUA vật cản, tắt 🛡 là trả lại như cũ. ⭕ Vòng tròn = khi KHÔNG "
-             .. "có ai/vật nào đang lao tới mình thì tự bay vòng tròn quanh chỗ đang đứng (bán kính "
-             .. "chỉnh ở ô ⭕), đang né hoặc đang bấm WASD thì TẠM DỪNG, né xong tự bay vòng lại. "
-             .. "👁 Nhìn trước = quét xa 📏 × 1,6 và bắt vật ĐANG LAO TỚI từ ngoài tầm. 🛡 tự sống qua "
-             .. "respawn / hết trận sang trận mới — không phải bật lại.",
+        Size = UDim2.new(1, -16, 0, 44), Position = UDim2.new(0, 8, 0, 152),
+        Text = "💡 🔲 Khiên = tường trong suốt hình vuông ÔM QUANH mình (ô 🔲 Cỡ: 0 = tự động ôm sát) · "
+             .. "🔲 Quay = khiên quay VÒNG TRÒN quanh mình (Tốc = độ/giây) · 📏 Né = khoảng cách né, "
+             .. "KHÔNG kéo giãn khiên · ⭕ Vòng tròn = đứng im là tự bay vòng tròn quanh chỗ đang đứng "
+             .. "(đang né hoặc bấm WASD thì tạm dừng) · 👤 Né người · 🧱 tự Xuyên Tường · 👁 Nhìn trước "
+             .. "bắt vật lao tới từ xa. 🛡 tự sống qua respawn / hết trận sang trận mới.",
         BackgroundTransparency = 1, TextColor3 = C.MUTED,
         Font = Enum.Font.GothamMedium, TextSize = 8, TextWrapped = true,
         TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, ZIndex = 7,
@@ -10642,7 +10703,10 @@ do
         radIn.Text, spdIn.Text, strIn.Text =
             tostring(MV.Safe.radius), tostring(MV.Safe.speed), tostring(MV.Safe.steer)
         cirIn.Text, lookIn.Text = tostring(MV.Safe.circleR), tostring(MV.Safe.lookTime)
-        szIn.Text = tostring(MV.Safe.shieldSize)
+        szIn.Text, spinIn.Text = tostring(MV.Safe.shieldSize), tostring(MV.Safe.spinDeg)
+        spinBtn.Text = MV.Safe.shieldSpin and "🔲 Quay: BẬT" or "🔲 Quay: TẮT"      -- v4.24
+        spinBtn.BackgroundColor3 = MV.Safe.shieldSpin and C.GREEN or C.SURFACE3
+        spinBtn.TextColor3 = D.BestText(spinBtn.BackgroundColor3)
         statusLbl.Text = MV.Safe.Status()
         statusLbl.TextColor3 = ((MV.Safe.threats or 0) > 0) and C.YELLOW or C.MUTED
     end
@@ -10675,6 +10739,17 @@ do
                       (tonumber(MV.Safe.shieldSize) or 0) > 0 and " (chỉnh tay)" or " (tự động)"))
                  or "🔲 đã ẩn khiên (vẫn né y như cũ)", 2, C.ACCENT)
         end
+    end)
+    spinBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        MV.Safe.SetShieldSpin(not MV.Safe.shieldSpin)
+        paint()
+        if D.hubStatus then
+            flash(D.hubStatus, MV.Safe.shieldSpin and ("🔲 khiên QUAY VÒNG TRÒN quanh mình (" ..
+                      tostring(MV.Safe.spinDeg) .. "°/giây)")
+                 or "🔲 khiên đứng hướng (không quay)", 2, C.ACCENT)
+        end
+        pcall(S.Rebuild)
     end)
     plBtn.Activated:Connect(function()
         ReleaseHubFocus()
@@ -10711,6 +10786,7 @@ do
         MV.Safe.SetCircleR(tonumber(tostring(cirIn.Text or ""):match("%-?%d+%.?%d*")) or MV.Safe.circleR)
         MV.Safe.SetLook(tonumber(tostring(lookIn.Text or ""):match("%-?%d+%.?%d*")) or MV.Safe.lookTime)
         MV.Safe.SetShieldSize(tonumber(tostring(szIn.Text or ""):match("%-?%d+%.?%d*")) or MV.Safe.shieldSize)
+        MV.Safe.SetSpinDeg(tonumber(tostring(spinIn.Text or ""):match("%-?%d+%.?%d*")) or MV.Safe.spinDeg)
         if not MV.Safe.on then MV.Safe.Set(true) end      -- áp dụng là bật luôn
         paint()
         if D.hubStatus then flash(D.hubStatus, MV.Safe.Status(), 2.4, C.ACCENT) end

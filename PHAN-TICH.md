@@ -7,7 +7,7 @@ Ngày phân tích: 2026-09-17 · Branch: `arena/01a0af79-aiaiaitao3` · Commit g
 ## 0. Cập nhật v4.12 (đã thực hiện theo yêu cầu)
 
 Port **5 tính năng di chuyển** từ `aiaiaitao3` vào trang 📚 Script Hub của `script.js`, kèm bộ test
-tự động chạy thật trong máy ảo. Kết quả: **`node tests/run.js` → 188 PASS · 0 FAIL**.
+tự động chạy thật trong máy ảo. Kết quả: **`node tests/run.js` → 194 PASS · 0 FAIL**.
 
 **Đã thêm (toàn bộ là tiện ích nội bộ, không tải gì từ mạng):**
 
@@ -42,6 +42,24 @@ tự bật lại sau respawn qua `CharacterAdded`.
      trị gốc thì coi gốc là `true`.
 - 10 test mới **T1–T10** (177 PASS · 0 FAIL). **Mutation check**: quay lại hành vi cũ → T1/T2/T7 FAIL;
   xoá trắng bảng gốc như bản cũ → T3 FAIL; bỏ khai báo local → 6 test đỏ.
+
+**v4.24 — 🛡 🔲 khiên QUAY VÒNG TRÒN quanh mình (194 test PASS):**
+- Đúng ý *"đứng im thì nhân vật tự bay vòng tròn và hình vuông quanh mình cũng bay vòng tròn"*: ⭕ Vòng
+  tròn (đứng im, không bấm WASD, quanh đây không có mối nguy -> tự bay vòng quanh chỗ đang đứng) đã có
+  từ v4.19 và **vẫn nguyên**; nay **cả cái hình vuông quanh mình cũng QUAY VÒNG** — 4 vách xoay quanh
+  trục dọc, đang bay vòng tròn thì quay **cộng thêm đúng tốc độ vòng bay**, nên nhìn như cả "cái hộp"
+  đang bay vòng quanh mình. Nút **🔲 Quay: BẬT/TẮT** + ô **Tốc** (°/giây, mặc định 60 = 1 vòng/6 giây;
+  `0` = không quay). Tắt quay là khiên trả về hướng vuông góc trục như cũ.
+- 🐞 **1 lỗi bộ test bắt được ngay khi làm**: tốc độ quay là **độ/giây** nhưng code cộng thẳng vào biến
+  **radian** -> quay nhanh ~57 lần (V3, V5 đỏ ngay). Nay `θ += math.rad(dt · °/giây)`.
+- 🐞 **1 lỗi của MOCK được sửa**: `CFrame.new(...) * CFrame.Angles(...)` bị mock bỏ qua phép nhân **và**
+  bỏ qua góc (vì `__name` nằm trong metatable -> `b.__name == nil` -> rơi về nhánh "trả về a"), nên mọi
+  CFrame xoay đều "không xoay" trong test. Nay `__name` là trường thật, phép nhân cộng góc xoay, và
+  `CFrame.Angles` / `ToOrientation()` / `GetComponents()` mô phỏng xoay quanh trục dọc.
+- Dọn lại khung 🛡: hàng **🔲 Cỡ** của v4.23 nằm **đè lên dòng trạng thái** -> nay tách ra **hàng riêng**
+  (cùng 🔲 Quay + Tốc), khung cao 174 -> 200px, ghi chú ngắn lại cho vừa khung.
+- 6 test mới **V1–V6** (194 PASS). **Mutation check**: bỏ cập nhật góc quay -> V2–V6 đỏ; quay sai đơn vị
+  độ/radian -> V3+V5 đỏ; quay mà không xoay vách -> V2–V6 đỏ; bỏ chế độ bay vòng tròn -> Q3/Q5/Q6/V1 đỏ.
 
 **v4.23 — 🛡 BAY AN TOÀN sống qua "hết trận → trận mới" + 🔲 khiên về cỡ hợp lí (188 test PASS):**
 - 🔴 **Lỗi thật người dùng gặp** ("chơi xong trận rồi chuyển sang trận mới thì 🛡 không hoạt động nữa"):

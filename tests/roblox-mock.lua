@@ -34,7 +34,7 @@ end
 
 -- ---------- Vector3 ----------
 local function v3(x, y, z)
-    return setmetatable({ X = x or 0, Y = y or 0, Z = z or 0 }, {
+    return setmetatable({ __name = "Vector3", X = x or 0, Y = y or 0, Z = z or 0 }, {
         __name = "Vector3",
         __add = function(a, b) return v3(a.X + b.X, a.Y + b.Y, a.Z + b.Z) end,
         __sub = function(a, b) return v3(a.X - b.X, a.Y - b.Y, a.Z - b.Z) end,
@@ -141,11 +141,21 @@ local function cf(x, y, z, look)
     end
     local pos = v3(x or 0, y or 0, z or 0)
     local lookVec = look or v3(0, 0, -1)
-    return setmetatable({ Position = pos, LookVector = lookVec, RightVector = v3(1, 0, 0), UpVector = v3(0, 1, 0) }, {
+    return setmetatable({ __name = "CFrame", Position = pos, LookVector = lookVec,
+                          RightVector = v3(1, 0, 0), UpVector = v3(0, 1, 0) }, {
         __name = "CFrame",
         __mul = function(a, b)
             if type(b) == "table" and b.__name == "CFrame" then
-                return cf(a.Position + b.Position)
+                local out = cf(a.Position + b.Position)
+                -- v4.24: CFrame nhân CFrame phải CỘNG GÓC XOAY (mock chỉ mô phỏng xoay quanh trục Y —
+                -- đủ để test 🔲 khiên quay vòng tròn; trước đây mock bỏ hẳn phần xoay).
+                local yaw = (a._yaw or 0) + (b._yaw or 0)
+                if yaw ~= 0 then
+                    out._yaw = yaw
+                    out.LookVector = v3(-math.sin(yaw), 0, -math.cos(yaw))
+                    out.RightVector = v3(math.cos(yaw), 0, -math.sin(yaw))
+                end
+                return out
             elseif type(b) == "table" and b.__name == "Vector3" then
                 return a.Position + b
             end
@@ -166,9 +176,15 @@ local function cf(x, y, z, look)
                 Inverse = function(_) return cf(-t.Position.X, -t.Position.Y, -t.Position.Z, t.LookVector) end,
                 components = function(_) return t.Position.X, t.Position.Y, t.Position.Z end,
                 Lerp = function(_, o, a) return cf(t.Position + (o.Position - t.Position) * a) end,
-                ToEulerAnglesXYZ = function(_) return 0, 0, 0 end,
-                GetComponents = function(_) return t.Position.X, t.Position.Y, t.Position.Z, 1, 0, 0, 0, 1, 0, 0, 0, 1 end,
-                ToOrientation = function(_) return 0, 0, 0 end,
+                ToEulerAnglesXYZ = function(_) return 0, (t._yaw or 0), 0 end,
+                GetComponents = function(_)
+                    local y = t._yaw or 0
+                    if y == 0 then return t.Position.X, t.Position.Y, t.Position.Z, 1, 0, 0, 0, 1, 0, 0, 0, 1 end
+                    local ca, sa = math.cos(y), math.sin(y)
+                    return t.Position.X, t.Position.Y, t.Position.Z,
+                           ca, 0, sa, 0, 1, 0, -sa, 0, ca          -- v4.24: có xoay quanh Y
+                end,
+                ToOrientation = function(_) return 0, (t._yaw or 0), 0 end,   -- v4.24: trả GÓC XOAY thật
             }
             return m[k]
         end,
@@ -182,7 +198,18 @@ CFrame = {
         local look = (m == 0) and v3(0, 0, -1) or v3(d.X / m, d.Y / m, d.Z / m)
         return cf(from, look)
     end,
-    Angles = function() return cf(0, 0, 0) end,
+    -- v4.24: CFrame.Angles(x, y, z) — mock chỉ mô phỏng xoay quanh trục Y (đủ cho 🔲 khiên quay).
+    -- Trước đây hàm này BỎ QUA tham số nên mọi CFrame.Angles đều là CFrame không xoay.
+    Angles = function(rx, ry, rz)
+        local a = cf(0, 0, 0)
+        local yaw = tonumber(ry) or 0
+        if yaw ~= 0 then
+            a._yaw = yaw
+            a.LookVector = v3(-math.sin(yaw), 0, -math.cos(yaw))
+            a.RightVector = v3(math.cos(yaw), 0, -math.sin(yaw))
+        end
+        return a
+    end,
     fromEulerAnglesXYZ = function() return cf(0, 0, 0) end,
     identity = cf(0, 0, 0),
 }

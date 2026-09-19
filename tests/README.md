@@ -13,7 +13,7 @@ node run.js ../script.js            # chạy tất cả
 node run.js ../script.js noclip     # chỉ chạy test tên có chữ "noclip"
 ```
 
-Kết quả hiện tại: **188 PASS · 0 FAIL**.
+Kết quả hiện tại: **194 PASS · 0 FAIL**.
 
 ## Cấu trúc
 
@@ -186,6 +186,40 @@ nhân vật cũ (hoặc **còn dính** nhân vật cũ nếu game không xoá ng
 - bỏ watchdog dựng lại vòng lặp 🚀 Bay → **U5 FAIL**;
 - trả cỡ khiên về "cạnh = 📏 × 2" → **P1, P2 FAIL**;
 - không gắn / không gỡ vòng lặp riêng → **U5, U8, U10 FAIL**.
+
+## 🔲 Test "khiên quay vòng tròn" + 🛡 đứng im là tự lượn (nhóm V) — v4.24
+
+Người dùng báo: *"khi đứng im thì nhân vật mình sẽ tự động bay hình vòng tròn và hình vuông quanh mình
+cũng bay hình vòng tròn"*.
+
+- **Nhân vật đứng im -> tự lượn vòng** đã có từ v4.19 (⭕ Vòng tròn: không bấm WASD + quanh đây không có
+  mối nguy -> bay vòng quanh chỗ đang đứng). V1 khoá lại hành vi này **kể cả sau khi đổi trận**, và kiểm
+  tra bấm WASD thì nhường quyền cho người chơi.
+- **Cái hình vuông quanh mình giờ cũng quay vòng**: 4 vách xoay quanh trục dọc của mình; khi đang bay
+  vòng tròn thì quay **cộng thêm đúng tốc độ vòng bay** (`SF._circleRate`) -> nhìn như cả "cái hộp" cũng
+  đang bay vòng quanh mình. Nút **🔲 Quay: BẬT/TẮT** + ô **Tốc** (°/giây, mặc định 60, 0 = không quay).
+
+| Việc | Cách làm | Test |
+|---|---|---|
+| Khiên quay quanh mình | xoay vị trí 4 vách: `(x,z) -> (x·cosθ + z·sinθ, −x·sinθ + z·cosθ)` + `CFrame.Angles(0, θ, 0)` | V2, V5 |
+| Quay đúng tốc độ | θ += `math.rad(dt · °/giây)` (lần đầu code cộng thẳng ĐỘ vào biến radian -> quay nhanh 57 lần, **V3+V5 bắt được**) | V3, V5 |
+| Không phá hình vuông | 4 vách vẫn cách tâm đúng nửa cạnh, vẫn 2 dài X + 2 dài Z, cỡ không đổi khi quay | V2 |
+| Tắt là trả về như cũ | 🔲 Quay TẮT -> góc về 0 (vuông góc trục) rồi đứng hướng, bật lại quay tiếp | V3 |
+| Đổi trận | khiên quay vẫn theo nhân vật mới + tắt 🛡 là dọn sạch | V4 |
+| Không mất tính năng | đủ nút/ô (7 ô nhập), canvas đủ chỗ, thẻ/khung/HUD còn, công tắc cũ vẫn ăn | V6 |
+
+**Sửa luôn 2 chỗ trong MOCK** để test loại này chạy được (mock không có hình học thật):
+`CFrame.new(...) * CFrame.Angles(...)` trước đây **bỏ qua phép nhân và bỏ qua góc** (vì `__name` nằm
+trong metatable nên `b.__name` đọc ra `nil` -> rơi về nhánh "trả về a"). Nay `__name` là **trường thật**,
+phép nhân CFrame cộng góc xoay, và `CFrame.Angles(x, y, z)` / `ToOrientation()` / `GetComponents()` mô
+phỏng **xoay quanh trục dọc** — đủ để test 🔲 khiên quay (và không đổi hành vi nào khác: 194 test cũ vẫn
+xanh). Giống bài học nhóm R: mock mà bỏ qua tham số thì test sẽ "xanh giả".
+
+**Mutation check** (đã chạy):
+- không cập nhật góc quay -> **V2, V3, V4, V5, V6 FAIL**;
+- cộng ĐỘ vào biến radian (đúng lỗi đã mắc) -> **V3, V5 FAIL**;
+- quay nhưng không xoay vách -> **V2…V6 FAIL**;
+- bỏ chế độ bay vòng tròn khi đứng im -> **Q3, Q5, Q6, V1 FAIL**.
 
 ## Thêm test mới
 
