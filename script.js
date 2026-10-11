@@ -8793,8 +8793,29 @@ end end
     -- Sao chép rig live nếu người đó đang ở cùng server: giữ nguyên rig, bundle, phụ kiện và pose hiện tại.
     function PI.CloneLiveCharacter(source, modelName)
         if not source then return nil, "không có character nguồn" end
+        -- Một số game đặt Archivable=false cho rig/đồ; bật tạm để Clone lấy đủ model rồi phục hồi nguyên trạng.
+        local archivableState = {}
+        local function enableArchivable(inst)
+            pcall(function()
+                if not inst.Archivable then
+                    archivableState[inst] = false
+                    inst.Archivable = true
+                end
+            end)
+        end
+        enableArchivable(source)
+        pcall(function()
+            for _, descendant in ipairs(source:GetDescendants()) do enableArchivable(descendant) end
+        end)
         local okClone, clone = pcall(function() return source:Clone() end)
+        for inst, wasArchivable in pairs(archivableState) do
+            pcall(function() inst.Archivable = wasArchivable end)
+        end
         if not okClone or not clone then return nil, tostring(clone) end
+        if not clone:FindFirstChildWhichIsA("BasePart", true) then
+            pcall(function() clone:Destroy() end)
+            return nil, "character clone không có BasePart"
+        end
         pcall(function() clone.Name = modelName or "BC_PlayerAvatarCopy" end)
         pcall(function()
             for _, child in ipairs(clone:GetDescendants()) do
@@ -8824,16 +8845,29 @@ end end
             local okPlayer, target = pcall(function() return Players:GetPlayerByUserId(rec.id) end)
             local source = okPlayer and target and target.Character or nil
             if source then
+                local liveDesc = nil
+                local liveRigTypes = { Enum.HumanoidRigType.R15, Enum.HumanoidRigType.R6 }
+                pcall(function()
+                    local liveHum = source:FindFirstChildOfClass("Humanoid")
+                    if liveHum then
+                        liveDesc = liveHum:GetAppliedDescription()
+                        if liveHum.RigType == Enum.HumanoidRigType.R6 then
+                            liveRigTypes = { Enum.HumanoidRigType.R6, Enum.HumanoidRigType.R15 }
+                        end
+                    end
+                end)
                 local liveModel, liveErr = PI.CloneLiveCharacter(source, modelName)
-                if liveModel then
-                    local liveDesc = nil
-                    pcall(function()
-                        local liveHum = source:FindFirstChildOfClass("Humanoid")
-                        if liveHum then liveDesc = liveHum:GetAppliedDescription() end
-                    end)
-                    return liveModel, nil, liveDesc or (rec and rec.desc) or nil, "live"
-                end
+                if liveModel then return liveModel, nil, liveDesc or (rec and rec.desc) or nil, "live" end
                 lastErr = liveErr
+                -- Nếu rig không clone được, thử dựng từ mô tả hiện tại của Humanoid trước avatar công khai.
+                if liveDesc then
+                    local model, err = PI.MakeRig(liveDesc, liveRigTypes)
+                    if model then
+                        pcall(function() model.Name = modelName or "BC_PlayerAvatarCopy" end)
+                        return model, nil, liveDesc, "liveDescription"
+                    end
+                    lastErr = err
+                end
             end
         end
         if rec and rec.desc then
