@@ -38,6 +38,11 @@ pcall(function() local oldUnhook = _G.BananaCatHub_AntiBanUnhook
     if type(oldUnhook) == "function" then pcall(oldUnhook) end _G.BananaCatHub_AntiBanUnhook = nil
 end) pcall(function()
     local f = _G.BananaCatHub_Free if type(f) == "table" and f.Stop then pcall(f.Stop) end end)
+pcall(function()
+    local oldAvatar = _G.BananaCatHub_AvatarLookup
+    if type(oldAvatar) == "table" and type(oldAvatar.Stop) == "function" then pcall(oldAvatar.Stop) end
+    _G.BananaCatHub_AvatarLookup = nil
+end)
 
 pcall(function() local old = _G.BananaCatHub_SpecCam
     if old ~= nil then local cam = workspace.CurrentCamera
@@ -6627,6 +6632,499 @@ do
         BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium, TextSize = 8, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
     }, tab) D.playerY = 46 end
 
+-- ---------- KHUNG 👕 TRA CỨU TRANG PHỤC NGƯỜI CHƠI (kể cả offline) ----------
+do
+    local PH = 260
+    local P = New("Frame", { Name = "HubAvatarLookup_Panel",
+        Size = UDim2.new(1, -16, 0, PH), Position = UDim2.new(0, 8, 0, D.playerY or 46),
+        LayoutOrder = 0, BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12,
+        BorderSizePixel = 0, ZIndex = 6,
+    }, D.playerTab)
+    D.playerY = (D.playerY or 46) + PH + 8
+    Corner(P, UDim.new(0, 10)) Stroke(P, C.HAIRLINE, 1)
+    D.Shade(P, Color3.fromRGB(255, 255, 255), Color3.fromRGB(188, 192, 205), 90)
+
+    New("TextLabel", { Name = "AvatarLookupTitle", Size = UDim2.new(1, -16, 0, 14),
+        Position = UDim2.new(0, 8, 0, 4), Text = "👕 TRA CỨU & LẤY TRANG PHỤC NGƯỜI CHƠI",
+        BackgroundTransparency = 1, TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold,
+        TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+    }, P)
+    New("TextLabel", { Size = UDim2.new(1, -16, 0, 12), Position = UDim2.new(0, 8, 0, 19),
+        Text = "Nhập username chính xác hoặc UserId — không cần người đó ở cùng server hay đang online.",
+        BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium,
+        TextSize = 8, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+    }, P)
+
+    local nameBox = New("TextBox", { Name = "AvatarLookupName",
+        Size = UDim2.new(1, -112, 0, 23), Position = UDim2.new(0, 8, 0, 34),
+        Text = "", PlaceholderText = "Username (không phải Display Name) hoặc UserId",
+        ClearTextOnFocus = false, BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.08,
+        TextColor3 = C.DARK, PlaceholderColor3 = C.GRAY, Font = Enum.Font.GothamMedium,
+        TextSize = 9, TextXAlignment = Enum.TextXAlignment.Left, BorderSizePixel = 0, ZIndex = 8,
+    }, P)
+    Corner(nameBox, UDim.new(0, 6)) Stroke(nameBox, C.BORDER, 1)
+    New("UIPadding", { PaddingLeft = UDim.new(0, 7) }, nameBox)
+
+    local lookupBtn = New("TextButton", { Name = "AvatarLookupButton",
+        Size = UDim2.new(0, 88, 0, 23), Position = UDim2.new(1, -96, 0, 34),
+        Text = "🔎 Tra cứu", BackgroundColor3 = C.BLUE, BackgroundTransparency = 0.08,
+        TextColor3 = D.BestText(C.BLUE), Font = Enum.Font.GothamBold, TextSize = 9,
+        BorderSizePixel = 0, ZIndex = 8,
+    }, P)
+    Corner(lookupBtn, UDim.new(0, 6)) D.Tactile(lookupBtn, 0.08)
+
+    local viewport = New("ViewportFrame", { Name = "AvatarLookupViewport",
+        Size = UDim2.new(0, 144, 0, 146), Position = UDim2.new(0, 8, 0, 63),
+        BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.05,
+        BorderSizePixel = 0, ClipsDescendants = true, ZIndex = 7,
+    }, P)
+    Corner(viewport, UDim.new(0, 7)) Stroke(viewport, C.BORDER, 1)
+    pcall(function()
+        viewport.Ambient = Color3.fromRGB(190, 190, 205)
+        viewport.LightColor = Color3.fromRGB(255, 244, 220)
+        viewport.LightDirection = Vector3.new(-1, -1, -1)
+    end)
+    local previewWorld = New("WorldModel", { Name = "AvatarLookupWorld" }, viewport)
+    local previewCamera = New("Camera", { Name = "AvatarLookupCamera", FieldOfView = 35 }, viewport)
+    viewport.CurrentCamera = previewCamera
+    local fallbackImage = New("ImageLabel", { Name = "AvatarLookupThumbnail",
+        Size = UDim2.new(0, 144, 0, 146), Position = UDim2.new(0, 8, 0, 63),
+        BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.05,
+        Image = "", ScaleType = Enum.ScaleType.Fit, Visible = false, ZIndex = 8,
+    }, P)
+    Corner(fallbackImage, UDim.new(0, 7))
+
+    local infoLabel = New("TextLabel", { Name = "AvatarLookupInfo",
+        Size = UDim2.new(1, -168, 0, 146), Position = UDim2.new(0, 160, 0, 63),
+        Text = "Nhập username hoặc UserId rồi bấm Tra cứu.\n\nKết quả gồm username, UserId, thông tin trang phục và phụ kiện; có thể xem avatar 3D.",
+        BackgroundTransparency = 1, TextColor3 = C.DARK, Font = Enum.Font.GothamMedium,
+        TextSize = 9, TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left,
+        TextYAlignment = Enum.TextYAlignment.Top, ZIndex = 7,
+    }, P)
+
+    local function avatarButton(name, text, x, w, color)
+        local b = New("TextButton", { Name = name,
+            Size = UDim2.new(0, w, 0, 22), Position = UDim2.new(0, x, 0, 216),
+            Text = text, BackgroundColor3 = color, BackgroundTransparency = 0.08,
+            TextColor3 = D.BestText(color), Font = Enum.Font.GothamBold, TextSize = 8,
+            BorderSizePixel = 0, ZIndex = 8,
+        }, P)
+        Corner(b, UDim.new(0, 6)) Stroke(b, D.Edge(color), 1)
+        D.Tactile(b, 0.08)
+        return b
+    end
+    local copySkinBtn = avatarButton("AvatarCopyData", "📋 Sao chép ID skin", 8, 112, C.BLUE)
+    local applySkinBtn = avatarButton("AvatarApplyLocal", "👕 Mặc thử cục bộ", 128, 128, C.GREEN)
+    local restoreSkinBtn = New("TextButton", { Name = "AvatarRestoreLocal",
+        Size = UDim2.new(0, 104, 0, 22), Position = UDim2.new(1, -112, 0, 216),
+        Text = "↩ Khôi phục", BackgroundColor3 = C.SURFACE3, BackgroundTransparency = 0.08,
+        TextColor3 = D.BestText(C.SURFACE3), Font = Enum.Font.GothamBold, TextSize = 8,
+        BorderSizePixel = 0, ZIndex = 8,
+    }, P)
+    Corner(restoreSkinBtn, UDim.new(0, 6)) Stroke(restoreSkinBtn, D.Edge(C.SURFACE3), 1)
+    D.Tactile(restoreSkinBtn, 0.08)
+
+    local statusLabel = New("TextLabel", { Name = "AvatarLookupStatus",
+        Size = UDim2.new(1, -16, 0, 13), Position = UDim2.new(0, 8, 0, 240),
+        Text = "Tra cứu theo hồ sơ/avatar công khai của Roblox.", BackgroundTransparency = 1,
+        TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium, TextSize = 8,
+        TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = 8,
+    }, P)
+
+    local AL = { current = nil, busy = false, applyBusy = false,
+        requestToken = 0, originalDescription = nil, originalCharacter = nil, }
+    S.AvatarLookup = AL
+
+    local function setStatus(text, color)
+        pcall(function() statusLabel.Text = tostring(text or "") statusLabel.TextColor3 = color or C.MUTED end)
+    end
+    local function trimText(text)
+        local value = tostring(text or ""):gsub("^%s+", ""):gsub("%s+$", "")
+        return value
+    end
+    local function safeDestroy(obj)
+        pcall(function() if obj then obj:Destroy() end end)
+    end
+
+    function AL.ResolveUser(query)
+        query = trimText(query)
+        if query == "" then return nil, nil, nil, false, "Hãy nhập username hoặc UserId." end
+        local numericId = tonumber(query)
+        local userId, username
+        if numericId then
+            if numericId < 1 or numericId % 1 ~= 0 then
+                return nil, nil, nil, false, "UserId phải là số nguyên dương."
+            end
+            userId = numericId
+            username = query
+            local okName, resolvedName = pcall(function()
+                return Players:GetNameFromUserIdAsync(userId)
+            end)
+            if okName and type(resolvedName) == "string" and resolvedName ~= "" then
+                username = resolvedName
+            end
+        else
+            local okId, resolvedId = pcall(function()
+                return Players:GetUserIdFromNameAsync(query)
+            end)
+            if not okId or tonumber(resolvedId) == nil then
+                return nil, nil, nil, false, "Không tìm thấy username. Hãy nhập đúng username, không phải Display Name."
+            end
+            userId = tonumber(resolvedId)
+            username = query
+            local okName, resolvedName = pcall(function()
+                return Players:GetNameFromUserIdAsync(userId)
+            end)
+            if okName and type(resolvedName) == "string" and resolvedName ~= "" then
+                username = resolvedName
+            end
+        end
+
+        local displayName, verified = username, false
+        pcall(function()
+            local users = Players:GetUserInfosByUserIdsAsync({ userId })
+            local userInfo = type(users) == "table" and users[1] or nil
+            if userInfo then
+                if type(userInfo.Username) == "string" and userInfo.Username ~= "" then username = userInfo.Username end
+                if type(userInfo.DisplayName) == "string" and userInfo.DisplayName ~= "" then displayName = userInfo.DisplayName end
+                verified = userInfo.HasVerifiedBadge == true
+            end
+        end)
+        return userId, username, displayName, verified, nil
+    end
+
+    function AL.GetDescription(userId)
+        local lastError = "API avatar không khả dụng trong môi trường này."
+        for _, methodName in ipairs({ "GetHumanoidDescriptionFromUserIdAsync", "GetHumanoidDescriptionFromUserId" }) do
+            local ok, description = pcall(function()
+                return Players[methodName](Players, userId)
+            end)
+            if ok and description then return description end
+            lastError = tostring(description or lastError)
+        end
+        return nil, lastError
+    end
+
+    function AL.BuildSkinData(description)
+        local fieldMap = {
+            { key = "shirt", property = "Shirt" }, { key = "pants", property = "Pants" },
+            { key = "tshirt", property = "GraphicTShirt" }, { key = "face", property = "Face" },
+            { key = "head", property = "Head" }, { key = "torso", property = "Torso" },
+            { key = "leftArm", property = "LeftArm" }, { key = "rightArm", property = "RightArm" },
+            { key = "leftLeg", property = "LeftLeg" }, { key = "rightLeg", property = "RightLeg" },
+        }
+        local fields = {}
+        for _, field in ipairs(fieldMap) do
+            local okValue, value = pcall(function() return description[field.property] end)
+            fields[field.key] = (okValue and tonumber(value)) or 0
+        end
+
+        local accessories, seen = {}, {}
+        local function addAccessory(assetId, category, layered, order)
+            local id = tonumber(assetId)
+            if not id or id < 1 then return end
+            id = math.floor(id)
+            if seen[id] then return end
+            seen[id] = true
+            accessories[#accessories + 1] = {
+                assetId = id, category = tostring(category or "Accessory"),
+                layered = layered == true, order = tonumber(order) or 0,
+            }
+        end
+        local okAccessories, list = pcall(function() return description:GetAccessories(true) end)
+        if okAccessories and type(list) == "table" then
+            for _, accessory in ipairs(list) do
+                local assetId, category, layered, order
+                pcall(function() assetId = accessory.AssetId end)
+                pcall(function() category = accessory.AccessoryType end)
+                pcall(function() layered = accessory.IsLayered end)
+                pcall(function() order = accessory.Order end)
+                addAccessory(assetId, category, layered, order)
+            end
+        end
+        -- Fallback for older HumanoidDescription APIs that expose comma-separated IDs.
+        local accessoryProperties = {
+            { property = "HairAccessory", category = "Hair" },
+            { property = "FaceAccessory", category = "Face" },
+            { property = "NeckAccessory", category = "Neck" },
+            { property = "ShouldersAccessory", category = "Shoulders" },
+            { property = "FrontAccessory", category = "Front" },
+            { property = "BackAccessory", category = "Back" },
+            { property = "WaistAccessory", category = "Waist" },
+        }
+        for _, entry in ipairs(accessoryProperties) do
+            local okValue, value = pcall(function() return description[entry.property] end)
+            if okValue then
+                for id in tostring(value or ""):gmatch("%d+") do
+                    addAccessory(id, entry.category, false, 0)
+                end
+            end
+        end
+
+        local scales = {}
+        for _, property in ipairs({ "HeightScale", "WidthScale", "DepthScale", "HeadScale", "BodyTypeScale", "ProportionScale" }) do
+            local okValue, value = pcall(function() return description[property] end)
+            if okValue and tonumber(value) then scales[property] = tonumber(value) end
+        end
+        local colors = {}
+        local colorMap = {
+            { key = "head", property = "HeadColor" }, { key = "torso", property = "TorsoColor" },
+            { key = "leftArm", property = "LeftArmColor" }, { key = "rightArm", property = "RightArmColor" },
+            { key = "leftLeg", property = "LeftLegColor" }, { key = "rightLeg", property = "RightLegColor" },
+        }
+        for _, field in ipairs(colorMap) do
+            local okColor, color = pcall(function() return description[field.property] end)
+            if okColor and typeof(color) == "Color3" then
+                colors[field.key] = { r = math.floor(color.R * 255 + 0.5),
+                    g = math.floor(color.G * 255 + 0.5), b = math.floor(color.B * 255 + 0.5), }
+            end
+        end
+        return { fields = fields, accessories = accessories, scales = scales, colors = colors }
+    end
+
+    local function assetLabel(value)
+        local id = tonumber(value) or 0
+        return id > 0 and ("#" .. tostring(math.floor(id))) or "—"
+    end
+    function AL.FormatInfo(record)
+        local skin = record.skin or {}
+        local fields = skin.fields or {}
+        local accessories = skin.accessories or {}
+        local accessoryIds = {}
+        for i = 1, math.min(#accessories, 5) do
+            accessoryIds[#accessoryIds + 1] = "#" .. tostring(accessories[i].assetId)
+        end
+        if #accessories > #accessoryIds then accessoryIds[#accessoryIds + 1] = "+" .. tostring(#accessories - #accessoryIds) end
+        local verified = record.verified and " · ✓ xác minh" or ""
+        local body = "Head " .. assetLabel(fields.head) .. " · Torso " .. assetLabel(fields.torso)
+        local accText = #accessories > 0 and table.concat(accessoryIds, ", ") or "không có/không đọc được"
+        local colors = skin.colors or {}
+        local function colorLabel(color)
+            if type(color) ~= "table" then return "—" end
+            return string.format("#%02X%02X%02X", tonumber(color.r) or 0, tonumber(color.g) or 0, tonumber(color.b) or 0)
+        end
+        return string.format("👤 %s%s\nUsername: %s\n🆔 UserId: %d\n👕 Shirt %s · Pants %s\n🎽 T-Shirt %s · Face %s\n🧍 %s\n🎨 Màu đầu/thân: %s / %s\n🎒 Phụ kiện (%d): %s",
+            tostring(record.displayName or record.username or "?"), verified,
+            tostring(record.username or "?"), math.floor(tonumber(record.userId) or 0),
+            assetLabel(fields.shirt), assetLabel(fields.pants), assetLabel(fields.tshirt),
+            assetLabel(fields.face), body, colorLabel(colors.head), colorLabel(colors.torso), #accessories, accText)
+    end
+
+    local function createPreviewModel(description)
+        local lastError = "Không dựng được model avatar."
+        for _, methodName in ipairs({ "CreateHumanoidModelFromDescription", "CreateHumanoidModelFromDescriptionAsync" }) do
+            local okModel, model = pcall(function()
+                return Players[methodName](Players, description, Enum.HumanoidRigType.R15)
+            end)
+            if okModel and model then return model end
+            lastError = tostring(model or lastError)
+        end
+        return nil, lastError
+    end
+    function AL.RenderPreview(record)
+        local model, modelError = createPreviewModel(record.description)
+        if model then
+            for _, child in ipairs(previewWorld:GetChildren()) do safeDestroy(child) end
+            pcall(function() model:PivotTo(CFrame.new()) end)
+            for _, descendant in ipairs(model:GetDescendants()) do
+                if descendant:IsA("BasePart") then
+                    pcall(function() descendant.Anchored = true descendant.CanCollide = false end)
+                end
+            end
+            model.Parent = previewWorld
+            local okBounds, boxCFrame, boxSize = pcall(function() return model:GetBoundingBox() end)
+            if okBounds and boxCFrame and boxSize then
+                local target = boxCFrame.Position + Vector3.new(0, boxSize.Y * 0.06, 0)
+                local distance = math.max(5, math.max(boxSize.X, boxSize.Y, boxSize.Z) * 1.55)
+                previewCamera.CFrame = CFrame.lookAt(target + Vector3.new(0, boxSize.Y * 0.1, -distance), target)
+            else
+                previewCamera.CFrame = CFrame.lookAt(Vector3.new(0, 3, -8), Vector3.new(0, 2, 0))
+            end
+            viewport.Visible = true fallbackImage.Visible = false
+            return true, nil
+        end
+
+        for _, child in ipairs(previewWorld:GetChildren()) do safeDestroy(child) end
+        viewport.Visible = false fallbackImage.Visible = false
+        local okThumb, image = pcall(function()
+            return Players:GetUserThumbnailAsync(record.userId, Enum.ThumbnailType.AvatarBust, Enum.ThumbnailSize.Size420x420)
+        end)
+        if okThumb and type(image) == "string" and image ~= "" then
+            fallbackImage.Image = image fallbackImage.Visible = true
+            return false, "Chỉ dựng được ảnh đại diện 2D; " .. tostring(modelError)
+        end
+        return false, tostring(modelError)
+    end
+
+    local function getCurrentHumanoid()
+        local character = player.Character
+        local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+        return humanoid, character
+    end
+    local function clearOriginalDescription()
+        safeDestroy(AL.originalDescription)
+        AL.originalDescription, AL.originalCharacter = nil, nil
+    end
+    local function applyDescription(humanoid, sourceDescription)
+        local okClone, description = pcall(function() return sourceDescription:Clone() end)
+        if not okClone or not description then return false, tostring(description or "Không sao chép được HumanoidDescription.") end
+        local lastError = "Client không cho áp dụng HumanoidDescription."
+        for _, methodName in ipairs({ "ApplyDescriptionReset", "ApplyDescription" }) do
+            local okApply, applyError = pcall(function()
+                humanoid[methodName](humanoid, description)
+            end)
+            if okApply then safeDestroy(description); return true, nil end
+            lastError = tostring(applyError or lastError)
+        end
+        safeDestroy(description)
+        return false, lastError
+    end
+    local function captureOriginal(humanoid, character)
+        if AL.originalDescription and AL.originalCharacter == character then return true, nil end
+        clearOriginalDescription()
+        local okDescription, description = pcall(function() return humanoid:GetAppliedDescription() end)
+        if not okDescription or not description then
+            return false, "Không đọc được skin hiện tại để tạo điểm khôi phục."
+        end
+        local okClone, clone = pcall(function() return description:Clone() end)
+        safeDestroy(description)
+        if not okClone or not clone then return false, "Không lưu được skin gốc để khôi phục." end
+        AL.originalDescription, AL.originalCharacter = clone, character
+        return true, nil
+    end
+
+    local function setBusy(on)
+        AL.busy = on == true
+        lookupBtn.Active = not AL.busy
+        lookupBtn.Text = AL.busy and "⏳ Đang tra" or "🔎 Tra cứu"
+    end
+    local function startLookup()
+        if AL.busy or AL.applyBusy then return end
+        local query = trimText(nameBox.Text)
+        if query == "" then setStatus("Hãy nhập username hoặc UserId.", C.YELLOW); return end
+        AL.requestToken = AL.requestToken + 1
+        local token = AL.requestToken
+        setBusy(true) ReleaseHubFocus()
+        setStatus("Đang tra cứu hồ sơ/avatar Roblox...", C.YELLOW)
+        task.spawn(function()
+            local okLookup, record = pcall(function()
+                local userId, username, displayName, verified, resolveError = AL.ResolveUser(query)
+                if not userId then error(resolveError or "Không tìm thấy người dùng.", 0) end
+                local description, descriptionError = AL.GetDescription(userId)
+                if not description then error("Không lấy được avatar: " .. tostring(descriptionError), 0) end
+                return { userId = userId, username = username, displayName = displayName,
+                    verified = verified, description = description,
+                    skin = AL.BuildSkinData(description), }
+            end)
+            if token ~= AL.requestToken then
+                if okLookup and record and record.description then safeDestroy(record.description) end
+                return
+            end
+            setBusy(false)
+            if not okLookup then
+                setStatus("Tra cứu thất bại: " .. tostring(record), C.RED)
+                return
+            end
+            local previous = AL.current
+            AL.current = record
+            infoLabel.Text = AL.FormatInfo(record)
+            local previewOk, previewMessage = AL.RenderPreview(record)
+            if previous and previous.description and previous.description ~= record.description then
+                safeDestroy(previous.description)
+            end
+            if previewOk then
+                setStatus("Đã tải trang phục; có thể sao chép ID hoặc mặc thử cục bộ.", C.GREEN)
+            else
+                setStatus("Đã tải dữ liệu trang phục. " .. tostring(previewMessage), C.YELLOW)
+            end
+        end)
+    end
+
+    lookupBtn.Activated:Connect(startLookup)
+    nameBox.FocusLost:Connect(function(enterPressed)
+        if enterPressed then task.defer(startLookup) end
+    end)
+    copySkinBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        local record = AL.current
+        if not record then setStatus("Tra cứu người chơi trước rồi mới sao chép skin.", C.YELLOW); return end
+        local okJson, json = pcall(function()
+            return HttpService:JSONEncode({ userId = record.userId, username = record.username,
+                displayName = record.displayName, skin = record.skin, })
+        end)
+        if not okJson then setStatus("Không mã hóa được dữ liệu skin: " .. tostring(json), C.RED); return end
+        local stubClipboard = type(S.Shimmed) == "function" and
+            (S.Shimmed("setclipboard") or S.Shimmed("toclipboard") or S.Shimmed("set_clipboard"))
+        local copied = (not stubClipboard) and S.CopyToClipboard(json) or false
+        setStatus(copied and "Đã sao chép JSON chứa UserId và ID trang phục/phụ kiện." or
+            "Executor không có clipboard thật; các ID chính đang hiển thị ở khung thông tin.", copied and C.GREEN or C.YELLOW)
+    end)
+    applySkinBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        if AL.applyBusy then return end
+        local record = AL.current
+        if not record then setStatus("Tra cứu người chơi trước rồi mới mặc thử skin.", C.YELLOW); return end
+        local humanoid, character = getCurrentHumanoid()
+        if not humanoid or not character then setStatus("Chưa có nhân vật của bạn trong game.", C.RED); return end
+        AL.applyBusy = true
+        setStatus("Đang lưu skin gốc và áp dụng thử trên client...", C.YELLOW)
+        task.spawn(function()
+            local okApply, message = pcall(function()
+                local okOriginal, originalError = captureOriginal(humanoid, character)
+                if not okOriginal then error(originalError, 0) end
+                local applied, applyError = applyDescription(humanoid, record.description)
+                if not applied then error(applyError, 0) end
+            end)
+            AL.applyBusy = false
+            if okApply then
+                setStatus("Đã mặc thử trên client. Server/respawn có thể ghi đè; không đổi avatar tài khoản.", C.GREEN)
+            else
+                setStatus("Không áp dụng được trên client: " .. tostring(message), C.RED)
+            end
+        end)
+    end)
+    restoreSkinBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        if AL.applyBusy then return end
+        local humanoid, character = getCurrentHumanoid()
+        if not AL.originalDescription or AL.originalCharacter ~= character then
+            setStatus("Chưa có skin gốc để khôi phục (hoặc nhân vật đã respawn).", C.YELLOW)
+            return
+        end
+        AL.applyBusy = true
+        setStatus("Đang khôi phục skin ban đầu của bạn...", C.YELLOW)
+        task.spawn(function()
+            local okRestore, result, restoreError = pcall(applyDescription, humanoid, AL.originalDescription)
+            AL.applyBusy = false
+            if okRestore and result then
+                clearOriginalDescription()
+                setStatus("Đã khôi phục skin ban đầu trên client.", C.GREEN)
+            else
+                setStatus("Khôi phục thất bại: " .. tostring(restoreError or result), C.RED)
+            end
+        end)
+    end)
+    trackConn(player.CharacterAdded:Connect(function()
+        clearOriginalDescription()
+    end))
+
+    function AL.Stop()
+        AL.requestToken = AL.requestToken + 1
+        AL.busy, AL.applyBusy = false, false
+        local humanoid, character = getCurrentHumanoid()
+        if AL.originalDescription and AL.originalCharacter == character and humanoid then
+            pcall(applyDescription, humanoid, AL.originalDescription)
+        end
+        clearOriginalDescription()
+        if AL.current and AL.current.description then safeDestroy(AL.current.description) end
+        AL.current = nil
+        for _, child in ipairs(previewWorld:GetChildren()) do safeDestroy(child) end
+        pcall(function() fallbackImage.Image = "" fallbackImage.Visible = false end)
+        _G.BananaCatHub_AvatarLookup = nil
+    end
+    _G.BananaCatHub_AvatarLookup = AL
+end
+
 -- ---------- KHUNG 📍 ĐỊNH VỊ (nằm trong trang 👥 NGƯỜI CHƠI) ----------
 do local PH = 380
     local P = New("Frame", { Name = "HubLoc_Panel",
@@ -8310,8 +8808,7 @@ function OT.OnFlyChange() if OT.RefreshList then pcall(OT.RefreshList) end
 end end
 
 -- ---------- 🌳 KHUNG ĐỊNH VỊ VẬT THEO TÊN (trong trang 👥 NGƯỜI CHƠI) ----------
--- v5.5: bọc khối này trong hàm để không vượt giới hạn 200 local của hàm chính (Lua/Luau)
-(function() local OT = S.ObjTrack
+do local OT = S.ObjTrack
     local function otRound(n) return math.floor((tonumber(n) or 0) + 0.5) end local function otAlive(inst) return inst ~= nil and inst.Parent ~= nil end
     local P = New("Frame", { Name = "HubObjTrack_Panel",
         Size = UDim2.new(1, -16, 0, 452), Position = UDim2.new(0, 8, 0, D.playerY or 46),
@@ -8582,879 +9079,7 @@ end end
         D.Say(OT.showXYZ and "🧭 hiện toạ độ X/Y/Z trên nhãn: BẬT" or "🧭 hiện toạ độ trên nhãn: TẮT", C.YELLOW) pcall(S.ObjTrack.RefreshList)
     end) paint()
     pcall(S.ObjTrack.RefreshList) pcall(function()
-        if D.playerTab then D.playerTab.CanvasSize = UDim2.new(0, 0, 0, (D.playerY or 600) + 16) end end) end)()
-
--- ============================================================================
--- 🧍 THAY NHÂN VẬT — MODULE ĐỘC LẬP
---   • Không đọc/ghi trạng thái của tính năng nào khác (Fly, Free-cam, Spectate, NoClip, Tắt hết...)
---     và không dùng giao diện hub. Chỉ dùng Players, RunService, Enum, player.
---   • Đầu vào: desc (HumanoidDescription đã lọc phụ kiện) + tên hiển thị. Đầu ra: Apply / Restore / Status.
---   • Tự dọn: RenderStep bind, kết nối CharacterAdded, rig, và LocalTransparencyModifier của thân thật.
---   • Chạy lại script: module cũ được Destroy trước khi nạp module mới.
---   • Nguyên tắc: Roblox chỉ thấy nhân vật thật (điều khiển bằng bàn phím như bình thường).
---     Rig do client tạo, được NEO, không va chạm, và được đặt đúng vị trí/hướng của nhân vật thật mỗi khung.
--- ============================================================================
-local CharSwap = (function()
-local CharSwap = {}
-do
-    local old = _G.BananaCatHub_CharSwap
-    if type(old) == "table" and type(old.Destroy) == "function" then pcall(old.Destroy) end
-end
-_G.BananaCatHub_CharSwap = CharSwap
-CharSwap.BIND = "BC_CharSwapFollow"
-CharSwap.keepOnRespawn = true
-CharSwap.notify = function() end      -- UI gán: function(text, isError)
-CharSwap.gen = 0                      -- số thứ tự yêu cầu; yêu cầu cũ (đang chờ dựng) bị bỏ
-CharSwap.state = nil                  -- trạng thái đang chạy (xem csBuild)
-CharSwap.applied = nil                -- { name, desc, tag } để dựng lại sau respawn
-CharSwap.charConn = nil               -- kết nối CharacterAdded của riêng module
-
-local ANIM_NAMES = { "idle", "walk", "jump", "fall" }
-
-local function csMakeRig(desc, rigType)
-    local ok, m = pcall(function() return Players:CreateHumanoidModelFromDescription(desc, rigType) end)
-    if ok and m ~= nil then return m, nil end
-    return nil, tostring(m)
-end
-
-local function csHideOwn(c, origLT)
-    for _, d in ipairs(c:GetDescendants()) do
-        if d:IsA("BasePart") then
-            if origLT[d] == nil then origLT[d] = d.LocalTransparencyModifier end
-            pcall(function() d.LocalTransparencyModifier = 1 end)
-        end
-    end
-end
-
--- Gỡ TOÀN BỘ: bỏ bind, trả độ trong suốt thân thật, huỷ rig. Không đụng vào CharSwap.applied.
-local function csTeardown()
-    local st = CharSwap.state
-    CharSwap.state = nil
-    pcall(function() RunService:UnbindFromRenderStep(CharSwap.BIND) end)
-    if st == nil then return end
-    for part, lt in pairs(st.origLT) do
-        pcall(function() part.LocalTransparencyModifier = lt end)
-    end
-    pcall(function() st.rig:Destroy() end)
-end
-
--- Mỗi khung hình: đặt rig đúng chỗ nhân vật thật, ẩn thân thật, chọn animation theo trạng thái thật
-local function csStep(st)
-    if CharSwap.state ~= st then return end
-    local c = player.Character
-    if c ~= st.char then return end                 -- nhân vật đã đổi: chờ CharacterAdded xử lý
-    local r = c:FindFirstChild("HumanoidRootPart")
-    if not r or st.rig.Parent == nil then return end
-    pcall(function() st.rig:PivotTo(r.CFrame) end)
-    csHideOwn(c, st.origLT)
-    local vel = r.AssemblyLinearVelocity
-    local flat = Vector3.new(vel.X, 0, vel.Z)
-    local h = c:FindFirstChildOfClass("Humanoid")
-    local okS, stt = pcall(function() return h and h:GetState() end)
-    local S = Enum.HumanoidStateType
-    local name
-    if okS and stt == S.Jumping then name = "jump"
-    elseif okS and stt == S.Freefall then name = "fall"
-    elseif flat.Magnitude > 0.5 then name = "walk"
-    else name = "idle" end
-    -- đổi animation chỉ khi cần; walk chạy theo tốc độ thật (14.5 studs/s = tốc độ gốc)
-    if st.animName ~= name then
-        if st.cur then pcall(function() st.cur:Stop(0.15) end) end
-        st.cur = st.tracks[name]
-        st.animName = name
-        if st.cur then pcall(function() st.cur:Play(0.15) end) end
-    end
-    if name == "walk" and st.cur then
-        pcall(function() st.cur:AdjustSpeed(math.clamp(flat.Magnitude / 14.5, 0.1, 3)) end)
-    end
-end
-
--- Dựng và bám rig. Trả về (ok, thông báo). Chỉ gọi qua Apply (đã có pcall và kiểm tra yêu cầu mới nhất).
-local function csBuild(desc, name, tag, myGen)
-    local char = player.Character
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    local root = char and char:FindFirstChild("HumanoidRootPart")
-    if not hum or not root then return false, "chưa có nhân vật (Humanoid/HumanoidRootPart) để thay" end
-    if desc == nil then return false, "chưa có dữ liệu skin" end
-
-    local rig, rerr = csMakeRig(desc, hum.RigType)     -- có thể CHỜ ở đây: các yêu cầu khác có thể chen vào
-    if myGen ~= CharSwap.gen then                       -- đã có yêu cầu mới hơn: bỏ rig này
-        if rig then pcall(function() rig:Destroy() end) end
-        return false, "đã có yêu cầu thay nhân vật mới hơn — bỏ qua yêu cầu này"
-    end
-    if player.Character ~= char then                    -- nhân vật đã đổi trong lúc dựng
-        if rig then pcall(function() rig:Destroy() end) end
-        return false, "nhân vật đã thay đổi trong lúc dựng — hãy thử lại"
-    end
-    if rig == nil then return false, "không dựng được nhân vật của " .. tostring(name) .. ": " .. tostring(rerr) end
-    rig.Name = "BC_Puppet"
-    local rigRoot = rig:FindFirstChild("HumanoidRootPart")
-    local rigHum = rig:FindFirstChildOfClass("Humanoid")
-    if not rigRoot or not rigHum then
-        pcall(function() rig:Destroy() end)
-        return false, "nhân vật dựng ra thiếu HumanoidRootPart/Humanoid"
-    end
-
-    for _, d in ipairs(rig:GetDescendants()) do
-        if d:IsA("BasePart") then
-            pcall(function()
-                d.Anchored = true       -- NEO: không vật lý → không tự xoay/đổ/trôi
-                d.CanCollide = false    -- không va chạm với ai
-                d.CanTouch = false      -- không kích hoạt Touched
-                d.CanQuery = false      -- không bị raycast: camera/Humanoid/các tính năng quét không coi rig là vật cản
-            end)
-        end
-    end
-    pcall(function() rig.PrimaryPart = rigRoot end)
-    pcall(function() rigHum.AutoRotate = false end)
-    local animator = rigHum:FindFirstChildOfClass("Animator")
-    if animator == nil then
-        pcall(function() animator = Instance.new("Animator") animator.Parent = rigHum end)
-    end
-    rig.Parent = workspace
-    pcall(function() rig:PivotTo(root.CFrame) end)
-
-    -- Bộ animation lấy từ Animate của chính nhân vật thật (mỗi thư mục chứa một Animation)
-    local tracks = {}
-    local animSrc = char:FindFirstChild("Animate")
-    if animator and animSrc then
-        for _, n in ipairs(ANIM_NAMES) do
-            local folder = animSrc:FindFirstChild(n)
-            local animObj = folder and folder:FindFirstChildOfClass("Animation")
-            if animObj then
-                local okL, track = pcall(function() return animator:LoadAnimation(animObj) end)
-                if okL and track then
-                    if n == "idle" or n == "walk" then pcall(function() track.Looped = true end) end
-                    tracks[n] = track
-                end
-            end
-        end
-    end
-
-    local st = { rig = rig, origLT = {}, name = name, char = char, tracks = tracks, cur = nil, animName = nil }
-    csHideOwn(char, st.origLT)
-    CharSwap.state = st
-    CharSwap.applied = { name = name, desc = desc, tag = tag }
-    local okBind = pcall(function()
-        RunService:BindToRenderStep(CharSwap.BIND, Enum.RenderPriority.Last.Value, function() csStep(st) end)
-    end)
-    if not okBind then return false, "không bám được nhân vật (BindToRenderStep lỗi)" end
-    csStep(st)
-    return true, "✅ Đã thay nhân vật của bạn bằng của " .. tostring(name) .. " (chỉ bạn thấy)"
-end
-
--- Kết nối riêng: nhân vật mới (respawn) → gỡ rig cũ, và nếu đang bật "giữ sau respawn" thì dựng lại
-local function csEnsureRespawnHook()
-    if CharSwap.charConn then return end
-    CharSwap.charConn = player.CharacterAdded:Connect(function(newChar)
-        csTeardown()
-        local rec = CharSwap.applied
-        if rec == nil then return end
-        if not CharSwap.keepOnRespawn then CharSwap.applied = nil return end   -- tắt giữ sau respawn: quên luôn
-        CharSwap.gen = CharSwap.gen + 1
-        local myGen = CharSwap.gen
-        task.spawn(function()
-            local okH, hrp = pcall(function() return newChar:WaitForChild("HumanoidRootPart", 10) end)
-            if not okH or not hrp then
-                if CharSwap.applied == rec then CharSwap.applied = nil end
-                CharSwap.notify("⚠️ Không thấy nhân vật mới để thay lại", true)
-                return
-            end
-            task.wait(0.5)
-            if CharSwap.gen ~= myGen or CharSwap.applied ~= rec or player.Character ~= newChar then return end
-            local ok, msg = CharSwap.Apply(rec.desc, rec.name, rec.tag)
-            CharSwap.notify(ok and ("🔁 " .. tostring(msg)) or ("⚠️ " .. tostring(msg)), not ok)
-        end)
-    end)
-end
-
--- API công khai ----------------------------------------------------------------
--- Apply(desc, name [, tag]) → (ok, thông báo). Thất bại thì KHÔNG để lại rig/ẩn thân và xoá trạng thái đã áp.
-function CharSwap.Apply(desc, name, tag)
-    CharSwap.gen = CharSwap.gen + 1
-    local myGen = CharSwap.gen
-    csTeardown()
-    local okRun, ok, msg = pcall(csBuild, desc, name, tag, myGen)
-    if not okRun then ok, msg = false, "lỗi khi thay nhân vật: " .. tostring(ok) end
-    if not ok and myGen == CharSwap.gen then
-        csTeardown()
-        CharSwap.applied = nil
-    end
-    if ok then csEnsureRespawnHook() end
-    return ok, msg
-end
-
--- Trả nhân vật gốc: gỡ rig, hiện lại thân thật, huỷ yêu cầu đang chờ
-function CharSwap.Restore()
-    if CharSwap.state == nil and CharSwap.applied == nil then
-        return false, "chưa thay nhân vật nào — không có gì để trả"
-    end
-    CharSwap.gen = CharSwap.gen + 1
-    csTeardown()
-    CharSwap.applied = nil
-    return true, "↩ Đã trả lại nhân vật gốc của bạn"
-end
-
-function CharSwap.Status()
-    local a = CharSwap.applied
-    return {
-        active = CharSwap.state ~= nil,
-        name = a and a.name or nil,
-        tag = a and a.tag or nil,
-        keepOnRespawn = CharSwap.keepOnRespawn,
-    }
-end
-
-function CharSwap.Destroy()
-    CharSwap.gen = CharSwap.gen + 1
-    csTeardown()
-    CharSwap.applied = nil
-    if CharSwap.charConn then
-        pcall(function() CharSwap.charConn:Disconnect() end)
-        CharSwap.charConn = nil
-    end
-end
-return CharSwap
-end)()
-
--- ---------- 🔎 TRA CỨU NGƯỜI CHƠI & THAY NHÂN VẬT (v5.6) — nhập tên/UserId: xem thông tin, xem 3D, phân tích phụ kiện, thay nhân vật (kể cả người KHÔNG trong server / offline) ----------
--- Chỉ dùng dữ liệu CÔNG KHAI của Roblox (users / presence / thumbnails API + GetHumanoidDescriptionFromUserId).
--- Thay nhân vật CHỈ ở phía client của bạn: dựng một rig do client tạo (CreateHumanoidModelFromDescription) rồi bám theo nhân vật thật.
--- Lý do: Humanoid của nhân vật người chơi do SERVER tạo nên ApplyDescription trực tiếp báo lỗi "can only be called by the backend server".
-;(function()
-    local PI = {}
-    PI.reqId = 0          -- mỗi lần tra cứu tăng số này; kết quả cũ (stale) bị bỏ qua
-    PI.last = nil         -- bản ghi tra cứu gần nhất
-    PI.productCache = {}  -- assetId -> { name, creator } | false
-    PI.view = { yaw = 0.6, pitch = 0.15, dist = 9, auto = false, drag = false, hover = false }   -- auto: tự xoay 3D (mặc định TẮT)
-    PI.SPIN_BIND = "BC_PlayerViewSpin"
-    -- Chạy lại script: gỡ bind của phần xem 3D (thay nhân vật do module CharSwap tự dọn)
-    pcall(function() RunService:UnbindFromRenderStep("BC_PlayerViewSpin") end)
-    _G.BananaCatHub_PlayerInfo = PI
-    local MarketplaceService = game:GetService("MarketplaceService")
-
-    local PRESENCE = { [0] = "⚫ Offline", [1] = "🟢 Online (web/app)", [2] = "🎮 Đang trong game", [3] = "🛠 Đang trong Studio" }
-
-    local function trimStr(s) return (tostring(s or ""):gsub("^%s+", ""):gsub("%s+$", "")) end
-
-    local function clipText(s, n)  -- cắt theo ký tự UTF-8 (không cắt giữa dấu tiếng Việt)
-        s = tostring(s or "")
-        local okL, len = pcall(utf8.len, s)
-        if okL and type(len) == "number" and len > n then
-            local okO, cut = pcall(utf8.offset, s, n + 1)
-            if okO and cut then return s:sub(1, cut - 1) .. "…" end
-        end
-        return s
-    end
-
-    local function jsonEncode(t) local ok, s = pcall(function() return HttpService:JSONEncode(t) end) if ok then return s end return nil end
-
-    -- Gọi HTTP: ưu tiên hàm request của executor (hỗ trợ POST), không có thì dùng S.CompatRequest.
-    -- Trả về (table đã decode | nil, lỗi)
-    function PI.Http(method, url, body)
-        local rq = (type(request) == "function" and request) or (type(http_request) == "function" and http_request) or S.CompatRequest
-        local headers = nil
-        if body then headers = { ["Content-Type"] = "application/json", ["Accept"] = "application/json" } end
-        local ok, res = pcall(rq, { Url = url, Method = method, Headers = headers, Body = body })
-        if not ok or type(res) ~= "table" then return nil, "lỗi mạng" end
-        local code = tonumber(res.StatusCode) or 0
-        if res.Success == false or code >= 400 then return nil, "HTTP " .. tostring(code) end
-        if type(res.Body) ~= "string" or #res.Body == 0 then return nil, "phản hồi rỗng" end
-        local okD, data = pcall(function() return HttpService:JSONDecode(res.Body) end)
-        if not okD or type(data) ~= "table" then return nil, "phản hồi không hợp lệ" end
-        return data, nil
-    end
-
-    -- Tên Roblox: 3–20 ký tự, chỉ chữ/số/_ . Nhập toàn số thì coi là UserId.
-    -- Trả về (userId, tên) hoặc (nil, thông báo lỗi)
-    function PI.ResolveUser(query)
-        local q = trimStr(query)
-        if q == "" then return nil, "chưa nhập tên hoặc UserId" end
-        if q:match("^%d+$") then
-            if #q > 15 then return nil, "UserId không hợp lệ (quá dài)" end  -- tránh số bị đổi sang dạng 1e+22
-            local id = tonumber(q)
-            if not id or id <= 0 then return nil, "UserId không hợp lệ" end
-            return id, nil
-        end
-        if #q < 3 or #q > 20 or q:find("[^%w_]") then
-            return nil, "tên không hợp lệ (3–20 ký tự: chữ, số, _)"
-        end
-        local data, err = PI.Http("POST", "https://users.roblox.com/v1/usernames/users",
-            jsonEncode({ usernames = { q }, excludeBannedUsers = false }))
-        if type(data) == "table" and type(data.data) == "table" and type(data.data[1]) == "table" and tonumber(data.data[1].id) then
-            return tonumber(data.data[1].id), tostring(data.data[1].name or q)
-        end
-        local okId, id = pcall(function() return Players:GetUserIdFromNameAsync(q) end)
-        if okId and tonumber(id) then return tonumber(id), q end
-        return nil, "không tìm thấy người chơi '" .. q .. "'" .. (err and (" (" .. err .. ")") or "")
-    end
-
-    function PI.FetchProfile(id)
-        local data, err = PI.Http("GET", "https://users.roblox.com/v1/users/" .. tostring(id), nil)
-        if type(data) ~= "table" or tonumber(data.id) == nil then
-            if err == "HTTP 404" then return nil, "UserId " .. tostring(id) .. " không tồn tại" end
-            return nil, "không đọc được hồ sơ UserId " .. tostring(id) .. " (" .. tostring(err or "lỗi") .. ")"
-        end
-        return data, nil
-    end
-
-    function PI.FetchPresence(id)
-        local data = PI.Http("POST", "https://presence.roblox.com/v1/presence/users", jsonEncode({ userIds = { id } }))
-        local p = type(data) == "table" and type(data.userPresences) == "table" and data.userPresences[1] or nil
-        if type(p) ~= "table" then return nil end
-        return p
-    end
-
-    function PI.PresenceText(p)
-        if type(p) ~= "table" then return "❔ không rõ" end
-        local t = tonumber(p.userPresenceType) or -1
-        local text = PRESENCE[t] or "❔ không rõ"
-        if t == 2 and type(p.lastLocation) == "string" and p.lastLocation ~= "" then text = text .. ": " .. p.lastLocation end
-        return text
-    end
-
-    -- Người này có đang ở ĐÚNG server của bạn không?
-    function PI.InThisServer(id, p)
-        local okP, inst = pcall(function() return Players:GetPlayerByUserId(id) end)
-        if okP and inst then return true end
-        if type(p) == "table" and p.gameId ~= nil and tostring(p.gameId) ~= "" and tostring(p.gameId) == tostring(game.JobId or "") then
-            return true
-        end
-        return false
-    end
-
-    -- Skin công khai của người bất kỳ (kể cả offline) — HumanoidDescription
-    function PI.FetchDesc(id)
-        local ok, desc = pcall(function() return Players:GetHumanoidDescriptionFromUserId(id) end)
-        if not ok then return nil, tostring(desc) end
-        if desc == nil then return nil, "không có dữ liệu skin" end
-        return desc, nil
-    end
-
-    -- Danh sách phụ kiện của skin: mỗi món giữ nguyên đặc tả (spec) để dựng lại skin khi bật/tắt
-    function PI.ParseAccessories(desc)
-        if desc == nil then return nil end
-        local ok, list = pcall(function() return desc:GetAccessories(true) end)
-        if not ok or type(list) ~= "table" then return nil end
-        local out = {}
-        for i, a in ipairs(list) do
-            local okT, tn = pcall(function() return a.AccessoryType.Name end)
-            out[#out + 1] = {
-                idx = i,
-                assetId = tonumber(a.AssetId) or 0,
-                typeName = (okT and type(tn) == "string") and tn or "Khác",
-                layered = a.IsLayered == true,
-                spec = { AssetId = a.AssetId, AccessoryType = a.AccessoryType, IsLayered = a.IsLayered, Order = a.Order, Puffiness = a.Puffiness },
-            }
-        end
-        return out
-    end
-
-    -- Tên món đồ qua MarketplaceService (có yield; gọi trong task.spawn). Trả về { name, creator } | nil
-    function PI.ProductInfo(assetId)
-        local c = PI.productCache[assetId]
-        if c ~= nil then return c or nil end
-        local ok, info = pcall(function() return MarketplaceService:GetProductInfo(assetId) end)
-        local res = false
-        if ok and type(info) == "table" and info.Name ~= nil then
-            local cr = (type(info.Creator) == "table" and info.Creator.Name) or "?"
-            res = { name = tostring(info.Name), creator = tostring(cr) }
-        end
-        PI.productCache[assetId] = res
-        return res or nil
-    end
-
-    function PI.FetchThumb(id)
-        local ok, content = pcall(function() return Players:GetUserThumbnailAsync(id, Enum.ThumbnailType.AvatarThumbnail, Enum.ThumbnailSize.Size420x420) end)
-        if ok and type(content) == "string" and content ~= "" then return content end
-        local data = PI.Http("GET", "https://thumbnails.roblox.com/v1/users/avatar?userIds=" .. tostring(id) .. "&size=420x420&format=Png&isCircular=false", nil)
-        local e = type(data) == "table" and type(data.data) == "table" and data.data[1] or nil
-        if type(e) == "table" and type(e.imageUrl) == "string" and e.imageUrl ~= "" then return e.imageUrl end
-        return nil
-    end
-
-    local function stale(my) return PI.reqId ~= my end
-
-    -- Tra cứu đầy đủ. Chạy trong task.spawn (có yield). Trả về (bản ghi | nil, lỗi | nil).
-    -- Trả về (nil, nil) khi kết quả đã bị lượt tra cứu mới hơn thay thế.
-    function PI.Lookup(query)
-        PI.reqId = PI.reqId + 1
-        local my = PI.reqId
-        local id, nm = PI.ResolveUser(query)
-        if stale(my) then return nil, nil end
-        if not id then return nil, nm end
-        local prof, perr = PI.FetchProfile(id)
-        if stale(my) then return nil, nil end
-        if not prof then return nil, perr end
-        local pres = PI.FetchPresence(id)
-        if stale(my) then return nil, nil end
-        local desc, derr = PI.FetchDesc(id)
-        if stale(my) then return nil, nil end
-        local thumb = PI.FetchThumb(id)
-        if stale(my) then return nil, nil end
-        local rec = {
-            id = tonumber(prof.id) or id,
-            name = tostring(prof.name or nm or ""),
-            displayName = tostring(prof.displayName or prof.name or ""),
-            created = type(prof.created) == "string" and prof.created:sub(1, 10) or "—",
-            description = type(prof.description) == "string" and prof.description or "",
-            isBanned = prof.isBanned == true,
-            verified = prof.hasVerifiedBadge == true,
-            presence = PI.PresenceText(pres),
-            inServer = PI.InThisServer(id, pres),
-            desc = desc,
-            descErr = derr,
-            acc = PI.ParseAccessories(desc),
-            thumb = thumb,
-        }
-        rec.accessories = rec.acc and #rec.acc or nil
-        rec.keep = {}         -- [idx] = false nếu bạn đã bỏ món đó khi thay nhân vật (nil = giữ)
-        return rec, nil
-    end
-
-    -- ===== LOGIC SKIN / NHÂN VẬT =====
-
-    -- Đặc tả skin sau khi bỏ các phụ kiện bạn đã tắt (không sửa rec.desc gốc)
-    function PI.FilteredDesc(rec)
-        if type(rec) ~= "table" or rec.desc == nil then return nil, "chưa có dữ liệu skin" end
-        if rec.acc == nil then return rec.desc, nil end   -- không đọc được danh sách phụ kiện → dùng nguyên skin
-        local specs = {}
-        for _, a in ipairs(rec.acc) do
-            if rec.keep[a.idx] ~= false then specs[#specs + 1] = a.spec end
-        end
-        local okC, d = pcall(function() return rec.desc:Clone() end)
-        if not okC or d == nil then return nil, "không sao chép được skin" end
-        local okS, err = pcall(function() d:SetAccessories(specs, true) end)
-        if not okS then return nil, "không đổi được phụ kiện: " .. tostring(err) end
-        return d, nil
-    end
-
-    function PI.KeptCount(rec)
-        local n = 0
-        for _, a in ipairs(rec.acc or {}) do if rec.keep[a.idx] ~= false then n = n + 1 end end
-        return n
-    end
-
-    -- Dựng một nhân vật do CLIENT tạo từ skin (thử lần lượt các kiểu rig). Trả về (Model | nil, lỗi | nil)
-    function PI.MakeRig(desc, rigTypes)
-        local lastErr = "không có kiểu rig phù hợp"
-        for _, rt in ipairs(rigTypes) do
-            local ok, m = pcall(function() return Players:CreateHumanoidModelFromDescription(desc, rt) end)
-            if ok and m ~= nil then return m, nil end
-            lastErr = tostring(m)
-        end
-        return nil, lastErr
-    end
-
-    -- ===== CẦU NỐI: giao diện → module CharSwap độc lập (nằm ngoài trang tra cứu) =====
-    -- Giao diện chỉ lọc phụ kiện (PI.FilteredDesc) rồi giao cho CharSwap; mọi việc còn lại do CharSwap lo.
-    function PI.SwapSafe(rec)
-        if type(rec) ~= "table" or rec.desc == nil then return false, "chưa có dữ liệu skin — hãy tra cứu người chơi trước" end
-        local okF, desc, derr = pcall(PI.FilteredDesc, rec)
-        if not okF then return false, "lỗi phụ kiện: " .. tostring(desc) end
-        if not desc then return false, "lỗi phụ kiện: " .. tostring(derr) end
-        return CharSwap.Apply(desc, rec.name, rec)
-    end
-
-    function PI.Restore() return CharSwap.Restore() end
-
-    -- ===== GIAO DIỆN (trong trang 👥 NGƯỜI CHƠI, nằm dưới 🌳) =====
-    local PH = 402
-    local P = New("Frame", {
-        Name = "HubPlayerInfo_Panel",
-        Size = UDim2.new(1, -16, 0, PH), Position = UDim2.new(0, 8, 0, D.playerY or 46),
-        LayoutOrder = 5, BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, BorderSizePixel = 0, ZIndex = 6,
-    }, D.playerTab) D.playerY = (D.playerY or 46) + PH + 8
-    Corner(P, UDim.new(0, 10)) Stroke(P, C.HAIRLINE, 1) D.Shade(P, Color3.fromRGB(255, 255, 255), Color3.fromRGB(188, 192, 205), 90)
-
-    New("TextLabel", { Size = UDim2.new(1, -16, 0, 14), Position = UDim2.new(0, 8, 0, 4),
-        Text = "🔎 TRA CỨU · XEM 3D · THAY NHÂN VẬT (kể cả người offline)", BackgroundTransparency = 1,
-        TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7, }, P)
-
-    local function pAct(txt, x, y, w, color, parent)
-        local b = New("TextButton", {
-            Size = UDim2.new(0, w, 0, 22), Position = UDim2.new(0, x, 0, y), Text = txt, BackgroundColor3 = color, TextColor3 = D.BestText(color),
-            Font = Enum.Font.GothamBold, TextSize = 9, BorderSizePixel = 0, ZIndex = 8, }, parent or P)
-        Corner(b, UDim.new(0, 6)) D.Shade(b, Color3.fromRGB(255, 255, 255), Color3.fromRGB(182, 187, 201), 90)
-        D.Tactile(b, 0.08) return b
-    end
-
-    local queryIn = New("TextBox", {
-        Name = "HubPlayerInfo_Query", Size = UDim2.new(0, 290, 0, 22), Position = UDim2.new(0, 8, 0, 22), Text = "", PlaceholderText = "Nhập tên (VD: Roblox) hoặc UserId",
-        ClearTextOnFocus = false, BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.1, TextColor3 = C.DARK,
-        PlaceholderColor3 = C.GRAY, Font = Enum.Font.GothamMedium, TextSize = 9, TextXAlignment = Enum.TextXAlignment.Left,
-        BorderSizePixel = 0, ZIndex = 7, }, P)
-    Corner(queryIn, UDim.new(0, 6)) New("UIPadding", { PaddingLeft = UDim.new(0, 6) }, queryIn)
-
-    local searchBtn = pAct("🔍 Tra cứu", 304, 22, 96, C.GREEN)
-    local clearBtn = pAct("✕ Xoá", 406, 22, 54, C.RED)
-
-    local statusLbl = New("TextLabel", { Name = "HubPlayerInfo_Status", Size = UDim2.new(1, -16, 0, 16), Position = UDim2.new(0, 8, 0, 48),
-        Text = "Nhập tên rồi bấm 🔍 (hoặc Enter).", BackgroundTransparency = 1, TextColor3 = C.MUTED,
-        Font = Enum.Font.GothamMedium, TextSize = 9, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7, }, P)
-
-    local function setStatus(text, color)
-        statusLbl.Text = tostring(text or "")
-        statusLbl.TextColor3 = color or C.MUTED
-    end
-    CharSwap.notify = function(text, isErr) setStatus(text, isErr and C.RED or C.GREEN) end
-
-    -- Khung 3D: ảnh đại diện nằm dưới (dự phòng), ViewportFrame chồng lên trên
-    local thumbImg = New("ImageLabel", { Name = "HubPlayerInfo_Thumb", Size = UDim2.new(0, 220, 0, 200), Position = UDim2.new(0, 8, 0, 70),
-        BackgroundColor3 = C.SURFACE2, BorderSizePixel = 0, Image = "", ScaleType = Enum.ScaleType.Fit, ZIndex = 7, }, P)
-    Corner(thumbImg, UDim.new(0, 8))
-    local vp = New("ViewportFrame", { Name = "HubPlayerInfo_Viewport", Size = UDim2.new(0, 220, 0, 200), Position = UDim2.new(0, 8, 0, 70),
-        BackgroundTransparency = 1, BorderSizePixel = 0, Ambient = Color3.fromRGB(170, 170, 170), LightColor = Color3.fromRGB(255, 255, 255), ZIndex = 8, }, P)
-    local vWorld = New("WorldModel", { Name = "HubPlayerInfo_WorldModel" }, vp)
-    local vCam = New("Camera", { Name = "HubPlayerInfo_ViewCam" }, vp)
-    vp.CurrentCamera = vCam
-    PI.view.vp, PI.view.wm, PI.view.cam = vp, vWorld, vCam
-
-    function PI.ViewerUpdate()
-        local v = PI.view
-        if not v.cam then return end
-        local center = Vector3.new(0, 2.6, 0)
-        local cp = math.cos(v.pitch)
-        local pos = center + Vector3.new(math.sin(v.yaw) * cp * v.dist, math.sin(v.pitch) * v.dist, math.cos(v.yaw) * cp * v.dist)
-        v.cam.CFrame = CFrame.lookAt(pos, center)
-    end
-
-    function PI.ViewerZoom(f)
-        PI.view.dist = math.clamp(PI.view.dist * f, 3, 20)
-        PI.ViewerUpdate()
-    end
-
-    function PI.ViewerReset()
-        PI.view.yaw, PI.view.pitch, PI.view.dist = 0.6, 0.15, 9
-        PI.ViewerUpdate()
-    end
-
-    -- Dựng model 3D của người kia (theo skin đang chọn). Trả về (ok, lỗi)
-    function PI.ViewerBuild(rec)
-        local v = PI.view
-        if v.model then pcall(function() v.model:Destroy() end) v.model = nil end
-        if type(rec) ~= "table" or rec.desc == nil then return false, "không có dữ liệu skin để xem 3D" end
-        local desc, derr = PI.FilteredDesc(rec)
-        if not desc then return false, derr end
-        local m, merr = PI.MakeRig(desc, { Enum.HumanoidRigType.R15, Enum.HumanoidRigType.R6 })
-        if not m then return false, merr end
-        m.Name = "BC_ViewModel"
-        m.Parent = v.wm
-        v.model = m
-        PI.ViewerUpdate()
-        return true, nil
-    end
-
-    -- Kéo chuột trái (hoặc chạm) trong khung 3D để xoay; cuộn để zoom
-    vp.InputBegan:Connect(function(input)
-        local t = input.UserInputType
-        if t == Enum.UserInputType.MouseButton1 or t == Enum.UserInputType.Touch then PI.view.drag = true end
-    end)
-    vp.MouseEnter:Connect(function() PI.view.hover = true end)
-    vp.MouseLeave:Connect(function() PI.view.hover = false end)
-    trackConn(UserInputService.InputEnded:Connect(function(input)
-        local t = input.UserInputType
-        if t == Enum.UserInputType.MouseButton1 or t == Enum.UserInputType.Touch then PI.view.drag = false end
-    end))
-    trackConn(UserInputService.InputChanged:Connect(function(input)
-        local t = input.UserInputType
-        if PI.view.drag and (t == Enum.UserInputType.MouseMovement or t == Enum.UserInputType.Touch) and input.Delta then
-            PI.view.yaw = PI.view.yaw - input.Delta.X * 0.01
-            PI.view.pitch = math.clamp(PI.view.pitch + input.Delta.Y * 0.005, -0.5, 1.1)
-            PI.ViewerUpdate()
-        elseif PI.view.hover and t == Enum.UserInputType.MouseWheel and input.Position then
-            PI.ViewerZoom(input.Position.Z > 0 and 0.89 or 1.12)
-        end
-    end))
-    -- Tự xoay (chỉ khi có model và không đang kéo)
-    local okSpin = pcall(function()
-        RunService:BindToRenderStep(PI.SPIN_BIND, Enum.RenderPriority.Last.Value, function(dt)
-            local v = PI.view
-            if v.auto and v.model and not v.drag then
-                v.yaw = v.yaw + (tonumber(dt) or 0.016) * 0.6
-                PI.ViewerUpdate()
-            end
-        end)
-    end)
-
-    local vBtnL = pAct("⟲ Trái", 8, 274, 52, C.GRAY)
-    local vBtnR = pAct("Phải ⟳", 62, 274, 52, C.GRAY)
-    local vBtnIn = pAct("➕ Gần", 116, 274, 52, C.GRAY)
-    local vBtnOut = pAct("➖ Xa", 170, 274, 52, C.GRAY)
-    local autoBtn = pAct("", 8, 300, 108, C.GREEN)
-    local resetBtn = pAct("🎯 Đặt lại góc", 120, 300, 108, C.GRAY)
-
-    local function refreshAutoBtn()
-        autoBtn.Text = PI.view.auto and "🔄 Tự xoay: BẬT" or "🔄 Tự xoay: TẮT"
-        autoBtn.BackgroundColor3 = PI.view.auto and C.GREEN or C.SURFACE3
-        autoBtn.TextColor3 = D.BestText(autoBtn.BackgroundColor3)
-    end
-    refreshAutoBtn()
-
-    -- Thông tin
-    local rows = {}
-    local ROW_NAMES = { "name", "display", "id", "created", "presence", "server", "flags", "acc", "desc" }
-    local ROW_TITLES = { "Tên", "Tên hiển thị", "UserId", "Ngày tạo", "Trạng thái", "Trong server này", "Huy hiệu / Cấm", "Phụ kiện skin", "Mô tả" }
-    for i, key in ipairs(ROW_NAMES) do
-        local y = 70 + (i - 1) * 15
-        rows[key] = New("TextLabel", { Size = UDim2.new(1, -244, 0, key == "desc" and 30 or 15), Position = UDim2.new(0, 236, 0, y),
-            Text = ROW_TITLES[i] .. ": —", BackgroundTransparency = 1, TextColor3 = C.DARK, Font = Enum.Font.GothamMedium,
-            TextSize = 9, TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top,
-            TextWrapped = key == "desc", ZIndex = 7, }, P)
-    end
-
-    local function setRow(key, title, value)
-        if rows[key] then rows[key].Text = title .. ": " .. tostring(value) end
-    end
-
-    -- Danh sách phụ kiện (phân tích từng món)
-    New("TextLabel", { Size = UDim2.new(1, -244, 0, 14), Position = UDim2.new(0, 236, 0, 226), BackgroundTransparency = 1,
-        Text = "👕 PHỤ KIỆN — bật/tắt từng món", TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 9,
-        TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7, }, P)
-    local accList = New("ScrollingFrame", { Name = "HubPlayerInfo_AccList", Size = UDim2.new(1, -244, 0, 96), Position = UDim2.new(0, 236, 0, 242),
-        BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.3, BorderSizePixel = 0, ScrollBarThickness = 4,
-        CanvasSize = UDim2.new(0, 0, 0, 0), ZIndex = 7, }, P)
-    Corner(accList, UDim.new(0, 6))
-
-    local accRows = {}   -- [idx] = { label, btn }
-
-    local function accText(a)
-        local nm = "đang tải tên…"
-        if not a.loading then nm = a.name and clipText(a.name, 26) or "không rõ tên" end
-        local meta = a.typeName .. (a.layered and " · lớp" or " · cứng") .. " · ID " .. tostring(a.assetId)
-        if a.creator then meta = meta .. " · " .. clipText(a.creator, 14) end
-        return a.idx .. ". " .. nm .. "\n" .. meta
-    end
-
-    local function refreshAccRow(rec, a)
-        local row = accRows[a.idx]
-        if not row then return end
-        row.label.Text = accText(a)
-        local keep = rec.keep[a.idx] ~= false
-        row.btn.Text = keep and "✔ Giữ" or "✖ Bỏ"
-        row.btn.BackgroundColor3 = keep and C.GREEN or C.RED
-        row.btn.TextColor3 = D.BestText(row.btn.BackgroundColor3)
-    end
-
-    local function refreshSummary(rec)
-        if rec.accessories == nil then
-            setRow("acc", "Phụ kiện skin", "không lấy được (" .. tostring(rec.descErr or "?") .. ")")
-        else
-            setRow("acc", "Phụ kiện skin", rec.accessories .. " món · đang giữ " .. PI.KeptCount(rec))
-        end
-    end
-
-    local function renderAccList(rec)
-        for _, ch in ipairs(accList:GetChildren()) do ch:Destroy() end
-        accRows = {}
-        local list = rec.acc or {}
-        accList.CanvasSize = UDim2.new(0, 0, 0, #list * 26 + 4)
-        if #list == 0 then
-            New("TextLabel", { Size = UDim2.new(1, -8, 0, 30), Position = UDim2.new(0, 4, 0, 4), BackgroundTransparency = 1,
-                Text = rec.desc and "Skin này không có phụ kiện." or "Không có dữ liệu skin công khai.", TextWrapped = true,
-                TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium, TextSize = 9, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 8, }, accList)
-            return
-        end
-        for _, a in ipairs(list) do
-            a.loading = true
-            local row = New("Frame", { Size = UDim2.new(1, -8, 0, 24), Position = UDim2.new(0, 4, 0, (a.idx - 1) * 26 + 2),
-                BackgroundTransparency = 1, ZIndex = 8, }, accList)
-            local label = New("TextLabel", { Size = UDim2.new(1, -64, 1, 0), BackgroundTransparency = 1, TextColor3 = C.DARK,
-                Font = Enum.Font.GothamMedium, TextSize = 8, TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Center,
-                TextWrapped = false, Text = "", ZIndex = 9, }, row)
-            local btn = New("TextButton", { Size = UDim2.new(0, 56, 0, 18), Position = UDim2.new(1, -58, 0, 3), Text = "",
-                BorderSizePixel = 0, Font = Enum.Font.GothamBold, TextSize = 8, ZIndex = 10, }, row)
-            Corner(btn, UDim.new(0, 5)) D.Tactile(btn, 0.08)
-            accRows[a.idx] = { label = label, btn = btn }
-            btn.Activated:Connect(function()
-                ReleaseHubFocus()
-                PI.SetKeep(rec, a.idx, rec.keep[a.idx] == false)
-            end)
-            refreshAccRow(rec, a)
-        end
-    end
-
-    -- Tên từng món (MarketplaceService), chạy nền; bỏ qua nếu đã tra cứu người khác
-    local function loadNames(rec)
-        task.spawn(function()
-            for _, a in ipairs(rec.acc or {}) do
-                if PI.last ~= rec then return end
-                local info = PI.ProductInfo(a.assetId)
-                a.loading = false
-                a.name = info and info.name or nil
-                a.creator = info and info.creator or nil
-                if PI.last == rec then refreshAccRow(rec, a) end
-            end
-        end)
-    end
-
-    -- Bật/tắt một món: dựng lại 3D; nếu đang thay nhân vật bằng người này thì thay lại ngay
-    function PI.SetKeep(rec, idx, keep)
-        rec.keep[idx] = keep and true or false
-        local a = rec.acc and rec.acc[idx]
-        if a then refreshAccRow(rec, a) end
-        refreshSummary(rec)
-        task.spawn(function()
-            local okV, verr = PI.ViewerBuild(rec)
-            thumbImg.Visible = not okV
-            local stS = CharSwap.Status()
-            if stS.active and stS.tag == rec then
-                local ok, msg = PI.SwapSafe(rec)
-                setStatus(msg, ok and C.GREEN or C.RED)
-            elseif not okV then
-                setStatus("⚠️ Không dựng được 3D: " .. tostring(verr), C.YELLOW)
-            end
-        end)
-    end
-
-    local function render(rec)
-        thumbImg.Image = (type(rec.thumb) == "string") and rec.thumb or ""
-        setRow("name", "Tên", "@" .. rec.name)
-        setRow("display", "Tên hiển thị", rec.displayName)
-        setRow("id", "UserId", rec.id)
-        setRow("created", "Ngày tạo", rec.created)
-        setRow("presence", "Trạng thái", rec.presence)
-        setRow("server", "Trong server này", rec.inServer and "CÓ" or "KHÔNG")
-        setRow("flags", "Huy hiệu / Cấm", (rec.verified and "✔ xác minh" or "chưa xác minh") .. " · " .. (rec.isBanned and "⛔ bị cấm" or "không bị cấm"))
-        refreshSummary(rec)
-        setRow("desc", "Mô tả", clipText(rec.description ~= "" and rec.description or "(trống)", 140))
-        renderAccList(rec)
-        local okV, verr = PI.ViewerBuild(rec)
-        thumbImg.Visible = not okV
-        loadNames(rec)
-        return okV, verr
-    end
-
-    local function clearRows()
-        thumbImg.Image = ""
-        thumbImg.Visible = true
-        pcall(function() if PI.view.model then PI.view.model:Destroy() end end)
-        PI.view.model = nil
-        for _, ch in ipairs(accList:GetChildren()) do ch:Destroy() end
-        accList.CanvasSize = UDim2.new(0, 0, 0, 0)
-        accRows = {}
-        for i, key in ipairs(ROW_NAMES) do rows[key].Text = ROW_TITLES[i] .. ": —" end
-    end
-
-    local function startLookup()
-        local q = trimStr(queryIn.Text)
-        if q == "" then setStatus("⚠️ Chưa nhập tên hoặc UserId", C.YELLOW) return end
-        setStatus("⏳ Đang tra cứu '" .. q .. "'...", C.YELLOW)
-        task.spawn(function()
-            local ok, rec, err = pcall(PI.Lookup, q)
-            if not ok then
-                setStatus("⚠️ Lỗi không mong đợi: " .. tostring(rec), C.RED)
-                return
-            end
-            if rec == nil then
-                if err ~= nil then setStatus("⚠️ " .. tostring(err), C.RED) end
-                return
-            end
-            PI.last = rec
-            local okR, rv, rerr = pcall(render, rec)
-            local note = ""
-            if not okR then note = " · lỗi hiển thị: " .. tostring(rv)
-            elseif rv == false then note = " · không dựng được 3D (" .. tostring(rerr) .. ")" end
-            setStatus("✅ Đã tải hồ sơ " .. rec.name .. (rec.desc and "" or " (không có skin công khai)") .. note, rec.desc and C.GREEN or C.YELLOW)
-        end)
-    end
-
-    local applyBtn = pAct("🧍 Thay nhân vật", 8, 344, 150, C.PURPLE)
-    local restoreBtn = pAct("↩ Trả nhân vật gốc", 162, 344, 118, C.BLUE)
-    local keepBtn = pAct("", 284, 344, 176, C.GREEN)
-    local copyProfBtn = pAct("📋 Copy link hồ sơ", 8, 372, 160, C.GRAY)
-    local copyIdBtn = pAct("🔗 Copy UserId", 176, 372, 120, C.GRAY)
-    local allOnBtn = pAct("✔ Bật hết", 302, 372, 78, C.GREEN)
-    local allOffBtn = pAct("✖ Tắt hết", 386, 372, 74, C.RED)
-
-    local function refreshKeepBtn()
-        keepBtn.Text = CharSwap.keepOnRespawn and "🔁 Giữ sau respawn: BẬT" or "🔁 Giữ sau respawn: TẮT"
-        keepBtn.BackgroundColor3 = CharSwap.keepOnRespawn and C.GREEN or C.SURFACE3
-        keepBtn.TextColor3 = D.BestText(keepBtn.BackgroundColor3)
-    end
-    refreshKeepBtn()
-
-    local function requireLast()
-        if PI.last == nil then setStatus("⚠️ Hãy tra cứu một người chơi trước", C.YELLOW) return nil end
-        return PI.last
-    end
-
-    searchBtn.Activated:Connect(function() ReleaseHubFocus() startLookup() end)
-    queryIn.FocusLost:Connect(function(enter) if enter then startLookup() end end)
-
-    clearBtn.Activated:Connect(function()
-        ReleaseHubFocus()
-        PI.reqId = PI.reqId + 1  -- huỷ kết quả đang chờ
-        PI.last = nil
-        queryIn.Text = ""
-        clearRows()
-        setStatus("Đã xoá. Nhập tên khác rồi bấm 🔍.", C.MUTED)
-    end)
-
-    applyBtn.Activated:Connect(function()
-        ReleaseHubFocus()
-        local rec = requireLast() if not rec then return end
-        if rec.desc == nil then setStatus("⚠️ Người này không có dữ liệu skin công khai", C.YELLOW) return end
-        setStatus("⏳ Đang thay nhân vật bằng của " .. rec.name .. "...", C.YELLOW)
-        task.spawn(function()
-            local ok, msg = PI.SwapSafe(rec)
-            setStatus(msg, ok and C.GREEN or C.RED)
-        end)
-    end)
-
-    restoreBtn.Activated:Connect(function()
-        ReleaseHubFocus()
-        local ok, msg = PI.Restore()
-        setStatus(msg, ok and C.GREEN or C.YELLOW)
-    end)
-
-    vBtnL.Activated:Connect(function() ReleaseHubFocus() PI.view.yaw = PI.view.yaw + 0.5 PI.ViewerUpdate() end)
-    vBtnR.Activated:Connect(function() ReleaseHubFocus() PI.view.yaw = PI.view.yaw - 0.5 PI.ViewerUpdate() end)
-    vBtnIn.Activated:Connect(function() ReleaseHubFocus() PI.ViewerZoom(0.85) end)
-    vBtnOut.Activated:Connect(function() ReleaseHubFocus() PI.ViewerZoom(1.18) end)
-    autoBtn.Activated:Connect(function() ReleaseHubFocus() PI.view.auto = not PI.view.auto refreshAutoBtn() end)
-    resetBtn.Activated:Connect(function() ReleaseHubFocus() PI.ViewerReset() end)
-
-    allOnBtn.Activated:Connect(function()
-        ReleaseHubFocus()
-        local rec = requireLast() if not rec then return end
-        for _, a in ipairs(rec.acc or {}) do rec.keep[a.idx] = true refreshAccRow(rec, a) end
-        PI.SetKeep(rec, (rec.acc and rec.acc[1] and rec.acc[1].idx) or 1, true)
-    end)
-    allOffBtn.Activated:Connect(function()
-        ReleaseHubFocus()
-        local rec = requireLast() if not rec then return end
-        for _, a in ipairs(rec.acc or {}) do rec.keep[a.idx] = false refreshAccRow(rec, a) end
-        PI.SetKeep(rec, (rec.acc and rec.acc[1] and rec.acc[1].idx) or 1, false)
-    end)
-
-    copyProfBtn.Activated:Connect(function()
-        ReleaseHubFocus()
-        local rec = requireLast() if not rec then return end
-        local url = "https://www.roblox.com/users/" .. tostring(rec.id) .. "/profile"
-        local did = false
-        if type(setclipboard) == "function" then did = pcall(setclipboard, url) end
-        setStatus(did and ("📋 Đã copy: " .. url) or ("🔗 " .. url .. " (executor không có setclipboard)"), did and C.GREEN or C.YELLOW)
-    end)
-
-    copyIdBtn.Activated:Connect(function()
-        ReleaseHubFocus()
-        local rec = requireLast() if not rec then return end
-        local did = false
-        if type(setclipboard) == "function" then did = pcall(setclipboard, tostring(rec.id)) end
-        setStatus(did and ("📋 Đã copy UserId " .. tostring(rec.id)) or ("UserId: " .. tostring(rec.id)), did and C.GREEN or C.YELLOW)
-    end)
-
-    keepBtn.Activated:Connect(function()
-        ReleaseHubFocus()
-        CharSwap.keepOnRespawn = not CharSwap.keepOnRespawn
-        refreshKeepBtn()
-    end)
-
-    pcall(function()
-        if D.playerTab then D.playerTab.CanvasSize = UDim2.new(0, 0, 0, (D.playerY or 600) + 16) end
-    end)
-end)()
+        if D.playerTab then D.playerTab.CanvasSize = UDim2.new(0, 0, 0, (D.playerY or 600) + 16) end end) end
 
 _G.BananaCatHub_ObjTrack = S.ObjTrack   -- v5.1: cho script khác đọc trạng thái định vị vật
 
