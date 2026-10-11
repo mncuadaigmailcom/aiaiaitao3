@@ -9045,12 +9045,16 @@ end end
             local primary = fake.PrimaryPart or fake:FindFirstChild("HumanoidRootPart") or fake:FindFirstChildWhichIsA("BasePart", true)
             for _, pp in ipairs(fake:GetDescendants()) do
                 if pp:IsA("BasePart") then
-                    pp.Transparency = 0
-                    pp.LocalTransparencyModifier = 0
+                    local partName = string.lower(tostring(pp.Name))
+                    local isInvisibleHelper = partName == "humanoidrootpart" or partName == "rootpart" or partName == "hitbox" or partName == "collisionbox" or partName == "collider"
+                    -- HumanoidRootPart/Hitbox là khớp vật lý, không phải hình ảnh; để hiện sẽ thành khối vuông xám.
+                    pp.Transparency = isInvisibleHelper and 1 or 0
+                    pp.LocalTransparencyModifier = isInvisibleHelper and 1 or 0
                     pp.CanCollide = false
                     pp.CanTouch = false
                     pp.CanQuery = false
                     pp.Massless = true
+                    if isInvisibleHelper then pp.CastShadow = false end
                     -- chỉ PrimaryPart Anchored để PivotTo di chuyển cả model, các phần khác để Humanoid/Motor6D giữ dáng (không T-pose)
                     if pp == primary then
                         pp.Anchored = true
