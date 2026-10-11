@@ -9093,10 +9093,10 @@ end end
                 pcall(function() fh:SetStateEnabled(Enum.HumanoidStateType.FallingDown, true) end)
                 pcall(function() fh:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true) end)
                 pcall(function() fh.AutoRotate = true end)
-                -- thử chạy animation idle nhẹ nếu có Animator
+                -- Đảm bảo rig có Animator; pose tay/chân được đồng bộ từ nhân vật thật trong StartSkinFollow.
                 pcall(function()
-                    local anim = fh:FindFirstChildOfClass("Animator") or Instance.new("Animator", fh)
-                    -- không load animation cụ thể, để Humanoid tự idle; nếu muốn có thể load rbxassetid://180435571
+                    local animator = fh:FindFirstChildOfClass("Animator")
+                    if not animator then animator = Instance.new("Animator") animator.Parent = fh end
                 end)
                 -- đảm bảo RigType đúng với hint (nếu có)
                 if rigHint then
@@ -9104,6 +9104,45 @@ end end
                 end
             end
         end)
+    end
+
+    -- Clone gỡ LocalScript Animate để tránh chạy mã game; vì vậy đồng bộ pose khớp từ nhân vật thật.
+    local function BuildSkinPosePairs(sourceModel, fakeModel)
+        local function collectJoints(model, className)
+            local found, duplicates = {}, {}
+            if not model then return found end
+            for _, joint in ipairs(model:GetDescendants()) do
+                if joint:IsA(className) then
+                    local name = string.lower(tostring(joint.Name):gsub("[%s_%-]", ""))
+                    if name == "rootjoint" then name = "root" end
+                    if not duplicates[name] then
+                        if found[name] then found[name] = nil duplicates[name] = true
+                        else found[name] = joint end
+                    end
+                end
+            end
+            return found
+        end
+        local posePairs = {}
+        for _, className in ipairs({"Motor6D", "Bone"}) do
+            local sourceJoints = collectJoints(sourceModel, className)
+            local fakeJoints = collectJoints(fakeModel, className)
+            for name, sourceJoint in pairs(sourceJoints) do
+                local fakeJoint = fakeJoints[name]
+                if fakeJoint then table.insert(posePairs, { source = sourceJoint, fake = fakeJoint }) end
+            end
+        end
+        return posePairs
+    end
+
+    local function SyncSkinFakePose(posePairs)
+        for _, pair in ipairs(posePairs or {}) do
+            pcall(function()
+                if pair.source.Parent and pair.fake.Parent then
+                    pair.fake.Transform = pair.source.Transform
+                end
+            end)
+        end
     end
 
     local function StartSkinFollow(char)
@@ -9127,8 +9166,12 @@ end end
             warn("[BC_Skin] fake không có part nào")
             return false
         end
+        local posePairs = BuildSkinPosePairs(char, PI._skinFake)
+        print("[BC_Skin] pose sync joints", #posePairs)
+        if #posePairs == 0 then warn("[BC_Skin] không tìm thấy khớp cùng tên để đồng bộ animation") end
         SetupSkinCollisionGroups()
         makeFakeVisible(PI._skinFake)
+        SyncSkinFakePose(posePairs)
         -- đặt ngay
         local placed = false
         pcall(function() PI._skinFake:SetPrimaryPartCFrame(pivot) placed = true end)
@@ -9145,6 +9188,7 @@ end end
                     pcall(function() RunService:UnbindFromRenderStep(PI._skinFollowBind) end)
                     return
                 end
+                SyncSkinFakePose(posePairs)
                 local cf = getCharPivot(char)
                 if cf then
                     pcall(function()
@@ -9167,6 +9211,7 @@ end end
                         if conn then conn:Disconnect() end
                         return
                     end
+                    SyncSkinFakePose(posePairs)
                     local cf = getCharPivot(char)
                     if cf then pcall(function() PI._skinFake:PivotTo(cf) end) end
                 end)
