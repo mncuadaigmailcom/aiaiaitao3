@@ -8691,12 +8691,28 @@ end end
         return false
     end
 
+    -- Character live giúp xem/clone cả morph đang chạy dù avatar công khai không tải được.
+    function PI.FindLiveCharacter(id)
+        if not id then return nil end
+        local okPlayer, target = pcall(function() return Players:GetPlayerByUserId(id) end)
+        if not okPlayer or not target then return nil end
+        local okCharacter, character = pcall(function() return target.Character end)
+        if not okCharacter or not character then return nil end
+        local okPart, part = pcall(function() return character:FindFirstChildWhichIsA("BasePart", true) end)
+        if okPart and part then return character end
+        return nil
+    end
+
     -- Skin công khai của người bất kỳ (kể cả offline) — HumanoidDescription
     function PI.FetchDesc(id)
+        -- Dùng API Async mới trước; giữ API cũ làm fallback cho client/phiên bản chưa hỗ trợ.
+        local okAsync, descAsync = pcall(function() return Players:GetHumanoidDescriptionFromUserIdAsync(id) end)
+        if okAsync and descAsync ~= nil then return descAsync, nil end
+        local asyncErr = tostring(descAsync)
         local ok, desc = pcall(function() return Players:GetHumanoidDescriptionFromUserId(id) end)
+        if ok and desc ~= nil then return desc, nil end
         if not ok then return nil, tostring(desc) end
-        if desc == nil then return nil, "không có dữ liệu skin" end
-        return desc, nil
+        return nil, asyncErr ~= "nil" and asyncErr or "không có dữ liệu skin"
     end
 
     function PI.FetchThumb(id)
@@ -8720,13 +8736,30 @@ end end
         if not id then return nil, nm end
         local prof, perr = PI.FetchProfile(id)
         if stale(my) then return nil, nil end
-        if not prof then return nil, perr end
+        local profileFallback = false
+        if not prof then
+            -- Nếu endpoint hồ sơ lỗi, vẫn tra được skin bằng Player đang trong server hoặc UserId.
+            local fallbackName = nil
+            local okLocal, localTarget = pcall(function() return Players:GetPlayerByUserId(id) end)
+            if okLocal and localTarget then fallbackName = localTarget.Name end
+            if not fallbackName then
+                local okName, resolvedName = pcall(function() return Players:GetNameFromUserIdAsync(id) end)
+                if okName and type(resolvedName) == "string" and resolvedName ~= "" then fallbackName = resolvedName end
+            end
+            if stale(my) then return nil, nil end
+            if not fallbackName and perr and perr:find("không tồn tại", 1, true) then return nil, perr end
+            fallbackName = fallbackName or ("User " .. tostring(id))
+            prof = { id = id, name = fallbackName, displayName = fallbackName, created = nil,
+                description = "", isBanned = false, hasVerifiedBadge = false }
+            profileFallback = true
+        end
         local pres = PI.FetchPresence(id)
         if stale(my) then return nil, nil end
         local desc, derr = PI.FetchDesc(id)
         if stale(my) then return nil, nil end
         local thumb = PI.FetchThumb(id)
         if stale(my) then return nil, nil end
+        local hasLiveCharacter = PI.FindLiveCharacter(id) ~= nil
         local rec = {
             id = tonumber(prof.id) or id,
             name = tostring(prof.name or nm or ""),
@@ -8735,8 +8768,10 @@ end end
             description = type(prof.description) == "string" and prof.description or "",
             isBanned = prof.isBanned == true,
             verified = prof.hasVerifiedBadge == true,
+            profileFallback = profileFallback,
             presence = PI.PresenceText(pres),
             inServer = PI.InThisServer(id, pres),
+            hasLiveCharacter = hasLiveCharacter,
             desc = desc,
             descErr = derr,
             thumb = thumb,
@@ -8750,9 +8785,13 @@ end end
     function PI.MakeRig(desc, rigTypes)
         local lastErr = "không có kiểu rig phù hợp"
         for _, rt in ipairs(rigTypes) do
-            local ok, m = pcall(function() return Players:CreateHumanoidModelFromDescription(desc, rt) end)
-            if ok and m ~= nil then return m, nil end
-            lastErr = tostring(m)
+            -- Async đợi Roblox resolve phụ kiện/layered clothing; API cũ vẫn là fallback.
+            local okAsync, modelAsync = pcall(function() return Players:CreateHumanoidModelFromDescriptionAsync(desc, rt) end)
+            if okAsync and modelAsync ~= nil then return modelAsync, nil end
+            if not okAsync then lastErr = tostring(modelAsync) end
+            local ok, model = pcall(function() return Players:CreateHumanoidModelFromDescription(desc, rt) end)
+            if ok and model ~= nil then return model, nil end
+            lastErr = tostring(model)
         end
         return nil, lastErr
     end
@@ -8879,12 +8918,18 @@ end end
             lastErr = err
         end
         if rec and rec.id then
-            local okUser, userModel = pcall(function() return Players:CreateHumanoidModelFromUserId(rec.id) end)
+            local okUser, userModel = pcall(function() return Players:CreateHumanoidModelFromUserIdAsync(rec.id) end)
+            if not okUser or not userModel then
+                local asyncErr = userModel
+                local okLegacy, legacyModel = pcall(function() return Players:CreateHumanoidModelFromUserId(rec.id) end)
+                if okLegacy and legacyModel then okUser, userModel = true, legacyModel
+                else lastErr = tostring(legacyModel or asyncErr) end
+            end
             if okUser and userModel then
                 pcall(function() userModel.Name = modelName or "BC_PlayerAvatarCopy" end)
                 return userModel, nil, rec.desc, "userId"
             end
-            lastErr = tostring(userModel)
+            lastErr = lastErr or tostring(userModel)
         end
         return nil, lastErr or "không dựng được avatar từ character hoặc HumanoidDescription", nil, nil
     end
@@ -8963,6 +9008,7 @@ end end
     function PI.ViewerBuild(rec)
         local v = PI.view
         if v.model then pcall(function() v.model:Destroy() end) v.model = nil end
+        v.source = nil
         if type(rec) ~= "table" or (rec.desc == nil and rec.id == nil) then return false, "không có dữ liệu skin để xem 3D" end
         local m, merr, modelDesc, source = PI.BuildAvatarModel(rec, "BC_ViewModel")
         if not m then return false, merr end
@@ -8979,6 +9025,7 @@ end end
         pcall(function() PI.DiagnoseClothes(m, modelDesc or rec.desc) end)
         print("[BC_Skin] ViewerBuild source", source)
         v.model = m
+        v.source = source
         PI.ViewerUpdate()
         return true, nil
     end
@@ -9501,8 +9548,13 @@ end end
         setRow("created", "Ngày tạo", rec.created)
         setRow("presence", "Trạng thái", rec.presence)
         setRow("server", "Trong server này", rec.inServer and "CÓ" or "KHÔNG")
-        setRow("flags", "Huy hiệu / Cấm", (rec.verified and "✔ xác minh" or "chưa xác minh") .. " · " .. (rec.isBanned and "⛔ bị cấm" or "không bị cấm"))
-        setRow("desc", "Mô tả", clipText(rec.description ~= "" and rec.description or "(trống)", 140))
+        if rec.profileFallback then
+            setRow("flags", "Huy hiệu / Cấm", "chưa tải được hồ sơ công khai")
+            setRow("desc", "Mô tả", "(đang dùng hồ sơ dự phòng để thử tải avatar)")
+        else
+            setRow("flags", "Huy hiệu / Cấm", (rec.verified and "✔ xác minh" or "chưa xác minh") .. " · " .. (rec.isBanned and "⛔ bị cấm" or "không bị cấm"))
+            setRow("desc", "Mô tả", clipText(rec.description ~= "" and rec.description or "(trống)", 140))
+        end
         local okV, verr = PI.ViewerBuild(rec)
         thumbImg.Visible = not okV
         return okV, verr
@@ -9513,6 +9565,7 @@ end end
         thumbImg.Visible = true
         pcall(function() if PI.view.model then PI.view.model:Destroy() end end)
         PI.view.model = nil
+        PI.view.source = nil
         for i, key in ipairs(ROW_NAMES) do rows[key].Text = ROW_TITLES[i] .. ": —" end
     end
 
@@ -9535,7 +9588,24 @@ end end
             local note = ""
             if not okR then note = " · lỗi hiển thị: " .. tostring(rv)
             elseif rv == false then note = " · không dựng được 3D (" .. tostring(rerr) .. ")" end
-            setStatus("✅ Đã tải hồ sơ " .. rec.name .. (rec.desc and "" or " (không có skin công khai)") .. note, rec.desc and C.GREEN or C.YELLOW)
+            local sourceLabels = {
+                live = "character live trong server", liveDescription = "HumanoidDescription live",
+                description = "HumanoidDescription công khai", userId = "avatar theo UserId",
+            }
+            local avatarNote, avatarColor = "", C.YELLOW
+            local sourceLabel = okR and rv and sourceLabels[PI.view.source] or nil
+            if sourceLabel then
+                avatarNote = " · nguồn skin: " .. sourceLabel
+                avatarColor = C.GREEN
+            elseif rec.hasLiveCharacter then
+                avatarNote = " (đang thử character live trong server)"
+            elseif rec.desc then
+                avatarNote = " (có HumanoidDescription công khai)"
+            else
+                avatarNote = " (chưa tải được avatar công khai)"
+                if rec.descErr then avatarNote = avatarNote .. " · " .. tostring(rec.descErr):sub(1, 54) end
+            end
+            setStatus("✅ Đã tải hồ sơ " .. rec.name .. avatarNote .. note, avatarColor)
         end)
     end
 
