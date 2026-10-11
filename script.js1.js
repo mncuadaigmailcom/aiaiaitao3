@@ -38,11 +38,6 @@ pcall(function() local oldUnhook = _G.BananaCatHub_AntiBanUnhook
     if type(oldUnhook) == "function" then pcall(oldUnhook) end _G.BananaCatHub_AntiBanUnhook = nil
 end) pcall(function()
     local f = _G.BananaCatHub_Free if type(f) == "table" and f.Stop then pcall(f.Stop) end end)
-pcall(function()
-    local oldAvatar = _G.BananaCatHub_AvatarLookup
-    if type(oldAvatar) == "table" and type(oldAvatar.Stop) == "function" then pcall(oldAvatar.Stop) end
-    _G.BananaCatHub_AvatarLookup = nil
-end)
 
 pcall(function() local old = _G.BananaCatHub_SpecCam
     if old ~= nil then local cam = workspace.CurrentCamera
@@ -6632,497 +6627,272 @@ do
         BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium, TextSize = 8, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
     }, tab) D.playerY = 46 end
 
--- ---------- KHUNG 👕 TRA CỨU TRANG PHỤC NGƯỜI CHƠI (kể cả offline) ----------
+-- Trang phục chỉ áp dụng lên Humanoid của LocalPlayer; không thay avatar tài khoản hoặc người khác.
 do
-    local PH = 260
-    local P = New("Frame", { Name = "HubAvatarLookup_Panel",
+    local PH = 236
+    local P = New("Frame", { Name = "HubOutfit_Panel",
         Size = UDim2.new(1, -16, 0, PH), Position = UDim2.new(0, 8, 0, D.playerY or 46),
-        LayoutOrder = 0, BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12,
-        BorderSizePixel = 0, ZIndex = 6,
-    }, D.playerTab)
-    D.playerY = (D.playerY or 46) + PH + 8
+        BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, BorderSizePixel = 0, ZIndex = 6,
+    }, D.playerTab) D.playerY = (D.playerY or 46) + PH + 8
+    -- Canvas sẵn ngay khi tạo panel, kể cả khi phần UI khác lỗi khi khởi tạo.
+    D.playerTab.CanvasSize = UDim2.new(0, 0, 0, D.playerY + 16)
     Corner(P, UDim.new(0, 10)) Stroke(P, C.HAIRLINE, 1)
-    D.Shade(P, Color3.fromRGB(255, 255, 255), Color3.fromRGB(188, 192, 205), 90)
-
-    New("TextLabel", { Name = "AvatarLookupTitle", Size = UDim2.new(1, -16, 0, 14),
-        Position = UDim2.new(0, 8, 0, 4), Text = "👕 TRA CỨU & LẤY TRANG PHỤC NGƯỜI CHƠI",
-        BackgroundTransparency = 1, TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold,
-        TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
-    }, P)
-    New("TextLabel", { Size = UDim2.new(1, -16, 0, 12), Position = UDim2.new(0, 8, 0, 19),
-        Text = "Nhập username chính xác hoặc UserId — không cần người đó ở cùng server hay đang online.",
+    local shortcut = New("TextButton", {
+        Name = "OutfitShortcut", Size = UDim2.new(0, 94, 0, 18), Position = UDim2.new(1, -102, 0, 7),
+        Text = "👕 TRANG PHỤC", BackgroundColor3 = C.GREEN, TextColor3 = D.BestText(C.GREEN),
+        Font = Enum.Font.GothamBold, TextSize = 8, BorderSizePixel = 0, ZIndex = 9,
+    }, D.playerTab)
+    Corner(shortcut, UDim.new(0, 5))
+    shortcut.Activated:Connect(function()
+        D.playerTab.CanvasPosition = Vector2.new(0, math.max(0, P.Position.Y.Offset - 8))
+    end)
+    New("TextLabel", { Size = UDim2.new(1, -16, 0, 18), Position = UDim2.new(0, 8, 0, 6),
+        Text = "👕 TRANG PHỤC NGƯỜI CHƠI (chọn chế độ)", BackgroundTransparency = 1,
+        TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 10,
+        TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7, }, P)
+    local input = New("TextBox", { Size = UDim2.new(1, -108, 0, 27), Position = UDim2.new(0, 8, 0, 30),
+        Text = "", PlaceholderText = "Nhập username Roblox (kể cả người offline)...",
+        ClearTextOnFocus = false, BackgroundColor3 = C.SURFACE2, TextColor3 = C.WHITE,
+        PlaceholderColor3 = C.GRAY, Font = Enum.Font.GothamMedium, TextSize = 10,
+        BorderSizePixel = 0, ZIndex = 8, }, P) Corner(input, UDim.new(0, 6))
+    local function button(text, x, y, w, color)
+        local b = New("TextButton", { Size = UDim2.new(0, w, 0, 27), Position = UDim2.new(0, x, 0, y),
+            Text = text, BackgroundColor3 = color, TextColor3 = D.BestText(color),
+            Font = Enum.Font.GothamBold, TextSize = 9, BorderSizePixel = 0, ZIndex = 8, }, P)
+        Corner(b, UDim.new(0, 6)) return b
+    end
+    local findBtn = button("🔍 Tìm", 0, 30, 88, C.ACCENT)
+    findBtn.Position = UDim2.new(1, -96, 0, 30)
+    local portrait = New("ImageLabel", { Size = UDim2.new(0, 92, 0, 92), Position = UDim2.new(0, 8, 0, 66),
+        BackgroundColor3 = C.SURFACE2, Image = "", BorderSizePixel = 0, ZIndex = 7, }, P)
+    Corner(portrait, UDim.new(0, 8))
+    local info = New("TextLabel", { Size = UDim2.new(1, -116, 0, 48), Position = UDim2.new(0, 108, 0, 68),
+        Text = "Nhập username rồi bấm Tìm để xem avatar.", TextWrapped = true,
         BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium,
-        TextSize = 8, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
-    }, P)
-
-    local nameBox = New("TextBox", { Name = "AvatarLookupName",
-        Size = UDim2.new(1, -112, 0, 23), Position = UDim2.new(0, 8, 0, 34),
-        Text = "", PlaceholderText = "Username (không phải Display Name) hoặc UserId",
-        ClearTextOnFocus = false, BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.08,
-        TextColor3 = C.DARK, PlaceholderColor3 = C.GRAY, Font = Enum.Font.GothamMedium,
-        TextSize = 9, TextXAlignment = Enum.TextXAlignment.Left, BorderSizePixel = 0, ZIndex = 8,
-    }, P)
-    Corner(nameBox, UDim.new(0, 6)) Stroke(nameBox, C.BORDER, 1)
-    New("UIPadding", { PaddingLeft = UDim.new(0, 7) }, nameBox)
-
-    local lookupBtn = New("TextButton", { Name = "AvatarLookupButton",
-        Size = UDim2.new(0, 88, 0, 23), Position = UDim2.new(1, -96, 0, 34),
-        Text = "🔎 Tra cứu", BackgroundColor3 = C.BLUE, BackgroundTransparency = 0.08,
-        TextColor3 = D.BestText(C.BLUE), Font = Enum.Font.GothamBold, TextSize = 9,
-        BorderSizePixel = 0, ZIndex = 8,
-    }, P)
-    Corner(lookupBtn, UDim.new(0, 6)) D.Tactile(lookupBtn, 0.08)
-
-    local viewport = New("ViewportFrame", { Name = "AvatarLookupViewport",
-        Size = UDim2.new(0, 144, 0, 146), Position = UDim2.new(0, 8, 0, 63),
-        BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.05,
-        BorderSizePixel = 0, ClipsDescendants = true, ZIndex = 7,
-    }, P)
-    Corner(viewport, UDim.new(0, 7)) Stroke(viewport, C.BORDER, 1)
-    pcall(function()
-        viewport.Ambient = Color3.fromRGB(190, 190, 205)
-        viewport.LightColor = Color3.fromRGB(255, 244, 220)
-        viewport.LightDirection = Vector3.new(-1, -1, -1)
-    end)
-    local previewWorld = New("WorldModel", { Name = "AvatarLookupWorld" }, viewport)
-    local previewCamera = New("Camera", { Name = "AvatarLookupCamera", FieldOfView = 35 }, viewport)
-    viewport.CurrentCamera = previewCamera
-    local fallbackImage = New("ImageLabel", { Name = "AvatarLookupThumbnail",
-        Size = UDim2.new(0, 144, 0, 146), Position = UDim2.new(0, 8, 0, 63),
-        BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.05,
-        Image = "", ScaleType = Enum.ScaleType.Fit, Visible = false, ZIndex = 8,
-    }, P)
-    Corner(fallbackImage, UDim.new(0, 7))
-
-    local infoLabel = New("TextLabel", { Name = "AvatarLookupInfo",
-        Size = UDim2.new(1, -168, 0, 146), Position = UDim2.new(0, 160, 0, 63),
-        Text = "Nhập username hoặc UserId rồi bấm Tra cứu.\n\nKết quả gồm username, UserId, thông tin trang phục và phụ kiện; có thể xem avatar 3D.",
-        BackgroundTransparency = 1, TextColor3 = C.DARK, Font = Enum.Font.GothamMedium,
-        TextSize = 9, TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left,
-        TextYAlignment = Enum.TextYAlignment.Top, ZIndex = 7,
-    }, P)
-
-    local function avatarButton(name, text, x, w, color)
-        local b = New("TextButton", { Name = name,
-            Size = UDim2.new(0, w, 0, 22), Position = UDim2.new(0, x, 0, 216),
-            Text = text, BackgroundColor3 = color, BackgroundTransparency = 0.08,
-            TextColor3 = D.BestText(color), Font = Enum.Font.GothamBold, TextSize = 8,
-            BorderSizePixel = 0, ZIndex = 8,
-        }, P)
-        Corner(b, UDim.new(0, 6)) Stroke(b, D.Edge(color), 1)
-        D.Tactile(b, 0.08)
-        return b
-    end
-    local copySkinBtn = avatarButton("AvatarCopyData", "📋 Sao chép ID skin", 8, 112, C.BLUE)
-    local applySkinBtn = avatarButton("AvatarApplyLocal", "👕 Mặc thử cục bộ", 128, 128, C.GREEN)
-    local restoreSkinBtn = New("TextButton", { Name = "AvatarRestoreLocal",
-        Size = UDim2.new(0, 104, 0, 22), Position = UDim2.new(1, -112, 0, 216),
-        Text = "↩ Khôi phục", BackgroundColor3 = C.SURFACE3, BackgroundTransparency = 0.08,
-        TextColor3 = D.BestText(C.SURFACE3), Font = Enum.Font.GothamBold, TextSize = 8,
-        BorderSizePixel = 0, ZIndex = 8,
-    }, P)
-    Corner(restoreSkinBtn, UDim.new(0, 6)) Stroke(restoreSkinBtn, D.Edge(C.SURFACE3), 1)
-    D.Tactile(restoreSkinBtn, 0.08)
-
-    local statusLabel = New("TextLabel", { Name = "AvatarLookupStatus",
-        Size = UDim2.new(1, -16, 0, 13), Position = UDim2.new(0, 8, 0, 240),
-        Text = "Tra cứu theo hồ sơ/avatar công khai của Roblox.", BackgroundTransparency = 1,
-        TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium, TextSize = 8,
-        TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = 8,
-    }, P)
-
-    local AL = { current = nil, busy = false, applyBusy = false,
-        requestToken = 0, originalDescription = nil, originalCharacter = nil, }
-    S.AvatarLookup = AL
-
-    local function setStatus(text, color)
-        pcall(function() statusLabel.Text = tostring(text or "") statusLabel.TextColor3 = color or C.MUTED end)
-    end
-    local function trimText(text)
-        local value = tostring(text or ""):gsub("^%s+", ""):gsub("%s+$", "")
-        return value
-    end
-    local function safeDestroy(obj)
-        pcall(function() if obj then obj:Destroy() end end)
-    end
-
-    function AL.ResolveUser(query)
-        query = trimText(query)
-        if query == "" then return nil, nil, nil, false, "Hãy nhập username hoặc UserId." end
-        local numericId = tonumber(query)
-        local userId, username
-        if numericId then
-            if numericId < 1 or numericId % 1 ~= 0 then
-                return nil, nil, nil, false, "UserId phải là số nguyên dương."
-            end
-            userId = numericId
-            username = query
-            local okName, resolvedName = pcall(function()
-                return Players:GetNameFromUserIdAsync(userId)
-            end)
-            if okName and type(resolvedName) == "string" and resolvedName ~= "" then
-                username = resolvedName
-            end
-        else
-            local okId, resolvedId = pcall(function()
-                return Players:GetUserIdFromNameAsync(query)
-            end)
-            if not okId or tonumber(resolvedId) == nil then
-                return nil, nil, nil, false, "Không tìm thấy username. Hãy nhập đúng username, không phải Display Name."
-            end
-            userId = tonumber(resolvedId)
-            username = query
-            local okName, resolvedName = pcall(function()
-                return Players:GetNameFromUserIdAsync(userId)
-            end)
-            if okName and type(resolvedName) == "string" and resolvedName ~= "" then
-                username = resolvedName
+        TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7, }, P)
+    local applyBtn = button("👕 Mặc LOCAL", 108, 120, 125, C.GREEN)
+    local serverBtn = button("🌐 Mặc SERVER", 240, 120, 146, C.BLUE)
+    local restoreBtn = button("↩ Khôi phục LOCAL", 108, 151, 158, C.GRAY)
+    local serverRestoreBtn = button("↩ Khôi phục SERVER", 272, 151, 114, C.GRAY)
+    local status = New("TextLabel", { Size = UDim2.new(1, -16, 0, 36), Position = UDim2.new(0, 8, 0, 187),
+        Text = "LOCAL: chỉ máy bạn (game có thể ghi đè). SERVER: mọi người đều thấy, cần cài OutfitServer.", TextWrapped = true,
+        BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium,
+        TextSize = 9, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7, }, P)
+    local selectedId, selectedName, original, originalHum = nil, nil, nil, nil
+    local generation = 0
+    local localSaved = nil -- clones quần áo/phụ kiện trước khi sửa cục bộ
+    local function outfitParts(character)
+        local out = {}
+        for _, item in ipairs(character:GetChildren()) do
+            if item:IsA("Shirt") or item:IsA("Pants") or item:IsA("ShirtGraphic") or item:IsA("Accessory") or item:IsA("BodyColors")
+                or item:IsA("CharacterMesh") then
+                out[#out + 1] = item
             end
         end
-
-        local displayName, verified = username, false
-        pcall(function()
-            local users = Players:GetUserInfosByUserIdsAsync({ userId })
-            local userInfo = type(users) == "table" and users[1] or nil
-            if userInfo then
-                if type(userInfo.Username) == "string" and userInfo.Username ~= "" then username = userInfo.Username end
-                if type(userInfo.DisplayName) == "string" and userInfo.DisplayName ~= "" then displayName = userInfo.DisplayName end
-                verified = userInfo.HasVerifiedBadge == true
+        return out
+    end
+    -- Không thay MeshPart cơ thể (đụng Motor6D/rig và MeshId chỉ đọc).
+    -- Thay phần hình ảnh đọc/ghi được: mặt, màu da, texture, mesh đầu R6.
+    local function visualChildren(part)
+        local out = {}
+        for _, child in ipairs(part:GetChildren()) do
+            if child:IsA("Decal") or child:IsA("Texture") or child:IsA("SurfaceAppearance")
+                or child:IsA("SpecialMesh") then out[#out + 1] = child end
+        end
+        return out
+    end
+    local function saveVisuals(character)
+        local result = {}
+        for _, part in ipairs(character:GetChildren()) do
+            if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+                local entry = {color = part.Color, material = part.Material, children = {}}
+                for _, child in ipairs(visualChildren(part)) do
+                    local ok, clone = pcall(function() return child:Clone() end)
+                    if ok then entry.children[#entry.children + 1] = clone end
+                end
+                result[part.Name] = entry
             end
+        end
+        return result
+    end
+    local function applyVisuals(character, visuals)
+        for name, entry in pairs(visuals) do
+            local part = character:FindFirstChild(name)
+            if part and part:IsA("BasePart") then
+                part.Color = entry.color part.Material = entry.material
+                for _, child in ipairs(visualChildren(part)) do child:Destroy() end
+                for _, child in ipairs(entry.children) do child:Clone().Parent = part end
+            end
+        end
+    end
+    local function copyOutfit(source, character, humanoid)
+        local items = outfitParts(source)
+        local visuals = saveVisuals(source)
+        if #items == 0 and next(visuals) == nil then return false, "Avatar nguồn không có ngoại hình để sao chép" end
+        for _, item in ipairs(outfitParts(character)) do item:Destroy() end
+        local count = 0
+        for _, item in ipairs(items) do
+            local clone = item:Clone()
+            if clone:IsA("Accessory") then humanoid:AddAccessory(clone)
+            else clone.Parent = character end
+            count += 1
+        end
+        applyVisuals(character, visuals)
+        return true, tostring(count) .. " món + mặt/màu da/texture"
+    end
+    local function say(text, good)
+        status.Text = text status.TextColor3 = good and C.GREEN or C.MUTED
+    end
+    local function find()
+        local name = tostring(input.Text or ""):match("^%s*(.-)%s*$")
+        generation += 1 local requestId = generation
+        selectedId, selectedName = nil, nil portrait.Image = ""
+        if not name or not name:match("^[%w_]+$") or #name > 20 then
+            info.Text = "Chưa chọn avatar" say("⚠️ Nhập username Roblox hợp lệ (không phải tên hiển thị).", false) return
+        end
+        info.Text = "Đang tìm " .. name .. "..." say("Đang tải avatar...", false)
+        task.spawn(function()
+            local ok, uid = pcall(function() return Players:GetUserIdFromNameAsync(name) end)
+            if requestId ~= generation or not P.Parent then return end
+            if not ok or not uid then info.Text = "Không tìm thấy" say("⚠️ Không tìm được username; kiểm tra tên rồi thử lại.", false) return end
+            local okName, canonical = pcall(function() return Players:GetNameFromUserIdAsync(uid) end)
+            if requestId ~= generation or not P.Parent then return end
+            selectedId, selectedName = uid, (okName and canonical or name)
+            info.Text = "@" .. selectedName .. "\nUserId: " .. tostring(uid)
+            local okImage, image = pcall(function()
+                return Players:GetUserThumbnailAsync(uid, Enum.ThumbnailType.AvatarThumbnail, Enum.ThumbnailSize.Size420x420)
+            end)
+            if requestId ~= generation or not P.Parent then return end
+            if okImage then portrait.Image = image end
+            say(okImage and "✅ Đã tải avatar; bấm Mặc trang phục." or "⚠️ Có thể mặc, nhưng ảnh xem trước chưa tải được.", okImage)
         end)
-        return userId, username, displayName, verified, nil
     end
-
-    function AL.GetDescription(userId)
-        local lastError = "API avatar không khả dụng trong môi trường này."
-        for _, methodName in ipairs({ "GetHumanoidDescriptionFromUserIdAsync", "GetHumanoidDescriptionFromUserId" }) do
-            local ok, description = pcall(function()
-                return Players[methodName](Players, userId)
-            end)
-            if ok and description then return description end
-            lastError = tostring(description or lastError)
+    findBtn.Activated:Connect(find)
+    input.FocusLost:Connect(function(enter) if enter then find() end end)
+    -- Enter hoặc bấm Mặc trực tiếp đều tra username mới; không dùng lựa chọn đã cũ.
+    applyBtn.Activated:Connect(function()
+        local typed = tostring(input.Text or ""):match("^%s*(.-)%s*$")
+        if not typed or not typed:match("^[%w_]+$") or #typed > 20 then
+            say("⚠️ Nhập username Roblox hợp lệ, không phải Display Name.", false) return
         end
-        return nil, lastError
-    end
-
-    function AL.BuildSkinData(description)
-        local fieldMap = {
-            { key = "shirt", property = "Shirt" }, { key = "pants", property = "Pants" },
-            { key = "tshirt", property = "GraphicTShirt" }, { key = "face", property = "Face" },
-            { key = "head", property = "Head" }, { key = "torso", property = "Torso" },
-            { key = "leftArm", property = "LeftArm" }, { key = "rightArm", property = "RightArm" },
-            { key = "leftLeg", property = "LeftLeg" }, { key = "rightLeg", property = "RightLeg" },
-        }
-        local fields = {}
-        for _, field in ipairs(fieldMap) do
-            local okValue, value = pcall(function() return description[field.property] end)
-            fields[field.key] = (okValue and tonumber(value)) or 0
-        end
-
-        local accessories, seen = {}, {}
-        local function addAccessory(assetId, category, layered, order)
-            local id = tonumber(assetId)
-            if not id or id < 1 then return end
-            id = math.floor(id)
-            if seen[id] then return end
-            seen[id] = true
-            accessories[#accessories + 1] = {
-                assetId = id, category = tostring(category or "Accessory"),
-                layered = layered == true, order = tonumber(order) or 0,
-            }
-        end
-        local okAccessories, list = pcall(function() return description:GetAccessories(true) end)
-        if okAccessories and type(list) == "table" then
-            for _, accessory in ipairs(list) do
-                local assetId, category, layered, order
-                pcall(function() assetId = accessory.AssetId end)
-                pcall(function() category = accessory.AccessoryType end)
-                pcall(function() layered = accessory.IsLayered end)
-                pcall(function() order = accessory.Order end)
-                addAccessory(assetId, category, layered, order)
+        generation += 1 local requestId = generation
+        say("Đang tìm @" .. typed .. " và tải trang phục...", false)
+        task.spawn(function()
+            local okId, uid = pcall(function() return Players:GetUserIdFromNameAsync(typed) end)
+            if requestId ~= generation or not P.Parent then return end
+            if not okId or not uid then
+                say("⚠️ Không tìm thấy username @" .. typed .. ". Hãy dùng tên tài khoản, không phải tên hiển thị.", false) return
             end
-        end
-        -- Fallback for older HumanoidDescription APIs that expose comma-separated IDs.
-        local accessoryProperties = {
-            { property = "HairAccessory", category = "Hair" },
-            { property = "FaceAccessory", category = "Face" },
-            { property = "NeckAccessory", category = "Neck" },
-            { property = "ShouldersAccessory", category = "Shoulders" },
-            { property = "FrontAccessory", category = "Front" },
-            { property = "BackAccessory", category = "Back" },
-            { property = "WaistAccessory", category = "Waist" },
-        }
-        for _, entry in ipairs(accessoryProperties) do
-            local okValue, value = pcall(function() return description[entry.property] end)
-            if okValue then
-                for id in tostring(value or ""):gmatch("%d+") do
-                    addAccessory(id, entry.category, false, 0)
+            selectedId, selectedName = uid, typed
+            info.Text = "@" .. typed .. "\nUserId: " .. tostring(uid)
+            -- Ảnh xem trước tải riêng: Roblox có thể chờ thumbnail rất lâu.
+            task.spawn(function()
+                local okImage, image = pcall(function()
+                    return Players:GetUserThumbnailAsync(uid, Enum.ThumbnailType.AvatarThumbnail, Enum.ThumbnailSize.Size420x420)
+                end)
+                if okImage and requestId == generation and P.Parent then portrait.Image = image end
+            end)
+            say("Đang tải trang phục để thay LOCAL...", false)
+            local ok, desc = pcall(function() return Players:GetHumanoidDescriptionFromUserId(uid) end)
+            if requestId ~= generation or not P.Parent then return end
+            if not ok or not desc then say("⚠️ Không lấy được trang phục Roblox: " .. tostring(desc), false) return end
+            local char = player.Character
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
+            if not hum then say("⚠️ Chưa có nhân vật; chờ hồi sinh rồi thử lại.", false) return end
+            if originalHum ~= hum then
+                local saved, current = pcall(function() return hum:GetAppliedDescription() end)
+                if not saved or not current then
+                    -- Một số game tạo Humanoid không có AppliedDescription hợp lệ.
+                    saved, current = pcall(function() return Players:GetHumanoidDescriptionFromUserId(player.UserId) end)
+                end
+                if requestId ~= generation or not P.Parent then return end
+                if not saved or not current then say("⚠️ Không lấy được trang phục gốc: " .. tostring(current), false) return end
+                original, originalHum = current, hum
+            end
+            local okModel, source = pcall(function()
+                return Players:CreateHumanoidModelFromDescription(desc, hum.RigType)
+            end)
+            if requestId ~= generation or player.Character ~= char then
+                if okModel and source then source:Destroy() end return
+            end
+            if okModel and source and (not localSaved or localSaved.character ~= char) then
+                localSaved = {character = char, items = {}, visuals = saveVisuals(char)}
+                for _, item in ipairs(outfitParts(char)) do
+                    local cloned, savedItem = pcall(function() return item:Clone() end)
+                    if cloned then table.insert(localSaved.items, savedItem) end
                 end
             end
-        end
-
-        local scales = {}
-        for _, property in ipairs({ "HeightScale", "WidthScale", "DepthScale", "HeadScale", "BodyTypeScale", "ProportionScale" }) do
-            local okValue, value = pcall(function() return description[property] end)
-            if okValue and tonumber(value) then scales[property] = tonumber(value) end
-        end
-        local colors = {}
-        local colorMap = {
-            { key = "head", property = "HeadColor" }, { key = "torso", property = "TorsoColor" },
-            { key = "leftArm", property = "LeftArmColor" }, { key = "rightArm", property = "RightArmColor" },
-            { key = "leftLeg", property = "LeftLegColor" }, { key = "rightLeg", property = "RightLegColor" },
-        }
-        for _, field in ipairs(colorMap) do
-            local okColor, color = pcall(function() return description[field.property] end)
-            if okColor and typeof(color) == "Color3" then
-                colors[field.key] = { r = math.floor(color.R * 255 + 0.5),
-                    g = math.floor(color.G * 255 + 0.5), b = math.floor(color.B * 255 + 0.5), }
+            -- Reset buộc Roblox dựng lại phụ kiện/quần áo; ApplyDescription thông thường
+            -- có thể bỏ qua phần đã được game tự chỉnh trực tiếp trên character.
+            local applied, err = pcall(function() hum:ApplyDescriptionReset(desc) end)
+            if not applied then
+                applied, err = pcall(function() hum:ApplyDescription(desc) end)
             end
-        end
-        return { fields = fields, accessories = accessories, scales = scales, colors = colors }
-    end
-
-    local function assetLabel(value)
-        local id = tonumber(value) or 0
-        return id > 0 and ("#" .. tostring(math.floor(id))) or "—"
-    end
-    function AL.FormatInfo(record)
-        local skin = record.skin or {}
-        local fields = skin.fields or {}
-        local accessories = skin.accessories or {}
-        local accessoryIds = {}
-        for i = 1, math.min(#accessories, 5) do
-            accessoryIds[#accessoryIds + 1] = "#" .. tostring(accessories[i].assetId)
-        end
-        if #accessories > #accessoryIds then accessoryIds[#accessoryIds + 1] = "+" .. tostring(#accessories - #accessoryIds) end
-        local verified = record.verified and " · ✓ xác minh" or ""
-        local body = "Head " .. assetLabel(fields.head) .. " · Torso " .. assetLabel(fields.torso)
-        local accText = #accessories > 0 and table.concat(accessoryIds, ", ") or "không có/không đọc được"
-        local colors = skin.colors or {}
-        local function colorLabel(color)
-            if type(color) ~= "table" then return "—" end
-            return string.format("#%02X%02X%02X", tonumber(color.r) or 0, tonumber(color.g) or 0, tonumber(color.b) or 0)
-        end
-        return string.format("👤 %s%s\nUsername: %s\n🆔 UserId: %d\n👕 Shirt %s · Pants %s\n🎽 T-Shirt %s · Face %s\n🧍 %s\n🎨 Màu đầu/thân: %s / %s\n🎒 Phụ kiện (%d): %s",
-            tostring(record.displayName or record.username or "?"), verified,
-            tostring(record.username or "?"), math.floor(tonumber(record.userId) or 0),
-            assetLabel(fields.shirt), assetLabel(fields.pants), assetLabel(fields.tshirt),
-            assetLabel(fields.face), body, colorLabel(colors.head), colorLabel(colors.torso), #accessories, accText)
-    end
-
-    local function createPreviewModel(description)
-        local lastError = "Không dựng được model avatar."
-        for _, methodName in ipairs({ "CreateHumanoidModelFromDescription", "CreateHumanoidModelFromDescriptionAsync" }) do
-            local okModel, model = pcall(function()
-                return Players[methodName](Players, description, Enum.HumanoidRigType.R15)
-            end)
-            if okModel and model then return model end
-            lastError = tostring(model or lastError)
-        end
-        return nil, lastError
-    end
-    function AL.RenderPreview(record)
-        local model, modelError = createPreviewModel(record.description)
-        if model then
-            for _, child in ipairs(previewWorld:GetChildren()) do safeDestroy(child) end
-            pcall(function() model:PivotTo(CFrame.new()) end)
-            for _, descendant in ipairs(model:GetDescendants()) do
-                if descendant:IsA("BasePart") then
-                    pcall(function() descendant.Anchored = true descendant.CanCollide = false end)
-                end
+            local copied, detail = false, nil
+            if okModel and source and player.Character == char and requestId == generation then
+                local ran, success, reason = pcall(copyOutfit, source, char, hum)
+                copied, detail = ran and success, ran and reason or success
+                source:Destroy()
             end
-            model.Parent = previewWorld
-            local okBounds, boxCFrame, boxSize = pcall(function() return model:GetBoundingBox() end)
-            if okBounds and boxCFrame and boxSize then
-                local target = boxCFrame.Position + Vector3.new(0, boxSize.Y * 0.06, 0)
-                local distance = math.max(5, math.max(boxSize.X, boxSize.Y, boxSize.Z) * 1.55)
-                previewCamera.CFrame = CFrame.lookAt(target + Vector3.new(0, boxSize.Y * 0.1, -distance), target)
-            else
-                previewCamera.CFrame = CFrame.lookAt(Vector3.new(0, 3, -8), Vector3.new(0, 2, 0))
-            end
-            viewport.Visible = true fallbackImage.Visible = false
-            return true, nil
-        end
-
-        for _, child in ipairs(previewWorld:GetChildren()) do safeDestroy(child) end
-        viewport.Visible = false fallbackImage.Visible = false
-        local okThumb, image = pcall(function()
-            return Players:GetUserThumbnailAsync(record.userId, Enum.ThumbnailType.AvatarBust, Enum.ThumbnailSize.Size420x420)
+            if requestId ~= generation or not P.Parent then return end
+            if player.Character ~= char then say("⚠️ Nhân vật đã hồi sinh khi tải đồ; bấm Mặc lại.", false)
+            elseif copied then say("✅ Đã thay đồ LOCAL @" .. typed .. " (" .. detail .. "). Game có thể ghi đè.", true)
+            elseif applied then say("✅ Đã gọi ApplyDescription cục bộ; không sao chép được phụ kiện: " .. tostring(detail or source), true)
+            else say("⚠️ Không áp được: " .. tostring(err) .. " / " .. tostring(detail or source), false) end
         end)
-        if okThumb and type(image) == "string" and image ~= "" then
-            fallbackImage.Image = image fallbackImage.Visible = true
-            return false, "Chỉ dựng được ảnh đại diện 2D; " .. tostring(modelError)
+    end)
+    local function serverAction(action)
+        local remote = game:GetService("ReplicatedStorage"):FindFirstChild("BC_OutfitRequest")
+        if not remote or not remote:IsA("RemoteFunction") then
+            say("⚠️ Chưa cài OutfitServer.server.lua vào ServerScriptService của game bạn.", false) return
         end
-        return false, tostring(modelError)
-    end
-
-    local function getCurrentHumanoid()
-        local character = player.Character
-        local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-        return humanoid, character
-    end
-    local function clearOriginalDescription()
-        safeDestroy(AL.originalDescription)
-        AL.originalDescription, AL.originalCharacter = nil, nil
-    end
-    local function applyDescription(humanoid, sourceDescription)
-        local okClone, description = pcall(function() return sourceDescription:Clone() end)
-        if not okClone or not description then return false, tostring(description or "Không sao chép được HumanoidDescription.") end
-        local lastError = "Client không cho áp dụng HumanoidDescription."
-        for _, methodName in ipairs({ "ApplyDescriptionReset", "ApplyDescription" }) do
-            local okApply, applyError = pcall(function()
-                humanoid[methodName](humanoid, description)
-            end)
-            if okApply then safeDestroy(description); return true, nil end
-            lastError = tostring(applyError or lastError)
+        local name = tostring(input.Text or ""):match("^%s*(.-)%s*$")
+        if action == "apply" and (not name or not name:match("^[%w_]+$") or #name > 20) then
+            say("⚠️ Nhập username Roblox hợp lệ.", false) return
         end
-        safeDestroy(description)
-        return false, lastError
-    end
-    local function captureOriginal(humanoid, character)
-        if AL.originalDescription and AL.originalCharacter == character then return true, nil end
-        clearOriginalDescription()
-        local okDescription, description = pcall(function() return humanoid:GetAppliedDescription() end)
-        if not okDescription or not description then
-            return false, "Không đọc được skin hiện tại để tạo điểm khôi phục."
-        end
-        local okClone, clone = pcall(function() return description:Clone() end)
-        safeDestroy(description)
-        if not okClone or not clone then return false, "Không lưu được skin gốc để khôi phục." end
-        AL.originalDescription, AL.originalCharacter = clone, character
-        return true, nil
-    end
-
-    local function setBusy(on)
-        AL.busy = on == true
-        lookupBtn.Active = not AL.busy
-        lookupBtn.Text = AL.busy and "⏳ Đang tra" or "🔎 Tra cứu"
-    end
-    local function startLookup()
-        if AL.busy or AL.applyBusy then return end
-        local query = trimText(nameBox.Text)
-        if query == "" then setStatus("Hãy nhập username hoặc UserId.", C.YELLOW); return end
-        AL.requestToken = AL.requestToken + 1
-        local token = AL.requestToken
-        setBusy(true) ReleaseHubFocus()
-        setStatus("Đang tra cứu hồ sơ/avatar Roblox...", C.YELLOW)
+        generation += 1 local token = generation
+        say("Đang gửi yêu cầu SERVER...", false)
         task.spawn(function()
-            local okLookup, record = pcall(function()
-                local userId, username, displayName, verified, resolveError = AL.ResolveUser(query)
-                if not userId then error(resolveError or "Không tìm thấy người dùng.", 0) end
-                local description, descriptionError = AL.GetDescription(userId)
-                if not description then error("Không lấy được avatar: " .. tostring(descriptionError), 0) end
-                return { userId = userId, username = username, displayName = displayName,
-                    verified = verified, description = description,
-                    skin = AL.BuildSkinData(description), }
-            end)
-            if token ~= AL.requestToken then
-                if okLookup and record and record.description then safeDestroy(record.description) end
-                return
+            local uid = nil
+            if action == "apply" then
+                local found, result = pcall(function() return Players:GetUserIdFromNameAsync(name) end)
+                if token ~= generation then return end
+                if not found then say("⚠️ Không tìm thấy username: " .. tostring(result), false) return end
+                uid = result
             end
-            setBusy(false)
-            if not okLookup then
-                setStatus("Tra cứu thất bại: " .. tostring(record), C.RED)
-                return
-            end
-            local previous = AL.current
-            AL.current = record
-            infoLabel.Text = AL.FormatInfo(record)
-            local previewOk, previewMessage = AL.RenderPreview(record)
-            if previous and previous.description and previous.description ~= record.description then
-                safeDestroy(previous.description)
-            end
-            if previewOk then
-                setStatus("Đã tải trang phục; có thể sao chép ID hoặc mặc thử cục bộ.", C.GREEN)
-            else
-                setStatus("Đã tải dữ liệu trang phục. " .. tostring(previewMessage), C.YELLOW)
+            local sent, success, message = pcall(function() return remote:InvokeServer(action, uid) end)
+            if token == generation and P.Parent then
+                say((sent and success and "✅ " or "⚠️ ") .. tostring(sent and message or success), sent and success)
             end
         end)
     end
-
-    lookupBtn.Activated:Connect(startLookup)
-    nameBox.FocusLost:Connect(function(enterPressed)
-        if enterPressed then task.defer(startLookup) end
-    end)
-    copySkinBtn.Activated:Connect(function()
-        ReleaseHubFocus()
-        local record = AL.current
-        if not record then setStatus("Tra cứu người chơi trước rồi mới sao chép skin.", C.YELLOW); return end
-        local okJson, json = pcall(function()
-            return HttpService:JSONEncode({ userId = record.userId, username = record.username,
-                displayName = record.displayName, skin = record.skin, })
-        end)
-        if not okJson then setStatus("Không mã hóa được dữ liệu skin: " .. tostring(json), C.RED); return end
-        local stubClipboard = type(S.Shimmed) == "function" and
-            (S.Shimmed("setclipboard") or S.Shimmed("toclipboard") or S.Shimmed("set_clipboard"))
-        local copied = (not stubClipboard) and S.CopyToClipboard(json) or false
-        setStatus(copied and "Đã sao chép JSON chứa UserId và ID trang phục/phụ kiện." or
-            "Executor không có clipboard thật; các ID chính đang hiển thị ở khung thông tin.", copied and C.GREEN or C.YELLOW)
-    end)
-    applySkinBtn.Activated:Connect(function()
-        ReleaseHubFocus()
-        if AL.applyBusy then return end
-        local record = AL.current
-        if not record then setStatus("Tra cứu người chơi trước rồi mới mặc thử skin.", C.YELLOW); return end
-        local humanoid, character = getCurrentHumanoid()
-        if not humanoid or not character then setStatus("Chưa có nhân vật của bạn trong game.", C.RED); return end
-        AL.applyBusy = true
-        setStatus("Đang lưu skin gốc và áp dụng thử trên client...", C.YELLOW)
-        task.spawn(function()
-            local okApply, message = pcall(function()
-                local okOriginal, originalError = captureOriginal(humanoid, character)
-                if not okOriginal then error(originalError, 0) end
-                local applied, applyError = applyDescription(humanoid, record.description)
-                if not applied then error(applyError, 0) end
-            end)
-            AL.applyBusy = false
-            if okApply then
-                setStatus("Đã mặc thử trên client. Server/respawn có thể ghi đè; không đổi avatar tài khoản.", C.GREEN)
-            else
-                setStatus("Không áp dụng được trên client: " .. tostring(message), C.RED)
+    serverBtn.Activated:Connect(function() serverAction("apply") end)
+    serverRestoreBtn.Activated:Connect(function() serverAction("restore") end)
+    restoreBtn.Activated:Connect(function()
+        generation += 1
+        local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+        if not hum then say("⚠️ Nhân vật chưa sẵn sàng.", false) return end
+        if localSaved and localSaved.character == player.Character then
+            if original and hum == originalHum then
+                local ok = pcall(function() hum:ApplyDescriptionReset(original) end)
+                if not ok then pcall(function() hum:ApplyDescription(original) end) end
             end
-        end)
-    end)
-    restoreSkinBtn.Activated:Connect(function()
-        ReleaseHubFocus()
-        if AL.applyBusy then return end
-        local humanoid, character = getCurrentHumanoid()
-        if not AL.originalDescription or AL.originalCharacter ~= character then
-            setStatus("Chưa có skin gốc để khôi phục (hoặc nhân vật đã respawn).", C.YELLOW)
-            return
-        end
-        AL.applyBusy = true
-        setStatus("Đang khôi phục skin ban đầu của bạn...", C.YELLOW)
-        task.spawn(function()
-            local okRestore, result, restoreError = pcall(applyDescription, humanoid, AL.originalDescription)
-            AL.applyBusy = false
-            if okRestore and result then
-                clearOriginalDescription()
-                setStatus("Đã khôi phục skin ban đầu trên client.", C.GREEN)
-            else
-                setStatus("Khôi phục thất bại: " .. tostring(restoreError or result), C.RED)
+            for _, item in ipairs(outfitParts(player.Character)) do item:Destroy() end
+            for _, item in ipairs(localSaved.items) do
+                if item:IsA("Accessory") then hum:AddAccessory(item:Clone())
+                else item:Clone().Parent = player.Character end
             end
-        end)
-    end)
-    trackConn(player.CharacterAdded:Connect(function()
-        clearOriginalDescription()
-    end))
-
-    function AL.Stop()
-        AL.requestToken = AL.requestToken + 1
-        AL.busy, AL.applyBusy = false, false
-        local humanoid, character = getCurrentHumanoid()
-        if AL.originalDescription and AL.originalCharacter == character and humanoid then
-            pcall(applyDescription, humanoid, AL.originalDescription)
+            if localSaved.visuals then applyVisuals(player.Character, localSaved.visuals) end
+            localSaved = nil
+            original, originalHum = nil, nil
+            say("✅ Đã khôi phục quần áo/phụ kiện LOCAL.", true) return
         end
-        clearOriginalDescription()
-        if AL.current and AL.current.description then safeDestroy(AL.current.description) end
-        AL.current = nil
-        for _, child in ipairs(previewWorld:GetChildren()) do safeDestroy(child) end
-        pcall(function() fallbackImage.Image = "" fallbackImage.Visible = false end)
-        _G.BananaCatHub_AvatarLookup = nil
-    end
-    _G.BananaCatHub_AvatarLookup = AL
+        if not original or hum ~= originalHum then say("Không có trang phục cũ trên nhân vật hiện tại.", false) return end
+        local ok = pcall(function() hum:ApplyDescriptionReset(original) end)
+        if not ok then ok = pcall(function() hum:ApplyDescription(original) end) end
+        if ok then original, originalHum = nil, nil say("✅ Đã khôi phục trang phục gốc.", true)
+        else say("⚠️ Không khôi phục được trang phục; thử lại.", false) end
+    end)
 end
 
 -- ---------- KHUNG 📍 ĐỊNH VỊ (nằm trong trang 👥 NGƯỜI CHƠI) ----------
