@@ -8962,7 +8962,10 @@ end end
             end
         end)
         pcall(function() PI._skinFake:SetPrimaryPartCFrame(hrp.CFrame) end)
-        StopSkinFollow()
+        pcall(function() if PI._skinFake.PivotTo then PI._skinFake:PivotTo(hrp.CFrame) end end)
+        -- FIX: chỉ gỡ bind cũ, KHÔNG xóa fake (bản trước StopSkinFollow xóa luôn fake nên không thấy)
+        pcall(function() RunService:UnbindFromRenderStep(PI._skinFollowBind) end)
+        PI._skinFollow = nil
         local okBind = pcall(function()
             RunService:BindToRenderStep(PI._skinFollowBind, Enum.RenderPriority.Camera.Value - 1, function()
                 if not (char and char.Parent and PI._skinFake and PI._skinFake.Parent and hrp and hrp.Parent and fakeHrp and fakeHrp.Parent) then
