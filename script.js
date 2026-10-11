@@ -8790,6 +8790,71 @@ end end
             tostring(shirtHasTemplate), tostring(pantsHasTemplate), tostring(graphicHasImage), layered, modelAccessories))
     end
 
+    -- Sao chép rig live nếu người đó đang ở cùng server: giữ nguyên rig, bundle, phụ kiện và pose hiện tại.
+    function PI.CloneLiveCharacter(source, modelName)
+        if not source then return nil, "không có character nguồn" end
+        local okClone, clone = pcall(function() return source:Clone() end)
+        if not okClone or not clone then return nil, tostring(clone) end
+        pcall(function() clone.Name = modelName or "BC_PlayerAvatarCopy" end)
+        pcall(function()
+            for _, child in ipairs(clone:GetDescendants()) do
+                if child:IsA("Script") or child:IsA("LocalScript") then child:Destroy()
+                elseif child:IsA("BasePart") then child.LocalTransparencyModifier = 0 end
+            end
+        end)
+        -- Clone đôi khi bỏ sót clothing instance; clone trực tiếp từ nguồn để giữ texture đã resolve.
+        for _, className in ipairs({"Shirt", "Pants", "ShirtGraphic"}) do
+            pcall(function()
+                local sourceClothing = source:FindFirstChildOfClass(className)
+                if not sourceClothing then return end
+                local okClothing, clothingCopy = pcall(function() return sourceClothing:Clone() end)
+                if not okClothing or not clothingCopy then return end
+                local old = clone:FindFirstChildOfClass(className)
+                if old then old:Destroy() end
+                clothingCopy.Parent = clone
+            end)
+        end
+        return clone, nil
+    end
+
+    -- Dùng rig live cho đúng dáng khi player đang trong server; nếu không thì avatar công khai.
+    function PI.BuildAvatarModel(rec, modelName)
+        local lastErr = nil
+        if rec and rec.id then
+            local okPlayer, target = pcall(function() return Players:GetPlayerByUserId(rec.id) end)
+            local source = okPlayer and target and target.Character or nil
+            if source then
+                local liveModel, liveErr = PI.CloneLiveCharacter(source, modelName)
+                if liveModel then
+                    local liveDesc = nil
+                    pcall(function()
+                        local liveHum = source:FindFirstChildOfClass("Humanoid")
+                        if liveHum then liveDesc = liveHum:GetAppliedDescription() end
+                    end)
+                    return liveModel, nil, liveDesc or (rec and rec.desc) or nil, "live"
+                end
+                lastErr = liveErr
+            end
+        end
+        if rec and rec.desc then
+            local model, err = PI.MakeRig(rec.desc, { Enum.HumanoidRigType.R15, Enum.HumanoidRigType.R6 })
+            if model then
+                pcall(function() model.Name = modelName or "BC_PlayerAvatarCopy" end)
+                return model, nil, rec.desc, "description"
+            end
+            lastErr = err
+        end
+        if rec and rec.id then
+            local okUser, userModel = pcall(function() return Players:CreateHumanoidModelFromUserId(rec.id) end)
+            if okUser and userModel then
+                pcall(function() userModel.Name = modelName or "BC_PlayerAvatarCopy" end)
+                return userModel, nil, rec.desc, "userId"
+            end
+            lastErr = tostring(userModel)
+        end
+        return nil, lastErr or "không dựng được avatar từ character hoặc HumanoidDescription", nil, nil
+    end
+
     -- ===== GIAO DIỆN (trong trang 👥 NGƯỜI CHƠI, nằm dưới 🌳) =====
     local PH = 340 -- đã bỏ phụ kiện thay skin, thêm Lấy/Trả Skin: giữ tra cứu + xem 3D + lấy skin
     local P = New("Frame", {
@@ -8864,13 +8929,21 @@ end end
     function PI.ViewerBuild(rec)
         local v = PI.view
         if v.model then pcall(function() v.model:Destroy() end) v.model = nil end
-        if type(rec) ~= "table" or rec.desc == nil then return false, "không có dữ liệu skin để xem 3D" end
-        local desc = rec.desc
-        local m, merr = PI.MakeRig(desc, { Enum.HumanoidRigType.R15, Enum.HumanoidRigType.R6 })
+        if type(rec) ~= "table" or (rec.desc == nil and rec.id == nil) then return false, "không có dữ liệu skin để xem 3D" end
+        local m, merr, modelDesc, source = PI.BuildAvatarModel(rec, "BC_ViewModel")
         if not m then return false, merr end
-        m.Name = "BC_ViewModel"
         m.Parent = v.wm
-        pcall(function() PI.DiagnoseClothes(m, desc) end)
+        -- Character live có tọa độ trong map; căn tâm bounding box vào camera của WorldModel, giữ góc xoay.
+        if source == "live" then
+            pcall(function()
+                local pivot = m:GetPivot()
+                local bounds = m:GetBoundingBox()
+                local offset = Vector3.new(0, 2.6, 0) - bounds.Position
+                m:PivotTo(CFrame.new(pivot.Position + offset) * pivot.Rotation)
+            end)
+        end
+        pcall(function() PI.DiagnoseClothes(m, modelDesc or rec.desc) end)
+        print("[BC_Skin] ViewerBuild source", source)
         v.model = m
         PI.ViewerUpdate()
         return true, nil
@@ -9105,7 +9178,7 @@ end end
 
     function PI.ApplySkin(rec)
         print("[BC_Skin] ApplySkin rec", rec and rec.id or "nil", rec and rec.name or "")
-        if type(rec) ~= "table" or rec.desc == nil then return false, "chưa tra cứu người nào có skin (bấm 🔍 trước)" end
+        if type(rec) ~= "table" or (rec.desc == nil and rec.id == nil) then return false, "chưa tra cứu người nào có skin (bấm 🔍 trước)" end
         local char = player.Character
         local hum = char and char:FindFirstChildOfClass("Humanoid")
         if not char or not hum then return false, "chưa có nhân vật (đợi load xong, thử lại sau 1s)" end
@@ -9122,9 +9195,12 @@ end end
             end
         end
 
+        -- Chụp model live trước khi ApplyDescription để không làm mất morph nếu chọn chính mình.
+        local fake, ferr, fakeDesc, avatarSource = PI.BuildAvatarModel(rec, "BC_SkinFake_" .. tostring(rec.id or "avatar"))
+
         -- Thử đổi thật trước (để nếu fake lỗi vẫn thấy)
         local applyOk = false
-        do
+        if rec.desc then
             local descToApply = rec.desc
             local okC2, clone = pcall(function() return rec.desc:Clone() end)
             if okC2 and clone then descToApply = clone end
@@ -9135,6 +9211,8 @@ end end
                 print("[BC_Skin] ApplyDescriptionReset", okR)
                 if okR then applyOk = true end
             end
+        else
+            print("[BC_Skin] không có HumanoidDescription; sẽ dùng model live/UserId")
         end
         -- Ghi trạng thái đồ mặc sau khi Roblox xử lý HumanoidDescription.
         pcall(function() PI.DiagnoseClothes(char, rec.desc) end)
@@ -9143,55 +9221,8 @@ end end
         PI._skinFake = nil
         if PI._skinHeartbeat then pcall(function() PI._skinHeartbeat:Disconnect() end) PI._skinHeartbeat = nil end
 
-        -- Ưu tiên HumanoidDescription công khai để không lấy nhầm character đã bị game đổi morph/đồ.
-        local fake, ferr = nil, nil
-        local descForFake = rec.desc
-        local okCloneDesc, cloneDesc = pcall(function() return rec.desc:Clone() end)
-        if okCloneDesc and cloneDesc then descForFake = cloneDesc end
-        print("[BC_Skin] tạo fake từ HumanoidDescription...")
-        local model, modelErr = PI.MakeRig(descForFake, { Enum.HumanoidRigType.R15, Enum.HumanoidRigType.R6 })
-        if model then
-            fake = model
-            print("[BC_Skin] HumanoidDescription OK")
-        else
-            ferr = tostring(modelErr)
-            print("[BC_Skin] HumanoidDescription lỗi", modelErr)
-        end
-        -- Fallback 1: lấy avatar theo UserId nếu dựng từ description thất bại.
-        if not fake and rec.id then
-            print("[BC_Skin] thử CreateHumanoidModelFromUserId", rec.id)
-            local okUser, userModel = pcall(function() return Players:CreateHumanoidModelFromUserId(rec.id) end)
-            if okUser and userModel then
-                fake = userModel
-                print("[BC_Skin] FromUserId OK")
-            else
-                ferr = tostring(userModel)
-                print("[BC_Skin] FromUserId lỗi", userModel)
-            end
-        end
-        -- Fallback 2: character live; chỉ dùng nếu API avatar không dựng được.
-        if not fake and rec.id then
-            local okP, plr = pcall(function() return Players:GetPlayerByUserId(rec.id) end)
-            if okP and plr and plr.Character then
-                print("[BC_Skin] thử clone InServer character làm fallback", rec.name)
-                local okC, cl = pcall(function() return plr.Character:Clone() end)
-                if okC and cl then
-                    pcall(function() cl.Name = "BC_SkinFake_" .. tostring(rec.id) end)
-                    pcall(function()
-                        for _, child in ipairs(cl:GetDescendants()) do
-                            if child:IsA("Script") or child:IsA("LocalScript") then child:Destroy() end
-                        end
-                    end)
-                    fake = cl
-                    print("[BC_Skin] clone InServer fallback OK")
-                else
-                    ferr = tostring(cl)
-                    print("[BC_Skin] clone InServer fallback lỗi", cl)
-                end
-            end
-        end
-        if descForFake ~= rec.desc then pcall(function() descForFake:Destroy() end) end
-        print("[BC_Skin] fake", fake and "có" or "nil", "err", ferr, "applyOk", applyOk)
+        -- Ưu tiên rig live để giữ dáng/phụ kiện; nếu không online thì dùng avatar description.
+        print("[BC_Skin] fake", fake and "có" or "nil", "source", avatarSource, "err", ferr, "applyOk", applyOk)
         if fake then
             -- chuẩn bị PrimaryPart trước khi Parent
             pcall(function()
@@ -9219,7 +9250,7 @@ end end
                 end)
             end
             PI._skinFake = fake
-            pcall(function() PI.DiagnoseClothes(fake, rec.desc) end)
+            pcall(function() PI.DiagnoseClothes(fake, fakeDesc or rec.desc) end)
             makeFakeVisible(fake)
             -- chỉ ẩn char SAU khi đặt fake xong và StartSkinFollow thành công
             local cf, _ = getCharPivot(char)
