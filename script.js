@@ -8773,16 +8773,21 @@ end end
         pcall(function() shirtHasTemplate = shirt ~= nil and tostring(shirt.ShirtTemplate or "") ~= "" end)
         pcall(function() pantsHasTemplate = pants ~= nil and tostring(pants.PantsTemplate or "") ~= "" end)
         pcall(function() graphicHasImage = graphic ~= nil and tostring(graphic.Graphic or "") ~= "" end)
-        local layered = 0
+        local layered, modelAccessories = 0, 0
         pcall(function()
             for _, accessory in ipairs(desc:GetAccessories(true)) do
                 if accessory.IsLayered then layered += 1 end
             end
         end)
-        print(string.format("[BC_Skin] clothes: desc Shirt=%d Pants=%d GraphicTShirt=%d; instances=%s/%s/%s; templates=%s/%s/%s; layered=%d",
+        pcall(function()
+            for _, child in ipairs(model:GetDescendants()) do
+                if child:IsA("Accessory") then modelAccessories += 1 end
+            end
+        end)
+        print(string.format("[BC_Skin] clothes: desc Shirt=%d Pants=%d GraphicTShirt=%d; instances=%s/%s/%s; templates=%s/%s/%s; layeredDesc=%d modelAccessories=%d",
             readId("Shirt"), readId("Pants"), readId("GraphicTShirt"),
             tostring(shirt ~= nil), tostring(pants ~= nil), tostring(graphic ~= nil),
-            tostring(shirtHasTemplate), tostring(pantsHasTemplate), tostring(graphicHasImage), layered))
+            tostring(shirtHasTemplate), tostring(pantsHasTemplate), tostring(graphicHasImage), layered, modelAccessories))
     end
 
     -- ===== GIAO DIỆN (trong trang 👥 NGƯỜI CHƠI, nằm dưới 🌳) =====
@@ -9138,55 +9143,54 @@ end end
         PI._skinFake = nil
         if PI._skinHeartbeat then pcall(function() PI._skinHeartbeat:Disconnect() end) PI._skinHeartbeat = nil end
 
-        -- Tạo fake: thử InServer clone trước (đáng tin nhất), rồi mới CreateFromDesc
+        -- Ưu tiên HumanoidDescription công khai để không lấy nhầm character đã bị game đổi morph/đồ.
         local fake, ferr = nil, nil
-        -- 1) nếu người đó đang trong server, clone thẳng character
-        if rec.id then
+        local descForFake = rec.desc
+        local okCloneDesc, cloneDesc = pcall(function() return rec.desc:Clone() end)
+        if okCloneDesc and cloneDesc then descForFake = cloneDesc end
+        print("[BC_Skin] tạo fake từ HumanoidDescription...")
+        local model, modelErr = PI.MakeRig(descForFake, { Enum.HumanoidRigType.R15, Enum.HumanoidRigType.R6 })
+        if model then
+            fake = model
+            print("[BC_Skin] HumanoidDescription OK")
+        else
+            ferr = tostring(modelErr)
+            print("[BC_Skin] HumanoidDescription lỗi", modelErr)
+        end
+        -- Fallback 1: lấy avatar theo UserId nếu dựng từ description thất bại.
+        if not fake and rec.id then
+            print("[BC_Skin] thử CreateHumanoidModelFromUserId", rec.id)
+            local okUser, userModel = pcall(function() return Players:CreateHumanoidModelFromUserId(rec.id) end)
+            if okUser and userModel then
+                fake = userModel
+                print("[BC_Skin] FromUserId OK")
+            else
+                ferr = tostring(userModel)
+                print("[BC_Skin] FromUserId lỗi", userModel)
+            end
+        end
+        -- Fallback 2: character live; chỉ dùng nếu API avatar không dựng được.
+        if not fake and rec.id then
             local okP, plr = pcall(function() return Players:GetPlayerByUserId(rec.id) end)
             if okP and plr and plr.Character then
-                print("[BC_Skin] thử clone InServer character của", rec.name)
+                print("[BC_Skin] thử clone InServer character làm fallback", rec.name)
                 local okC, cl = pcall(function() return plr.Character:Clone() end)
                 if okC and cl then
-                    -- clone xong bỏ Humanoid? giữ nhưng sẽ makeFakeVisible
-                    pcall(function() cl.Name = "BC_SkinFake_"..tostring(rec.id) end)
-                    -- xóa các script trong clone để không chạy
+                    pcall(function() cl.Name = "BC_SkinFake_" .. tostring(rec.id) end)
                     pcall(function()
-                        for _, s in ipairs(cl:GetDescendants()) do
-                            if s:IsA("Script") or s:IsA("LocalScript") then s:Destroy() end
+                        for _, child in ipairs(cl:GetDescendants()) do
+                            if child:IsA("Script") or child:IsA("LocalScript") then child:Destroy() end
                         end
                     end)
                     fake = cl
-                    print("[BC_Skin] clone InServer OK")
+                    print("[BC_Skin] clone InServer fallback OK")
                 else
-                    print("[BC_Skin] clone InServer lỗi", cl)
+                    ferr = tostring(cl)
+                    print("[BC_Skin] clone InServer fallback lỗi", cl)
                 end
             end
         end
-        -- 2) thử CreateHumanoidModelFromDescription: ưu tiên auto (không RigType) để đúng tỉ lệ, rồi mới R15/R6
-        if not fake then
-            local descForFake = rec.desc
-            local okC3, clone3 = pcall(function() return rec.desc:Clone() end)
-            if okC3 and clone3 then descForFake = clone3 end
-            -- thử auto trước (Roblox tự chọn R15/R6 theo avatar) - ngoại hình chuẩn nhất
-            print("[BC_Skin] tạo fake auto (không RigType)...")
-            local okF0, m0 = pcall(function() return Players:CreateHumanoidModelFromDescription(descForFake) end)
-            if okF0 and m0 then fake = m0; print("[BC_Skin] auto OK") else print("[BC_Skin] auto lỗi", m0) ferr = tostring(m0) end
-            if not fake then
-                print("[BC_Skin] tạo fake R15...")
-                local okF, m = pcall(function() return Players:CreateHumanoidModelFromDescription(descForFake, Enum.HumanoidRigType.R15) end)
-                if okF and m then fake = m; print("[BC_Skin] R15 OK") else print("[BC_Skin] R15 lỗi", m) ferr = tostring(m) end
-            end
-            if not fake then
-                print("[BC_Skin] thử R6...")
-                local okF2, m2 = pcall(function() return Players:CreateHumanoidModelFromDescription(descForFake, Enum.HumanoidRigType.R6) end)
-                if okF2 and m2 then fake = m2; print("[BC_Skin] R6 OK") else print("[BC_Skin] R6 lỗi", m2) ferr = tostring(m2) end
-            end
-            if not fake and rec.id then
-                print("[BC_Skin] thử FromUserId", rec.id)
-                local okF3, m3 = pcall(function() return Players:CreateHumanoidModelFromUserId(rec.id) end)
-                if okF3 and m3 then fake = m3; print("[BC_Skin] FromUserId OK") else print("[BC_Skin] FromUserId lỗi", m3) ferr = tostring(m3) end
-            end
-        end
+        if descForFake ~= rec.desc then pcall(function() descForFake:Destroy() end) end
         print("[BC_Skin] fake", fake and "có" or "nil", "err", ferr, "applyOk", applyOk)
         if fake then
             -- chuẩn bị PrimaryPart trước khi Parent
