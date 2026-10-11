@@ -9364,11 +9364,15 @@ end end
             local descToApply = rec.desc
             local okC2, clone = pcall(function() return rec.desc:Clone() end)
             if okC2 and clone then descToApply = clone end
-            local okA = pcall(function() hum:ApplyDescription(descToApply) end)
-            print("[BC_Skin] ApplyDescription", okA)
+            local okA, applyErr = pcall(function() hum:ApplyDescription(descToApply) end)
+            print("[BC_Skin] ApplyDescription", okA, "err", okA and "nil" or tostring(applyErr))
             if okA then applyOk = true else
-                local okR = pcall(function() if hum.ApplyDescriptionReset then hum:ApplyDescriptionReset(descToApply) end end)
-                print("[BC_Skin] ApplyDescriptionReset", okR)
+                local okR, resetErr = pcall(function()
+                    local resetMethod = hum.ApplyDescriptionReset
+                    if type(resetMethod) ~= "function" then error("Humanoid.ApplyDescriptionReset unavailable") end
+                    hum:ApplyDescriptionReset(descToApply)
+                end)
+                print("[BC_Skin] ApplyDescriptionReset", okR, "err", okR and "nil" or tostring(resetErr))
                 if okR then applyOk = true end
             end
         else
@@ -9392,23 +9396,24 @@ end end
                     if cand then fake.PrimaryPart = cand end
                 end
             end)
-            pcall(function()
+            local parentOk, parentErr = pcall(function()
                 local fh = fake:FindFirstChildOfClass("Humanoid")
                 if fh then
                     fh.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
                     fh.HealthDisplayType = Enum.HumanoidDisplayType.AlwaysOff
                 end
                 fake.Parent = workspace
-                print("[BC_Skin] fake Parent workspace, PrimaryPart", fake.PrimaryPart and fake.PrimaryPart.Name or "nil")
             end)
-            -- nếu game xóa Humanoid làm fake mất, thử lại không Humanoid
+            print("[BC_Skin] fake Parent workspace", parentOk, "err", parentOk and "nil" or tostring(parentErr), "parent", tostring(fake.Parent), "PrimaryPart", fake.PrimaryPart and fake.PrimaryPart.Name or "nil")
+            -- Nếu game xóa model có Humanoid, thử parent lại sau khi bỏ Humanoid.
             if not fake.Parent then
-                warn("[BC_Skin] fake Parent nil sau khi gán, thử lại không Humanoid")
-                pcall(function()
+                warn("[BC_Skin] fake Parent nil sau lần đầu, thử lại không Humanoid")
+                local retryOk, retryErr = pcall(function()
                     local fh = fake:FindFirstChildOfClass("Humanoid")
                     if fh then fh:Destroy() end
                     fake.Parent = workspace
                 end)
+                print("[BC_Skin] fake Parent retry", retryOk, "err", retryOk and "nil" or tostring(retryErr), "parent", tostring(fake.Parent))
             end
             PI._skinFake = fake
             pcall(function() PI.DiagnoseClothes(fake, fakeDesc or rec.desc) end)
