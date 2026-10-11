@@ -8584,274 +8584,9 @@ end end
     pcall(S.ObjTrack.RefreshList) pcall(function()
         if D.playerTab then D.playerTab.CanvasSize = UDim2.new(0, 0, 0, (D.playerY or 600) + 16) end end) end)()
 
--- ============================================================================
--- 🧍 THAY SKIN — MODULE ĐỘC LẬP
---   • Không đọc/ghi trạng thái của tính năng nào khác (Fly, Free-cam, Spectate, NoClip, Tắt hết...)
---     và không dùng giao diện hub. Chỉ dùng Players, RunService, Enum, player.
---   • Đầu vào: desc (HumanoidDescription đã lọc phụ kiện) + tên hiển thị. Đầu ra: Apply / Restore / Status.
---   • Tự dọn: RenderStep bind, kết nối CharacterAdded, rig, và LocalTransparencyModifier của thân thật.
---   • Chạy lại script: module cũ được Destroy trước khi nạp module mới.
---   • Nguyên tắc: Roblox chỉ thấy nhân vật thật (điều khiển bằng bàn phím như bình thường).
---     Rig do client tạo, được NEO, không va chạm, và được đặt đúng vị trí/hướng của nhân vật thật mỗi khung.
--- ============================================================================
-local CharSwap = (function()
-local CharSwap = {}
-do
-    local old = _G.BananaCatHub_CharSwap
-    if type(old) == "table" and type(old.Destroy) == "function" then pcall(old.Destroy) end
-end
-_G.BananaCatHub_CharSwap = CharSwap
-CharSwap.BIND = "BC_CharSwapFollow"
-CharSwap.keepOnRespawn = true
-CharSwap.notify = function() end      -- UI gán: function(text, isError)
-CharSwap.gen = 0                      -- số thứ tự yêu cầu; yêu cầu cũ (đang chờ dựng) bị bỏ
-CharSwap.state = nil                  -- trạng thái đang chạy (xem csBuild)
-CharSwap.applied = nil                -- { name, desc, tag } để dựng lại sau respawn
-CharSwap.charConn = nil               -- kết nối CharacterAdded của riêng module
-
-local ANIM_NAMES = { "idle", "walk", "jump", "fall" }
-
-local function csMakeRig(desc, rigType)
-    local ok, m = pcall(function() return Players:CreateHumanoidModelFromDescription(desc, rigType) end)
-    if ok and m ~= nil then return m, nil end
-    return nil, tostring(m)
-end
-
-local function csHideOwn(c, origLT)
-    for _, d in ipairs(c:GetDescendants()) do
-        if d:IsA("BasePart") then
-            if origLT[d] == nil then origLT[d] = d.LocalTransparencyModifier end
-            pcall(function() d.LocalTransparencyModifier = 1 end)
-        end
-    end
-end
-
--- Gỡ TOÀN BỘ: bỏ bind, trả độ trong suốt thân thật, huỷ rig. Không đụng vào CharSwap.applied.
-local function csTeardown()
-    local st = CharSwap.state
-    CharSwap.state = nil
-    pcall(function() RunService:UnbindFromRenderStep(CharSwap.BIND) end)
-    if st == nil then return end
-    for part, lt in pairs(st.origLT) do
-        pcall(function() part.LocalTransparencyModifier = lt end)
-    end
-    pcall(function() st.rig:Destroy() end)
-end
-
--- CFrame của rig: đứng THẲNG tại vị trí thân thật, chỉ xoay NGANG theo hướng bạn đang nhìn.
--- Không lấy nghiêng/lăn/vận tốc góc của thân thật (tránh rig bị nghiêng, lăn hay xoay liên tục).
--- Khi nhìn thẳng đứng (không có hướng ngang) thì giữ hướng ngang cũ.
-local function csUpright(yaw, r)
-    local pos = r.CFrame.Position
-    local look = r.CFrame.LookVector
-    local flat = Vector3.new(look.X, 0, look.Z)
-    if flat.Magnitude > 1e-3 then yaw.dir = flat.Unit end
-    local dir = yaw.dir or Vector3.new(0, 0, -1)
-    return CFrame.lookAt(pos, pos + dir)
-end
-
--- Đặt rig theo HRP của chính rig (không dựa vào pivot của model, vì pivot có thể lệch khỏi HRP):
--- mỗi part giữ offset so với HRP lúc dựng; khung nào cũng đặt part = đích * offset.
-local function csPlace(rel, target)
-    for _, e in ipairs(rel) do
-        pcall(function() e.part.CFrame = target * e.off end)
-    end
-end
-
--- Mỗi khung hình: đặt rig đúng chỗ nhân vật thật, ẩn thân thật, chọn animation theo trạng thái thật
-local function csStep(st)
-    if CharSwap.state ~= st then return end
-    local c = player.Character
-    if c ~= st.char then return end                 -- nhân vật đã đổi: chờ CharacterAdded xử lý
-    local r = c:FindFirstChild("HumanoidRootPart")
-    if not r or st.rig.Parent == nil then return end
-    csPlace(st.rel, csUpright(st.yaw, r))
-    csHideOwn(c, st.origLT)
-    local vel = r.AssemblyLinearVelocity
-    local flat = Vector3.new(vel.X, 0, vel.Z)
-    local h = c:FindFirstChildOfClass("Humanoid")
-    local okS, stt = pcall(function() return h and h:GetState() end)
-    local S = Enum.HumanoidStateType
-    local name
-    if okS and stt == S.Jumping then name = "jump"
-    elseif okS and stt == S.Freefall then name = "fall"
-    elseif flat.Magnitude > 0.5 then name = "walk"
-    else name = "idle" end
-    -- đổi animation chỉ khi cần; walk chạy theo tốc độ thật (14.5 studs/s = tốc độ gốc)
-    if st.animName ~= name then
-        if st.cur then pcall(function() st.cur:Stop(0.15) end) end
-        st.cur = st.tracks[name]
-        st.animName = name
-        if st.cur then pcall(function() st.cur:Play(0.15) end) end
-    end
-    if name == "walk" and st.cur then
-        pcall(function() st.cur:AdjustSpeed(math.clamp(flat.Magnitude / 14.5, 0.1, 3)) end)
-    end
-end
-
--- Dựng và bám rig. Trả về (ok, thông báo). Chỉ gọi qua Apply (đã có pcall và kiểm tra yêu cầu mới nhất).
-local function csBuild(desc, name, tag, myGen)
-    local char = player.Character
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    local root = char and char:FindFirstChild("HumanoidRootPart")
-    if not hum or not root then return false, "chưa có nhân vật (Humanoid/HumanoidRootPart) để thay" end
-    if desc == nil then return false, "chưa có dữ liệu skin" end
-
-    local rig, rerr = csMakeRig(desc, hum.RigType)     -- có thể CHỜ ở đây: các yêu cầu khác có thể chen vào
-    if myGen ~= CharSwap.gen then                       -- đã có yêu cầu mới hơn: bỏ rig này
-        if rig then pcall(function() rig:Destroy() end) end
-        return false, "đã có yêu cầu thay skin mới hơn — bỏ qua yêu cầu này"
-    end
-    if player.Character ~= char then                    -- nhân vật đã đổi trong lúc dựng
-        if rig then pcall(function() rig:Destroy() end) end
-        return false, "nhân vật đã thay đổi trong lúc dựng — hãy thử lại"
-    end
-    if rig == nil then return false, "không dựng được nhân vật của " .. tostring(name) .. ": " .. tostring(rerr) end
-    rig.Name = "BC_Puppet"
-    local rigRoot = rig:FindFirstChild("HumanoidRootPart")
-    local rigHum = rig:FindFirstChildOfClass("Humanoid")
-    if not rigRoot or not rigHum then
-        pcall(function() rig:Destroy() end)
-        return false, "nhân vật dựng ra thiếu HumanoidRootPart/Humanoid"
-    end
-
-    for _, d in ipairs(rig:GetDescendants()) do
-        if d:IsA("BasePart") then
-            pcall(function()
-                d.Anchored = true       -- NEO: không vật lý → không tự xoay/đổ/trôi
-                d.CanCollide = false    -- không va chạm với ai
-                d.CanTouch = false      -- không kích hoạt Touched
-                d.CanQuery = false      -- không bị raycast: camera/Humanoid/các tính năng quét không coi rig là vật cản
-            end)
-        end
-    end
-    pcall(function() rig.PrimaryPart = rigRoot end)
-    pcall(function() rigHum.AutoRotate = false end)
-    pcall(function() rigHum.PlatformStand = true end)    -- rig không chạy bộ điều khiển đứng/xoay của Humanoid (chỉ animation)
-    local animator = rigHum:FindFirstChildOfClass("Animator")
-    if animator == nil then
-        pcall(function() animator = Instance.new("Animator") animator.Parent = rigHum end)
-    end
-    -- ghi offset của mọi part so với HRP của rig (trước khi di chuyển)
-    local rel = {}
-    local rootCF = rigRoot.CFrame
-    for _, d in ipairs(rig:GetDescendants()) do
-        if d:IsA("BasePart") then
-            local okO, off = pcall(function() return rootCF:Inverse() * d.CFrame end)
-            if okO then rel[#rel + 1] = { part = d, off = off } end
-        end
-    end
-    rig.Parent = workspace
-    local yaw = {}
-    csPlace(rel, csUpright(yaw, root))
-
-    -- Bộ animation lấy từ Animate của chính nhân vật thật (mỗi thư mục chứa một Animation)
-    local tracks = {}
-    local animSrc = char:FindFirstChild("Animate")
-    if animator and animSrc then
-        for _, n in ipairs(ANIM_NAMES) do
-            local folder = animSrc:FindFirstChild(n)
-            local animObj = folder and folder:FindFirstChildOfClass("Animation")
-            if animObj then
-                local okL, track = pcall(function() return animator:LoadAnimation(animObj) end)
-                if okL and track then
-                    if n == "idle" or n == "walk" then pcall(function() track.Looped = true end) end
-                    tracks[n] = track
-                end
-            end
-        end
-    end
-
-    local st = { rig = rig, origLT = {}, name = name, char = char, tracks = tracks, cur = nil, animName = nil, yaw = yaw, rel = rel }
-    csHideOwn(char, st.origLT)
-    CharSwap.state = st
-    CharSwap.applied = { name = name, desc = desc, tag = tag }
-    local okBind = pcall(function()
-        RunService:BindToRenderStep(CharSwap.BIND, Enum.RenderPriority.Last.Value, function() csStep(st) end)
-    end)
-    if not okBind then return false, "không bám được nhân vật (BindToRenderStep lỗi)" end
-    csStep(st)
-    return true, "✅ Đã thay skin của bạn bằng của " .. tostring(name) .. " (chỉ bạn thấy)"
-end
-
--- Kết nối riêng: nhân vật mới (respawn) → gỡ rig cũ, và nếu đang bật "giữ sau respawn" thì dựng lại
-local function csEnsureRespawnHook()
-    if CharSwap.charConn then return end
-    CharSwap.charConn = player.CharacterAdded:Connect(function(newChar)
-        csTeardown()
-        local rec = CharSwap.applied
-        if rec == nil then return end
-        if not CharSwap.keepOnRespawn then CharSwap.applied = nil return end   -- tắt giữ sau respawn: quên luôn
-        CharSwap.gen = CharSwap.gen + 1
-        local myGen = CharSwap.gen
-        task.spawn(function()
-            local okH, hrp = pcall(function() return newChar:WaitForChild("HumanoidRootPart", 10) end)
-            if not okH or not hrp then
-                if CharSwap.applied == rec then CharSwap.applied = nil end
-                CharSwap.notify("⚠️ Không thấy nhân vật mới để thay lại", true)
-                return
-            end
-            task.wait(0.5)
-            if CharSwap.gen ~= myGen or CharSwap.applied ~= rec or player.Character ~= newChar then return end
-            local ok, msg = CharSwap.Apply(rec.desc, rec.name, rec.tag)
-            CharSwap.notify(ok and ("🔁 " .. tostring(msg)) or ("⚠️ " .. tostring(msg)), not ok)
-        end)
-    end)
-end
-
--- API công khai ----------------------------------------------------------------
--- Apply(desc, name [, tag]) → (ok, thông báo). Thất bại thì KHÔNG để lại rig/ẩn thân và xoá trạng thái đã áp.
-function CharSwap.Apply(desc, name, tag)
-    CharSwap.gen = CharSwap.gen + 1
-    local myGen = CharSwap.gen
-    csTeardown()
-    local okRun, ok, msg = pcall(csBuild, desc, name, tag, myGen)
-    if not okRun then ok, msg = false, "lỗi khi thay skin: " .. tostring(ok) end
-    if not ok and myGen == CharSwap.gen then
-        csTeardown()
-        CharSwap.applied = nil
-    end
-    if ok then csEnsureRespawnHook() end
-    return ok, msg
-end
-
--- Trả nhân vật gốc: gỡ rig, hiện lại thân thật, huỷ yêu cầu đang chờ
-function CharSwap.Restore()
-    if CharSwap.state == nil and CharSwap.applied == nil then
-        return false, "chưa thay skin nào — không có gì để trả"
-    end
-    CharSwap.gen = CharSwap.gen + 1
-    csTeardown()
-    CharSwap.applied = nil
-    return true, "↩ Đã trả lại nhân vật gốc của bạn"
-end
-
-function CharSwap.Status()
-    local a = CharSwap.applied
-    return {
-        active = CharSwap.state ~= nil,
-        name = a and a.name or nil,
-        tag = a and a.tag or nil,
-        keepOnRespawn = CharSwap.keepOnRespawn,
-    }
-end
-
-function CharSwap.Destroy()
-    CharSwap.gen = CharSwap.gen + 1
-    csTeardown()
-    CharSwap.applied = nil
-    if CharSwap.charConn then
-        pcall(function() CharSwap.charConn:Disconnect() end)
-        CharSwap.charConn = nil
-    end
-end
-return CharSwap
-end)()
-
--- ---------- 🔎 TRA CỨU NGƯỜI CHƠI & THAY SKIN (v5.6) — nhập tên/UserId: xem thông tin, xem 3D, phân tích phụ kiện, thay skin (kể cả người KHÔNG trong server / offline) ----------
+-- ---------- 🔎 TRA CỨU NGƯỜI CHƠI & XEM 3D (v5.6) — nhập tên/UserId: xem thông tin, xem 3D, phân tích phụ kiện (kể cả người KHÔNG trong server / offline) ----------
 -- Chỉ dùng dữ liệu CÔNG KHAI của Roblox (users / presence / thumbnails API + GetHumanoidDescriptionFromUserId).
--- Thay skin CHỈ ở phía client của bạn: dựng một rig do client tạo (CreateHumanoidModelFromDescription) rồi bám theo nhân vật thật.
--- Lý do: Humanoid của nhân vật người chơi do SERVER tạo nên ApplyDescription trực tiếp báo lỗi "can only be called by the backend server".
+-- Xem 3D: dựng một rig do client tạo (CreateHumanoidModelFromDescription) chỉ để hiển thị, không ảnh hưởng nhân vật thật.
 ;(function()
     local PI = {}
     PI.reqId = 0          -- mỗi lần tra cứu tăng số này; kết quả cũ (stale) bị bỏ qua
@@ -8859,7 +8594,7 @@ end)()
     PI.productCache = {}  -- assetId -> { name, creator } | false
     PI.view = { yaw = 0.6, pitch = 0.15, dist = 9, auto = false, drag = false, hover = false }   -- auto: tự xoay 3D (mặc định TẮT)
     PI.SPIN_BIND = "BC_PlayerViewSpin"
-    -- Chạy lại script: gỡ bind của phần xem 3D (thay skin do module CharSwap tự dọn)
+    -- Chạy lại script: gỡ bind của phần xem 3D
     pcall(function() RunService:UnbindFromRenderStep("BC_PlayerViewSpin") end)
     _G.BananaCatHub_PlayerInfo = PI
     local MarketplaceService = game:GetService("MarketplaceService")
@@ -9043,7 +8778,7 @@ end)()
         return rec, nil
     end
 
-    -- ===== LOGIC SKIN / NHÂN VẬT =====
+    -- ===== LOGIC XEM 3D / NHÂN VẬT =====
 
     -- Đặc tả skin sau khi bỏ các phụ kiện bạn đã tắt (không sửa rec.desc gốc)
     function PI.FilteredDesc(rec)
@@ -9077,20 +8812,8 @@ end)()
         return nil, lastErr
     end
 
-    -- ===== CẦU NỐI: giao diện → module CharSwap độc lập (nằm ngoài trang tra cứu) =====
-    -- Giao diện chỉ lọc phụ kiện (PI.FilteredDesc) rồi giao cho CharSwap; mọi việc còn lại do CharSwap lo.
-    function PI.SwapSafe(rec)
-        if type(rec) ~= "table" or rec.desc == nil then return false, "chưa có dữ liệu skin — hãy tra cứu người chơi trước" end
-        local okF, desc, derr = pcall(PI.FilteredDesc, rec)
-        if not okF then return false, "lỗi phụ kiện: " .. tostring(desc) end
-        if not desc then return false, "lỗi phụ kiện: " .. tostring(derr) end
-        return CharSwap.Apply(desc, rec.name, rec)
-    end
-
-    function PI.Restore() return CharSwap.Restore() end
-
     -- ===== GIAO DIỆN (trong trang 👥 NGƯỜI CHƠI, nằm dưới 🌳) =====
-    local PH = 402
+    local PH = 374
     local P = New("Frame", {
         Name = "HubPlayerInfo_Panel",
         Size = UDim2.new(1, -16, 0, PH), Position = UDim2.new(0, 8, 0, D.playerY or 46),
@@ -9099,7 +8822,7 @@ end)()
     Corner(P, UDim.new(0, 10)) Stroke(P, C.HAIRLINE, 1) D.Shade(P, Color3.fromRGB(255, 255, 255), Color3.fromRGB(188, 192, 205), 90)
 
     New("TextLabel", { Size = UDim2.new(1, -16, 0, 14), Position = UDim2.new(0, 8, 0, 4),
-        Text = "🔎 TRA CỨU · XEM 3D · THAY SKIN (kể cả người offline)", BackgroundTransparency = 1,
+        Text = "🔎 TRA CỨU · XEM 3D (kể cả người offline)", BackgroundTransparency = 1,
         TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7, }, P)
 
     local function pAct(txt, x, y, w, color, parent)
@@ -9128,7 +8851,6 @@ end)()
         statusLbl.Text = tostring(text or "")
         statusLbl.TextColor3 = color or C.MUTED
     end
-    CharSwap.notify = function(text, isErr) setStatus(text, isErr and C.RED or C.GREEN) end
 
     -- Khung 3D: ảnh đại diện nằm dưới (dự phòng), ViewportFrame chồng lên trên
     local thumbImg = New("ImageLabel", { Name = "HubPlayerInfo_Thumb", Size = UDim2.new(0, 220, 0, 200), Position = UDim2.new(0, 8, 0, 70),
@@ -9319,7 +9041,7 @@ end)()
         end)
     end
 
-    -- Bật/tắt một món: dựng lại 3D; nếu đang thay skin bằng người này thì thay lại ngay
+    -- Bật/tắt một món: dựng lại 3D
     function PI.SetKeep(rec, idx, keep)
         rec.keep[idx] = keep and true or false
         local a = rec.acc and rec.acc[idx]
@@ -9328,11 +9050,7 @@ end)()
         task.spawn(function()
             local okV, verr = PI.ViewerBuild(rec)
             thumbImg.Visible = not okV
-            local stS = CharSwap.Status()
-            if stS.active and stS.tag == rec then
-                local ok, msg = PI.SwapSafe(rec)
-                setStatus(msg, ok and C.GREEN or C.RED)
-            elseif not okV then
+            if not okV then
                 setStatus("⚠️ Không dựng được 3D: " .. tostring(verr), C.YELLOW)
             end
         end)
@@ -9390,20 +9108,10 @@ end)()
         end)
     end
 
-    local applyBtn = pAct("🧍 Thay skin", 8, 344, 150, C.PURPLE)
-    local restoreBtn = pAct("↩ Trả nhân vật gốc", 162, 344, 118, C.BLUE)
-    local keepBtn = pAct("", 284, 344, 176, C.GREEN)
-    local copyProfBtn = pAct("📋 Copy link hồ sơ", 8, 372, 160, C.GRAY)
-    local copyIdBtn = pAct("🔗 Copy UserId", 176, 372, 120, C.GRAY)
-    local allOnBtn = pAct("✔ Bật hết", 302, 372, 78, C.GREEN)
-    local allOffBtn = pAct("✖ Tắt hết", 386, 372, 74, C.RED)
-
-    local function refreshKeepBtn()
-        keepBtn.Text = CharSwap.keepOnRespawn and "🔁 Giữ sau respawn: BẬT" or "🔁 Giữ sau respawn: TẮT"
-        keepBtn.BackgroundColor3 = CharSwap.keepOnRespawn and C.GREEN or C.SURFACE3
-        keepBtn.TextColor3 = D.BestText(keepBtn.BackgroundColor3)
-    end
-    refreshKeepBtn()
+    local copyProfBtn = pAct("📋 Copy link hồ sơ", 8, 344, 160, C.GRAY)
+    local copyIdBtn = pAct("🔗 Copy UserId", 176, 344, 120, C.GRAY)
+    local allOnBtn = pAct("✔ Bật hết", 302, 344, 78, C.GREEN)
+    local allOffBtn = pAct("✖ Tắt hết", 386, 344, 74, C.RED)
 
     local function requireLast()
         if PI.last == nil then setStatus("⚠️ Hãy tra cứu một người chơi trước", C.YELLOW) return nil end
@@ -9420,23 +9128,6 @@ end)()
         queryIn.Text = ""
         clearRows()
         setStatus("Đã xoá. Nhập tên khác rồi bấm 🔍.", C.MUTED)
-    end)
-
-    applyBtn.Activated:Connect(function()
-        ReleaseHubFocus()
-        local rec = requireLast() if not rec then return end
-        if rec.desc == nil then setStatus("⚠️ Người này không có dữ liệu skin công khai", C.YELLOW) return end
-        setStatus("⏳ Đang thay skin bằng của " .. rec.name .. "...", C.YELLOW)
-        task.spawn(function()
-            local ok, msg = PI.SwapSafe(rec)
-            setStatus(msg, ok and C.GREEN or C.RED)
-        end)
-    end)
-
-    restoreBtn.Activated:Connect(function()
-        ReleaseHubFocus()
-        local ok, msg = PI.Restore()
-        setStatus(msg, ok and C.GREEN or C.YELLOW)
     end)
 
     vBtnL.Activated:Connect(function() ReleaseHubFocus() PI.view.yaw = PI.view.yaw + 0.5 PI.ViewerUpdate() end)
@@ -9474,12 +9165,6 @@ end)()
         local did = false
         if type(setclipboard) == "function" then did = pcall(setclipboard, tostring(rec.id)) end
         setStatus(did and ("📋 Đã copy UserId " .. tostring(rec.id)) or ("UserId: " .. tostring(rec.id)), did and C.GREEN or C.YELLOW)
-    end)
-
-    keepBtn.Activated:Connect(function()
-        ReleaseHubFocus()
-        CharSwap.keepOnRespawn = not CharSwap.keepOnRespawn
-        refreshKeepBtn()
     end)
 
     pcall(function()
