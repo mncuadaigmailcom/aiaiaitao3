@@ -1,10 +1,18 @@
-# Bộ test cho `script.js` (Banana Cat Hub — bản ghép 👕 TRANG PHỤC)
+# Bộ test cho `script.js` (Banana Cat Hub)
 
-Các test này kiểm tra **file `script.js` ở gốc repo** sau khi ghép tính năng
-"👕 TRANG PHỤC NGƯỜI CHƠI" (từ `script.js1.js`) và **kết hợp nó với 🔎 LẤY SKIN (v5.7)**,
+> ## ⚠️ Trạng thái hiện tại: script.js ĐÃ XOÁ tính năng 👕 TRANG PHỤC NGƯỜI CHƠI
+> Theo yêu cầu, `script.js` đã được trả về **đúng bản gốc** (không còn khối 👕 TRANG PHỤC
+> và phần kết hợp với 🔎 LẤY SKIN). Khi đó `run_all_tests.sh` tự bỏ qua T2/T5/T6 và chỉ chạy
+> T1 (biên dịch Luau), T3 (bố cục panel), T4 (không mất dòng gốc) → **3 PASS / 0 FAIL / 3 BỎ QUA**.
+>
+> Muốn ghép lại tính năng: `git checkout 4f51f82 -- script.js` (commit giữ bản đã ghép đầy đủ:
+> khối 👕 + kết hợp 🔎 LẤY SKIN) rồi chạy lại → **6 PASS / 0 FAIL**.
+
+Các test dưới đây kiểm tra **file `script.js` ở gốc repo** khi tính năng
+"👕 TRANG PHỤC NGƯỜI CHƠI" (từ `script.js1.js`) được ghép vào và **kết hợp với 🔎 LẤY SKIN (v5.7)**,
 đảm bảo **không mất tính năng nào** của bản gốc và khối ghép chạy được thật.
 
-## Tính năng đã kết hợp (nút 👕 Mặc LOCAL)
+## Tính năng đã kết hợp (nút 👕 Mặc LOCAL) — *chỉ có khi tính năng được ghép lại*
 
 * **Một nút làm cả hai**: bấm `👕 Mặc LOCAL` → gọi `PI.ApplySkin(...)` của khối 🔎 LẤY SKIN (v5.7)
   để **hóa thân** thành đúng người đó (dáng + mặt + tóc + đồ của họ), rồi **mặc quần áo/phụ kiện LOCAL**

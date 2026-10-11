@@ -22,6 +22,10 @@ def block_range(lines, first_pred, open_kind='do'):
                     return s + 1, j          # index của 'do' ... 'end'
     raise SystemExit('không tìm thấy khối')
 
+if not any('HubOutfit_Panel' in l or 'TRANG PHỤC NGƯỜI CHƠI (gộp' in l for l in merged):
+    print("ℹ️  script.js KHÔNG có khối 👕 TRANG PHỤC NGƯỜI CHƠI (đã xoá) — bỏ qua phép so khối ghép.")
+    raise SystemExit(0)
+
 o1, o2 = block_range(srcj1, lambda l: l.startswith('-- Trang phục chỉ áp dụng'))
 m1, m2 = block_range(merged, lambda l: '👕 TRANG PHỤC NGƯỜI CHƠI (gộp từ script.js1.js)' in l, ';(function()')
 

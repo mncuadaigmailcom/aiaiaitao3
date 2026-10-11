@@ -36,8 +36,11 @@ def extract(lines):
         s = head[0]
         s = next(k for k in range(s, s + 6) if lines[k].strip() in OPENERS)
     else:
-        anchor = next(i for i, l in enumerate(lines) if 'Name = "HubOutfit_Panel"' in l)
-        s = max(k for k in range(anchor) if lines[k].strip() in OPENERS)
+        anchor = [i for i, l in enumerate(lines) if 'Name = "HubOutfit_Panel"' in l]
+        if not anchor:
+            raise SystemExit('ℹ️  %s không có khối 👕 TRANG PHỤC NGƯỜI CHƠI '
+                             '(tính năng đã bị xoá?) — không có gì để chạy thử.' % SRC)
+        s = max(k for k in range(anchor[0]) if lines[k].strip() in OPENERS)
     return s, balance(lines, s)
 
 s, e = extract(lines)
