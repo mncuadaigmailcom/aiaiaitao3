@@ -1,0 +1,7 @@
+{
+  "name": "taodepzai-luau-tests",
+  "private": true,
+  "type": "module",
+  "description": "Test cho script.js (hub taodepzai) — biên dịch Luau thật + mock Roblox",
+  "dependencies": { "@luau-rs/luau": "^0.739.0" }
+}
