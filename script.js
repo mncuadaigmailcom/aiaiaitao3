@@ -8584,7 +8584,7 @@ end end
     pcall(S.ObjTrack.RefreshList) pcall(function()
         if D.playerTab then D.playerTab.CanvasSize = UDim2.new(0, 0, 0, (D.playerY or 600) + 16) end end) end)()
 
--- ---------- 🔎 TRA CỨU NGƯỜI CHƠI & XEM 3D (v5.6) — nhập tên/UserId: xem thông tin, xem 3D (kể cả người KHÔNG trong server / offline) ----------
+-- ---------- 🔎 TRA CỨU + XEM 3D + LẤY SKIN (v5.7) — nhập tên/UserId: xem thông tin, xem 3D và hóa thân thành người đó (ẩn skin bạn, thay bằng skin người kia, vẫn di chuyển) ----------
 -- Chỉ dùng dữ liệu CÔNG KHAI của Roblox (users / presence / thumbnails API + GetHumanoidDescriptionFromUserId).
 -- Xem 3D: dựng một rig do client tạo (CreateHumanoidModelFromDescription) chỉ để hiển thị, không ảnh hưởng nhân vật thật.
 ;(function()
@@ -8592,6 +8592,9 @@ end end
     PI.reqId = 0          -- mỗi lần tra cứu tăng số này; kết quả cũ (stale) bị bỏ qua
     PI.last = nil         -- bản ghi tra cứu gần nhất
     PI.view = { yaw = 0.6, pitch = 0.15, dist = 9, auto = false, drag = false, hover = false }   -- auto: tự xoay 3D (mặc định TẮT)
+    PI.originalDesc = nil -- HumanoidDescription gốc của bạn (lưu lần đầu Lấy Skin)
+    PI.isApplied = false
+    PI.appliedId = nil
     PI.SPIN_BIND = "BC_PlayerViewSpin"
     -- Chạy lại script: gỡ bind của phần xem 3D
     pcall(function() RunService:UnbindFromRenderStep("BC_PlayerViewSpin") end)
@@ -8755,7 +8758,7 @@ end end
     end
 
     -- ===== GIAO DIỆN (trong trang 👥 NGƯỜI CHƠI, nằm dưới 🌳) =====
-    local PH = 300 -- gọn: đã bỏ danh sách phụ kiện thay skin, chỉ giữ tra cứu + xem 3D
+    local PH = 340 -- đã bỏ phụ kiện thay skin, thêm Lấy/Trả Skin: giữ tra cứu + xem 3D + lấy skin
     local P = New("Frame", {
         Name = "HubPlayerInfo_Panel",
         Size = UDim2.new(1, -16, 0, PH), Position = UDim2.new(0, 8, 0, D.playerY or 46),
@@ -8764,7 +8767,7 @@ end end
     Corner(P, UDim.new(0, 10)) Stroke(P, C.HAIRLINE, 1) D.Shade(P, Color3.fromRGB(255, 255, 255), Color3.fromRGB(188, 192, 205), 90)
 
     New("TextLabel", { Size = UDim2.new(1, -16, 0, 14), Position = UDim2.new(0, 8, 0, 4),
-        Text = "🔎 TRA CỨU · XEM 3D (kể cả người offline)", BackgroundTransparency = 1,
+        Text = "🔎 TRA CỨU · XEM 3D · 👕 LẤY SKIN", BackgroundTransparency = 1,
         TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7, }, P)
 
     local function pAct(txt, x, y, w, color, parent)
@@ -8838,6 +8841,83 @@ end end
         PI.ViewerUpdate()
         return true, nil
     end
+
+    -- ===== LẤY SKIN: ẩn nhân vật của bạn và thay bằng skin của người đã tra cứu =====
+    -- Hoạt động: lưu skin gốc lần đầu, rồi Humanoid:ApplyDescription(desc) lên nhân vật hiện tại.
+    -- Di chuyển bình thường vì chỉ đổi Appearance, không đụng tới WalkSpeed/Jump. Có thể ↩ Trả lại.
+    function PI.ApplySkin(rec)
+        if type(rec) ~= "table" or rec.desc == nil then return false, "chưa tra cứu người nào có skin" end
+        local char = player.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        if not hum then return false, "chưa có nhân vật (đợi load xong hãy bấm)" end
+        -- lưu skin gốc 1 lần duy nhất
+        if not PI.originalDesc then
+            local okA, odA = pcall(function() return hum:GetAppliedDescription() end)
+            if okA and odA then
+                local okC, cloneA = pcall(function() return odA:Clone() end)
+                PI.originalDesc = (okC and cloneA) and cloneA or odA
+            end
+            if not PI.originalDesc then
+                local okB, odB = pcall(function() return Players:GetHumanoidDescriptionFromUserId(player.UserId) end)
+                if okB and odB then PI.originalDesc = odB end
+            end
+        end
+        -- clone desc của người kia để không đụng bản gốc trong rec
+        local descToApply = rec.desc
+        local okC2, clone = pcall(function() return rec.desc:Clone() end)
+        if okC2 and clone then descToApply = clone end
+        local okA, errA = pcall(function() hum:ApplyDescription(descToApply) end)
+        if not okA then
+            -- thử ApplyDescriptionReset trên một số game
+            local okR, errR = pcall(function() hum:ApplyDescriptionReset(descToApply) end)
+            if not okR then return false, tostring(errR or errA) end
+        end
+        PI.isApplied = true
+        PI.appliedId = rec.id
+        return true, nil
+    end
+
+    function PI.ResetSkin()
+        if not PI.isApplied then return false, "bạn chưa Lấy Skin ai cả" end
+        local char = player.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        if not hum then return false, "không tìm thấy nhân vật để trả skin" end
+        local toRestore = PI.originalDesc
+        if not toRestore then
+            local okF, odF = pcall(function() return Players:GetHumanoidDescriptionFromUserId(player.UserId) end)
+            if okF and odF then toRestore = odF else return false, "không có skin gốc để trả (thử rejoin)" end
+        end
+        local okC, cloneR = pcall(function() return toRestore:Clone() end)
+        if okC and cloneR then toRestore = cloneR end
+        local okA, errA = pcall(function() hum:ApplyDescription(toRestore) end)
+        if not okA then
+            local okR, errR = pcall(function() hum:ApplyDescriptionReset(toRestore) end)
+            if not okR then return false, tostring(errR or errA) end
+        end
+        PI.isApplied = false
+        PI.appliedId = nil
+        return true, nil
+    end
+
+    -- Tự động giữ skin đã lấy khi bạn hồi sinh (chết / reset character)
+    pcall(function()
+        trackConn(player.CharacterAdded:Connect(function(newChar)
+            if not PI.isApplied or not PI.appliedId then return end
+            -- đợi Humanoid load
+            task.wait(0.6)
+            local rec = PI.last
+            if rec and rec.id == PI.appliedId and rec.desc then
+                pcall(function() PI.ApplySkin(rec) end)
+            else
+                -- fallback: lấy lại desc từ appliedId nếu PI.last đã đổi người khác
+                local ok, d = pcall(function() return Players:GetHumanoidDescriptionFromUserId(PI.appliedId) end)
+                if ok and d then
+                    local tmpRec = { desc = d, id = PI.appliedId }
+                    pcall(function() PI.ApplySkin(tmpRec) end)
+                end
+            end
+        end))
+    end)
 
     -- Kéo chuột trái (hoặc chạm) trong khung 3D để xoay; cuộn để zoom
     vp.InputBegan:Connect(function(input)
@@ -8947,8 +9027,14 @@ end end
         end)
     end
 
-    local copyProfBtn = pAct("📋 Copy link hồ sơ", 8, 274, 160, C.GRAY)
-    local copyIdBtn = pAct("🔗 Copy UserId", 176, 274, 120, C.GRAY) -- đã bỏ ✔ Bật hết / ✖ Tắt hết (thay skin)
+    local copyProfBtn = pAct("📋 Copy link", 8, 274, 110, C.GRAY)
+    local copyIdBtn = pAct("🔗 UserId", 124, 274, 86, C.GRAY) -- đã bỏ ✔ Bật hết / ✖ Tắt hết
+    local applySkinBtn = pAct("👕 Lấy Skin", 216, 274, 106, C.PURPLE)
+    local resetSkinBtn = pAct("↩ Trả Skin", 328, 274, 96, C.GRAY)
+    -- Nút ở hàng dưới: vừa lấy skin vừa xem 3D cùng lúc
+    local skinStatusLbl = New("TextLabel", { Name = "HubPlayerInfo_SkinStatus", Size = UDim2.new(1,-16,0,14), Position = UDim2.new(0,8,0,300),
+        Text = "👕 Chưa lấy skin — tra cứu rồi bấm 👕 Lấy Skin để hóa thân, vẫn di chuyển bình thường.",
+        BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium, TextSize = 8, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7, }, P)
 
     local function requireLast()
         if PI.last == nil then setStatus("⚠️ Hãy tra cứu một người chơi trước", C.YELLOW) return nil end
@@ -8967,7 +9053,63 @@ end end
         setStatus("Đã xoá. Nhập tên khác rồi bấm 🔍.", C.MUTED)
     end)
 
-    vBtnL.Activated:Connect(function() ReleaseHubFocus() PI.view.yaw = PI.view.yaw + 0.5 PI.ViewerUpdate() end)
+
+    -- 👕 Lấy / ↩ Trả Skin
+    applySkinBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        local rec = requireLast() if not rec then return end
+        -- nếu đã lấy skin người này rồi thì báo
+        if PI.isApplied and PI.appliedId == rec.id then
+            setStatus("ℹ️ Bạn đang dùng skin của @" .. rec.name .. " rồi — di chuyển thử xem!", C.YELLOW)
+            if skinStatusLbl then skinStatusLbl.Text = "👕 Đang dùng skin @" .. rec.name .. " — WASD / joystick di chuyển bình thường, ↩ Trả Skin để về lại."; skinStatusLbl.TextColor3 = C.GREEN end
+            return
+        end
+        local ok, err = PI.ApplySkin(rec)
+        if ok then
+            setStatus("✅ Đã Lấy Skin @" .. rec.name .. " — nhân vật của bạn đã đổi, di chuyển bình thường!", C.GREEN)
+            if skinStatusLbl then skinStatusLbl.Text = "👕 Đang hóa thân thành @" .. rec.name .. " (ID " .. tostring(rec.id) .. ") — chết/hồi sinh vẫn giữ, ↩ Trả Skin để về."; skinStatusLbl.TextColor3 = C.GREEN end
+            -- cập nhật viewport để khớp (đã có model 3D)
+            pcall(function() PI.ViewerBuild(rec) end)
+        else
+            setStatus("⚠️ Không lấy được skin: " .. tostring(err), C.RED)
+            if skinStatusLbl then skinStatusLbl.Text = "⚠️ Lấy skin thất bại: " .. tostring(err); skinStatusLbl.TextColor3 = C.RED end
+        end
+    end)
+    resetSkinBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        local ok, err = PI.ResetSkin()
+        if ok then
+            setStatus("↩ Đã trả skin gốc của bạn", C.GREEN)
+            if skinStatusLbl then skinStatusLbl.Text = "↩ Đã về skin gốc — tra cứu người khác rồi 👕 Lấy Skin tiếp!"; skinStatusLbl.TextColor3 = C.MUTED end
+        else
+            setStatus("⚠️ " .. tostring(err), C.YELLOW)
+            if skinStatusLbl then skinStatusLbl.Text = "⚠️ " .. tostring(err); skinStatusLbl.TextColor3 = C.YELLOW end
+        end
+    end)
+
+    -- Tự động cập nhật trạng thái skin khi đổi người tra cứu
+    pcall(function()
+        local _origRender = render
+        render = function(rec)
+            local okV, verr = _origRender(rec)
+            -- cập nhật skinStatus theo rec hiện tại
+            pcall(function()
+                if PI.isApplied and PI.appliedId == rec.id then
+                    skinStatusLbl.Text = "👕 Đang dùng skin @" .. rec.name .. " — bấm ↩ Trả Skin để về."
+                    skinStatusLbl.TextColor3 = C.GREEN
+                elseif PI.isApplied then
+                    skinStatusLbl.Text = "👕 Đang hóa thân @" .. tostring(PI.appliedId) .. " — tra cứu @" .. rec.name .. " rồi 👕 Lấy Skin để đổi."
+                    skinStatusLbl.TextColor3 = C.YELLOW
+                else
+                    skinStatusLbl.Text = "👕 Sẵn sàng lấy skin @" .. rec.name .. " — bấm 👕 Lấy Skin để hóa thân, di chuyển bình thường."
+                    skinStatusLbl.TextColor3 = C.MUTED
+                end
+            end)
+            return okV, verr
+        end
+    end)
+
+        vBtnL.Activated:Connect(function() ReleaseHubFocus() PI.view.yaw = PI.view.yaw + 0.5 PI.ViewerUpdate() end)
     vBtnR.Activated:Connect(function() ReleaseHubFocus() PI.view.yaw = PI.view.yaw - 0.5 PI.ViewerUpdate() end)
     vBtnIn.Activated:Connect(function() ReleaseHubFocus() PI.ViewerZoom(0.85) end)
     vBtnOut.Activated:Connect(function() ReleaseHubFocus() PI.ViewerZoom(1.18) end)
