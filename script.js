@@ -6677,7 +6677,7 @@ do
     local restoreBtn = button("↩ Khôi phục LOCAL", 108, 151, 158, C.GRAY)
     local serverRestoreBtn = button("↩ Khôi phục SERVER", 272, 151, 114, C.GRAY)
     local status = New("TextLabel", { Size = UDim2.new(1, -16, 0, 36), Position = UDim2.new(0, 8, 0, 187),
-        Text = "LOCAL: chỉ máy bạn (game có thể ghi đè). SERVER: mọi người đều thấy, cần cài OutfitServer. Mặc LOCAL sẽ tự tắt 🔎 LẤY SKIN (v5.7) nếu đang bật.", TextWrapped = true,
+        Text = "LOCAL = 1 nút: HÓA THÂN + mặc trang phục (kết hợp 🔎 LẤY SKIN), chỉ máy bạn thấy. SERVER: mọi người thấy, cần OutfitServer (bấm SERVER sẽ tắt 🔎 LẤY SKIN).", TextWrapped = true,
         BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium,
         TextSize = 9, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7, }, P)
     local selectedId, selectedName, original, originalHum = nil, nil, nil, nil
@@ -6745,8 +6745,10 @@ do
     local function say(text, good)
         status.Text = text status.TextColor3 = good and C.GREEN or C.MUTED
     end
-    -- 🔗 Kết hợp với 🔎 LẤY SKIN (v5.7): trước khi đổi trang phục LOCAL/SERVER,
-    -- tắt "skin giả" đang bật để 2 tính năng không đè lên nhau.
+    -- 🔗 Kết hợp với 🔎 LẤY SKIN (v5.7):
+    --  • 👕 Mặc LOCAL = HÓA THÂN luôn (gọi PI.ApplySkin) rồi mặc đồ; KHÔNG tắt skin
+    --    nên hai tính năng chạy chung, bạn thấy đúng người + đúng bộ đồ.
+    --  • 🌐 Mặc SERVER mới cần tắt "skin giả" trước, vì bạn phải thấy đồ SERVER vừa mặc.
     local function stopSkinIfAny()
         local PI = _G.BananaCatHub_PlayerInfo
         if type(PI) == "table" and type(PI.ResetSkin) == "function" and (PI.isApplied or PI._skinFake) then
@@ -6782,9 +6784,15 @@ do
     findBtn.Activated:Connect(find)
     input.FocusLost:Connect(function(enter) if enter then find() end end)
     -- Enter hoặc bấm Mặc trực tiếp đều tra username mới; không dùng lựa chọn đã cũ.
+    -- 👕 Mặc LOCAL = MỘT NÚT LÀM CẢ HAI: hóa thân bằng skin của chính người đó (v5.7) + mặc đồ LOCAL.
+    local function tryApplySkin(uid, uname, desc)
+        local PI = _G.BananaCatHub_PlayerInfo
+        if type(PI) ~= "table" or type(PI.ApplySkin) ~= "function" then return false, nil end
+        local ran, ok, msg = pcall(PI.ApplySkin, { id = uid, name = uname, desc = desc })
+        if ran and ok == true then return true, tostring(msg or "") end
+        return false, tostring((ran and msg) or ok)   -- hóa thân lỗi thì vẫn mặc đồ bình thường
+    end
     applyBtn.Activated:Connect(function()
-        local stoppedSkin = stopSkinIfAny()
-        if stoppedSkin then say("ℹ️ Đã tắt 🔎 LẤY SKIN trước khi mặc trang phục LOCAL.", true) end
         local typed = tostring(input.Text or ""):match("^%s*(.-)%s*$")
         if not typed or not typed:match("^[%w_]+$") or #typed > 20 then
             say("⚠️ Nhập username Roblox hợp lệ, không phải Display Name.", false) return
@@ -6823,6 +6831,10 @@ do
                 if not saved or not current then say("⚠️ Không lấy được trang phục gốc: " .. tostring(current), false) return end
                 original, originalHum = current, hum
             end
+            -- 🔗 KẾT HỢP: hóa thân thành người đó (dáng + mặt + tóc + đồ) TRƯỚC khi mặc đồ.
+            -- Đặt sau khi đã chụp trang phục gốc nên ↩ Khôi phục vẫn trả về đúng đồ của bạn.
+            local skinOk, skinMsg = tryApplySkin(uid, typed, desc)
+            if requestId ~= generation or not P.Parent then return end
             local okModel, source = pcall(function()
                 return Players:CreateHumanoidModelFromDescription(desc, hum.RigType)
             end)
@@ -6850,7 +6862,10 @@ do
             end
             if requestId ~= generation or not P.Parent then return end
             if player.Character ~= char then say("⚠️ Nhân vật đã hồi sinh khi tải đồ; bấm Mặc lại.", false)
+            elseif copied and skinOk then say("✅ Đã HÓA THÂN + mặc trang phục LOCAL @" .. typed .. " (" .. detail .. ") — kết hợp 🔎 LẤY SKIN, chỉ máy bạn thấy. Bấm ↩ Khôi phục để trả lại cả hai. Game có thể ghi đè.", true)
+            elseif copied and skinMsg then say("✅ Đã thay đồ LOCAL @" .. typed .. " (" .. detail .. "). ⚠️ Chưa hóa thân được: " .. skinMsg, true)
             elseif copied then say("✅ Đã thay đồ LOCAL @" .. typed .. " (" .. detail .. "). Game có thể ghi đè.", true)
+            elseif skinOk then say("✅ Đã hóa thân thành @" .. typed .. " (skin của người đó) nhưng chưa sao chép được phụ kiện: " .. tostring(detail or source), true)
             elseif applied then say("✅ Đã gọi ApplyDescription cục bộ; không sao chép được phụ kiện: " .. tostring(detail or source), true)
             else say("⚠️ Không áp được: " .. tostring(err) .. " / " .. tostring(detail or source), false) end
         end)
@@ -6885,6 +6900,8 @@ do
     serverRestoreBtn.Activated:Connect(function() serverAction("restore") end)
     restoreBtn.Activated:Connect(function()
         generation += 1
+        -- 🔗 Trả lại CẢ HAI: tắt skin đang hóa thân (v5.7) + khôi phục quần áo/phụ kiện LOCAL.
+        local skinBack = stopSkinIfAny()
         local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
         if not hum then say("⚠️ Nhân vật chưa sẵn sàng.", false) return end
         if localSaved and localSaved.character == player.Character then
@@ -6900,12 +6917,15 @@ do
             if localSaved.visuals then applyVisuals(player.Character, localSaved.visuals) end
             localSaved = nil
             original, originalHum = nil, nil
-            say("✅ Đã khôi phục quần áo/phụ kiện LOCAL.", true) return
+            say(skinBack and "✅ Đã khôi phục skin + quần áo/phụ kiện LOCAL." or "✅ Đã khôi phục quần áo/phụ kiện LOCAL.", true) return
         end
-        if not original or hum ~= originalHum then say("Không có trang phục cũ trên nhân vật hiện tại.", false) return end
+        if not original or hum ~= originalHum then
+            say(skinBack and "✅ Đã trả lại skin của bạn." or "Không có trang phục cũ trên nhân vật hiện tại.", skinBack == true) return
+        end
         local ok = pcall(function() hum:ApplyDescriptionReset(original) end)
         if not ok then ok = pcall(function() hum:ApplyDescription(original) end) end
-        if ok then original, originalHum = nil, nil say("✅ Đã khôi phục trang phục gốc.", true)
+        if ok then original, originalHum = nil, nil
+            say(skinBack and "✅ Đã khôi phục skin + trang phục gốc." or "✅ Đã khôi phục trang phục gốc.", true)
         else say("⚠️ Không khôi phục được trang phục; thử lại.", false) end
     end)
 end)()
