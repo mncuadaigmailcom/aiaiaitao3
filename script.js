@@ -8842,32 +8842,53 @@ end end
         return true, nil
     end
 
-    -- ===== LẤY SKIN: ẩn nhân vật của bạn và thay bằng skin người đã tra cứu (BẢN SỬA: hoạt động chắc chắn) =====
-    -- Cơ chế 2 lớp để luôn thấy đổi skin:
-    --  L1: thử Humanoid:ApplyDescription (đổi thật). Nhiều game FE chặn hoặc không replicate -> fallback
-    --  L2: tạo FAKE MODEL từ HumanoidDescription, ẩn char gốc (Transparency=1), cho fake bám theo HumanoidRootPart qua RenderStep -> luôn thấy, vẫn di chuyển bình thường
-    -- ↩ Trả Skin sẽ khôi phục lại (hiện char gốc, xóa fake, hoặc Apply lại desc gốc)
-    PI._skinHidden = PI._skinHidden or {} -- [part] = {trans, decals={}}
+    -- ===== LẤY SKIN: ẩn nhân vật của bạn và thay bằng skin người đã tra cứu (BẢN SỬA v5.7.2: xuyên mình, chặn vật thể) =====
+    -- Cơ chế 2 lớp:
+    --  L1: thử Humanoid:ApplyDescription (đổi thật). Nếu bị chặn -> fallback
+    --  L2: tạo FAKE MODEL từ HumanoidDescription, ẩn char gốc (Transparency=1), cho fake bám theo HRP qua RenderStep.
+    --  Yêu cầu mới: fake XUYÊN được qua mình (không va chạm với char gốc) nhưng KHÔNG xuyên vật thể khác (va chạm với Default).
+    --  Giải pháp: dùng PhysicsService Collision Groups - BC_SkinFake vs BC_SkinReal = false, vs Default = true.
+    --  Di chuyển bình thường vì fake chỉ bám theo HRP thật (HRP thật vẫn va chạm với map).
+    PI._skinHidden = PI._skinHidden or {} -- [part] = {t, e}
     PI._skinFake = PI._skinFake or nil
     PI._skinFollow = PI._skinFollow or nil
     PI._skinFollowBind = "BC_SkinFollow"
+    PI._skinGroupsSetup = PI._skinGroupsSetup or false
+
+    local function SetupSkinCollisionGroups()
+        if PI._skinGroupsSetup then return end
+        pcall(function()
+            local PS = game:GetService("PhysicsService")
+            pcall(function() PS:RegisterCollisionGroup("BC_SkinFake") end)
+            pcall(function() PS:RegisterCollisionGroup("BC_SkinReal") end)
+            pcall(function() PS:RegisterCollisionGroup("BC_SkinWorld") end)
+            pcall(function() PS:CollisionGroupSetCollidable("BC_SkinFake", "BC_SkinReal", false) end)
+            pcall(function() PS:CollisionGroupSetCollidable("BC_SkinFake", "BC_SkinFake", false) end)
+            pcall(function() PS:CollisionGroupSetCollidable("BC_SkinFake", "Default", true) end)
+            pcall(function() PS:CollisionGroupSetCollidable("BC_SkinFake", "BC_SkinWorld", true) end)
+            pcall(function() PS:CollisionGroupSetCollidable("BC_SkinReal", "Default", true) end)
+        end)
+        PI._skinGroupsSetup = true
+    end
 
     local function HideCharacter(char)
         if not char then return end
         PI._skinHidden = {}
+        SetupSkinCollisionGroups()
         pcall(function()
             for _, d in ipairs(char:GetDescendants()) do
                 pcall(function()
                     if d:IsA("BasePart") then
-                        PI._skinHidden[d] = {t = d.Transparency}
+                        PI._skinHidden[d] = {t = d.Transparency, cg = pcall(function() return d.CollisionGroup end) and d.CollisionGroup or "Default"}
                         d.Transparency = 1
-                        -- cũng ẩn decal/texture trên part
                         for _, ch in ipairs(d:GetChildren()) do
                             if ch:IsA("Decal") or ch:IsA("Texture") then
                                 PI._skinHidden[ch] = {t = ch.Transparency}
                                 ch.Transparency = 1
                             end
                         end
+                        pcall(function() d.CollisionGroup = "BC_SkinReal" end)
+                        pcall(function() d.CollisionGroupId = 1 end)
                     elseif d:IsA("Decal") or d:IsA("Texture") then
                         PI._skinHidden[d] = {t = d.Transparency}
                         d.Transparency = 1
@@ -8888,6 +8909,12 @@ end end
                         if st.t ~= nil and inst:IsA("BasePart") then inst.Transparency = st.t
                         elseif st.t ~= nil and (inst:IsA("Decal") or inst:IsA("Texture")) then inst.Transparency = st.t
                         elseif st.e ~= nil then inst.Enabled = st.e end
+                        if st.cg ~= nil and inst:IsA("BasePart") then
+                            pcall(function() inst.CollisionGroup = st.cg end)
+                            pcall(function() inst.CollisionGroup = "Default" end)
+                        elseif inst:IsA("BasePart") then
+                            pcall(function() inst.CollisionGroup = "Default" end)
+                        end
                     end
                 end)
             end
@@ -8909,18 +8936,33 @@ end end
         local hrp = char:FindFirstChild("HumanoidRootPart") or char.PrimaryPart
         local fakeHrp = PI._skinFake.PrimaryPart or PI._skinFake:FindFirstChild("HumanoidRootPart") or PI._skinFake:FindFirstChildWhichIsA("BasePart", true)
         if not hrp or not fakeHrp then return end
-        -- đảm bảo fake không va chạm, không rơi
+        SetupSkinCollisionGroups()
         pcall(function()
             for _, pp in ipairs(PI._skinFake:GetDescendants()) do
                 if pp:IsA("BasePart") then
-                    pp.CanCollide = false
+                    if pp.Transparency > 0.1 then pp.Transparency = 0 end
+                    pp.CanCollide = true
                     pp.Anchored = false
                     pp.Massless = true
+                    pcall(function() pp.CollisionGroup = "BC_SkinFake" end)
+                    pcall(function() pp.CollisionGroupId = 2 end)
+                    pp.CanTouch = false
                 end
             end
-            if PI._skinFake.PrimaryPart then PI._skinFake.PrimaryPart.Anchored = false end
+            if PI._skinFake.PrimaryPart then
+                PI._skinFake.PrimaryPart.Anchored = false
+                pcall(function() PI._skinFake.PrimaryPart.CollisionGroup = "BC_SkinFake" end)
+            end
+            local fh = PI._skinFake:FindFirstChildOfClass("Humanoid")
+            if fh then
+                pcall(function() fh.EvaluateStateMachine = false end)
+                pcall(function() fh.BreakJointsOnDeath = false end)
+                fh.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+                fh.HealthDisplayType = Enum.HumanoidDisplayType.AlwaysOff
+            end
         end)
-        StopSkinFollow() -- dọn bind cũ nếu có
+        pcall(function() PI._skinFake:SetPrimaryPartCFrame(hrp.CFrame) end)
+        StopSkinFollow()
         local okBind = pcall(function()
             RunService:BindToRenderStep(PI._skinFollowBind, Enum.RenderPriority.Camera.Value - 1, function()
                 if not (char and char.Parent and PI._skinFake and PI._skinFake.Parent and hrp and hrp.Parent and fakeHrp and fakeHrp.Parent) then
@@ -8928,7 +8970,6 @@ end end
                     return
                 end
                 pcall(function()
-                    -- đặt fake khớp vị trí + hướng của nhân vật thật, nhấc nhẹ 0.05 để tránh z-fighting nếu chưa ẩn hết
                     local cf = hrp.CFrame
                     PI._skinFake:SetPrimaryPartCFrame(cf)
                 end)
@@ -8943,7 +8984,6 @@ end end
         local hum = char and char:FindFirstChildOfClass("Humanoid")
         if not char or not hum then return false, "chưa có nhân vật (đợi load xong, thử lại sau 1s)" end
 
-        -- lưu skin gốc 1 lần duy nhất (để ↩ Trả Skin)
         if not PI.originalDesc then
             local okA, odA = pcall(function() return hum:GetAppliedDescription() end)
             if okA and odA then
@@ -8956,7 +8996,6 @@ end end
             end
         end
 
-        -- 1) Thử đổi thật bằng ApplyDescription (nếu game cho phép thì đẹp nhất)
         local triedApply = false
         local applyOk = false
         do
@@ -8973,12 +9012,6 @@ end end
             end
         end
 
-        -- 2) Tạo FAKE MODEL để đảm bảo luôn thấy (kể cả khi Apply bị chặn)
-        --    Nếu Apply đã ok thì vẫn tạo fake làm lớp đảm bảo visual, nhưng chỉ khi cần
-        local needFake = true
-        -- nếu Apply thành công và người dùng không muốn fake thì có thể bỏ fake, nhưng để chắc chắn ta vẫn tạo fake
-        -- Tuy nhiên nếu Apply ok và char là R15/R6 khớp thì có thể không cần fake -> ta kiểm tra sau 0.3s xem desc có đổi không
-        -- Ở đây ta LUÔN tạo fake để “ẩn + thay” như mô tả, đảm bảo 100% thấy
         pcall(function() if PI._skinFake then PI._skinFake:Destroy() end end)
         PI._skinFake = nil
         local fake, ferr = nil, nil
@@ -8994,7 +9027,6 @@ end end
         end
         if fake then
             fake.Name = "BC_SkinFake_" .. tostring(rec.id)
-            -- đặt vào workspace, ẩn Humanoid Display
             pcall(function()
                 local fh = fake:FindFirstChildOfClass("Humanoid")
                 if fh then
@@ -9003,7 +9035,6 @@ end end
                     pcall(function() fh:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false) end)
                 end
                 fake.Parent = workspace
-                -- thử SetPrimaryPart nếu chưa có
                 if not fake.PrimaryPart then
                     local hrp = fake:FindFirstChild("HumanoidRootPart") or fake:FindFirstChild("Torso") or fake:FindFirstChildWhichIsA("BasePart", true)
                     if hrp then fake.PrimaryPart = hrp end
@@ -9013,7 +9044,6 @@ end end
             HideCharacter(char)
             StartSkinFollow(char)
         else
-            -- không tạo được fake thì chỉ dựa vào Apply
             if not applyOk then
                 return false, "không tạo được model skin: " .. tostring(ferr) .. " (thử tra cứu lại hoặc thử người khác)"
             end
@@ -9021,13 +9051,12 @@ end end
 
         PI.isApplied = true
         PI.appliedId = rec.id
-        -- báo chi tiết để debug
         if applyOk and fake then
-            return true, "apply+fake"
+            return true, "apply+fake (thấy rõ, xuyên mình, chặn tường)"
         elseif applyOk then
             return true, "apply"
         elseif fake then
-            return true, "fake"
+            return true, "fake (thấy rõ, xuyên mình, chặn tường)"
         else
             return false, "không rõ lỗi"
         end
@@ -9037,10 +9066,8 @@ end end
         if not PI.isApplied and not PI._skinFake then return false, "bạn chưa Lấy Skin ai cả" end
         local char = player.Character
         local hum = char and char:FindFirstChildOfClass("Humanoid")
-        -- 1) Hiện lại char gốc
         ShowCharacter()
         StopSkinFollow()
-        -- 2) Trả ApplyDescription về gốc nếu có
         if hum and PI.originalDesc then
             local toRestore = PI.originalDesc
             local okC, cloneR = pcall(function() return toRestore:Clone() end)
@@ -9056,12 +9083,10 @@ end end
         return true, nil
     end
 
-    -- Tự động giữ skin đã lấy khi bạn hồi sinh (chết / reset character)
     pcall(function()
         trackConn(player.CharacterAdded:Connect(function(newChar)
             if not PI.isApplied or not PI.appliedId then return end
             task.wait(0.7)
-            -- đợi Humanoid load
             local hum2 = newChar:WaitForChild("Humanoid", 5)
             if not hum2 then return end
             task.wait(0.2)
