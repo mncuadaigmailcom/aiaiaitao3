@@ -682,8 +682,11 @@ Store.lastError      = nil Store.lastSavedAt    = nil
 Store.saveCount      = 0 Store.loadedScripts  = 0
 Store.loadedWp       = 0
 Store.loadedFeatures = {}     -- dữ liệu thô đọc từ đĩa; TAB5 sẽ dựng thành tab thật
+Store.savedSkins     = {}     -- danh sách các skin đã bấm 💾 Lưu Skin
+Store.autoUseSkin    = nil    -- bản ghi skin đã bấm ⚡ Lưu Skin Dùng (tự động dùng khi mở script)
 Store.restoreFeatures = nil   -- TAB5 gán hàm dựng lại tab tính năng vào đây
 Store.restoreWaypoints = nil  -- TAB3 gán RebuildWaypoints vào đây (TAB2 cần mà chưa tồn tại)
+Store.restoreSkins   = nil    -- PI gán hàm cập nhật UI skin đã lưu vào đây
 Store.statusLbl      = nil      -- tab "Code Đã Lưu" gán nhãn trạng thái vào đây
 Store.reloadBtn      = nil Store._scheduled     = false
 Store.refreshStatus  = nil      -- tab "Code Đã Lưu" gán hàm cập nhật nhãn vào đây
@@ -742,6 +745,8 @@ function Store.serialize() local sOut = {}
         }) end return {
         version   = Store.SAVE_VERSION, scripts   = sOut,
         waypoints = wOut, features  = fOut,
+        savedSkins = type(Store.savedSkins) == "table" and Store.savedSkins or {},
+        autoUseSkin = type(Store.autoUseSkin) == "table" and Store.autoUseSkin or nil,
         settings  = { embedEnabled  = (S.embedEnabled == true), embedGuessNew = (S.embedGuessNew == true),
             parkCodeGuis  = (S.parkCodeGuis ~= false),   -- v4.4i
             hubFavs = (function() local out = {}
@@ -762,6 +767,7 @@ function Store.saveSoon() if Store._scheduled then return end
 function Store.load() local data = Store.read()
     if type(data) ~= "table" then Store.mode = Store.canWrite() and "empty" or "none"
         Store.loadedScripts, Store.loadedWp = 0, 0 Store.loadedFeatures = {}
+        Store.savedSkins = {} Store.autoUseSkin = nil
         return end
 
     local fileVer = tonumber(data.version) or 1 if fileVer > Store.SAVE_VERSION then
@@ -790,6 +796,20 @@ function Store.load() local data = Store.read()
                 table.insert(fOut, { name = (type(f.name) == "string" and #f.name > 0) and f.name or ("Tính Năng " .. (#fOut + 1)), icon = (type(f.icon) == "string" and #f.icon > 0) and f.icon or "⚙️",
                     code = S.SanitizeCode(f.code), })
             end end end
+
+    local skOut = {} if type(data.savedSkins) == "table" then
+        for _, sk in ipairs(data.savedSkins) do
+            if type(sk) == "table" and (tonumber(sk.id) or (type(sk.name) == "string" and #sk.name > 0)) then
+                table.insert(skOut, sk)
+            end
+        end
+    end
+    Store.savedSkins = skOut
+    if type(data.autoUseSkin) == "table" and (tonumber(data.autoUseSkin.id) or (type(data.autoUseSkin.name) == "string" and #data.autoUseSkin.name > 0)) then
+        Store.autoUseSkin = data.autoUseSkin
+    else
+        Store.autoUseSkin = nil
+    end
 
     scripts   = sOut waypoints = wOut
     Store.loadedFeatures = fOut Store.loadedScripts, Store.loadedWp = #sOut, #wOut
@@ -1103,6 +1123,7 @@ Store.refreshStatus = function() if not Store.statusLbl or not Store.statusLbl.P
 S.DoReload = function() Store.load()
     RebuildScripts() S.Rebuild()
     if Store.restoreWaypoints then pcall(Store.restoreWaypoints) end if Store.restoreFeatures then pcall(Store.restoreFeatures) end
+    if Store.restoreSkins then pcall(Store.restoreSkins) end
     flash(Store.reloadBtn, "✅ Đã nạp", 1.4) end Store.reloadBtn.Activated:Connect(S.DoReload)
 
 sy = sy + 24
@@ -8903,6 +8924,59 @@ end end
             local seenAccIds = {}
             local accOrder = 0
 
+            local function extractAccAssetId(la)
+                if not la then return nil end
+                local aid = nil
+                pcall(function() aid = tonumber(la.AssetId) or tonumber(la._assetId) or tonumber(la:GetAttribute("AssetId")) end)
+                if aid and aid > 0 then return aid end
+                pcall(function()
+                    local h = la:FindFirstChild("Handle")
+                    if h then
+                        local sm = h:FindFirstChildOfClass("SpecialMesh")
+                        local mid = (sm and tostring(sm.MeshId or "")) or tostring(h.MeshId or "")
+                        local n = tonumber(mid:match("(%d+)"))
+                        if n and n > 0 then aid = n end
+                    end
+                end)
+                return aid
+            end
+
+            local function matchLiveAcc(aid, subType)
+                -- Ưu tiên 1: khớp chính xác AssetId / MeshId
+                if aid and aid > 0 then
+                    for li, la in ipairs(liveAccs) do
+                        if not usedLive[li] then
+                            local laAid = extractAccAssetId(la)
+                            if laAid and laAid == aid then
+                                usedLive[li] = true
+                                return la
+                            end
+                        end
+                    end
+                end
+                -- Ưu tiên 2: khớp theo AccessoryType (chỉ khi Accessory đó không có AssetId khác)
+                if subType and subType ~= "" then
+                    for li, la in ipairs(liveAccs) do
+                        if not usedLive[li] then
+                            local laAid = extractAccAssetId(la)
+                            if not laAid or laAid == aid then
+                                local laType = ""
+                                pcall(function()
+                                    local at = la.AccessoryType
+                                    if type(at) == "table" and at.Name then laType = tostring(at.Name)
+                                    else laType = tostring(at or ""):gsub("^Enum%.AccessoryType%.", "") end
+                                end)
+                                if laType ~= "" and string.lower(laType) == string.lower(subType) then
+                                    usedLive[li] = true
+                                    return la
+                                end
+                            end
+                        end
+                    end
+                end
+                return nil
+            end
+
             if desc then
                 local okA, rawAcc = pcall(function() return desc:GetAccessories(true) end)
                 if okA and type(rawAcc) == "table" then
@@ -8912,23 +8986,13 @@ end end
                             if aid > 0 then
                                 accOrder = accOrder + 1
                                 seenAccIds[aid] = true
-                                local atName = tostring(s.AccessoryType or ""):gsub("^Enum%.AccessoryType%.", "")
-                                local matchedLive = nil
-                                for li, la in ipairs(liveAccs) do
-                                    if not usedLive[li] then
-                                        local laAid = nil
-                                        pcall(function() laAid = tonumber(la.AssetId) end)
-                                        if laAid and laAid == aid then
-                                            matchedLive = la
-                                            usedLive[li] = true
-                                            break
-                                        end
-                                    end
+                                local atName = ""
+                                if type(s.AccessoryType) == "table" and s.AccessoryType.Name then
+                                    atName = tostring(s.AccessoryType.Name)
+                                else
+                                    atName = tostring(s.AccessoryType or ""):gsub("^Enum%.AccessoryType%.", "")
                                 end
-                                if not matchedLive and liveAccs[accOrder] and not usedLive[accOrder] then
-                                    matchedLive = liveAccs[accOrder]
-                                    usedLive[accOrder] = true
-                                end
+                                local matchedLive = matchLiveAcc(aid, atName)
                                 addItem({
                                     accOrder = accOrder,
                                     category = "accessory",
@@ -8961,11 +9025,7 @@ end end
                             if aid > 0 and not seenAccIds[aid] then
                                 seenAccIds[aid] = true
                                 accOrder = accOrder + 1
-                                local matchedLive = nil
-                                if liveAccs[accOrder] and not usedLive[accOrder] then
-                                    matchedLive = liveAccs[accOrder]
-                                    usedLive[accOrder] = true
-                                end
+                                local matchedLive = matchLiveAcc(aid, cp.sub)
                                 addItem({
                                     accOrder = accOrder,
                                     category = "accessory",
@@ -9305,7 +9365,18 @@ end end
                         for _, acc in ipairs(modelAccs) do
                             if acc and acc.Parent then
                                 local accAid = nil
-                                pcall(function() accAid = tonumber(acc.AssetId) end)
+                                pcall(function() accAid = tonumber(acc.AssetId) or tonumber(acc._assetId) or tonumber(acc:GetAttribute("AssetId")) end)
+                                if not accAid or accAid <= 0 then
+                                    pcall(function()
+                                        local h = acc:FindFirstChild("Handle")
+                                        if h then
+                                            local sm = h:FindFirstChildOfClass("SpecialMesh")
+                                            local mid = (sm and tostring(sm.MeshId or "")) or tostring(h.MeshId or "")
+                                            local n = tonumber(mid:match("(%d+)"))
+                                            if n and n > 0 then accAid = n end
+                                        end
+                                    end)
+                                end
                                 if (it.instName and acc.Name == it.instName)
                                     or (it.name and acc.Name == it.name)
                                     or (it.assetId and it.assetId > 0 and accAid == it.assetId) then
@@ -9504,6 +9575,397 @@ end end
         return clone, nil
     end
 
+    -- ===== LƯU SKIN & LƯU SKIN DÙNG (TỰ ĐỘNG MẶC KHI CHẠY SCRIPT) =====
+    do
+        PI.savedSkins = (type(Store) == "table" and type(Store.savedSkins) == "table") and Store.savedSkins or {}
+        PI.autoUseSkin = (type(Store) == "table" and type(Store.autoUseSkin) == "table") and Store.autoUseSkin or nil
+
+        local SCALAR_DESC_NUMS = {
+            "Shirt", "Pants", "GraphicTShirt", "Face", "Head",
+            "Torso", "LeftArm", "RightArm", "LeftLeg", "RightLeg",
+            "WidthScale", "HeightScale", "DepthScale", "HeadScale", "BodyTypeScale", "ProportionScale",
+            "IdleAnimation", "WalkAnimation", "RunAnimation", "JumpAnimation", "FallAnimation", "ClimbAnimation", "SwimAnimation",
+        }
+        local SCALAR_DESC_STRS = {
+            "HatAccessory", "HairAccessory", "FaceAccessory", "NeckAccessory",
+            "ShouldersAccessory", "FrontAccessory", "BackAccessory", "WaistAccessory",
+        }
+        local COLOR_DESC_KEYS = {
+            "HeadColor", "TorsoColor", "LeftArmColor", "RightArmColor", "LeftLegColor", "RightLegColor",
+        }
+
+        function PI.SerializeDesc(desc)
+            if not desc then return nil end
+            local snap = { nums = {}, strs = {}, cols = {}, accs = {} }
+            for _, k in ipairs(SCALAR_DESC_NUMS) do
+                pcall(function()
+                    local v = tonumber(desc[k])
+                    if v ~= nil then snap.nums[k] = v end
+                end)
+            end
+            for _, k in ipairs(SCALAR_DESC_STRS) do
+                pcall(function()
+                    local v = tostring(desc[k] or "")
+                    if v ~= "" then snap.strs[k] = v end
+                end)
+            end
+            for _, k in ipairs(COLOR_DESC_KEYS) do
+                pcall(function()
+                    local c = desc[k]
+                    if c and tonumber(c.R) and tonumber(c.G) and tonumber(c.B) then
+                        snap.cols[k] = { r = tonumber(c.R), g = tonumber(c.G), b = tonumber(c.B) }
+                    end
+                end)
+            end
+            pcall(function()
+                for _, s in ipairs(desc:GetAccessories(true) or {}) do
+                    if type(s) == "table" and (tonumber(s.AssetId) or 0) > 0 then
+                        local atName = tostring(s.AccessoryType or ""):gsub("^Enum%.AccessoryType%.", "")
+                        snap.accs[#snap.accs + 1] = {
+                            AssetId = tonumber(s.AssetId),
+                            AccessoryType = atName ~= "" and atName or "Hat",
+                            IsLayered = (s.IsLayered == true),
+                            Order = tonumber(s.Order),
+                            Puffiness = tonumber(s.Puffiness),
+                        }
+                    end
+                end
+            end)
+            return snap
+        end
+
+        function PI.DeserializeDesc(snap)
+            if type(snap) ~= "table" then return nil end
+            local okD, d = pcall(function() return Instance.new("HumanoidDescription") end)
+            if not okD or not d then return nil end
+            for k, v in pairs(snap.nums or {}) do
+                pcall(function() d[k] = tonumber(v) or 0 end)
+            end
+            for k, v in pairs(snap.strs or {}) do
+                pcall(function() d[k] = tostring(v or "") end)
+            end
+            for k, c in pairs(snap.cols or {}) do
+                if type(c) == "table" then
+                    pcall(function() d[k] = Color3.new(tonumber(c.r) or 0.9, tonumber(c.g) or 0.85, tonumber(c.b) or 0.75) end)
+                end
+            end
+            if type(snap.accs) == "table" and #snap.accs > 0 then
+                local specs = {}
+                for _, a in ipairs(snap.accs) do
+                    if type(a) == "table" and (tonumber(a.AssetId) or 0) > 0 then
+                        local at = tostring(a.AccessoryType or "Hat")
+                        local enumAt = nil
+                        pcall(function() enumAt = Enum.AccessoryType[at] end)
+                        specs[#specs + 1] = {
+                            AssetId = tonumber(a.AssetId),
+                            AccessoryType = enumAt or at,
+                            IsLayered = (a.IsLayered == true),
+                            Order = tonumber(a.Order),
+                            Puffiness = tonumber(a.Puffiness),
+                        }
+                    end
+                end
+                pcall(function() d:SetAccessories(specs, true) end)
+            end
+            return d
+        end
+
+        function PI.SerializeSkinEntry(rec, mode)
+            if type(rec) ~= "table" then return nil end
+            PI.EnsureSkinItems(rec)
+            local kept, total, deleted = PI.KeptCount(rec)
+            local keepMap = {}
+            local removedAssets = {}
+            local removedSubTypes = {}
+            local removedInstNames = {}
+            local keep = rec.keep or {}
+            for _, it in ipairs(rec.skinItems or {}) do
+                local isKept = (keep[it.idx] ~= false)
+                keepMap[tostring(it.idx)] = isKept
+                if not isKept then
+                    if it.assetId and it.assetId > 0 then
+                        removedAssets[#removedAssets + 1] = tonumber(it.assetId)
+                    end
+                    if it.subType and it.subType ~= "" and it.category ~= "accessory" then
+                        removedSubTypes[#removedSubTypes + 1] = tostring(it.subType)
+                    end
+                    if it.instName and it.instName ~= "" then
+                        removedInstNames[#removedInstNames + 1] = tostring(it.instName)
+                    end
+                end
+            end
+            local effMode = mode
+            if not effMode or effMode == "" then
+                if PI.skinActive and not PI.localActive then effMode = "skin"
+                elseif PI.localActive and not PI.skinActive then effMode = "local"
+                else effMode = "both" end
+            end
+            local savedAt = ""
+            pcall(function() if os and os.date then savedAt = os.date("%H:%M:%S") end end)
+            local modeLabel = (effMode == "local" and "Mặc LOCAL") or (effMode == "skin" and "Lấy Skin") or "Cả 2"
+            local delTag = deleted > 0 and (" · đã xoá " .. tostring(deleted) .. " món") or ""
+            local label = string.format("@%s (%s) · Giữ %d/%d món%s [%s]",
+                tostring(rec.name or rec.id), tostring(rec.displayName or rec.name or rec.id), kept, total, delTag, modeLabel)
+            return {
+                uid = string.format("%s_%d_%d", tostring(rec.id or 0), kept, total),
+                id = tonumber(rec.id) or 0,
+                name = tostring(rec.name or ""),
+                displayName = tostring(rec.displayName or rec.name or ""),
+                label = label,
+                thumb = type(rec.thumb) == "string" and rec.thumb or "",
+                mode = effMode,
+                keptCount = kept,
+                totalCount = total,
+                deletedCount = deleted,
+                keepMap = keepMap,
+                removedAssets = removedAssets,
+                removedSubTypes = removedSubTypes,
+                removedInstNames = removedInstNames,
+                descSnapshot = PI.SerializeDesc(rec.desc),
+                savedAt = savedAt,
+            }
+        end
+
+        function PI.BuildRecFromSavedEntry(entry)
+            if type(entry) ~= "table" then return nil, "bản lưu skin không hợp lệ" end
+            local id = tonumber(entry.id) or 0
+            local nm = tostring(entry.name or "")
+            if id <= 0 and nm ~= "" then
+                local rId, rNm = PI.ResolveUser(nm)
+                if rId then
+                    id = rId
+                    if nm == "" and rNm then nm = rNm end
+                end
+            end
+            local desc = nil
+            if type(entry.descSnapshot) == "table" then
+                desc = PI.DeserializeDesc(entry.descSnapshot)
+            end
+            if not desc and id > 0 then
+                desc = PI.FetchDesc(id)
+            end
+            local rec = {
+                id = id,
+                name = nm ~= "" and nm or tostring(id),
+                displayName = tostring(entry.displayName or nm or id),
+                created = "Đã lưu",
+                description = "Skin nạp từ Kho Đã Lưu" .. (entry.savedAt and entry.savedAt ~= "" and (" (lúc " .. tostring(entry.savedAt) .. ")") or ""),
+                isBanned = false,
+                verified = false,
+                presence = "💾 Bản lưu Skin",
+                inServer = id > 0 and PI.InThisServer(id, nil) or false,
+                desc = desc,
+                thumb = type(entry.thumb) == "string" and entry.thumb or "",
+                keep = {},
+            }
+            PI.ParseSkinItems(rec)
+
+            -- Khôi phục đúng các món skin đã xoá trong bản lưu
+            local remAssets, remSubs, remInsts = {}, {}, {}
+            for _, a in ipairs(entry.removedAssets or {}) do remAssets[tonumber(a) or -1] = true end
+            for _, s in ipairs(entry.removedSubTypes or {}) do remSubs[tostring(s)] = true end
+            for _, ins in ipairs(entry.removedInstNames or {}) do remInsts[tostring(ins)] = true end
+            local kMap = type(entry.keepMap) == "table" and entry.keepMap or nil
+            local delCnt = tonumber(entry.deletedCount) or 0
+            local keptCnt = tonumber(entry.keptCount)
+            if delCnt > 0 and keptCnt == 0 then
+                for _, it in ipairs(rec.skinItems or {}) do
+                    rec.keep[it.idx] = false
+                end
+            elseif delCnt > 0 or kMap then
+                for _, it in ipairs(rec.skinItems or {}) do
+                    local isRem = false
+                    if it.assetId and it.assetId > 0 and remAssets[it.assetId] then isRem = true end
+                    if it.instName and remInsts[it.instName] then isRem = true end
+                    if it.category ~= "accessory" and it.subType and remSubs[it.subType] then isRem = true end
+                    if not isRem and kMap ~= nil then
+                        local kv = kMap[tostring(it.idx)]
+                        if kv == nil then kv = kMap[it.idx] end
+                        if kv == false then isRem = true end
+                    end
+                    rec.keep[it.idx] = not isRem
+                end
+            end
+            return rec, nil
+        end
+
+        function PI.PersistSkins()
+            if type(Store) == "table" then
+                Store.savedSkins = PI.savedSkins
+                Store.autoUseSkin = PI.autoUseSkin
+                pcall(Store.save)
+            end
+        end
+
+        function PI.IsSameSavedSkin(a, b)
+            if type(a) ~= "table" or type(b) ~= "table" then return false end
+            if tonumber(a.id) and tonumber(b.id) and tonumber(a.id) > 0 and tonumber(b.id) > 0 then
+                return tonumber(a.id) == tonumber(b.id)
+                    and (tonumber(a.keptCount) or 0) == (tonumber(b.keptCount) or 0)
+                    and (tonumber(a.deletedCount) or 0) == (tonumber(b.deletedCount) or 0)
+            end
+            return string.lower(tostring(a.name or "")) == string.lower(tostring(b.name or ""))
+        end
+
+        -- 💾 LƯU SKIN: Lưu skin hiện tại (kèm các món đã xoá) vào danh sách Kho Skin Đã Lưu
+        function PI.SaveSkin(rec, mode)
+            if type(rec) ~= "table" or (rec.desc == nil and rec.id == nil) then
+                return false, "chưa có skin người chơi để lưu (hãy tra cứu trước)", nil
+            end
+            local entry = PI.SerializeSkinEntry(rec, mode)
+            if not entry then return false, "không đóng gói được dữ liệu skin", nil end
+            local updated = false
+            for i, ex in ipairs(PI.savedSkins) do
+                if PI.IsSameSavedSkin(ex, entry) then
+                    PI.savedSkins[i] = entry
+                    updated = true
+                    break
+                end
+            end
+            if not updated then
+                table.insert(PI.savedSkins, 1, entry)
+            end
+            if PI.autoUseSkin and PI.IsSameSavedSkin(PI.autoUseSkin, entry) then
+                PI.autoUseSkin = entry
+            end
+            PI.PersistSkins()
+            if PI.RefreshSavedSkinsUI then pcall(PI.RefreshSavedSkinsUI) end
+            if PI.RefreshButtons then pcall(PI.RefreshButtons) end
+            local msg = string.format("Đã lưu skin @%s (giữ %d/%d món, đã xoá %d món)",
+                tostring(entry.name), entry.keptCount or 0, entry.totalCount or 0, entry.deletedCount or 0)
+            return true, msg, entry
+        end
+
+        -- ▶ Áp dụng một bản lưu skin (từ Kho Đã Lưu hoặc từ Lưu Skin Dùng khi mở script)
+        function PI.ApplySavedSkinEntry(entry, modeOverride, existingRec)
+            if type(entry) ~= "table" then return false, "bản lưu skin trống", nil end
+            if type(modeOverride) == "table" then
+                existingRec = modeOverride
+                modeOverride = nil
+            end
+            local rec, err = existingRec, nil
+            if type(rec) ~= "table" then
+                rec, err = PI.BuildRecFromSavedEntry(entry)
+            end
+            if not rec then return false, tostring(err or "không đọc được skin đã lưu"), nil end
+            PI.last = rec
+            if PI.OnSavedRecLoaded then pcall(PI.OnSavedRecLoaded, rec) end
+            local mode = tostring(modeOverride or entry.mode or "both")
+            local ok, msg
+            if mode == "skin" then
+                ok, msg = PI.ApplySkin(rec)
+            elseif mode == "local" then
+                ok, msg = PI.ApplyLocal(rec)
+            else
+                ok, msg = PI.ApplyBoth(rec)
+            end
+            if PI.RefreshSavedSkinsUI then pcall(PI.RefreshSavedSkinsUI) end
+            if PI.RefreshButtons then pcall(PI.RefreshButtons) end
+            return ok, msg, rec
+        end
+
+        -- ⚡ LƯU SKIN DÙNG: Lưu skin này làm skin mặc định tự động sử dụng mỗi khi chạy script!
+        function PI.SaveSkinForAutoUse(rec, mode, applyNow)
+            if type(rec) ~= "table" or (rec.desc == nil and rec.id == nil) then
+                return false, "chưa có skin người chơi để Lưu Skin Dùng (hãy tra cứu trước)", nil
+            end
+            local okSave, saveMsg, entry = PI.SaveSkin(rec, mode)
+            if not okSave or not entry then
+                return false, tostring(saveMsg or "không lưu được skin"), nil
+            end
+            PI.autoUseSkin = entry
+            PI.PersistSkins()
+            local okApply, applyMsg = true, "đã lưu"
+            if applyNow ~= false then
+                okApply, applyMsg = PI.ApplySavedSkinEntry(entry, entry.mode or mode or "both", rec)
+            end
+            if PI.RefreshSavedSkinsUI then pcall(PI.RefreshSavedSkinsUI) end
+            if PI.RefreshButtons then pcall(PI.RefreshButtons) end
+            local fullMsg = string.format("Đã Lưu Skin Dùng @%s (giữ %d/%d món) — sẽ TỰ ĐỘNG SỬ DỤNG mỗi khi bạn chạy script! (%s)",
+                tostring(entry.name), entry.keptCount or 0, entry.totalCount or 0, tostring(applyMsg or "đã mặc"))
+            return okApply ~= false, fullMsg, entry
+        end
+
+        function PI.SetEntryAsAutoUse(entryOrIndex, applyNow)
+            local entry = (type(entryOrIndex) == "table") and entryOrIndex or PI.savedSkins[tonumber(entryOrIndex) or 0]
+            if not entry then return false, "không tìm thấy bản lưu skin" end
+            PI.autoUseSkin = entry
+            PI.PersistSkins()
+            local okApply, applyMsg = true, "OK"
+            if applyNow ~= false then
+                okApply, applyMsg = PI.ApplySavedSkinEntry(entry)
+            end
+            if PI.RefreshSavedSkinsUI then pcall(PI.RefreshSavedSkinsUI) end
+            if PI.RefreshButtons then pcall(PI.RefreshButtons) end
+            return okApply, string.format("Đã đặt @%s làm Skin Tự Dùng khi chạy script (%s)", tostring(entry.name), tostring(applyMsg or "OK")), entry
+        end
+
+        function PI.ClearAutoUseSkin()
+            if not PI.autoUseSkin then
+                return false, "Hiện chưa bật Lưu Skin Dùng nào"
+            end
+            local oldName = tostring(PI.autoUseSkin.name or PI.autoUseSkin.id or "")
+            PI.autoUseSkin = nil
+            PI.PersistSkins()
+            if PI.RefreshSavedSkinsUI then pcall(PI.RefreshSavedSkinsUI) end
+            if PI.RefreshButtons then pcall(PI.RefreshButtons) end
+            return true, "🚫 Đã tắt tự động dùng skin (@" .. oldName .. ") khi chạy script"
+        end
+
+        function PI.DeleteSavedSkin(index)
+            local idx = tonumber(index) or 0
+            local entry = PI.savedSkins[idx]
+            if not entry then return false, "không tìm thấy skin để xoá" end
+            if PI.autoUseSkin and PI.IsSameSavedSkin(PI.autoUseSkin, entry) then
+                PI.autoUseSkin = nil
+            end
+            table.remove(PI.savedSkins, idx)
+            PI.PersistSkins()
+            if PI.RefreshSavedSkinsUI then pcall(PI.RefreshSavedSkinsUI) end
+            if PI.RefreshButtons then pcall(PI.RefreshButtons) end
+            return true, "🗑️ Đã xoá skin @" .. tostring(entry.name or entry.id) .. " khỏi Kho Đã Lưu"
+        end
+
+        -- Tự động nạp & mặc skin đã dùng tính năng ⚡ Lưu Skin Dùng ngay khi chạy script
+        function PI.AutoApplySavedUseSkin()
+            if type(PI.autoUseSkin) ~= "table" then return false, "chưa cài Lưu Skin Dùng" end
+            local entry = PI.autoUseSkin
+            local function runNow()
+                print("[BC_Skin] ⚡ Tự động sử dụng skin từ Lưu Skin Dùng:", entry.name, entry.id)
+                local ok, msg, rec = PI.ApplySavedSkinEntry(entry)
+                if PI.OnAutoUseApplied then pcall(PI.OnAutoUseApplied, ok, msg, rec, entry) end
+                return ok, msg
+            end
+            local char = player and player.Character
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
+            if char and hum then
+                return runNow()
+            else
+                task.spawn(function()
+                    local tries = 0
+                    while tries < 30 do
+                        local c = player and player.Character
+                        local h = c and c:FindFirstChildOfClass("Humanoid")
+                        if c and h then break end
+                        tries = tries + 1
+                        task.wait(0.25)
+                    end
+                    pcall(runNow)
+                end)
+                return true, "đang chờ nhân vật tải xong để tự mặc skin"
+            end
+        end
+
+        if type(Store) == "table" then
+            Store.restoreSkins = function()
+                PI.savedSkins = type(Store.savedSkins) == "table" and Store.savedSkins or {}
+                PI.autoUseSkin = type(Store.autoUseSkin) == "table" and Store.autoUseSkin or nil
+                if PI.RefreshSavedSkinsUI then pcall(PI.RefreshSavedSkinsUI) end
+                if PI.RefreshButtons then pcall(PI.RefreshButtons) end
+            end
+        end
+    end
+
     -- Dùng rig live cho đúng dáng khi player đang trong server; nếu không thì avatar công khai (đã áp bộ lọc xoá skin).
     function PI.BuildAvatarModel(rec, modelName, preferredRigType)
         local lastErr = nil
@@ -9557,7 +10019,7 @@ end end
     end
 
     -- ===== GIAO DIỆN (trong trang 👥 NGƯỜI CHƠI, nằm dưới 🌳) =====
-    local PH = 340 -- kết hợp Lấy Skin (script.js) + Mặc LOCAL / Mặc SERVER (script.js1.js) + Tra cứu & Xem 3D
+    local PH = 366 -- kết hợp Lấy Skin (script.js) + Mặc LOCAL / Mặc SERVER + Lưu Skin & Lưu Skin Dùng + Tra cứu & Xem 3D
     local P = New("Frame", {
         Name = "HubPlayerInfo_Panel",
         Size = UDim2.new(1, -16, 0, PH), Position = UDim2.new(0, 8, 0, D.playerY or 46),
@@ -11027,22 +11489,25 @@ end end
     end
 
     -- Cụm nút hành động bên cột phải (x = 236..460, dưới bảng thông tin y = 205, KHÔNG đè lên các nút xoay 3D ở x = 8..228)
-    local copyProfBtn   = pAct("📋 Link", 236, 214, 72, C.GRAY)
-    local copyIdBtn     = pAct("🔗 ID", 312, 214, 72, C.GRAY)
-    local serverSkinBtn = pAct("🌐 SERVER", 388, 214, 72, C.BLUE)
-    local applySkinBtn  = pAct("👕 Lấy Skin", 236, 240, 110, C.PURPLE)
-    local applyLocalBtn = pAct("👕 Mặc LOCAL", 350, 240, 110, C.GREEN)
-    local applyBothBtn  = pAct("✨ Cả 2 Cùng Lúc", 236, 266, 110, C.ACCENT)
-    local resetSkinBtn  = pAct("↩ Trả Skin", 350, 266, 110, C.GRAY)
+    local copyProfBtn    = pAct("📋 Link", 236, 214, 72, C.GRAY)
+    local copyIdBtn      = pAct("🔗 ID", 312, 214, 72, C.GRAY)
+    local serverSkinBtn  = pAct("🌐 SERVER", 388, 214, 72, C.BLUE)
+    local applySkinBtn   = pAct("👕 Lấy Skin", 236, 240, 110, C.PURPLE)
+    local applyLocalBtn  = pAct("👕 Mặc LOCAL", 350, 240, 110, C.GREEN)
+    local applyBothBtn   = pAct("✨ Cả 2 Cùng Lúc", 236, 266, 110, C.ACCENT)
+    local resetSkinBtn   = pAct("↩ Trả Skin", 350, 266, 110, C.GRAY)
+    local saveSkinTopBtn = pAct("💾 Lưu Skin", 236, 292, 110, C.BLUE)
+    local saveUseTopBtn  = pAct("⚡ Lưu Skin Dùng", 350, 292, 110, C.YELLOW)
 
-    local skinStatusLbl = New("TextLabel", { Name = "HubPlayerInfo_SkinStatus", Size = UDim2.new(1, -244, 0, 36), Position = UDim2.new(0, 236, 0, 292),
-        Text = "✨ Bấm Cả 2 Cùng Lúc sẽ chạy 1️⃣ Lấy Skin trước -> 2️⃣ Mặc LOCAL sau.",
+    local skinStatusLbl = New("TextLabel", { Name = "HubPlayerInfo_SkinStatus", Size = UDim2.new(1, -244, 0, 38), Position = UDim2.new(0, 236, 0, 318),
+        Text = "✨ Bấm Cả 2 Cùng Lúc sẽ chạy 1️⃣ Lấy Skin trước -> 2️⃣ Mặc LOCAL sau. Bấm ⚡ Lưu Skin Dùng để tự mặc khi mở script.",
         TextWrapped = true, BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium,
         TextSize = 8, TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, ZIndex = 7, }, P)
 
     local function refreshSkinButtons()
         local sOn = PI.skinActive == true
         local lOn = PI.localActive == true
+        local hasAutoUse = (type(PI.autoUseSkin) == "table")
         applySkinBtn.Text = sOn and "👕 Lấy Skin: BẬT" or "👕 Lấy Skin"
         applySkinBtn.BackgroundColor3 = sOn and C.GREEN or C.PURPLE
         applySkinBtn.TextColor3 = D.BestText(applySkinBtn.BackgroundColor3)
@@ -11052,6 +11517,12 @@ end end
         applyBothBtn.Text = (sOn and lOn) and "✨ Cả 2: ĐANG BẬT" or "✨ Cả 2 Cùng Lúc"
         applyBothBtn.BackgroundColor3 = (sOn and lOn) and C.GREEN or C.ACCENT
         applyBothBtn.TextColor3 = D.BestText(applyBothBtn.BackgroundColor3)
+        if saveUseTopBtn then
+            local isCurAuto = hasAutoUse and PI.last and tonumber(PI.autoUseSkin.id) == tonumber(PI.last.id)
+            saveUseTopBtn.Text = isCurAuto and "⚡ Tự Dùng: BẬT" or "⚡ Lưu Skin Dùng"
+            saveUseTopBtn.BackgroundColor3 = isCurAuto and C.GREEN or C.YELLOW
+            saveUseTopBtn.TextColor3 = D.BestText(saveUseTopBtn.BackgroundColor3)
+        end
     end
     PI.RefreshButtons = refreshSkinButtons
     PI.SyncFromTopPanel = function(name, uid, rec)
@@ -11226,6 +11697,39 @@ end end
         end
     end)
 
+    -- 💾 Lưu Skin (nút trên bảng Tra cứu & Xem 3D)
+    saveSkinTopBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        withTargetRec(function(rec)
+            local mode = (PI.skinActive and PI.localActive) and "both" or (PI.localActive and "local" or "skin")
+            local ok, msg = PI.SaveSkin(rec, mode)
+            refreshSkinButtons()
+            if PI.RefreshSavedSkinsUI then pcall(PI.RefreshSavedSkinsUI) end
+            setStatus((ok and "💾 " or "⚠️ ") .. tostring(msg), ok and C.GREEN or C.RED)
+            if skinStatusLbl then
+                skinStatusLbl.Text = (ok and "💾 " or "⚠️ ") .. tostring(msg)
+                skinStatusLbl.TextColor3 = ok and C.GREEN or C.RED
+            end
+        end)
+    end)
+
+    -- ⚡ Lưu Skin Dùng (nút trên bảng Tra cứu & Xem 3D: lưu + mặc ngay + tự động mặc khi chạy lại script)
+    saveUseTopBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        withTargetRec(function(rec)
+            local mode = (PI.skinActive and PI.localActive) and "both" or (PI.localActive and "local" or "both")
+            local ok, msg = PI.SaveSkinForAutoUse(rec, mode, true)
+            refreshSkinButtons()
+            if PI.RefreshSavedSkinsUI then pcall(PI.RefreshSavedSkinsUI) end
+            setStatus((ok and "⚡ " or "⚠️ ") .. tostring(msg), ok and C.GREEN or C.RED)
+            if skinStatusLbl then
+                skinStatusLbl.Text = (ok and "⚡ " or "⚠️ ") .. tostring(msg)
+                skinStatusLbl.TextColor3 = ok and C.GREEN or C.RED
+            end
+            pcall(function() PI.ViewerBuild(rec) end)
+        end)
+    end)
+
     -- Tự động cập nhật trạng thái skin & bảng Phân loại skin khi đổi người tra cứu
     pcall(function()
         local _origRender = render
@@ -11235,6 +11739,7 @@ end end
             refreshSkinButtons()
             if D.SyncOutfitPanel then pcall(D.SyncOutfitPanel) end
             if PI.RenderSkinClass then pcall(PI.RenderSkinClass, rec) end
+            if PI.RefreshSavedSkinsUI then pcall(PI.RefreshSavedSkinsUI) end
             pcall(function()
                 if PI.isApplied and PI.appliedId == rec.id then
                     local modeTxt = (PI.skinActive and PI.localActive) and "CẢ 2: Lấy Skin + Mặc LOCAL"
@@ -11252,6 +11757,29 @@ end end
             return okV, verr
         end
     end)
+
+    PI.OnSavedRecLoaded = function(rec)
+        if type(rec) == "table" then
+            if rec.name and queryIn then queryIn.Text = tostring(rec.name) end
+            pcall(render, rec)
+        end
+    end
+
+    PI.OnAutoUseApplied = function(ok, msg, rec, entry)
+        refreshSkinButtons()
+        if PI.RefreshSavedSkinsUI then pcall(PI.RefreshSavedSkinsUI) end
+        if ok and type(rec) == "table" then
+            if rec.name and queryIn then queryIn.Text = tostring(rec.name) end
+            pcall(render, rec)
+            setStatus("⚡ [Tự Mặc Skin Dùng] @" .. tostring(rec.name or rec.id) .. " (" .. tostring(msg) .. ")", C.GREEN)
+            if skinStatusLbl then
+                skinStatusLbl.Text = "⚡ Đã tự động mặc Skin Dùng @" .. tostring(rec.name or rec.id) .. " khi khởi chạy script!"
+                skinStatusLbl.TextColor3 = C.GREEN
+            end
+        elseif not ok then
+            setStatus("⚠️ Tự mặc Skin Dùng: " .. tostring(msg), C.YELLOW)
+        end
+    end
 
     vBtnL.Activated:Connect(function() ReleaseHubFocus() PI.view.yaw = PI.view.yaw + 0.5 PI.ViewerUpdate() end)
     vBtnR.Activated:Connect(function() ReleaseHubFocus() PI.view.yaw = PI.view.yaw - 0.5 PI.ViewerUpdate() end)
@@ -11277,26 +11805,27 @@ end end
         setStatus(did and ("📋 Đã copy UserId " .. tostring(rec.id)) or ("UserId: " .. tostring(rec.id)), did and C.GREEN or C.YELLOW)
     end)
 
-    -- ===== PHẦN DƯỚI TRA CỨU & XEM 3D: 🗂️ PHÂN LOẠI SKIN · XOÁ MÓN & TẠO NHÂN VẬT ẢO =====
+    -- ===== PHẦN DƯỚI TRA CỨU & XEM 3D: 🗂️ PHÂN LOẠI SKIN · XOÁ MÓN & TẠO NHÂN VẬT ẢO + 💾 LƯU SKIN & ⚡ LƯU SKIN DÙNG =====
     ;(function()
-        local SH = 336
+        local SH = 484
         local SP = New("Frame", {
             Name = "HubSkinClass_Panel",
-            Size = UDim2.new(1, -16, 0, SH), Position = UDim2.new(0, 8, 0, D.playerY or 394),
+            Size = UDim2.new(1, -16, 0, SH), Position = UDim2.new(0, 8, 0, D.playerY or 424),
             LayoutOrder = 6, BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, BorderSizePixel = 0, ZIndex = 6,
-        }, D.playerTab) D.playerY = (D.playerY or 394) + SH + 8
+        }, D.playerTab) D.playerY = (D.playerY or 424) + SH + 8
         Corner(SP, UDim.new(0, 10)) Stroke(SP, C.HAIRLINE, 1) D.Shade(SP, Color3.fromRGB(255, 255, 255), Color3.fromRGB(188, 192, 205), 90)
 
         New("TextLabel", { Size = UDim2.new(1, -170, 0, 14), Position = UDim2.new(0, 8, 0, 4),
-            Text = "🗂️ PHÂN LOẠI SKIN · XOÁ MÓN & TẠO NHÂN VẬT ẢO", BackgroundTransparency = 1,
+            Text = "🗂️ PHÂN LOẠI SKIN · XOÁ MÓN · TẠO NHÂN VẬT ẢO & LƯU SKIN", BackgroundTransparency = 1,
             TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7, }, SP)
 
         local summaryBadge = New("TextLabel", { Name = "HubSkinClass_Summary", Size = UDim2.new(0, 160, 0, 14), Position = UDim2.new(1, -168, 0, 4),
             Text = "Giữ: —/— món · Đã xoá: 0", BackgroundTransparency = 1,
             TextColor3 = C.MUTED, Font = Enum.Font.GothamBold, TextSize = 8, TextXAlignment = Enum.TextXAlignment.Right, ZIndex = 7, }, SP)
 
-        local function sAct(txt, x, y, w, h, color, parent)
+        local function sAct(txt, x, y, w, h, color, parent, name)
             local b = New("TextButton", {
+                Name = name or "Button",
                 Size = UDim2.new(0, w, 0, h), Position = UDim2.new(0, x, 0, y), Text = txt, BackgroundColor3 = color, TextColor3 = D.BestText(color),
                 Font = Enum.Font.GothamBold, TextSize = 8, BorderSizePixel = 0, ZIndex = 8, }, parent or SP)
             Corner(b, UDim.new(0, 5)) D.Shade(b, Color3.fromRGB(255, 255, 255), Color3.fromRGB(182, 187, 201), 90)
@@ -11312,9 +11841,9 @@ end end
             BorderSizePixel = 0, ZIndex = 7, }, SP)
         Corner(skinQueryIn, UDim.new(0, 6)) New("UIPadding", { PaddingLeft = UDim.new(0, 6) }, skinQueryIn)
 
-        local classifyBtn = sAct("🔍 Phân loại", 236, 22, 78, 22, C.GREEN)
-        local selfSkinBtn = sAct("👤 Skin tôi", 318, 22, 68, 22, C.BLUE)
-        local clearSkinBtn = sAct("✕ Xoá ô", 390, 22, 70, 22, C.RED)
+        local classifyBtn  = sAct("🔍 Phân loại", 236, 22, 78, 22, C.GREEN, SP, "HubSkinClass_ClassifyBtn")
+        local selfSkinBtn  = sAct("👤 Skin tôi", 318, 22, 68, 22, C.BLUE, SP, "HubSkinClass_SelfBtn")
+        local clearSkinBtn = sAct("✕ Xoá ô", 390, 22, 70, 22, C.RED, SP, "HubSkinClass_ClearBtn")
 
         -- Hàng 2: Khung thông tin người chơi + tổng quan các loại skin
         local infoBox = New("Frame", {
@@ -11362,15 +11891,34 @@ end end
         Corner(accList, UDim.new(0, 6)) Stroke(accList, C.HAIRLINE, 1)
 
         -- Hàng 6: Nút Tạo Nhân Vật Ảo từ skin đã xoá/chỉnh sửa
-        local makeVirtualSkinBtn  = sAct("🧍 Tạo Nhân Vật Ảo (Theo Bạn)", 8, 274, 148, 22, C.PURPLE)
-        local spawnVirtualMapBtn  = sAct("👥 Đặt Nhân Vật Ảo Ra Map", 160, 274, 138, 22, C.ACCENT)
-        local applyFilteredLocBtn = sAct("👕 Mặc LOCAL", 302, 274, 82, 22, C.GREEN)
-        local clearVirtualBtn     = sAct("🗑️ Xoá Ảo", 388, 274, 72, 22, C.GRAY)
+        local makeVirtualSkinBtn  = sAct("🧍 Tạo Nhân Vật Ảo (Theo Bạn)", 8, 274, 148, 22, C.PURPLE, SP, "HubSkinClass_MakeVirtualBtn")
+        local spawnVirtualMapBtn  = sAct("👥 Đặt Nhân Vật Ảo Ra Map", 160, 274, 138, 22, C.ACCENT, SP, "HubSkinClass_SpawnVirtualBtn")
+        local applyFilteredLocBtn = sAct("👕 Mặc LOCAL", 302, 274, 82, 22, C.GREEN, SP, "HubSkinClass_ApplyLocalBtn")
+        local clearVirtualBtn     = sAct("🗑️ Xoá Ảo", 388, 274, 72, 22, C.GRAY, SP, "HubSkinClass_ClearVirtualBtn")
 
-        -- Hàng 7: Dòng trạng thái Phân loại skin & Nhân vật ảo
+        -- Hàng 7: 💾 LƯU SKIN & ⚡ LƯU SKIN DÙNG (tự động sử dụng skin khi chạy script)
+        local saveSkinBtn     = sAct("💾 Lưu Skin", 8, 300, 136, 22, C.BLUE, SP, "HubSkinClass_SaveBtn")
+        local saveUseSkinBtn  = sAct("⚡ Lưu Skin Dùng (Tự Mặc)", 148, 300, 198, 22, C.YELLOW, SP, "HubSkinClass_SaveUseBtn")
+        local clearUseSkinBtn = sAct("🚫 Tắt Tự Dùng", 350, 300, 110, 22, C.GRAY, SP, "HubSkinClass_ClearUseBtn")
+
+        -- Hàng 8: Thanh hiển thị Skin Dùng hiện tại + Tổng số skin đã lưu
+        local autoUseBannerLbl = New("TextLabel", {
+            Name = "HubSkinClass_AutoUseBanner", Size = UDim2.new(1, -16, 0, 16), Position = UDim2.new(0, 8, 0, 326),
+            Text = "⚡ Skin Dùng Khi Chạy Script: Chưa bật (bấm '⚡ Lưu Skin Dùng' trên skin bất kỳ để tự mặc khi chạy script)",
+            BackgroundTransparency = 1, TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 8,
+            TextXAlignment = Enum.TextXAlignment.Left, TextWrapped = false, ZIndex = 7, }, SP)
+
+        -- Hàng 9: Danh sách các Skin đã lưu (bấm ▶ Mặc để dùng ngay, ⚡ Tự Dùng để đặt làm skin tự mặc khi mở script, ✕ để xoá)
+        local savedSkinsList = New("ScrollingFrame", {
+            Name = "HubSkinClass_SavedList", Size = UDim2.new(1, -16, 0, 102), Position = UDim2.new(0, 8, 0, 344),
+            BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.08, BorderSizePixel = 0, ScrollBarThickness = 4,
+            ScrollBarImageColor3 = C.GRAY, CanvasSize = UDim2.new(0, 0, 0, 0), ZIndex = 7, }, SP)
+        Corner(savedSkinsList, UDim.new(0, 6)) Stroke(savedSkinsList, C.HAIRLINE, 1)
+
+        -- Hàng 10: Dòng trạng thái Phân loại skin & Nhân vật ảo & Lưu skin
         local scStatusLbl = New("TextLabel", {
-            Name = "HubSkinClass_Status", Size = UDim2.new(1, -16, 0, 28), Position = UDim2.new(0, 8, 0, 300),
-            Text = "💡 Nhập tên người chơi để xem phân loại các loại skin và bấm '✖ Xoá skin' để tạo nhân vật ảo theo ý muốn.",
+            Name = "HubSkinClass_Status", Size = UDim2.new(1, -16, 0, 28), Position = UDim2.new(0, 8, 0, 450),
+            Text = "💡 Nhập tên người chơi -> xoá món tuỳ ý -> bấm '💾 Lưu Skin' hoặc '⚡ Lưu Skin Dùng' để tự mặc khi mở script!",
             TextWrapped = true, BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium,
             TextSize = 8, TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, ZIndex = 7, }, SP)
 
@@ -11718,12 +12266,158 @@ end end
             end
         end)
 
+        -- ===== KHO SKIN ĐÃ LƯU & LƯU SKIN DÙNG (TỰ MẶC KHI CHẠY SCRIPT) =====
+        local function renderSavedSkinsList()
+            for _, ch in ipairs(savedSkinsList:GetChildren()) do
+                if ch:IsA("GuiObject") then ch:Destroy() end
+            end
+            local list = type(PI.savedSkins) == "table" and PI.savedSkins or {}
+            local autoEntry = type(PI.autoUseSkin) == "table" and PI.autoUseSkin or nil
+
+            if autoEntry then
+                local autoModeTxt = (autoEntry.mode == "local" and "Mặc LOCAL") or (autoEntry.mode == "skin" and "Lấy Skin") or "Cả 2"
+                local delCnt = tonumber(autoEntry.deletedCount) or 0
+                local delTxt = delCnt > 0 and (" · đã xoá " .. tostring(delCnt) .. " món") or ""
+                autoUseBannerLbl.Text = string.format("⚡ Skin Dùng Khi Chạy Script: ĐANG BẬT -> @%s (%s) [%s%s] · Đã lưu: %d skin",
+                    tostring(autoEntry.name or autoEntry.id), tostring(autoEntry.displayName or autoEntry.name or autoEntry.id),
+                    autoModeTxt, delTxt, #list)
+                autoUseBannerLbl.TextColor3 = C.GREEN
+            else
+                autoUseBannerLbl.Text = string.format("⚡ Skin Dùng Khi Chạy Script: CHƯA BẬT (Bấm '⚡ Lưu Skin Dùng' trên skin bất kỳ) · Đã lưu: %d skin", #list)
+                autoUseBannerLbl.TextColor3 = C.MUTED
+            end
+
+            savedSkinsList.CanvasSize = UDim2.new(0, 0, 0, math.max(28, #list * 26 + 4))
+            if #list == 0 then
+                New("TextLabel", { Size = UDim2.new(1, -8, 0, 26), Position = UDim2.new(0, 4, 0, 2), BackgroundTransparency = 1,
+                    Text = "Chưa có skin nào được lưu. Bấm '💾 Lưu Skin' hoặc '⚡ Lưu Skin Dùng (Tự Mặc)' để lưu skin (kèm các món đã xoá).",
+                    TextWrapped = true, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium, TextSize = 8,
+                    TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 8, }, savedSkinsList)
+                return
+            end
+
+            for idx, entry in ipairs(list) do
+                local isAuto = (autoEntry ~= nil and PI.IsSameSavedSkin(autoEntry, entry))
+                local row = New("Frame", {
+                    Name = "SavedSkinRow_" .. tostring(idx),
+                    Size = UDim2.new(1, -8, 0, 24), Position = UDim2.new(0, 4, 0, (idx - 1) * 26 + 2),
+                    BackgroundColor3 = isAuto and C.SURFACE3 or C.SURFACE, BackgroundTransparency = isAuto and 0.15 or 0.35,
+                    BorderSizePixel = 0, ZIndex = 8, }, savedSkinsList)
+                Corner(row, UDim.new(0, 5))
+                if isAuto then Stroke(row, C.GREEN, 1) end
+
+                local labelTxt = tostring(entry.label or ("@" .. tostring(entry.name or entry.id)))
+                if isAuto then labelTxt = "⚡ [ĐANG ĐẶT TỰ DÙNG] " .. labelTxt end
+                New("TextLabel", {
+                    Size = UDim2.new(1, -172, 1, 0), Position = UDim2.new(0, 6, 0, 0), BackgroundTransparency = 1,
+                    TextColor3 = isAuto and C.GREEN or C.DARK, Font = isAuto and Enum.Font.GothamBold or Enum.Font.GothamMedium,
+                    TextSize = 8, TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Center,
+                    TextWrapped = false, Text = clipText(labelTxt, 50), ZIndex = 9, }, row)
+
+                -- Nút ▶ Mặc ngay skin đã lưu
+                local useBtn = New("TextButton", {
+                    Name = "UseSavedSkinBtn_" .. tostring(idx),
+                    Size = UDim2.new(0, 54, 0, 18), Position = UDim2.new(1, -166, 0, 3),
+                    Text = "▶ Mặc", BackgroundColor3 = C.GREEN, TextColor3 = D.BestText(C.GREEN),
+                    BorderSizePixel = 0, Font = Enum.Font.GothamBold, TextSize = 8, ZIndex = 10, }, row)
+                Corner(useBtn, UDim.new(0, 5)) D.Tactile(useBtn, 0.08)
+
+                -- Nút ⚡ Tự Dùng (đặt skin này làm Lưu Skin Dùng để tự mặc khi chạy script)
+                local autoUseRowBtn = New("TextButton", {
+                    Name = "AutoUseSavedSkinBtn_" .. tostring(idx),
+                    Size = UDim2.new(0, 74, 0, 18), Position = UDim2.new(1, -108, 0, 3),
+                    Text = isAuto and "⚡ Đang Dùng" or "⚡ Tự Dùng",
+                    BackgroundColor3 = isAuto and C.GREEN or C.YELLOW,
+                    TextColor3 = D.BestText(isAuto and C.GREEN or C.YELLOW),
+                    BorderSizePixel = 0, Font = Enum.Font.GothamBold, TextSize = 8, ZIndex = 10, }, row)
+                Corner(autoUseRowBtn, UDim.new(0, 5)) D.Tactile(autoUseRowBtn, 0.08)
+
+                -- Nút ✕ Xoá skin khỏi danh sách đã lưu
+                local delRowBtn = New("TextButton", {
+                    Name = "DeleteSavedSkinBtn_" .. tostring(idx),
+                    Size = UDim2.new(0, 28, 0, 18), Position = UDim2.new(1, -30, 0, 3),
+                    Text = "✕", BackgroundColor3 = C.RED, TextColor3 = D.BestText(C.RED),
+                    BorderSizePixel = 0, Font = Enum.Font.GothamBold, TextSize = 8, ZIndex = 10, }, row)
+                Corner(delRowBtn, UDim.new(0, 5)) D.Tactile(delRowBtn, 0.08)
+
+                useBtn.Activated:Connect(function()
+                    ReleaseHubFocus()
+                    local ok, msg = PI.ApplySavedSkinEntry(entry, entry.mode or "both")
+                    refreshSkinButtons()
+                    renderSavedSkinsList()
+                    setScStatus((ok and "✅ Đã mặc skin đã lưu: " or "⚠️ ") .. tostring(msg), ok and C.GREEN or C.RED)
+                    setStatus((ok and "✅ Đã mặc skin đã lưu: @" .. tostring(entry.name or entry.id) or "⚠️ " .. tostring(msg)), ok and C.GREEN or C.RED)
+                end)
+
+                autoUseRowBtn.Activated:Connect(function()
+                    ReleaseHubFocus()
+                    local ok, msg = PI.SetEntryAsAutoUse(entry, true)
+                    refreshSkinButtons()
+                    renderSavedSkinsList()
+                    setScStatus((ok and "⚡ " or "⚠️ ") .. tostring(msg), ok and C.GREEN or C.RED)
+                    setStatus((ok and "⚡ " or "⚠️ ") .. tostring(msg), ok and C.GREEN or C.RED)
+                end)
+
+                delRowBtn.Activated:Connect(function()
+                    ReleaseHubFocus()
+                    local ok, msg = PI.DeleteSavedSkin(idx)
+                    refreshSkinButtons()
+                    renderSavedSkinsList()
+                    setScStatus((ok and "🗑️ " or "⚠️ ") .. tostring(msg), ok and C.YELLOW or C.RED)
+                end)
+            end
+        end
+
+        PI.RefreshSavedSkinsUI = renderSavedSkinsList
+
+        -- 💾 Lưu Skin (lưu bộ skin hiện tại + các món đã xoá vào Kho Skin Đã Lưu)
+        saveSkinBtn.Activated:Connect(function()
+            ReleaseHubFocus()
+            triggerFromSkinPanel(function(rec)
+                local mode = (PI.skinActive and PI.localActive) and "both" or (PI.localActive and "local" or "skin")
+                local ok, msg = PI.SaveSkin(rec, mode)
+                refreshSkinButtons()
+                renderSavedSkinsList()
+                setScStatus((ok and "💾 " or "⚠️ ") .. tostring(msg), ok and C.GREEN or C.RED)
+                setStatus((ok and "💾 " or "⚠️ ") .. tostring(msg), ok and C.GREEN or C.RED)
+            end)
+        end)
+
+        -- ⚡ Lưu Skin Dùng (Tự Mặc): lưu skin + mặc ngay + tự động mặc mỗi khi chạy script
+        saveUseSkinBtn.Activated:Connect(function()
+            ReleaseHubFocus()
+            triggerFromSkinPanel(function(rec)
+                local mode = (PI.skinActive and PI.localActive) and "both" or (PI.localActive and "local" or "both")
+                local ok, msg = PI.SaveSkinForAutoUse(rec, mode, true)
+                refreshSkinButtons()
+                renderSavedSkinsList()
+                setScStatus((ok and "⚡ " or "⚠️ ") .. tostring(msg), ok and C.GREEN or C.RED)
+                setStatus((ok and "⚡ " or "⚠️ ") .. tostring(msg), ok and C.GREEN or C.RED)
+            end)
+        end)
+
+        -- 🚫 Tắt Tự Dùng (huỷ tự động mặc skin khi chạy script)
+        clearUseSkinBtn.Activated:Connect(function()
+            ReleaseHubFocus()
+            local ok, msg = PI.ClearAutoUseSkin()
+            refreshSkinButtons()
+            renderSavedSkinsList()
+            setScStatus("🚫 " .. tostring(msg), C.YELLOW)
+            setStatus("🚫 " .. tostring(msg), C.YELLOW)
+        end)
+
         renderSkinList(nil)
+        renderSavedSkinsList()
     end)()
 
     pcall(function()
         if D.playerTab then D.playerTab.CanvasSize = UDim2.new(0, 0, 0, (D.playerY or 600) + 16) end
     end)
+
+    -- ⚡ TỰ ĐỘNG SỬ DỤNG SKIN ĐÃ LƯU TRONG "LƯU SKIN DÙNG" NGAY KHI CHẠY SCRIPT!
+    if type(PI.autoUseSkin) == "table" and tonumber(PI.autoUseSkin.id) then
+        pcall(PI.AutoApplySavedUseSkin)
+    end
 end)()
 
 _G.BananaCatHub_ObjTrack = S.ObjTrack   -- v5.1: cho script khác đọc trạng thái định vị vật
@@ -11818,6 +12512,18 @@ do
                 CreateFeatureTab(nm, ic, S.SanitizeCode(f.code)) addedFeatures += 1
             end end
 
+        if type(data.savedSkins) == "table" then
+            Store.savedSkins = Store.savedSkins or {}
+            for _, sk in ipairs(data.savedSkins) do
+                if type(sk) == "table" and (tonumber(sk.id) or (type(sk.name) == "string" and #sk.name > 0)) then
+                    Store.savedSkins[#Store.savedSkins + 1] = sk
+                end
+            end
+        end
+        if type(data.autoUseSkin) == "table" and (tonumber(data.autoUseSkin.id) or (type(data.autoUseSkin.name) == "string" and #data.autoUseSkin.name > 0)) then
+            Store.autoUseSkin = data.autoUseSkin
+        end
+
         if type(data.settings) == "table" then if type(data.settings.embedEnabled) == "boolean" then
                 S.embedEnabled = data.settings.embedEnabled end
             if type(data.settings.embedGuessNew) == "boolean" then S.embedGuessNew = data.settings.embedGuessNew
@@ -11829,6 +12535,7 @@ do
 
         pcall(function() RebuildScripts() end) pcall(function() RebuildWaypoints() end)
         pcall(function() RebuildFeatureList() end) pcall(function() if S.SyncEmbedToggles then S.SyncEmbedToggles() end end)
+        pcall(function() if Store.restoreSkins then Store.restoreSkins() end end)
         if not S.embedEnabled then for _, ft in ipairs(featureTabs) do
                 local hostFrame = ft.frame and ft.frame:FindFirstChild("ScriptHost") if hostFrame then S.ClearEmbedsUnder(hostFrame) end
             end pcall(S.RemoveAllParked)
