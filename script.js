@@ -6627,6 +6627,239 @@ do
         BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium, TextSize = 8, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
     }, tab) D.playerY = 46 end
 
+-- ---------- KHUNG 👕 TRANG PHỤC NGƯỜI CHƠI (từ script.js1.js · hỗ trợ chạy CÙNG LÚC với Lấy Skin) ----------
+-- Bọc trong hàm riêng để không tốn slot biến local của hàm chính (giới hạn 200 local của Luau).
+;(function()
+    local PH = 236
+    local P = New("Frame", { Name = "HubOutfit_Panel",
+        Size = UDim2.new(1, -16, 0, PH), Position = UDim2.new(0, 8, 0, D.playerY or 46),
+        BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, BorderSizePixel = 0, ZIndex = 6,
+    }, D.playerTab) D.playerY = (D.playerY or 46) + PH + 8
+    D.playerTab.CanvasSize = UDim2.new(0, 0, 0, D.playerY + 16)
+    Corner(P, UDim.new(0, 10)) Stroke(P, C.HAIRLINE, 1) D.Shade(P, Color3.fromRGB(255, 255, 255), Color3.fromRGB(188, 192, 205), 90)
+
+    local shortcut = New("TextButton", {
+        Name = "OutfitShortcut", Size = UDim2.new(0, 94, 0, 18), Position = UDim2.new(1, -102, 0, 7),
+        Text = "👕 TRANG PHỤC", BackgroundColor3 = C.GREEN, TextColor3 = D.BestText(C.GREEN),
+        Font = Enum.Font.GothamBold, TextSize = 8, BorderSizePixel = 0, ZIndex = 9,
+    }, D.playerTab)
+    Corner(shortcut, UDim.new(0, 5))
+    shortcut.Activated:Connect(function()
+        ReleaseHubFocus()
+        D.playerTab.CanvasPosition = Vector2.new(0, math.max(0, P.Position.Y.Offset - 8))
+    end)
+
+    New("TextLabel", { Size = UDim2.new(1, -16, 0, 18), Position = UDim2.new(0, 8, 0, 6),
+        Text = "👕 TRANG PHỤC NGƯỜI CHƠI (dùng chung & chạy CÙNG LÚC được với 👕 Lấy Skin)", BackgroundTransparency = 1,
+        TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 10,
+        TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7, }, P)
+
+    local input = New("TextBox", { Name = "HubOutfit_Input", Size = UDim2.new(1, -108, 0, 27), Position = UDim2.new(0, 8, 0, 30),
+        Text = "", PlaceholderText = "Nhập username hoặc UserId Roblox (kể cả người offline)...",
+        ClearTextOnFocus = false, BackgroundColor3 = C.SURFACE2, TextColor3 = C.WHITE,
+        PlaceholderColor3 = C.GRAY, Font = Enum.Font.GothamMedium, TextSize = 10,
+        BorderSizePixel = 0, ZIndex = 8, }, P) Corner(input, UDim.new(0, 6))
+    New("UIPadding", { PaddingLeft = UDim.new(0, 6) }, input)
+
+    local function button(text, x, y, w, color)
+        local b = New("TextButton", { Size = UDim2.new(0, w, 0, 27), Position = UDim2.new(0, x, 0, y),
+            Text = text, BackgroundColor3 = color, TextColor3 = D.BestText(color),
+            Font = Enum.Font.GothamBold, TextSize = 9, BorderSizePixel = 0, ZIndex = 8, }, P)
+        Corner(b, UDim.new(0, 6)) D.Tactile(b, 0.08) return b
+    end
+
+    local findBtn = button("🔍 Tìm", 0, 30, 88, C.ACCENT)
+    findBtn.Position = UDim2.new(1, -96, 0, 30)
+
+    local portrait = New("ImageLabel", { Size = UDim2.new(0, 92, 0, 92), Position = UDim2.new(0, 8, 0, 66),
+        BackgroundColor3 = C.SURFACE2, Image = "", BorderSizePixel = 0, ZIndex = 7, }, P)
+    Corner(portrait, UDim.new(0, 8))
+
+    local info = New("TextLabel", { Size = UDim2.new(1, -116, 0, 48), Position = UDim2.new(0, 108, 0, 68),
+        Text = "Nhập username/UserId rồi bấm Tìm, hoặc bấm thẳng Mặc LOCAL / Lấy Skin / Cả 2.", TextWrapped = true,
+        BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium,
+        TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7, }, P)
+
+    local applyBtn         = button("👕 Mặc LOCAL", 108, 120, 110, C.GREEN)
+    local skinBtn          = button("👕 Lấy Skin", 222, 120, 110, C.PURPLE)
+    local bothBtn          = button("✨ Cả 2 Cùng Lúc", 336, 120, 124, C.ACCENT)
+    local restoreBtn       = button("↩ Khôi phục LOCAL/Skin", 108, 151, 140, C.GRAY)
+    local serverBtn        = button("🌐 Mặc SERVER", 252, 151, 104, C.BLUE)
+    local serverRestoreBtn = button("↩ Trả SERVER", 360, 151, 100, C.GRAY)
+
+    local status = New("TextLabel", { Name = "HubOutfit_Status", Size = UDim2.new(1, -16, 0, 36), Position = UDim2.new(0, 8, 0, 187),
+        Text = "Bấm 👕 Mặc LOCAL và 👕 Lấy Skin (hoặc ✨ Cả 2 Cùng Lúc) để dùng cả 2 tính năng song song.", TextWrapped = true,
+        BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium,
+        TextSize = 9, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7, }, P)
+
+    local generation = 0
+    local function say(text, good)
+        status.Text = tostring(text or "")
+        status.TextColor3 = good and C.GREEN or C.MUTED
+    end
+
+    local function syncOutfitButtons()
+        local PI = _G.BananaCatHub_PlayerInfo
+        if not PI then return end
+        local lOn = PI.localActive == true
+        local sOn = PI.skinActive == true
+        applyBtn.Text = lOn and "👕 Mặc LOCAL: BẬT" or "👕 Mặc LOCAL"
+        applyBtn.BackgroundColor3 = lOn and C.GREEN or C.SURFACE3
+        applyBtn.TextColor3 = D.BestText(applyBtn.BackgroundColor3)
+        skinBtn.Text = sOn and "👕 Lấy Skin: BẬT" or "👕 Lấy Skin"
+        skinBtn.BackgroundColor3 = sOn and C.PURPLE or C.SURFACE3
+        skinBtn.TextColor3 = D.BestText(skinBtn.BackgroundColor3)
+        bothBtn.Text = (lOn and sOn) and "✨ Cả 2: ĐANG BẬT" or "✨ Cả 2 Cùng Lúc"
+        bothBtn.BackgroundColor3 = (lOn and sOn) and C.GREEN or C.ACCENT
+        bothBtn.TextColor3 = D.BestText(bothBtn.BackgroundColor3)
+    end
+    D.SyncOutfitPanel = syncOutfitButtons
+
+    local function resolveAndRun(mode)
+        local PI = _G.BananaCatHub_PlayerInfo
+        local typed = tostring(input.Text or ""):match("^%s*(.-)%s*$")
+        if typed == "" and PI and PI.last and PI.last.name then
+            typed = tostring(PI.last.name)
+            input.Text = typed
+        end
+        if not typed or typed == "" then
+            info.Text = "Chưa chọn avatar"
+            say("⚠️ Nhập username hoặc UserId Roblox hợp lệ (không phải tên hiển thị).", false)
+            return
+        end
+        generation += 1
+        local requestId = generation
+        info.Text = "Đang tìm " .. typed .. "..."
+        say("⏳ Đang tải dữ liệu trang phục & skin cho " .. typed .. "...", false)
+        task.spawn(function()
+            local uid, canonical = nil, typed
+            if PI and type(PI.ResolveUser) == "function" then
+                local rId, rName = PI.ResolveUser(typed)
+                if rId then uid, canonical = rId, rName or typed end
+            end
+            if not uid then
+                if typed:match("^%d+$") then
+                    uid = tonumber(typed)
+                else
+                    local okId, resId = pcall(function() return Players:GetUserIdFromNameAsync(typed) end)
+                    if okId and resId then uid = resId end
+                end
+            end
+            if requestId ~= generation or not P.Parent then return end
+            if not uid then
+                info.Text = "Không tìm thấy"
+                say("⚠️ Không tìm thấy username/UserId '" .. typed .. "'. Hãy dùng tên tài khoản hoặc UserId.", false)
+                return
+            end
+            local okName, nameFromId = pcall(function() return Players:GetNameFromUserIdAsync(uid) end)
+            if okName and type(nameFromId) == "string" and nameFromId ~= "" then canonical = nameFromId end
+            if requestId ~= generation or not P.Parent then return end
+            info.Text = "@" .. tostring(canonical) .. "\nUserId: " .. tostring(uid)
+
+            task.spawn(function()
+                local okImage, image = pcall(function()
+                    return Players:GetUserThumbnailAsync(uid, Enum.ThumbnailType.AvatarThumbnail, Enum.ThumbnailSize.Size420x420)
+                end)
+                if okImage and requestId == generation and P.Parent then portrait.Image = image end
+            end)
+
+            if mode == "find" then
+                if PI and type(PI.SyncFromTopPanel) == "function" then
+                    pcall(PI.SyncFromTopPanel, canonical, uid)
+                end
+                say("✅ Đã tải @" .. tostring(canonical) .. " — bấm 👕 Mặc LOCAL, 👕 Lấy Skin hoặc ✨ Cả 2 Cùng Lúc.", true)
+                return
+            end
+
+            local okDesc, desc = pcall(function() return Players:GetHumanoidDescriptionFromUserId(uid) end)
+            if requestId ~= generation or not P.Parent then return end
+            local rec = {
+                id = uid,
+                name = tostring(canonical),
+                displayName = tostring(canonical),
+                desc = okDesc and desc or nil,
+            }
+            if PI then
+                PI.last = PI.last or rec
+                if PI.last.id ~= uid then PI.last = rec elseif okDesc and desc then PI.last.desc = desc end
+                if type(PI.SyncFromTopPanel) == "function" then
+                    pcall(PI.SyncFromTopPanel, canonical, uid, rec)
+                end
+            end
+            if mode == "local" and PI and PI.ApplyLocal then
+                local ok, detail = PI.ApplyLocal(rec)
+                local bothTxt = (PI.skinActive and PI.localActive) and " [ĐANG BẬT CÙNG LÚC VỚI LẤY SKIN]" or ""
+                say((ok and "✅ Đã Mặc LOCAL @" .. tostring(canonical) .. " (" .. tostring(detail) .. ")" .. bothTxt)
+                    or ("⚠️ Không Mặc LOCAL được: " .. tostring(detail)), ok)
+            elseif mode == "skin" and PI and PI.ApplySkin then
+                local ok, detail = PI.ApplySkin(rec)
+                local bothTxt = (PI.skinActive and PI.localActive) and " [ĐANG BẬT CÙNG LÚC VỚI MẶC LOCAL]" or ""
+                say((ok and "✅ Đã Lấy Skin @" .. tostring(canonical) .. " (" .. tostring(detail) .. ")" .. bothTxt)
+                    or ("⚠️ Không Lấy Skin được: " .. tostring(detail)), ok)
+            elseif mode == "both" and PI and PI.ApplyBoth then
+                local ok, detail = PI.ApplyBoth(rec)
+                say((ok and "✅ Đã bật CẢ 2 CÙNG LÚC (Lấy Skin + Mặc LOCAL) cho @" .. tostring(canonical) .. " (" .. tostring(detail) .. ")")
+                    or ("⚠️ Không áp được: " .. tostring(detail)), ok)
+            end
+            syncOutfitButtons()
+            if PI and PI.RefreshButtons then pcall(PI.RefreshButtons) end
+        end)
+    end
+
+    findBtn.Activated:Connect(function() ReleaseHubFocus() resolveAndRun("find") end)
+    input.FocusLost:Connect(function(enter) if enter then resolveAndRun("find") end end)
+    applyBtn.Activated:Connect(function() ReleaseHubFocus() resolveAndRun("local") end)
+    skinBtn.Activated:Connect(function() ReleaseHubFocus() resolveAndRun("skin") end)
+    bothBtn.Activated:Connect(function() ReleaseHubFocus() resolveAndRun("both") end)
+
+    local function serverAction(action)
+        local PI = _G.BananaCatHub_PlayerInfo
+        local name = tostring(input.Text or ""):match("^%s*(.-)%s*$")
+        if action == "apply" and name == "" and PI and PI.last and PI.last.name then
+            name = tostring(PI.last.name)
+        end
+        if action == "apply" and name == "" then
+            say("⚠️ Nhập username hoặc UserId Roblox hợp lệ.", false) return
+        end
+        generation += 1 local token = generation
+        say("⏳ Đang gửi yêu cầu SERVER...", false)
+        task.spawn(function()
+            local uid = nil
+            if action == "apply" then
+                if name:match("^%d+$") then
+                    uid = tonumber(name)
+                else
+                    local found, result = pcall(function() return Players:GetUserIdFromNameAsync(name) end)
+                    if token ~= generation then return end
+                    if not found then say("⚠️ Không tìm thấy username: " .. tostring(result), false) return end
+                    uid = result
+                end
+            end
+            if PI and PI.ServerOutfitAction then
+                local ok, msg = PI.ServerOutfitAction(action, uid)
+                if token == generation and P.Parent then
+                    say((ok and "✅ " or "⚠️ ") .. tostring(msg), ok)
+                end
+            end
+        end)
+    end
+    serverBtn.Activated:Connect(function() ReleaseHubFocus() serverAction("apply") end)
+    serverRestoreBtn.Activated:Connect(function() ReleaseHubFocus() serverAction("restore") end)
+
+    restoreBtn.Activated:Connect(function()
+        ReleaseHubFocus()
+        generation += 1
+        local PI = _G.BananaCatHub_PlayerInfo
+        if PI and PI.ResetSkin then
+            local ok, msg = PI.ResetSkin()
+            say(ok and "✅ Đã khôi phục quần áo/phụ kiện LOCAL & trả Skin gốc." or ("⚠️ " .. tostring(msg)), ok)
+            syncOutfitButtons()
+            if PI.RefreshButtons then pcall(PI.RefreshButtons) end
+        end
+    end)
+    D.OutfitInput = input
+end)()
+
 -- ---------- KHUNG 📍 ĐỊNH VỊ (nằm trong trang 👥 NGƯỜI CHƠI) ----------
 do local PH = 380
     local P = New("Frame", { Name = "HubLoc_Panel",
@@ -8607,7 +8840,11 @@ end end
     PI.localSaved = nil   -- clones quần áo/phụ kiện + mặt/màu da/texture trước khi sửa cục bộ (từ script.js1.js)
     PI.isApplied = false
     PI.appliedId = nil
-    PI.appliedMode = nil  -- "skin" (hóa thân fake rig + mặc local) hoặc "local" (chỉ mặc local trên nhân vật thật)
+    PI.appliedMode = nil  -- "both" | "skin" | "local"
+    PI.skinActive = false -- trạng thái bật Lấy Skin (fake rig)
+    PI.localActive = false -- trạng thái bật Mặc LOCAL (trên nhân vật thật)
+    PI.skinId = nil
+    PI.localId = nil
     PI.SPIN_BIND = "BC_PlayerViewSpin"
     -- Chạy lại script: gỡ bind của phần xem 3D
     pcall(function() RunService:UnbindFromRenderStep("BC_PlayerViewSpin") end)
@@ -8908,14 +9145,14 @@ end end
     }, D.playerTab) D.playerY = (D.playerY or 46) + PH + 8
     Corner(P, UDim.new(0, 10)) Stroke(P, C.HAIRLINE, 1) D.Shade(P, Color3.fromRGB(255, 255, 255), Color3.fromRGB(188, 192, 205), 90)
 
-    -- Nút nhảy nhanh "👕 TRANG PHỤC" ở đầu trang 👥 NGƯỜI CHƠI (từ script.js1.js)
-    local shortcut = New("TextButton", {
-        Name = "OutfitShortcut", Size = UDim2.new(0, 94, 0, 18), Position = UDim2.new(1, -102, 0, 7),
-        Text = "👕 TRANG PHỤC", BackgroundColor3 = C.GREEN, TextColor3 = D.BestText(C.GREEN),
+    -- Nút nhảy nhanh "🔎 XEM 3D & SKIN" ở đầu trang 👥 NGƯỜI CHƠI (nằm cạnh nút 👕 TRANG PHỤC)
+    local shortcut3d = New("TextButton", {
+        Name = "Skin3DShortcut", Size = UDim2.new(0, 100, 0, 18), Position = UDim2.new(1, -206, 0, 7),
+        Text = "🔎 XEM 3D & SKIN", BackgroundColor3 = C.PURPLE, TextColor3 = D.BestText(C.PURPLE),
         Font = Enum.Font.GothamBold, TextSize = 8, BorderSizePixel = 0, ZIndex = 9,
     }, D.playerTab)
-    Corner(shortcut, UDim.new(0, 5))
-    shortcut.Activated:Connect(function()
+    Corner(shortcut3d, UDim.new(0, 5))
+    shortcut3d.Activated:Connect(function()
         ReleaseHubFocus()
         if D.playerTab then
             D.playerTab.CanvasPosition = Vector2.new(0, math.max(0, P.Position.Y.Offset - 8))
@@ -9344,10 +9581,84 @@ end end
         end
     end
 
+    -- Hàn (Weld) phụ kiện trên Client: tránh lỗi Accessory bị rơi/mất khi source:Destroy() xoá mất Part1 gốc
+    function PI.AttachAccessoryClient(character, humanoid, clone)
+        if not character or not clone then return end
+        local okAdd = false
+        if humanoid then
+            okAdd = pcall(function() humanoid:AddAccessory(clone) end)
+        end
+        if not okAdd or clone.Parent ~= character then
+            pcall(function() clone.Parent = character end)
+        end
+        pcall(function()
+            local handle = clone:FindFirstChild("Handle")
+            if not (handle and handle:IsA("BasePart")) then return end
+            handle.Anchored = false
+            handle.CanCollide = false
+            handle.CanTouch = false
+            handle.CanQuery = false
+            handle.Massless = true
+
+            local accAtt = handle:FindFirstChildOfClass("Attachment")
+            local charAtt = nil
+            if accAtt then
+                for _, bp in ipairs(character:GetChildren()) do
+                    if bp:IsA("BasePart") then
+                        local foundAtt = bp:FindFirstChild(accAtt.Name)
+                        if foundAtt and foundAtt:IsA("Attachment") then
+                            charAtt = foundAtt
+                            break
+                        end
+                    end
+                end
+            end
+
+            local existingWeld = nil
+            local refPartName = nil
+            for _, ch in ipairs(handle:GetChildren()) do
+                if ch:IsA("JointInstance") then
+                    if not existingWeld then
+                        existingWeld = ch
+                        if ch.Part1 and ch.Part1.Name ~= "Handle" then
+                            refPartName = ch.Part1.Name
+                        elseif ch.Part0 and ch.Part0.Name ~= "Handle" then
+                            refPartName = ch.Part0.Name
+                        end
+                    else
+                        ch:Destroy()
+                    end
+                end
+            end
+
+            local targetPart = (charAtt and charAtt.Parent and charAtt.Parent:IsA("BasePart") and charAtt.Parent)
+                or (refPartName and character:FindFirstChild(refPartName, true))
+                or character:FindFirstChild("Head")
+                or character:FindFirstChild("UpperTorso")
+                or character:FindFirstChild("Torso")
+                or character.PrimaryPart
+            if not (targetPart and targetPart:IsA("BasePart")) then return end
+
+            local c0 = (accAtt and accAtt.CFrame) or (existingWeld and existingWeld.C0) or CFrame.new(0, 0, 0)
+            local c1 = (charAtt and charAtt.CFrame) or (existingWeld and existingWeld.C1) or CFrame.new(0, 0.5, 0)
+            pcall(function()
+                handle.CFrame = targetPart.CFrame * c1 * c0:Inverse()
+            end)
+            local weld = existingWeld or Instance.new("Weld")
+            weld.Name = "AccessoryWeld"
+            weld.Part0 = handle
+            weld.Part1 = targetPart
+            weld.C0 = c0
+            weld.C1 = c1
+            weld.Parent = handle
+        end)
+    end
+
     function PI.CopyOutfit(source, character, humanoid)
-        if not source or not character or not humanoid then
+        if not source or not character then
             return false, "Thiếu dữ liệu nhân vật để sao chép"
         end
+        humanoid = humanoid or character:FindFirstChildOfClass("Humanoid")
         local items = PI.OutfitParts(source)
         local visuals = PI.SaveVisuals(source)
         if #items == 0 and next(visuals) == nil then
@@ -9361,10 +9672,7 @@ end end
             local okC, clone = pcall(function() return item:Clone() end)
             if okC and clone then
                 if clone:IsA("Accessory") then
-                    local okAdd = pcall(function() humanoid:AddAccessory(clone) end)
-                    if not okAdd or clone.Parent ~= character then
-                        pcall(function() clone.Parent = character end)
-                    end
+                    PI.AttachAccessoryClient(character, humanoid, clone)
                 else
                     pcall(function() clone.Parent = character end)
                 end
@@ -9439,6 +9747,12 @@ end end
             local ran, success, reason = pcall(PI.CopyOutfit, source, char, hum)
             copied = ran and success == true
             detail = ran and reason or tostring(success)
+            -- Nếu đang bật Lấy Skin (PI._skinFake) CÙNG LÚC thì đắp luôn quần áo/phụ kiện/mặt LOCAL sang cả PI._skinFake!
+            if PI.skinActive and PI._skinFake and PI._skinFake.Parent then
+                local fakeHum = PI._skinFake:FindFirstChildOfClass("Humanoid")
+                pcall(PI.CopyOutfit, source, PI._skinFake, fakeHum)
+                pcall(makeFakeVisible, PI._skinFake)
+            end
             pcall(function() source:Destroy() end)
         elseif okModel and source then
             pcall(function() source:Destroy() end)
@@ -9446,7 +9760,7 @@ end end
         return copied, applied, detail, err
     end
 
-    -- 👕 Mặc LOCAL (từ script.js1.js): thay trực tiếp quần áo/phụ kiện/mặt/màu da lên nhân vật thật, KHÔNG tạo fake rig ẩn người
+    -- 👕 Mặc LOCAL (từ script.js1.js): chạy độc lập HOẶC chạy CÙNG LÚC với 👕 Lấy Skin (KHÔNG tắt Lấy Skin nếu đang bật)
     function PI.ApplyLocal(rec)
         print("[BC_Skin] ApplyLocal rec", rec and rec.id or "nil", rec and rec.name or "")
         if type(rec) ~= "table" or (rec.desc == nil and rec.id == nil) then
@@ -9457,19 +9771,28 @@ end end
         if not char or not hum then
             return false, "chưa có nhân vật; chờ hồi sinh rồi thử lại"
         end
-        -- Nếu trước đó đang bật chế độ Lấy Skin (fake rig ẩn nhân vật) thì gỡ fake và hiện lại nhân vật thật
-        StopSkinFollow()
-        ShowCharacter()
         local copied, applied, detail, err = PI.ApplyLocalToChar(char, hum, rec.desc, rec)
         pcall(function() PI.DiagnoseClothes(char, rec.desc) end)
+        -- Nếu đang bật Lấy Skin cùng lúc thì giữ nguyên fake rig + ẩn nhân vật thật (fake rig đã được đắp đồ LOCAL ở trên)
+        if PI.skinActive and PI._skinFake and PI._skinFake.Parent then
+            makeFakeVisible(PI._skinFake)
+            HideCharacter(char)
+        else
+            ShowCharacter()
+        end
         if player.Character ~= char then
             return false, "nhân vật đã hồi sinh khi tải đồ; bấm Mặc LOCAL lại"
-        elseif copied then
-            PI.isApplied = true; PI.appliedId = rec.id; PI.appliedMode = "local"
-            return true, tostring(detail or "đã sao chép trang phục LOCAL")
-        elseif applied then
-            PI.isApplied = true; PI.appliedId = rec.id; PI.appliedMode = "local"
-            return true, "ApplyDescription cục bộ (" .. tostring(detail or "không sao chép được phụ kiện") .. ")"
+        elseif copied or applied then
+            PI.localActive = true
+            PI.localId = rec.id
+            PI.isApplied = true
+            PI.appliedId = rec.id
+            PI.appliedMode = (PI.skinActive and PI.localActive) and "both" or "local"
+            if D.SyncOutfitPanel then pcall(D.SyncOutfitPanel) end
+            if PI.RefreshButtons then pcall(PI.RefreshButtons) end
+            local msg = copied and tostring(detail or "đã sao chép trang phục LOCAL")
+                or ("ApplyDescription cục bộ (" .. tostring(detail or "không sao chép được phụ kiện") .. ")")
+            return true, msg
         else
             return false, tostring(err or detail or "không áp được trang phục LOCAL")
         end
@@ -9486,6 +9809,7 @@ end end
         return success == true, tostring(message or (success and "Đã gửi yêu cầu SERVER" or "Yêu cầu SERVER thất bại"))
     end
 
+    -- 👕 Lấy Skin (từ script.js): chạy độc lập HOẶC chạy CÙNG LÚC với 👕 Mặc LOCAL (luôn giữ và kết hợp Mặc LOCAL)
     function PI.ApplySkin(rec)
         print("[BC_Skin] ApplySkin rec", rec and rec.id or "nil", rec and rec.name or "")
         if type(rec) ~= "table" or (rec.desc == nil and rec.id == nil) then return false, "chưa tra cứu người nào có skin (bấm 🔍 trước)" end
@@ -9503,7 +9827,6 @@ end end
         local copiedLocal, appliedDesc, localDetail = PI.ApplyLocalToChar(char, hum, rec.desc or fakeDesc, rec)
         local applyOk = copiedLocal or appliedDesc
         print("[BC_Skin] ApplyLocalToChar in ApplySkin:", "copied=", copiedLocal, "applied=", appliedDesc, "detail=", localDetail)
-        -- Ghi trạng thái đồ mặc sau khi Roblox xử lý HumanoidDescription + CopyOutfit.
         pcall(function() PI.DiagnoseClothes(char, rec.desc or fakeDesc) end)
 
         pcall(function() if PI._skinFake then PI._skinFake:Destroy() end end)
@@ -9513,6 +9836,13 @@ end end
         -- Ưu tiên rig live để giữ dáng/phụ kiện; nếu không online thì dùng avatar description.
         print("[BC_Skin] fake", fake and "có" or "nil", "source", avatarSource, "err", ferr, "applyOk", applyOk)
         if fake then
+            -- Luôn đồng bộ quần áo/phụ kiện/mặt từ Mặc LOCAL sang fake rig để cả 2 tính năng hoạt động CÙNG LÚC
+            pcall(function()
+                if copiedLocal and avatarSource ~= "live" then
+                    local fHum = fake:FindFirstChildOfClass("Humanoid")
+                    PI.CopyOutfit(char, fake, fHum)
+                end
+            end)
             -- chuẩn bị PrimaryPart trước khi Parent
             pcall(function()
                 if not fake.PrimaryPart then
@@ -9563,7 +9893,6 @@ end end
                         print("[BC_Skin] check 0.3s fake", pp and tostring(pp.Position) or "nil", "char pivot", cp and tostring(cp.Position) or "nil", "visible", pp and pp.Transparency or "nil")
                     else
                         warn("[BC_Skin] check 0.3s fake MẤT! game có thể đã xóa - thử Parent CurrentCamera")
-                        -- thử cứu bằng cách Parent vào CurrentCamera (ít bị xóa hơn)
                         local rescued = false
                         pcall(function()
                             if fake and not fake.Parent then
@@ -9588,22 +9917,47 @@ end end
         end
 
         if fake and applyOk then
-            PI.isApplied = true; PI.appliedId = rec.id; PI.appliedMode = "skin"
+            PI.skinActive = true; PI.localActive = true
+            PI.skinId = rec.id; PI.localId = rec.id
+            PI.isApplied = true; PI.appliedId = rec.id; PI.appliedMode = "both"
+            if D.SyncOutfitPanel then pcall(D.SyncOutfitPanel) end
+            if PI.RefreshButtons then pcall(PI.RefreshButtons) end
             return true, "fake+local (" .. tostring(localDetail or "thấy rõ, theo bạn") .. ")"
         elseif fake then
-            PI.isApplied = true; PI.appliedId = rec.id; PI.appliedMode = "skin"
+            PI.skinActive = true; PI.skinId = rec.id
+            PI.isApplied = true; PI.appliedId = rec.id
+            PI.appliedMode = PI.localActive and "both" or "skin"
+            if D.SyncOutfitPanel then pcall(D.SyncOutfitPanel) end
+            if PI.RefreshButtons then pcall(PI.RefreshButtons) end
             return true, "fake (thấy rõ, theo bạn)"
         elseif applyOk then
-            PI.isApplied = true; PI.appliedId = rec.id; PI.appliedMode = "local"
+            PI.localActive = true; PI.localId = rec.id
+            PI.isApplied = true; PI.appliedId = rec.id
+            PI.appliedMode = PI.skinActive and "both" or "local"
+            if D.SyncOutfitPanel then pcall(D.SyncOutfitPanel) end
+            if PI.RefreshButtons then pcall(PI.RefreshButtons) end
             return true, "mặc local (" .. tostring(localDetail or "đã đổi trang phục trên nhân vật thật") .. ")"
         else
             return false, "không rõ lỗi"
         end
     end
 
+    -- ✨ Bật CẢ 2 CÙNG LÚC (Lấy Skin + Mặc LOCAL)
+    function PI.ApplyBoth(rec)
+        local ok, detail = PI.ApplySkin(rec)
+        if ok then
+            PI.skinActive = true
+            PI.localActive = true
+            PI.appliedMode = "both"
+            if D.SyncOutfitPanel then pcall(D.SyncOutfitPanel) end
+            if PI.RefreshButtons then pcall(PI.RefreshButtons) end
+        end
+        return ok, detail
+    end
+
     function PI.ResetSkin()
         print("[BC_Skin] ResetSkin")
-        if not PI.isApplied and not PI._skinFake and not PI.localSaved then
+        if not PI.isApplied and not PI.skinActive and not PI.localActive and not PI._skinFake and not PI.localSaved then
             return false, "bạn chưa Lấy Skin hoặc Mặc LOCAL ai cả"
         end
         ShowCharacter()
@@ -9638,8 +9992,7 @@ end end
                 pcall(function()
                     local cloned = item:Clone()
                     if cloned:IsA("Accessory") then
-                        local okAdd = pcall(function() hum:AddAccessory(cloned) end)
-                        if not okAdd or cloned.Parent ~= char then cloned.Parent = char end
+                        PI.AttachAccessoryClient(char, hum, cloned)
                     else
                         cloned.Parent = char
                     end
@@ -9656,26 +10009,42 @@ end end
         PI.isApplied = false
         PI.appliedId = nil
         PI.appliedMode = nil
+        PI.skinActive = false
+        PI.localActive = false
+        PI.skinId = nil
+        PI.localId = nil
+        if D.SyncOutfitPanel then pcall(D.SyncOutfitPanel) end
+        if PI.RefreshButtons then pcall(PI.RefreshButtons) end
         return true, restoredLocal and "Đã khôi phục skin & trang phục LOCAL gốc" or nil
     end
 
     pcall(function()
         trackConn(player.CharacterAdded:Connect(function(newChar)
             if not PI.isApplied or not PI.appliedId then return end
-            local mode = PI.appliedMode or "skin"
-            print("[BC_Skin] CharacterAdded", PI.appliedId, "mode", mode)
+            local wantSkin = PI.skinActive
+            local wantLocal = PI.localActive
+            local mode = PI.appliedMode or "both"
+            print("[BC_Skin] CharacterAdded", PI.appliedId, "mode", mode, "skin=", wantSkin, "local=", wantLocal)
             task.wait(0.7)
             local hum2 = newChar:WaitForChild("Humanoid", 5)
             if not hum2 then return end
             task.wait(0.2)
             local rec = PI.last
-            local applyFn = (mode == "local") and PI.ApplyLocal or PI.ApplySkin
-            if rec and rec.id == PI.appliedId and rec.desc then
-                pcall(function() applyFn(rec) end)
-            else
+            if not (rec and rec.id == PI.appliedId and rec.desc) then
                 local ok, d = pcall(function() return Players:GetHumanoidDescriptionFromUserId(PI.appliedId) end)
-                if ok and d then pcall(function() applyFn({ desc = d, id = PI.appliedId, name = rec and rec.name or tostring(PI.appliedId) }) end) end
+                if ok and d then
+                    rec = { desc = d, id = PI.appliedId, name = rec and rec.name or tostring(PI.appliedId) }
+                end
             end
+            if not rec then return end
+            if wantSkin or mode == "both" or mode == "skin" then
+                pcall(function() PI.ApplySkin(rec) end)
+                if wantLocal then PI.localActive = true; PI.appliedMode = "both" end
+            elseif wantLocal or mode == "local" then
+                pcall(function() PI.ApplyLocal(rec) end)
+            end
+            if D.SyncOutfitPanel then pcall(D.SyncOutfitPanel) end
+            if PI.RefreshButtons then pcall(PI.RefreshButtons) end
         end))
     end)
 
@@ -9799,9 +10168,26 @@ end end
     local serverSkinBtn = pAct("🌐 Mặc SERVER", 350, 266, 110, C.BLUE)
 
     local skinStatusLbl = New("TextLabel", { Name = "HubPlayerInfo_SkinStatus", Size = UDim2.new(1, -244, 0, 36), Position = UDim2.new(0, 236, 0, 292),
-        Text = "👕 Lấy Skin = hóa thân 3D + mặc đồ · 👕 Mặc LOCAL = thay quần áo/mặt trực tiếp lên nhân vật thật.",
+        Text = "👕 Lấy Skin & 👕 Mặc LOCAL chạy CÙNG LÚC được! Bấm 1 trong 2 hoặc bấm cả 2 để kết hợp.",
         TextWrapped = true, BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium,
         TextSize = 8, TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, ZIndex = 7, }, P)
+
+    local function refreshSkinButtons()
+        local sOn = PI.skinActive == true
+        local lOn = PI.localActive == true
+        applySkinBtn.Text = sOn and "👕 Lấy Skin: BẬT" or "👕 Lấy Skin"
+        applySkinBtn.BackgroundColor3 = sOn and C.GREEN or C.PURPLE
+        applySkinBtn.TextColor3 = D.BestText(applySkinBtn.BackgroundColor3)
+        applyLocalBtn.Text = lOn and "👕 Mặc LOCAL: BẬT" or "👕 Mặc LOCAL"
+        applyLocalBtn.BackgroundColor3 = lOn and C.GREEN or C.SURFACE3
+        applyLocalBtn.TextColor3 = D.BestText(applyLocalBtn.BackgroundColor3)
+    end
+    PI.RefreshButtons = refreshSkinButtons
+    PI.SyncFromTopPanel = function(name, uid, rec)
+        if name and queryIn then queryIn.Text = tostring(name) end
+        if rec and rec.desc then pcall(function() PI.ViewerBuild(rec) end) end
+        refreshSkinButtons()
+    end
 
     local function requireLast()
         if PI.last == nil then setStatus("⚠️ Hãy tra cứu một người chơi trước", C.YELLOW) return nil end
@@ -9811,6 +10197,10 @@ end end
     -- Hỗ trợ bấm Mặc LOCAL hoặc Lấy Skin trực tiếp ngay khi vừa nhập tên (giống script.js1.js)
     local function withTargetRec(cb)
         local q = trimStr(queryIn.Text)
+        if q == "" and D.OutfitInput then
+            q = trimStr(D.OutfitInput.Text)
+            if q ~= "" then queryIn.Text = q end
+        end
         if PI.last ~= nil then
             if q == "" or string.lower(q) == string.lower(tostring(PI.last.name or "")) or tonumber(q) == PI.last.id then
                 cb(PI.last)
@@ -9836,23 +10226,21 @@ end end
         setStatus("Đã xoá. Nhập tên khác rồi bấm 🔍.", C.MUTED)
     end)
 
-    -- 👕 Lấy Skin (kết hợp Hóa thân Fake Rig của script.js + Mặc LOCAL của script.js1.js)
+    -- 👕 Lấy Skin (chạy độc lập HOẶC chạy CÙNG LÚC với 👕 Mặc LOCAL)
     applySkinBtn.Activated:Connect(function()
         ReleaseHubFocus()
         withTargetRec(function(rec)
-            if PI.isApplied and PI.appliedId == rec.id and PI.appliedMode == "skin" then
-                setStatus("ℹ️ Bạn đang dùng skin hóa thân của @" .. rec.name .. " rồi — di chuyển thử xem!", C.YELLOW)
-                if skinStatusLbl then
-                    skinStatusLbl.Text = "👕 Đang dùng skin @" .. rec.name .. " — WASD / joystick di chuyển bình thường, ↩ Trả Skin để về lại."
-                    skinStatusLbl.TextColor3 = C.GREEN
-                end
-                return
+            if D.OutfitInput and trimStr(D.OutfitInput.Text) == "" and rec.name then
+                D.OutfitInput.Text = tostring(rec.name)
             end
             local ok, err = PI.ApplySkin(rec)
+            refreshSkinButtons()
+            if D.SyncOutfitPanel then pcall(D.SyncOutfitPanel) end
             if ok then
-                setStatus("✅ Đã Lấy Skin @" .. rec.name .. " (" .. tostring(err) .. ")!", C.GREEN)
+                local bothTag = (PI.skinActive and PI.localActive) and " [ĐANG BẬT CẢ 2 CÙNG LÚC: LẤY SKIN + MẶC LOCAL]" or ""
+                setStatus("✅ Đã Lấy Skin @" .. rec.name .. " (" .. tostring(err) .. ")" .. bothTag, C.GREEN)
                 if skinStatusLbl then
-                    skinStatusLbl.Text = "👕 Đang hóa thân @" .. rec.name .. " (ID " .. tostring(rec.id) .. ") — hồi sinh vẫn giữ, ↩ Trả Skin để về."
+                    skinStatusLbl.Text = "👕 Đang bật CẢ 2 CÙNG LÚC (Lấy Skin + Mặc LOCAL) cho @" .. rec.name .. " (ID " .. tostring(rec.id) .. ") — ↩ Trả Skin để về."
                     skinStatusLbl.TextColor3 = C.GREEN
                 end
                 pcall(function() PI.ViewerBuild(rec) end)
@@ -9866,15 +10254,25 @@ end end
         end)
     end)
 
-    -- 👕 Mặc LOCAL (từ script.js1.js: mặc trực tiếp quần áo/phụ kiện/mặt/màu da lên nhân vật thật)
+    -- 👕 Mặc LOCAL (chạy độc lập HOẶC chạy CÙNG LÚC với 👕 Lấy Skin — KHÔNG tắt Lấy Skin nếu đang bật!)
     applyLocalBtn.Activated:Connect(function()
         ReleaseHubFocus()
         withTargetRec(function(rec)
+            if D.OutfitInput and trimStr(D.OutfitInput.Text) == "" and rec.name then
+                D.OutfitInput.Text = tostring(rec.name)
+            end
             local ok, detail = PI.ApplyLocal(rec)
+            refreshSkinButtons()
+            if D.SyncOutfitPanel then pcall(D.SyncOutfitPanel) end
             if ok then
-                setStatus("✅ Đã thay đồ LOCAL @" .. rec.name .. " (" .. tostring(detail) .. ").", C.GREEN)
+                local bothTag = (PI.skinActive and PI.localActive) and " [ĐANG BẬT CÙNG LÚC VỚI LẤY SKIN]" or ""
+                setStatus("✅ Đã Mặc LOCAL @" .. rec.name .. " (" .. tostring(detail) .. ")" .. bothTag, C.GREEN)
                 if skinStatusLbl then
-                    skinStatusLbl.Text = "✅ Đã Mặc LOCAL @" .. rec.name .. " (" .. tostring(detail) .. "). Bấm ↩ Trả Skin để khôi phục."
+                    if PI.skinActive and PI.localActive then
+                        skinStatusLbl.Text = "✅ Đang bật CẢ 2 CÙNG LÚC: 👕 Lấy Skin + 👕 Mặc LOCAL (@" .. rec.name .. " · " .. tostring(detail) .. ")."
+                    else
+                        skinStatusLbl.Text = "✅ Đã Mặc LOCAL @" .. rec.name .. " (" .. tostring(detail) .. "). Có thể bấm thêm 👕 Lấy Skin để dùng cả 2 cùng lúc!"
+                    end
                     skinStatusLbl.TextColor3 = C.GREEN
                 end
                 pcall(function() PI.ViewerBuild(rec) end)
@@ -9908,10 +10306,12 @@ end end
     resetSkinBtn.Activated:Connect(function()
         ReleaseHubFocus()
         local ok, err = PI.ResetSkin()
+        refreshSkinButtons()
+        if D.SyncOutfitPanel then pcall(D.SyncOutfitPanel) end
         if ok then
             setStatus("↩ Đã khôi phục skin & trang phục gốc của bạn", C.GREEN)
             if skinStatusLbl then
-                skinStatusLbl.Text = "↩ Đã về trang phục gốc — tra cứu người khác rồi bấm 👕 Lấy Skin hoặc 👕 Mặc LOCAL!"
+                skinStatusLbl.Text = "↩ Đã về trang phục gốc — bấm 👕 Lấy Skin và 👕 Mặc LOCAL để dùng cả 2 cùng lúc!"
                 skinStatusLbl.TextColor3 = C.MUTED
             end
         else
@@ -9928,17 +10328,20 @@ end end
         local _origRender = render
         render = function(rec)
             local okV, verr = _origRender(rec)
-            -- cập nhật skinStatus theo rec hiện tại
+            if D.OutfitInput and rec and rec.name then D.OutfitInput.Text = tostring(rec.name) end
+            refreshSkinButtons()
+            if D.SyncOutfitPanel then pcall(D.SyncOutfitPanel) end
             pcall(function()
                 if PI.isApplied and PI.appliedId == rec.id then
-                    local modeTxt = (PI.appliedMode == "local") and "Mặc LOCAL" or "Lấy Skin"
+                    local modeTxt = (PI.skinActive and PI.localActive) and "CẢ 2: Lấy Skin + Mặc LOCAL"
+                        or (PI.skinActive and "Lấy Skin" or "Mặc LOCAL")
                     skinStatusLbl.Text = "👕 Đang dùng (" .. modeTxt .. ") @" .. rec.name .. " — bấm ↩ Trả Skin để về."
                     skinStatusLbl.TextColor3 = C.GREEN
                 elseif PI.isApplied then
                     skinStatusLbl.Text = "👕 Đang mặc ID " .. tostring(PI.appliedId) .. " — bấm 👕 Lấy Skin hoặc 👕 Mặc LOCAL để đổi sang @" .. rec.name .. "."
                     skinStatusLbl.TextColor3 = C.YELLOW
                 else
-                    skinStatusLbl.Text = "👕 Sẵn sàng @" .. rec.name .. " — chọn 👕 Lấy Skin (hóa thân) hoặc 👕 Mặc LOCAL (thay đồ trực tiếp)."
+                    skinStatusLbl.Text = "👕 Sẵn sàng @" .. rec.name .. " — bấm 👕 Lấy Skin và 👕 Mặc LOCAL để dùng cả 2 cùng lúc!"
                     skinStatusLbl.TextColor3 = C.MUTED
                 end
             end)
