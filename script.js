@@ -8931,6 +8931,20 @@ end end
             end
             lastErr = lastErr or tostring(userModel)
         end
+        if rec and rec.id then
+            -- Fallback cuối qua API appearance cũ, hữu ích với một số bundle/accessory không dựng được từ Description.
+            local okAppearance, appearanceModel = pcall(function() return Players:GetCharacterAppearanceAsync(rec.id) end)
+            local isModel = false
+            pcall(function() isModel = appearanceModel ~= nil and appearanceModel:IsA("Model") end)
+            if okAppearance and isModel then
+                local appearanceCopy, appearanceErr = PI.CloneLiveCharacter(appearanceModel, modelName)
+                pcall(function() if appearanceModel and not appearanceModel.Parent then appearanceModel:Destroy() end end)
+                if appearanceCopy then return appearanceCopy, nil, rec.desc, "characterAppearance" end
+                lastErr = appearanceErr or lastErr
+            elseif not okAppearance then
+                lastErr = tostring(appearanceModel)
+            end
+        end
         return nil, lastErr or "không dựng được avatar từ character hoặc HumanoidDescription", nil, nil
     end
 
@@ -9014,7 +9028,7 @@ end end
         if not m then return false, merr end
         m.Parent = v.wm
         -- Character live có tọa độ trong map; căn tâm bounding box vào camera của WorldModel, giữ góc xoay.
-        if source == "live" then
+        if source == "live" or source == "characterAppearance" then
             pcall(function()
                 local pivot = m:GetPivot()
                 local bounds = m:GetBoundingBox()
@@ -9288,8 +9302,9 @@ end end
             print("[BC_Skin] StartSkinFollow OK")
             return true
         else
-            warn("[BC_Skin] Bind RenderStep lỗi, dùng Heartbeat")
-            pcall(function()
+            warn("[BC_Skin] Bind RenderStep lỗi, thử Heartbeat")
+            PI._skinHeartbeat = nil
+            local okHeartbeat = pcall(function()
                 local conn
                 conn = RunService.Heartbeat:Connect(function()
                     if not (char and char.Parent and PI._skinFake and PI._skinFake.Parent) then
@@ -9302,7 +9317,13 @@ end end
                 end)
                 PI._skinHeartbeat = conn
             end)
-            return true
+            if okHeartbeat and PI._skinHeartbeat then
+                PI._skinFollow = true
+                print("[BC_Skin] StartSkinFollow Heartbeat OK")
+                return true
+            end
+            warn("[BC_Skin] không tạo được Heartbeat follow")
+            return false
         end
     end
 
@@ -9312,6 +9333,15 @@ end end
         local char = player.Character
         local hum = char and char:FindFirstChildOfClass("Humanoid")
         if not char or not hum then return false, "chưa có nhân vật (đợi load xong, thử lại sau 1s)" end
+
+        if PI.isApplied or PI._skinFake then
+            -- Dọn skin cũ và hiện lại nhân vật trước để lần lấy mới không kế thừa trạng thái ẩn.
+            ShowCharacter()
+            StopSkinFollow()
+            PI.isApplied = false
+            PI.appliedId = nil
+            PI.appliedSource = nil
+        end
 
         if not PI.originalDesc then
             local okA, odA = pcall(function() return hum:GetAppliedDescription() end)
@@ -9353,6 +9383,7 @@ end end
 
         -- Ưu tiên rig live để giữ dáng/phụ kiện; nếu không online thì dùng avatar description.
         print("[BC_Skin] fake", fake and "có" or "nil", "source", avatarSource, "err", ferr, "applyOk", applyOk)
+        local fakeReady, fakeFailure = false, nil
         if fake then
             -- chuẩn bị PrimaryPart trước khi Parent
             pcall(function()
@@ -9389,14 +9420,20 @@ end end
                 pcall(function() fake:SetPrimaryPartCFrame(cf) end)
             end
             local okFollow = StartSkinFollow(char)
-            if okFollow then
+            fakeReady = okFollow and fake.Parent ~= nil and PI._skinFake == fake
+            if fakeReady then
                 HideCharacter(char)
                 print("[BC_Skin] HideCharacter sau khi fake đã theo")
             else
-                warn("[BC_Skin] StartSkinFollow lỗi, không ẩn char để bạn không bị tàng hình")
-                -- không ẩn, để bạn vẫn thấy mình (hoặc đã đổi ApplyDescription)
+                fakeFailure = not okFollow and "StartSkinFollow thất bại" or "game đã xóa/không giữ model trong workspace"
+                warn("[BC_Skin] skin fake chưa được xác nhận: " .. tostring(fakeFailure))
+                pcall(function() RunService:UnbindFromRenderStep(PI._skinFollowBind) end)
+                PI._skinFollow = nil
+                if PI._skinHeartbeat then pcall(function() PI._skinHeartbeat:Disconnect() end) PI._skinHeartbeat = nil end
+                if fake.Parent then pcall(function() fake:Destroy() end) end
+                if PI._skinFake == fake then PI._skinFake = nil end
             end
-            task.delay(0.3, function()
+            if fakeReady then task.delay(0.3, function()
                 pcall(function()
                     if PI._skinFake and PI._skinFake.Parent then
                         local pp = PI._skinFake.PrimaryPart or PI._skinFake:FindFirstChildWhichIsA("BasePart", true)
@@ -9414,6 +9451,7 @@ end end
                     end
                 end)
             end)
+            end
         else
             warn("[BC_Skin] không tạo fake: "..tostring(ferr))
             if not applyOk then
@@ -9421,17 +9459,23 @@ end end
             end
         end
 
-        if fake and applyOk then
-            PI.isApplied = true; PI.appliedId = rec.id
-            return true, "fake+apply (thấy rõ, theo bạn)"
-        elseif fake then
-            PI.isApplied = true; PI.appliedId = rec.id
-            return true, "fake (thấy rõ, theo bạn)"
+        local sourceNames = {
+            live = "character live", liveDescription = "mô tả live", description = "avatar công khai",
+            userId = "UserId", characterAppearance = "appearance API",
+        }
+        local sourceName = sourceNames[avatarSource] or tostring(avatarSource or "không rõ nguồn")
+        if fakeReady and applyOk then
+            PI.isApplied = true; PI.appliedId = rec.id; PI.appliedSource = avatarSource
+            return true, "fake+apply · " .. sourceName
+        elseif fakeReady then
+            PI.isApplied = true; PI.appliedId = rec.id; PI.appliedSource = avatarSource
+            return true, "fake · " .. sourceName
         elseif applyOk then
-            PI.isApplied = true; PI.appliedId = rec.id
-            return true, "apply (không fake nhưng đã đổi thật)"
+            PI.isApplied = true; PI.appliedId = rec.id; PI.appliedSource = "description"
+            return true, "chỉ ApplyDescription; model không theo được: " .. tostring(fakeFailure or ferr or "lỗi không rõ")
         else
-            return false, "không rõ lỗi"
+            PI.isApplied = false; PI.appliedId = nil; PI.appliedSource = nil
+            return false, "không xác nhận được model skin: " .. tostring(fakeFailure or ferr or "không rõ lỗi")
         end
     end
 
@@ -9456,7 +9500,7 @@ end end
             local okF, odF = pcall(function() return Players:GetHumanoidDescriptionFromUserId(player.UserId) end)
             if okF and odF then pcall(function() hum:ApplyDescription(odF) end) end
         end
-        PI.isApplied = false; PI.appliedId = nil
+        PI.isApplied = false; PI.appliedId = nil; PI.appliedSource = nil
         return true, nil
     end
 
@@ -9591,6 +9635,7 @@ end end
             local sourceLabels = {
                 live = "character live trong server", liveDescription = "HumanoidDescription live",
                 description = "HumanoidDescription công khai", userId = "avatar theo UserId",
+                characterAppearance = "GetCharacterAppearanceAsync",
             }
             local avatarNote, avatarColor = "", C.YELLOW
             local sourceLabel = okR and rv and sourceLabels[PI.view.source] or nil
@@ -9648,8 +9693,9 @@ end end
         end
         local ok, err = PI.ApplySkin(rec)
         if ok then
-            setStatus("✅ Đã Lấy Skin @" .. rec.name .. " — nhân vật của bạn đã đổi, di chuyển bình thường!", C.GREEN)
-            if skinStatusLbl then skinStatusLbl.Text = "👕 Đang hóa thân thành @" .. rec.name .. " (ID " .. tostring(rec.id) .. ") — chết/hồi sinh vẫn giữ, ↩ Trả Skin để về."; skinStatusLbl.TextColor3 = C.GREEN end
+            local detail = tostring(err or "đã xác nhận")
+            setStatus("✅ Đã Lấy Skin @" .. rec.name .. " · " .. detail, C.GREEN)
+            if skinStatusLbl then skinStatusLbl.Text = "👕 Đang hóa thân @" .. rec.name .. " · " .. detail .. " — ↩ Trả Skin để về."; skinStatusLbl.TextColor3 = C.GREEN end
             -- cập nhật viewport để khớp (đã có model 3D)
             pcall(function() PI.ViewerBuild(rec) end)
         else
