@@ -9185,19 +9185,40 @@ end end
                         local descForClothes = rec.desc
                         local okCd, cdc = pcall(function() return rec.desc:Clone() end)
                         if okCd and cdc then descForClothes = cdc end
-                        -- Áp lại để Shirt/Pants/Accessory/Body Colors/Scales chuẩn
-                        fh:ApplyDescription(descForClothes)
-                        -- Đảm bảo Body colors/scales hiển thị 100%+ (không bị mờ)
+                        -- Áp lại để áo/quần dán khít vào người cho hợp lý (Shirt dán vào Torso/Arms, Pants vào Torso/Legs)
+                        local okApply = pcall(function() fh:ApplyDescription(descForClothes) end)
+                        print("[BC_Skin] ApplyDescription áo/quần dán", okApply, "Shirt", tostring(descForClothes.Shirt), "Pants", tostring(descForClothes.Pants))
+                        -- Kiểm tra và tạo thủ công nếu thiếu để đảm bảo dán khít
                         pcall(function()
-                            -- Nếu có Body scales thì giữ nguyên, nếu muốn >100% có thể nhân 1.02
+                            local hasShirt, hasPants = false, false
+                            for _, v in ipairs(fake:GetDescendants()) do
+                                if v:IsA("Shirt") then hasShirt = true end
+                                if v:IsA("Pants") then hasPants = true end
+                            end
+                            if not hasShirt and descForClothes.Shirt ~= 0 then
+                                local s = Instance.new("Shirt")
+                                s.Name = "Shirt"
+                                s.ShirtTemplate = "rbxassetid://" .. tostring(descForClothes.Shirt)
+                                s.Parent = fake
+                                print("[BC_Skin] tạo thủ công Shirt", s.ShirtTemplate, "dán khít vào Torso/Arms")
+                                hasShirt = true
+                            end
+                            if not hasPants and descForClothes.Pants ~= 0 then
+                                local p = Instance.new("Pants")
+                                p.Name = "Pants"
+                                p.PantsTemplate = "rbxassetid://" .. tostring(descForClothes.Pants)
+                                p.Parent = fake
+                                print("[BC_Skin] tạo thủ công Pants", p.PantsTemplate, "dán khít vào Torso/Legs")
+                                hasPants = true
+                            end
+                            if hasShirt or hasPants then
+                                print("[BC_Skin] áo/quần đã dán hợp lý vào nhân vật")
+                            end
+                            -- Log BodyScale để biết tỉ lệ hiển thị
                             local bhs = fh:FindFirstChild("BodyHeightScale")
                             local bws = fh:FindFirstChild("BodyWidthScale")
                             local bts = fh:FindFirstChild("BodyTypeScale")
-                            local bps = fh:FindFirstChild("BodyProportionScale")
-                            -- Log để biết tỉ lệ
-                            print("[BC_Skin] BodyScale Height", bhs and bhs.Value or "nil", "Width", bws and bws.Value or "nil", "Type", bts and bts.Value or "nil", "Proportion", bps and bps.Value or "nil")
-                            -- Muốn >100% hiển thị thì để nguyên (100%), nếu muốn to hơn 5% thì nhân 1.05 (tùy)
-                            -- Không chỉnh để giữ 100% chuẩn, nhưng đảm bảo không bị 0
+                            print("[BC_Skin] BodyScale Height", bhs and bhs.Value or "nil", "Width", bws and bws.Value or "nil", "Type", bts and bts.Value or "nil", "-> tỉ lệ hiển thị", bhs and string.format("%.0f%%", bhs.Value*100) or "nil")
                         end)
                         local accCount = 0
                         local shirtCount, pantsCount, graphicCount, accessoryCount = 0, 0, 0, 0
@@ -9210,11 +9231,9 @@ end end
                                 end
                             end
                         end)
-                        print("[BC_Skin] fake ApplyDescription lại để áo/quần/đai chuẩn", "Shirt", tostring(descForClothes.Shirt), "Pants", tostring(descForClothes.Pants), "Graphic", tostring(descForClothes.GraphicTShirt), "Accessory", accessoryCount, "Shirt", shirtCount, "Pants", pantsCount, "tổng", accCount)
-                        -- Nếu không có áo/quần/đai nào mà desc có Shirt/Pants !=0 thì thử lại
+                        print("[BC_Skin] fake áo/quần/đai chuẩn", "Shirt", tostring(descForClothes.Shirt), "Pants", tostring(descForClothes.Pants), "Graphic", tostring(descForClothes.GraphicTShirt), "Accessory", accessoryCount, "Shirt", shirtCount, "Pants", pantsCount, "tổng", accCount)
                         if accCount == 0 and (descForClothes.Shirt ~= 0 or descForClothes.Pants ~= 0 or descForClothes.GraphicTShirt ~= 0) then
-                            warn("[BC_Skin] Cảnh báo: desc có áo/quần nhưng fake không có - thử ép lại lần 2")
-                            pcall(function() fh:ApplyDescription(descForClothes) end)
+                            warn("[BC_Skin] Cảnh báo: desc có áo/quần nhưng fake không có - đã tạo thủ công ở trên")
                         end
                         -- Đảm bảo tỉ lệ hiển thị >100%: nếu BodyScale <1 thì tăng lên 1 để không bị nhỏ
                         pcall(function()
