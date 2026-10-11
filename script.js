@@ -9170,6 +9170,14 @@ end end
                 if fh then
                     fh.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
                     fh.HealthDisplayType = Enum.HumanoidDisplayType.AlwaysOff
+                    -- Ép lại Shirt/Pants/Accessories từ desc để đảm bảo quần áo/đai đổi đúng
+                    pcall(function()
+                        local descForClothes = rec.desc
+                        local okCd, cdc = pcall(function() return rec.desc:Clone() end)
+                        if okCd and cdc then descForClothes = cdc end
+                        fh:ApplyDescription(descForClothes)
+                        print("[BC_Skin] fake ApplyDescription lại để quần áo/đai chuẩn", "Shirt", tostring(descForClothes.Shirt), "Pants", tostring(descForClothes.Pants), "Graphic", tostring(descForClothes.GraphicTShirt))
+                    end)
                 end
                 fake.Parent = workspace
                 print("[BC_Skin] fake Parent workspace, PrimaryPart", fake.PrimaryPart and fake.PrimaryPart.Name or "nil")
