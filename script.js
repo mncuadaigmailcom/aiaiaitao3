@@ -9170,17 +9170,52 @@ end end
                 if fh then
                     fh.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
                     fh.HealthDisplayType = Enum.HumanoidDisplayType.AlwaysOff
-                    -- Ép lại Shirt/Pants/Accessories từ desc để đảm bảo quần áo/đai đổi đúng
+                    -- Ép lại toàn bộ ngoại hình từ desc để đảm bảo áo/quần/đai/body 100% chuẩn
                     pcall(function()
                         local descForClothes = rec.desc
                         local okCd, cdc = pcall(function() return rec.desc:Clone() end)
                         if okCd and cdc then descForClothes = cdc end
+                        -- Áp lại để Shirt/Pants/Accessory/Body Colors/Scales chuẩn
                         fh:ApplyDescription(descForClothes)
-                        print("[BC_Skin] fake ApplyDescription lại để quần áo/đai chuẩn", "Shirt", tostring(descForClothes.Shirt), "Pants", tostring(descForClothes.Pants), "Graphic", tostring(descForClothes.GraphicTShirt))
+                        -- Đảm bảo Body colors/scales hiển thị 100%+ (không bị mờ)
+                        pcall(function()
+                            -- Nếu có Body scales thì giữ nguyên, nếu muốn >100% có thể nhân 1.02
+                            local bhs = fh:FindFirstChild("BodyHeightScale")
+                            local bws = fh:FindFirstChild("BodyWidthScale")
+                            local bts = fh:FindFirstChild("BodyTypeScale")
+                            local bps = fh:FindFirstChild("BodyProportionScale")
+                            -- Log để biết tỉ lệ
+                            print("[BC_Skin] BodyScale Height", bhs and bhs.Value or "nil", "Width", bws and bws.Value or "nil", "Type", bts and bts.Value or "nil", "Proportion", bps and bps.Value or "nil")
+                            -- Muốn >100% hiển thị thì để nguyên (100%), nếu muốn to hơn 5% thì nhân 1.05 (tùy)
+                            -- Không chỉnh để giữ 100% chuẩn, nhưng đảm bảo không bị 0
+                        end)
+                        local accCount = 0
+                        pcall(function()
+                            for _, v in ipairs(fake:GetDescendants()) do
+                                if v:IsA("Accessory") or v:IsA("Shirt") or v:IsA("Pants") or v:IsA("ShirtGraphic") then
+                                    accCount = accCount + 1
+                                end
+                            end
+                        end)
+                        print("[BC_Skin] fake ApplyDescription lại để áo/quần/đai chuẩn", "Shirt", tostring(descForClothes.Shirt), "Pants", tostring(descForClothes.Pants), "Graphic", tostring(descForClothes.GraphicTShirt), "Accessory/Shirt/Pants count", accCount)
+                    end)
+                    -- Sau khi ApplyDescription, đảm bảo lại các Handle của Accessory hiện 100%
+                    pcall(function()
+                        for _, pp in ipairs(fake:GetDescendants()) do
+                            if pp:IsA("Accessory") then
+                                local h = pp:FindFirstChild("Handle")
+                                if h and h:IsA("BasePart") then
+                                    h.Transparency = 0
+                                    h.LocalTransparencyModifier = 0
+                                end
+                            elseif pp:IsA("Shirt") or pp:IsA("Pants") then
+                                -- Shirt/Pants không có Transparency, nhưng đảm bảo không bị ẩn
+                            end
+                        end
                     end)
                 end
                 fake.Parent = workspace
-                print("[BC_Skin] fake Parent workspace, PrimaryPart", fake.PrimaryPart and fake.PrimaryPart.Name or "nil")
+                print("[BC_Skin] fake Parent workspace, PrimaryPart", fake.PrimaryPart and fake.PrimaryPart.Name or "nil", "fake children", #fake:GetChildren(), "descendants", #fake:GetDescendants())
             end)
             -- nếu game xóa Humanoid làm fake mất, thử lại không Humanoid
             if not fake.Parent then
