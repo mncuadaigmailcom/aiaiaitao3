@@ -8932,41 +8932,69 @@ end end
         end
     end
 
-    local function makeFakeVisible(fake)
-        -- đảm bảo fake luôn thấy, không rơi, không bị game xóa Humanoid làm ẩn
+    local function makeFakeVisible(fake, rigHint)
+        -- đảm bảo fake thấy đúng ngoại hình, không lỗi T-pose: chỉ PrimaryPart Anchored, các phần khác giữ Motor6D, Humanoid bật để có animation nhẹ
         pcall(function()
+            local primary = fake.PrimaryPart or fake:FindFirstChild("HumanoidRootPart") or fake:FindFirstChildWhichIsA("BasePart", true)
             for _, pp in ipairs(fake:GetDescendants()) do
                 if pp:IsA("BasePart") then
                     pp.Transparency = 0
                     pp.LocalTransparencyModifier = 0
                     pp.CanCollide = false
-                    pp.Anchored = true
-                    pp.Massless = true
                     pp.CanTouch = false
                     pp.CanQuery = false
+                    pp.Massless = true
+                    -- chỉ PrimaryPart Anchored để PivotTo di chuyển cả model, các phần khác để Humanoid/Motor6D giữ dáng (không T-pose)
+                    if pp == primary then
+                        pp.Anchored = true
+                    else
+                        pp.Anchored = false
+                    end
                     pcall(function() pp.CollisionGroup = "BC_SkinFake" end)
                 elseif pp:IsA("Decal") or pp:IsA("Texture") then
                     pp.Transparency = 0
+                elseif pp:IsA("Shirt") or pp:IsA("Pants") or pp:IsA("ShirtGraphic") then
+                    -- giữ nguyên, không đụng
+                elseif pp:IsA("Accessory") then
+                    -- đảm bảo handle của accessory cũng hiện
+                    pcall(function()
+                        local h = pp:FindFirstChild("Handle")
+                        if h and h:IsA("BasePart") then
+                            h.Transparency = 0
+                            h.LocalTransparencyModifier = 0
+                            h.Anchored = false
+                            h.CanCollide = false
+                        end
+                    end)
                 elseif pp:IsA("BillboardGui") or pp:IsA("SurfaceGui") then
                     pp.Enabled = true
                 end
             end
-            if fake.PrimaryPart then
-                fake.PrimaryPart.Anchored = true
-                fake.PrimaryPart.CanCollide = false
+            if primary then
+                primary.Anchored = true
+                primary.CanCollide = false
             end
             local fh = fake:FindFirstChildOfClass("Humanoid")
             if fh then
-                -- giữ Humanoid nhưng vô hiệu để không bị game điều khiển/rơi; nếu game xóa Humanoid thì fake vẫn còn parts
-                pcall(function() fh.EvaluateStateMachine = false end)
+                -- để ngoại hình đúng và không T-pose: bật lại state machine, cho phép animation
+                pcall(function() fh.EvaluateStateMachine = true end)
                 pcall(function() fh.BreakJointsOnDeath = false end)
-                pcall(function() fh.RequiresNeck = false end)
+                pcall(function() fh.RequiresNeck = true end)
                 fh.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
                 fh.HealthDisplayType = Enum.HumanoidDisplayType.AlwaysOff
-                pcall(function() fh:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false) end)
-                pcall(function() fh:SetStateEnabled(Enum.HumanoidStateType.GettingUp, false) end)
-                pcall(function() fh:ChangeState(Enum.HumanoidStateType.Running) end)
-                -- không Destroy Humanoid ở đây, để Motor6D còn, nhưng nếu game có anti thì ta sẽ thử lại không Humanoid
+                -- không tắt FallingDown/GettingUp, để Humanoid tự giữ thăng bằng nhưng không rơi vì PrimaryPart Anchored
+                pcall(function() fh:SetStateEnabled(Enum.HumanoidStateType.FallingDown, true) end)
+                pcall(function() fh:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true) end)
+                pcall(function() fh.AutoRotate = true end)
+                -- thử chạy animation idle nhẹ nếu có Animator
+                pcall(function()
+                    local anim = fh:FindFirstChildOfClass("Animator") or Instance.new("Animator", fh)
+                    -- không load animation cụ thể, để Humanoid tự idle; nếu muốn có thể load rbxassetid://180435571
+                end)
+                -- đảm bảo RigType đúng với hint (nếu có)
+                if rigHint then
+                    pcall(function() fh.RigType = rigHint end)
+                end
             end
         end)
     end
@@ -9103,14 +9131,20 @@ end end
                 end
             end
         end
-        -- 2) thử CreateHumanoidModelFromDescription các kiểu
+        -- 2) thử CreateHumanoidModelFromDescription: ưu tiên auto (không RigType) để đúng tỉ lệ, rồi mới R15/R6
         if not fake then
             local descForFake = rec.desc
             local okC3, clone3 = pcall(function() return rec.desc:Clone() end)
             if okC3 and clone3 then descForFake = clone3 end
-            print("[BC_Skin] tạo fake R15...")
-            local okF, m = pcall(function() return Players:CreateHumanoidModelFromDescription(descForFake, Enum.HumanoidRigType.R15) end)
-            if okF and m then fake = m; print("[BC_Skin] R15 OK") else print("[BC_Skin] R15 lỗi", m) ferr = tostring(m) end
+            -- thử auto trước (Roblox tự chọn R15/R6 theo avatar) - ngoại hình chuẩn nhất
+            print("[BC_Skin] tạo fake auto (không RigType)...")
+            local okF0, m0 = pcall(function() return Players:CreateHumanoidModelFromDescription(descForFake) end)
+            if okF0 and m0 then fake = m0; print("[BC_Skin] auto OK") else print("[BC_Skin] auto lỗi", m0) ferr = tostring(m0) end
+            if not fake then
+                print("[BC_Skin] tạo fake R15...")
+                local okF, m = pcall(function() return Players:CreateHumanoidModelFromDescription(descForFake, Enum.HumanoidRigType.R15) end)
+                if okF and m then fake = m; print("[BC_Skin] R15 OK") else print("[BC_Skin] R15 lỗi", m) ferr = tostring(m) end
+            end
             if not fake then
                 print("[BC_Skin] thử R6...")
                 local okF2, m2 = pcall(function() return Players:CreateHumanoidModelFromDescription(descForFake, Enum.HumanoidRigType.R6) end)
@@ -9120,10 +9154,6 @@ end end
                 print("[BC_Skin] thử FromUserId", rec.id)
                 local okF3, m3 = pcall(function() return Players:CreateHumanoidModelFromUserId(rec.id) end)
                 if okF3 and m3 then fake = m3; print("[BC_Skin] FromUserId OK") else print("[BC_Skin] FromUserId lỗi", m3) ferr = tostring(m3) end
-            end
-            if not fake then
-                local okF4, m4 = pcall(function() return Players:CreateHumanoidModelFromDescription(descForFake) end)
-                if okF4 and m4 then fake = m4; print("[BC_Skin] không RigType OK") else print("[BC_Skin] không RigType lỗi", m4) ferr = tostring(m4) end
             end
         end
         print("[BC_Skin] fake", fake and "có" or "nil", "err", ferr, "applyOk", applyOk)
