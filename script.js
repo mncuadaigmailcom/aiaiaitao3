@@ -8757,39 +8757,32 @@ end end
         return nil, lastErr
     end
 
-    -- Roblox thường gắn classic clothes khi tạo rig từ HumanoidDescription.
-    -- Ép lại Shirt/Pants/ShirtGraphic để tránh model clone thiếu các instance này.
-    function PI.EnsureClassicClothes(model, desc)
-        if not model or not desc then return 0 end
-        local applied, ids = 0, {}
-        local function putClothing(className, idKey, templateKey)
-            local okId, rawId = pcall(function() return desc[idKey] end)
-            local assetId = (okId and tonumber(rawId)) or 0
-            ids[idKey] = assetId
-            if assetId <= 0 then return end
-            local okSet = pcall(function()
-                local clothing = model:FindFirstChildOfClass(className)
-                if not clothing then
-                    clothing = Instance.new(className)
-                    clothing.Name = className
-                    clothing.Parent = model
-                end
-                clothing[templateKey] = "rbxassetid://" .. tostring(math.floor(assetId))
-            end)
-            if okSet then applied += 1 end
+    -- Chẩn đoán đồ mặc nhưng KHÔNG gán ID catalog vào ShirtTemplate/PantsTemplate.
+    -- HumanoidDescription.Shirt/Pants là ID vật phẩm; Roblox cần tự resolve thành texture.
+    function PI.DiagnoseClothes(model, desc)
+        if not model or not desc then return end
+        local function readId(key)
+            local ok, value = pcall(function() return desc[key] end)
+            return (ok and tonumber(value)) or 0
         end
-        putClothing("Shirt", "Shirt", "ShirtTemplate")
-        putClothing("Pants", "Pants", "PantsTemplate")
-        putClothing("ShirtGraphic", "GraphicTShirt", "Graphic")
+        local shirt, pants, graphic = nil, nil, nil
+        pcall(function() shirt = model:FindFirstChildOfClass("Shirt") end)
+        pcall(function() pants = model:FindFirstChildOfClass("Pants") end)
+        pcall(function() graphic = model:FindFirstChildOfClass("ShirtGraphic") end)
+        local shirtHasTemplate, pantsHasTemplate, graphicHasImage = false, false, false
+        pcall(function() shirtHasTemplate = shirt ~= nil and tostring(shirt.ShirtTemplate or "") ~= "" end)
+        pcall(function() pantsHasTemplate = pants ~= nil and tostring(pants.PantsTemplate or "") ~= "" end)
+        pcall(function() graphicHasImage = graphic ~= nil and tostring(graphic.Graphic or "") ~= "" end)
         local layered = 0
         pcall(function()
             for _, accessory in ipairs(desc:GetAccessories(true)) do
                 if accessory.IsLayered then layered += 1 end
             end
         end)
-        print(string.format("[BC_Skin] clothes: Shirt=%s Pants=%s GraphicTShirt=%s layered=%d applied=%d",
-            tostring(ids.Shirt or 0), tostring(ids.Pants or 0), tostring(ids.GraphicTShirt or 0), layered, applied))
-        return applied, ids, layered
+        print(string.format("[BC_Skin] clothes: desc Shirt=%d Pants=%d GraphicTShirt=%d; instances=%s/%s/%s; templates=%s/%s/%s; layered=%d",
+            readId("Shirt"), readId("Pants"), readId("GraphicTShirt"),
+            tostring(shirt ~= nil), tostring(pants ~= nil), tostring(graphic ~= nil),
+            tostring(shirtHasTemplate), tostring(pantsHasTemplate), tostring(graphicHasImage), layered))
     end
 
     -- ===== GIAO DIỆN (trong trang 👥 NGƯỜI CHƠI, nằm dưới 🌳) =====
@@ -8872,7 +8865,7 @@ end end
         if not m then return false, merr end
         m.Name = "BC_ViewModel"
         m.Parent = v.wm
-        pcall(function() PI.EnsureClassicClothes(m, desc) end)
+        pcall(function() PI.DiagnoseClothes(m, desc) end)
         v.model = m
         PI.ViewerUpdate()
         return true, nil
@@ -9138,9 +9131,8 @@ end end
                 if okR then applyOk = true end
             end
         end
-        -- Áp lại quần áo classic trên nhân vật gốc làm fallback; pcall ApplyDescription
-        -- không đảm bảo các instance Shirt/Pants đã được tạo ra.
-        pcall(function() PI.EnsureClassicClothes(char, rec.desc) end)
+        -- Ghi trạng thái đồ mặc sau khi Roblox xử lý HumanoidDescription.
+        pcall(function() PI.DiagnoseClothes(char, rec.desc) end)
 
         pcall(function() if PI._skinFake then PI._skinFake:Destroy() end end)
         PI._skinFake = nil
@@ -9223,7 +9215,7 @@ end end
                 end)
             end
             PI._skinFake = fake
-            pcall(function() PI.EnsureClassicClothes(fake, rec.desc) end)
+            pcall(function() PI.DiagnoseClothes(fake, rec.desc) end)
             makeFakeVisible(fake)
             -- chỉ ẩn char SAU khi đặt fake xong và StartSkinFollow thành công
             local cf, _ = getCharPivot(char)
