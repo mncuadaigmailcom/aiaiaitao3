@@ -8584,20 +8584,19 @@ end end
     pcall(S.ObjTrack.RefreshList) pcall(function()
         if D.playerTab then D.playerTab.CanvasSize = UDim2.new(0, 0, 0, (D.playerY or 600) + 16) end end) end)()
 
--- ---------- 🔎 TRA CỨU NGƯỜI CHƠI & XEM 3D (v5.6) — nhập tên/UserId: xem thông tin, xem 3D, phân tích phụ kiện (kể cả người KHÔNG trong server / offline) ----------
+-- ---------- 🔎 TRA CỨU NGƯỜI CHƠI & XEM 3D (v5.6) — nhập tên/UserId: xem thông tin, xem 3D (kể cả người KHÔNG trong server / offline) ----------
 -- Chỉ dùng dữ liệu CÔNG KHAI của Roblox (users / presence / thumbnails API + GetHumanoidDescriptionFromUserId).
 -- Xem 3D: dựng một rig do client tạo (CreateHumanoidModelFromDescription) chỉ để hiển thị, không ảnh hưởng nhân vật thật.
 ;(function()
     local PI = {}
     PI.reqId = 0          -- mỗi lần tra cứu tăng số này; kết quả cũ (stale) bị bỏ qua
     PI.last = nil         -- bản ghi tra cứu gần nhất
-    PI.productCache = {}  -- assetId -> { name, creator } | false
     PI.view = { yaw = 0.6, pitch = 0.15, dist = 9, auto = false, drag = false, hover = false }   -- auto: tự xoay 3D (mặc định TẮT)
     PI.SPIN_BIND = "BC_PlayerViewSpin"
     -- Chạy lại script: gỡ bind của phần xem 3D
     pcall(function() RunService:UnbindFromRenderStep("BC_PlayerViewSpin") end)
     _G.BananaCatHub_PlayerInfo = PI
-    local MarketplaceService = game:GetService("MarketplaceService")
+    local MarketplaceService = game:GetService("MarketplaceService") -- giữ cho GetProductInfo(PlaceId) ở nơi khác, ProductInfo skin đã bỏ
 
     local PRESENCE = { [0] = "⚫ Offline", [1] = "🟢 Online (web/app)", [2] = "🎮 Đang trong game", [3] = "🛠 Đang trong Studio" }
 
@@ -8697,39 +8696,6 @@ end end
         return desc, nil
     end
 
-    -- Danh sách phụ kiện của skin: mỗi món giữ nguyên đặc tả (spec) để dựng lại skin khi bật/tắt
-    function PI.ParseAccessories(desc)
-        if desc == nil then return nil end
-        local ok, list = pcall(function() return desc:GetAccessories(true) end)
-        if not ok or type(list) ~= "table" then return nil end
-        local out = {}
-        for i, a in ipairs(list) do
-            local okT, tn = pcall(function() return a.AccessoryType.Name end)
-            out[#out + 1] = {
-                idx = i,
-                assetId = tonumber(a.AssetId) or 0,
-                typeName = (okT and type(tn) == "string") and tn or "Khác",
-                layered = a.IsLayered == true,
-                spec = { AssetId = a.AssetId, AccessoryType = a.AccessoryType, IsLayered = a.IsLayered, Order = a.Order, Puffiness = a.Puffiness },
-            }
-        end
-        return out
-    end
-
-    -- Tên món đồ qua MarketplaceService (có yield; gọi trong task.spawn). Trả về { name, creator } | nil
-    function PI.ProductInfo(assetId)
-        local c = PI.productCache[assetId]
-        if c ~= nil then return c or nil end
-        local ok, info = pcall(function() return MarketplaceService:GetProductInfo(assetId) end)
-        local res = false
-        if ok and type(info) == "table" and info.Name ~= nil then
-            local cr = (type(info.Creator) == "table" and info.Creator.Name) or "?"
-            res = { name = tostring(info.Name), creator = tostring(cr) }
-        end
-        PI.productCache[assetId] = res
-        return res or nil
-    end
-
     function PI.FetchThumb(id)
         local ok, content = pcall(function() return Players:GetUserThumbnailAsync(id, Enum.ThumbnailType.AvatarThumbnail, Enum.ThumbnailSize.Size420x420) end)
         if ok and type(content) == "string" and content ~= "" then return content end
@@ -8742,7 +8708,7 @@ end end
     local function stale(my) return PI.reqId ~= my end
 
     -- Tra cứu đầy đủ. Chạy trong task.spawn (có yield). Trả về (bản ghi | nil, lỗi | nil).
-    -- Trả về (nil, nil) khi kết quả đã bị lượt tra cứu mới hơn thay thế.
+    -- ĐÃ GỌN: chỉ lấy hồ sơ + presence + skin gốc + thumb, KHÔNG phân tích phụ kiện / thay skin
     function PI.Lookup(query)
         PI.reqId = PI.reqId + 1
         local my = PI.reqId
@@ -8770,36 +8736,12 @@ end end
             inServer = PI.InThisServer(id, pres),
             desc = desc,
             descErr = derr,
-            acc = PI.ParseAccessories(desc),
             thumb = thumb,
         }
-        rec.accessories = rec.acc and #rec.acc or nil
-        rec.keep = {}         -- [idx] = false nếu bạn đã bỏ món đó khi thay skin (nil = giữ)
         return rec, nil
     end
 
     -- ===== LOGIC XEM 3D / NHÂN VẬT =====
-
-    -- Đặc tả skin sau khi bỏ các phụ kiện bạn đã tắt (không sửa rec.desc gốc)
-    function PI.FilteredDesc(rec)
-        if type(rec) ~= "table" or rec.desc == nil then return nil, "chưa có dữ liệu skin" end
-        if rec.acc == nil then return rec.desc, nil end   -- không đọc được danh sách phụ kiện → dùng nguyên skin
-        local specs = {}
-        for _, a in ipairs(rec.acc) do
-            if rec.keep[a.idx] ~= false then specs[#specs + 1] = a.spec end
-        end
-        local okC, d = pcall(function() return rec.desc:Clone() end)
-        if not okC or d == nil then return nil, "không sao chép được skin" end
-        local okS, err = pcall(function() d:SetAccessories(specs, true) end)
-        if not okS then return nil, "không đổi được phụ kiện: " .. tostring(err) end
-        return d, nil
-    end
-
-    function PI.KeptCount(rec)
-        local n = 0
-        for _, a in ipairs(rec.acc or {}) do if rec.keep[a.idx] ~= false then n = n + 1 end end
-        return n
-    end
 
     -- Dựng một nhân vật do CLIENT tạo từ skin (thử lần lượt các kiểu rig). Trả về (Model | nil, lỗi | nil)
     function PI.MakeRig(desc, rigTypes)
@@ -8813,7 +8755,7 @@ end end
     end
 
     -- ===== GIAO DIỆN (trong trang 👥 NGƯỜI CHƠI, nằm dưới 🌳) =====
-    local PH = 374
+    local PH = 300 -- gọn: đã bỏ danh sách phụ kiện thay skin, chỉ giữ tra cứu + xem 3D
     local P = New("Frame", {
         Name = "HubPlayerInfo_Panel",
         Size = UDim2.new(1, -16, 0, PH), Position = UDim2.new(0, 8, 0, D.playerY or 46),
@@ -8882,13 +8824,12 @@ end end
         PI.ViewerUpdate()
     end
 
-    -- Dựng model 3D của người kia (theo skin đang chọn). Trả về (ok, lỗi)
+    -- Dựng model 3D của người kia (skin gốc, không lọc phụ kiện). Trả về (ok, lỗi)
     function PI.ViewerBuild(rec)
         local v = PI.view
         if v.model then pcall(function() v.model:Destroy() end) v.model = nil end
         if type(rec) ~= "table" or rec.desc == nil then return false, "không có dữ liệu skin để xem 3D" end
-        local desc, derr = PI.FilteredDesc(rec)
-        if not desc then return false, derr end
+        local desc = rec.desc
         local m, merr = PI.MakeRig(desc, { Enum.HumanoidRigType.R15, Enum.HumanoidRigType.R6 })
         if not m then return false, merr end
         m.Name = "BC_ViewModel"
@@ -8946,8 +8887,8 @@ end end
 
     -- Thông tin
     local rows = {}
-    local ROW_NAMES = { "name", "display", "id", "created", "presence", "server", "flags", "acc", "desc" }
-    local ROW_TITLES = { "Tên", "Tên hiển thị", "UserId", "Ngày tạo", "Trạng thái", "Trong server này", "Huy hiệu / Cấm", "Phụ kiện skin", "Mô tả" }
+    local ROW_NAMES = { "name", "display", "id", "created", "presence", "server", "flags", "desc" }
+    local ROW_TITLES = { "Tên", "Tên hiển thị", "UserId", "Ngày tạo", "Trạng thái", "Trong server này", "Huy hiệu / Cấm", "Mô tả" }
     for i, key in ipairs(ROW_NAMES) do
         local y = 70 + (i - 1) * 15
         rows[key] = New("TextLabel", { Size = UDim2.new(1, -244, 0, key == "desc" and 30 or 15), Position = UDim2.new(0, 236, 0, y),
@@ -8960,102 +8901,6 @@ end end
         if rows[key] then rows[key].Text = title .. ": " .. tostring(value) end
     end
 
-    -- Danh sách phụ kiện (phân tích từng món)
-    New("TextLabel", { Size = UDim2.new(1, -244, 0, 14), Position = UDim2.new(0, 236, 0, 226), BackgroundTransparency = 1,
-        Text = "👕 PHỤ KIỆN — bật/tắt từng món", TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 9,
-        TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7, }, P)
-    local accList = New("ScrollingFrame", { Name = "HubPlayerInfo_AccList", Size = UDim2.new(1, -244, 0, 96), Position = UDim2.new(0, 236, 0, 242),
-        BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.3, BorderSizePixel = 0, ScrollBarThickness = 4,
-        CanvasSize = UDim2.new(0, 0, 0, 0), ZIndex = 7, }, P)
-    Corner(accList, UDim.new(0, 6))
-
-    local accRows = {}   -- [idx] = { label, btn }
-
-    local function accText(a)
-        local nm = "đang tải tên…"
-        if not a.loading then nm = a.name and clipText(a.name, 26) or "không rõ tên" end
-        local meta = a.typeName .. (a.layered and " · lớp" or " · cứng") .. " · ID " .. tostring(a.assetId)
-        if a.creator then meta = meta .. " · " .. clipText(a.creator, 14) end
-        return a.idx .. ". " .. nm .. "\n" .. meta
-    end
-
-    local function refreshAccRow(rec, a)
-        local row = accRows[a.idx]
-        if not row then return end
-        row.label.Text = accText(a)
-        local keep = rec.keep[a.idx] ~= false
-        row.btn.Text = keep and "✔ Giữ" or "✖ Bỏ"
-        row.btn.BackgroundColor3 = keep and C.GREEN or C.RED
-        row.btn.TextColor3 = D.BestText(row.btn.BackgroundColor3)
-    end
-
-    local function refreshSummary(rec)
-        if rec.accessories == nil then
-            setRow("acc", "Phụ kiện skin", "không lấy được (" .. tostring(rec.descErr or "?") .. ")")
-        else
-            setRow("acc", "Phụ kiện skin", rec.accessories .. " món · đang giữ " .. PI.KeptCount(rec))
-        end
-    end
-
-    local function renderAccList(rec)
-        for _, ch in ipairs(accList:GetChildren()) do ch:Destroy() end
-        accRows = {}
-        local list = rec.acc or {}
-        accList.CanvasSize = UDim2.new(0, 0, 0, #list * 26 + 4)
-        if #list == 0 then
-            New("TextLabel", { Size = UDim2.new(1, -8, 0, 30), Position = UDim2.new(0, 4, 0, 4), BackgroundTransparency = 1,
-                Text = rec.desc and "Skin này không có phụ kiện." or "Không có dữ liệu skin công khai.", TextWrapped = true,
-                TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium, TextSize = 9, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 8, }, accList)
-            return
-        end
-        for _, a in ipairs(list) do
-            a.loading = true
-            local row = New("Frame", { Size = UDim2.new(1, -8, 0, 24), Position = UDim2.new(0, 4, 0, (a.idx - 1) * 26 + 2),
-                BackgroundTransparency = 1, ZIndex = 8, }, accList)
-            local label = New("TextLabel", { Size = UDim2.new(1, -64, 1, 0), BackgroundTransparency = 1, TextColor3 = C.DARK,
-                Font = Enum.Font.GothamMedium, TextSize = 8, TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Center,
-                TextWrapped = false, Text = "", ZIndex = 9, }, row)
-            local btn = New("TextButton", { Size = UDim2.new(0, 56, 0, 18), Position = UDim2.new(1, -58, 0, 3), Text = "",
-                BorderSizePixel = 0, Font = Enum.Font.GothamBold, TextSize = 8, ZIndex = 10, }, row)
-            Corner(btn, UDim.new(0, 5)) D.Tactile(btn, 0.08)
-            accRows[a.idx] = { label = label, btn = btn }
-            btn.Activated:Connect(function()
-                ReleaseHubFocus()
-                PI.SetKeep(rec, a.idx, rec.keep[a.idx] == false)
-            end)
-            refreshAccRow(rec, a)
-        end
-    end
-
-    -- Tên từng món (MarketplaceService), chạy nền; bỏ qua nếu đã tra cứu người khác
-    local function loadNames(rec)
-        task.spawn(function()
-            for _, a in ipairs(rec.acc or {}) do
-                if PI.last ~= rec then return end
-                local info = PI.ProductInfo(a.assetId)
-                a.loading = false
-                a.name = info and info.name or nil
-                a.creator = info and info.creator or nil
-                if PI.last == rec then refreshAccRow(rec, a) end
-            end
-        end)
-    end
-
-    -- Bật/tắt một món: dựng lại 3D
-    function PI.SetKeep(rec, idx, keep)
-        rec.keep[idx] = keep and true or false
-        local a = rec.acc and rec.acc[idx]
-        if a then refreshAccRow(rec, a) end
-        refreshSummary(rec)
-        task.spawn(function()
-            local okV, verr = PI.ViewerBuild(rec)
-            thumbImg.Visible = not okV
-            if not okV then
-                setStatus("⚠️ Không dựng được 3D: " .. tostring(verr), C.YELLOW)
-            end
-        end)
-    end
-
     local function render(rec)
         thumbImg.Image = (type(rec.thumb) == "string") and rec.thumb or ""
         setRow("name", "Tên", "@" .. rec.name)
@@ -9065,12 +8910,9 @@ end end
         setRow("presence", "Trạng thái", rec.presence)
         setRow("server", "Trong server này", rec.inServer and "CÓ" or "KHÔNG")
         setRow("flags", "Huy hiệu / Cấm", (rec.verified and "✔ xác minh" or "chưa xác minh") .. " · " .. (rec.isBanned and "⛔ bị cấm" or "không bị cấm"))
-        refreshSummary(rec)
         setRow("desc", "Mô tả", clipText(rec.description ~= "" and rec.description or "(trống)", 140))
-        renderAccList(rec)
         local okV, verr = PI.ViewerBuild(rec)
         thumbImg.Visible = not okV
-        loadNames(rec)
         return okV, verr
     end
 
@@ -9079,9 +8921,6 @@ end end
         thumbImg.Visible = true
         pcall(function() if PI.view.model then PI.view.model:Destroy() end end)
         PI.view.model = nil
-        for _, ch in ipairs(accList:GetChildren()) do ch:Destroy() end
-        accList.CanvasSize = UDim2.new(0, 0, 0, 0)
-        accRows = {}
         for i, key in ipairs(ROW_NAMES) do rows[key].Text = ROW_TITLES[i] .. ": —" end
     end
 
@@ -9108,10 +8947,8 @@ end end
         end)
     end
 
-    local copyProfBtn = pAct("📋 Copy link hồ sơ", 8, 344, 160, C.GRAY)
-    local copyIdBtn = pAct("🔗 Copy UserId", 176, 344, 120, C.GRAY)
-    local allOnBtn = pAct("✔ Bật hết", 302, 344, 78, C.GREEN)
-    local allOffBtn = pAct("✖ Tắt hết", 386, 344, 74, C.RED)
+    local copyProfBtn = pAct("📋 Copy link hồ sơ", 8, 274, 160, C.GRAY)
+    local copyIdBtn = pAct("🔗 Copy UserId", 176, 274, 120, C.GRAY) -- đã bỏ ✔ Bật hết / ✖ Tắt hết (thay skin)
 
     local function requireLast()
         if PI.last == nil then setStatus("⚠️ Hãy tra cứu một người chơi trước", C.YELLOW) return nil end
@@ -9137,18 +8974,7 @@ end end
     autoBtn.Activated:Connect(function() ReleaseHubFocus() PI.view.auto = not PI.view.auto refreshAutoBtn() end)
     resetBtn.Activated:Connect(function() ReleaseHubFocus() PI.ViewerReset() end)
 
-    allOnBtn.Activated:Connect(function()
-        ReleaseHubFocus()
-        local rec = requireLast() if not rec then return end
-        for _, a in ipairs(rec.acc or {}) do rec.keep[a.idx] = true refreshAccRow(rec, a) end
-        PI.SetKeep(rec, (rec.acc and rec.acc[1] and rec.acc[1].idx) or 1, true)
-    end)
-    allOffBtn.Activated:Connect(function()
-        ReleaseHubFocus()
-        local rec = requireLast() if not rec then return end
-        for _, a in ipairs(rec.acc or {}) do rec.keep[a.idx] = false refreshAccRow(rec, a) end
-        PI.SetKeep(rec, (rec.acc and rec.acc[1] and rec.acc[1].idx) or 1, false)
-    end)
+    -- đã bỏ xử lý ✔ Bật hết / ✖ Tắt hết (thay skin)
 
     copyProfBtn.Activated:Connect(function()
         ReleaseHubFocus()
