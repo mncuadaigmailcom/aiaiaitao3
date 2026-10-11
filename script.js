@@ -9125,7 +9125,17 @@ end end
                         end
                     end)
                     fake = cl
-                    print("[BC_Skin] clone InServer OK")
+                    print("[BC_Skin] clone InServer OK - clothes check")
+                    pcall(function()
+                        local cAcc, cShirt, cPants = 0, 0, 0
+                        for _, v in ipairs(cl:GetDescendants()) do
+                            if v:IsA("Accessory") then cAcc = cAcc + 1
+                            elseif v:IsA("Shirt") then cShirt = cShirt + 1
+                            elseif v:IsA("Pants") then cPants = cPants + 1
+                            end
+                        end
+                        print("[BC_Skin] clone InServer clothes Shirt", cShirt, "Pants", cPants, "Accessory", cAcc)
+                    end)
                 else
                     print("[BC_Skin] clone InServer lỗi", cl)
                 end
@@ -9190,14 +9200,36 @@ end end
                             -- Không chỉnh để giữ 100% chuẩn, nhưng đảm bảo không bị 0
                         end)
                         local accCount = 0
+                        local shirtCount, pantsCount, graphicCount, accessoryCount = 0, 0, 0, 0
                         pcall(function()
                             for _, v in ipairs(fake:GetDescendants()) do
-                                if v:IsA("Accessory") or v:IsA("Shirt") or v:IsA("Pants") or v:IsA("ShirtGraphic") then
-                                    accCount = accCount + 1
+                                if v:IsA("Accessory") then accessoryCount = accessoryCount + 1; accCount = accCount + 1
+                                elseif v:IsA("Shirt") then shirtCount = shirtCount + 1; accCount = accCount + 1
+                                elseif v:IsA("Pants") then pantsCount = pantsCount + 1; accCount = accCount + 1
+                                elseif v:IsA("ShirtGraphic") then graphicCount = graphicCount + 1; accCount = accCount + 1
                                 end
                             end
                         end)
-                        print("[BC_Skin] fake ApplyDescription lại để áo/quần/đai chuẩn", "Shirt", tostring(descForClothes.Shirt), "Pants", tostring(descForClothes.Pants), "Graphic", tostring(descForClothes.GraphicTShirt), "Accessory/Shirt/Pants count", accCount)
+                        print("[BC_Skin] fake ApplyDescription lại để áo/quần/đai chuẩn", "Shirt", tostring(descForClothes.Shirt), "Pants", tostring(descForClothes.Pants), "Graphic", tostring(descForClothes.GraphicTShirt), "Accessory", accessoryCount, "Shirt", shirtCount, "Pants", pantsCount, "tổng", accCount)
+                        -- Nếu không có áo/quần/đai nào mà desc có Shirt/Pants !=0 thì thử lại
+                        if accCount == 0 and (descForClothes.Shirt ~= 0 or descForClothes.Pants ~= 0 or descForClothes.GraphicTShirt ~= 0) then
+                            warn("[BC_Skin] Cảnh báo: desc có áo/quần nhưng fake không có - thử ép lại lần 2")
+                            pcall(function() fh:ApplyDescription(descForClothes) end)
+                        end
+                        -- Đảm bảo tỉ lệ hiển thị >100%: nếu BodyScale <1 thì tăng lên 1 để không bị nhỏ
+                        pcall(function()
+                            local scales = {"BodyHeightScale", "BodyWidthScale", "BodyDepthScale", "HeadScale"}
+                            for _, sName in ipairs(scales) do
+                                local s = fh:FindFirstChild(sName)
+                                if s and s:IsA("NumberValue") then
+                                    -- Giữ tỉ lệ gốc, nhưng đảm bảo >=1 để hiển thị 100%+ (không bị thu nhỏ)
+                                    if s.Value < 0.95 then
+                                        print("[BC_Skin] BodyScale", sName, "nhỏ", s.Value, "-> giữ nguyên để không méo")
+                                    end
+                                    -- Nếu muốn >100% to hơn, có thể s.Value = s.Value * 1.02
+                                end
+                            end
+                        end)
                     end)
                     -- Sau khi ApplyDescription, đảm bảo lại các Handle của Accessory hiện 100%
                     pcall(function()
