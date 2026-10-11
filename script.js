@@ -9550,29 +9550,181 @@ end end
         return out
     end
 
-    -- Không thay MeshPart cơ thể (đụng Motor6D/rig và MeshId chỉ đọc).
-    -- Thay phần hình ảnh đọc/ghi được: mặt, màu da, texture, mesh đầu R6.
+    -- Sao chép đầy đủ cả hình ảnh lẫn BỐ CỤC NGƯỜI CHƠI (kích thước mập/gầy/cao/lùn, khớp Motor6D, vị trí Attachment, khuôn mặt, đầu & MeshPart).
     function PI.VisualChildren(part)
         local out = {}
         if not part then return out end
         for _, child in ipairs(part:GetChildren()) do
             if child:IsA("Decal") or child:IsA("Texture") or child:IsA("SurfaceAppearance")
-                or child:IsA("SpecialMesh") then
+                or child:IsA("SpecialMesh") or child:IsA("WrapTarget") or child:IsA("WrapLayer")
+                or tostring(child.Name):sub(1, 12) == "BC_MorphPart" then
                 out[#out + 1] = child
             end
         end
         return out
     end
 
-    function PI.SaveVisuals(character)
-        local result = {}
+    local function scaleCFramePos(cf, sx, sy, sz)
+        if not cf then return cf end
+        local ok, res = pcall(function()
+            local p = cf.Position
+            local rot = cf - p
+            return CFrame.new(p.X * sx, p.Y * sy, p.Z * sz) * rot
+        end)
+        return (ok and res) or cf
+    end
+
+    function PI.SaveVisuals(character, desc)
+        local result = { _scales = {}, _hipHeight = nil, _bodyColors = nil }
         if not character then return result end
+        local hum = character:FindFirstChildOfClass("Humanoid")
+        local SCALE_KEYS = { "BodyWidthScale", "BodyDepthScale", "BodyHeightScale", "HeadScale", "BodyTypeScale", "ProportionScale" }
+        local DESC_KEYS = {
+            BodyWidthScale = "WidthScale",
+            BodyDepthScale = "DepthScale",
+            BodyHeightScale = "HeightScale",
+            HeadScale = "HeadScale",
+            BodyTypeScale = "BodyTypeScale",
+            ProportionScale = "ProportionScale",
+        }
+        if hum then
+            pcall(function() result._hipHeight = hum.HipHeight end)
+            for _, sk in ipairs(SCALE_KEYS) do
+                pcall(function()
+                    local nv = hum:FindFirstChild(sk)
+                    if nv and nv:IsA("NumberValue") and tonumber(nv.Value) then
+                        result._scales[sk] = tonumber(nv.Value)
+                    end
+                end)
+            end
+        end
+        if desc then
+            for sk, dk in pairs(DESC_KEYS) do
+                pcall(function()
+                    local v = tonumber(desc[dk])
+                    if v and v > 0 then
+                        local cur = tonumber(result._scales[sk])
+                        if cur == nil or (math.abs(cur - 1) < 1e-3 and math.abs(v - 1) > 1e-3) then
+                            result._scales[sk] = v
+                        end
+                    end
+                end)
+            end
+        end
+        local bc = character:FindFirstChildOfClass("BodyColors")
+        if bc then
+            pcall(function()
+                result._bodyColors = {
+                    Head = bc.HeadColor3,
+                    Torso = bc.TorsoColor3,
+                    LeftArm = bc.LeftArmColor3,
+                    RightArm = bc.RightArmColor3,
+                    LeftLeg = bc.LeftLegColor3,
+                    RightLeg = bc.RightLegColor3,
+                }
+            end)
+        end
+
+        local ws = tonumber(result._scales.BodyWidthScale) or 1
+        local hs = tonumber(result._scales.BodyHeightScale) or 1
+        local ds = tonumber(result._scales.BodyDepthScale) or 1
+        local hds = tonumber(result._scales.HeadScale) or 1
+
         for _, part in ipairs(character:GetChildren()) do
             if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
-                local entry = { color = part.Color, material = part.Material, children = {} }
+                local isHead = (part.Name == "Head")
+                local sx = isHead and hds or ws
+                local sy = isHead and hds or hs
+                local sz = isHead and hds or ds
+                local hasCustomScale = (math.abs(sx - 1) > 0.01 or math.abs(sy - 1) > 0.01 or math.abs(sz - 1) > 0.01)
+
+                local origSizeObj = part:FindFirstChild("OriginalSize")
+                local origSizeVal = nil
+                pcall(function()
+                    if origSizeObj and origSizeObj:IsA("Vector3Value") then origSizeVal = origSizeObj.Value end
+                end)
+
+                local partSize = part.Size
+                local needsManualScale = false
+                if hasCustomScale and partSize then
+                    if origSizeVal then
+                        local okDiff, diff = pcall(function()
+                            return math.abs(partSize.X - origSizeVal.X) + math.abs(partSize.Y - origSizeVal.Y) + math.abs(partSize.Z - origSizeVal.Z)
+                        end)
+                        if okDiff and diff < 0.01 then needsManualScale = true end
+                    end
+                end
+                if needsManualScale and partSize then
+                    pcall(function()
+                        partSize = Vector3.new(partSize.X * sx, partSize.Y * sy, partSize.Z * sz)
+                    end)
+                end
+
+                local motors = {}
+                for _, ch in ipairs(part:GetChildren()) do
+                    if ch:IsA("Motor6D") then
+                        local c0, c1 = ch.C0, ch.C1
+                        if needsManualScale then
+                            local c0x, c0y, c0z = ws, hs, ds
+                            if not isHead then c0x, c0y, c0z = sx, sy, sz end
+                            c0 = scaleCFramePos(c0, c0x, c0y, c0z)
+                            c1 = scaleCFramePos(c1, sx, sy, sz)
+                        end
+                        motors[ch.Name] = { c0 = c0, c1 = c1 }
+                    end
+                end
+
+                local attachments = {}
+                for _, ch in ipairs(part:GetChildren()) do
+                    if ch:IsA("Attachment") then
+                        local cf = ch.CFrame
+                        if needsManualScale then
+                            cf = scaleCFramePos(cf, sx, sy, sz)
+                        end
+                        local opObj = ch:FindFirstChild("OriginalPosition")
+                        local opVal = nil
+                        pcall(function()
+                            if opObj and opObj:IsA("Vector3Value") then opVal = opObj.Value end
+                        end)
+                        attachments[ch.Name] = { cf = cf, origPos = opVal }
+                    end
+                end
+
+                local meshClone, meshId, textureId = nil, nil, nil
+                if part:IsA("MeshPart") then
+                    pcall(function() meshId = tostring(part.MeshId or "") end)
+                    pcall(function() textureId = tostring(part.TextureID or "") end)
+                    local okMC, mc = pcall(function()
+                        local wasA = part.Archivable
+                        part.Archivable = true
+                        local c = part:Clone()
+                        part.Archivable = wasA
+                        return c
+                    end)
+                    if okMC and mc then
+                        pcall(function() mc:ClearAllChildren() end)
+                        meshClone = mc
+                    end
+                end
+
+                local entry = {
+                    color = part.Color,
+                    material = part.Material,
+                    size = partSize,
+                    origSize = origSizeVal,
+                    transparency = part.Transparency,
+                    motors = motors,
+                    attachments = attachments,
+                    meshClone = meshClone,
+                    meshId = meshId,
+                    textureId = textureId,
+                    children = {},
+                }
                 for _, child in ipairs(PI.VisualChildren(part)) do
-                    local ok, clone = pcall(function() return child:Clone() end)
-                    if ok and clone then entry.children[#entry.children + 1] = clone end
+                    if tostring(child.Name):sub(1, 12) ~= "BC_MorphPart" then
+                        local ok, clone = pcall(function() return child:Clone() end)
+                        if ok and clone then entry.children[#entry.children + 1] = clone end
+                    end
                 end
                 result[part.Name] = entry
             end
@@ -9580,18 +9732,154 @@ end end
         return result
     end
 
+    function PI.CleanupVisuals(visuals)
+        if type(visuals) ~= "table" then return end
+        for name, entry in pairs(visuals) do
+            if type(name) == "string" and name:sub(1, 1) ~= "_" and type(entry) == "table" then
+                if entry.meshClone then
+                    pcall(function() entry.meshClone:Destroy() end)
+                    entry.meshClone = nil
+                end
+                for _, ch in ipairs(entry.children or {}) do
+                    pcall(function() ch:Destroy() end)
+                end
+            end
+        end
+    end
+
     function PI.ApplyVisuals(character, visuals)
         if not character or type(visuals) ~= "table" then return end
-        for name, entry in pairs(visuals) do
-            local part = character:FindFirstChild(name)
-            if part and part:IsA("BasePart") then
-                pcall(function() part.Color = entry.color end)
-                pcall(function() part.Material = entry.material end)
-                for _, child in ipairs(PI.VisualChildren(part)) do
-                    pcall(function() child:Destroy() end)
+        local hum = character:FindFirstChildOfClass("Humanoid")
+        if hum then
+            if visuals._hipHeight ~= nil then
+                pcall(function() hum.HipHeight = visuals._hipHeight end)
+            end
+            if type(visuals._scales) == "table" then
+                for sName, sVal in pairs(visuals._scales) do
+                    pcall(function()
+                        local nv = hum:FindFirstChild(sName)
+                        if nv and nv:IsA("NumberValue") then nv.Value = sVal end
+                    end)
                 end
-                for _, child in ipairs(entry.children or {}) do
-                    pcall(function() child:Clone().Parent = part end)
+            end
+        end
+
+        -- Ánh xạ màu da chéo R6 <-> R15 nếu có BodyColors
+        if type(visuals._bodyColors) == "table" then
+            local bc = visuals._bodyColors
+            local colorMap = {
+                Head = bc.Head,
+                Torso = bc.Torso, UpperTorso = bc.Torso, LowerTorso = bc.Torso,
+                ["Left Arm"] = bc.LeftArm, LeftUpperArm = bc.LeftArm, LeftLowerArm = bc.LeftArm, LeftHand = bc.LeftArm,
+                ["Right Arm"] = bc.RightArm, RightUpperArm = bc.RightArm, RightLowerArm = bc.RightArm, RightHand = bc.RightArm,
+                ["Left Leg"] = bc.LeftLeg, LeftUpperLeg = bc.LeftLeg, LeftLowerLeg = bc.LeftLeg, LeftFoot = bc.LeftLeg,
+                ["Right Leg"] = bc.RightLeg, RightUpperLeg = bc.RightLeg, RightLowerLeg = bc.RightLeg, RightFoot = bc.RightLeg,
+            }
+            for pName, col in pairs(colorMap) do
+                if col then
+                    local p = character:FindFirstChild(pName)
+                    if p and p:IsA("BasePart") then
+                        pcall(function() p.Color = col end)
+                    end
+                end
+            end
+        end
+
+        for name, entry in pairs(visuals) do
+            if type(name) == "string" and name:sub(1, 1) ~= "_" and type(entry) == "table" then
+                local part = character:FindFirstChild(name)
+                if part and part:IsA("BasePart") then
+                    for _, child in ipairs(PI.VisualChildren(part)) do
+                        pcall(function() child:Destroy() end)
+                    end
+                    if entry.color then pcall(function() part.Color = entry.color end) end
+                    if entry.material then pcall(function() part.Material = entry.material end) end
+                    if entry.meshClone and part:IsA("MeshPart") and entry.meshClone:IsA("MeshPart") then
+                        pcall(function() part:ApplyMesh(entry.meshClone) end)
+                    end
+                    if entry.size then
+                        pcall(function() part.Size = entry.size end)
+                    end
+                    if entry.origSize then
+                        pcall(function()
+                            local osObj = part:FindFirstChild("OriginalSize")
+                            if osObj and osObj:IsA("Vector3Value") then osObj.Value = entry.origSize end
+                        end)
+                    end
+                    if entry.transparency ~= nil then
+                        pcall(function() part.Transparency = entry.transparency end)
+                    end
+                    if type(entry.motors) == "table" then
+                        for mName, mData in pairs(entry.motors) do
+                            local m = part:FindFirstChild(mName)
+                            if m and m:IsA("Motor6D") then
+                                pcall(function()
+                                    if mData.c0 then m.C0 = mData.c0 end
+                                    if mData.c1 then m.C1 = mData.c1 end
+                                end)
+                            end
+                        end
+                    end
+                    if type(entry.attachments) == "table" then
+                        for aName, aData in pairs(entry.attachments) do
+                            local att = part:FindFirstChild(aName)
+                            if att and att:IsA("Attachment") then
+                                pcall(function()
+                                    if aData.cf then att.CFrame = aData.cf end
+                                    if aData.origPos then
+                                        local op = att:FindFirstChild("OriginalPosition")
+                                        if op and op:IsA("Vector3Value") then op.Value = aData.origPos end
+                                    end
+                                end)
+                            end
+                        end
+                    end
+                    for _, child in ipairs(entry.children or {}) do
+                        pcall(function()
+                            local c = child:Clone()
+                            if c then c.Parent = part end
+                        end)
+                    end
+
+                    -- Nếu executor chặn ApplyMesh làm MeshId của Đầu (mặt/Dynamic Head/Classic Head) hoặc bộ phận có TextureID riêng (như Korblox) chưa đổi:
+                    -- Tạo lớp BC_MorphPart hàn (Weld) trực tiếp vào part để hiển thị đúng 100% bố cục đầu/mặt/mesh!
+                    if entry.meshClone and part:IsA("MeshPart") and entry.meshClone:IsA("MeshPart") then
+                        local curMeshId = ""
+                        pcall(function() curMeshId = tostring(part.MeshId or "") end)
+                        local wantOverlay = (entry.meshId and entry.meshId ~= "" and curMeshId ~= entry.meshId)
+                            and (name == "Head" or (entry.textureId and entry.textureId ~= ""))
+                        if wantOverlay and (entry.transparency or 0) < 1 then
+                            pcall(function()
+                                local morph = entry.meshClone:Clone()
+                                if not morph then return end
+                                morph.Name = "BC_MorphPart_" .. tostring(name)
+                                if entry.color then morph.Color = entry.color end
+                                if entry.material then morph.Material = entry.material end
+                                if entry.size then morph.Size = entry.size end
+                                morph.Transparency = entry.transparency or 0
+                                morph.LocalTransparencyModifier = 0
+                                morph.Anchored = false
+                                morph.CanCollide = false
+                                morph.CanTouch = false
+                                morph.CanQuery = false
+                                morph.Massless = true
+                                morph.CFrame = part.CFrame
+                                for _, child in ipairs(entry.children or {}) do
+                                    local cc = child:Clone()
+                                    if cc then cc.Parent = morph end
+                                end
+                                local w = Instance.new("Weld")
+                                w.Name = "BC_MorphWeld"
+                                w.Part0 = part
+                                w.Part1 = morph
+                                w.C0 = CFrame.new(0, 0, 0)
+                                w.C1 = CFrame.new(0, 0, 0)
+                                w.Parent = morph
+                                morph.Parent = part
+                                part.Transparency = 1
+                            end)
+                        end
+                    end
                 end
             end
         end
@@ -9670,19 +9958,25 @@ end end
         end)
     end
 
-    function PI.CopyOutfit(source, character, humanoid)
+    function PI.CopyOutfit(source, character, humanoid, desc)
         if not source or not character then
             return false, "Thiếu dữ liệu nhân vật để sao chép"
         end
         humanoid = humanoid or character:FindFirstChildOfClass("Humanoid")
         local items = PI.OutfitParts(source)
-        local visuals = PI.SaveVisuals(source)
-        if #items == 0 and next(visuals) == nil then
+        local visuals = PI.SaveVisuals(source, desc)
+        local hasPartVisuals = false
+        for k, _ in pairs(visuals) do
+            if type(k) == "string" and k:sub(1, 1) ~= "_" then hasPartVisuals = true; break end
+        end
+        if #items == 0 and not hasPartVisuals then
             return false, "Avatar nguồn không có ngoại hình để sao chép"
         end
         for _, item in ipairs(PI.OutfitParts(character)) do
             pcall(function() item:Destroy() end)
         end
+        -- Áp dụng bố cục cơ thể (Size mập/gầy/cao/lùn, khớp Motor6D, vị trí Attachment, đầu/mặt, màu da) TRƯỚC khi hàn phụ kiện!
+        PI.ApplyVisuals(character, visuals)
         local count = 0
         for _, item in ipairs(items) do
             local okC, clone = pcall(function() return item:Clone() end)
@@ -9695,8 +9989,8 @@ end end
                 count += 1
             end
         end
-        PI.ApplyVisuals(character, visuals)
-        return true, tostring(count) .. " món + mặt/màu da/texture"
+        PI.CleanupVisuals(visuals)
+        return true, tostring(count) .. " món + bố cục cơ thể/mặt/màu da"
     end
 
     function PI.SaveOriginalState(char, hum)
@@ -9720,7 +10014,10 @@ end end
             end
         end
         if not PI.localSaved or PI.localSaved.character ~= char then
-            PI.localSaved = { character = char, items = {}, visuals = PI.SaveVisuals(char) }
+            if PI.localSaved and PI.localSaved.visuals then
+                pcall(PI.CleanupVisuals, PI.localSaved.visuals)
+            end
+            PI.localSaved = { character = char, items = {}, visuals = PI.SaveVisuals(char, PI.originalDesc) }
             for _, item in ipairs(PI.OutfitParts(char)) do
                 local cloned, savedItem = pcall(function() return item:Clone() end)
                 if cloned and savedItem then
@@ -9740,12 +10037,28 @@ end end
         end
         local okModel, source = false, nil
         if rec then
-            local built = PI.BuildAvatarModel(rec, "BC_LocalOutfitSource", hum.RigType)
-            if built then okModel, source = true, built end
+            local built, _, builtDesc = PI.BuildAvatarModel(rec, "BC_LocalOutfitSource", hum.RigType)
+            if built then
+                okModel, source = true, built
+                if not desc and builtDesc then desc = builtDesc end
+            end
         end
         if (not okModel or not source) and desc then
             okModel, source = pcall(function()
                 return Players:CreateHumanoidModelFromDescription(desc, hum.RigType)
+            end)
+        end
+        -- Nếu source clone từ nhân vật live trong server nhưng khác kiểu Rig (VD người kia R6 còn bạn R15), tạo thêm rig cùng kiểu để lấy đúng bố cục Size/Motor6D
+        local rigSource = nil
+        if okModel and source and desc then
+            pcall(function()
+                local sHum = source:FindFirstChildOfClass("Humanoid")
+                if sHum and sHum.RigType ~= hum.RigType then
+                    local okRS, rs = pcall(function()
+                        return Players:CreateHumanoidModelFromDescription(desc, hum.RigType)
+                    end)
+                    if okRS and rs then rigSource = rs end
+                end
             end)
         end
         local applied, err = false, nil
@@ -9764,19 +10077,27 @@ end end
         end
         local copied, detail = false, nil
         if okModel and source and player.Character == char then
-            local ran, success, reason = pcall(PI.CopyOutfit, source, char, hum)
+            local ran, success, reason = pcall(PI.CopyOutfit, source, char, hum, desc)
             copied = ran and success == true
             detail = ran and reason or tostring(success)
-            -- Khi Lấy Skin đã chạy TRƯỚC (PI._skinFake đã tồn tại), Mặc LOCAL chạy SAU sẽ đắp thẳng quần áo/phụ kiện/mặt lên cả PI._skinFake!
+            if rigSource then
+                pcall(function()
+                    local rVis = PI.SaveVisuals(rigSource, desc)
+                    PI.ApplyVisuals(char, rVis)
+                    PI.CleanupVisuals(rVis)
+                end)
+            end
+            -- Khi Lấy Skin đã chạy TRƯỚC (PI._skinFake đã tồn tại), Mặc LOCAL chạy SAU sẽ đắp thẳng quần áo/phụ kiện/bố cục/mặt lên cả PI._skinFake!
             if PI.skinActive and PI._skinFake and PI._skinFake.Parent then
                 local fakeHum = PI._skinFake:FindFirstChildOfClass("Humanoid")
-                pcall(PI.CopyOutfit, source, PI._skinFake, fakeHum)
+                pcall(PI.CopyOutfit, source, PI._skinFake, fakeHum, desc)
                 pcall(makeFakeVisible, PI._skinFake, hum.RigType)
             end
             pcall(function() source:Destroy() end)
         elseif okModel and source then
             pcall(function() source:Destroy() end)
         end
+        if rigSource then pcall(function() rigSource:Destroy() end) end
         return copied, applied, detail, err
     end
 
@@ -10025,10 +10346,14 @@ end end
                 restoredLocal = true
             end
         end
-        -- Khôi phục quần áo / phụ kiện / màu da / mặt từ bản lưu cục bộ (từ script.js1.js)
+        -- Khôi phục bố cục cơ thể / quần áo / phụ kiện / màu da / mặt từ bản lưu cục bộ
         if char and hum and PI.localSaved and PI.localSaved.character == char then
             for _, item in ipairs(PI.OutfitParts(char)) do
                 pcall(function() item:Destroy() end)
+            end
+            if PI.localSaved.visuals then
+                PI.ApplyVisuals(char, PI.localSaved.visuals)
+                pcall(PI.CleanupVisuals, PI.localSaved.visuals)
             end
             for _, item in ipairs(PI.localSaved.items or {}) do
                 pcall(function()
@@ -10040,10 +10365,9 @@ end end
                     end
                 end)
             end
-            if PI.localSaved.visuals then
-                PI.ApplyVisuals(char, PI.localSaved.visuals)
-            end
             restoredLocal = true
+        elseif PI.localSaved and PI.localSaved.visuals then
+            pcall(PI.CleanupVisuals, PI.localSaved.visuals)
         end
         PI.localSaved = nil
         PI.originalDesc = nil
