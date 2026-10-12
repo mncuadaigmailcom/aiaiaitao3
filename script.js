@@ -8706,8 +8706,14 @@ end end
             if oldPI._skinFake then pcall(function() oldPI._skinFake:Destroy() end) end
             if oldPI._virtualAvatar then pcall(function() oldPI._virtualAvatar:Destroy() end) end
             if oldPI._skinHeartbeat then pcall(function() oldPI._skinHeartbeat:Disconnect() end) end
+            if oldPI._skinStepped then pcall(function() oldPI._skinStepped:Disconnect() end) end
+            if oldPI._vAvatarStepped then pcall(function() oldPI._vAvatarStepped:Disconnect() end) end
+            if oldPI._vAvatarHeartbeat then pcall(function() oldPI._vAvatarHeartbeat:Disconnect() end) end
+            if oldPI._sitJumpConn then pcall(function() oldPI._sitJumpConn:Disconnect() end) end
+            if oldPI._sitWatchConn then pcall(function() oldPI._sitWatchConn:Disconnect() end) end
         end
         RunService:UnbindFromRenderStep("BC_SkinFollow")
+        RunService:UnbindFromRenderStep("BC_VirtualAvatarSync")
         RunService:UnbindFromRenderStep("BC_PlayerViewSpin")
     end)
     local PI = {}
@@ -9643,10 +9649,37 @@ end end
         pcall(function() source.Archivable = wasArch end)
         if not okClone or not clone then return nil, tostring(clone) end
         pcall(function() clone.Name = modelName or "BC_PlayerAvatarCopy" end)
+        pcall(function() clone:SetAttribute("BC_IsLiveClone", true) end)
         pcall(function()
             for _, child in ipairs(clone:GetDescendants()) do
-                if child:IsA("Script") or child:IsA("LocalScript") then child:Destroy()
-                elseif child:IsA("BasePart") then child.LocalTransparencyModifier = 0 end
+                if child:IsA("Script") or child:IsA("LocalScript") or child:IsA("ForceField") then
+                    child:Destroy()
+                elseif child:IsA("JointInstance") and tostring(child.Name) == "SeatWeld" then
+                    child:Destroy()
+                elseif child:IsA("JointInstance") then
+                    pcall(function()
+                        if child.Part0 and not child.Part0:IsDescendantOf(clone) then
+                            local np0 = clone:FindFirstChild(child.Part0.Name, true)
+                            if np0 and np0:IsA("BasePart") then child.Part0 = np0 end
+                        end
+                        if child.Part1 and not child.Part1:IsDescendantOf(clone) then
+                            local np1 = clone:FindFirstChild(child.Part1.Name, true)
+                            if np1 and np1:IsA("BasePart") then child.Part1 = np1 end
+                        end
+                        if child:IsA("Motor6D") then
+                            child.Transform = CFrame.new(0, 0, 0)
+                        end
+                    end)
+                elseif child:IsA("BasePart") then
+                    child.LocalTransparencyModifier = 0
+                end
+            end
+            local cHrp = clone:FindFirstChild("HumanoidRootPart") or clone:FindFirstChild("Torso") or clone:FindFirstChild("UpperTorso") or clone:FindFirstChildWhichIsA("BasePart", true)
+            if cHrp then clone.PrimaryPart = cHrp end
+            local cHum = clone:FindFirstChildOfClass("Humanoid")
+            if cHum then
+                cHum.Sit = false
+                cHum.PlatformStand = false
             end
         end)
         -- Clone đôi khi bỏ sót clothing instance; clone trực tiếp từ nguồn để giữ texture đã resolve.
@@ -10232,11 +10265,146 @@ end end
             pcall(function() PS:RegisterCollisionGroup("BC_SkinReal") end)
             pcall(function() PS:CollisionGroupSetCollidable("BC_SkinFake", "BC_SkinReal", false) end)
             pcall(function() PS:CollisionGroupSetCollidable("BC_SkinFake", "BC_SkinFake", false) end)
-            pcall(function() PS:CollisionGroupSetCollidable("BC_SkinFake", "Default", true) end)
+            pcall(function() PS:CollisionGroupSetCollidable("BC_SkinFake", "Default", false) end)
             pcall(function() PS:CollisionGroupSetCollidable("BC_SkinReal", "Default", true) end)
         end)
         PI._skinGroupsSetup = true
     end
+
+    -- Kiểm tra xem nhân vật có đang bị hàn vào ghế (Seat/VehicleSeat) qua SeatWeld không
+    local function findActiveSeatWeld(char)
+        if not char then return nil, nil end
+        for _, d in ipairs(char:GetDescendants()) do
+            if d:IsA("JointInstance") and (d.Name == "SeatWeld" or (d.Part0 and (d.Part0:IsA("Seat") or d.Part0:IsA("VehicleSeat"))) or (d.Part1 and (d.Part1:IsA("Seat") or d.Part1:IsA("VehicleSeat")))) then
+                local sp = (d.Part0 and (d.Part0:IsA("Seat") or d.Part0:IsA("VehicleSeat"))) and d.Part0
+                    or ((d.Part1 and (d.Part1:IsA("Seat") or d.Part1:IsA("VehicleSeat"))) and d.Part1)
+                    or nil
+                return d, sp
+            end
+        end
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if hum and hum.SeatPart then
+            local sp = hum.SeatPart
+            local sw = sp:FindFirstChild("SeatWeld") or sp:FindFirstChildOfClass("Weld")
+            return sw, sp
+        end
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        if hrp and type(hrp.GetJoints) == "function" then
+            local okJ, joints = pcall(function() return hrp:GetJoints() end)
+            if okJ and type(joints) == "table" then
+                for _, j in ipairs(joints) do
+                    if j and (j.Name == "SeatWeld" or (j.Part0 and (j.Part0:IsA("Seat") or j.Part0:IsA("VehicleSeat")))) then
+                        return j, j.Part0
+                    end
+                end
+            end
+        end
+        for _, d in ipairs(workspace:GetDescendants()) do
+            if d:IsA("JointInstance") and (d.Name == "SeatWeld" or (d.Parent and (d.Parent:IsA("Seat") or d.Parent:IsA("VehicleSeat")))) then
+                if (d.Part0 and d.Part0:IsDescendantOf(char)) or (d.Part1 and d.Part1:IsDescendantOf(char)) then
+                    local sp = (d.Part0 and not d.Part0:IsDescendantOf(char)) and d.Part0
+                        or ((d.Part1 and not d.Part1:IsDescendantOf(char)) and d.Part1)
+                        or (d.Parent and d.Parent:IsA("BasePart") and d.Parent)
+                        or nil
+                    return d, sp
+                end
+            end
+        end
+        return nil, nil
+    end
+
+    -- Phá trạng thái kẹt ngồi (Sit = true) khi dùng Mặc LOCAL / Lấy Skin / Nhân vật ảo
+    function PI.StandUpFromSit(char)
+        char = char or (player and player.Character)
+        if not char then return false end
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if not hum then return false end
+        pcall(function()
+            hum.PlatformStand = false
+            hum:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
+            hum:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true)
+            hum:SetStateEnabled(Enum.HumanoidStateType.Running, true)
+            hum:SetStateEnabled(Enum.HumanoidStateType.Freefall, true)
+        end)
+        local hadSeatPart = nil
+        pcall(function()
+            local sw, sp = findActiveSeatWeld(char)
+            hadSeatPart = sp
+            if sp then
+                local wasTouch = true
+                pcall(function() wasTouch = sp.CanTouch end)
+                pcall(function() sp.CanTouch = false end)
+                task.delay(0.45, function()
+                    pcall(function() if sp and sp.Parent then sp.CanTouch = wasTouch end end)
+                end)
+            end
+            if sw then
+                pcall(function() sw.Part0 = nil; sw.Part1 = nil end)
+                pcall(function() sw:Destroy() end)
+            end
+            if PI._skinFake then
+                local fsw = findActiveSeatWeld(PI._skinFake)
+                if fsw then pcall(function() fsw:Destroy() end) end
+            end
+        end)
+        pcall(function()
+            if tonumber(hum.HipHeight) and hum.RigType == Enum.HumanoidRigType.R15 and hum.HipHeight < 1.0 then
+                local savedHip = PI.localSaved and PI.localSaved.visuals and tonumber(PI.localSaved.visuals._hipHeight)
+                hum.HipHeight = (savedHip and savedHip >= 1.0) and savedHip or 2.0
+            end
+        end)
+        pcall(function()
+            hum.Sit = false
+            hum:ChangeState(Enum.HumanoidStateType.GettingUp)
+            hum:ChangeState(Enum.HumanoidStateType.Jumping)
+            hum.Jump = true
+            if hadSeatPart then
+                local hrp = char:FindFirstChild("HumanoidRootPart") or char.PrimaryPart
+                if hrp and hrp:IsA("BasePart") then
+                    hrp.CFrame = hrp.CFrame + Vector3.new(0, 1.8, 0)
+                end
+            end
+        end)
+        return true
+    end
+
+    -- Tự động hỗ trợ đứng dậy khi người chơi bấm Nhảy (Space / nút Nhảy) hoặc di chuyển lúc đang ngồi
+    pcall(function()
+        if PI._sitJumpConn then pcall(function() PI._sitJumpConn:Disconnect() end) end
+        PI._sitJumpConn = trackConn(UserInputService.JumpRequest:Connect(function()
+            pcall(function()
+                local c = player and player.Character
+                local h = c and c:FindFirstChildOfClass("Humanoid")
+                if h and h.Sit == true then
+                    PI.StandUpFromSit(c)
+                end
+            end)
+        end))
+        if PI._sitWatchConn then pcall(function() PI._sitWatchConn:Disconnect() end) end
+        PI._sitWatchConn = trackConn(RunService.Heartbeat:Connect(function()
+            pcall(function()
+                local c = player and player.Character
+                local h = c and c:FindFirstChildOfClass("Humanoid")
+                if not h then return end
+                if h.RigType == Enum.HumanoidRigType.R15 and (tonumber(h.HipHeight) or 0) < 0.8 and (PI.localActive or PI.skinActive) then
+                    local savedHip = PI.localSaved and PI.localSaved.visuals and tonumber(PI.localSaved.visuals._hipHeight)
+                    h.HipHeight = (savedHip and savedHip >= 1.0) and savedHip or 2.0
+                end
+                if h.Sit == true then
+                    if h.Jump == true then
+                        PI.StandUpFromSit(c)
+                    else
+                        local md = h.MoveDirection
+                        local moving = md and (tonumber(md.Magnitude) or 0) > 0.08
+                        if moving and not findActiveSeatWeld(c) then
+                            h.Sit = false
+                            pcall(function() h:ChangeState(Enum.HumanoidStateType.GettingUp) end)
+                        end
+                    end
+                end
+            end)
+        end))
+    end)
 
     local function getCharPivot(char)
         -- thử nhiều cách lấy vị trí nhân vật (HRP -> PrimaryPart -> bất kỳ BasePart -> GetPivot)
@@ -10304,6 +10472,7 @@ end end
     local function StopSkinFollow()
         pcall(function() RunService:UnbindFromRenderStep(PI._skinFollowBind) end)
         PI._skinFollow = nil
+        if PI._skinStepped then pcall(function() PI._skinStepped:Disconnect() end) PI._skinStepped = nil end
         if PI._skinHeartbeat then pcall(function() PI._skinHeartbeat:Disconnect() end) PI._skinHeartbeat = nil end
         if PI._skinFake then
             pcall(function() PI._skinFake:Destroy() end)
@@ -10311,23 +10480,30 @@ end end
         end
     end
 
+    local function StopVirtualAvatarSync()
+        pcall(function() RunService:UnbindFromRenderStep("BC_VirtualAvatarSync") end)
+        if PI._vAvatarStepped then pcall(function() PI._vAvatarStepped:Disconnect() end) PI._vAvatarStepped = nil end
+        if PI._vAvatarHeartbeat then pcall(function() PI._vAvatarHeartbeat:Disconnect() end) PI._vAvatarHeartbeat = nil end
+        PI._vAvatarPosePairs = nil
+    end
+
     local function makeFakeVisible(fake, rigHint)
-        -- đảm bảo fake thấy đúng ngoại hình, không lỗi T-pose: chỉ PrimaryPart Anchored, các phần khác giữ Motor6D, Humanoid bật để có animation nhẹ
+        -- Đảm bảo fake/nhân vật ảo hiển thị đúng ngoại hình, không va chạm ghế/vật cản và KHÔNG tự chạy Animator riêng gây mất đồng bộ hành động (emote)
         pcall(function()
+            SetupSkinCollisionGroups()
             local primary = fake.PrimaryPart or fake:FindFirstChild("HumanoidRootPart") or fake:FindFirstChildWhichIsA("BasePart", true)
             for _, pp in ipairs(fake:GetDescendants()) do
                 if pp:IsA("BasePart") then
                     local partName = string.lower(tostring(pp.Name))
                     local isInvisibleHelper = partName == "humanoidrootpart" or partName == "rootpart" or partName == "hitbox" or partName == "collisionbox" or partName == "collider"
-                    -- HumanoidRootPart/Hitbox là khớp vật lý, không phải hình ảnh; để hiện sẽ thành khối vuông xám.
-                    pp.Transparency = isInvisibleHelper and 1 or 0
-                    pp.LocalTransparencyModifier = isInvisibleHelper and 1 or 0
+                    local hasMorphOverlay = (pp:FindFirstChild("BC_MorphPart_" .. tostring(pp.Name)) ~= nil)
+                    pp.Transparency = (isInvisibleHelper or hasMorphOverlay) and 1 or 0
+                    pp.LocalTransparencyModifier = (isInvisibleHelper or hasMorphOverlay) and 1 or 0
                     pp.CanCollide = false
                     pp.CanTouch = false
                     pp.CanQuery = false
                     pp.Massless = true
                     if isInvisibleHelper then pp.CastShadow = false end
-                    -- chỉ PrimaryPart Anchored để PivotTo di chuyển cả model, các phần khác để Humanoid/Motor6D giữ dáng (không T-pose)
                     if pp == primary then
                         pp.Anchored = true
                     else
@@ -10336,10 +10512,7 @@ end end
                     pcall(function() pp.CollisionGroup = "BC_SkinFake" end)
                 elseif pp:IsA("Decal") or pp:IsA("Texture") then
                     pp.Transparency = 0
-                elseif pp:IsA("Shirt") or pp:IsA("Pants") or pp:IsA("ShirtGraphic") then
-                    -- giữ nguyên, không đụng
                 elseif pp:IsA("Accessory") then
-                    -- đảm bảo handle của accessory cũng hiện
                     pcall(function()
                         local h = pp:FindFirstChild("Handle")
                         if h and h:IsA("BasePart") then
@@ -10347,6 +10520,10 @@ end end
                             h.LocalTransparencyModifier = 0
                             h.Anchored = false
                             h.CanCollide = false
+                            h.CanTouch = false
+                            h.CanQuery = false
+                            h.Massless = true
+                            pcall(function() h.CollisionGroup = "BC_SkinFake" end)
                         end
                     end)
                 elseif pp:IsA("BillboardGui") or pp:IsA("SurfaceGui") then
@@ -10356,25 +10533,28 @@ end end
             if primary then
                 primary.Anchored = true
                 primary.CanCollide = false
+                primary.CanTouch = false
+                primary.CanQuery = false
             end
             local fh = fake:FindFirstChildOfClass("Humanoid")
             if fh then
-                -- để ngoại hình đúng và không T-pose: bật lại state machine, cho phép animation
-                pcall(function() fh.EvaluateStateMachine = true end)
+                -- Gỡ Animator trên fake để Roblox Animation Step không ghi đè Motor6D.Transform về Idle/T-pose làm mất hành động (emote) của bạn!
+                pcall(function()
+                    for _, ch in ipairs(fh:GetChildren()) do
+                        if ch:IsA("Animator") then ch:Destroy() end
+                    end
+                end)
+                pcall(function() fh.EvaluateStateMachine = false end)
                 pcall(function() fh.BreakJointsOnDeath = false end)
-                pcall(function() fh.RequiresNeck = true end)
+                pcall(function() fh.RequiresNeck = false end)
+                pcall(function() fh.Sit = false end)
+                pcall(function() fh.PlatformStand = true end)
+                pcall(function() fh.AutoRotate = false end)
+                pcall(function() fh:SetStateEnabled(Enum.HumanoidStateType.Seated, false) end)
+                pcall(function() fh:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false) end)
+                pcall(function() fh:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false) end)
                 fh.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
                 fh.HealthDisplayType = Enum.HumanoidDisplayType.AlwaysOff
-                -- không tắt FallingDown/GettingUp, để Humanoid tự giữ thăng bằng nhưng không rơi vì PrimaryPart Anchored
-                pcall(function() fh:SetStateEnabled(Enum.HumanoidStateType.FallingDown, true) end)
-                pcall(function() fh:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true) end)
-                pcall(function() fh.AutoRotate = true end)
-                -- Đảm bảo rig có Animator; pose tay/chân được đồng bộ từ nhân vật thật trong StartSkinFollow.
-                pcall(function()
-                    local animator = fh:FindFirstChildOfClass("Animator")
-                    if not animator then animator = Instance.new("Animator") animator.Parent = fh end
-                end)
-                -- đảm bảo RigType đúng với hint (nếu có)
                 if rigHint then
                     pcall(function() fh.RigType = rigHint end)
                 end
@@ -10382,43 +10562,402 @@ end end
         end)
     end
 
-    -- Clone gỡ LocalScript Animate để tránh chạy mã game; vì vậy đồng bộ pose khớp từ nhân vật thật.
-    local function BuildSkinPosePairs(sourceModel, fakeModel)
-        local function collectJoints(model, className)
-            local found, duplicates = {}, {}
-            if not model then return found end
-            for _, joint in ipairs(model:GetDescendants()) do
-                if joint:IsA(className) then
-                    local name = string.lower(tostring(joint.Name):gsub("[%s_%-]", ""))
-                    if name == "rootjoint" then name = "root" end
-                    if not duplicates[name] then
-                        if found[name] then found[name] = nil duplicates[name] = true
-                        else found[name] = joint end
-                    end
+    -- Thứ tự giải khớp động học từ gốc (Root/Torso) ra các chi (Đầu/Tay/Chân) để đồng bộ 100% mọi hành động/emote
+    local JOINT_LIMB_ORDER = {
+        lowertorso = 1, torso = 1, root = 1,
+        uppertorso = 2, waist = 2,
+        head = 3, neck = 3,
+        leftupperarm = 3, rightupperarm = 3, leftupperleg = 3, rightupperleg = 3,
+        leftarm = 3, rightarm = 3, leftleg = 3, rightleg = 3,
+        leftshoulder = 3, rightshoulder = 3, lefthip = 3, righthip = 3,
+        leftlowerarm = 4, rightlowerarm = 4, leftlowerleg = 4, rightlowerleg = 4,
+        leftelbow = 4, rightelbow = 4, leftknee = 4, rightknee = 4,
+        lefthand = 5, righthand = 5, leftfoot = 5, rightfoot = 5,
+        leftwrist = 5, rightwrist = 5, leftankle = 5, rightankle = 5,
+    }
+    local CROSS_RIG_LIMB_ALIASES = {
+        torso = { "uppertorso", "lowertorso" },
+        uppertorso = { "torso" },
+        lowertorso = { "torso" },
+        leftarm = { "leftupperarm", "leftlowerarm", "lefthand" },
+        rightarm = { "rightupperarm", "rightlowerarm", "righthand" },
+        leftleg = { "leftupperleg", "leftlowerleg", "leftfoot" },
+        rightleg = { "rightupperleg", "rightlowerleg", "rightfoot" },
+        leftupperarm = { "leftarm" },
+        rightupperarm = { "rightarm" },
+        leftupperleg = { "leftleg" },
+        rightupperleg = { "rightleg" },
+    }
+    local BODY_LIMB_NAMES = {
+        "LowerTorso", "Torso", "UpperTorso", "Head",
+        "LeftUpperArm", "LeftLowerArm", "LeftHand", "Left Arm",
+        "RightUpperArm", "RightLowerArm", "RightHand", "Right Arm",
+        "LeftUpperLeg", "LeftLowerLeg", "LeftFoot", "Left Leg",
+        "RightUpperLeg", "RightLowerLeg", "RightFoot", "Right Leg",
+    }
+
+    local function normJointKey(s)
+        local k = string.lower(tostring(s or ""):gsub("[%s_%-]", ""))
+        if k == "rootjoint" or k == "root" then return "root" end
+        return k
+    end
+
+    local function isInsideAccessoryOrTool(inst, rootModel)
+        local p = inst and inst.Parent
+        while p and p ~= rootModel do
+            if p:IsA("Accessory") or p:IsA("Tool") or tostring(p.Name):sub(1, 12) == "BC_MorphPart" then
+                return true
+            end
+            p = p.Parent
+        end
+        return false
+    end
+
+    local function isNonIdentityCF(cf)
+        if not cf then return false end
+        local ok, res = pcall(function()
+            if type(cf.GetComponents) == "function" then
+                local x, y, z, r00, r01, r02, r10, r11, r12, r20, r21, r22 = cf:GetComponents()
+                if x and r00 then
+                    if math.abs(x) > 1e-4 or math.abs(y) > 1e-4 or math.abs(z) > 1e-4 then return true end
+                    if math.abs(r00 - 1) > 1e-4 or math.abs(r11 - 1) > 1e-4 or math.abs(r22 - 1) > 1e-4 then return true end
+                    if math.abs(r01) > 1e-4 or math.abs(r02) > 1e-4 or math.abs(r10) > 1e-4 or math.abs(r12) > 1e-4 or math.abs(r20) > 1e-4 or math.abs(r21) > 1e-4 then return true end
+                    return false
                 end
             end
-            return found
+            local p = cf.Position
+            if p and (math.abs(p.X) > 1e-4 or math.abs(p.Y) > 1e-4 or math.abs(p.Z) > 1e-4) then return true end
+            local lv, uv = cf.LookVector, cf.UpVector
+            if lv and (math.abs(lv.X) > 1e-4 or math.abs(lv.Y) > 1e-4 or math.abs(lv.Z + 1) > 1e-4) then return true end
+            if uv and (math.abs(uv.X) > 1e-4 or math.abs(uv.Y - 1) > 1e-4 or math.abs(uv.Z) > 1e-4) then return true end
+            return false
+        end)
+        return ok and res == true
+    end
+
+    -- Dựng danh sách ánh xạ khớp Motor6D + Bone + Limb + Phụ kiện giữa nhân vật thật và nhân vật ảo / fake
+    local function BuildSkinPosePairs(sourceModel, fakeModel)
+        local posePairs = {
+            _sourceModel = sourceModel,
+            _fakeModel = fakeModel,
+            _bones = {},
+            _limbs = {},
+            _welds = {},
+        }
+        if not sourceModel or not fakeModel then return posePairs end
+
+        local function collectMotor6Ds(model)
+            local byPart1, byName, byParentName = {}, {}, {}
+            for _, d in ipairs(model:GetDescendants()) do
+                if d:IsA("Motor6D") and not isInsideAccessoryOrTool(d, model) then
+                    local p1 = d.Part1 or (d.Parent and d.Parent:IsA("BasePart") and d.Parent) or nil
+                    local p1Key = p1 and normJointKey(p1.Name) or nil
+                    local jKey = normJointKey(d.Name)
+                    local parKey = (d.Parent and normJointKey(d.Parent.Name) .. "_" .. jKey) or jKey
+                    if p1Key and p1Key ~= "" and not byPart1[p1Key] then byPart1[p1Key] = d end
+                    if jKey ~= "" and not byName[jKey] then byName[jKey] = d end
+                    if parKey ~= "" and not byParentName[parKey] then byParentName[parKey] = d end
+                end
+            end
+            return byPart1, byName, byParentName
         end
-        local posePairs = {}
-        for _, className in ipairs({"Motor6D", "Bone"}) do
-            local sourceJoints = collectJoints(sourceModel, className)
-            local fakeJoints = collectJoints(fakeModel, className)
-            for name, sourceJoint in pairs(sourceJoints) do
-                local fakeJoint = fakeJoints[name]
-                if fakeJoint then table.insert(posePairs, { source = sourceJoint, fake = fakeJoint }) end
+
+        local srcByP1, srcByName, srcByPar = collectMotor6Ds(sourceModel)
+        local fakeByP1, fakeByName, fakeByPar = collectMotor6Ds(fakeModel)
+        local usedFake = {}
+
+        local function resolvePartInModel(model, part, fallback)
+            if part then
+                local okN, pName = pcall(function() return part.Name end)
+                if okN and pName and pName ~= "" then
+                    local found = model:FindFirstChild(pName) or model:FindFirstChild(pName, true)
+                    if found and found:IsA("BasePart") then return found end
+                end
+            end
+            if fallback and fallback:IsA("BasePart") then
+                local found = model:FindFirstChild(fallback.Name) or model:FindFirstChild(fallback.Name, true)
+                if found and found:IsA("BasePart") then return found end
+                return fallback
+            end
+            return part
+        end
+
+        local function addMotorPair(srcJ, fakeJ, sortKey)
+            if not srcJ or not fakeJ or usedFake[fakeJ] then return end
+            usedFake[fakeJ] = true
+            local sP0 = resolvePartInModel(sourceModel, srcJ.Part0, srcJ.Parent)
+            local sP1 = resolvePartInModel(sourceModel, srcJ.Part1, srcJ.Parent)
+            local fP0 = resolvePartInModel(fakeModel, fakeJ.Part0, fakeJ.Parent)
+            local fP1 = resolvePartInModel(fakeModel, fakeJ.Part1, fakeJ.Parent)
+            pcall(function()
+                if fP0 then fakeJ.Part0 = fP0 end
+                if fP1 then fakeJ.Part1 = fP1 end
+            end)
+            local baseRel = nil
+            pcall(function()
+                if sP0 and sP1 and sP0 ~= sP1 then
+                    baseRel = sP0.CFrame:ToObjectSpace(sP1.CFrame)
+                end
+            end)
+            table.insert(posePairs, {
+                kind = "Motor6D",
+                source = srcJ,
+                fake = fakeJ,
+                srcPart0 = sP0,
+                srcPart1 = sP1,
+                fakePart0 = fP0,
+                fakePart1 = fP1,
+                baseSrcC0 = srcJ.C0 or CFrame.new(),
+                baseSrcC1 = srcJ.C1 or CFrame.new(),
+                baseFakeC0 = fakeJ.C0 or CFrame.new(),
+                baseFakeC1 = fakeJ.C1 or CFrame.new(),
+                baseSrcRel = baseRel,
+                order = JOINT_LIMB_ORDER[sortKey] or 3,
+            })
+        end
+
+        for p1Key, fakeJ in pairs(fakeByP1) do
+            local srcJ = srcByP1[p1Key]
+            if not srcJ and CROSS_RIG_LIMB_ALIASES[p1Key] then
+                for _, alt in ipairs(CROSS_RIG_LIMB_ALIASES[p1Key]) do
+                    if srcByP1[alt] then srcJ = srcByP1[alt]; break end
+                end
+            end
+            if srcJ then addMotorPair(srcJ, fakeJ, p1Key) end
+        end
+        for jKey, fakeJ in pairs(fakeByName) do
+            if not usedFake[fakeJ] and srcByName[jKey] then
+                addMotorPair(srcByName[jKey], fakeJ, jKey)
             end
         end
+        for parKey, fakeJ in pairs(fakeByPar) do
+            if not usedFake[fakeJ] and srcByPar[parKey] then
+                addMotorPair(srcByPar[parKey], fakeJ, parKey)
+            end
+        end
+
+        table.sort(posePairs, function(a, b)
+            return (a.order or 3) < (b.order or 3)
+        end)
+
+        -- Đồng bộ cả Bone (Dynamic Head / biểu cảm khuôn mặt / Skinned Mesh)
+        local srcBonesByFull, srcBonesByName = {}, {}
+        for _, b in ipairs(sourceModel:GetDescendants()) do
+            if b:IsA("Bone") then
+                local bKey = normJointKey(b.Name)
+                local fullKey = (b.Parent and normJointKey(b.Parent.Name) .. "." .. bKey) or bKey
+                if not srcBonesByFull[fullKey] then srcBonesByFull[fullKey] = b end
+                if not srcBonesByName[bKey] then srcBonesByName[bKey] = b end
+            end
+        end
+        for _, fb in ipairs(fakeModel:GetDescendants()) do
+            if fb:IsA("Bone") then
+                local bKey = normJointKey(fb.Name)
+                local fullKey = (fb.Parent and normJointKey(fb.Parent.Name) .. "." .. bKey) or bKey
+                local sb = srcBonesByFull[fullKey] or srcBonesByName[bKey]
+                if sb then
+                    table.insert(posePairs._bones, { source = sb, fake = fb })
+                end
+            end
+        end
+
+        -- Ánh xạ trực tiếp các bộ phận cơ thể (Limb BaseParts) để đồng bộ CFrame hành động kể cả khi rig thiếu Motor6D hoặc khác R6/R15
+        local srcLimbs = {}
+        for _, ch in ipairs(sourceModel:GetChildren()) do
+            if ch:IsA("BasePart") then
+                srcLimbs[normJointKey(ch.Name)] = ch
+            end
+        end
+        local coveredFakeParts = {}
+        for _, mp in ipairs(posePairs) do
+            if mp.fakePart1 then coveredFakeParts[mp.fakePart1] = true end
+        end
+        for _, lName in ipairs(BODY_LIMB_NAMES) do
+            local fk = fakeModel:FindFirstChild(lName)
+            if fk and fk:IsA("BasePart") then
+                local k = normJointKey(lName)
+                local sr = srcLimbs[k]
+                if not sr and CROSS_RIG_LIMB_ALIASES[k] then
+                    for _, alt in ipairs(CROSS_RIG_LIMB_ALIASES[k]) do
+                        if srcLimbs[alt] then sr = srcLimbs[alt]; break end
+                    end
+                end
+                if sr then
+                    table.insert(posePairs._limbs, {
+                        source = sr,
+                        fake = fk,
+                        hasMotor = (coveredFakeParts[fk] == true),
+                    })
+                end
+            end
+        end
+
+        -- Thu thập các mối hàn phụ kiện (AccessoryWeld) và BC_MorphWeld trên fakeModel để bám chặt theo chi khi múa/hành động
+        for _, d in ipairs(fakeModel:GetDescendants()) do
+            if d:IsA("JointInstance") and (d.Name == "AccessoryWeld" or d.Name == "BC_MorphWeld" or (d.Parent and d.Parent.Name == "Handle")) then
+                table.insert(posePairs._welds, d)
+            end
+        end
+
         return posePairs
     end
 
-    local function SyncSkinFakePose(posePairs)
-        for _, pair in ipairs(posePairs or {}) do
+    local function SyncSkinFakePose(posePairs, sourceModel, fakeModel, targetRootCF)
+        if type(posePairs) ~= "table" then return end
+        sourceModel = sourceModel or posePairs._sourceModel or (player and player.Character)
+        fakeModel = fakeModel or posePairs._fakeModel
+        local srcRootCF = nil
+        if sourceModel then
+            srcRootCF = select(1, getCharPivot(sourceModel))
+        end
+        local fakeRoot = fakeModel and (fakeModel.PrimaryPart or fakeModel:FindFirstChild("HumanoidRootPart") or fakeModel:FindFirstChildWhichIsA("BasePart", true)) or nil
+        if fakeRoot and targetRootCF then
+            pcall(function() fakeRoot.CFrame = targetRootCF end)
             pcall(function()
-                if pair.source.Parent and pair.fake.Parent then
-                    pair.fake.Transform = pair.source.Transform
+                local ok1 = pcall(function() fakeModel:SetPrimaryPartCFrame(targetRootCF) end)
+                if not ok1 and fakeModel.PivotTo then pcall(function() fakeModel:PivotTo(targetRootCF) end) end
+            end)
+        end
+        local fakeRootCF = targetRootCF or (fakeRoot and fakeRoot.CFrame) or nil
+
+        -- 1. Giải khớp Motor6D (vừa gán Transform + C0/C1 delta, vừa tính trực tiếp CFrame chi để không bao giờ bị T-pose khi Anchored)
+        for _, pair in ipairs(posePairs) do
+            pcall(function()
+                local sj, fj = pair.source, pair.fake
+                if not (sj and sj.Parent and fj and fj.Parent) then return end
+                local tr = sj.Transform or CFrame.new()
+                local dC0, dC1 = CFrame.new(), CFrame.new()
+                if pair.baseSrcC0 and sj.C0 then
+                    pcall(function() dC0 = pair.baseSrcC0:Inverse() * sj.C0 end)
+                end
+                if pair.baseSrcC1 and sj.C1 then
+                    pcall(function() dC1 = pair.baseSrcC1:Inverse() * sj.C1 end)
+                end
+
+                local effTr = tr
+                if not isNonIdentityCF(effTr) and not isNonIdentityCF(dC0) and not isNonIdentityCF(dC1) then
+                    local sp0, sp1 = pair.srcPart0, pair.srcPart1
+                    if sp0 and sp1 and sp0.Parent and sp1.Parent and sp0 ~= sp1 and pair.baseSrcC0 and pair.baseSrcC1 then
+                        pcall(function()
+                            local rel = sp0.CFrame:ToObjectSpace(sp1.CFrame)
+                            local movedFromBase = true
+                            if pair.baseSrcRel then
+                                movedFromBase = isNonIdentityCF(pair.baseSrcRel:Inverse() * rel)
+                            end
+                            if movedFromBase then
+                                local liveTr = pair.baseSrcC0:Inverse() * rel * pair.baseSrcC1
+                                if isNonIdentityCF(liveTr) then
+                                    effTr = liveTr
+                                end
+                            end
+                        end)
+                    end
+                end
+
+                fj.Transform = effTr
+                local effFakeC0 = (pair.baseFakeC0 or fj.C0 or CFrame.new()) * dC0
+                local effFakeC1 = (pair.baseFakeC1 or fj.C1 or CFrame.new()) * dC1
+                pcall(function()
+                    fj.C0 = effFakeC0
+                    fj.C1 = effFakeC1
+                end)
+
+                local fp0, fp1 = pair.fakePart0, pair.fakePart1
+                if fp0 and fp1 and fp0.Parent and fp1.Parent and fp0 ~= fp1 then
+                    pcall(function()
+                        fp1.CFrame = fp0.CFrame * effFakeC0 * effTr * effFakeC1:Inverse()
+                    end)
                 end
             end)
         end
+
+        -- 2. Đồng bộ trực tiếp CFrame cho các bộ phận cơ thể chưa có Motor6D (hoặc khi bật hành động dịch chuyển trực tiếp CFrame bộ phận)
+        if srcRootCF and fakeRootCF and posePairs._limbs then
+            local noMotorCount = (#posePairs == 0)
+            for _, lp in ipairs(posePairs._limbs) do
+                if noMotorCount or not lp.hasMotor then
+                    pcall(function()
+                        if lp.source and lp.source.Parent and lp.fake and lp.fake.Parent then
+                            local rel = srcRootCF:ToObjectSpace(lp.source.CFrame)
+                            lp.fake.CFrame = fakeRootCF * rel
+                        end
+                    end)
+                end
+            end
+        end
+
+        -- 3. Đồng bộ Bone.Transform (khuôn mặt Dynamic Head / आभूषण / Mesh biến dạng)
+        if posePairs._bones then
+            for _, bp in ipairs(posePairs._bones) do
+                pcall(function()
+                    if bp.source and bp.source.Parent and bp.fake and bp.fake.Parent then
+                        bp.fake.Transform = bp.source.Transform
+                    end
+                end)
+            end
+        end
+
+        -- 4. Cập nhật CFrame phụ kiện (Accessory Handle & BC_MorphPart) bám khít theo từng bộ phận đang múa/hành động
+        if posePairs._welds then
+            for _, w in ipairs(posePairs._welds) do
+                pcall(function()
+                    if w and w.Parent and w.Part0 and w.Part1 and w.Part0.Parent and w.Part1.Parent then
+                        if w.Name == "BC_MorphWeld" then
+                            w.Part1.CFrame = w.Part0.CFrame * (w.C0 or CFrame.new()) * (w.C1 or CFrame.new()):Inverse()
+                        else
+                            w.Part0.CFrame = w.Part1.CFrame * (w.C1 or CFrame.new()) * (w.C0 or CFrame.new()):Inverse()
+                        end
+                    end
+                end)
+            end
+        end
+    end
+
+    -- Đồng bộ cả Nhân Vật Ảo (PI._virtualAvatar) trên map theo mọi hành động / emote của bạn trong game!
+    local function StartVirtualAvatarSync()
+        StopVirtualAvatarSync()
+        if not (PI._virtualAvatar and PI._virtualAvatar.Parent) then return false end
+        local char = player and player.Character
+        if not char then return false end
+        PI._vAvatarPosePairs = BuildSkinPosePairs(char, PI._virtualAvatar)
+
+        local function stepVirtualAvatar()
+            local curChar = player and player.Character
+            local vModel = PI._virtualAvatar
+            if not (vModel and vModel.Parent) then
+                StopVirtualAvatarSync()
+                return
+            end
+            if not (curChar and curChar.Parent) then return end
+            if not PI._vAvatarPosePairs or PI._vAvatarPosePairs._sourceModel ~= curChar or PI._vAvatarPosePairs._fakeModel ~= vModel then
+                PI._vAvatarPosePairs = BuildSkinPosePairs(curChar, vModel)
+            end
+            local charCF = select(1, getCharPivot(curChar))
+            local targetCF = PI._virtualAvatarCFrame
+            if charCF and targetCF then
+                pcall(function()
+                    local tx, ty, tz = targetCF.X, targetCF.Y, targetCF.Z
+                    local _, _, _, r00, r01, r02, r10, r11, r12, r20, r21, r22 = charCF:GetComponents()
+                    if r00 then
+                        targetCF = CFrame.new(tx, ty, tz, r00, r01, r02, r10, r11, r12, r20, r21, r22)
+                        PI._virtualAvatarCFrame = targetCF
+                    end
+                end)
+            end
+            SyncSkinFakePose(PI._vAvatarPosePairs, curChar, vModel, targetCF)
+        end
+
+        stepVirtualAvatar()
+        pcall(function()
+            PI._vAvatarStepped = RunService.Stepped:Connect(stepVirtualAvatar)
+        end)
+        pcall(function()
+            RunService:BindToRenderStep("BC_VirtualAvatarSync", Enum.RenderPriority.Camera.Value - 1, stepVirtualAvatar)
+        end)
+        pcall(function()
+            PI._vAvatarHeartbeat = RunService.Heartbeat:Connect(stepVirtualAvatar)
+        end)
+        return true
     end
 
     local function StartSkinFollow(char)
@@ -10443,58 +10982,44 @@ end end
             return false
         end
         local posePairs = BuildSkinPosePairs(char, PI._skinFake)
+        PI._skinPosePairs = posePairs
         print("[BC_Skin] pose sync joints", #posePairs)
-        if #posePairs == 0 then warn("[BC_Skin] không tìm thấy khớp cùng tên để đồng bộ animation") end
         SetupSkinCollisionGroups()
         makeFakeVisible(PI._skinFake)
-        SyncSkinFakePose(posePairs)
-        -- đặt ngay
-        local placed = false
-        pcall(function() PI._skinFake:SetPrimaryPartCFrame(pivot) placed = true end)
-        pcall(function() if PI._skinFake.PivotTo then PI._skinFake:PivotTo(pivot) placed = true end end)
-        if not placed then
-            pcall(function() PI._skinFake:PivotTo(CFrame.new(pivot.Position)) placed = true end)
-        end
+        SyncSkinFakePose(posePairs, char, PI._skinFake, pivot)
+        local placed = true
         print("[BC_Skin] đặt fake tại", tostring(pivot), "placed", placed, "parts", #PI._skinFake:GetDescendants())
+
         pcall(function() RunService:UnbindFromRenderStep(PI._skinFollowBind) end)
+        if PI._skinStepped then pcall(function() PI._skinStepped:Disconnect() end) PI._skinStepped = nil end
+        if PI._skinHeartbeat then pcall(function() PI._skinHeartbeat:Disconnect() end) PI._skinHeartbeat = nil end
         PI._skinFollow = nil
-        local okBind = pcall(function()
-            RunService:BindToRenderStep(PI._skinFollowBind, Enum.RenderPriority.Camera.Value - 1, function()
-                if not (char and char.Parent and PI._skinFake and PI._skinFake.Parent) then
-                    pcall(function() RunService:UnbindFromRenderStep(PI._skinFollowBind) end)
-                    return
-                end
-                SyncSkinFakePose(posePairs)
-                local cf = getCharPivot(char)
-                if cf then
-                    pcall(function()
-                        local ok1 = pcall(function() PI._skinFake:SetPrimaryPartCFrame(cf) end)
-                        if not ok1 then pcall(function() PI._skinFake:PivotTo(cf) end) end
-                    end)
-                end
-            end)
-        end)
-        if okBind then
-            PI._skinFollow = true
-            print("[BC_Skin] StartSkinFollow OK")
-            return true
-        else
-            warn("[BC_Skin] Bind RenderStep lỗi, dùng Heartbeat")
-            pcall(function()
-                local conn
-                conn = RunService.Heartbeat:Connect(function()
-                    if not (char and char.Parent and PI._skinFake and PI._skinFake.Parent) then
-                        if conn then conn:Disconnect() end
-                        return
-                    end
-                    SyncSkinFakePose(posePairs)
-                    local cf = getCharPivot(char)
-                    if cf then pcall(function() PI._skinFake:PivotTo(cf) end) end
-                end)
-                PI._skinHeartbeat = conn
-            end)
-            return true
+
+        local function stepFollow()
+            if not (char and char.Parent and PI._skinFake and PI._skinFake.Parent) then
+                pcall(function() RunService:UnbindFromRenderStep(PI._skinFollowBind) end)
+                if PI._skinStepped then pcall(function() PI._skinStepped:Disconnect() end) PI._skinStepped = nil end
+                if PI._skinHeartbeat then pcall(function() PI._skinHeartbeat:Disconnect() end) PI._skinHeartbeat = nil end
+                return
+            end
+            local cf = getCharPivot(char)
+            SyncSkinFakePose(posePairs, char, PI._skinFake, cf)
         end
+
+        pcall(function()
+            PI._skinStepped = RunService.Stepped:Connect(stepFollow)
+        end)
+        local okBind = pcall(function()
+            RunService:BindToRenderStep(PI._skinFollowBind, Enum.RenderPriority.Camera.Value - 1, stepFollow)
+        end)
+        pcall(function()
+            PI._skinHeartbeat = RunService.Heartbeat:Connect(stepFollow)
+        end)
+        PI._skinFollow = true
+        if okBind then
+            print("[BC_Skin] StartSkinFollow OK")
+        end
+        return true
     end
 
     -- ===== CHỨC NĂNG MẶC LOCAL (kết hợp từ script.js1.js) =====
@@ -10528,6 +11053,10 @@ end end
     local function scaleCFramePos(cf, sx, sy, sz)
         if not cf then return cf end
         local ok, res = pcall(function()
+            local x, y, z, r00, r01, r02, r10, r11, r12, r20, r21, r22 = cf:GetComponents()
+            if r00 then
+                return CFrame.new(x * sx, y * sy, z * sz, r00, r01, r02, r10, r11, r12, r20, r21, r22)
+            end
             local p = cf.Position
             local rot = cf - p
             return CFrame.new(p.X * sx, p.Y * sy, p.Z * sz) * rot
@@ -10538,6 +11067,10 @@ end end
     function PI.SaveVisuals(character, desc)
         local result = { _scales = {}, _hipHeight = nil, _bodyColors = nil }
         if not character then return result end
+        local isLiveClone = false
+        pcall(function()
+            isLiveClone = (character:GetAttribute("BC_IsLiveClone") == true or character.Parent == workspace)
+        end)
         local hum = character:FindFirstChildOfClass("Humanoid")
         local SCALE_KEYS = { "BodyWidthScale", "BodyDepthScale", "BodyHeightScale", "HeadScale", "BodyTypeScale", "ProportionScale" }
         local DESC_KEYS = {
@@ -10549,7 +11082,12 @@ end end
             ProportionScale = "ProportionScale",
         }
         if hum then
-            pcall(function() result._hipHeight = hum.HipHeight end)
+            pcall(function()
+                local hh = tonumber(hum.HipHeight)
+                if hh and (hum.RigType ~= Enum.HumanoidRigType.R15 or hh >= 0.8) then
+                    result._hipHeight = hh
+                end
+            end)
             for _, sk in ipairs(SCALE_KEYS) do
                 pcall(function()
                     local nv = hum:FindFirstChild(sk)
@@ -10613,6 +11151,8 @@ end end
                             return math.abs(partSize.X - origSizeVal.X) + math.abs(partSize.Y - origSizeVal.Y) + math.abs(partSize.Z - origSizeVal.Z)
                         end)
                         if okDiff and diff < 0.01 then needsManualScale = true end
+                    elseif not isLiveClone then
+                        needsManualScale = true
                     end
                 end
                 if needsManualScale and partSize then
@@ -10710,11 +11250,21 @@ end end
 
     function PI.ApplyVisuals(character, visuals)
         if not character or type(visuals) ~= "table" then return end
+        local isLocalRealChar = (player and player.Character == character)
+        local isRestore = (visuals._isOriginalRestore == true)
+        local baseVis = (isLocalRealChar and not isRestore and PI.localSaved and PI.localSaved.character == character) and PI.localSaved.visuals or nil
+
+        local ws = tonumber(visuals._scales and visuals._scales.BodyWidthScale) or 1
+        local hs = tonumber(visuals._scales and visuals._scales.BodyHeightScale) or 1
+        local ds = tonumber(visuals._scales and visuals._scales.BodyDepthScale) or 1
+        local hds = tonumber(visuals._scales and visuals._scales.HeadScale) or 1
+        local baseWs = tonumber(baseVis and baseVis._scales and baseVis._scales.BodyWidthScale) or 1
+        local baseHs = tonumber(baseVis and baseVis._scales and baseVis._scales.BodyHeightScale) or 1
+        local baseDs = tonumber(baseVis and baseVis._scales and baseVis._scales.BodyDepthScale) or 1
+        local baseHds = tonumber(baseVis and baseVis._scales and baseVis._scales.HeadScale) or 1
+
         local hum = character:FindFirstChildOfClass("Humanoid")
         if hum then
-            if visuals._hipHeight ~= nil then
-                pcall(function() hum.HipHeight = visuals._hipHeight end)
-            end
             if type(visuals._scales) == "table" then
                 for sName, sVal in pairs(visuals._scales) do
                     pcall(function()
@@ -10722,6 +11272,34 @@ end end
                         if nv and nv:IsA("NumberValue") then nv.Value = sVal end
                     end)
                 end
+            end
+            -- Bảo vệ HipHeight của nhân vật thật: gán SAU khi cập nhật NumberValue scale và KHÔNG BAO GIỜ gán HipHeight = 0 từ rig dummy chưa step (gây kẹt ngồi không đứng dậy được)!
+            pcall(function()
+                if isRestore and visuals._hipHeight ~= nil then
+                    local hh = tonumber(visuals._hipHeight) or 2.0
+                    if hum.RigType == Enum.HumanoidRigType.R15 and hh < 1.0 then hh = 2.0 end
+                    hum.HipHeight = hh
+                elseif isLocalRealChar then
+                    local baseHip = tonumber(baseVis and baseVis._hipHeight) or tonumber(hum.HipHeight) or 2.0
+                    if hum.RigType == Enum.HumanoidRigType.R15 and baseHip < 1.0 then baseHip = 2.0 end
+                    local ratioH = (baseHs > 0) and (hs / baseHs) or hs
+                    local targetHip = baseHip * ratioH
+                    if hum.RigType == Enum.HumanoidRigType.R15 then
+                        targetHip = math.clamp(targetHip, 1.0, 12.0)
+                    end
+                    hum.HipHeight = targetHip
+                elseif visuals._hipHeight ~= nil and tonumber(visuals._hipHeight) and tonumber(visuals._hipHeight) >= 0.8 then
+                    hum.HipHeight = tonumber(visuals._hipHeight)
+                end
+            end)
+            if isLocalRealChar then
+                pcall(function()
+                    hum.PlatformStand = false
+                    hum:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
+                    hum:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true)
+                    hum:SetStateEnabled(Enum.HumanoidStateType.Running, true)
+                    hum:SetStateEnabled(Enum.HumanoidStateType.Freefall, true)
+                end)
             end
         end
 
@@ -10758,8 +11336,22 @@ end end
                     if entry.meshClone and part:IsA("MeshPart") and entry.meshClone:IsA("MeshPart") then
                         pcall(function() part:ApplyMesh(entry.meshClone) end)
                     end
+
+                    local isHead = (name == "Head")
+                    local rx = isHead and ((baseHds > 0) and (hds / baseHds) or hds) or ((baseWs > 0) and (ws / baseWs) or ws)
+                    local ry = isHead and ((baseHds > 0) and (hds / baseHds) or hds) or ((baseHs > 0) and (hs / baseHs) or hs)
+                    local rz = isHead and ((baseHds > 0) and (hds / baseHds) or hds) or ((baseDs > 0) and (ds / baseDs) or ds)
+                    local hasScaleRatio = (math.abs(rx - 1) > 0.01 or math.abs(ry - 1) > 0.01 or math.abs(rz - 1) > 0.01)
+                    local basePartEntry = baseVis and baseVis[name] or nil
+
                     if entry.size then
-                        pcall(function() part.Size = entry.size end)
+                        pcall(function()
+                            if isLocalRealChar and not isRestore and basePartEntry and basePartEntry.size and hasScaleRatio then
+                                part.Size = Vector3.new(basePartEntry.size.X * rx, basePartEntry.size.Y * ry, basePartEntry.size.Z * rz)
+                            else
+                                part.Size = entry.size
+                            end
+                        end)
                     end
                     if entry.origSize then
                         pcall(function()
@@ -10775,8 +11367,22 @@ end end
                             local m = part:FindFirstChild(mName)
                             if m and m:IsA("Motor6D") then
                                 pcall(function()
-                                    if mData.c0 then m.C0 = mData.c0 end
-                                    if mData.c1 then m.C1 = mData.c1 end
+                                    -- Trên nhân vật thật: giữ nguyên ma trận xoay C0/C1 gốc của game (chỉ nhân tỉ lệ khoảng cách khi mập/gầy/cao/lùn) để mọi hành động/emote giống 100% lúc không bật tính năng!
+                                    local bm = basePartEntry and basePartEntry.motors and basePartEntry.motors[mName] or nil
+                                    if isLocalRealChar and not isRestore and bm then
+                                        if hasScaleRatio then
+                                            local c0x, c0y, c0z = (baseWs > 0 and ws / baseWs or ws), (baseHs > 0 and hs / baseHs or hs), (baseDs > 0 and ds / baseDs or ds)
+                                            if not isHead then c0x, c0y, c0z = rx, ry, rz end
+                                            if bm.c0 then m.C0 = scaleCFramePos(bm.c0, c0x, c0y, c0z) end
+                                            if bm.c1 then m.C1 = scaleCFramePos(bm.c1, rx, ry, rz) end
+                                        else
+                                            if bm.c0 then m.C0 = bm.c0 end
+                                            if bm.c1 then m.C1 = bm.c1 end
+                                        end
+                                    else
+                                        if mData.c0 then m.C0 = mData.c0 end
+                                        if mData.c1 then m.C1 = mData.c1 end
+                                    end
                                 end)
                             end
                         end
@@ -10857,6 +11463,15 @@ end end
             pcall(function() clone.Parent = character end)
         end
         pcall(function()
+            for _, d in ipairs(clone:GetDescendants()) do
+                if d:IsA("BasePart") then
+                    d.Anchored = false
+                    d.CanCollide = false
+                    d.CanTouch = false
+                    d.CanQuery = false
+                    d.Massless = true
+                end
+            end
             local handle = clone:FindFirstChild("Handle")
             if not (handle and handle:IsA("BasePart")) then return end
             handle.Anchored = false
@@ -10982,7 +11597,9 @@ end end
             if PI.localSaved and PI.localSaved.visuals then
                 pcall(PI.CleanupVisuals, PI.localSaved.visuals)
             end
-            PI.localSaved = { character = char, items = {}, visuals = PI.SaveVisuals(char, PI.originalDesc) }
+            local origVis = PI.SaveVisuals(char, PI.originalDesc)
+            origVis._isOriginalRestore = true
+            PI.localSaved = { character = char, items = {}, visuals = origVis }
             for _, item in ipairs(PI.OutfitParts(char)) do
                 local cloned, savedItem = pcall(function() return item:Clone() end)
                 if cloned and savedItem then
@@ -11034,20 +11651,6 @@ end end
                 end
             end)
         end
-        local applied, err = false, nil
-        if effDesc then
-            local descToApply = effDesc
-            local okC, cloneD = pcall(function() return effDesc:Clone() end)
-            if okC and cloneD then descToApply = cloneD end
-            -- Reset buộc Roblox dựng lại phụ kiện/quần áo; fallback sang ApplyDescription thường
-            applied, err = pcall(function()
-                if hum.ApplyDescriptionReset then hum:ApplyDescriptionReset(descToApply)
-                else hum:ApplyDescription(descToApply) end
-            end)
-            if not applied then
-                applied, err = pcall(function() hum:ApplyDescription(descToApply) end)
-            end
-        end
         local copied, detail = false, nil
         if okModel and source and player.Character == char then
             local ran, success, reason = pcall(PI.CopyOutfit, source, char, hum, effDesc, rec)
@@ -11075,6 +11678,14 @@ end end
             pcall(function() source:Destroy() end)
         end
         if rigSource then pcall(function() rigSource:Destroy() end) end
+        -- Chỉ gọi ApplyDescription làm dự phòng khi không dựng được model nguồn (tránh gọi ApplyDescriptionReset trên Client làm kẹt ngồi & mất đồng bộ Animator/emote!)
+        local applied, err = false, nil
+        if not copied and effDesc then
+            local descToApply = effDesc
+            local okC, cloneD = pcall(function() return effDesc:Clone() end)
+            if okC and cloneD then descToApply = cloneD end
+            applied, err = pcall(function() hum:ApplyDescription(descToApply) end)
+        end
         return copied, applied, detail, err
     end
 
@@ -11101,7 +11712,7 @@ end end
         local copied, applied, detail, err = PI.ApplyLocalToChar(char, hum, rec.desc, rec)
         pcall(function() PI.DiagnoseClothes(char, PI.FilteredDesc(rec) or rec.desc) end)
 
-        -- Nếu Lấy Skin đã chạy trước đó thì cập nhật lại khớp chuyển động (vì ApplyDescriptionReset có thể tạo lại Motor6D) và ẩn lại char
+        -- Nếu Lấy Skin đã chạy trước đó thì cập nhật lại khớp chuyển động và ẩn lại char
         if keepSkinHidden and PI._skinFake and PI._skinFake.Parent then
             makeFakeVisible(PI._skinFake, hum.RigType)
             StartSkinFollow(char)
@@ -11163,10 +11774,16 @@ end end
 
         pcall(function() if PI._skinFake then PI._skinFake:Destroy() end end)
         PI._skinFake = nil
+        if PI._skinStepped then pcall(function() PI._skinStepped:Disconnect() end) PI._skinStepped = nil end
         if PI._skinHeartbeat then pcall(function() PI._skinHeartbeat:Disconnect() end) PI._skinHeartbeat = nil end
 
         print("[BC_Skin] fake", fake and "có" or "nil", "source", avatarSource, "err", ferr)
         if fake then
+            pcall(function()
+                local fVis = PI.SaveVisuals(fake, fakeDesc or PI.FilteredDesc(rec) or rec.desc)
+                PI.ApplyVisuals(fake, fVis)
+                PI.CleanupVisuals(fVis)
+            end)
             -- Đảm bảo các phụ kiện có sẵn trên fake rig được hàn (weld) chắc chắn trên Client
             pcall(function()
                 local fHum = fake:FindFirstChildOfClass("Humanoid")
@@ -11295,7 +11912,7 @@ end end
         end
     end
 
-    -- 👥 Tạo nhân vật ảo độc lập đứng ngoài Map từ skin đã xoá/lọc của người chơi
+    -- 👥 Tạo nhân vật ảo độc lập đứng ngoài Map từ skin đã xoá/lọc của người chơi (đồng bộ 100% hành động/emote với nhân vật của bạn!)
     function PI.SpawnVirtualAvatar(rec, isRefresh)
         if type(rec) ~= "table" or (rec.desc == nil and rec.id == nil) then
             return false, "chưa có dữ liệu người chơi để tạo nhân vật ảo"
@@ -11303,10 +11920,15 @@ end end
         PI.EnsureSkinItems(rec)
         local char = player.Character
         local hum = char and char:FindFirstChildOfClass("Humanoid")
-        local vModel, verr = PI.BuildAvatarModel(rec, "BC_VirtualAvatar_" .. tostring(rec.id or "clone"), hum and hum.RigType)
+        local vModel, verr, vDesc = PI.BuildAvatarModel(rec, "BC_VirtualAvatar_" .. tostring(rec.id or "clone"), hum and hum.RigType)
         if not vModel then
             return false, "không dựng được nhân vật ảo: " .. tostring(verr)
         end
+        pcall(function()
+            local vVis = PI.SaveVisuals(vModel, vDesc or PI.FilteredDesc(rec) or rec.desc)
+            PI.ApplyVisuals(vModel, vVis)
+            PI.CleanupVisuals(vVis)
+        end)
         pcall(function()
             local vHum = vModel:FindFirstChildOfClass("Humanoid")
             for _, item in ipairs(vModel:GetChildren()) do
@@ -11328,6 +11950,7 @@ end end
             local cf = getCharPivot(char)
             targetCF = cf and (cf * CFrame.new(4, 0, 0)) or CFrame.new(0, 5, 0)
         end
+        StopVirtualAvatarSync()
         if PI._virtualAvatar then
             pcall(function() PI._virtualAvatar:Destroy() end)
             PI._virtualAvatar = nil
@@ -11343,13 +11966,15 @@ end end
         PI._virtualAvatarId = rec.id
         PI._virtualAvatarRec = rec
         PI._virtualAvatarCFrame = targetCF
+        StartVirtualAvatarSync()
         local kept, total, deleted = PI.KeptCount(rec)
         if PI.RefreshButtons then pcall(PI.RefreshButtons) end
-        return true, string.format("nhân vật ảo @%s (giữ %d/%d món, đã xoá %d món)", tostring(rec.name or rec.id), kept, total, deleted)
+        return true, string.format("nhân vật ảo @%s (giữ %d/%d món, đã xoá %d món · đồng bộ hành động)", tostring(rec.name or rec.id), kept, total, deleted)
     end
 
     function PI.ClearVirtualAvatar()
         local hadMap = (PI._virtualAvatar ~= nil)
+        StopVirtualAvatarSync()
         if PI._virtualAvatar then
             pcall(function() PI._virtualAvatar:Destroy() end)
             PI._virtualAvatar = nil
@@ -11373,30 +11998,13 @@ end end
         local char = player.Character
         local hum = char and char:FindFirstChildOfClass("Humanoid")
         local restoredLocal = false
-        if hum and PI.originalDesc then
-            local toRestore = PI.originalDesc
-            local okC, cloneR = pcall(function() return toRestore:Clone() end)
-            if okC and cloneR then toRestore = cloneR end
-            print("[BC_Skin] khôi phục HumanoidDescription gốc")
-            local okR = pcall(function()
-                if hum.ApplyDescriptionReset then hum:ApplyDescriptionReset(toRestore)
-                else hum:ApplyDescription(toRestore) end
-            end)
-            if not okR then pcall(function() hum:ApplyDescription(toRestore) end) end
-            restoredLocal = true
-        elseif hum and not PI.originalDesc then
-            local okF, odF = pcall(function() return Players:GetHumanoidDescriptionFromUserId(player.UserId) end)
-            if okF and odF then
-                pcall(function() hum:ApplyDescription(odF) end)
-                restoredLocal = true
-            end
-        end
-        -- Khôi phục bố cục cơ thể / quần áo / phụ kiện / màu da / mặt từ bản lưu cục bộ
+        -- Khôi phục bố cục cơ thể / quần áo / phụ kiện / màu da / mặt từ bản lưu cục bộ (không gọi ApplyDescriptionReset làm mất đồng bộ Animator!)
         if char and hum and PI.localSaved and PI.localSaved.character == char then
             for _, item in ipairs(PI.OutfitParts(char)) do
                 pcall(function() item:Destroy() end)
             end
             if PI.localSaved.visuals then
+                PI.localSaved.visuals._isOriginalRestore = true
                 PI.ApplyVisuals(char, PI.localSaved.visuals)
                 pcall(PI.CleanupVisuals, PI.localSaved.visuals)
             end
@@ -11411,8 +12019,17 @@ end end
                 end)
             end
             restoredLocal = true
-        elseif PI.localSaved and PI.localSaved.visuals then
-            pcall(PI.CleanupVisuals, PI.localSaved.visuals)
+        else
+            if PI.localSaved and PI.localSaved.visuals then
+                pcall(PI.CleanupVisuals, PI.localSaved.visuals)
+            end
+            if hum and PI.originalDesc then
+                local toRestore = PI.originalDesc
+                local okC, cloneR = pcall(function() return toRestore:Clone() end)
+                if okC and cloneR then toRestore = cloneR end
+                pcall(function() hum:ApplyDescription(toRestore) end)
+                restoredLocal = true
+            end
         end
         PI.localSaved = nil
         PI.originalDesc = nil
