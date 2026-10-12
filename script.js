@@ -8711,8 +8711,10 @@ end end
             if oldPI._vAvatarHeartbeat then pcall(function() oldPI._vAvatarHeartbeat:Disconnect() end) end
             if oldPI._sitJumpConn then pcall(function() oldPI._sitJumpConn:Disconnect() end) end
             if oldPI._sitWatchConn then pcall(function() oldPI._sitWatchConn:Disconnect() end) end
+            if oldPI._skinDescAddedConn then pcall(function() oldPI._skinDescAddedConn:Disconnect() end) end
         end
         RunService:UnbindFromRenderStep("BC_SkinFollow")
+        RunService:UnbindFromRenderStep("BC_SkinHideLast")
         RunService:UnbindFromRenderStep("BC_VirtualAvatarSync")
         RunService:UnbindFromRenderStep("BC_PlayerViewSpin")
     end)
@@ -10422,13 +10424,24 @@ end end
     end
 
     local function ShowCharacter()
+        if PI._skinDescAddedConn then
+            pcall(function() PI._skinDescAddedConn:Disconnect() end)
+            PI._skinDescAddedConn = nil
+        end
+        pcall(function() RunService:UnbindFromRenderStep("BC_SkinHideLast") end)
         pcall(function()
             for inst, st in pairs(PI._skinHidden) do
                 pcall(function()
                     if inst and inst.Parent then
-                        if st.t ~= nil and inst:IsA("BasePart") then inst.Transparency = st.t; inst.LocalTransparencyModifier = 0
-                        elseif st.t ~= nil and (inst:IsA("Decal") or inst:IsA("Texture")) then inst.Transparency = st.t
-                        elseif st.e ~= nil then inst.Enabled = st.e end
+                        if st.t ~= nil and inst:IsA("BasePart") then
+                            inst.Transparency = st.t
+                            inst.LocalTransparencyModifier = 0
+                            if st.cs ~= nil then pcall(function() inst.CastShadow = st.cs end) end
+                        elseif st.t ~= nil and (inst:IsA("Decal") or inst:IsA("Texture")) then
+                            inst.Transparency = st.t
+                        elseif st.e ~= nil then
+                            inst.Enabled = st.e
+                        end
                         if st.cg ~= nil and inst:IsA("BasePart") then pcall(function() inst.CollisionGroup = st.cg end)
                         elseif inst:IsA("BasePart") then pcall(function() inst.CollisionGroup = "Default" end) end
                     end
@@ -10438,42 +10451,75 @@ end end
         PI._skinHidden = {}
     end
 
-    local function HideCharacter(char)
-        if not char then return end
-        -- Nếu nhân vật đang bị ẩn từ lần trước thì hiện lại trước khi lưu, tránh lưu nhầm Transparency = 1 làm tàng hình vĩnh viễn khi Trả Skin!
-        if next(PI._skinHidden) ~= nil then
-            ShowCharacter()
+    local function hideDescendantElement(d, char)
+        if not d then return end
+        local origVis = (PI.localSaved and PI.localSaved.character == char and PI.localSaved.visuals) or nil
+        if d:IsA("BasePart") then
+            if PI._skinHidden[d] == nil then
+                local pName = string.lower(tostring(d.Name))
+                local isRoot = (pName == "humanoidrootpart" or pName == "rootpart" or pName == "hitbox" or pName == "collisionbox" or pName == "collider" or pName == "boundingbox")
+                local isTempMorph = (tostring(d.Name):sub(1, 12) == "BC_MorphPart")
+                local savedPartEntry = (d.Parent == char and origVis and origVis[d.Name]) or nil
+                local origT = (isRoot or isTempMorph) and 1
+                    or (savedPartEntry and savedPartEntry.transparency ~= nil and savedPartEntry.transparency)
+                    or d.Transparency
+                local entry = { t = origT, cg = nil, cs = nil }
+                pcall(function() entry.cg = d.CollisionGroup end)
+                pcall(function() entry.cs = d.CastShadow end)
+                PI._skinHidden[d] = entry
+            end
+            d.Transparency = 1
+            d.LocalTransparencyModifier = 1
+            pcall(function() d.CastShadow = false end)
+            pcall(function() d.CollisionGroup = "BC_SkinReal" end)
+        elseif d:IsA("Decal") or d:IsA("Texture") then
+            if PI._skinHidden[d] == nil then
+                PI._skinHidden[d] = { t = d.Transparency }
+            end
+            d.Transparency = 1
+        elseif d:IsA("BillboardGui") or d:IsA("SurfaceGui") or d:IsA("Highlight")
+            or d:IsA("Beam") or d:IsA("ParticleEmitter") or d:IsA("Trail")
+            or d:IsA("Sparkles") or d:IsA("Fire") or d:IsA("Smoke") then
+            if PI._skinHidden[d] == nil then
+                PI._skinHidden[d] = { e = d.Enabled }
+            end
+            d.Enabled = false
         end
-        PI._skinHidden = {}
-        SetupSkinCollisionGroups()
+    end
+
+    local function EnforceCharacterHidden(char)
+        if not (char and char.Parent) then return end
         pcall(function()
             for _, d in ipairs(char:GetDescendants()) do
-                pcall(function()
-                    if d:IsA("BasePart") then
-                        local pName = string.lower(tostring(d.Name))
-                        local isRoot = (pName == "humanoidrootpart" or pName == "rootpart" or pName == "hitbox")
-                        PI._skinHidden[d] = {t = isRoot and 1 or d.Transparency, cg = nil}
-                        pcall(function() PI._skinHidden[d].cg = d.CollisionGroup end)
-                        d.Transparency = 1
-                        d.LocalTransparencyModifier = 1
-                        pcall(function() d.CollisionGroup = "BC_SkinReal" end)
-                    elseif d:IsA("Decal") or d:IsA("Texture") then
-                        PI._skinHidden[d] = {t = d.Transparency}
-                        d.Transparency = 1
-                    elseif d:IsA("BillboardGui") or d:IsA("SurfaceGui") then
-                        PI._skinHidden[d] = {e = d.Enabled}
-                        d.Enabled = false
-                    end
-                end)
+                pcall(hideDescendantElement, d, char)
             end
+        end)
+    end
+
+    local function HideCharacter(char)
+        if not char then return end
+        SetupSkinCollisionGroups()
+        EnforceCharacterHidden(char)
+        if PI._skinDescAddedConn then
+            pcall(function() PI._skinDescAddedConn:Disconnect() end)
+            PI._skinDescAddedConn = nil
+        end
+        pcall(function()
+            PI._skinDescAddedConn = char.DescendantAdded:Connect(function(d)
+                if PI._skinFake and PI._skinFake.Parent then
+                    pcall(hideDescendantElement, d, char)
+                end
+            end)
         end)
     end
 
     local function StopSkinFollow()
         pcall(function() RunService:UnbindFromRenderStep(PI._skinFollowBind) end)
+        pcall(function() RunService:UnbindFromRenderStep("BC_SkinHideLast") end)
         PI._skinFollow = nil
         if PI._skinStepped then pcall(function() PI._skinStepped:Disconnect() end) PI._skinStepped = nil end
         if PI._skinHeartbeat then pcall(function() PI._skinHeartbeat:Disconnect() end) PI._skinHeartbeat = nil end
+        if PI._skinDescAddedConn then pcall(function() PI._skinDescAddedConn:Disconnect() end) PI._skinDescAddedConn = nil end
         if PI._skinFake then
             pcall(function() PI._skinFake:Destroy() end)
             PI._skinFake = nil
@@ -10991,6 +11037,7 @@ end end
         print("[BC_Skin] đặt fake tại", tostring(pivot), "placed", placed, "parts", #PI._skinFake:GetDescendants())
 
         pcall(function() RunService:UnbindFromRenderStep(PI._skinFollowBind) end)
+        pcall(function() RunService:UnbindFromRenderStep("BC_SkinHideLast") end)
         if PI._skinStepped then pcall(function() PI._skinStepped:Disconnect() end) PI._skinStepped = nil end
         if PI._skinHeartbeat then pcall(function() PI._skinHeartbeat:Disconnect() end) PI._skinHeartbeat = nil end
         PI._skinFollow = nil
@@ -10998,12 +11045,28 @@ end end
         local function stepFollow()
             if not (char and char.Parent and PI._skinFake and PI._skinFake.Parent) then
                 pcall(function() RunService:UnbindFromRenderStep(PI._skinFollowBind) end)
+                pcall(function() RunService:UnbindFromRenderStep("BC_SkinHideLast") end)
                 if PI._skinStepped then pcall(function() PI._skinStepped:Disconnect() end) PI._skinStepped = nil end
                 if PI._skinHeartbeat then pcall(function() PI._skinHeartbeat:Disconnect() end) PI._skinHeartbeat = nil end
+                if PI._skinDescAddedConn then pcall(function() PI._skinDescAddedConn:Disconnect() end) PI._skinDescAddedConn = nil end
                 return
             end
             local cf = getCharPivot(char)
             SyncSkinFakePose(posePairs, char, PI._skinFake, cf)
+            -- Ép ẩn toàn bộ nhân vật gốc mỗi khung hình (chống các game như Evade tự reset LocalTransparencyModifier = 0 ở RenderStepped)
+            EnforceCharacterHidden(char)
+            pcall(function()
+                for _, fp in ipairs(PI._skinFake:GetDescendants()) do
+                    if fp:IsA("BasePart") then
+                        local pn = string.lower(tostring(fp.Name))
+                        local isHelper = (pn == "humanoidrootpart" or pn == "rootpart" or pn == "hitbox" or pn == "collisionbox" or pn == "collider")
+                        local hasMorph = (fp:FindFirstChild("BC_MorphPart_" .. tostring(fp.Name)) ~= nil)
+                        if not isHelper and not hasMorph then
+                            fp.LocalTransparencyModifier = 0
+                        end
+                    end
+                end
+            end)
         end
 
         pcall(function()
@@ -11011,6 +11074,13 @@ end end
         end)
         local okBind = pcall(function()
             RunService:BindToRenderStep(PI._skinFollowBind, Enum.RenderPriority.Camera.Value - 1, stepFollow)
+        end)
+        pcall(function()
+            RunService:BindToRenderStep("BC_SkinHideLast", Enum.RenderPriority.Last.Value, function()
+                if char and char.Parent and PI._skinFake and PI._skinFake.Parent then
+                    EnforceCharacterHidden(char)
+                end
+            end)
         end)
         pcall(function()
             PI._skinHeartbeat = RunService.Heartbeat:Connect(stepFollow)
@@ -11029,7 +11099,7 @@ end end
         if not character then return out end
         for _, item in ipairs(character:GetChildren()) do
             if item:IsA("Shirt") or item:IsA("Pants") or item:IsA("ShirtGraphic") or item:IsA("Accessory")
-                or item:IsA("BodyColors") or item:IsA("CharacterMesh") then
+                or item:IsA("Accoutrement") or item:IsA("Hat") or item:IsA("BodyColors") or item:IsA("CharacterMesh") then
                 out[#out + 1] = item
             end
         end
@@ -11333,8 +11403,13 @@ end end
                     end
                     if entry.color then pcall(function() part.Color = entry.color end) end
                     if entry.material then pcall(function() part.Material = entry.material end) end
-                    if entry.meshClone and part:IsA("MeshPart") and entry.meshClone:IsA("MeshPart") then
-                        pcall(function() part:ApplyMesh(entry.meshClone) end)
+                    if part:IsA("MeshPart") then
+                        if entry.textureId ~= nil then
+                            pcall(function() part.TextureID = entry.textureId end)
+                        end
+                        if entry.meshClone and entry.meshClone:IsA("MeshPart") then
+                            pcall(function() part:ApplyMesh(entry.meshClone) end)
+                        end
                     end
 
                     local isHead = (name == "Head")
@@ -11667,13 +11742,42 @@ end end
                 pcall(PI.ApplySkinFilterToModel, char, rec)
             end
             -- Khi Lấy Skin đã chạy TRƯỚC (PI._skinFake đã tồn tại), Mặc LOCAL chạy SAU sẽ đắp thẳng quần áo/phụ kiện/bố cục/mặt lên cả PI._skinFake!
+            -- Nếu chỉ bấm Mặc LOCAL độc lập (như trong game Evade), tự động dựng luôn PI._skinFake từ source để ẩn 100% skin cũ của nhân vật thật!
             if PI.skinActive and PI._skinFake and PI._skinFake.Parent then
                 local fakeHum = PI._skinFake:FindFirstChildOfClass("Humanoid")
                 pcall(PI.CopyOutfit, source, PI._skinFake, fakeHum, effDesc, rec)
                 if type(rec) == "table" then pcall(PI.ApplySkinFilterToModel, PI._skinFake, rec) end
                 pcall(makeFakeVisible, PI._skinFake, hum.RigType)
+                pcall(function() source:Destroy() end)
+            else
+                if PI._skinFake then
+                    pcall(function() PI._skinFake:Destroy() end)
+                    PI._skinFake = nil
+                end
+                pcall(function()
+                    source.Name = "BC_SkinFake_" .. tostring(rec and rec.id or "local")
+                    local sVis = PI.SaveVisuals(source, effDesc)
+                    PI.ApplyVisuals(source, sVis)
+                    PI.CleanupVisuals(sVis)
+                    local sHum = source:FindFirstChildOfClass("Humanoid")
+                    for _, item in ipairs(source:GetChildren()) do
+                        if item:IsA("Accessory") then
+                            PI.AttachAccessoryClient(source, sHum, item)
+                        end
+                    end
+                    if type(rec) == "table" then pcall(PI.ApplySkinFilterToModel, source, rec) end
+                    if not source.PrimaryPart then
+                        local cand = source:FindFirstChild("HumanoidRootPart") or source:FindFirstChild("Torso") or source:FindFirstChild("UpperTorso") or source:FindFirstChildWhichIsA("BasePart", true)
+                        if cand then source.PrimaryPart = cand end
+                    end
+                    if sHum then
+                        sHum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+                        sHum.HealthDisplayType = Enum.HumanoidDisplayType.AlwaysOff
+                    end
+                    source.Parent = workspace
+                    PI._skinFake = source
+                end)
             end
-            pcall(function() source:Destroy() end)
         elseif okModel and source then
             pcall(function() source:Destroy() end)
         end
@@ -11704,16 +11808,15 @@ end end
         table.insert(PI.executionLog, "local")
 
         -- Hiện lại nhân vật thật tạm thời trước khi thay đồ để không lưu nhầm Transparency = 1
-        local keepSkinHidden = (PI.skinActive and PI._skinFake and PI._skinFake.Parent ~= nil)
-        if keepSkinHidden then
+        if next(PI._skinHidden) ~= nil then
             ShowCharacter()
         end
 
         local copied, applied, detail, err = PI.ApplyLocalToChar(char, hum, rec.desc, rec)
         pcall(function() PI.DiagnoseClothes(char, PI.FilteredDesc(rec) or rec.desc) end)
 
-        -- Nếu Lấy Skin đã chạy trước đó thì cập nhật lại khớp chuyển động và ẩn lại char
-        if keepSkinHidden and PI._skinFake and PI._skinFake.Parent then
+        -- Luôn đồng bộ khớp chuyển động lên PI._skinFake và ẩn hoàn toàn nhân vật gốc (kể cả trong game Evade khi chỉ bật Mặc LOCAL)
+        if PI._skinFake and PI._skinFake.Parent then
             makeFakeVisible(PI._skinFake, hum.RigType)
             StartSkinFollow(char)
             HideCharacter(char)
