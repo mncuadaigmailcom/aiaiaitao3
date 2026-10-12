@@ -6649,184 +6649,6 @@ do
         BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium, TextSize = 8, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
     }, tab) D.playerY = 46 end
 
--- ---------- KHUNG 📍 ĐỊNH VỊ (nằm trong trang 👥 NGƯỜI CHƠI) ----------
-do local PH = 380
-    local P = New("Frame", { Name = "HubLoc_Panel",
-        Size = UDim2.new(1, -16, 0, PH), Position = UDim2.new(0, 8, 0, D.playerY or 46),
-        LayoutOrder = 1, BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, BorderSizePixel = 0, ZIndex = 6,
-    }, D.playerTab) D.playerY = (D.playerY or 46) + PH + 8
-    Corner(P, UDim.new(0, 10)) Stroke(P, C.HAIRLINE, 1) D.Shade(P, Color3.fromRGB(255, 255, 255), Color3.fromRGB(188, 192, 205), 90)
-
-    New("TextLabel", { Size = UDim2.new(1, -16, 0, 14), Position = UDim2.new(0, 8, 0, 4),
-        Text = "📍 ĐỊNH VỊ NGƯỜI CHƠI (xuyên tường) + 🚀 BAY TỚI NGƯỜI", BackgroundTransparency = 1,
-        TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
-    }, P)
-
-    local function act(txt, x, y, w, color) local b = New("TextButton", {
-            Size = UDim2.new(0, w, 0, 18), Position = UDim2.new(0, x, 0, y), Text = txt, BackgroundColor3 = color, TextColor3 = D.BestText(color),
-            Font = Enum.Font.GothamBold, TextSize = 8, BorderSizePixel = 0, ZIndex = 8, }, P)
-        Corner(b, UDim.new(0, 5)) D.Shade(b, Color3.fromRGB(255, 255, 255), Color3.fromRGB(182, 187, 201), 90)
-        D.Tactile(b, 0.08) return b
-    end local function lab(txt, x, y, w)
-        New("TextLabel", { Size = UDim2.new(0, w, 0, 18), Position = UDim2.new(0, x, 0, y),
-            Text = txt, BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium, TextSize = 9,
-            TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7, }, P) end
-
-    local allBtn  = act("👁️ Tất Cả", 8, 22, 66, C.GRAY) local soloBtn = act("🎯 Lẻ", 78, 22, 60, C.GRAY)
-    local stopBtn = act("🚫 Tắt", 142, 22, 48, C.SURFACE3)
-
-    local flyNearBtn = act("🚀 Gần nhất", 194, 22, 68, C.ACCENT) local flyStopBtn = act("⏹️ Dừng bay", 266, 22, 68, C.SURFACE3)
-
-    lab("📏 Xa nhất:", 8, 46, 58) local distIn = New("TextBox", {
-        Size = UDim2.new(0, 50, 0, 18), Position = UDim2.new(0, 66, 0, 46), Text = "0", ClearTextOnFocus = false,
-        BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.1, TextColor3 = C.DARK, PlaceholderColor3 = C.GRAY, Font = Enum.Font.GothamMedium, TextSize = 9,
-        TextXAlignment = Enum.TextXAlignment.Center, BorderSizePixel = 0, ZIndex = 7, }, P)
-    Corner(distIn, UDim.new(0, 5)) lab("m (0 = không giới hạn)", 122, 46, 120)
-
-    lab("🚀 Tốc độ bay tới người:", 8, 68, 122) local flySpeedIn = New("TextBox", {
-        Size = UDim2.new(0, 52, 0, 18), Position = UDim2.new(0, 132, 0, 68), Text = "0", ClearTextOnFocus = false,
-        BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.1, TextColor3 = C.DARK, PlaceholderColor3 = C.GRAY, Font = Enum.Font.GothamMedium, TextSize = 9,
-        TextXAlignment = Enum.TextXAlignment.Center, BorderSizePixel = 0, ZIndex = 7, }, P)
-    Corner(flySpeedIn, UDim.new(0, 5)) lab("0=auto (lấy tốc độ game)", 188, 68, 150) local flySpeedApply = act("✅ Đặt", 340, 68, 34, C.GREEN)
-
-    local searchIn = New("TextBox", { Size = UDim2.new(1, -16, 0, 22), Position = UDim2.new(0, 8, 0, 96),
-        Text = "", PlaceholderText = "🔍 Tìm tên người chơi...", ClearTextOnFocus = false, PlaceholderColor3 = C.GRAY, BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.1,
-        TextColor3 = C.DARK, Font = Enum.Font.GothamMedium, TextSize = 9, TextXAlignment = Enum.TextXAlignment.Left, BorderSizePixel = 0, ZIndex = 7,
-    }, P) Corner(searchIn, UDim.new(0, 6)) New("UIPadding", { PaddingLeft = UDim.new(0, 6) }, searchIn)
-
-    local list = New("ScrollingFrame", { Name = "LocList", Size = UDim2.new(1, -16, 0, 190), Position = UDim2.new(0, 8, 0, 122),
-        BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = 4, CanvasSize = UDim2.new(0, 0, 0, 0), ZIndex = 7,
-    }, P) New("UIListLayout", { Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder }, list)
-
-    New("TextLabel", { Size = UDim2.new(1, -16, 0, 56), Position = UDim2.new(0, 8, 0, 316),
-        Text = "💡 Bấm TÊN = chỉ định vị người đó. 🟢 thường · 💗 bạn bè · 🔴 bị hạ gục (⏱ đếm giờ) · " .. "🟣 bạn bè bị hạ gục. 📏 Xa nhất: chỉ hiện người trong bán kính đó. "
-             .. "🚀 Bay tới = xuyên tường (tự bật 🧱 + 🚀), theo dõi mục tiêu di chuyển, dừng khi <2 studs. " .. "Tốc độ 0 = auto lấy tốc độ mặc định của game.",
-        TextWrapped = true, BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium, TextSize = 8, TextXAlignment = Enum.TextXAlignment.Left,
-        TextYAlignment = Enum.TextYAlignment.Top, ZIndex = 7, }, P)
-
-    local function paint() allBtn.Text = LOC.on and "👁️ Tất Cả: BẬT" or "👁️ Tất Cả"
-        allBtn.BackgroundColor3 = LOC.on and C.GREEN or C.GRAY allBtn.TextColor3 = D.BestText(allBtn.BackgroundColor3)
-        soloBtn.Text = LOC.solo and ("🎯 " .. tostring(LOC.target and LOC.target.Name or "?")) or "🎯 Lẻ" soloBtn.BackgroundColor3 = LOC.solo and C.PURPLE or C.GRAY
-        soloBtn.TextColor3 = D.BestText(soloBtn.BackgroundColor3) local mv = S.Move
-        local sp = mv and mv.playerFlySpeed or 0 if tonumber(sp) == 0 then flySpeedIn.Text = "0"
-            flySpeedIn.PlaceholderText = tostring(mv and mv.GetPlayerFlySpeed and mv.GetPlayerFlySpeed() or 16) else
-            flySpeedIn.Text = tostring(sp) end
-        local active = mv and mv._playerFlyActive flyNearBtn.BackgroundColor3 = active and C.GREEN or C.ACCENT
-        flyNearBtn.TextColor3 = D.BestText(flyNearBtn.BackgroundColor3) flyNearBtn.Text = active and ("🚀 Đang bay " .. tostring(mv._playerFlyTarget and mv._playerFlyTarget.Name or "?")) or "🚀 Gần nhất" end
-
-    LOC.RefreshList = function(force) local term = tostring(searchIn.Text or ""):lower()
-        local ok, players = pcall(function() return Players:GetPlayers() end) if not ok or not players then return end
-        local want = {} local sig = term
-        for _, p in ipairs(players) do if p ~= player then
-                local nm = tostring(p.Name) if term == "" or nm:lower():find(term, 1, true) then want[#want + 1] = p
-                    local _, _, h0 = LOC.CharOf(p) sig = sig .. "|" .. nm
-                        .. (LOC.IsFriend(p) and "F" or "") .. (LOC.IsDown(h0) and "D" or "") .. (LOC.target == p and "T" or "")
-                end end
-        end local cache = LOC._rows
-        if (force == true) or (sig ~= LOC._rowSig) or (cache == nil) then LOC._rowSig = sig LOC._rows = {}
-            cache = LOC._rows for _, c in ipairs(list:GetChildren()) do
-                if not c:IsA("UIListLayout") then pcall(function() c:Destroy() end) end end
-            local order = 0 for _, p in ipairs(want) do
-                local nm = tostring(p.Name) order = order + 1
-                local _, _, h = LOC.CharOf(p) local fr, down = LOC.IsFriend(p), LOC.IsDown(h) local col = down and (fr and LOCC.fdown or LOCC.down) or (fr and LOCC.friend or LOCC.normal)
-                    local row = New("Frame", { Size = UDim2.new(1, 0, 0, 28), LayoutOrder = order,
-                        BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.25, BorderSizePixel = 0, ZIndex = 8,
-                    }, list) Corner(row, UDim.new(0, 6))
-                    local sub = {} if fr then sub[#sub + 1] = "💗 Bạn Bè" end
-                    if down then sub[#sub + 1] = "☠️ " .. locTime(LOC.DownSecs(p)) end local b = New("TextButton", { Size = UDim2.new(1, -162, 1, 0), Position = UDim2.new(0, 6, 0, 0),
-                        Text = (LOC.target == p and "🎯 " or "") .. nm .. (#sub > 0 and ("  " .. table.concat(sub, "  ")) or ""),
-                        BackgroundTransparency = 1, TextColor3 = col.txt, Font = Enum.Font.GothamBold, TextSize = 9,
-                        TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 9, }, row)
-                    b.Activated:Connect(function() ReleaseHubFocus()
-                        if LOC.target == p then LOC.SetSolo(false) if S.Spec and S.Spec.on and S.Spec.target == p then pcall(function() S.Spec.Stop() end) end
-                        else LOC.SetTarget(p)
-                            if S.Spec and S.Spec.on then pcall(function() S.Spec.Set(p) end)
-                                pcall(function() if S.Spec.RefreshList then S.Spec.RefreshList() end end) end
-                        end paint()
-                        if LOC.RefreshList then LOC.RefreshList() end S.Rebuild() end)
-                    local d = LOC.Dist(p) local distLbl = New("TextLabel", {
-                        Size = UDim2.new(0, 56, 1, 0), Position = UDim2.new(1, -156, 0, 0), Text = d and string.format("📏 %dm", locRound(d)) or "📏 --m",
-                        BackgroundTransparency = 1, TextColor3 = col.txt, Font = Enum.Font.GothamMedium, TextSize = 9,
-                        TextXAlignment = Enum.TextXAlignment.Right, ZIndex = 9, }, row)
-                    local mv = S.Move local isFlyingToThis = mv and mv._playerFlyActive and mv._playerFlyTarget == p local flyBtn = New("TextButton", {
-                        Size = UDim2.new(0, 60, 0, 18), Position = UDim2.new(1, -66, 0, 5), Text = isFlyingToThis and "⏹️ Dừng" or "🚀 Bay tới",
-                        BackgroundColor3 = isFlyingToThis and C.RED or C.ACCENT, TextColor3 = Color3.fromRGB(255,255,255),
-                        Font = Enum.Font.GothamBold, TextSize = 8, BorderSizePixel = 0, ZIndex = 10, }, row)
-                    Corner(flyBtn, UDim.new(0, 5)) D.Shade(flyBtn, Color3.fromRGB(255, 255, 255), Color3.fromRGB(182, 187, 201), 90) D.Tactile(flyBtn, 0.08)
-                    cache[p] = { dist = distLbl, fly = flyBtn }   -- v4.34: lần sau chỉ cập nhật chữ, không dựng lại
-                    flyBtn.Activated:Connect(function() ReleaseHubFocus()
-                        local mv2 = S.Move if not mv2 then return end
-                        local currentlyFlyingToThis = mv2._playerFlyActive and mv2._playerFlyTarget == p if currentlyFlyingToThis then
-                            pcall(function() mv2.StopPlayerFly() end) else
-                            pcall(function() mv2.FlyToPlayer(p) end) end if S.SyncMovePanel then pcall(S.SyncMovePanel) end
-                        if D.hubStatus then if mv2._playerFlyActive then
-                                flash(D.hubStatus, "🚀 Bay tới " .. tostring(p.Name) .. " " .. tostring(mv2.GetPlayerFlySpeed and mv2.GetPlayerFlySpeed() or mv2.playerFlySpeed or 0), 1.8, C.ACCENT) else
-                                flash(D.hubStatus, "⏹️ Đã dừng bay tới " .. tostring(p.Name), 1.2, C.GRAY) end
-                        end if LOC.RefreshList then pcall(LOC.RefreshList) end S.Rebuild()
-                    end) end
-            pcall(function() list.CanvasSize = UDim2.new(0, 0, 0, order * 32) end) else
-            local mv = S.Move for _, p in ipairs(want) do
-                local r = cache[p] if r then
-                    local d2 = LOC.Dist(p) if r.dist then r.dist.Text = d2 and string.format("📏 %dm", locRound(d2)) or "📏 --m" end if r.fly then
-                        local flying = mv and mv._playerFlyActive and mv._playerFlyTarget == p r.fly.Text = flying and "⏹️ Dừng" or "🚀 Bay tới"
-                        r.fly.BackgroundColor3 = flying and C.RED or C.ACCENT end
-                end end
-        end paint() end
-
-    allBtn.Activated:Connect(function() ReleaseHubFocus()
-        LOC.Set(not LOC.on) paint()
-        if LOC.RefreshList then LOC.RefreshList() end S.Rebuild()
-        if D.hubStatus then flash(D.hubStatus, "📍 " .. LOC.Status(), 1.8, C.ACCENT) end end)
-    soloBtn.Activated:Connect(function() ReleaseHubFocus()
-        if LOC.solo then LOC.SetSolo(false) else
-            LOC.SetTarget(LOC.target or LOC.Nearest()) end
-        paint() if LOC.RefreshList then LOC.RefreshList() end
-        S.Rebuild() if D.hubStatus then flash(D.hubStatus, "🎯 " .. LOC.Status(), 1.8, C.ACCENT) end
-    end) stopBtn.Activated:Connect(function()
-        ReleaseHubFocus() LOC.StopAll() paint()
-        if LOC.RefreshList then LOC.RefreshList() end S.Rebuild()
-        if D.hubStatus then flash(D.hubStatus, "🚫 " .. LOC.Status(), 1.8, C.ACCENT) end end)
-    distIn.FocusLost:Connect(function() ReleaseHubFocus()
-        local n = tonumber(tostring(distIn.Text or ""):match("%-?%d+%.?%d*")) or 0 LOC.SetMaxDist(n)
-        distIn.Text = tostring(LOC.maxDist) if D.hubStatus then flash(D.hubStatus, (LOC.maxDist > 0 and string.format("📏 chỉ hiện người trong %dm", locRound(LOC.maxDist))
-                 or "📏 không giới hạn khoảng cách"), 1.8, C.ACCENT) end
-    end) flySpeedApply.Activated:Connect(function()
-        ReleaseHubFocus() local mv = S.Move
-        if not mv then return end local n = tonumber(tostring(flySpeedIn.Text or ""):match("%-?%d+%.?%d*"))
-        if n == nil then if D.hubStatus then flash(D.hubStatus, "⚠️ Nhập số 0-500 (0=auto)", 1.5, C.RED) end return
-        end local ok, msg = mv.SetPlayerFlySpeed(n)
-        if not ok and D.hubStatus then flash(D.hubStatus, "⚠️ " .. tostring(msg), 1.5, C.RED)
-        else paint()
-            if D.hubStatus then local sp = mv.GetPlayerFlySpeed and mv.GetPlayerFlySpeed() or mv.playerFlySpeed or 0
-                if (tonumber(mv.playerFlySpeed) or 0) == 0 then flash(D.hubStatus, string.format("🚀 Tốc độ bay tới người: auto (%g = tốc độ game)", sp), 1.8, C.ACCENT)
-                else flash(D.hubStatus, string.format("🚀 Tốc độ bay tới người: %g", sp), 1.5, C.GREEN) end
-            end if S.SyncMovePanel then pcall(S.SyncMovePanel) end
-            S.Rebuild() end
-    end) flySpeedIn.FocusLost:Connect(function(enter)
-        if not enter then return end ReleaseHubFocus()
-        local mv = S.Move if not mv then return end local n = tonumber(tostring(flySpeedIn.Text or ""):match("%-?%d+%.?%d*"))
-        if n == nil then return end local ok = mv.SetPlayerFlySpeed(n)
-        if ok then paint()
-            S.Rebuild() end
-    end) flyNearBtn.Activated:Connect(function()
-        ReleaseHubFocus() local mv = S.Move if not mv then return end
-        local target = LOC.Nearest() if not target then
-            if D.hubStatus then flash(D.hubStatus, "⚠️ Không có người chơi nào để bay tới", 1.5, C.RED) end return
-        end pcall(function() mv.FlyToPlayer(target) end)
-        paint() if LOC.RefreshList then pcall(LOC.RefreshList) end
-        if S.SyncMovePanel then pcall(S.SyncMovePanel) end S.Rebuild() if D.hubStatus then flash(D.hubStatus, "🚀 Bay tới gần nhất: " .. tostring(target.Name), 1.8, C.ACCENT) end
-    end) flyStopBtn.Activated:Connect(function()
-        ReleaseHubFocus() local mv = S.Move
-        if mv then pcall(function() mv.StopPlayerFly() end) end paint()
-        if LOC.RefreshList then pcall(LOC.RefreshList) end if S.SyncMovePanel then pcall(S.SyncMovePanel) end
-        S.Rebuild() if D.hubStatus then flash(D.hubStatus, "⏹️ Đã dừng bay tới người", 1.2, C.GRAY) end end)
-
-    if LOC.RefreshList then pcall(LOC.RefreshList) end S.SyncLocPanel = function()
-        paint() distIn.Text = tostring(LOC.maxDist)
-        local mv = S.Move if mv then
-            flySpeedIn.Text = tostring(mv.playerFlySpeed or 0) end
-        if LOC.RefreshList then pcall(LOC.RefreshList) end end end
-
 S.Spec = {
     on = false, target = nil,       -- 👣 đang xem ai
     auto = true,                    -- người đang xem thoát thì tự chuyển sang người gần nhất
@@ -6988,6 +6810,387 @@ end function S.Spec.Sync()
             u.act.TextColor3 = S.Loc.IsDown(h) and Color3.fromRGB(255, 100, 100) or C.GREEN end
         if u.title then u.title.Text = "👣 ĐANG XEM" .. (SP.follow and "" or " (KHÔNG bám)") .. (SP.auto and " · 🔄" or "")
         end end) end
+
+-- ---------- KHUNG HỢP NHẤT 📍 ĐỊNH VỊ & 👣 XEM NGƯỜI CHƠI (nằm trong trang 👥 NGƯỜI CHƠI) ----------
+do local PH = 386
+    local P = New("Frame", { Name = "HubLoc_Panel",
+        Size = UDim2.new(1, -16, 0, PH), Position = UDim2.new(0, 8, 0, D.playerY or 46),
+        LayoutOrder = 1, BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, BorderSizePixel = 0, ZIndex = 6,
+    }, D.playerTab) D.playerY = (D.playerY or 46) + PH + 8
+    Corner(P, UDim.new(0, 10)) Stroke(P, C.HAIRLINE, 1) D.Shade(P, Color3.fromRGB(255, 255, 255), Color3.fromRGB(188, 192, 205), 90)
+
+    New("TextLabel", { Size = UDim2.new(1, -16, 0, 14), Position = UDim2.new(0, 8, 0, 4),
+        Text = "📍👣 ĐỊNH VỊ & XEM NGƯỜI CHƠI (XUYÊN TƯỜNG · SPECTATOR · 🚀 BAY TỚI)", BackgroundTransparency = 1,
+        TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
+    }, P)
+
+    local function act(txt, x, y, w, color, name) local b = New("TextButton", {
+            Name = name or "Button",
+            Size = UDim2.new(0, w, 0, 18), Position = UDim2.new(0, x, 0, y), Text = txt, BackgroundColor3 = color, TextColor3 = D.BestText(color),
+            Font = Enum.Font.GothamBold, TextSize = 8, BorderSizePixel = 0, ZIndex = 8, }, P)
+        Corner(b, UDim.new(0, 5)) D.Shade(b, Color3.fromRGB(255, 255, 255), Color3.fromRGB(182, 187, 201), 90)
+        D.Tactile(b, 0.08) return b
+    end local function lab(txt, x, y, w)
+        New("TextLabel", { Size = UDim2.new(0, w, 0, 18), Position = UDim2.new(0, x, 0, y),
+            Text = txt, BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium, TextSize = 9,
+            TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7, }, P) end
+
+    -- Hàng 1: Định vị xuyên tường (📍) & Bay tới người (🚀)
+    local allBtn     = act("👁️ Tất Cả", 8, 22, 68, C.GRAY, "LocAllBtn")
+    local soloBtn    = act("🎯 Lẻ", 80, 22, 62, C.GRAY, "LocSoloBtn")
+    local stopBtn    = act("🚫 Tắt ĐV", 146, 22, 56, C.SURFACE3, "LocStopBtn")
+    local flyNearBtn = act("🚀 Gần nhất", 206, 22, 74, C.ACCENT, "LocFlyNearBtn")
+    local flyStopBtn = act("⏹️ Dừng bay", 284, 22, 68, C.SURFACE3, "LocFlyStopBtn")
+
+    -- Hàng 2: Xem người chơi / Spectator (👣)
+    local watchBtn    = act("👣 Bám theo", 8, 44, 88, C.GRAY, "SpecWatchBtn")
+    local followBtn   = act("🎥 Bám: BẬT", 100, 44, 78, C.GREEN, "SpecFollowBtn")
+    local autoBtn     = act("🔄 Tự chuyển", 182, 44, 72, C.GRAY, "SpecAutoBtn")
+    local stopSpecBtn = act("🚫 Dừng xem", 258, 44, 74, C.RED, "SpecStopBtn")
+
+    -- Hàng 3: Khoảng cách định vị (📏) & Tốc độ bay tới người (🚀)
+    lab("📏 Xa nhất:", 8, 66, 56) local distIn = New("TextBox", {
+        Name = "LocDistIn",
+        Size = UDim2.new(0, 44, 0, 18), Position = UDim2.new(0, 64, 0, 66), Text = "0", ClearTextOnFocus = false,
+        BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.1, TextColor3 = C.DARK, PlaceholderColor3 = C.GRAY, Font = Enum.Font.GothamMedium, TextSize = 9,
+        TextXAlignment = Enum.TextXAlignment.Center, BorderSizePixel = 0, ZIndex = 7, }, P)
+    Corner(distIn, UDim.new(0, 5))
+    lab("m · 🚀 Tốc độ bay:", 112, 66, 92) local flySpeedIn = New("TextBox", {
+        Name = "LocFlySpeedIn",
+        Size = UDim2.new(0, 44, 0, 18), Position = UDim2.new(0, 206, 0, 66), Text = "0", ClearTextOnFocus = false,
+        BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.1, TextColor3 = C.DARK, PlaceholderColor3 = C.GRAY, Font = Enum.Font.GothamMedium, TextSize = 9,
+        TextXAlignment = Enum.TextXAlignment.Center, BorderSizePixel = 0, ZIndex = 7, }, P)
+    Corner(flySpeedIn, UDim.new(0, 5)) local flySpeedApply = act("✅ Đặt", 254, 66, 42, C.GREEN, "LocFlySpeedApplyBtn") lab("(0=auto)", 300, 66, 60)
+
+    -- Hàng 4: Chỉnh khoảng cách & độ cao Camera Xem người chơi (🎥)
+    lab("🎥 Cam lùi:", 8, 88, 58) local specDistIn = New("TextBox", {
+        Name = "SpecDistIn",
+        Size = UDim2.new(0, 42, 0, 18), Position = UDim2.new(0, 66, 0, 88), Text = "12", ClearTextOnFocus = false,
+        BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.1, TextColor3 = C.DARK, PlaceholderColor3 = C.GRAY, Font = Enum.Font.GothamMedium, TextSize = 9,
+        TextXAlignment = Enum.TextXAlignment.Center, BorderSizePixel = 0, ZIndex = 7, }, P)
+    Corner(specDistIn, UDim.new(0, 5))
+    lab("m · ⬆ Cao:", 112, 88, 54) local specHiIn = New("TextBox", {
+        Name = "SpecHeightIn",
+        Size = UDim2.new(0, 42, 0, 18), Position = UDim2.new(0, 166, 0, 88), Text = "3.2", ClearTextOnFocus = false,
+        BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.1, TextColor3 = C.DARK, PlaceholderColor3 = C.GRAY, Font = Enum.Font.GothamMedium, TextSize = 9,
+        TextXAlignment = Enum.TextXAlignment.Center, BorderSizePixel = 0, ZIndex = 7, }, P)
+    Corner(specHiIn, UDim.new(0, 5)) local specApplyBtn = act("✔ Áp dụng Cam", 212, 88, 84, C.SURFACE3, "SpecApplyBtn")
+
+    -- Hàng 5: Ô tìm kiếm chung
+    local searchIn = New("TextBox", { Name = "LocSearchIn", Size = UDim2.new(1, -16, 0, 20), Position = UDim2.new(0, 8, 0, 110),
+        Text = "", PlaceholderText = "🔍 Tìm tên người chơi (Định vị · Xem camera · Bay tới)...", ClearTextOnFocus = false, PlaceholderColor3 = C.GRAY, BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.1,
+        TextColor3 = C.DARK, Font = Enum.Font.GothamMedium, TextSize = 9, TextXAlignment = Enum.TextXAlignment.Left, BorderSizePixel = 0, ZIndex = 7,
+    }, P) Corner(searchIn, UDim.new(0, 5)) New("UIPadding", { PaddingLeft = UDim.new(0, 6) }, searchIn)
+
+    -- Hàng 6: Danh sách người chơi hợp nhất (vừa Định vị, vừa Xem camera 👣, vừa Bay tới 🚀)
+    local list = New("ScrollingFrame", { Name = "LocList", Size = UDim2.new(1, -16, 0, 196), Position = UDim2.new(0, 8, 0, 134),
+        BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = 4, CanvasSize = UDim2.new(0, 0, 0, 0), ZIndex = 7,
+    }, P) New("UIListLayout", { Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder }, list)
+
+    New("TextLabel", { Size = UDim2.new(1, -16, 0, 48), Position = UDim2.new(0, 8, 0, 334),
+        Text = "💡 Bấm TÊN = định vị lẻ người đó · 👣 Xem = gắn camera xem họ đang làm gì (chỉ đổi camera, nhân vật bạn đứng yên) · 🚀 Bay tới = bay xuyên tường bám theo mục tiêu. 🟢 thường · 💗 bạn bè · 🔴 bị hạ gục.",
+        TextWrapped = true, BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium, TextSize = 8, TextXAlignment = Enum.TextXAlignment.Left,
+        TextYAlignment = Enum.TextYAlignment.Top, ZIndex = 7, }, P)
+
+    local function paint()
+        allBtn.Text = LOC.on and "👁️ Tất Cả: BẬT" or "👁️ Tất Cả"
+        allBtn.BackgroundColor3 = LOC.on and C.GREEN or C.GRAY allBtn.TextColor3 = D.BestText(allBtn.BackgroundColor3)
+        soloBtn.Text = LOC.solo and ("🎯 " .. tostring(LOC.target and LOC.target.Name or "?")) or "🎯 Lẻ"
+        soloBtn.BackgroundColor3 = LOC.solo and C.PURPLE or C.GRAY soloBtn.TextColor3 = D.BestText(soloBtn.BackgroundColor3)
+        local mv = S.Move
+        local sp = mv and mv.playerFlySpeed or 0
+        if tonumber(sp) == 0 then
+            flySpeedIn.Text = "0"
+            flySpeedIn.PlaceholderText = tostring(mv and mv.GetPlayerFlySpeed and mv.GetPlayerFlySpeed() or 16)
+        else
+            flySpeedIn.Text = tostring(sp)
+        end
+        local active = mv and mv._playerFlyActive
+        flyNearBtn.BackgroundColor3 = active and C.GREEN or C.ACCENT
+        flyNearBtn.TextColor3 = D.BestText(flyNearBtn.BackgroundColor3)
+        flyNearBtn.Text = active and ("🚀 " .. tostring(mv._playerFlyTarget and mv._playerFlyTarget.Name or "?")) or "🚀 Gần nhất"
+
+        -- Cập nhật trạng thái cụm nút 👣 Xem người chơi
+        local specNm = (SP.on and SP.target) and tostring(SP.target.Name) or nil
+        watchBtn.Text = specNm and ("👣 " .. specNm) or "👣 Bám theo"
+        watchBtn.BackgroundColor3 = SP.on and C.GREEN or C.GRAY
+        watchBtn.TextColor3 = D.BestText(watchBtn.BackgroundColor3)
+        followBtn.Text = SP.follow and "🎥 Bám: BẬT" or "🎥 Bám: TẮT"
+        followBtn.BackgroundColor3 = SP.follow and C.GREEN or C.SURFACE3
+        followBtn.TextColor3 = D.BestText(followBtn.BackgroundColor3)
+        autoBtn.BackgroundColor3 = SP.auto and C.PURPLE or C.SURFACE3
+        autoBtn.TextColor3 = D.BestText(autoBtn.BackgroundColor3)
+        specDistIn.Text, specHiIn.Text = tostring(SP.dist), tostring(SP.height)
+    end
+
+    local function buildRowText(p, nm, c, h, fr, down)
+        local sub = {}
+        if fr then sub[#sub + 1] = "💗 Bạn Bè" end
+        if down then sub[#sub + 1] = "☠️ " .. locTime(LOC.DownSecs(p)) end
+        if c then
+            sub[#sub + 1] = (h and string.format("❤️%d", spRound(h.Health or 0)) or "❤️?")
+        else
+            sub[#sub + 1] = "⏳ chờ NV"
+        end
+        local prefix = ((LOC.target == p) and "🎯 " or "") .. ((SP.on and SP.target == p) and "👣 " or "")
+        return prefix .. nm .. (#sub > 0 and ("  " .. table.concat(sub, "  ")) or "")
+    end
+
+    LOC.RefreshList = function(force)
+        if not (list and list.Parent) then return end
+        local term = tostring(searchIn.Text or ""):lower()
+        local ok, players = pcall(function() return Players:GetPlayers() end)
+        if not ok or not players then return end
+        local want = {}
+        local sig = term
+        for _, p in ipairs(players) do
+            if p ~= player then
+                local nm = tostring(p.Name)
+                if term == "" or nm:lower():find(term, 1, true) then
+                    want[#want + 1] = p
+                    local _, _, h0 = LOC.CharOf(p)
+                    sig = sig .. "|" .. nm
+                        .. (LOC.IsFriend(p) and "F" or "")
+                        .. (LOC.IsDown(h0) and "D" or "")
+                        .. (LOC.target == p and "T" or "")
+                        .. ((SP.on and SP.target == p) and "S" or "")
+                end
+            end
+        end
+        local cache = LOC._rows
+        if (force == true) or (sig ~= LOC._rowSig) or (cache == nil) then
+            LOC._rowSig = sig
+            LOC._rows = {}
+            cache = LOC._rows
+            for _, c in ipairs(list:GetChildren()) do
+                if not c:IsA("UIListLayout") then pcall(function() c:Destroy() end) end
+            end
+            local order = 0
+            for _, p in ipairs(want) do
+                local nm = tostring(p.Name)
+                order = order + 1
+                local c, _, h = LOC.CharOf(p)
+                local fr, down = LOC.IsFriend(p), LOC.IsDown(h)
+                local col = down and (fr and LOCC.fdown or LOCC.down) or (fr and LOCC.friend or LOCC.normal)
+                local isSpecThis = (SP.on and SP.target == p)
+                local row = New("Frame", {
+                    Name = "PlayerRow_" .. nm,
+                    Size = UDim2.new(1, 0, 0, 26), LayoutOrder = order,
+                    BackgroundColor3 = isSpecThis and C.SURFACE3 or C.SURFACE2,
+                    BackgroundTransparency = isSpecThis and 0.08 or 0.25,
+                    BorderSizePixel = 0, ZIndex = 8,
+                }, list)
+                Corner(row, UDim.new(0, 6))
+
+                local b = New("TextButton", {
+                    Name = "PlayerNameBtn",
+                    Size = UDim2.new(1, -184, 1, 0), Position = UDim2.new(0, 6, 0, 0),
+                    Text = buildRowText(p, nm, c, h, fr, down),
+                    BackgroundTransparency = 1, TextColor3 = col.txt, Font = Enum.Font.GothamBold, TextSize = 9,
+                    TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 9,
+                }, row)
+                b.Activated:Connect(function()
+                    ReleaseHubFocus()
+                    if LOC.target == p then
+                        LOC.SetSolo(false)
+                        if S.Spec and S.Spec.on and S.Spec.target == p then pcall(function() S.Spec.Stop() end) end
+                    else
+                        LOC.SetTarget(p)
+                        if S.Spec and S.Spec.on then pcall(function() S.Spec.Set(p) end) end
+                    end
+                    paint()
+                    if LOC.RefreshList then LOC.RefreshList(true) end
+                    S.Rebuild()
+                end)
+
+                local d = LOC.Dist(p)
+                local distLbl = New("TextLabel", {
+                    Size = UDim2.new(0, 50, 1, 0), Position = UDim2.new(1, -180, 0, 0),
+                    Text = d and string.format("📏 %dm", locRound(d)) or "📏 --m",
+                    BackgroundTransparency = 1, TextColor3 = col.txt, Font = Enum.Font.GothamMedium, TextSize = 8,
+                    TextXAlignment = Enum.TextXAlignment.Right, ZIndex = 9,
+                }, row)
+
+                -- Nút 👣 Xem / 🚫 Thôi ngay trên từng dòng người chơi
+                local specRowBtn = New("TextButton", {
+                    Name = "SpecRowBtn",
+                    Size = UDim2.new(0, 58, 0, 18), Position = UDim2.new(1, -126, 0, 4),
+                    Text = isSpecThis and "🚫 Thôi" or "👣 Xem",
+                    BackgroundColor3 = isSpecThis and C.RED or C.PURPLE, TextColor3 = Color3.fromRGB(255, 255, 255),
+                    Font = Enum.Font.GothamBold, TextSize = 8, BorderSizePixel = 0, ZIndex = 10,
+                }, row)
+                Corner(specRowBtn, UDim.new(0, 5)) D.Shade(specRowBtn, Color3.fromRGB(255, 255, 255), Color3.fromRGB(182, 187, 201), 90) D.Tactile(specRowBtn, 0.08)
+                specRowBtn.Activated:Connect(function()
+                    ReleaseHubFocus()
+                    if SP.on and SP.target == p then
+                        S.Spec.Stop()
+                    else
+                        pcall(function() LOC.SetTarget(p) end)
+                        S.Spec.Set(p)
+                    end
+                    paint()
+                    if LOC.RefreshList then LOC.RefreshList(true) end
+                    pcall(S.Rebuild)
+                    if D.hubStatus then flash(D.hubStatus, S.Spec.Status(), 1.8, C.ACCENT) end
+                end)
+
+                -- Nút 🚀 Bay tới / ⏹️ Dừng ngay trên từng dòng người chơi
+                local mv = S.Move
+                local isFlyingToThis = mv and mv._playerFlyActive and mv._playerFlyTarget == p
+                local flyBtn = New("TextButton", {
+                    Name = "FlyRowBtn",
+                    Size = UDim2.new(0, 58, 0, 18), Position = UDim2.new(1, -64, 0, 4),
+                    Text = isFlyingToThis and "⏹️ Dừng" or "🚀 Bay tới",
+                    BackgroundColor3 = isFlyingToThis and C.RED or C.ACCENT, TextColor3 = Color3.fromRGB(255, 255, 255),
+                    Font = Enum.Font.GothamBold, TextSize = 8, BorderSizePixel = 0, ZIndex = 10,
+                }, row)
+                Corner(flyBtn, UDim.new(0, 5)) D.Shade(flyBtn, Color3.fromRGB(255, 255, 255), Color3.fromRGB(182, 187, 201), 90) D.Tactile(flyBtn, 0.08)
+                flyBtn.Activated:Connect(function()
+                    ReleaseHubFocus()
+                    local mv2 = S.Move if not mv2 then return end
+                    local currentlyFlyingToThis = mv2._playerFlyActive and mv2._playerFlyTarget == p
+                    if currentlyFlyingToThis then
+                        pcall(function() mv2.StopPlayerFly() end)
+                    else
+                        pcall(function() mv2.FlyToPlayer(p) end)
+                    end
+                    if S.SyncMovePanel then pcall(S.SyncMovePanel) end
+                    if D.hubStatus then
+                        if mv2._playerFlyActive then
+                            flash(D.hubStatus, "🚀 Bay tới " .. tostring(p.Name) .. " " .. tostring(mv2.GetPlayerFlySpeed and mv2.GetPlayerFlySpeed() or mv2.playerFlySpeed or 0), 1.8, C.ACCENT)
+                        else
+                            flash(D.hubStatus, "⏹️ Đã dừng bay tới " .. tostring(p.Name), 1.2, C.GRAY)
+                        end
+                    end
+                    if LOC.RefreshList then pcall(LOC.RefreshList, true) end
+                    S.Rebuild()
+                end)
+
+                cache[p] = { dist = distLbl, fly = flyBtn, spec = specRowBtn, nameBtn = b, row = row }
+            end
+            pcall(function() list.CanvasSize = UDim2.new(0, 0, 0, order * 30) end)
+        else
+            local mv = S.Move
+            for _, p in ipairs(want) do
+                local r = cache[p]
+                if r then
+                    local nm = tostring(p.Name)
+                    local c, _, h = LOC.CharOf(p)
+                    local fr, down = LOC.IsFriend(p), LOC.IsDown(h)
+                    local d2 = LOC.Dist(p)
+                    if r.dist then r.dist.Text = d2 and string.format("📏 %dm", locRound(d2)) or "📏 --m" end
+                    if r.nameBtn then r.nameBtn.Text = buildRowText(p, nm, c, h, fr, down) end
+                    if r.spec then
+                        local specOn = (SP.on and SP.target == p)
+                        r.spec.Text = specOn and "🚫 Thôi" or "👣 Xem"
+                        r.spec.BackgroundColor3 = specOn and C.RED or C.PURPLE
+                    end
+                    if r.fly then
+                        local flying = mv and mv._playerFlyActive and mv._playerFlyTarget == p
+                        r.fly.Text = flying and "⏹️ Dừng" or "🚀 Bay tới"
+                        r.fly.BackgroundColor3 = flying and C.RED or C.ACCENT
+                    end
+                end
+            end
+        end
+        paint()
+    end
+
+    -- Đồng bộ S.Spec.RefreshList vào cùng bảng hợp nhất
+    S.Spec.RefreshList = function()
+        if LOC.RefreshList then LOC.RefreshList(true) end
+    end
+
+    searchIn:GetPropertyChangedSignal("Text"):Connect(function()
+        if LOC.RefreshList then pcall(LOC.RefreshList, true) end
+    end)
+    searchIn.FocusLost:Connect(function()
+        ReleaseHubFocus()
+        if LOC.RefreshList then pcall(LOC.RefreshList, true) end
+    end)
+
+    allBtn.Activated:Connect(function() ReleaseHubFocus()
+        LOC.Set(not LOC.on) paint()
+        if LOC.RefreshList then LOC.RefreshList(true) end S.Rebuild()
+        if D.hubStatus then flash(D.hubStatus, "📍 " .. LOC.Status(), 1.8, C.ACCENT) end end)
+    soloBtn.Activated:Connect(function() ReleaseHubFocus()
+        if LOC.solo then LOC.SetSolo(false) else
+            LOC.SetTarget(LOC.target or LOC.Nearest()) end
+        paint() if LOC.RefreshList then LOC.RefreshList(true) end
+        S.Rebuild() if D.hubStatus then flash(D.hubStatus, "🎯 " .. LOC.Status(), 1.8, C.ACCENT) end
+    end) stopBtn.Activated:Connect(function()
+        ReleaseHubFocus() LOC.StopAll() paint()
+        if LOC.RefreshList then LOC.RefreshList(true) end S.Rebuild()
+        if D.hubStatus then flash(D.hubStatus, "🚫 " .. LOC.Status(), 1.8, C.ACCENT) end end)
+    distIn.FocusLost:Connect(function() ReleaseHubFocus()
+        local n = tonumber(tostring(distIn.Text or ""):match("%-?%d+%.?%d*")) or 0 LOC.SetMaxDist(n)
+        distIn.Text = tostring(LOC.maxDist) if D.hubStatus then flash(D.hubStatus, (LOC.maxDist > 0 and string.format("📏 chỉ hiện người trong %dm", locRound(LOC.maxDist))
+                 or "📏 không giới hạn khoảng cách"), 1.8, C.ACCENT) end
+    end) flySpeedApply.Activated:Connect(function()
+        ReleaseHubFocus() local mv = S.Move
+        if not mv then return end local n = tonumber(tostring(flySpeedIn.Text or ""):match("%-?%d+%.?%d*"))
+        if n == nil then if D.hubStatus then flash(D.hubStatus, "⚠️ Nhập số 0-500 (0=auto)", 1.5, C.RED) end return
+        end local ok, msg = mv.SetPlayerFlySpeed(n)
+        if not ok and D.hubStatus then flash(D.hubStatus, "⚠️ " .. tostring(msg), 1.5, C.RED)
+        else paint()
+            if D.hubStatus then local sp = mv.GetPlayerFlySpeed and mv.GetPlayerFlySpeed() or mv.playerFlySpeed or 0
+                if (tonumber(mv.playerFlySpeed) or 0) == 0 then flash(D.hubStatus, string.format("🚀 Tốc độ bay tới người: auto (%g = tốc độ game)", sp), 1.8, C.ACCENT)
+                else flash(D.hubStatus, string.format("🚀 Tốc độ bay tới người: %g", sp), 1.5, C.GREEN) end
+            end if S.SyncMovePanel then pcall(S.SyncMovePanel) end
+            S.Rebuild() end
+    end) flySpeedIn.FocusLost:Connect(function(enter)
+        if not enter then return end ReleaseHubFocus()
+        local mv = S.Move if not mv then return end local n = tonumber(tostring(flySpeedIn.Text or ""):match("%-?%d+%.?%d*"))
+        if n == nil then return end local ok = mv.SetPlayerFlySpeed(n)
+        if ok then paint()
+            S.Rebuild() end
+    end) flyNearBtn.Activated:Connect(function()
+        ReleaseHubFocus() local mv = S.Move if not mv then return end
+        local target = LOC.Nearest() if not target then
+            if D.hubStatus then flash(D.hubStatus, "⚠️ Không có người chơi nào để bay tới", 1.5, C.RED) end return
+        end pcall(function() mv.FlyToPlayer(target) end)
+        paint() if LOC.RefreshList then pcall(LOC.RefreshList, true) end
+        if S.SyncMovePanel then pcall(S.SyncMovePanel) end S.Rebuild() if D.hubStatus then flash(D.hubStatus, "🚀 Bay tới gần nhất: " .. tostring(target.Name), 1.8, C.ACCENT) end
+    end) flyStopBtn.Activated:Connect(function()
+        ReleaseHubFocus() local mv = S.Move
+        if mv then pcall(function() mv.StopPlayerFly() end) end paint()
+        if LOC.RefreshList then pcall(LOC.RefreshList, true) end if S.SyncMovePanel then pcall(S.SyncMovePanel) end
+        S.Rebuild() if D.hubStatus then flash(D.hubStatus, "⏹️ Đã dừng bay tới người", 1.2, C.GRAY) end end)
+
+    -- Sự kiện các nút Xem người chơi (👣 Spectator)
+    watchBtn.Activated:Connect(function() ReleaseHubFocus()
+        if SP.on then S.Spec.Stop()
+        else local p = SP.target or LOC.target or LOC.Nearest()
+            if not p then if D.hubStatus then flash(D.hubStatus, "⚠️ chưa có ai để xem (server chỉ có mình bạn)", 2, C.RED) end
+            else LOC.SetTarget(p)
+                S.Spec.Set(p) end end
+        paint() if LOC.RefreshList then LOC.RefreshList(true) end pcall(S.Rebuild)
+        if D.hubStatus then flash(D.hubStatus, S.Spec.Status(), 2, C.ACCENT) end end)
+    followBtn.Activated:Connect(function() ReleaseHubFocus()
+        S.Spec.SetFollow(not SP.follow) paint()
+        if D.hubStatus then flash(D.hubStatus, SP.follow and "🎥 camera bám theo người đang xem" or "🎥 đã trả camera về cho bạn (vẫn xem được bảng 👣)", 2, C.ACCENT) end end)
+    autoBtn.Activated:Connect(function() ReleaseHubFocus()
+        S.Spec.SetAuto(not SP.auto) paint()
+        if D.hubStatus then flash(D.hubStatus, SP.auto and "🔄 người đang xem thoát -> tự chuyển người gần nhất" or "🔄 đã tắt tự chuyển", 2, C.ACCENT) end end)
+    specApplyBtn.Activated:Connect(function() ReleaseHubFocus()
+        local d = tonumber(tostring(specDistIn.Text or ""):match("%-?%d+%.?%d*")) or SP.dist
+        local hh = tonumber(tostring(specHiIn.Text or ""):match("%-?%d+%.?%d*")) or SP.height
+        S.Spec.SetDist(d); S.Spec.SetHeight(hh) paint()
+        if D.hubStatus then flash(D.hubStatus, string.format("📏 camera: lùi %gm · cao %gm", SP.dist, SP.height), 1.8, C.ACCENT) end end)
+    stopSpecBtn.Activated:Connect(function() ReleaseHubFocus()
+        S.Spec.Stop() paint()
+        if LOC.RefreshList then LOC.RefreshList(true) end pcall(S.Rebuild)
+        if D.hubStatus then flash(D.hubStatus, "🚫 " .. S.Spec.Status(), 2, C.ACCENT) end end)
+
+    if LOC.RefreshList then pcall(LOC.RefreshList, true) end
+    S.SyncLocPanel = function()
+        paint()
+        distIn.Text = tostring(LOC.maxDist)
+        local mv = S.Move
+        if mv then flySpeedIn.Text = tostring(mv.playerFlySpeed or 0) end
+        if LOC.RefreshList then pcall(LOC.RefreshList, true) end
+    end
+end
 
 -- ---------- 🎥 KHÁN GIẢ (v4.64) ----------
 S.Free = { on = false, speed = 50,
@@ -7391,7 +7594,7 @@ do local PH = 200
                  or "📱 nút ảo 🛡: TẮT — đã ẩn cụm nút nổi", 1.8, C.ACCENT) end
     end) paint() end
 
--- ---------- TỰ LÀM MỚI 2 DANH SÁCH TRONG MENU (📍 + 👣) — v5.4 EXTREME+: 3s->4s, chỉ chạy khi menu mở và ở tab liên quan ----------
+-- ---------- TỰ LÀM MỚI DANH SÁCH TRONG MENU (📍 + 👣 HỢP NHẤT) — v5.4 EXTREME+: 3s->4s, chỉ chạy khi menu mở và ở tab liên quan ----------
 do local acc = 0
     RunService:BindToRenderStep("BC_HubList", Enum.RenderPriority.Camera.Value - 4, function(dt) acc = acc + (tonumber(dt) or 0.016)
         if acc < 4 then return end acc = 0 pcall(function() -- v5.4 EXTREME+: 3->4s giảm thêm 25% work
@@ -7405,7 +7608,6 @@ do local acc = 0
             local hubVisible = open(D.hubTab)
             if playerVisible then
                 if S.Loc.RefreshList then S.Loc.RefreshList() end
-                if S.Spec.RefreshList then S.Spec.RefreshList() end
                 if S.GlassRefreshList then S.GlassRefreshList() end
                 if S.ObjTrack and S.ObjTrack.RefreshList then pcall(S.ObjTrack.RefreshList) end
             end
@@ -7418,125 +7620,11 @@ do local acc = 0
         end) end)
 end
 
--- ---------- KHUNG 👣 XEM NGƯỜI CHƠI (ngay dưới khung 📍 trong trang 👥 NGƯỜI CHƠI) -------
-do local PH = 262
-    local P = New("Frame", { Name = "HubSpec_Panel",
-        Size = UDim2.new(1, -16, 0, PH), Position = UDim2.new(0, 8, 0, D.playerY or 46),
-        LayoutOrder = 2, BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, BorderSizePixel = 0, ZIndex = 6,
-    }, D.playerTab) D.playerY = (D.playerY or 46) + PH + 8
-    Corner(P, UDim.new(0, 10)) Stroke(P, C.HAIRLINE, 1) D.Shade(P, Color3.fromRGB(255, 255, 255), Color3.fromRGB(188, 192, 205), 90)
-
-    New("TextLabel", { Size = UDim2.new(1, -16, 0, 14), Position = UDim2.new(0, 8, 0, 4),
-        Text = "👣 XEM NGƯỜI CHƠI (bám theo — xem họ đang làm gì)", BackgroundTransparency = 1, TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 10,
-        TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7, }, P)
-
-    local function act(txt, x, y, w, color) local b = New("TextButton", {
-            Size = UDim2.new(0, w, 0, 18), Position = UDim2.new(0, x, 0, y), Text = txt, BackgroundColor3 = color, TextColor3 = D.BestText(color),
-            Font = Enum.Font.GothamBold, TextSize = 8, BorderSizePixel = 0, ZIndex = 8, }, P)
-        Corner(b, UDim.new(0, 5)) D.Shade(b, Color3.fromRGB(255, 255, 255), Color3.fromRGB(182, 187, 201), 90)
-        D.Tactile(b, 0.08) return b
-    end local function lab(txt, x, y, w)
-        New("TextLabel", { Size = UDim2.new(0, w, 0, 18), Position = UDim2.new(0, x, 0, y),
-            Text = txt, BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium, TextSize = 9,
-            TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7, }, P) end
-
-    local watchBtn = act("👣 Bám theo", 8, 22, 92, C.GRAY) local followBtn = act("🎥 Bám: BẬT", 104, 22, 84, C.GREEN)
-    local autoBtn = act("🔄 Tự chuyển", 192, 22, 62, C.GRAY)
-
-    lab("📏", 8, 46, 14) local distIn = New("TextBox", {
-        Size = UDim2.new(0, 42, 0, 18), Position = UDim2.new(0, 22, 0, 46), Text = "12", ClearTextOnFocus = false,
-        BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.1, TextColor3 = C.DARK, PlaceholderColor3 = C.GRAY, Font = Enum.Font.GothamMedium, TextSize = 9,
-        TextXAlignment = Enum.TextXAlignment.Center, BorderSizePixel = 0, ZIndex = 7, }, P)
-    Corner(distIn, UDim.new(0, 5)) lab("m · ⬆", 68, 46, 30) local hiIn = New("TextBox", {
-        Size = UDim2.new(0, 42, 0, 18), Position = UDim2.new(0, 98, 0, 46), Text = "3.2", ClearTextOnFocus = false,
-        BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.1, TextColor3 = C.DARK, PlaceholderColor3 = C.GRAY, Font = Enum.Font.GothamMedium, TextSize = 9,
-        TextXAlignment = Enum.TextXAlignment.Center, BorderSizePixel = 0, ZIndex = 7, }, P)
-    Corner(hiIn, UDim.new(0, 5)) local applyBtn = act("✔ Áp dụng", 144, 46, 62, C.SURFACE3) lab("🚫 Dừng", 212, 46, 62)
-
-    local searchIn = New("TextBox", { Size = UDim2.new(1, -16, 0, 22), Position = UDim2.new(0, 8, 0, 72),
-        Text = "", PlaceholderText = "🔍 Tìm tên người chơi...", ClearTextOnFocus = false, PlaceholderColor3 = C.GRAY, BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.1,
-        TextColor3 = C.DARK, Font = Enum.Font.GothamMedium, TextSize = 9, TextXAlignment = Enum.TextXAlignment.Left, BorderSizePixel = 0, ZIndex = 7,
-    }, P) Corner(searchIn, UDim.new(0, 6)) New("UIPadding", { PaddingLeft = UDim.new(0, 6) }, searchIn)
-
-    local list = New("ScrollingFrame", { Name = "SpecList", Size = UDim2.new(1, -16, 0, 130), Position = UDim2.new(0, 8, 0, 98),
-        BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = 4, CanvasSize = UDim2.new(0, 0, 0, 0), ZIndex = 7,
-    }, P) New("UIListLayout", { Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder }, list)
-
-    New("TextLabel", { Size = UDim2.new(1, -16, 0, 30), Position = UDim2.new(0, 8, 0, 230),
-        Text = "💡 Bấm TÊN = bám theo xem họ đang làm gì (video chạy trong mắt bạn). " .. "Chỉ ĐỔI CAMERA — nhân vật bạn không bị dịch chuyển; 🚫 Dừng là trả camera về ngay.",
-        TextWrapped = true, BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium, TextSize = 8, TextXAlignment = Enum.TextXAlignment.Left,
-        TextYAlignment = Enum.TextYAlignment.Top, ZIndex = 7, }, P)
-
-    local function paint() local nm = (SP.on and SP.target) and tostring(SP.target.Name) or nil
-        watchBtn.Text = nm and ("👣 " .. nm) or "👣 Bám theo" watchBtn.BackgroundColor3 = SP.on and C.GREEN or C.GRAY
-        watchBtn.TextColor3 = D.BestText(watchBtn.BackgroundColor3) followBtn.Text = SP.follow and "🎥 Bám: BẬT" or "🎥 Bám: TẮT" followBtn.BackgroundColor3 = SP.follow and C.GREEN or C.SURFACE3
-        followBtn.TextColor3 = D.BestText(followBtn.BackgroundColor3) autoBtn.BackgroundColor3 = SP.auto and C.PURPLE or C.SURFACE3
-        autoBtn.TextColor3 = D.BestText(autoBtn.BackgroundColor3) distIn.Text, hiIn.Text = tostring(SP.dist), tostring(SP.height) end
-
-    S.Spec.RefreshList = function() if not (list and list.Parent) then return end
-        for _, c in ipairs(list:GetChildren()) do if not c:IsA("UIListLayout") then pcall(function() c:Destroy() end) end
-        end local term = tostring(searchIn.Text or ""):lower()
-        local order = 0 local ok, players = pcall(function() return Players:GetPlayers() end)
-        if not ok or not players then return end for _, p in ipairs(players) do if p ~= player then
-                local nm = tostring(p.Name) if term == "" or nm:lower():find(term, 1, true) then
-                    order = order + 1 local c, r, h = S.Loc.CharOf(p)
-                    local fr, down = S.Loc.IsFriend(p), S.Loc.IsDown(h) local col = down and Color3.fromRGB(255, 100, 100)
-                             or (fr and Color3.fromRGB(255, 182, 193) or C.DARK) local row = New("Frame", {
-                        Size = UDim2.new(1, 0, 0, 26), LayoutOrder = order, BackgroundColor3 = (SP.target == p) and C.SURFACE3 or C.SURFACE2, BackgroundTransparency = (SP.target == p) and 0.05 or 0.25,
-                        BorderSizePixel = 0, ZIndex = 8, }, list)
-                    Corner(row, UDim.new(0, 6)) local sub = {}
-                    if fr then sub[#sub + 1] = "💗" end if down then sub[#sub + 1] = "☠️" end
-                    if c then sub[#sub + 1] = (h and string.format("❤️%d", spRound(h.Health or 0)) or "❤️?")
-                    else sub[#sub + 1] = "⏳ chờ nhân vật" end
-                    local b = New("TextButton", { Size = UDim2.new(1, -74, 1, 0), Position = UDim2.new(0, 6, 0, 0),
-                        Text = (SP.target == p and "👣 " or "") .. nm .. "  " .. table.concat(sub, " "), BackgroundTransparency = 1, TextColor3 = col,
-                        Font = Enum.Font.GothamBold, TextSize = 9, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 9,
-                    }, row) b.Activated:Connect(function() ReleaseHubFocus()
-                        pcall(function() S.Loc.SetTarget(p) end)      -- vừa định vị vừa bám theo
-                        S.Spec.Set(p) pcall(function() S.Loc.RefreshList() end)
-                        paint() if S.Spec.RefreshList then S.Spec.RefreshList() end
-                        pcall(S.Rebuild) end)
-                    local d = S.Loc.Dist(p) New("TextLabel", {
-                        Size = UDim2.new(0, 66, 1, 0), Position = UDim2.new(1, -68, 0, 0), Text = d and ("📏 " .. spRound(d) .. "m") or "📏 --m", BackgroundTransparency = 1, TextColor3 = C.MUTED,
-                        Font = Enum.Font.GothamMedium, TextSize = 9, TextXAlignment = Enum.TextXAlignment.Right, ZIndex = 9,
-                    }, row) end
-            end end
-        pcall(function() list.CanvasSize = UDim2.new(0, 0, 0, order * 30) end) paint() end
-
-    watchBtn.Activated:Connect(function() ReleaseHubFocus()
-        if SP.on then S.Spec.Stop()
-        else local p = SP.target or S.Loc.target or S.Loc.Nearest()
-            if not p then if D.hubStatus then flash(D.hubStatus, "⚠️ chưa có ai để xem (server chỉ có mình bạn)", 2, C.RED) end
-            else S.Loc.SetTarget(p)
-                S.Spec.Set(p) end end
-        paint() if S.Spec.RefreshList then S.Spec.RefreshList() end
-        pcall(function() S.Loc.RefreshList() end) pcall(S.Rebuild)
-        if D.hubStatus then flash(D.hubStatus, S.Spec.Status(), 2, C.ACCENT) end end)
-    followBtn.Activated:Connect(function() ReleaseHubFocus()
-        S.Spec.SetFollow(not SP.follow) paint()
-        if D.hubStatus then flash(D.hubStatus, SP.follow and "🎥 camera bám theo người đang xem" or "🎥 đã trả camera về cho bạn (vẫn xem được bảng 👣)", 2, C.ACCENT) end end) autoBtn.Activated:Connect(function()
-        ReleaseHubFocus() S.Spec.SetAuto(not SP.auto)
-        paint() if D.hubStatus then flash(D.hubStatus, SP.auto and "🔄 người đang xem thoát -> tự chuyển người gần nhất" or "🔄 đã tắt tự chuyển", 2, C.ACCENT) end
-    end) applyBtn.Activated:Connect(function()
-        ReleaseHubFocus() local d = tonumber(tostring(distIn.Text or ""):match("%-?%d+%.?%d*")) or SP.dist
-        local hh = tonumber(tostring(hiIn.Text or ""):match("%-?%d+%.?%d*")) or SP.height S.Spec.SetDist(d); S.Spec.SetHeight(hh) paint()
-        if D.hubStatus then flash(D.hubStatus, string.format("📏 camera: lùi %gm · cao %gm", SP.dist, SP.height), 1.8, C.ACCENT) end end)
-    local stopBtn2 = New("TextButton", { Size = UDim2.new(0, 90, 0, 18), Position = UDim2.new(1, -98, 0, 46),
-        Text = "🚫 Dừng xem", BackgroundColor3 = C.RED, TextColor3 = D.BestText(C.RED), Font = Enum.Font.GothamBold, TextSize = 8, BorderSizePixel = 0, ZIndex = 8,
-    }, P) Corner(stopBtn2, UDim.new(0, 5))
-    D.Tactile(stopBtn2, 0.1) stopBtn2.Activated:Connect(function()
-        ReleaseHubFocus() S.Spec.Stop() paint()
-        if S.Spec.RefreshList then S.Spec.RefreshList() end pcall(S.Rebuild)
-        if D.hubStatus then flash(D.hubStatus, "🚫 " .. S.Spec.Status(), 2, C.ACCENT) end end)
-    pcall(function() end) paint()
-    if S.Spec.RefreshList then pcall(S.Spec.RefreshList) end pcall(function()
-        if D.playerTab then D.playerTab.CanvasSize = UDim2.new(0, 0, 0, (D.playerY or 600) + 16) end end) end
-
 -- ---------- KHUNG 🧱 ĐẶT KÍNH & 🚀 BAY TỚI KÍNH (nhiều tấm cố định) ----------
 ;(function() local PH = 354
     local P = New("Frame", { Name = "HubGlass_Panel",
         Size = UDim2.new(1, -16, 0, PH), Position = UDim2.new(0, 8, 0, D.playerY or 46),
-        LayoutOrder = 3, BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, BorderSizePixel = 0, ZIndex = 6,
+        LayoutOrder = 2, BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, BorderSizePixel = 0, ZIndex = 6,
     }, D.playerTab) D.playerY = (D.playerY or 46) + PH + 8
     Corner(P, UDim.new(0, 10)) Stroke(P, C.HAIRLINE, 1) D.Shade(P, Color3.fromRGB(255, 255, 255), Color3.fromRGB(188, 192, 205), 90)
 
