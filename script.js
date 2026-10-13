@@ -10,27 +10,21 @@ local Players = game:GetService("Players") local TweenService = game:GetService(
 local RunService = game:GetService("RunService") local UserInputService = game:GetService("UserInputService")
 local HttpService = game:GetService("HttpService")
 local TeleportService = game:GetService("TeleportService")   -- v4.6.3: Reset / Hop / vào server theo mã
-
 local player = Players.LocalPlayer local playerGui = player:WaitForChild("PlayerGui")
 local camera = workspace.CurrentCamera
-
 local targetGui = playerGui pcall(function()
-    -- Executor có gethui thì dùng nó; LocalScript chuẩn phải ở PlayerGui.
     if type(gethui) == "function" then local hui = gethui()
         if hui then targetGui = hui end end
 end)
-
 do local old = _G.BananaCatHub_MV
     if old then if old.StopAll then pcall(old.StopAll) end
         old._wdToken = nil if type(old._wd) == "thread" then pcall(task.cancel, old._wd) end
         old._wd = nil end end
-
 pcall(function()
     local oldPerf = _G.BananaCatHub_Perf
     if type(oldPerf) == "table" and type(oldPerf.Stop) == "function" then pcall(oldPerf.Stop) end
     _G.BananaCatHub_Perf = nil
 end)
-
 if _G.BananaCatHub_Connections then for _, c in ipairs(_G.BananaCatHub_Connections) do
         pcall(function() c:Disconnect() end) end
 end _G.BananaCatHub_Connections = {}
@@ -38,7 +32,6 @@ pcall(function() local oldUnhook = _G.BananaCatHub_AntiBanUnhook
     if type(oldUnhook) == "function" then pcall(oldUnhook) end _G.BananaCatHub_AntiBanUnhook = nil
 end) pcall(function()
     local f = _G.BananaCatHub_Free if type(f) == "table" and f.Stop then pcall(f.Stop) end end)
-
 pcall(function() local old = _G.BananaCatHub_SpecCam
     if old ~= nil then local cam = workspace.CurrentCamera
         if cam then if old ~= Enum.CameraType.Scriptable then
@@ -51,7 +44,6 @@ pcall(function() local old = _G.BananaCatHub_SpecCam
                 end end)
         end _G.BananaCatHub_SpecCam = nil
     end pcall(function() RunService:UnbindFromRenderStep("BC_Spec") end) end)
-
 for _, parent in ipairs({targetGui, playerGui, game:GetService("CoreGui")}) do pcall(function()
         local old = parent:FindFirstChild("BananaCatHub_Crosshair") if old then old:Destroy() end
     end)
@@ -60,13 +52,10 @@ for _, parent in ipairs({targetGui, playerGui, game:GetService("CoreGui")}) do p
     end) pcall(function()
         local old = parent:FindFirstChild("BananaCatHub_AnaAimDot") if old then old:Destroy() end
     end) end
-
--- v5.1.1: Highlight/nhãn/hộp giờ gắn thẳng vào VẬT (trong Workspace) nên phải dọn trong workspace
 pcall(function() for _, d in ipairs(workspace:GetDescendants()) do
         local n = d.Name if n == "BC_OT_HL" or n == "BC_OT_BB" or n == "BC_OT_BOX" then
             pcall(function() d:Destroy() end) end
     end end)
-
 local function trackConn(conn) local t = _G.BananaCatHub_Connections
     if #t > 300 then local alive, n = {}, 0
         for i = 1, #t do local c = t[i]
@@ -74,7 +63,6 @@ local function trackConn(conn) local t = _G.BananaCatHub_Connections
         for i = 1, #t do t[i] = alive[i] end   -- dồn lên đầu; phần tử thừa tự thành nil
     end table.insert(t, conn)
     return conn end
-
 pcall(function() RunService:UnbindFromRenderStep("Fly") end) pcall(function() RunService:UnbindFromRenderStep("Carpet") end)
 pcall(function() RunService:UnbindFromRenderStep("BC_Speed") end) pcall(function() RunService:UnbindFromRenderStep("BC_FreeCam") end)
 pcall(function() RunService:UnbindFromRenderStep("BC_Invis") end) pcall(function() RunService:UnbindFromRenderStep("BC_InvisNet") end)
@@ -83,7 +71,6 @@ pcall(function() RunService:UnbindFromRenderStep("BC_AutoGlass") end) pcall(func
 pcall(function() RunService:UnbindFromRenderStep("BC_ObjTrack") end)  -- v5.1: định vị vật theo tên
 pcall(function() RunService:UnbindFromRenderStep("BC_ObjFly") end)    -- v5.1: bay tới vật
 pcall(function() RunService:UnbindFromRenderStep("BC_AnaAim") end)    -- v5.2: ngắm/chọn vật tại tâm màn hình
-
 local C = { WHITE  = Color3.fromRGB(255, 255, 255),
     DARK   = Color3.fromRGB(238, 241, 248),   -- chữ chính trên nền tối
     GRAY   = Color3.fromRGB(120, 128, 146),   -- nút tắt / chữ phụ
@@ -92,7 +79,6 @@ local C = { WHITE  = Color3.fromRGB(255, 255, 255),
     PURPLE = Color3.fromRGB(155, 128, 245), ORANGE = Color3.fromRGB(251, 146, 60),
     PINK   = Color3.fromRGB(226, 82, 158),
     BG     = Color3.fromRGB(11, 12, 17),      -- nền cửa sổ chính (obsidian)
-
     INK      = Color3.fromRGB(12, 10, 6),     -- chữ ĐẬM dùng trên nền vàng/cam/sáng
     SURFACE  = Color3.fromRGB(20, 22, 30),    -- thẻ, ô nhập liệu
     SURFACE2 = Color3.fromRGB(29, 32, 43),    -- panel, dòng hover, thanh tiêu đề
@@ -101,13 +87,11 @@ local C = { WHITE  = Color3.fromRGB(255, 255, 255),
     MUTED    = Color3.fromRGB(154, 162, 180), -- chữ phụ
     ACCENT   = Color3.fromRGB(240, 201, 122), -- champagne (màu nhận diện hub)
     ACCENT2  = Color3.fromRGB(198, 141, 62),  -- đồng (đuôi gradient / viền nhấn)
-
     ACCENT3  = Color3.fromRGB(255, 238, 203), -- đỉnh sáng nhất của vàng (highlight mép trên)
     HAIRLINE = Color3.fromRGB(72, 79, 99),    -- đường tách khối sáng hơn BORDER một bậc
     GLOW     = Color3.fromRGB(255, 214, 140), -- màu quầng sáng ấm
     DEEP     = Color3.fromRGB(7, 8, 11),      -- đáy của mọi gradient dọc (hút chiều sâu)
 }
-
 local function New(cls, props, parent) local obj = Instance.new(cls)
     pcall(function() if cls == "Frame" or cls == "ScrollingFrame" or cls == "TextButton"
            or cls == "TextLabel" or cls == "TextBox" or cls == "ImageButton" then
@@ -142,18 +126,15 @@ local function New(cls, props, parent) local obj = Instance.new(cls)
                     obj.TextColor3 = C.INK end
             end end
     end) return obj end
-
 local function Corner(p, r)
     return New("UICorner", {CornerRadius = r or UDim.new(0, 10)}, p)   -- v4.5: bo 10px (trước 8px)
 end
-
 local function Stroke(p, c, t) return New("UIStroke", {
         Color = c or C.BORDER,                          -- v4.9: viền tách khối rõ hơn trên nền obsidian
         Thickness = t or 1,
         Transparency = 0.15,                            -- v4.9: nét viền "có mặt" hơn (trước 0.25)
         ApplyStrokeMode = Enum.ApplyStrokeMode.Border, }, p)
 end
-
 local flashBack = setmetatable({}, { __mode = "k" }) local function flash(btn, temp, secs, tempColor, back)
     if not btn then return end if flashBack[btn] == nil then flashBack[btn] = { back or btn.Text, btn.TextColor3 } end
     pcall(function() btn.Text = tostring(temp)
@@ -161,41 +142,31 @@ local flashBack = setmetatable({}, { __mode = "k" }) local function flash(btn, t
         if not (btn and btn.Parent) then return end local old = flashBack[btn]
         if not old then return end pcall(function() btn.Text = old[1]; btn.TextColor3 = old[2] end)
         flashBack[btn] = nil end) end
-
 local function Tween(o, p, d, e) TweenService:Create(o, TweenInfo.new(d or 1.5, e or Enum.EasingStyle.Quart, Enum.EasingDirection.Out), p):Play()
 end
-
 local D = {}
-
 local S
-
 function D.Say(msg, color) if not D.hubStatus then return end
     pcall(function() D.hubStatus.Text = tostring(msg)
         D.hubStatus.TextColor3 = color or C.RED end)
 end
-
 function D.BestText(bg) if typeof(bg) ~= "Color3" then return C.WHITE end
     local lum = 0.2126 * bg.R + 0.7152 * bg.G + 0.0722 * bg.B return (lum > 0.6) and C.INK or C.WHITE end
-
 function D.Edge(bg) if typeof(bg) ~= "Color3" then return C.BORDER end
     return Color3.new( math.min(1, bg.R + 0.11), math.min(1, bg.G + 0.12), math.min(1, bg.B + 0.16))
 end
-
 function D.Grad(obj) local g = obj:FindFirstChildOfClass("UIGradient")
     if not g then g = New("UIGradient", {Color = ColorSequence.new(Color3.new(1,1,1), Color3.new(1,1,1))}, obj)
     end return g
 end
-
 function D.Paint(obj, c1, c2, rotation) pcall(function()
         obj.BackgroundColor3 = Color3.new(1, 1, 1) local g = D.Grad(obj)
         g.Color = ColorSequence.new(c1, c2 or c1) g.Rotation = rotation or 90
     end) return obj end
-
 function D.Unpaint(obj) pcall(function()
         if not obj then return end local g = obj:FindFirstChildOfClass("UIGradient")
         if g then g.Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.new(1, 1, 1)) end end)
     return obj end
-
 function D.Paint3(obj, colors, rotation) pcall(function()
         if type(colors) ~= "table" or #colors == 0 then return obj end obj.BackgroundColor3 = Color3.new(1, 1, 1)
         local g = D.Grad(obj) local n = #colors
@@ -205,7 +176,6 @@ function D.Paint3(obj, colors, rotation) pcall(function()
             end g.Color = ColorSequence.new(kp)
         end g.Rotation = rotation or 90
     end) return obj end
-
 function D.TopLight(obj, color, thickness, inset) local line = nil
     pcall(function() inset = inset or 14
         line = New("Frame", { Name = "BC_TopLight",
@@ -216,7 +186,6 @@ function D.TopLight(obj, color, thickness, inset) local line = nil
             NumberSequenceKeypoint.new(0.00, 1.00), NumberSequenceKeypoint.new(0.50, 0.05),
             NumberSequenceKeypoint.new(1.00, 1.00), })
     end) return line end
-
 function D.Shade(obj, k1, k2, rotation) pcall(function()
         local g = D.Grad(obj) local a = k1 or Color3.new(1.0, 1.0, 1.0)
         local b = k2 or Color3.new(0.82, 0.84, 0.90) local function mix(t)
@@ -227,12 +196,10 @@ function D.Shade(obj, k1, k2, rotation) pcall(function()
         }) g.Rotation = rotation or 90
     end) return obj
 end
-
 function D.PaintText(obj, c1, c2) pcall(function()
         obj.TextColor3 = Color3.new(1, 1, 1) local g = D.Grad(obj)
         g.Color = ColorSequence.new(c1, c2 or c1) g.Rotation = 0
     end) return obj end
-
 function D.Tactile(btn, baseTrans) baseTrans = baseTrans or 0.08
     pcall(function() trackConn(btn.MouseEnter:Connect(function()
             Tween(btn, {BackgroundTransparency = math.max(0, baseTrans - 0.06)}, 0.16) end))
@@ -241,13 +208,11 @@ function D.Tactile(btn, baseTrans) baseTrans = baseTrans or 0.08
         end)) trackConn(btn.MouseButton1Up:Connect(function()
             Tween(btn, {BackgroundTransparency = baseTrans}, 0.14) end))
     end) return btn end
-
 function D.HoverText(btn, overColor, downColor) pcall(function()
         local base = btn.TextColor3 trackConn(btn.MouseEnter:Connect(function() Tween(btn, {TextColor3 = overColor or C.WHITE}, 0.15) end))
         trackConn(btn.MouseLeave:Connect(function() Tween(btn, {TextColor3 = base}, 0.2) end)) trackConn(btn.MouseButton1Down:Connect(function()
             Tween(btn, {TextColor3 = downColor or overColor or C.WHITE}, 0.08) end))
     end) return btn end
-
 function D.Glow(obj, color, pad, trans) local glow = nil
     pcall(function() if not obj or not obj.Parent then return end
         pad = pad or 7 local function posOf()
@@ -260,30 +225,24 @@ function D.Glow(obj, color, pad, trans) local glow = nil
         Corner(glow, UDim.new(1, 0)) trackConn(obj:GetPropertyChangedSignal("Position"):Connect(function()
             pcall(function() glow.Position = posOf() end) end))
     end) return glow end
-
 function D.SetBg(obj, color, trans) pcall(function()
         if not obj then return end obj.BackgroundColor3 = color
         if trans ~= nil then obj.BackgroundTransparency = trans end if obj:IsA("TextButton") or obj:IsA("TextLabel") then
             obj.TextColor3 = D.BestText(color) end
         local st = obj:FindFirstChildOfClass("UIStroke") if st then st.Color = D.Edge(color) end
     end) return obj end
-
 function D.Breathe(obj, props, dur) pcall(function()
         local ti = TweenInfo.new(dur or 1.9, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true) TweenService:Create(obj, ti, props):Play()
     end) end
-
 local function ReleaseHubFocus() pcall(function()
         local tb = UserInputService:GetFocusedTextBox() if tb then tb:ReleaseFocus() end
     end) pcall(function() playerGui:ReleaseFocus() end)
 end
-
 if targetGui:FindFirstChild("ExMenu") then targetGui.ExMenu:Destroy()
 end
-
 local gui = New("ScreenGui", { Name="ExMenu",
     IgnoreGuiInset=true, ResetOnSpawn=false,
     ZIndexBehavior=Enum.ZIndexBehavior.Sibling, }, targetGui)
-
 local togBtn = New("TextButton", { Size=UDim2.new(0,36,0,36),
     Position=UDim2.new(1,-48,1,-48), Text="",
     BackgroundColor3=Color3.fromRGB(0,0,0),
@@ -292,7 +251,6 @@ local togBtn = New("TextButton", { Size=UDim2.new(0,36,0,36),
     TextSize=22, BorderSizePixel=0,
     ZIndex=1000, }, gui)
 Corner(togBtn, UDim.new(1,0))
--- viền cầu vồng mỏng, chỉ viền, không che
 local rainbowStroke = Instance.new("UIStroke") rainbowStroke.Thickness = 2
 rainbowStroke.Color = Color3.fromRGB(255,255,255) rainbowStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 rainbowStroke.Parent = togBtn pcall(function()
@@ -306,8 +264,6 @@ rainbowStroke.Parent = togBtn pcall(function()
                 pcall(function() grad.Rotation = r end) task.wait(0.03)
             end end
     end) end) D.Tactile(togBtn, 1)
--- đã bỏ glow toàn màn hình để không che góc phải khi kéo nút vào giữa
-
 local main = New("Frame", { Size=UDim2.new(0,540,0,340),
     Position=UDim2.new(0.5,-270,0.5,-170), BackgroundColor3=C.BG,
     BackgroundTransparency=0,      -- v4.9: đục tuyệt đối để gradient 4 chặng lên đúng màu
@@ -315,14 +271,11 @@ local main = New("Frame", { Size=UDim2.new(0,540,0,340),
     ClipsDescendants=false, ZIndex=2,
 }, gui) Corner(main, UDim.new(0,16))
 Stroke(main, C.HAIRLINE, 1.2) D.Paint3(main, {C.SURFACE2, C.BG, C.BG, C.DEEP}, 90)
-
 local Hit = {}
-
 function Hit.inObject(o, x, y) if not o then return false end
     local ok, res = pcall(function() if not o.Visible then return false end
         local p, s = o.AbsolutePosition, o.AbsoluteSize return x >= p.X and x <= p.X + s.X and y >= p.Y and y <= p.Y + s.Y
     end) return ok and res == true end
-
 function Hit.onHub(x, y) local ok, objs = pcall(function()
         return playerGui:GetGuiObjectsAtPosition(x, y) end)
     if ok and type(objs) == "table" then for _, o in ipairs(objs) do
@@ -340,7 +293,6 @@ function Hit.onHub(x, y) local ok, objs = pcall(function()
         end end)
     if aimOverlayHit then return true end if Hit.inObject(main, x, y) then return true end
     if Hit.inObject(togBtn, x, y) then return true end return false end
-
 local bgPattern = New("ImageLabel", { Name = "CheckeredBG",
     Size = UDim2.new(1, 0, 1, 0), Position = UDim2.new(0, 0, 0, 0),
     BackgroundTransparency = 1, Image = "rbxassetid://9822602710",
@@ -350,7 +302,6 @@ local bgPattern = New("ImageLabel", { Name = "CheckeredBG",
     ImageColor3 = C.ACCENT2,                          -- v4.9: ánh đồng (trước là vàng chuối gắt)
     ZIndex = 2, }, main)
 Corner(bgPattern, UDim.new(0, 14))
-
 local titleBar = New("Frame", { Size=UDim2.new(1,0,0,30),
     BackgroundColor3=C.SURFACE2,
     BackgroundTransparency=0,      -- v4.9: đục để gradient 3 chặng lên đúng
@@ -358,37 +309,30 @@ local titleBar = New("Frame", { Size=UDim2.new(1,0,0,30),
 }, main) Corner(titleBar, UDim.new(0,16))
 D.Paint3(titleBar, {C.SURFACE3, C.SURFACE2, C.SURFACE}, 90)
 D.TopLight(titleBar, C.ACCENT3, 1, 22)   -- v4.9: chỉ vàng mảnh chạy dọc mép trên cửa sổ
-
 D.Paint3(New("Frame", { Name="TitleAccent", Size=UDim2.new(1,-2,0,2), Position=UDim2.new(0,1,1,-1),
     BackgroundColor3=C.ACCENT, BorderSizePixel=0, ZIndex=5, }, titleBar), {C.ACCENT2, C.ACCENT3, C.ACCENT2}, 0)
-
 D.PaintText(New("TextLabel", { Size=UDim2.new(1,-90,1,0),
     Position=UDim2.new(0,12,0,0), Text="taodepzai v5.0 NOIR",
     BackgroundTransparency=1, TextColor3=C.DARK,
     Font=Enum.Font.GothamBold, TextSize=13,
     TextXAlignment=Enum.TextXAlignment.Left, ZIndex=4,
 }, titleBar), C.ACCENT, C.ACCENT3)   -- v4.9: chữ gradient vàng sâm-panh -> trắng ngà
-
 D.verPill = New("Frame", { Name="VersionPill", Size=UDim2.new(0,62,0,16), Position=UDim2.new(0,158,0,7),
     BackgroundColor3=C.DEEP, BackgroundTransparency=0.15, BorderSizePixel=0, ZIndex=5, }, titleBar)
 Corner(D.verPill, UDim.new(1,0))
 Stroke(D.verPill, C.ACCENT2, 1)   -- v4.9: huy hiệu đen + viền đồng, chữ champagne
 New("TextLabel", { Size=UDim2.new(1,0,1,0), Text="v5.0 · NOIR", BackgroundTransparency=1,
     TextColor3=C.ACCENT3, Font=Enum.Font.GothamBold, TextSize=8, ZIndex=6, }, D.verPill)
-
 local function TitleBtn(txt, xOff) return New("TextButton", {
         Size=UDim2.new(0,24,0,24), Position=UDim2.new(1,-xOff,0,3), Text=txt, BackgroundTransparency=1, TextColor3=C.MUTED, Font=Enum.Font.GothamBold,
         TextSize=13, BorderSizePixel=0, ZIndex=4, }, titleBar)
 end local dragLockBtn = TitleBtn("🔒", 54)
 local closeBtn    = TitleBtn("✕", 28) D.HoverText(closeBtn, C.RED, C.RED) D.HoverText(dragLockBtn, C.ACCENT, C.ACCENT)
-
 local minW, minH = 440, 260
-
 local function BcFit() local fn = _G.BananaCatHub_SyncEmbeds
     if type(fn) ~= "function" then return end local ok, now = pcall(os.clock)
     if ok and _G.BcFitLast and now - _G.BcFitLast < 0.05 then return end _G.BcFitLast = ok and now or 0
     task.defer(fn) end
-
 local function SetupResizeHandle(btn, cornerType) local resizing, sizeStart, posStart, inputStart
     trackConn(btn.InputBegan:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then
             pcall(function() if D.openTween then D.openTween:Cancel() D.openTween = nil end end)  -- v4.5
@@ -410,7 +354,6 @@ local function SetupResizeHandle(btn, cornerType) local resizing, sizeStart, pos
     end)) trackConn(UserInputService.InputEnded:Connect(function(i)
         if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then resizing=false
         end end)) end
-
 local function CreateHandle(icon, pos) local btn = New("TextButton", {
         Size=UDim2.new(0,16,0,16), Position=pos,
         Text=icon, BackgroundColor3=C.SURFACE3,
@@ -420,33 +363,25 @@ local function CreateHandle(icon, pos) local btn = New("TextButton", {
     }, main) Corner(btn, UDim.new(0,4))
     Stroke(btn, C.HAIRLINE, 1) D.Shade(btn, Color3.fromRGB(255,255,255), Color3.fromRGB(190,196,210), 90)
     D.Tactile(btn, 0.35) return btn end
-
 SetupResizeHandle(CreateHandle("↖", UDim2.new(0, 2, 0, 2)), "TL") SetupResizeHandle(CreateHandle("↗", UDim2.new(1, -18, 0, 2)), "TR")
 SetupResizeHandle(CreateHandle("↙", UDim2.new(0, 2, 1, -18)), "BL") SetupResizeHandle(CreateHandle("↘", UDim2.new(1, -18, 1, -18)), "BR")
-
 local tabs = {} local tabContent = {}
-
 local tabBar = New("ScrollingFrame", { Size=UDim2.new(0,56,1,-30),
     Position=UDim2.new(0,0,0,30), BackgroundColor3=C.SURFACE,
     BackgroundTransparency=0, BorderSizePixel=0,
     ZIndex=3, ScrollBarThickness=3,
     CanvasSize=UDim2.new(0,0,0,0), }, main) D.Paint3(tabBar, {C.SURFACE, C.BG, C.DEEP}, 90)
-
 New("Frame", { Name="TabRailDivider", Size=UDim2.new(0,1,1,-30), Position=UDim2.new(0,56,0,30),
     BackgroundColor3=C.HAIRLINE, BackgroundTransparency=0.45, BorderSizePixel=0, ZIndex=4, }, main)
-
 New("UIListLayout", { FillDirection=Enum.FillDirection.Vertical,
     SortOrder=Enum.SortOrder.LayoutOrder, Padding=UDim.new(0,4),
 }, tabBar)
-
 New("UIPadding", {PaddingTop=UDim.new(0,6), PaddingLeft=UDim.new(0,4)}, tabBar)
-
 local contentArea = New("Frame", {
     Size=UDim2.new(1,-56,1,-54),     -- v4.5: nhường 56px cho thanh icon + 24px cho header trang
     Position=UDim2.new(0,56,0,54), BackgroundTransparency=1,
     BorderSizePixel=0, ZIndex=3,
     ClipsDescendants=true, }, main)
-
 D.pageHeader = New("Frame", { Name="PageHeader", Size=UDim2.new(1,-56,0,24), Position=UDim2.new(0,56,0,30),
     BackgroundColor3=C.SURFACE, BackgroundTransparency=0.2, BorderSizePixel=0, ZIndex=3, }, main)
 D.Paint3(D.pageHeader, {C.SURFACE2, C.SURFACE}, 90)   -- v4.9: dải chrome mảnh dưới thanh tiêu đề
@@ -457,7 +392,6 @@ D.pageTitle = New("TextLabel", { Name="PageTitle", Size=UDim2.new(1,-196,1,0), P
     Name="PageChips", Size=UDim2.new(0,150,1,-6), Position=UDim2.new(1,-156,0,3), BackgroundTransparency=1, BorderSizePixel=0, ZIndex=5,
 }, D.pageHeader) New("UIListLayout", {
     FillDirection=Enum.FillDirection.Horizontal, Padding=UDim.new(0,8), SortOrder=Enum.SortOrder.LayoutOrder, VerticalAlignment=Enum.VerticalAlignment.Center, }, D.pageChips)
-
 D.hdrSwitches = {} for i, sw in ipairs({
     {key="embed", icon="🧩", onColor=C.GREEN,  tip="Nhúng GUI của script vào tab tính năng"}, {key="guess", icon="🕵", onColor=C.ORANGE, tip="Đoán GUI tạo trễ (dễ ăn nhầm GUI game)"},
     {key="park",  icon="🪟", onColor=C.GREEN,  tip="Đưa GUI của tab 💻 Code vào menu"}, }) do
@@ -471,7 +405,6 @@ D.hdrSwitches = {} for i, sw in ipairs({
     local trackStroke = Stroke(track, C.HAIRLINE, 1) local knob = New("Frame", {
         Name="BC_SwKnob", Size=UDim2.new(0,8,0,8), Position=UDim2.new(0,2,0,2), BackgroundColor3=C.GRAY, BorderSizePixel=0, ZIndex=8,
     }, track) Corner(knob, UDim.new(1,0)) D.hdrSwitches[sw.key] = {btn=btn, icon=ic, track=track, knob=knob, onColor=sw.onColor, stroke=trackStroke}
-
     btn.Activated:Connect(function() local fn = (sw.key == "embed" and S.DoToggleEmbed)
                 or (sw.key == "guess" and S.DoToggleGuess) or (sw.key == "park"  and S.DoTogglePark)
         if type(fn) == "function" then
@@ -486,9 +419,7 @@ D.hdrSwitches = {} for i, sw in ipairs({
 New("Frame", {   -- kẻ mảnh dưới header
     Name="PageHeaderRule", Size=UDim2.new(1,-56,0,1), Position=UDim2.new(0,56,0,53), BackgroundColor3=C.HAIRLINE, BackgroundTransparency=0.5, BorderSizePixel=0, ZIndex=4,
 }, main)
-
 local activeTab = nil
-
 local function SwitchTab(index)
     ReleaseHubFocus()   -- v4.4b: đổi tab mà để TextBox còn focus là game chặn input (không đi/không bắn)
     for _, t in ipairs(tabContent) do t.Visible = false end for _, b in ipairs(tabs) do
@@ -514,12 +445,10 @@ local function SwitchTab(index)
     BcFit()   -- v4.4c: tab vừa hiện -> đo lại để GUI nằm vừa đúng ô của tab
     pcall(function() if S.PagePerf and S.PagePerf.OnTabChanged then S.PagePerf.OnTabChanged() end end)
 end
-
 local function OpenFirstPage() local idx, best = 1, nil
     for i, b in ipairs(tabs) do local o = b and b.LayoutOrder
         if type(o) == "number" and (best == nil or o < best) then best = o; idx = i end end
     SwitchTab(idx) end
-
 local function MakeTabFrame() return New("ScrollingFrame", {
         Size=UDim2.new(1,0,1,0), BackgroundTransparency=1,
         BorderSizePixel=0,
@@ -529,7 +458,6 @@ local function MakeTabFrame() return New("ScrollingFrame", {
         Visible=false, Active=true,
         Selectable=false, ScrollingDirection=Enum.ScrollingDirection.Y,
         ZIndex=4, }, contentArea) end
-
 local function MakeTabButton(name, icon, order, onClick) local btn = New("TextButton", {
         Size=UDim2.new(1,-10,0,24),       -- v4.5 Delta: ô icon nhỏ gọn
         Text=icon,                        -- CHỈ icon; tên trang hiện ở header
@@ -559,7 +487,6 @@ local function MakeTabButton(name, icon, order, onClick) local btn = New("TextBu
                 if onClick then pcall(onClick) end break
             end end
     end) return btn end
-
 local function AddTab(name, icon, order, customContent) local sf
     if customContent then sf = customContent
         sf.Parent = contentArea sf.Visible = false
@@ -568,9 +495,7 @@ local function AddTab(name, icon, order, customContent) local sf
     table.insert(tabs, btn) table.insert(tabContent, sf)
     tabBar.CanvasSize = UDim2.new(0, 0, 0, #tabs * 30 + 10) return sf, btn
 end local codeTab      = AddTab("Code", "💻", 2) local savedCodeTab = AddTab("Code Đã Lưu", "💾", 1)
-
 OpenFirstPage()   -- v4.6.2: mở trang ĐẦU TIÊN theo thứ tự rail (💾 Code Đã Lưu)
-
 S = { dragMenu     = false,
     dragging     = false, dragStart    = nil,
     startPos     = nil, togDragging  = false,
@@ -580,8 +505,6 @@ S = { dragMenu     = false,
     parkCodeGuis = true,
     embeds       = {},       -- registry: {host, gui, recs={{child,origParent,origPos,origSize}}, conns={}}
 }
-
--- v5.2 PERF: Quản lý tạm dừng tính năng theo trang để mượt hơn (không mất tính năng)
 S.PagePerf = S.PagePerf or {
     currentTab = nil,
     mainVisible = true,
@@ -648,17 +571,14 @@ function S.PagePerf.OnMainVisibilityChanged()
         if S.Loc and S.Loc.OnPerfTick then pcall(S.Loc.OnPerfTick) end
     end)
 end
-
 S.WRAP_MARK_OLD = "-- ===== AUTO-GENERATED SIZE WRAPPER" S.WRAP_MARK_NEW = "-- ===== AUTO-GENERATED FIT WRAPPER"
 function S.SanitizeCode(c) if type(c) ~= "string" then return c end
     if not c:find(S.WRAP_MARK_OLD, 1, true) then return c end local out = (c:gsub(
         "pcall%s*%(%s*function%s*%(%)%s*_ForceStretch%s*%(%s*g%s*%)%s*end%s*%)", ""))
     return out end
-
 function S.Shimmed(n) local v = S.shimmedFns and S.shimmedFns[n]
     if v == nil then return false end return rawget(_G, n) == v
 end
-
 function D.SyncPageChips() pcall(function()
         if not D.hdrSwitches then return end local state = {
             embed = (S.embedEnabled == true), guess = (S.embedGuessNew == true),
@@ -673,9 +593,7 @@ local featureTabs = {}        -- nt: khai báo sớm để Store.serialize() và
 local featureTabIndex = 7   -- 1=Code Đã Lưu 2=Code 3=Script Hub 4=Hỗ Trợ 5=Thiết Lập 6=Tạo Tính Năng; tab tính năng của người dùng từ 7 trở đi
 local totalRuns, cancelled = 0, false local curThread, curIndicator = nil, nil
 local runActive = false       -- cờ trạng thái chạy (không dựa vào curThread nữa)
-
 local Store = {}
-
 Store.SAVE_FILE      = "banana_cat_saved.json" Store.SAVE_VERSION   = 3
 Store.mode           = "none"   -- "file" | "memory" | "empty" | "none"
 Store.lastError      = nil Store.lastSavedAt    = nil
@@ -690,33 +608,26 @@ Store.restoreSkins   = nil    -- PI gán hàm cập nhật UI skin đã lưu và
 Store.statusLbl      = nil      -- tab "Code Đã Lưu" gán nhãn trạng thái vào đây
 Store.reloadBtn      = nil Store._scheduled     = false
 Store.refreshStatus  = nil      -- tab "Code Đã Lưu" gán hàm cập nhật nhãn vào đây
-
 function Store.canWrite() if type(writefile) ~= "function" or type(readfile) ~= "function" then return false end
     if S.Shimmed("writefile") or S.Shimmed("readfile") then return false end return true
 end
-
 function Store.isFinite(n) return type(n) == "number" and n == n and n ~= math.huge and n ~= -math.huge
 end
-
 function Store.write(data) local okEnc, json = pcall(function() return HttpService:JSONEncode(data) end)
     if not okEnc then Store.mode = "memory"
         Store.lastError = "Không mã hoá được JSON: " .. tostring(json) _G.BananaCatHub_SavedData = data
         return false end
-
     if not Store.canWrite() then Store.mode = "memory"
         Store.lastError = "Executor không có writefile — chỉ giữ được trong phiên chơi này" _G.BananaCatHub_SavedData = data
         return false end
-
     local okW, errW = pcall(writefile, Store.SAVE_FILE, json) if not okW then
         Store.mode = "memory" Store.lastError = "Ghi file thất bại: " .. tostring(errW)
         _G.BananaCatHub_SavedData = data return false
     end
-
     Store.mode = "file" Store.lastError = nil
     Store.saveCount = Store.saveCount + 1 pcall(function() Store.lastSavedAt = os.date("%H:%M:%S") end)
     _G.BananaCatHub_SavedData = data return true
 end
-
 function Store.read() if Store.canWrite() then
         local hasFile = true if type(isfile) == "function" then
             local okI, r = pcall(isfile, Store.SAVE_FILE) hasFile = (okI and r == true)
@@ -731,7 +642,6 @@ function Store.read() if Store.canWrite() then
     if type(_G.BananaCatHub_SavedData) == "table" then Store.mode = "memory"
         return _G.BananaCatHub_SavedData end
     Store.mode = "none" return nil end
-
 function Store.serialize() local sOut = {}
     for _, s in ipairs(scripts) do table.insert(sOut, {
             name     = tostring(s.name or ""), code     = tostring(s.code or ""),
@@ -754,49 +664,40 @@ function Store.serialize() local sOut = {}
                 end return out
             end)(), },
     } end
-
 function Store.save() local ok = Store.write(Store.serialize())
     if Store.refreshStatus then pcall(Store.refreshStatus) end return ok
 end
-
 function Store.saveSoon() if Store._scheduled then return end
     Store._scheduled = true task.delay(0.3, function()
         Store._scheduled = false Store.save()
     end) end
-
 function Store.load() local data = Store.read()
     if type(data) ~= "table" then Store.mode = Store.canWrite() and "empty" or "none"
         Store.loadedScripts, Store.loadedWp = 0, 0 Store.loadedFeatures = {}
         Store.savedSkins = {} Store.autoUseSkin = nil
         return end
-
     local fileVer = tonumber(data.version) or 1 if fileVer > Store.SAVE_VERSION then
         Store.lastError = string.format( "File lưu là version %d, script này chỉ hiểu tới v%d — một số mục có thể không nạp",
             fileVer, Store.SAVE_VERSION) end
-
     if type(data.settings) == "table" then S.embedEnabled  = (data.settings.embedEnabled ~= false)
         S.embedGuessNew = (data.settings.embedGuessNew == true) S.parkCodeGuis  = (data.settings.parkCodeGuis ~= false)
         if type(data.settings.hubFavs) == "table" then S.hubFavs = {}
             for _, nm in ipairs(data.settings.hubFavs) do S.hubFavs[tostring(nm)] = true end end end
-
     local sOut = {} if type(data.scripts) == "table" then
         for _, s in ipairs(data.scripts) do if type(s) == "table" and type(s.code) == "string" and #s.code > 0 then
                 table.insert(sOut, { name     = (type(s.name) == "string" and #s.name > 0) and s.name or ("Script " .. (#sOut + 1)), code     = S.SanitizeCode(s.code),
                     expanded = (s.expanded == true), })
             end end end
-
     local wOut = {} if type(data.waypoints) == "table" then
         for _, w in ipairs(data.waypoints) do if type(w) == "table" and Store.isFinite(w.x) and Store.isFinite(w.y) and Store.isFinite(w.z) then
                 table.insert(wOut, { name = (type(w.name) == "string" and #w.name > 0) and w.name or ("WP " .. (#wOut + 1)),
                     pos  = Vector3.new(w.x, w.y, w.z), })
             end end end
-
     local fOut = {} if type(data.features) == "table" then
         for _, f in ipairs(data.features) do if type(f) == "table" and type(f.code) == "string" and #f.code > 0 then
                 table.insert(fOut, { name = (type(f.name) == "string" and #f.name > 0) and f.name or ("Tính Năng " .. (#fOut + 1)), icon = (type(f.icon) == "string" and #f.icon > 0) and f.icon or "⚙️",
                     code = S.SanitizeCode(f.code), })
             end end end
-
     local skOut = {} if type(data.savedSkins) == "table" then
         for _, sk in ipairs(data.savedSkins) do
             if type(sk) == "table" and (tonumber(sk.id) or (type(sk.name) == "string" and #sk.name > 0)) then
@@ -810,14 +711,10 @@ function Store.load() local data = Store.read()
     else
         Store.autoUseSkin = nil
     end
-
     scripts   = sOut waypoints = wOut
     Store.loadedFeatures = fOut Store.loadedScripts, Store.loadedWp = #sOut, #wOut
 end
-
 Store.load()
-
--- ----------------------------------------------------------------------------
 S.compatAdded  = S.compatAdded or {}   -- tên các hàm đã bù (để báo lại cho người dùng)
 S.compatTried  = false
 S.vfs          = S.vfs or {}           -- ổ đĩa ảo trong RAM (khi executor không có readfile/writefile)
@@ -826,17 +723,14 @@ S.queued       = S.queued or {}        -- queue_on_teleport: giữ lại, không
 S.lastRunReport = nil                  -- báo cáo lần chạy cuối (nhãn 💻 + nút 💾 dùng chung)
 S.lastRunError  = nil S.lastNormalizeNote = nil
 S.lastParkedCount = 0 S.lastParkedNames = {}
-
 function S.HasGlobal(n) local ok, v = pcall(function() return rawget(_G, n) end)
     return ok and v ~= nil end
-
 function S.SetGlobal(n, v)
     if S.HasGlobal(n) then return false end          -- KHONG de ham that cua executor
     local ok = pcall(function() rawset(_G, n, v) end) if ok then
         S.compatAdded[#S.compatAdded + 1] = n S.shimmedFns = S.shimmedFns or {}
         S.shimmedFns[n] = rawget(_G, n) end
     return ok end
-
 function S.VRead(p) local f = S.vfs[tostring(p)]
     if f == nil then error("File not found: " .. tostring(p)) end return f
 end function S.VWrite(p, c)  S.vfs[tostring(p)] = tostring(c); return true end
@@ -845,7 +739,6 @@ function S.VDel(p)       S.vfs[tostring(p)] = nil; return true end function S.VL
     dir = tostring(dir or ""):gsub("[/\\]+$", "") local out = {}
     for k in pairs(S.vfs) do if dir == "" or k:sub(1, #dir) == dir then out[#out + 1] = k end
     end return out end
-
 function S.CompatRequest(opts) if type(opts) ~= "table" then opts = {Url = tostring(opts)} end
     local url = tostring(opts.Url or opts.url or "") local body, status, good = "", 0, false
     pcall(function() local r = game:GetService("HttpService"):RequestAsync({
@@ -856,7 +749,6 @@ function S.CompatRequest(opts) if type(opts) ~= "table" then opts = {Url = tostr
         local okHttp, fetched = pcall(function() return game:HttpGet(url) end) if okHttp then
             body, status, good = tostring(fetched or ""), 200, true end
     end return {StatusCode = status, StatusMessage = "", Body = body, Success = good, Headers = {}} end
-
 function S.CompatDrawing() local D = {}
     D.Fonts = {UI = 0, System = 0, Plex = 1, Monospace = 2} D.new = function(cls)
         local o = {__class = tostring(cls or ""), Visible = false, ZIndex = 1, Transparency = 1} return setmetatable(o, {
@@ -865,7 +757,6 @@ function S.CompatDrawing() local D = {}
                 return rawget(t, k) end,
             __newindex = function(t, k, v) rawset(t, k, v) end, })
     end return D end
-
 function S.EnsureCompat() if S.compatTried then return S.compatAdded end
     S.compatTried = true pcall(function()
         S.SetGlobal("loadstring", function(src, nm) return load(tostring(src), nm or "compat") end) S.SetGlobal("getgenv", function() return _G end)
@@ -892,12 +783,10 @@ function S.EnsureCompat() if S.compatTried then return S.compatAdded end
             S.queued[#S.queued + 1] = tostring(src); return true end) end)
     if #S.compatAdded > 0 then pcall(function() print("[taodepzai v5.0 NOIR] " .. S.CompatNote()) end)
     end return S.compatAdded end
-
 function S.CompatNote() local n = #S.compatAdded
     if n == 0 then return "" end local sample = {}
     for i = 1, math.min(4, n) do sample[#sample + 1] = S.compatAdded[i] end return "🩹 đã bù " .. n .. " hàm executor còn thiếu (" .. table.concat(sample, ", ")
         .. (n > 4 and "…" or "") .. ")" end
-
 function S.NormalizeRunnable(c) S.lastNormalizeNote = nil
     if type(c) ~= "string" then return "" end c = c:gsub("\239\187\191", ""):gsub("\226\128\139", "")
     c = c:gsub("\226\128\142", ""):gsub("\226\128\143", "") local t = c:match("^%s*(.-)%s*$") or ""
@@ -912,7 +801,6 @@ function S.NormalizeRunnable(c) S.lastNormalizeNote = nil
     end if t:match("^loadstring%s*%(") and t:sub(-2) ~= "()" then
         S.lastNormalizeNote = "➕ loadstring thiếu dấu () -> đã thêm để chạy được" return t .. "()"
     end return c end
-
 function S.RunReportText() local r = S.lastRunReport
     if not r then return "" end if r.fail > 0 and r.ok == 0 then
         local e = tostring(r.err or "không rõ"):gsub("%s+", " ") if #e > 160 then e = e:sub(1, 160) .. "…" end
@@ -922,7 +810,6 @@ function S.RunReportText() local r = S.lastRunReport
     elseif r.parked then t = t .. " · " .. r.parked
     end if r.note then t = t .. " · " .. r.note end
     if r.compat and r.compat ~= "" then t = t .. " · " .. r.compat end return t end
-
 local function ExecOnce(code, name) if #name>0 then print("👤 Chạy bởi:", name) end
     code = S.SanitizeCode(code)          -- v4.4b: cắt wrapper "tự dãn kích thước" độc hại của bản cũ
     code = S.NormalizeRunnable(code)     -- v4.7: link trần / thiếu () / BOM -> chạy được
@@ -933,12 +820,10 @@ local function ExecOnce(code, name) if #name>0 then print("👤 Chạy bởi:", 
         S.lastRunError = nil else
         S.lastRunError = tostring(err) pcall(function() warn("[taodepzai v5.0 NOIR] ❌ '" .. tostring(name) .. "' lỗi: " .. tostring(err)) end)
     end return ok, err end
-
 local function Cancel() pcall(function() if S.AbortRunCapture then S.AbortRunCapture() end end)
     cancelled=true runActive=false
     if curThread then pcall(task.cancel, curThread); curThread=nil end if curIndicator then curIndicator.BackgroundColor3=C.BLUE; curIndicator=nil end
 end
-
 local function RunCode(code, name, ind, times, delay, noPark) Cancel()
     ReleaseHubFocus()   -- v4.4b: nhả focus TextBox, nếu không game chặn hết input (không đi/không bắn)
     if #code==0 then return false, "⚠️ Vui lòng nhập code!" end cancelled=false
@@ -971,14 +856,12 @@ local function RunCode(code, name, ind, times, delay, noPark) Cancel()
         totalRuns+=okC+failC if ind then ind.BackgroundColor3=C.GREEN; if curIndicator==ind then curIndicator=nil end end
         runActive=false curThread=nil
     end) return true, nil end
-
 local function Label(parent, text, y) local isRule = (tostring(text):find("━") ~= nil)
     return New("TextLabel", { Size=UDim2.new(1,-16,0,14), Position=UDim2.new(0,8,0,y or 0),
         Text=text, BackgroundTransparency=1,
         TextColor3=(isRule and C.BORDER or C.MUTED),   -- v4.5: chữ phụ / đường kẻ trên nền tối
         Font=Enum.Font.GothamMedium, TextSize=10, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=6, }, parent)
 end
-
 local function Button(parent, text, x, y, w, h, color) local base = color or C.SURFACE3
     local bh = math.min(h or 18, 20)
     local btn = New("TextButton", { Size=UDim2.new(0,w or 88,0,bh), Position=UDim2.new(0,x or 8,0,y or 0),
@@ -986,85 +869,63 @@ local function Button(parent, text, x, y, w, h, color) local base = color or C.S
     }, parent) Corner(btn, UDim.new(0,6))
     Stroke(btn, D.Edge(base), 1.1) D.Shade(btn, Color3.fromRGB(255,255,255), Color3.fromRGB(182,187,201), 90)
     D.Tactile(btn, 0.08) return btn end
-
 function S.Debounce(key, secs, fn) S._dbt = S._dbt or {}
     local n = (S._dbt[key] or 0) + 1 S._dbt[key] = n
     task.delay(secs or 0.18, function()
         if S._dbt[key] ~= n then return end   -- đã có phím mới hơn -> lượt này bỏ qua
         S._dbt[key] = nil pcall(fn)
     end) end
-
 local y = 8 Label(codeTab, "💻 Nhập Code Tùy Chỉnh", y)
 y = y + 14 Label(codeTab, "👤 Tên Script", y)
 y = y + 14
-
 local nameIn = New("TextBox", { Size=UDim2.new(1,-16,0,26), Position=UDim2.new(0,8,0,y), Text="",
     PlaceholderText="Nhập tên script...", PlaceholderColor3=Color3.fromRGB(122, 130, 148), BackgroundColor3=Color3.fromRGB(26, 29, 38), BackgroundTransparency=0, TextColor3=Color3.fromRGB(233, 237, 245), Font=Enum.Font.GothamMedium, TextSize=12, BorderSizePixel=0, ClearTextOnFocus=false,
     Active=true, Selectable=true, ZIndex=10, TextXAlignment=Enum.TextXAlignment.Left, }, codeTab)
 Corner(nameIn, UDim.new(0,5)) Stroke(nameIn, Color3.fromRGB(100,120,200), 1.5) New("UIPadding", {PaddingLeft=UDim.new(0,6)}, nameIn)
-
 y = y + 32 Label(codeTab, "💻 Code (Lua)", y)
 y = y + 14
-
 local codeIn = New("TextBox", { Size=UDim2.new(1,-16,0,80), Position=UDim2.new(0,8,0,y), Text="",
     PlaceholderText="-- Nhập code Lua tại đây...", PlaceholderColor3=Color3.fromRGB(122, 130, 148), BackgroundColor3=Color3.fromRGB(28, 31, 41), BackgroundTransparency=0, TextColor3=Color3.fromRGB(233, 237, 245),
     Font=Enum.Font.Code, TextSize=11, BorderSizePixel=0, ClearTextOnFocus=false, MultiLine=true, TextWrapped=true, TextXAlignment=Enum.TextXAlignment.Left, TextYAlignment=Enum.TextYAlignment.Top,
     Active=true, Selectable=true, ZIndex=10, }, codeTab)
 Corner(codeIn, UDim.new(0,5)) Stroke(codeIn, Color3.fromRGB(100,120,200), 1.5) New("UIPadding", {PaddingLeft=UDim.new(0,6), PaddingTop=UDim.new(0,4)}, codeIn)
-
 y = y + 86 Label(codeTab, "🔁 Cài đặt lặp", y)
 y = y + 14 Label(codeTab, "Số lần lặp:", y)
-
 local repIn = New("TextBox", { Size=UDim2.new(0,55,0,24), Position=UDim2.new(0,8,0,y+12), Text="1",
     PlaceholderColor3=Color3.fromRGB(122, 130, 148), BackgroundColor3=Color3.fromRGB(26, 29, 38), BackgroundTransparency=0, TextColor3=Color3.fromRGB(233, 237, 245), Font=Enum.Font.GothamMedium, TextSize=12, BorderSizePixel=0,
     ClearTextOnFocus=false, Active=true, Selectable=true, ZIndex=10, }, codeTab)
 Corner(repIn, UDim.new(0,5)) Stroke(repIn, Color3.fromRGB(180,180,200), 1.2)
-
 Label(codeTab, "Thời gian chờ:", y+36)
-
 local delIn = New("TextBox", { Size=UDim2.new(0,55,0,24), Position=UDim2.new(0,8,0,y+50), Text="0",
     PlaceholderColor3=Color3.fromRGB(122, 130, 148), BackgroundColor3=Color3.fromRGB(26, 29, 38), BackgroundTransparency=0, TextColor3=Color3.fromRGB(233, 237, 245), Font=Enum.Font.GothamMedium, TextSize=12, BorderSizePixel=0,
     ClearTextOnFocus=false, Active=true, Selectable=true, ZIndex=10, }, codeTab)
 Corner(delIn, UDim.new(0,5)) Stroke(delIn, Color3.fromRGB(180,180,200), 1.2)
-
 local unitBtn = New("TextButton", { Size=UDim2.new(0,48,0,20), Position=UDim2.new(0,75,0,y+50), Text="Giây ▾",
     BackgroundColor3=Color3.fromRGB(26, 29, 38), BackgroundTransparency=0, TextColor3=C.DARK, Font=Enum.Font.GothamBold, TextSize=8, BorderSizePixel=0, ZIndex=10,
 }, codeTab) Corner(unitBtn,UDim.new(0,4)); Stroke(unitBtn)
-
 local ddFrame = New("Frame", { Size=UDim2.new(0,48,0,40), Position=UDim2.new(0,75,0,y+70),
     BackgroundColor3=Color3.fromRGB(26, 29, 38), BackgroundTransparency=0, BorderSizePixel=0, Visible=false, ZIndex=15, }, codeTab)
 Corner(ddFrame,UDim.new(0,4)); Stroke(ddFrame)
-
 local secOpt = New("TextButton", { Size=UDim2.new(1,0,0,20), Text="Giây", BackgroundColor3=Color3.fromRGB(28, 31, 41),
     BackgroundTransparency=0, TextColor3=C.DARK, Font=Enum.Font.GothamBold, TextSize=8, BorderSizePixel=0, ZIndex=16, }, ddFrame)
-
 local minOpt = New("TextButton", { Size=UDim2.new(1,0,0,20), Position=UDim2.new(0,0,0,20), Text="Phút",
     BackgroundColor3=Color3.fromRGB(28, 31, 41), BackgroundTransparency=0, TextColor3=C.DARK, Font=Enum.Font.GothamBold, TextSize=8, BorderSizePixel=0, ZIndex=16,
 }, ddFrame)
-
 unitBtn.Activated:Connect(function() ddFrame.Visible=not ddFrame.Visible end) secOpt.Activated:Connect(function() unitBtn.Text="Giây ▾"; ddFrame.Visible=false end)
 minOpt.Activated:Connect(function() unitBtn.Text="Phút ▾"; ddFrame.Visible=false end)
-
 trackConn(UserInputService.InputBegan:Connect(function(i,gp) if gp then return end
     if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then local f = Hit.inObject(unitBtn, i.Position.X, i.Position.Y)
             or Hit.inObject(ddFrame, i.Position.X, i.Position.Y) if not f then ddFrame.Visible=false end
     end end))
-
 y = y + 78
-
 local runBtn = Button(codeTab, "▶ Chạy Code", 8, y, 220, 20, Color3.fromRGB(0,160,90)) local stopBtn = Button(codeTab, "⏹ Dừng", 234, y, 90, 20, C.RED)
 y = y + 24 local saveBtn = Button(codeTab, "💾 Lưu Vào Danh Sách", 8, y, 316, 20, C.BLUE)
 y = y + 24
-
 local statusLbl = Label(codeTab, "", y) statusLbl.TextColor3=Color3.fromRGB(255, 205, 64); statusLbl.TextSize=9; statusLbl.ZIndex=6
 y = y + 14
-
 local countLbl = Label(codeTab, "🔄 Tổng số lần đã chạy: 0", y) countLbl.TextColor3=C.GREEN; countLbl.TextSize=9; countLbl.ZIndex=6
-
 codeTab.CanvasSize = UDim2.new(0, 0, 0, y + 30)
-
 stopBtn.Activated:Connect(function() Cancel(); statusLbl.Text="⏹️ Đã dừng" end)
-
 runBtn.Activated:Connect(function() local t=math.clamp(tonumber(repIn.Text)or 1,1,1000)
     local d=math.max(tonumber(delIn.Text)or 0,0) if unitBtn.Text:find("Phút") then d=d*60 end
     local ok,err=RunCode(codeIn.Text,nameIn.Text,nil,t,d) if not ok then
@@ -1079,9 +940,7 @@ runBtn.Activated:Connect(function() local t=math.clamp(tonumber(repIn.Text)or 1,
                     local rep7 = S.RunReportText() if rep7 ~= "" then statusLbl.Text = rep7 end
                 end end)
         end) end end)
-
 local RebuildScripts
-
 saveBtn.Activated:Connect(function() local n=nameIn.Text
     local c=codeIn.Text if #c==0 then statusLbl.Text="⚠️ Vui lòng nhập code!"; return end
     if #n==0 then n="Script "..(#scripts+1) end local bn=n
@@ -1090,26 +949,21 @@ saveBtn.Activated:Connect(function() local n=nameIn.Text
         cnt+=1; n=bn.." ("..cnt..")" end
     table.insert(scripts,{name=n, code=c, expanded=false}) if RebuildScripts then RebuildScripts() end
     Store.saveSoon() statusLbl.Text="✅ Đã lưu vào Tab 'Code Đã Lưu'! (đã ghi xuống đĩa)" end)
-
 local sy = 8 Label(savedCodeTab, "💾 Danh Sách Script Đã Lưu", sy)
 sy = sy + 18
-
 local searchIn = New("TextBox", { Size=UDim2.new(1,-16,0,26), Position=UDim2.new(0,8,0,sy), Text="",
     PlaceholderText="🔍 Tìm kiếm script...", PlaceholderColor3=Color3.fromRGB(122, 130, 148), BackgroundColor3=Color3.fromRGB(26, 29, 38), BackgroundTransparency=0, TextColor3=Color3.fromRGB(233, 237, 245),
     Font=Enum.Font.GothamMedium, TextSize=12, BorderSizePixel=0, ClearTextOnFocus=false, Active=true, Selectable=true, ZIndex=10, TextXAlignment=Enum.TextXAlignment.Left,
 }, savedCodeTab) Corner(searchIn, UDim.new(0,5))
 Stroke(searchIn, Color3.fromRGB(180,180,200), 1.2) New("UIPadding", {PaddingLeft=UDim.new(0,6)}, searchIn) sy = sy + 32
-
 Store.statusLbl = New("TextLabel", { Size=UDim2.new(1,-110,0,20), Position=UDim2.new(0,8,0,sy),
     Text="💾 ...", BackgroundTransparency=1, TextColor3=C.GRAY, Font=Enum.Font.GothamMedium, TextSize=9,
     TextXAlignment=Enum.TextXAlignment.Left, TextYAlignment=Enum.TextYAlignment.Center, TextTruncate=Enum.TextTruncate.AtEnd, ZIndex=7,
 }, savedCodeTab)
-
 Store.reloadBtn = New("TextButton", { Size=UDim2.new(0,78,0,18), Position=UDim2.new(1,-86,0,sy),
     Text="🔄 Nạp lại", BackgroundColor3=C.BLUE, BackgroundTransparency=0.1, TextColor3=C.WHITE, Font=Enum.Font.GothamBold, TextSize=8, BorderSizePixel=0, ZIndex=8,
 }, savedCodeTab) Corner(Store.reloadBtn, UDim.new(0,5))
 Stroke(Store.reloadBtn, Color3.fromRGB(0,90,170), 1)
-
 Store.refreshStatus = function() if not Store.statusLbl or not Store.statusLbl.Parent then return end
     local ns, nw, nf = #scripts, #waypoints, #featureTabs if Store.lastError then
         Store.statusLbl.TextColor3=Color3.fromRGB(255, 160, 90) Store.statusLbl.Text = string.format("⚠️ %d script · %d WP · %d tab — %s", ns, nw, nf, Store.lastError)
@@ -1120,83 +974,64 @@ Store.refreshStatus = function() if not Store.statusLbl or not Store.statusLbl.P
         Store.statusLbl.TextColor3 = C.GRAY Store.statusLbl.Text = string.format("💾 Chưa lưu gì · sẽ ghi vào %s khi bạn bấm Lưu", Store.SAVE_FILE)
     else Store.statusLbl.TextColor3 = C.GRAY
         Store.statusLbl.Text = "💾 Chưa lưu gì (executor thiếu writefile — chỉ giữ trong phiên chơi)" end end
-
 S.DoReload = function() Store.load()
     RebuildScripts() S.Rebuild()
     if Store.restoreWaypoints then pcall(Store.restoreWaypoints) end if Store.restoreFeatures then pcall(Store.restoreFeatures) end
     if Store.restoreSkins then pcall(Store.restoreSkins) end
     flash(Store.reloadBtn, "✅ Đã nạp", 1.4) end Store.reloadBtn.Activated:Connect(S.DoReload)
-
 sy = sy + 24
-
 local scriptList = New("Frame", { Size=UDim2.new(1,-16,0,0), Position=UDim2.new(0,8,0,sy),
     BackgroundTransparency=1, BorderSizePixel=0, ZIndex=6, }, savedCodeTab)
 New("UIListLayout", {SortOrder=Enum.SortOrder.LayoutOrder, Padding=UDim.new(0,6)}, scriptList)
-
 RebuildScripts = function() for _,c in ipairs(scriptList:GetChildren()) do
         if not c:IsA("UIListLayout") then c:Destroy() end end
-
     local term=searchIn.Text:lower() local disp={}
     for _,d in ipairs(scripts) do if term=="" or d.name:lower():find(term,1,true) then table.insert(disp,d) end
     end
-
     if #disp==0 then New("TextLabel", {
             Size=UDim2.new(1,0,0,40), Text=term~="" and "📭 Không tìm thấy script phù hợp" or "📭 Chưa có script nào được lưu",
             BackgroundTransparency=1, TextColor3=C.GRAY, Font=Enum.Font.GothamMedium, TextSize=11, TextXAlignment=Enum.TextXAlignment.Center, TextYAlignment=Enum.TextYAlignment.Center, ZIndex=7,
         }, scriptList) end
-
     local totalHeight = 0
-
     for _, d in ipairs(disp) do local isExpanded = d.expanded or false
         local rowH = isExpanded and 160 or 42
-
         local row = New("Frame", { Size=UDim2.new(1,0,0,rowH), BackgroundColor3=Color3.fromRGB(26, 29, 38),
             BackgroundTransparency=0.1, BorderSizePixel=0, ZIndex=6, ClipsDescendants=true,
         }, scriptList) Corner(row,UDim.new(0,6)); Stroke(row)
-
         local arrowBtn = New("TextButton", { Size=UDim2.new(0,20,0,20), Position=UDim2.new(0,6,0,10),
             Text=isExpanded and "▲" or "▼", BackgroundColor3=Color3.fromRGB(32, 36, 47), BackgroundTransparency=0,
             TextColor3=C.BLUE, Font=Enum.Font.GothamBold, TextSize=9, BorderSizePixel=0, ZIndex=8, }, row)
         Corner(arrowBtn, UDim.new(0,4))
-
         local nameLbl = New("TextLabel", { Size=UDim2.new(1,-150,0,40), Position=UDim2.new(0,32,0,0),
             Text=d.name, BackgroundTransparency=1, TextColor3=C.DARK, Font=Enum.Font.GothamBold, TextSize=10, TextXAlignment=Enum.TextXAlignment.Left,
             TextTruncate=Enum.TextTruncate.AtEnd, ZIndex=8, }, row)
-
         local delScriptBtn = New("TextButton", { Size=UDim2.new(0,48,0,20), Position=UDim2.new(1,-110,0,10),
             Text="🗑 Xóa", BackgroundColor3=C.RED, BackgroundTransparency=0.1, TextColor3=C.WHITE, Font=Enum.Font.GothamBold, TextSize=8, BorderSizePixel=0, ZIndex=8,
         }, row) Corner(delScriptBtn, UDim.new(0,5))
-
         local runScriptBtn = New("TextButton", { Size=UDim2.new(0,52,0,20), Position=UDim2.new(1,-58,0,10),
             Text="▶ Chạy", BackgroundColor3=C.GREEN, BackgroundTransparency=0.1, TextColor3=C.WHITE, Font=Enum.Font.GothamBold, TextSize=8, BorderSizePixel=0, ZIndex=8,
         }, row) Corner(runScriptBtn, UDim.new(0,5))
-
         if isExpanded then local codeBoxFrame = New("ScrollingFrame", {
                 Size=UDim2.new(1,-12,0,82), Position=UDim2.new(0,6,0,42), BackgroundColor3=Color3.fromRGB(24, 27, 35), BackgroundTransparency=0,
                 BorderSizePixel=0, ZIndex=8, ScrollBarThickness=4, CanvasSize=UDim2.new(0,0,0,0),
                 AutomaticCanvasSize=Enum.AutomaticSize.Y, ScrollingDirection=Enum.ScrollingDirection.Y,
                 ScrollingEnabled=true, VerticalScrollBarInset=Enum.ScrollBarInset.ScrollBar,
             }, row) Corner(codeBoxFrame, UDim.new(0,5)) Stroke(codeBoxFrame, Color3.fromRGB(190,195,210), 1)
-
             local codeLbl = New("TextBox", { Size=UDim2.new(1,-8,0,0), Position=UDim2.new(0,4,0,4),
                 AutomaticSize=Enum.AutomaticSize.Y, Text=d.code, TextColor3=Color3.fromRGB(226, 230, 240), BackgroundTransparency=1,
                 Font=Enum.Font.Code, TextSize=10, TextXAlignment=Enum.TextXAlignment.Left, TextYAlignment=Enum.TextYAlignment.Top, MultiLine=true, TextWrapped=true,
                 ClearTextOnFocus=false, TextEditable=false, Active=true, ZIndex=9, }, codeBoxFrame)
-
             local copyBtn = New("TextButton", { Size=UDim2.new(0,98,0,20), Position=UDim2.new(0,6,0,128),
                 Text="📋 Sao Chép Code", BackgroundColor3=C.BLUE, BackgroundTransparency=0.1, TextColor3=C.WHITE, Font=Enum.Font.GothamBold, TextSize=8, BorderSizePixel=0, ZIndex=8,
             }, row) Corner(copyBtn, UDim.new(0,5))
-
             copyBtn.Activated:Connect(function() if S.CopyToClipboard(d.code) then
                     flash(copyBtn, "✅ Đã Sao Chép!", 1.5) else
                     codeLbl:CaptureFocus() codeLbl.SelectionStart = 1
                     codeLbl.CursorPosition = #d.code + 1 flash(copyBtn, "⚠️ Đã Bôi Đen Code", 1.5)
                 end end) end
-
         arrowBtn.Activated:Connect(function() d.expanded = not d.expanded
             RebuildScripts() Store.saveSoon()
         end)
-
         runScriptBtn.Activated:Connect(function() local prev = runScriptBtn.Text
             local prevColor = runScriptBtn.TextColor3 RunCode(d.code, d.name, runScriptBtn, 1, 0) runScriptBtn.Text = "⏳ ..."
             task.spawn(function() local waited = 0 while runActive and waited < 60 do task.wait(0.1); waited = waited + 0.1 end
@@ -1213,32 +1048,23 @@ RebuildScripts = function() for _,c in ipairs(scriptList:GetChildren()) do
                     if runScriptBtn and runScriptBtn.Parent then runScriptBtn.Text = prev
                         runScriptBtn.TextColor3 = prevColor end
                 end) end) end)
-
         delScriptBtn.Activated:Connect(function() local origIdx = nil
             for idx, s in ipairs(scripts) do if s == d then origIdx = idx; break end
             end if origIdx then
                 table.remove(scripts, origIdx) RebuildScripts()
                 Store.saveSoon() end end)
-
         totalHeight = totalHeight + rowH + 6 end
-
     local listH = math.max(totalHeight, 40) scriptList.Size = UDim2.new(1,-16,0,listH)
     savedCodeTab.CanvasSize = UDim2.new(0, 0, 0, sy + listH + 30) if Store.refreshStatus then Store.refreshStatus() end
 end
-
 searchIn:GetPropertyChangedSignal("Text"):Connect(function() S.Debounce("savedSearch", 0.18, RebuildScripts) end) RebuildScripts()
-
 local supportTab = AddTab("Hỗ Trợ", "🛠", 5)     -- v4.15: 4 -> 5 để nhường chỗ cho 👥 Người Chơi
 S.AnaUi = S.AnaUi or {} S.AnaUi.supportTabIndex = #tabContent
-
 local posY = 8
-
 Label(supportTab, "⚡ Script Nhanh - Nhấn để chạy ngay", posY) posY = posY + 16
-
 local quickScripts = { {n="Dex Explorer", d="Mở Dex Explorer", c=[[loadstring(game:HttpGet("https://raw.githubusercontent.com/infyiff/backup/main/dex.lua"))()]], cl=Color3.fromRGB(72, 148, 248)},
     {n="Infinite Yield", d="Admin Commands", c=[[loadstring(game:HttpGet("https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source"))()]], cl=C.PURPLE}, {n="SimpleSpy v3", d="Theo dõi RemoteEvent & RemoteFunction", c=[[loadstring(game:HttpGet("https://raw.githubusercontent.com/ex-serum/SimpleSpy/main/SimpleSpy.lua"))()]], cl=Color3.fromRGB(38, 194, 118)},
 }
-
 for _, s in ipairs(quickScripts) do local btn = New("TextButton", {
         Size=UDim2.new(1,-16,0,22), Position=UDim2.new(0,8,0,posY), Text="", BackgroundColor3=s.cl, BackgroundTransparency=0.3, BorderSizePixel=0, ZIndex=6,
     }, supportTab) Corner(btn, UDim.new(0,5))
@@ -1246,22 +1072,15 @@ for _, s in ipairs(quickScripts) do local btn = New("TextButton", {
         Size=UDim2.new(1,-10,1,0), Position=UDim2.new(0,10,0,0), Text=s.n.." — "..s.d, BackgroundTransparency=1, TextColor3=C.WHITE, Font=Enum.Font.GothamBold, TextSize=8,
         TextXAlignment=Enum.TextXAlignment.Left, TextYAlignment=Enum.TextYAlignment.Center, ZIndex=7, }, btn)
     btn.Activated:Connect(function() RunCode(s.c, s.n, nil, 1, 0, true) end) posY = posY + 26 end
-
 posY = posY + 6 Label(supportTab, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", posY)
 posY = posY + 16
-
 Label(supportTab, "🛠 Hỗ Trợ — Phân Tích Tọa Độ", posY) posY = posY + 18
 Label(supportTab, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", posY) posY = posY + 16
-
 local analyzeObjectEnabled = false local highlightEnabled = true
-
 local objectAnalyzeBtn = Button(supportTab, "🎯 Phân Tích Vật Thể: TẮT", 8, posY, 260, 20, C.GRAY) local clearObjectBtn = Button(supportTab, "🧹 Xóa KQ", 274, posY, 76, 20, C.RED)
 posY = posY + 24
-
 local highlightToggleBtn = Button(supportTab, "💜 Highlight Tím: BẬT", 8, posY, 260, 20, C.PURPLE) local removeHighlightBtn = Button(supportTab, "❌ Xóa Highlight", 274, posY, 76, 20, C.RED)
 posY = posY + 24
-
--- ---------- v4.8: PHÂN TÍCH ĐA NỀN TẢNG (📱 điện thoại + 🖥 máy tính) ----------
 S.AnaUi = S.AnaUi or {} S.AnaUi.devLbl = Label(supportTab, "📱/🖥 Đang nhận diện thiết bị...", posY)
 S.AnaUi.devLbl.TextSize = 9 S.AnaUi.devLbl.TextColor3 = C.ACCENT
 posY = posY + 16 S.AnaUi.centerBtn = Button(supportTab, "⊕ Vật thể ở GIỮA màn hình", 8, posY, 180, 20, C.BLUE)
@@ -1276,84 +1095,66 @@ S.AnaUi.aimMoveBtn.Activated:Connect(function() local moveEnabled = not (S.AnaUi
     S.AnaUi.aimMoveBtn.Text = moveEnabled and "🔓 Kéo nút: BẬT" or "🔒 Kéo nút: TẮT" D.SetBg(S.AnaUi.aimMoveBtn, moveEnabled and C.ORANGE or C.GRAY)
     S.AnaSay(moveEnabled and "🔓 Đã mở khóa: kéo nút 🔎 để đổi vị trí" or "🔒 Đã khóa vị trí nút 🔎") end)
 S.AnaUi.whyLbl = Label(supportTab, "🔎 Lý do: — (bật 🎯 Phân Tích Vật Thể rồi chạm/chuột phải vào vật)", posY) S.AnaUi.whyLbl.TextSize = 9 posY = posY + 16
-
 Label(supportTab, "💡 Bật “Kéo nút” cạnh Ngắm tâm, đóng menu rồi kéo nút 🔎 đến chỗ muốn.", posY) Label(supportTab, "    Tắt “Kéo nút” để khóa; chạm 🔎 để phân tích vật đang ở tâm.", posY+14)
 Label(supportTab, "    Nút HUD/menu của game vẫn theo tùy chọn phân tích xuyên HUD ở trên.", posY+28) posY = posY + 44
-
 local objResultPanel = New("Frame", { Size=UDim2.new(1,-16,0,190),
     Position=UDim2.new(0,8,0,posY), BackgroundColor3=Color3.fromRGB(20, 25, 35),
     BackgroundTransparency=0, BorderSizePixel=0,
     ZIndex=6, Visible=false,
 }, supportTab) Corner(objResultPanel, UDim.new(0,6)) Stroke(objResultPanel, C.PURPLE, 1.5)
-
 New("TextLabel", {   -- (objTitleLbl: bien local khong dung -> bo de tiet kiem slot local)
     Size=UDim2.new(1,-16,0,16), Position=UDim2.new(0,8,0,4), Text="🎯 VẬT THỂ ĐƯỢC CHỌN", BackgroundTransparency=1,
     TextColor3=Color3.fromRGB(180, 130, 255), Font=Enum.Font.GothamBold, TextSize=10,
     TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7, }, objResultPanel)
-
 local objNameLbl = New("TextLabel", { Size=UDim2.new(1,-16,0,16), Position=UDim2.new(0,8,0,22),
     Text="Name: ...", BackgroundTransparency=1, TextColor3=Color3.fromRGB(255, 255, 100),
     Font=Enum.Font.Code, TextSize=10, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7,
 }, objResultPanel)
-
 local objClassLbl = New("TextLabel", { Size=UDim2.new(1,-16,0,16), Position=UDim2.new(0,8,0,38),
     Text="Class: ...", BackgroundTransparency=1, TextColor3=Color3.fromRGB(200, 200, 255),
     Font=Enum.Font.Code, TextSize=10, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7,
 }, objResultPanel)
-
 local objPosLbl = New("TextLabel", { Size=UDim2.new(1,-16,0,16), Position=UDim2.new(0,8,0,54),
     Text="Position: ...", BackgroundTransparency=1, TextColor3=Color3.fromRGB(255, 180, 180),
     Font=Enum.Font.Code, TextSize=10, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7,
 }, objResultPanel)
-
 local objSizeLbl = New("TextLabel", { Size=UDim2.new(1,-16,0,16), Position=UDim2.new(0,8,0,70),
     Text="Size: ...", BackgroundTransparency=1, TextColor3=Color3.fromRGB(180, 255, 180),
     Font=Enum.Font.Code, TextSize=10, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7,
 }, objResultPanel)
-
 local objRotLbl = New("TextLabel", { Size=UDim2.new(1,-16,0,16), Position=UDim2.new(0,8,0,86),
     Text="Rotation: ...", BackgroundTransparency=1, TextColor3=Color3.fromRGB(180, 220, 255),
     Font=Enum.Font.Code, TextSize=10, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7,
 }, objResultPanel)
-
 local objLookLbl = New("TextLabel", { Size=UDim2.new(1,-16,0,16), Position=UDim2.new(0,8,0,102),
     Text="Look: ...", BackgroundTransparency=1, TextColor3=Color3.fromRGB(220, 200, 255),
     Font=Enum.Font.Code, TextSize=10, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7,
 }, objResultPanel)
-
 local objMatLbl = New("TextLabel", { Size=UDim2.new(1,-16,0,16), Position=UDim2.new(0,8,0,118),
     Text="Material: ...", BackgroundTransparency=1, TextColor3=Color3.fromRGB(255, 220, 180),
     Font=Enum.Font.Code, TextSize=10, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7,
 }, objResultPanel)
-
 local objColorLbl = New("TextLabel", { Size=UDim2.new(1,-16,0,16), Position=UDim2.new(0,8,0,134),
     Text="Color: ...", BackgroundTransparency=1, TextColor3=Color3.fromRGB(255, 180, 220),
     Font=Enum.Font.Code, TextSize=10, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7,
 }, objResultPanel)
-
 local objPathLbl = New("TextLabel", { Size=UDim2.new(1,-16,0,16), Position=UDim2.new(0,8,0,150),
     Text="Path: ...", BackgroundTransparency=1, TextColor3=Color3.fromRGB(180, 255, 220),
     Font=Enum.Font.Code, TextSize=9, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7,
     TextTruncate=Enum.TextTruncate.AtEnd, }, objResultPanel)
-
 local copyObjBtn = New("TextButton", { Size=UDim2.new(0,96,0,18), Position=UDim2.new(0,8,0,168),
     Text="📋 Copy Tọa Độ", BackgroundColor3=C.BLUE, BackgroundTransparency=0.1, TextColor3=C.WHITE, Font=Enum.Font.GothamBold, TextSize=8, BorderSizePixel=0, ZIndex=8,
 }, objResultPanel) Corner(copyObjBtn, UDim.new(0,4))
-
 local copyPathBtn = New("TextButton", { Size=UDim2.new(0,96,0,18), Position=UDim2.new(0,110,0,168),
     Text="📋 Copy Path", BackgroundColor3=C.PURPLE, BackgroundTransparency=0.1, TextColor3=C.WHITE, Font=Enum.Font.GothamBold, TextSize=8, BorderSizePixel=0, ZIndex=8,
 }, objResultPanel) Corner(copyPathBtn, UDim.new(0,4))
-
 posY = posY + 198
-
 Label(supportTab, "📍 Tọa Độ Hiện Tại (Real-time)", posY) posY = posY + 16
-
 local coordDisplay = New("Frame", { Size=UDim2.new(1,-16,0,290),
     Position=UDim2.new(0,8,0,posY), BackgroundColor3=Color3.fromRGB(30, 35, 45),
     BackgroundTransparency=0, BorderSizePixel=0,
     ZIndex=6, }, supportTab)
 Corner(coordDisplay, UDim.new(0,6)) Stroke(coordDisplay, C.BLUE, 1.5)
-
 local function CreateCoordRow(parent, yPos, labelText, labelColor, valueDefault) New("TextLabel", {
         Size=UDim2.new(0,90,0,16), Position=UDim2.new(0,8,0,yPos), Text=labelText, BackgroundTransparency=1, TextColor3=labelColor,
         Font=Enum.Font.GothamBold, TextSize=10, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7,
@@ -1361,63 +1162,48 @@ local function CreateCoordRow(parent, yPos, labelText, labelColor, valueDefault)
         Size=UDim2.new(1,-100,0,16), Position=UDim2.new(0,100,0,yPos), Text=valueDefault or "...", BackgroundTransparency=1,
         TextColor3=Color3.fromRGB(255,255,255), Font=Enum.Font.Code, TextSize=10,
         TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7, }, parent) end
-
 New("TextLabel", { Size=UDim2.new(1,-16,0,14), Position=UDim2.new(0,8,0,4),
     Text="📍 POSITION (DƯỚI CHÂN)", BackgroundTransparency=1, TextColor3=Color3.fromRGB(255, 200, 100),
     Font=Enum.Font.GothamBold, TextSize=9, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7,
 }, coordDisplay)
-
 local xValLbl = CreateCoordRow(coordDisplay, 20, "X:", Color3.fromRGB(255,100,100), "0.000") local yValLbl = CreateCoordRow(coordDisplay, 36, "Y:", Color3.fromRGB(100,255,100), "0.000")
 local zValLbl = CreateCoordRow(coordDisplay, 52, "Z:", Color3.fromRGB(100,150,255), "0.000")
-
 New("TextLabel", { Size=UDim2.new(1,-16,0,14), Position=UDim2.new(0,8,0,72),
     Text="📦 SIZE", BackgroundTransparency=1, TextColor3=Color3.fromRGB(255, 200, 100),
     Font=Enum.Font.GothamBold, TextSize=9, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7,
 }, coordDisplay)
-
 local sizeXValLbl = CreateCoordRow(coordDisplay, 88, "Size X:", Color3.fromRGB(255,150,150), "0.000") local sizeYValLbl = CreateCoordRow(coordDisplay, 104, "Size Y:", Color3.fromRGB(150,255,150), "0.000")
 local sizeZValLbl = CreateCoordRow(coordDisplay, 120, "Size Z:", Color3.fromRGB(150,180,255), "0.000")
-
 New("TextLabel", { Size=UDim2.new(1,-16,0,14), Position=UDim2.new(0,8,0,140),
     Text="🧭 ROTATION", BackgroundTransparency=1, TextColor3=Color3.fromRGB(255, 200, 100),
     Font=Enum.Font.GothamBold, TextSize=9, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7,
 }, coordDisplay)
-
 local rotPValLbl = CreateCoordRow(coordDisplay, 156, "Pitch (X):", Color3.fromRGB(255,150,150), "0.0°") local rotYValLbl = CreateCoordRow(coordDisplay, 172, "Yaw (Y):", Color3.fromRGB(150,255,150), "0.0°")
 local rotRValLbl = CreateCoordRow(coordDisplay, 188, "Roll (Z):", Color3.fromRGB(150,180,255), "0.0°")
-
 New("TextLabel", { Size=UDim2.new(1,-16,0,14), Position=UDim2.new(0,8,0,206),
     Text="👁 LOOK / STATE / HP", BackgroundTransparency=1, TextColor3=Color3.fromRGB(255, 200, 100),
     Font=Enum.Font.GothamBold, TextSize=9, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7,
 }, coordDisplay)
-
 local lookValLbl = New("TextLabel", { Size=UDim2.new(1,-16,0,16), Position=UDim2.new(0,8,0,222),
     Text="Look: ...", BackgroundTransparency=1, TextColor3=Color3.fromRGB(200,220,255),
     Font=Enum.Font.Code, TextSize=10, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7, }, coordDisplay)
-
 local stateValLbl = New("TextLabel", { Size=UDim2.new(1,-16,0,16), Position=UDim2.new(0,8,0,240),
     Text="State: ...", BackgroundTransparency=1, TextColor3=Color3.fromRGB(200,255,200),
     Font=Enum.Font.Code, TextSize=10, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7,
 }, coordDisplay)
-
 local hpValLbl = New("TextLabel", { Size=UDim2.new(1,-16,0,16), Position=UDim2.new(0,8,0,258),
     Text="HP: ...", BackgroundTransparency=1, TextColor3=Color3.fromRGB(255,200,200),
     Font=Enum.Font.Code, TextSize=10, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7,
 }, coordDisplay)
-
 local placeLbl = New("TextLabel", { Size=UDim2.new(1,-16,0,14), Position=UDim2.new(0,8,0,274),
     Text="Place: ...", BackgroundTransparency=1, TextColor3=Color3.fromRGB(150, 200, 255),
     Font=Enum.Font.GothamMedium, TextSize=9, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7,
 }, coordDisplay)
-
 posY = posY + 298
-
 local lastPos = Vector3.new() local lastSize = Vector3.new()
 local lastRot = Vector3.new() local lastLook = Vector3.new()
 local lastState = "" local lastHp = -1
-
 local function GetRootPart()
-    -- v5.3 EXTREME: ưu tiên cache MV.Root() để tránh FindFirstChild mỗi frame
     if S.Move and S.Move.Root then
         local ok, r = pcall(S.Move.Root)
         if ok and r and r.Parent then return r end
@@ -1427,15 +1213,11 @@ local function GetRootPart()
     local rootPart = (humanoid and humanoid.RootPart) or char:FindFirstChild("HumanoidRootPart")
         or char.PrimaryPart or char:FindFirstChild("UpperTorso")
         or char:FindFirstChild("Torso") return rootPart end
-
 local _groundParams = nil local _groundChar = nil
 local function GetGroundPosition() local char = player.Character
     if not char then return nil end local rootPart = GetRootPart()
     if not rootPart then return nil end
-
     local origin = rootPart.Position local direction = Vector3.new(0, -500, 0)
-
-    -- v5.4 EXTREME+: tái sử dụng RaycastParams thay vì tạo mới mỗi 0.1s
     if not _groundParams or _groundChar ~= char then
         _groundChar = char
         local ok, p = pcall(function() return RaycastParams.new() end)
@@ -1446,7 +1228,6 @@ local function GetGroundPosition() local char = player.Character
             _groundParams = p
         end
     else
-        -- cập nhật filter nếu char đổi (đã check ở trên) nhưng vẫn đảm bảo
         pcall(function() _groundParams.FilterDescendantsInstances = {char} end)
     end
     local params = _groundParams
@@ -1454,18 +1235,14 @@ local function GetGroundPosition() local char = player.Character
         params = RaycastParams.new() params.FilterType = Enum.RaycastFilterType.Exclude
         params.FilterDescendantsInstances = {char} params.IgnoreWater = false
     end
-
     local result = workspace:Raycast(origin, direction, params) if result then
         return result.Position, result.Instance, result.Normal, result.Material end
     return nil end
-
 local coordAcc = 0 local coordLbls
 local function coordNA(all) coordLbls = coordLbls or {xValLbl, yValLbl, zValLbl, sizeXValLbl, sizeYValLbl, sizeZValLbl,
                               rotPValLbl, rotYValLbl, rotRValLbl} for _, l in ipairs(coordLbls) do pcall(function() l.Text = "N/A" end) end if all then
         lookValLbl.Text = "Look: N/A" stateValLbl.Text = "State: N/A"
         hpValLbl.Text = "HP: N/A" end end
-
--- v5.2 PERF: S.Coord quản lý kết nối tọa độ — chỉ chạy khi ở tab Hỗ Trợ
 S.Coord = S.Coord or { _conn = nil, _bound = false }
 function S.Coord.IsActive()
     if S.PagePerf and S.PagePerf.ShouldRunForSupportTab then
@@ -1489,50 +1266,37 @@ function S.Coord.Bind(on)
     S.Coord._conn = RunService.RenderStepped:Connect(function(stepDt) coordAcc = coordAcc + (tonumber(stepDt) or 0.016)
         if coordAcc < 0.15 then return end coordAcc = 0 -- v5.4 EXTREME+: 0.10->0.15 giảm thêm 33% raycast
         if not S.Coord.IsActive() then return end
-        -- perf: nếu không active thì ngắt luôn để đỡ gọi mỗi frame
         if S.PagePerf and not S.PagePerf.ShouldRunForSupportTab() then
-            -- vẫn giữ kết nối nhưng không làm gì, sẽ được RefreshBind ngắt ở tab change
             return
         end
         if not (main and main.Visible) then return end if not (supportTab and supportTab.Visible) then return end
     local char = player.Character if not char then
         coordNA(true) return end
-
     local humanoid = char:FindFirstChildOfClass("Humanoid") local rootPart = GetRootPart()
-
     if not rootPart then coordNA()
         return end
-
     local groundPos = GetGroundPosition() local displayPos = groundPos or rootPart.CFrame.Position
-
     local cf = rootPart.CFrame local size = rootPart.Size
     local rx, ry, rz = cf:ToOrientation() local look = cf.LookVector
-
     if (displayPos - lastPos).Magnitude > 0.001 then lastPos = displayPos
         xValLbl.Text = string.format("%.3f", displayPos.X) yValLbl.Text = string.format("%.3f", displayPos.Y)
         zValLbl.Text = string.format("%.3f", displayPos.Z) end
-
     if (size - lastSize).Magnitude > 0.001 then lastSize = size
         sizeXValLbl.Text = string.format("%.3f", size.X) sizeYValLbl.Text = string.format("%.3f", size.Y)
         sizeZValLbl.Text = string.format("%.3f", size.Z) end
-
     local newRot = Vector3.new(rx, ry, rz) if (newRot - lastRot).Magnitude > 0.001 then
         lastRot = newRot rotPValLbl.Text = string.format("%.1f°", math.deg(rx))
         rotYValLbl.Text = string.format("%.1f°", math.deg(ry)) rotRValLbl.Text = string.format("%.1f°", math.deg(rz))
     end
-
     if (look - lastLook).Magnitude > 0.001 then lastLook = look
         lookValLbl.Text = string.format("Look: %.3f, %.3f, %.3f", look.X, look.Y, look.Z) end
-
     if humanoid then local state = humanoid:GetState()
         if state ~= lastState then lastState = state
             stateValLbl.Text = "State: "..tostring(state):gsub("Enum.HumanoidStateType.", "") end
-
         local hp = math.floor(humanoid.Health) if hp ~= lastHp then
             lastHp = hp hpValLbl.Text = string.format("HP: %d / %d", hp, math.floor(humanoid.MaxHealth))
         end else
         stateValLbl.Text = "State: No Humanoid" hpValLbl.Text = "HP: N/A" end
-
     if placeLbl.Text == "Place: ..." and (os.clock() - (D.placeTryAt or -99)) >= 10 then D.placeTryAt = os.clock()
         pcall(function() local info = game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId)
             placeLbl.Text = "Place: "..game.PlaceId.." — "..info.Name end)
@@ -1548,36 +1312,27 @@ function S.Coord.RefreshBind()
         S.Coord._bound = false
     end
 end
--- Khởi tạo: chỉ bind khi đang ở tab Hỗ Trợ
 pcall(function() S.Coord.RefreshBind() end)
-
 local currentHighlight = nil
-
 local function RemoveCurrentHighlight() if currentHighlight then
         pcall(function() currentHighlight:Destroy() end) currentHighlight = nil
     end end
-
 local function CreateHighlight(target) if not target then
         RemoveCurrentHighlight() return
     end if not target:IsA("BasePart") then return end
     if currentHighlight and currentHighlight.Parent and currentHighlight.Adornee == target then
         return -- không dựng lại Highlight mỗi lần làm mới tọa độ của cùng vật
     end RemoveCurrentHighlight()
-
     local hl = Instance.new("Highlight") hl.Name = "BananaCatHub_Highlight"
     hl.Adornee = target hl.FillColor = Color3.fromRGB(160, 60, 255)
     hl.FillTransparency = 0.7 hl.OutlineColor = Color3.fromRGB(200, 100, 255)
     hl.OutlineTransparency = 0 hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop hl.Parent = target
-
     currentHighlight = hl end
-
 local function GetFullPath(obj) if not obj then return "nil" end
     local parts = {} local cur = obj
     while cur and cur ~= game do table.insert(parts, 1, cur.Name)
         cur = cur.Parent end
     return table.concat(parts, ".") end
-
--- ----------------------------------------------------------------------------
 S.AnaCfg = S.AnaCfg or {
     skipGameGui  = true,   -- 🛡 bỏ qua HUD/nền của game khi phân tích (nguyên nhân số 1)
     scanFallback = true,   -- 🧭 tia trượt thì quét vật gần tia (game dùng CanQuery=false)
@@ -1588,27 +1343,22 @@ S.AnaCfg = S.AnaCfg or {
 } S.AnaUi   = S.AnaUi or {}
 S.AnaLast = S.AnaLast or {ok = false, why = nil, name = nil, how = nil} S.AnaNote = nil
 S.AnaWhyScan = nil
-
 function S.AnaCam() local cam = workspace.CurrentCamera
     if not cam then pcall(function() cam = camera end) end return cam
 end
-
 function S.AnaSay(msg) S.AnaLast.why = tostring(msg or "")
     pcall(function() local l = S.AnaUi.whyLbl
         if l and l.Parent then l.Text = "🔎 " .. tostring(msg) end end)
     pcall(function() print("[taodepzai v5.0 NOIR] 🔎 " .. tostring(msg)) end) end
-
 function S.DeviceText() local touch, mouse = false, false
     pcall(function() touch = (UserInputService.TouchEnabled == true) end) pcall(function() mouse = (UserInputService.MouseEnabled == true) end)
     local hold = string.format("%.2f", S.AnaCfg.holdTime) if touch and mouse then return "🖥📱 Máy có cảm ứng: CHUỘT PHẢI hoặc GIỮ NGÓN " .. hold .. "s lên vật · hoặc bấm ⊕ Giữa màn hình"
     elseif touch then return "📱 Điện thoại: GIỮ NGÓN " .. hold .. "s lên vật (chạm nhanh vẫn đi/bắn bình thường) · hoặc ⊕ Giữa màn hình"
     elseif mouse then return "🖥 Máy tính: CHUỘT PHẢI vào vật (chuột trái vẫn chơi bình thường) · hoặc ⊕ Giữa màn hình"
     end return "🎮 Chưa rõ thiết bị: dùng ⊕ Giữa màn hình hoặc 🧭 Gần nhất — nền tảng nào cũng chạy" end
-
 function S.RefreshDevLabel() pcall(function()
         local l = S.AnaUi.devLbl if l and l.Parent then l.Text = S.DeviceText() end
     end) end
-
 function S.GuiBlockAt(x, y) local hard, soft = nil, nil
     local vpx, vpy = 1280, 720 pcall(function()
         local cam2 = S.AnaCam() if cam2 then vpx, vpy = cam2.ViewportSize.X, cam2.ViewportSize.Y end
@@ -1626,7 +1376,6 @@ function S.GuiBlockAt(x, y) local hard, soft = nil, nil
                     end end
             end end
     end return hard, soft end
-
 function S.PickByRayScan(ray, filterList) if not ray or not ray.Origin or not ray.Direction then
         return nil, "không có tia ngắm hợp lệ" end
     local dir = ray.Direction local dirMagnitude = dir.Magnitude
@@ -1638,7 +1387,6 @@ function S.PickByRayScan(ray, filterList) if not ray or not ray.Origin or not ra
         overlap.MaxParts = 512 return overlap
     end) if not okParams or not op then
         return nil, "không tạo được bộ lọc quét vật thể" end
-
     local parts, seen = {}, {} local center = ray.Origin + dir * (maxD / 2)
     local up = (math.abs(dir.Y) > 0.98) and Vector3.new(0, 0, 1) or Vector3.new(0, 1, 0) local boxCFrame = CFrame.lookAt(center, center + dir, up)
     local okBox, boxParts = pcall(function() return workspace:GetPartBoundsInBox(boxCFrame, Vector3.new(corridor * 2, corridor * 2, maxD), op)
@@ -1646,8 +1394,6 @@ function S.PickByRayScan(ray, filterList) if not ray or not ray.Origin or not ra
         for _, pt in ipairs(boxParts) do if pt and not seen[pt] then
                 seen[pt] = true parts[#parts + 1] = pt
             end end else
-        -- Tương thích với môi trường thiếu GetPartBoundsInBox: quét từng đoạn dọc tia,
-        -- thay vì chỉ kiểm tra 220 studs đầu như phiên bản cũ.
         local stepLen = 180 for startD = 0, maxD, stepLen do
             local length = math.min(stepLen, maxD - startD) if length > 0 then
                 local sample = ray.Origin + dir * (startD + length / 2) local okRadius, around = pcall(function()
@@ -1658,7 +1404,6 @@ function S.PickByRayScan(ray, filterList) if not ray or not ray.Origin or not ra
                 end end
         end end
     if #parts == 0 then return nil, string.format("không tìm thấy vật quanh tia trong %.0f studs", maxD) end
-
     local best, bestSurfaceD, bestOffset = nil, math.huge, math.huge for _, pt in ipairs(parts) do
         local okV, along, offset, radius = pcall(function() local rel = pt.Position - ray.Origin
             local t = rel:Dot(dir) if t <= 0.5 or t > maxD then return nil end
@@ -1670,7 +1415,6 @@ function S.PickByRayScan(ray, filterList) if not ray or not ray.Origin or not ra
         end end
     if not best then return nil, "quét " .. #parts .. " vật nhưng không vật nào nằm trên tia trong " .. string.format("%.0f", maxD) .. " studs"
     end return best, string.format("quét xa dự phòng · %.0f studs · lệch tâm %.1f studs", bestSurfaceD, bestOffset) end
-
 function S.NearestParts(n) local char = player.Character
     local root = char and char:FindFirstChild("HumanoidRootPart") if not root then return nil, "chưa có nhân vật (đang ở lobby/menu?)" end
     local ok, parts = pcall(function() local op = OverlapParams.new()
@@ -1683,43 +1427,33 @@ function S.NearestParts(n) local char = player.Character
     table.sort(list, function(a, b) return a.d < b.d end) local names = {}
     for i = 1, math.min(n or 5, #list) do names[#names+1] = list[i].p.Name .. " (" .. string.format("%.1f", list[i].d) .. "m)"
     end return (list[1] and list[1].p or nil), table.concat(names, " · "), #list end
-
 function S.FillObjPanel(inst, hitPos, hitNormal, hitMat, how, quiet) if not inst then return false end
     objResultPanel.Visible = true
-
     objNameLbl.Text = "Name: "..inst.Name objClassLbl.Text = "Class: "..inst.ClassName
     objPosLbl.Text = string.format("Position: %.3f, %.3f, %.3f", hitPos.X, hitPos.Y, hitPos.Z)
-
     if inst:IsA("BasePart") then local size = inst.Size
         local cf = inst.CFrame local rx, ry, rz = cf:ToOrientation()
         local look = cf.LookVector local color = inst.Color
         local material = inst.Material
-
         objSizeLbl.Text = string.format("Size: %.3f, %.3f, %.3f", size.X, size.Y, size.Z) objRotLbl.Text = string.format("Rotation: P=%.1f° Y=%.1f° R=%.1f°",
             math.deg(rx), math.deg(ry), math.deg(rz)) objLookLbl.Text = string.format("Look: %.3f, %.3f, %.3f", look.X, look.Y, look.Z)
         objMatLbl.Text = "Material: "..tostring(material):gsub("Enum.Material.", "") objColorLbl.Text = string.format("Color: R=%d G=%d B=%d",
             math.floor(color.R*255), math.floor(color.G*255), math.floor(color.B*255))
-
         if highlightEnabled then CreateHighlight(inst) end else
         objSizeLbl.Text = "Size: N/A (không phải BasePart)" objRotLbl.Text = "Rotation: N/A"
         objLookLbl.Text = "Look: N/A" objMatLbl.Text = "Material: N/A"
         objColorLbl.Text = "Color: N/A" RemoveCurrentHighlight() end
-
     objPathLbl.Text = "Path: "..GetFullPath(inst) objResultPanel:SetAttribute("LastHitPos", tostring(hitPos))
     objResultPanel:SetAttribute("LastPath", GetFullPath(inst)) objResultPanel:SetAttribute("LastNormal", tostring(hitNormal))
     objResultPanel:SetAttribute("LastMaterial", tostring(hitMat))
-
     S.AnaLast.ok = true S.AnaLast.name = tostring(inst.Name)
     S.AnaLast.how = tostring(how or "") if not quiet then
         S.AnaSay(tostring(how or "🎯 tia bắn trúng") .. ": " .. inst.Name .. " (" .. inst.ClassName .. ")" .. (S.AnaNote and (" · " .. S.AnaNote) or ""))
     end return true end
-
 S.RefreshDevLabel()   -- v4.8: hiện đúng cách chọn vật của thiết bị đang dùng
-
 local function PickObjectAt(mousePos, isRightClick, ignoreHubGui) local x, y = mousePos.X, mousePos.Y
     S.AnaLast.ok = false S.AnaNote = nil
     S.AnaWhyScan = nil
-
     if not ignoreHubGui and Hit.onHub(x, y) then S.AnaSay("⏭️ Điểm chạm nằm trên menu của hub — bấm ra ngoài game rồi thử lại")
         return end
     local hardGui, softGui = S.GuiBlockAt(x, y) if hardGui then
@@ -1727,20 +1461,17 @@ local function PickObjectAt(mousePos, isRightClick, ignoreHubGui) local x, y = m
     if softGui and not S.AnaCfg.skipGameGui then S.AnaSay("🚫 HUD của game (" .. softGui .. ") đang chặn — BẬT '🛡 Phân tích xuyên HUD game' là dùng được")
         return end
     if softGui then S.AnaNote = "🛡 phân tích xuyên HUD của game (" .. softGui .. ")" end
-
     local cam2 = S.AnaCam() if not cam2 then
         S.AnaSay("⚠️ Game chưa có camera (Workspace.CurrentCamera = nil) — vào lại game rồi thử") return
     end local unitRay = cam2:ViewportPointToRay(x, y) local params = RaycastParams.new()
     params.FilterType = Enum.RaycastFilterType.Exclude local filterList = {}
     if player.Character then table.insert(filterList, player.Character) end if gui then table.insert(filterList, gui) end params.FilterDescendantsInstances = filterList
     params.IgnoreWater = S.AnaCfg.ignoreWater   -- v4.8: không để mặt nước ăn tia
-
     local result = workspace:Raycast(unitRay.Origin, unitRay.Direction * S.AnaCfg.maxDist, params) if result and result.Material == Enum.Material.Water then
         local pw = RaycastParams.new() pw.FilterType = Enum.RaycastFilterType.Exclude
         pw.FilterDescendantsInstances = filterList pw.IgnoreWater = true local rw = workspace:Raycast(unitRay.Origin, unitRay.Direction * S.AnaCfg.maxDist, pw)
         if rw and rw.Instance then result = rw
             S.AnaNote = "🌊 đã xuyên qua mặt nước để lấy vật bên dưới" end end
-
     local inst, hitPos, hitNormal, hitMat, how if result and result.Instance then
         inst, hitPos, hitNormal, hitMat = result.Instance, result.Position, result.Normal, result.Material how = "🎯 tia bắn trúng"
     elseif S.AnaCfg.scanFallback then local part, why2 = S.PickByRayScan(unitRay, filterList)
@@ -1748,7 +1479,6 @@ local function PickObjectAt(mousePos, isRightClick, ignoreHubGui) local x, y = m
             pcall(function() hitNormal = part.CFrame.LookVector end) pcall(function() hitMat = part.Material end)
         else S.AnaWhyScan = why2
         end end objResultPanel.Visible = true
-
     if inst then S.FillObjPanel(inst, hitPos, hitNormal, hitMat, how)
     else local prevName = objNameLbl.Text
         objNameLbl.Text = "⚠️ Không hit gì — giữ vật đang chọn" S.AnaSay("⚠️ Không thấy vật ở điểm chạm"
@@ -1756,7 +1486,6 @@ local function PickObjectAt(mousePos, isRightClick, ignoreHubGui) local x, y = m
         task.delay(1.0, function() if objNameLbl and objNameLbl.Parent and objNameLbl.Text == "⚠️ Không hit gì — giữ vật đang chọn" then
                 objNameLbl.Text = prevName end
         end) end end
-
 function S.AnaAimEnsureDot() if S.AnaUi.aimGui and S.AnaUi.aimGui.Parent then return S.AnaUi.aimGui end
     local aimGui = New("ScreenGui", { Name = "BananaCatHub_AnaAimDot",
         IgnoreGuiInset = true, ResetOnSpawn = false,
@@ -1797,20 +1526,17 @@ function S.AnaAimEnsureDot() if S.AnaUi.aimGui and S.AnaUi.aimGui.Parent then re
         end end)
     S.AnaUi.aimGui = aimGui S.AnaUi.aimDot = dot
     S.AnaUi.aimActionBtn = actionBtn return aimGui end
-
 function S.AnaAimStep() if not S.AnaUi.centerAimOn or not S.AnaUi.aimGui then return end
     local showOverlay = not (main and main.Visible) if S.AnaUi.aimGui.Enabled ~= showOverlay then
         S.AnaUi.aimGui.Enabled = showOverlay end
     if not showOverlay then S.AnaUi.aimButtonDragging = false
         S.AnaUi.aimButtonDragInput = nil end end
-
 function S.AnaAimBeginButtonDrag(input) if not S.AnaUi.aimButtonMoveEnabled then return end
     local inputType = input.UserInputType if inputType ~= Enum.UserInputType.MouseButton1 and inputType ~= Enum.UserInputType.Touch then return end
     local btn = S.AnaUi.aimActionBtn if not btn then return end local inputPos = input.Position
     S.AnaUi.aimButtonDragging = true S.AnaUi.aimButtonDragInput = input
     S.AnaUi.aimButtonDragOrigin = Vector2.new(inputPos.X, inputPos.Y) S.AnaUi.aimButtonDragCenter = btn.AbsolutePosition + btn.AbsoluteSize / 2
     S.AnaUi.aimButtonDragMoved = false S.AnaUi.aimButtonSuppressUntil = 0 end
-
 function S.AnaAimDragMove(input) if not S.AnaUi.aimButtonDragging or not S.AnaUi.aimButtonMoveEnabled then return end
     local dragInput = S.AnaUi.aimButtonDragInput if not dragInput then return end
     local inputType = dragInput.UserInputType local isPointerMove = (inputType == Enum.UserInputType.MouseButton1 and input.UserInputType == Enum.UserInputType.MouseMovement)
@@ -1822,7 +1548,6 @@ function S.AnaAimDragMove(input) if not S.AnaUi.aimButtonDragging or not S.AnaUi
     local halfX = btn.AbsoluteSize.X / 2 + 6 local halfY = btn.AbsoluteSize.Y / 2 + 6
     local x = math.clamp(S.AnaUi.aimButtonDragCenter.X + delta.X, halfX, math.max(halfX, viewport.X - halfX)) local y = math.clamp(S.AnaUi.aimButtonDragCenter.Y + delta.Y, halfY, math.max(halfY, viewport.Y - halfY))
     btn.Position = UDim2.new(x / viewport.X, 0, y / viewport.Y, 0) S.AnaUi.aimButtonPosition = btn.Position end
-
 function S.AnaAimEndButtonDrag(input) if not S.AnaUi.aimButtonDragging then return end
     local dragInput = S.AnaUi.aimButtonDragInput if not dragInput then return end
     local samePointer = input == dragInput or (dragInput.UserInputType == Enum.UserInputType.MouseButton1 and input.UserInputType == Enum.UserInputType.MouseButton1)
@@ -1831,23 +1556,19 @@ function S.AnaAimEndButtonDrag(input) if not S.AnaUi.aimButtonDragging then retu
         S.AnaUi.aimButtonSuppressUntil = 0 end
     S.AnaUi.aimButtonDragging = false S.AnaUi.aimButtonDragInput = nil
     S.AnaUi.aimButtonDragOrigin = nil S.AnaUi.aimButtonDragCenter = nil end
-
 trackConn(UserInputService.InputChanged:Connect(function(input) pcall(S.AnaAimDragMove, input)
 end)) trackConn(UserInputService.InputEnded:Connect(function(input)
     pcall(S.AnaAimEndButtonDrag, input) end))
-
 function S.AnaAimAnalyzeOnce() if not S.AnaUi.centerAimOn then return false end
     S.AnaLast.ok = false local cam = S.AnaCam() if not cam then
         S.AnaSay("⚠️ Camera chưa sẵn sàng để phân tích điểm giữa màn hình") else
         local viewport = cam.ViewportSize PickObjectAt(Vector2.new(viewport.X * 0.5, viewport.Y * 0.5), false, true) end
-
     if S.AnaUi.supportTabIndex then SwitchTab(S.AnaUi.supportTabIndex)
     end if main then main.Visible = true end
     if S.AnaLast and S.AnaLast.ok then supportTab.CanvasPosition = Vector2.new(0, math.max(0, objResultPanel.Position.Y.Offset - 24))
     elseif S.AnaUi.whyLbl then supportTab.CanvasPosition = Vector2.new(0, math.max(0, S.AnaUi.whyLbl.Position.Y.Offset - 24))
     end if togBtn then togBtn.Text = "✕" end
     ReleaseHubFocus() return S.AnaLast and S.AnaLast.ok == true end
-
 function S.AnaAimSet(on) on = (on == true)
     if on == (S.AnaUi.centerAimOn == true) then return on end S.AnaUi.centerAimOn = on
     if on then local okDot = pcall(S.AnaAimEnsureDot)
@@ -1865,25 +1586,20 @@ function S.AnaAimSet(on) on = (on == true)
         pcall(function() RunService:UnbindFromRenderStep("BC_AnaAim") end) pcall(function() if S.AnaUi.aimGui then S.AnaUi.aimGui:Destroy() end end)
         S.AnaUi.aimGui, S.AnaUi.aimDot, S.AnaUi.aimActionBtn = nil, nil, nil S.AnaUi.aimButtonDragging, S.AnaUi.aimButtonDragInput = false, nil
         S.AnaUi.aimButtonDragOrigin, S.AnaUi.aimButtonDragCenter = nil, nil S.AnaUi.aimButtonDragMoved, S.AnaUi.aimButtonSuppressUntil = false, 0 end
-
     local active = (S.AnaUi.centerAimOn == true) local btn = S.AnaUi.centerAimBtn
     if btn and btn.Parent then btn.Text = active and "🔴 Ngắm tâm: BẬT" or "🔴 Ngắm tâm: TẮT"
         D.SetBg(btn, active and C.RED or C.GRAY) end
     if active then S.AnaSay("🔴 Ngắm tâm đã bật · canh vật ở chấm đỏ rồi nhấn nút 🔎 để phân tích")
     end return active end
-
 S.AnaUi.centerAimBtn.Activated:Connect(function() local requested = not (S.AnaUi.centerAimOn == true)
     local active = S.AnaAimSet(requested) if requested and not active then
         S.AnaSay("⚠️ Không bật được chế độ ngắm tâm — không tạo được chấm đỏ/nút phân tích") end
 end)
-
 trackConn(UserInputService.InputBegan:Connect(function(input, gp)
     if gp then return end   -- Roblox đã xử lý input này (nút GUI / TextBox focus)
     if not analyzeObjectEnabled then return end
-
     if input.UserInputType == Enum.UserInputType.MouseButton2 then PickObjectAt(input.Position, true)
         return end
-
     if input.UserInputType == Enum.UserInputType.Touch then local startTick = tick()
         local startPos = input.Position local holdConn, moveConn
         holdConn = UserInputService.InputEnded:Connect(function(e) if e == input then
@@ -1898,7 +1614,6 @@ trackConn(UserInputService.InputBegan:Connect(function(input, gp)
                 end end
         end) return
     end end))
-
 objectAnalyzeBtn.Activated:Connect(function() analyzeObjectEnabled = not analyzeObjectEnabled
     if analyzeObjectEnabled then objectAnalyzeBtn.Text = "🎯 Phân Tích Vật: BẬT"
         D.SetBg(objectAnalyzeBtn, C.GREEN)   -- v4.5: đổi màu kèm chữ tương phản
@@ -1906,17 +1621,13 @@ objectAnalyzeBtn.Activated:Connect(function() analyzeObjectEnabled = not analyze
     else objectAnalyzeBtn.Text = "🎯 Phân Tích Vật: TẮT"
         D.SetBg(objectAnalyzeBtn, C.GRAY) RemoveCurrentHighlight()
     end end)
-
 highlightToggleBtn.Activated:Connect(function() highlightEnabled = not highlightEnabled
     if highlightEnabled then highlightToggleBtn.Text = "💜 Highlight Tím: BẬT"
         D.SetBg(highlightToggleBtn, C.PURPLE) else
         highlightToggleBtn.Text = "💜 Highlight Tím: TẮT" D.SetBg(highlightToggleBtn, C.GRAY)
         RemoveCurrentHighlight() end end)
-
 removeHighlightBtn.Activated:Connect(function() RemoveCurrentHighlight()
 end)
-
--- ---------- v4.8: ⊕ VẬT THỂ Ở GIỮA MÀN HÌNH (nền tảng nào cũng bấm được, khỏi cần chuột phải) ----------
 S.AnaUi.centerBtn.Activated:Connect(function() local vpx, vpy = 1280, 720
     pcall(function() local cam2 = S.AnaCam()
         if cam2 then vpx, vpy = cam2.ViewportSize.X, cam2.ViewportSize.Y end end)
@@ -1925,16 +1636,12 @@ S.AnaUi.centerBtn.Activated:Connect(function() local vpx, vpy = 1280, 720
     task.wait(0.12) PickObjectAt(Vector2.new(vpx / 2, vpy / 2), true, true)
     task.wait(0.25) pcall(function() gui.Enabled = prevEnabled end)
 end)
-
--- ---------- v4.8: 🧭 VẬT GẦN NHẤT (cứu cánh cho game không cho chọn theo điểm chạm) ----------
 S.AnaUi.nearBtn.Activated:Connect(function() local part, info, total = S.NearestParts(5)
     if not part then S.AnaSay("⚠️ Không tìm được vật gần bạn: " .. tostring(info))
         return end local hp = nil
     pcall(function() hp = part.Position end) S.FillObjPanel(part, hp, nil, nil, "🧭 vật gần bạn nhất (trong " .. tostring(total) .. " vật quét được)")
     pcall(function() local l = S.AnaUi.whyLbl
         if l and l.Parent then l.Text = "🔎 Quanh bạn 60 studs: " .. tostring(info) end end) end)
-
--- ---------- v4.8: 2 công tắc cho game "khó" (đều mặc định BẬT) ----------
 S.AnaUi.skipGuiBtn.Activated:Connect(function() S.AnaCfg.skipGameGui = not S.AnaCfg.skipGameGui
     local on = S.AnaCfg.skipGameGui S.AnaUi.skipGuiBtn.Text = on and "🛡 Phân tích xuyên HUD game: BẬT"
                                  or "🛡 Xuyên HUD game: TẮT (như bản cũ)" D.SetBg(S.AnaUi.skipGuiBtn, on and C.GREEN or C.GRAY)
@@ -1943,68 +1650,52 @@ end) S.AnaUi.scanFbBtn.Activated:Connect(function()
     S.AnaCfg.scanFallback = not S.AnaCfg.scanFallback local on = S.AnaCfg.scanFallback
     S.AnaUi.scanFbBtn.Text = on and "🧭 Quét dự phòng: BẬT" or "🧭 Quét dự phòng: TẮT" D.SetBg(S.AnaUi.scanFbBtn, on and C.GREEN or C.GRAY)
     S.AnaSay(on and "🧭 BẬT: tia trượt sẽ tự quét vật gần tia — game đặt CanQuery=false vẫn phân tích được" or "🧭 TẮT: chỉ dùng tia raycast (nhanh hơn, nhưng game khó sẽ không ra kết quả)") end)
-
 clearObjectBtn.Activated:Connect(function() objResultPanel.Visible = false
     RemoveCurrentHighlight() end)
-
 copyObjBtn.Activated:Connect(function() local pos = objResultPanel:GetAttribute("LastHitPos")
     if pos and pos ~= "" then S.CopyToClipboard(pos)
         flash(copyObjBtn, "✅ Đã Copy!", 1.2) end
 end)
-
 copyPathBtn.Activated:Connect(function() local path = objResultPanel:GetAttribute("LastPath")
     if path and path ~= "" then S.CopyToClipboard(path)
         flash(copyPathBtn, "✅ Đã Copy!", 1.2) end
 end)
-
 posY = posY + 6
-
 local copyCoordBtn = Button(supportTab, "📋 Copy Tọa Độ Dưới Chân", 8, posY, 468, 26, C.BLUE) posY = posY + 32
-
 copyCoordBtn.Activated:Connect(function() local groundPos = GetGroundPosition()
     local rootPart = GetRootPart() local finalPos = groundPos or (rootPart and rootPart.CFrame.Position)
     if not finalPos then return end local text = string.format("%.3f, %.3f, %.3f", finalPos.X, finalPos.Y, finalPos.Z)
     S.CopyToClipboard(text) flash(copyCoordBtn, "✅ Đã Copy: " .. text, 2) end)
-
 Label(supportTab, "🚀 Teleport Tới Tọa Độ", posY) posY = posY + 14
-
 D.tpLblX = Label(supportTab, "X:", posY) D.tpLblX.Size = UDim2.new(0,14,0,14); D.tpLblX.Position = UDim2.new(0,8,0,posY)
 local tpXIn = New("TextBox", { Size=UDim2.new(0,136,0,24), Position=UDim2.new(0,24,0,posY-2), Text="0",
     PlaceholderColor3=Color3.fromRGB(122, 130, 148), BackgroundColor3=Color3.fromRGB(26, 29, 38), BackgroundTransparency=0,
     TextColor3=Color3.fromRGB(233, 237, 245), Font=Enum.Font.Code, TextSize=11, BorderSizePixel=0, ClearTextOnFocus=false, Active=true, Selectable=true, ZIndex=10,
 }, supportTab) Corner(tpXIn, UDim.new(0,4)); Stroke(tpXIn, Color3.fromRGB(255,100,100), 1.2)
-
 D.tpLblY = Label(supportTab, "Y:", posY) D.tpLblY.Size = UDim2.new(0,14,0,14); D.tpLblY.Position = UDim2.new(0,166,0,posY)
 local tpYIn = New("TextBox", { Size=UDim2.new(0,136,0,24), Position=UDim2.new(0,182,0,posY-2), Text="0",
     PlaceholderColor3=Color3.fromRGB(122, 130, 148), BackgroundColor3=Color3.fromRGB(26, 29, 38), BackgroundTransparency=0,
     TextColor3=Color3.fromRGB(233, 237, 245), Font=Enum.Font.Code, TextSize=11, BorderSizePixel=0, ClearTextOnFocus=false, Active=true, Selectable=true, ZIndex=10,
 }, supportTab) Corner(tpYIn, UDim.new(0,4)); Stroke(tpYIn, Color3.fromRGB(100,255,100), 1.2)
-
 D.tpLblZ = Label(supportTab, "Z:", posY) D.tpLblZ.Size = UDim2.new(0,14,0,14); D.tpLblZ.Position = UDim2.new(0,324,0,posY)
 local tpZIn = New("TextBox", { Size=UDim2.new(0,136,0,24), Position=UDim2.new(0,340,0,posY-2), Text="0",
     PlaceholderColor3=Color3.fromRGB(122, 130, 148), BackgroundColor3=Color3.fromRGB(26, 29, 38), BackgroundTransparency=0,
     TextColor3=Color3.fromRGB(233, 237, 245), Font=Enum.Font.Code, TextSize=11, BorderSizePixel=0, ClearTextOnFocus=false, Active=true, Selectable=true, ZIndex=10,
 }, supportTab) Corner(tpZIn, UDim.new(0,4)); Stroke(tpZIn, Color3.fromRGB(100,150,255), 1.2)
-
 posY = posY + 30
-
 local fillCurrentBtn = Button(supportTab, "📍 Lấy Vị Trí Dưới Chân", 8, posY, 372, 24, C.ORANGE) local tpBtn = Button(supportTab, "🚀 Teleport", 386, posY, 90, 24, C.GREEN)
 posY = posY + 30
-
 fillCurrentBtn.Activated:Connect(function() local groundPos = GetGroundPosition()
     local rootPart = GetRootPart() local p = groundPos or (rootPart and rootPart.CFrame.Position)
     if not p then return end tpXIn.Text = string.format("%.3f", p.X)
     tpYIn.Text = string.format("%.3f", p.Y) tpZIn.Text = string.format("%.3f", p.Z) end)
-
 tpBtn.Activated:Connect(function() local rootPart = GetRootPart()
     if not rootPart then return end local x = tonumber(tpXIn.Text) or 0
     local y = tonumber(tpYIn.Text) or 0 local z = tonumber(tpZIn.Text) or 0
     rootPart.CFrame = CFrame.new(Vector3.new(x, y, z)) flash(tpBtn, "✅ Đã Teleport!", 1.5) end)
-
 S.SpeedMeter = S.SpeedMeter or {}
 do            -- do..end: main chunk gần cạn 200 slot local -> KHÔNG khai báo local ở scope chunk
 local SV = S.SpeedMeter
-
 SV.on     = (SV.on == true)
 SV.live   = tonumber(SV.live) or 0        -- tốc độ hiện tại (studs/s, đã làm mượt)
 SV.max    = tonumber(SV.max)  or 0        -- đỉnh cao nhất đo được trong phiên
@@ -2012,12 +1703,10 @@ SV.base   = tonumber(SV.base)             -- mặc định của game (studs/s) 
 SV.src    = SV.src or "chưa dò"
 SV.ws     = tonumber(SV.ws) or 0          -- WalkSpeed hiện tại của Humanoid
 SV._bound = (SV._bound == true)
-
 local function num(v) v = tonumber(v)
     if v == nil or v ~= v then return nil end          -- NaN -> nil
     return v end
 local function fmt(n) return string.format("%.1f", num(n) or 0) end local function say(msg) pcall(function() if D.hubStatus then D.hubStatus.Text = msg end end) end
-
 local function move() return S.Move end local function myHum()
     local m = move() if m and m.Hum then
         local ok, h = pcall(m.Hum) if ok and h then return h end
@@ -2038,8 +1727,6 @@ end local function readPos(r)
     else pcall(function() local p = r.Position; x, y, z = p.X, p.Y, p.Z end)
     end x, y, z = num(x), num(y), num(z)
     if x == nil or y == nil or z == nil then return nil end return x, y, z end
-
--- ---------- dò tốc độ MẶC ĐỊNH của game ----------
 function SV.Detect() local m = move()
     local h = myHum() local hws = readWS(h)
     local baseWS = m and num(m._baseWS) or nil local applying = (m ~= nil) and (m.speed == true or m.runMode == true)
@@ -2053,11 +1740,8 @@ function SV.Detect() local m = move()
         src = "mặc định Roblox" end
     if hws and hws > 0 and not applying then SV._lastWS = hws end if hws then SV.ws = hws end
     SV.src = src return SV.base, SV.src end
-
--- ---------- đo tốc độ HIỆN TẠI + giữ đỉnh CAO NHẤT — v5.4 EXTREME+: giảm tần suất khi không ở tab Hỗ Trợ ----------
 function SV.Step(dt) dt = num(dt)
     if not dt or dt <= 0 then dt = 1 / 60 end if dt > 0.5 then dt = 0.5 end
-    -- v5.4: nếu không ở tab Hỗ Trợ thì chỉ đo mỗi 0.25s, menu đóng thì 0.5s
     SV._stepAcc = (SV._stepAcc or 0) + dt
     local needSupport = true
     if S.PagePerf and S.PagePerf.ShouldRunForSupportTab then
@@ -2086,11 +1770,8 @@ function SV.Step(dt) dt = num(dt)
         SV.live = 0 end
     if h then SV.ws = readWS(h) or SV.ws end SV.Detect()
     SV.Sync() return SV.live end
-
 local function setText(lbl, s) if lbl and lbl.Text ~= s then lbl.Text = s end
 end
-
--- ---------- vẽ số liệu ra widget + HUD — v5.2 PERF: chỉ vẽ label khi ở tab Hỗ Trợ ----------
 function SV.Sync() local base = num(SV.base) or 0
     local ratio = (base > 0) and (SV.ws / base) or 0 local scale = math.max(SV.max, base, 1)
     local pct = SV.live / scale
@@ -2116,16 +1797,12 @@ function SV.Sync() local base = num(SV.base) or 0
         if SV.hud.Visible ~= SV.on then SV.hud.Visible = SV.on end setText(SV.hudLbl, string.format("🎯 %s (mặc định game) · 🚶 %s\n⚡ %s · 🏁 %s studs/s",
             fmt(base), fmt(SV.ws), fmt(SV.live), fmt(SV.max))) end end
 function SV.OnTabChanged()
-    -- v5.2: khi đổi tab, sync lại để label hiện đúng nếu vừa quay lại tab Hỗ Trợ
     if S.PagePerf and S.PagePerf.ShouldRunForSupportTab() then
         pcall(SV.Sync)
     end
 end
-
 function SV.Status() return string.format("🎯 %s · ⚡ %s · 🏁 %s", fmt(SV.base), fmt(SV.live), fmt(SV.max))
 end
-
--- ---------- bật/tắt vòng đo (chỉ chạy khi BẬT -> không tốn tài nguyên) ----------
 function SV.Bind(on) if on and not SV._bound then
         SV._bound = true local ok = pcall(function()
             RunService:BindToRenderStep("BC_SpeedMeter", Enum.RenderPriority.Camera.Value - 6, function(dt) pcall(function() SV.Step(dt) end)
@@ -2145,8 +1822,6 @@ function SV.Reset()                     -- xoá đỉnh, vẫn đo tiếp
     SV.max, SV.live = 0, 0 SV._n = 0
     SV.Sync() return SV.max
 end
-
--- ---------- widget trong tab 🛠 Hỗ Trợ ----------
 Label(supportTab, "🎯 Định vị tốc độ game (mặc định · hiện tại · cao nhất)", posY) posY = posY + 18
 SV.btn      = Button(supportTab, "🎯 Định vị tốc độ: TẮT", 8, posY, 300, 26, C.GRAY) SV.resetBtn = Button(supportTab, "🗑 Xoá đỉnh", 314, posY, 162, 26, C.RED)
 posY = posY + 30 SV.baseLbl = Label(supportTab, "🎯 Mặc định game: — studs/s", posY)
@@ -2156,7 +1831,6 @@ posY = posY + 16 SV.liveLbl = Label(supportTab, "⚡ Tốc độ thật: 0.0 stu
 SV.liveLbl.TextColor3 = C.GREEN SV.liveLbl.TextSize = 9
 posY = posY + 16 SV.maxLbl = Label(supportTab, "🏁 Cao nhất: 0.0 studs/s", posY)
 SV.maxLbl.TextColor3 = C.ORANGE SV.maxLbl.TextSize = 9 posY = posY + 16
-
 local smBarBg = New("Frame", { Size=UDim2.new(1,-16,0,10), Position=UDim2.new(0,8,0,posY),
     BackgroundColor3=Color3.fromRGB(24, 28, 38), BackgroundTransparency=0.15, BorderSizePixel=0, ZIndex=6,
 }, supportTab) Corner(smBarBg, UDim.new(0,5)); Stroke(smBarBg, C.BORDER, 1)
@@ -2165,95 +1839,72 @@ SV.barFill = New("Frame", { Size=UDim2.new(0,0,1,0), Position=UDim2.new(0,0,0,0)
 SV.barBase = New("Frame", {                -- vạch xanh = tốc độ MẶC ĐỊNH của game (mốc so sánh)
     Size=UDim2.new(0,2,1,0), Position=UDim2.new(0.25,-1,0,0), BackgroundColor3=C.GREEN, BackgroundTransparency=0, BorderSizePixel=0, ZIndex=8,
 }, smBarBg) posY = posY + 16
-
 SV.hintLbl = Label(supportTab, "ℹ️ Chỉ ĐO, không sửa gì · Vạch xanh = mặc định game · Tự học lại khi game đổi.", posY) SV.hintLbl.TextSize = 9
 posY = posY + 18
-
--- ---------- HUD nổi trong màn hình game (đóng menu vẫn thấy) ----------
 SV.hud = New("Frame", { Name = "BC_SpeedHud",
     Size = UDim2.new(0, 214, 0, 44), Position = UDim2.new(0, 12, 0.5, -22), BackgroundColor3 = Color3.fromRGB(16, 19, 26), BackgroundTransparency = 0.25,
     BorderSizePixel = 0, Visible = false, ZIndex = 24, }, gui) Corner(SV.hud, UDim.new(0,8)); Stroke(SV.hud, C.ACCENT, 1.4)
 SV.hudLbl = New("TextLabel", { Size = UDim2.new(1,-12,1,0), Position = UDim2.new(0,6,0,0), Text = "🎯 ...",
     BackgroundTransparency = 1, TextColor3 = C.WHITE, Font = Enum.Font.GothamBold, TextSize = 9,
     TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Center, ZIndex = 25, TextWrapped = true, }, SV.hud)
-
 SV.btn.Activated:Connect(function() local on = SV.Set(not SV.on)
     say(on and ("🎯 định vị tốc độ: BẬT · mặc định game " .. fmt(SV.base) .. " studs/s") or "🎯 định vị tốc độ: TẮT")
 end) SV.resetBtn.Activated:Connect(function()
     SV.Reset() say("🎯 đã xoá đỉnh · cao nhất = 0") end)
-
 SV.Detect() SV.Sync()
 end Label(supportTab, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", posY)
 posY = posY + 16 Label(supportTab, "💾 Waypoint Đã Lưu", posY)
 posY = posY + 14
-
 local wpNameIn = New("TextBox", { Size=UDim2.new(1,-130,0,24), Position=UDim2.new(0,8,0,posY), Text="",
     PlaceholderText="Tên waypoint...", PlaceholderColor3=Color3.fromRGB(122, 130, 148),
     BackgroundColor3=Color3.fromRGB(26, 29, 38), BackgroundTransparency=0, TextColor3=Color3.fromRGB(233, 237, 245), Font=Enum.Font.GothamMedium, TextSize=11,
     BorderSizePixel=0, ClearTextOnFocus=false, Active=true, Selectable=true, ZIndex=10, }, supportTab)
 Corner(wpNameIn, UDim.new(0,4)); Stroke(wpNameIn, Color3.fromRGB(180,180,200), 1.2) New("UIPadding", {PaddingLeft=UDim.new(0,6)}, wpNameIn)
-
 local saveWpBtn = Button(supportTab, "💾 Lưu", 0, 0, 80, 20, C.PURPLE) saveWpBtn.Position = UDim2.new(1, -88, 0, posY + 2)
-
 posY = posY + 30
-
 local wpListFrame = New("Frame", { Size=UDim2.new(1,-16,0,0), Position=UDim2.new(0,8,0,posY),
     BackgroundTransparency=1, BorderSizePixel=0, ZIndex=6, }, supportTab)
 New("UIListLayout", {SortOrder=Enum.SortOrder.LayoutOrder, Padding=UDim.new(0,4)}, wpListFrame)
-
 local RebuildWaypoints
-
 saveWpBtn.Activated:Connect(function() local rootPart = GetRootPart()
     if not rootPart then return end local name = wpNameIn.Text
     if #name == 0 then name = "WP "..(#waypoints+1) end table.insert(waypoints, {name = name, pos = rootPart.CFrame.Position})
     wpNameIn.Text = "" if RebuildWaypoints then RebuildWaypoints() end
     Store.saveSoon() end)
-
 RebuildWaypoints = function() for _, c in ipairs(wpListFrame:GetChildren()) do
         if not c:IsA("UIListLayout") then c:Destroy() end end
-
     if #waypoints == 0 then New("TextLabel", {
             Size=UDim2.new(1,0,0,26), Text="📭 Chưa có waypoint nào.",
             BackgroundTransparency=1, TextColor3=C.GRAY, Font=Enum.Font.GothamMedium, TextSize=10,
             TextXAlignment=Enum.TextXAlignment.Center, ZIndex=7, }, wpListFrame)
         supportTab.CanvasSize = UDim2.new(0, 0, 0, posY + 40) return end
-
     local totalH = 0 for i, wp in ipairs(waypoints) do
         local row = New("Frame", { Size=UDim2.new(1,0,0,26),
             BackgroundColor3=Color3.fromRGB(26, 29, 38), BackgroundTransparency=0.1, BorderSizePixel=0, ZIndex=6,
         }, wpListFrame) Corner(row, UDim.new(0,5)); Stroke(row)
-
         New("TextLabel", { Size=UDim2.new(1,-100,1,0), Position=UDim2.new(0,8,0,0),
             Text=wp.name.." ("..string.format("%.0f, %.0f, %.0f", wp.pos.X, wp.pos.Y, wp.pos.Z)..")", BackgroundTransparency=1, TextColor3=C.DARK,
             Font=Enum.Font.GothamBold, TextSize=8, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7, }, row)
-
         local goBtn = New("TextButton", { Size=UDim2.new(0,44,0,18), Position=UDim2.new(1,-72,0,4),
             Text="🚀 Tới", BackgroundColor3=C.GREEN, BackgroundTransparency=0.1, TextColor3=C.WHITE, Font=Enum.Font.GothamBold, TextSize=8,
             BorderSizePixel=0, ZIndex=8, }, row) Corner(goBtn, UDim.new(0,4))
         goBtn.Activated:Connect(function() local rootPart = GetRootPart()
             if not rootPart then return end rootPart.CFrame = CFrame.new(wp.pos) end)
-
         local delBtn = New("TextButton", { Size=UDim2.new(0,22,0,18), Position=UDim2.new(1,-25,0,4),
             Text="🗑", BackgroundColor3=C.RED, BackgroundTransparency=0.1, TextColor3=C.WHITE, Font=Enum.Font.GothamBold, TextSize=8,
             BorderSizePixel=0, ZIndex=8, }, row) Corner(delBtn, UDim.new(0,4))
         delBtn.Activated:Connect(function() table.remove(waypoints, i)
             RebuildWaypoints() Store.saveSoon() end)
-
         totalH = totalH + 30 end
-
     wpListFrame.Size = UDim2.new(1,-16,0,totalH) supportTab.CanvasSize = UDim2.new(0, 0, 0, posY + totalH + 20)
 end
-
 RebuildWaypoints() Store.restoreWaypoints = RebuildWaypoints
-
 local function NormalizeCode(c) if type(c) ~= "string" then return "" end
     c = S.SanitizeCode(c)   -- v4.4b: cắt wrapper "SIZE WRAPPER" cũ (nó đè layout GUI của game)
     return S.NormalizeRunnable(c) end
-
 local GAME_OWNED_GUI_NAMES = { Topbar = true, TopbarContainer = true, PlayerList = true, Chat = true,
     Backpack = true, DevConsoleUI = true, ScriptInvitationUI = true, FollowPromptUI = true, TouchControlsFrame = true, Main = true, ExMenu = true,
     Notifications = true, PauseMenu = true, InGame = true, CoreGui = true, }
-
 local function ScanNewGuis(beforeGuis, mine, allowGuess) local found, seen = {}, {}
     local function take(g) if not g or seen[g] then return end
         seen[g] = true table.insert(found, g)
@@ -2268,7 +1919,6 @@ local function ScanNewGuis(beforeGuis, mine, allowGuess) local found, seen = {},
             end end
     end scan(playerGui)
     if targetGui ~= playerGui then scan(targetGui) end return found end
-
 local function ForceStretchToParent(obj, maxDepth) if not obj then return end
     maxDepth = maxDepth or 0 pcall(function()
         if obj:IsA("GuiObject") then if obj:IsA("Frame") or obj:IsA("ScrollingFrame") or obj:IsA("CanvasGroup") then
@@ -2279,7 +1929,6 @@ local function ForceStretchToParent(obj, maxDepth) if not obj then return end
         end end)
     if maxDepth <= 0 then return end for _, child in ipairs(obj:GetChildren()) do
         ForceStretchToParent(child, maxDepth - 1) end end
-
 function S.RegisterEmbed(host, gui, recs) local entry = {host = host, gui = gui, recs = recs or {}, conns = {}}
     pcall(function() entry.conns[#entry.conns+1] = gui:GetPropertyChangedSignal("Enabled"):Connect(function()
             pcall(function() host.Visible = gui.Enabled end) end)
@@ -2289,21 +1938,17 @@ function S.RegisterEmbed(host, gui, recs) local entry = {host = host, gui = gui,
         entry.conns[#entry.conns+1] = gui.Destroying:Connect(function() S.DropEmbed(entry, true)
         end) end)
     S.embeds[#S.embeds+1] = entry return entry end
-
 function S.FindEmbedByHost(host) for i, e in ipairs(S.embeds) do
         if e.host == host then return e, i end end
     return nil end
-
 function S.RemoveEmbedAt(i) local e = S.embeds[i]
     if not e then return end for _, c in ipairs(e.conns) do pcall(function() c:Disconnect() end) end
     table.remove(S.embeds, i) return e
 end
-
 function S.DropEmbed(entry, keepQuiet) for i, e in ipairs(S.embeds) do
         if e == entry then S.RemoveEmbedAt(i); break end end
     pcall(function() if entry.host and entry.host.Parent then entry.host:Destroy() end end) if not keepQuiet then
         print("[taodepzai v5.0 NOIR] Đã gỡ host nhúng khỏi tab") end end
-
 function S.RestoreEmbed(entry) pcall(function() S.RestoreSnap(entry) end)
     entry.snap = nil for _, rec in ipairs(entry.recs or {}) do
         pcall(function() if rec.obj and rec.origParent then
@@ -2311,13 +1956,11 @@ function S.RestoreEmbed(entry) pcall(function() S.RestoreSnap(entry) end)
         end) end
     for i, e in ipairs(S.embeds) do if e == entry then S.RemoveEmbedAt(i); break end
     end pcall(function() if entry.host and entry.host.Parent then entry.host:Destroy() end end) end
-
 function S.PruneEmbeds() for i = #S.embeds, 1, -1 do
         local e = S.embeds[i] local hostAlive = e.host and e.host.Parent
         local guiAlive = e.gui and e.gui.Parent if not hostAlive or not guiAlive then
             if hostAlive then pcall(function() e.host:Destroy() end) end S.RemoveEmbedAt(i)
         end end end
-
 function S.MeasureHost(host) local hx, hy = host.AbsolutePosition.X, host.AbsolutePosition.Y
     local minX, minY, maxX, maxY = math.huge, math.huge, -math.huge, -math.huge local n = 0
     for _, ch in ipairs(host:GetChildren()) do if ch:IsA("GuiObject") and ch.Visible ~= false then
@@ -2326,7 +1969,6 @@ function S.MeasureHost(host) local hx, hy = host.AbsolutePosition.X, host.Absolu
                 n = n + 1 end
         end end
     if n == 0 or maxX <= minX or maxY <= minY then return nil end return { x = minX - hx, y = minY - hy, w = maxX - minX, h = maxY - minY } end
-
 function S.SnapSubtree(list, node, isTop) for _, c in ipairs(node:GetChildren()) do
         if c:IsA("GuiObject") then list[#list+1] = {
                 obj = c, top = isTop or nil, Position = c.Position, Size = c.Size,
@@ -2336,7 +1978,6 @@ function S.SnapSubtree(list, node, isTop) for _, c in ipairs(node:GetChildren())
                 PadT = c.PaddingTop, PadB = c.PaddingBottom, PadL = c.PaddingLeft, PadR = c.PaddingRight }
         elseif c:IsA("UIStroke") then list[#list+1] = { obj = c, Thick = c.Thickness }
         end end end
-
 function S.RestoreSnap(entry) if not entry.snap then return end
     for _, rec in ipairs(entry.snap) do local o = rec.obj
         if o and o.Parent then pcall(function()
@@ -2346,33 +1987,26 @@ function S.RestoreSnap(entry) if not entry.snap then return end
                     o.PaddingLeft, o.PaddingRight = rec.PadL, rec.PadR end
                 if rec.Thick then o.Thickness = rec.Thick end end)
         end end end
-
 function S.FitEmbedded(entry) local host, gui = entry.host, entry.gui
     if not host or not host.Parent then return end local function mulUDim(u, k)
         return UDim2.new(u.X.Scale, math.floor(u.X.Offset * k + 0.5), u.Y.Scale, math.floor(u.Y.Offset * k + 0.5)) end
     local function mulUDimShift(u, k, dx, dy) return UDim2.new(u.X.Scale, math.floor(u.X.Offset * k + 0.5) + dx,
                          u.Y.Scale, math.floor(u.Y.Offset * k + 0.5) + dy) end
     local function mulDim(u, k) return UDim.new(u.Scale, math.floor(u.Offset * k + 0.5)) end
-
     local area = host.Parent                      -- embedHost trong tab
     local aw = area.AbsoluteSize.X - 6 local ah = area.AbsoluteSize.Y - 6
     if aw < 40 or ah < 40 then return end
-
     pcall(function() host.Size = UDim2.new(1, 0, 1, 0)
         host.Position = UDim2.new(0, 0, 0, 0) host.BackgroundTransparency = 1
         host.ClipsDescendants = true              -- phần dư (nếu có) vừa vô hình vừa không nhận click
     end)
-
     if not entry.snap then entry.snap = {}
         S.SnapSubtree(entry.snap, host, true) if #entry.snap == 0 then return end
     end for _, rec in ipairs(entry.snap) do
         rec.dx, rec.dy = 0, 0 end
-
     S.RestoreSnap(entry) local base = S.MeasureHost(host)
     if not base then return end
-
     local s = math.clamp(math.min(aw / base.w, ah / base.h), 0.35, 3.0)
-
     local function apply(k) for _, rec in ipairs(entry.snap) do
             local o = rec.obj if o and o.Parent then
                 pcall(function() if rec.Size then o.Size = mulUDim(rec.Size, k) end
@@ -2386,7 +2020,6 @@ function S.FitEmbedded(entry) local host, gui = entry.host, entry.gui
                         o.PaddingRight  = mulDim(rec.PadR, k) end
                     if rec.Thick then o.Thickness = math.max(1, rec.Thick * k) end end)
             end end end
-
     local hw, hh = area.AbsoluteSize.X, area.AbsoluteSize.Y local function align(k, tries)
         apply(k) local m = S.MeasureHost(host)
         if not m then return k end local dx = math.floor(-m.x + math.max(0, (aw - m.w) / 2) + 0.5)
@@ -2398,17 +2031,14 @@ function S.FitEmbedded(entry) local host, gui = entry.host, entry.gui
             if k2 < k * 0.98 then for _, rec in ipairs(entry.snap) do rec.dx, rec.dy = 0, 0 end
                 return align(math.max(k2, 0.15), tries + 1) end
         end return k end
-
     s = align(s, 0) entry.fitScale = s
     return s end
-
 function S.TabArea(nm) local frame
     if type(nm) == "string" and #nm > 0 then for _, ft in ipairs(featureTabs) do
             if ft.name == nm then frame = ft.frame break end end end
     frame = frame or activeTab if not frame then return nil end
     local host = frame:FindFirstChild("ScriptHost") local area = host or frame
     local sz = area.AbsoluteSize return Vector2.new(math.max(0, sz.X - 6), math.max(0, sz.Y - 6)) end
-
 S.resizedCbs = {} function S.OnResized(fn)
     if type(fn) ~= "function" then return nil end table.insert(S.resizedCbs, fn)
     return { Disconnect = function() for i, f in ipairs(S.resizedCbs) do
@@ -2416,19 +2046,16 @@ S.resizedCbs = {} function S.OnResized(fn)
 end function S.NotifyResize()
     local a = S.TabArea() local cbs = {}
     for _, f in ipairs(S.resizedCbs) do cbs[#cbs+1] = f end for _, f in ipairs(cbs) do pcall(f, a) end end
-
 function S.FeatureTabHost(nm) if type(nm) == "string" and #nm > 0 then
         for _, ft in ipairs(featureTabs) do if ft.name == nm then
                 local h = ft.frame and ft.frame:FindFirstChild("ScriptHost") if h then return h end
             end end
     end return activeTab and activeTab:FindFirstChild("ScriptHost") end
-
 function S.FitToTab(obj, nm) if not obj then return nil end
     local host = S.FeatureTabHost(nm) if host and obj.Parent ~= host then
         pcall(function() obj.Parent = host end) end pcall(function()
         obj.Size = UDim2.new(1, 0, 1, 0) obj.Position = UDim2.new(0, 0, 0, 0)
     end) return obj end
-
 _G.BananaCatHubAPI = { Version = "5.0",
     LegacyVersion = "4.61", -- giữ thông tin tương thích cho script cũ
     HubGui = gui,     -- v4.4e: sửa lỗi cũ — biến tên là `gui`, không phải `hubGui` (trước đây là nil)
@@ -2448,25 +2075,19 @@ _G.BananaCatHubAPI = { Version = "5.0",
     end, Crosshair = function(self, on)
         if on == nil then return S.ToggleCrosshair() end S.SetCrosshair(on and true or false)
         return S.crosshairOn end, }
-
 function S.FeatureTemplate(nm, icon, stamp) if type(nm) ~= "string" or #nm == 0 then nm = "Tính Năng Mới" end
     if type(icon) ~= "string" or #icon == 0 then icon = "⚙️" end if type(stamp) ~= "string" then stamp = "" end
     local head = [==[
--- ---------------------------------------------------------------------------
-
 local BC = { Name = "__BC_NAME__", Icon = "__BC_ICON__", DesignW = 620, DesignH = 384 }
-
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
 local pg = player and player:WaitForChild("PlayerGui")
 if not pg then return end
-
 local gui = Instance.new("ScreenGui")
 gui.Name = BC.Name
 gui.ResetOnSpawn = false
 gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 gui.Parent = pg
-
 local root = Instance.new("Frame")
 root.Name = "Root"
 root.Size = UDim2.new(0, BC.DesignW, 0, BC.DesignH)
@@ -2481,7 +2102,6 @@ local function bcCorner(o, r)
     return c
 end
 bcCorner(root, 8)
-
 local API = _G.BananaCatHubAPI
 local bcConn = nil        -- connection của API:OnResize, bcClose sẽ ngắt để không leak
 local function bcHubMain()
@@ -2531,10 +2151,8 @@ if bcHubFrame then
 end
 task.delay(0.25, bcFit)
 task.delay(1.2, bcFit)
-
 ]==]
     local body = [==[
--- ---------- giao diện mẫu (thêm/bớt thoải mái, miễn là CON của panel/root) ----
 local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -56, 0, 32)
 title.Position = UDim2.new(0, 10, 0, 0)
@@ -2545,7 +2163,6 @@ title.TextSize = 15
 title.TextXAlignment = Enum.TextXAlignment.Left
 title.TextColor3 = Color3.fromRGB(255, 255, 255)
 title.Parent = root
-
 local closeBtn = Instance.new("TextButton")
 closeBtn.Name = "CloseBtn"
 closeBtn.Size = UDim2.new(0, 20, 0, 20)
@@ -2558,7 +2175,6 @@ closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 closeBtn.AutoButtonColor = true
 closeBtn.Parent = root
 bcCorner(closeBtn, 5)
-
 local panel = Instance.new("ScrollingFrame")
 panel.Name = "Panel"
 panel.Size = UDim2.new(1, -20, 1, -74)
@@ -2576,7 +2192,6 @@ list.Parent = panel
 local pad = Instance.new("UIPadding")
 pad.PaddingRight = UDim.new(0, 8)
 pad.Parent = panel
-
 local bcStatus = Instance.new("TextLabel")
 bcStatus.Name = "Status"
 bcStatus.Size = UDim2.new(1, -20, 0, 22)
@@ -2588,7 +2203,6 @@ bcStatus.Font = Enum.Font.Gotham
 bcStatus.TextSize = 12
 bcStatus.TextXAlignment = Enum.TextXAlignment.Left
 bcStatus.Parent = root
-
 local function bcButton(txt, color)
     local b = Instance.new("TextButton")
     b.Size = UDim2.new(1, 0, 0, 22)
@@ -2602,10 +2216,7 @@ local function bcButton(txt, color)
     bcCorner(b, 5)
     return b
 end
-
 bcToggle = bcButton(BC.Icon .. "  Bật " .. BC.Name)
-
--- ---------- EXTERNAL OVERLAY (vòng tròn niêm tâm / ESP / HUD ngoài màn hình) ------
 local function bcMakeExternalGui(name, order)
     local ext
     local ok, API = pcall(function() return _G.BananaCatHubAPI end)
@@ -2629,7 +2240,6 @@ local function bcMakeExternalGui(name, order)
     end
     return ext
 end
-
 local extGui = nil            -- ScreenGui overlay ngoài màn hình (được tạo khi bật tính năng)
 local extCrossOn = false
 local function bcToggleCross()
@@ -2644,23 +2254,18 @@ local function bcToggleCross()
         end
     end)
 end
-
 local bcCrossBtn = bcButton("🎯  Niêm tâm: TẮT", Color3.fromRGB(160, 60, 255))
-
 pcall(function()
     if _G.BananaCatHubAPI and _G.BananaCatHubAPI.OnResize then
     end
 end)
-
 ]==]
     local foot = [==[
--- ---------- đóng / trả GUI (KHÔNG xóa khối này) ----------------------------
 local bcEnabled = false
 local bcConns = {}
 local function bcOn(inst, sig, fn)
     table.insert(bcConns, inst[sig]:Connect(fn))
 end
-
 local function bcClose()
     if bcConn then pcall(function() bcConn:Disconnect() end) bcConn = nil end
     for _, c in ipairs(bcConns) do pcall(function() c:Disconnect() end) end
@@ -2670,10 +2275,8 @@ local function bcClose()
     task.delay(0.06, function() pcall(function() gui:Destroy() end) end)
 end
 bcOn(closeBtn, "MouseButton1Click", bcClose)
-
 _G.BC_FEATURES = _G.BC_FEATURES or {}
 _G.BC_FEATURES[BC.Name] = { name = BC.Name, Close = bcClose, Gui = gui, Root = root }
-
 bcOn(bcCrossBtn, "MouseButton1Click", function()
     if not bcEnabled then
         bcToggle:Activate()
@@ -2682,7 +2285,6 @@ bcOn(bcCrossBtn, "MouseButton1Click", function()
     bcToggleCross()
     bcCrossBtn.Text = extCrossOn and "🎯  Niêm tâm: BẬT" or "🎯  Niêm tâm: TẮT"
 end)
-
 bcOn(bcToggle, "MouseButton1Click", function()
     bcEnabled = not bcEnabled
     bcToggle.Text = (bcEnabled and "⏹  Tắt " or BC.Icon .. "  Bật ") .. BC.Name
@@ -2690,7 +2292,6 @@ bcOn(bcToggle, "MouseButton1Click", function()
     if bcEnabled then
         if not extGui or not extGui.Parent then
             extGui = bcMakeExternalGui(BC.Name .. "_Ext", 9500)
-
             local ring = Instance.new("Frame")
             ring.Name = "BC_Ring"
             ring.Size = UDim2.new(0, 32, 0, 32)
@@ -2702,7 +2303,6 @@ bcOn(bcToggle, "MouseButton1Click", function()
             ring.Parent = extGui
             local rc = Instance.new("UICorner"); rc.CornerRadius = UDim.new(1, 0); rc.Parent = ring
             local rs = Instance.new("UIStroke"); rs.Thickness = 1.5; rs.Color = Color3.fromRGB(255,255,255); rs.Parent = ring
-
             local dot = Instance.new("Frame")
             dot.Name = "BC_Dot"
             dot.Size = UDim2.new(0, 3, 0, 3)
@@ -2713,7 +2313,6 @@ bcOn(bcToggle, "MouseButton1Click", function()
             dot.Visible = false
             dot.Parent = extGui
             local dc = Instance.new("UICorner"); dc.CornerRadius = UDim.new(1, 0); dc.Parent = dot
-
             local gap, ll = 22, 10
             local function ln(w, h, x, y)
                 local f = Instance.new("Frame")
@@ -2727,7 +2326,6 @@ bcOn(bcToggle, "MouseButton1Click", function()
             ln(ll, 2, -gap - ll/2, -1)
             ln(ll, 2,  gap + ll/2, -1)
         end
-
         table.insert(bcConns, task.spawn(function()
             while bcEnabled do
                 task.wait(0.2)
@@ -2742,26 +2340,22 @@ bcOn(bcToggle, "MouseButton1Click", function()
         bcCrossBtn.Text = "🎯  Niêm tâm: TẮT"
     end
 end)
-
 print("✅ [" .. BC.Name .. "] đã nạp — dán vào tab \"Tạo Tính Năng\" của taodepzai v5.0 NOIR rồi bấm ▶ Chạy Script")
 return BC.Name
 ]==]
     local out = head .. body .. foot out = (out:gsub("__BC_NAME__", function() return nm end))
     out = (out:gsub("__BC_ICON__", function() return icon end)) out = (out:gsub("__BC_STAMP__", function() return (#stamp > 0) and stamp or "sinh bởi hub" end))
     return out end
-
 _G.BananaCatHub_SyncEmbeds = function() pcall(S.SyncAllEmbeds)
 end pcall(function()
     trackConn(main:GetPropertyChangedSignal("Size"):Connect(function()
         BcFit()                 -- GUI đang nhúng trong tab -> đo & scale lại
         pcall(S.NotifyResize)   -- script đứng ngoài (tự xin size) -> chạy lại bcFit của nó
     end)) end)
-
 function S.SyncAllEmbeds() for _, e in ipairs(S.embeds) do
         if e.host and e.host.Parent then pcall(function() S.FitEmbedded(e) end)
         end end
 end
-
 function S.ClearEmbedsUnder(containerFrame) if not containerFrame then return 0 end
     local n = 0 for i = #S.embeds, 1, -1 do
         local e = S.embeds[i] if e.host and e.host.Parent == containerFrame then
@@ -2770,57 +2364,47 @@ function S.ClearEmbedsUnder(containerFrame) if not containerFrame then return 0 
     for _, child in ipairs(containerFrame:GetChildren()) do if child.Name:sub(1, 9) == "Embedded_" then
             pcall(function() child:Destroy() end) end
     end return n end
-
 function S.EmbedGui(scr, containerFrame) if not S.embedEnabled then return nil end
     if not scr or not scr.Parent then return nil end if not containerFrame or not containerFrame.Parent then return nil end
     if scr == gui or scr:IsDescendantOf(gui) then return nil end local isExt = false
     pcall(function() isExt = (scr:GetAttribute("BCHub_External") == true) end) if isExt then return nil end
-
     local hostName = "Embedded_"..scr.Name for _, ex in ipairs(containerFrame:GetChildren()) do
         if ex.Name == hostName then local e = S.FindEmbedByHost(ex)
             if e then S.RestoreEmbed(e)
             else pcall(function() ex:Destroy() end)
             end end end
-
     local host = New("Frame", { Size = UDim2.new(1,0,1,0),
         Position = UDim2.new(0,0,0,0), BackgroundTransparency = 1,
         BorderSizePixel = 0, ZIndex = 5,
         Name = hostName, ClipsDescendants = true, }, containerFrame)
-
     local recs = {} for _, ch in ipairs(scr:GetChildren()) do
         if ch:IsA("GuiObject") then recs[#recs+1] = {obj = ch, origParent = scr, origPos = ch.Position, origSize = ch.Size}
         end end
     if #recs == 0 then pcall(function() host:Destroy() end)
         return nil end
     for _, rec in ipairs(recs) do pcall(function() rec.obj.Parent = host end) end
-
     ForceStretchToParent(host)          -- root only (an toàn cho mấy frame con)
     local entry = S.RegisterEmbed(host, scr, recs) pcall(function() S.FitEmbedded(entry) end)
     task.delay(0.08, function() pcall(function() S.FitEmbedded(entry) end) end) task.delay(0.4,  function() pcall(function() S.FitEmbedded(entry) end) end)
     return host end
-
 S.crosshairGui   = nil
 S.crosshairBtns  = {}    -- danh sách nút 🎯 trên các tab để cập nhật text đồng loạt
 S.crosshairOn    = false S.crosshairColor = Color3.fromRGB(255, 255, 255)
 S.crosshairSize  = 32
-
 function S._buildCrosshair() if S.crosshairGui and S.crosshairGui.Parent then return S.crosshairGui end
     local g = New("ScreenGui", { Name = "BananaCatHub_Crosshair",
         IgnoreGuiInset = true, ResetOnSpawn = false,
         ZIndexBehavior = Enum.ZIndexBehavior.Global, DisplayOrder = 9999,
     }, targetGui) g:SetAttribute("BCHub_External", true)
-
     local ring = New("Frame", { Name = "Ring",
         Size = UDim2.new(0, S.crosshairSize, 0, S.crosshairSize), Position = UDim2.new(0.5, -S.crosshairSize/2, 0.5, -S.crosshairSize/2),
         BackgroundTransparency = 1, BorderSizePixel = 0,
         AnchorPoint = Vector2.new(0.5, 0.5), }, g)
     New("UICorner", {CornerRadius = UDim.new(1, 0)}, ring) New("UIStroke", {Thickness = 1.5, Color = S.crosshairColor, Transparency = 0.1}, ring)
-
     local dot = New("Frame", { Name = "Dot",
         Size = UDim2.new(0, 3, 0, 3), Position = UDim2.new(0.5, -2, 0.5, -2),
         BackgroundColor3 = S.crosshairColor, BorderSizePixel = 0,
         AnchorPoint = Vector2.new(0.5, 0.5), }, g) New("UICorner", {CornerRadius = UDim.new(1, 0)}, dot)
-
     local gap = S.crosshairSize/2 + 6 local lineLen = 10
     local function line(name, w, h, x, y) local ln = New("Frame", {
             Name = name, Size = UDim2.new(0, w, 0, h), Position = UDim2.new(0.5, x, 0.5, y),
@@ -2828,10 +2412,8 @@ function S._buildCrosshair() if S.crosshairGui and S.crosshairGui.Parent then re
         }, g) return ln
     end line("Top",    2, lineLen, -1, -gap - lineLen/2)
     line("Bottom", 2, lineLen, -1,  gap + lineLen/2) line("Left",   lineLen, 2, -gap - lineLen/2, -1) line("Right",  lineLen, 2,  gap + lineLen/2, -1)
-
     S.crosshairGui = g return g
 end
-
 function S.SetCrosshair(on) S.crosshairOn = (on == true)
     if S.crosshairOn then S._buildCrosshair()
         if S.crosshairGui then S.crosshairGui.Enabled = true end else
@@ -2840,26 +2422,21 @@ function S.SetCrosshair(on) S.crosshairOn = (on == true)
             if b and b.Parent then b.Text = S.crosshairOn and "🎯 Tâm: BẬT" or "🎯 Tâm"
                 b.BackgroundColor3 = S.crosshairOn and Color3.fromRGB(180, 80, 220) or C.PURPLE end
         end) end end
-
 function S.ToggleCrosshair() S.SetCrosshair(not S.crosshairOn)
     return S.crosshairOn end
-
 function S.RegisterCrosshairBtn(btn) if not btn then return end
     table.insert(S.crosshairBtns, btn) pcall(function()
         btn.Text = S.crosshairOn and "🎯 Tâm: BẬT" or "🎯 Tâm" btn.BackgroundColor3 = S.crosshairOn and Color3.fromRGB(180, 80, 220) or C.PURPLE
     end) btn.Activated:Connect(function()
         S.ToggleCrosshair() end) end
-
 S.EMBED_TRY_DELAYS   = {0.6, 1.8, 4, 7, 10}  -- các mốc thử nhúng lại sau khi bấm ▶
 S.EMBED_HOOK_GRACE   = 11                    -- giữ hook + watcher bấy nhiêu giây (bắt GUI sinh trễ)
 S.EMBED_PROBABLE_AGE = 5                     -- GUI "không chắc chắn" chỉ tự nhận nếu sinh trong 5s đầu
 S.EMBED_CHILD_WAIT   = 15                    -- số lần chờ GUI "chín" (0.2s/lần = tối đa 3s)
 S.activeHook = nil                           -- chỉ 1 hook sống tại 1 thời điểm (tránh đè hook script khác)
-
 S.SYSTEM_GUI_NAMES = { Topbar = true, TopbarContainer = true, PlayerList = true, Chat = true, Backpack = true,
     DevConsoleUI = true, ScriptInvitationUI = true, FollowPromptUI = true, TouchControlsFrame = true, PauseMenu = true, CoreGui = true, ExMenu = true,
 } S.GENERIC_GUI_NAMES = { Main = true, InGame = true, Notifications = true }
-
 function S.IsEmbeddable(g, containerFrame, trust) if not g then return false, "không có GUI" end
     if not g.Parent then return false, "GUI chưa có Parent (script chưa gắn lên màn hình)" end if not (g:IsA("ScreenGui") or g:IsA("Folder")) then return false, "không phải ScreenGui/Folder" end
     if g == gui or g:IsDescendantOf(gui) then return false, "là GUI của chính hub" end if g.Name == "ExMenu" then return false, "trùng tên GUI của hub (ExMenu)" end
@@ -2872,16 +2449,13 @@ function S.IsEmbeddable(g, containerFrame, trust) if not g then return false, "k
     local hasChild = false for _, c in ipairs(g:GetChildren()) do
         if c:IsA("GuiObject") then hasChild = true break end end
     if not hasChild then return false, "chưa có frame con (script còn đang dựng GUI)" end return true end
-
 function S.HookInstanceNew()
     if S.activeHook then pcall(S.activeHook) end   -- gỡ hook lần chạy trước, tránh chồng chain
     S.activeHook = nil
-
     local records = {} local st = {
         hooked = false, available = false, viaHookfunction = false, realNew = nil, ours = nil, origFromHook = nil,
         probing = false, probeSeen = false, inRun = true, graceUntil = nil, t0 = os.clock(),
     } local myCo = coroutine.running()
-
     local function unhook() if not st.hooked then return end
         st.hooked = false if st.viaHookfunction then
             pcall(function() if type(hookfunction) == "function" and st.origFromHook then
@@ -2889,7 +2463,6 @@ function S.HookInstanceNew()
         else pcall(function()
                 if Instance.new == st.ours then Instance.new = st.realNew end end)
         end if S.activeHook == unhook then S.activeHook = nil end end
-
     local function recorder(cls, ...) local inst = st.realNew(cls, ...)
         if st.probing then if cls == "ScreenGui" then st.probeSeen = true end
             return inst end
@@ -2899,16 +2472,13 @@ function S.HookInstanceNew()
                 age       = now - st.t0, embedded  = false,
                 via       = "hook", }
         end return inst end
-
     pcall(function() st.realNew = Instance.new
         st.ours = recorder Instance.new = st.ours
         st.hooked = (Instance.new == st.ours) end)
-
     if not st.hooked and type(hookfunction) == "function" then pcall(function()
             st.ours = recorder st.origFromHook = hookfunction(Instance.new, st.ours)
             if st.origFromHook then st.realNew = st.origFromHook end st.hooked = true
             st.viaHookfunction = true end) end
-
     if st.hooked then pcall(function()
             st.probing, st.probeSeen = true, false
             local probe = Instance.new("ScreenGui")   -- không gắn Parent, hủy ngay
@@ -2916,10 +2486,8 @@ function S.HookInstanceNew()
             if probe and probe.Destroy then pcall(function() probe:Destroy() end) end end)
         if not st.available then pcall(unhook)
         end end
-
     S.activeHook = unhook return unhook, records, st
 end
-
 function S.WatchNewGuis(records, st) local conns = {}
     local function already(g) for _, r in ipairs(records) do if r.inst == g then return true end end
         return false end
@@ -2941,17 +2509,14 @@ function S.WatchNewGuis(records, st) local conns = {}
     st.watchOn = true local function stopWatch()
         st.watchOn = false for _, c in ipairs(conns) do pcall(function() c:Disconnect() end) end
     end return stopWatch, conns end
-
 function S.EmbedRecorded(records, containerFrame, mode, verbose) if type(records) ~= "table" or #records == 0 then return 0, nil end
     if not containerFrame or not containerFrame.Parent then return 0, "tab đã bị đóng" end if not S.embedEnabled then return 0, "🧩 nhúng đang TẮT" end
     mode = mode or "run"
-
     local order = {} for _, r in ipairs(records) do
         if r and r.inst and not r.embedded then order[#order + 1] = r end end
     local function score(r) if r.certain then return 3 end
         if r.duringRun then return 2 end return 1
     end table.sort(order, function(a, b) return score(a) > score(b) end)
-
     local done, whyTop = 0, nil for _, r in ipairs(order) do
         local accept = false if mode == "all" then
             accept = true elseif r.certain then
@@ -2971,16 +2536,13 @@ function S.EmbedRecorded(records, containerFrame, mode, verbose) if type(records
                     end) end
             end end
     end return done, whyTop end
-
 function S.FindFeatureByHost(host) if not host then return nil end
     for _, ft in ipairs(featureTabs) do if ft.frame and ft.frame.Parent and ft.frame:FindFirstChild("ScriptHost") == host then return ft end
     end return nil
 end
-
 function S.FindActiveFeature() for _, ft in ipairs(featureTabs) do
         if ft.frame == activeTab then return ft end end
     return nil end
-
 function S.DiagText(st, records) local hookTxt = "không rõ"
     if st then if st.available then
             hookTxt = st.viaHookfunction and "OK (qua hookfunction)" or "OK (ghi đè Instance.new)" elseif st.hooked then
@@ -2992,7 +2554,6 @@ function S.DiagText(st, records) local hookTxt = "không rõ"
         if r.via == "scan" then scan += 1 end end
     local lastWhy = nil for _, r in ipairs(records or {}) do if r.why then lastWhy = r.why end end
     return string.format("hook=%s · ghi nhận %d GUI (chắc chắn %d, watcher %d, quét %d) · nhúng=%s · lý do cuối: %s", hookTxt, n, certain, watch, scan, tostring(S.embedEnabled and "BẬT" or "TẮT"), tostring(lastWhy or "—")) end
-
 function S.RescueScan(ft, host) host = host or (ft and ft.frame and ft.frame:FindFirstChild("ScriptHost"))
     if not host or not host.Parent then return 0 end if not S.embedEnabled then return 0 end
     local containers = {playerGui} if targetGui ~= playerGui then containers[#containers + 1] = targetGui end
@@ -3007,7 +2568,6 @@ function S.RescueScan(ft, host) host = host or (ft and ft.frame and ft.frame:Fin
                 end end
         end) if n >= 3 then break end
     end return n end
-
 function S.ReembedFeature(ft, allowScan) if not ft or not ft.frame or not ft.frame.Parent then return 0, "tab không còn tồn tại" end
     if not S.embedEnabled then return 0, "🧩 nhúng đang TẮT" end local host = ft.frame:FindFirstChild("ScriptHost")
     if not host then return 0, "tab thiếu ScriptHost" end for _, e in ipairs(S.embeds) do
@@ -3018,18 +2578,15 @@ function S.ReembedFeature(ft, allowScan) if not ft or not ft.frame or not ft.fra
     if not why then why = (ft.records and #ft.records > 0)
             and (ft.lastWhy or "GUI chưa sẵn sàng để nhúng") or  "chưa ghi nhận được GUI nào (script có tạo ScreenGui không?)"
     end return 0, why end
-
 function S.OnFeatureTabOpened(ft) if not ft or not ft.frame or not ft.frame.Parent then return end
     local n = S.ReembedFeature(ft, false) if n > 0 then
         pcall(function() if ft.status and ft.status.Parent then
                 ft.status.Text = string.format( "✅ vừa nhúng lại %d GUI vào tab (lần trước bị rớt ngoài menu) — bấm ✕ để trả về game", n)
             end if ft.indicator and ft.indicator.Parent then ft.indicator.BackgroundColor3 = C.GREEN end
         end) end end
-
 S.parkTab   = nil S.parkBtn   = nil
 S.parkList  = nil S.parkCount = 0
 S.PARK_MAX  = 2      -- mỗi lần chạy chỉ đưa tối đa 2 GUI vào menu (tránh nuốt cả UI của game)
-
 function S.ParkHost(label) if not (S.parkList and S.parkList.Parent) then
         local sf, btn = AddTab("GUI Ngoài", "🧩", 99) S.parkTab, S.parkBtn = sf, btn
         New("TextLabel", { Size = UDim2.new(1, -140, 0, 30), Position = UDim2.new(0, 8, 0, 4),
@@ -3043,11 +2600,9 @@ function S.ParkHost(label) if not (S.parkList and S.parkList.Parent) then
         end) S.parkList = New("Frame", {
             Name = "ParkList", Size = UDim2.new(1, -16, 1, -42), Position = UDim2.new(0, 8, 0, 38), BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = 5,
         }, S.parkTab) New("UIListLayout", {Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder}, S.parkList) end
-
     S.parkCount += 1 local box = New("Frame", {
         Name = "ParkBox_" .. tostring(label or "GUI"), Size = UDim2.new(1, 0, 0, 240), LayoutOrder = S.parkCount, BackgroundColor3 = C.BG, BackgroundTransparency = 0.35, BorderSizePixel = 0, ZIndex = 5,
     }, S.parkList) Corner(box, UDim.new(0, 8)) Stroke(box, nil, 1)
-
     local back = New("TextButton", { Size = UDim2.new(0, 92, 0, 18), Position = UDim2.new(1, -96, 0, 3),
         Text = "↩ Trả về game", BackgroundColor3 = C.GRAY, BackgroundTransparency = 0.2, TextColor3 = C.WHITE, Font = Enum.Font.GothamBold, TextSize = 8, BorderSizePixel = 0, ZIndex = 7,
     }, box) Corner(back, UDim.new(0, 5))
@@ -3057,13 +2612,11 @@ function S.ParkHost(label) if not (S.parkList and S.parkList.Parent) then
         pcall(function() S.parkTab.CanvasSize = UDim2.new(0, 0, 0, S.parkCount * 246 + 10) end) pcall(function()
             if S.parkBtn then S.parkBtn.Text = S.parkCount > 0 and ("🧩 GUI Ngoài (" .. S.parkCount .. ")") or "🧩 GUI Ngoài" end
         end) end)
-
     local area = New("Frame", { Name = "ParkArea", Size = UDim2.new(1, -8, 1, -30), Position = UDim2.new(0, 4, 0, 26),
         BackgroundTransparency = 1, BorderSizePixel = 0, ClipsDescendants = true, ZIndex = 5, }, box)
     pcall(function() S.parkTab.CanvasSize = UDim2.new(0, 0, 0, S.parkCount * 246 + 10) end) pcall(function()
         if S.parkBtn then S.parkBtn.Text = "🧩 GUI Ngoài (" .. S.parkCount .. ")" end end)
     return area, box end
-
 S.NO_PARK_MARKERS = { "dex.lua", "dex explorer", "dexexplorer", "infiniteyield", "infinite yield",
     "simplespy", "simple spy", }
 function S.ShouldSkipPark(code, name) local hay = (tostring(code or "") .. "\n" .. tostring(name or "")):lower()
@@ -3072,7 +2625,6 @@ function S.ShouldSkipPark(code, name) local hay = (tostring(code or "") .. "\n" 
         or code_l:find("request(", 1, true) or code_l:find("https://", 1, true) or code_l:find("http://", 1, true)
     if hasFetch and (code_l:find("loadstring", 1, true) or code_l:find("load(", 1, true)) then return true, "script tải từ mạng (để GUI ngoài màn hình như tác giả thiết kế)"
     end return false, nil end
-
 function S.RemoveAllParked() if not (S.parkList and S.parkList.Parent) then return 0 end
     local n = 0 local kids = S.parkList:GetChildren()
     for i = #kids, 1, -1 do local box = kids[i]
@@ -3081,7 +2633,6 @@ function S.RemoveAllParked() if not (S.parkList and S.parkList.Parent) then retu
         end end
     S.parkCount = 0 pcall(function() S.parkTab.CanvasSize = UDim2.new(0, 0, 0, 10) end)
     pcall(function() if S.parkBtn then S.parkBtn.Text = "🧩 GUI Ngoài" end end) return n end
-
 function S.BeginRunCapture() if not S.embedEnabled then return nil end
     if S.parkCodeGuis == false then return nil end local ok, cap = pcall(function()
         local unhook, recs, st = S.HookInstanceNew() local stopWatch = S.WatchNewGuis(recs, st)
@@ -3089,18 +2640,15 @@ function S.BeginRunCapture() if not S.embedEnabled then return nil end
             parked = 0, names = {}, cancelled = false} end) if not ok then return nil end
     S.activeCap = cap     -- để Cancel() gỡ được hook+watcher nếu người dùng bấm ⏹ Dừng giữa chừng
     return cap end
-
 function S.AbortRunCapture() local cap = S.activeCap
     if not cap then return false end S.activeCap = nil
     cap.cancelled = true pcall(function() if cap.st then cap.st.watchOn = false cap.st.inRun = false end end)
     pcall(cap.stopWatch) pcall(cap.unhook)
     return true end
-
 function S.EndRunCapture(cap, label) if not cap or cap.cancelled then return 0 end
     local st, recs = cap.st, cap.recs pcall(function()
         st.inRun = false st.graceUntil = os.clock() + 1.0
     end)
-
     local function try() if cap.cancelled or cap.parked >= S.PARK_MAX or not S.embedEnabled then return 0 end
         local added = 0 for _, r in ipairs(recs) do
             if cap.parked >= S.PARK_MAX then break end if r and r.inst and not r.embedded then
@@ -3116,7 +2664,6 @@ function S.EndRunCapture(cap, label) if not cap or cap.cancelled then return 0 e
                 end end
         end return added
     end
-
     local total = try() for _, d in ipairs(S.EMBED_TRY_DELAYS) do
         task.delay(d, function() if cap.cancelled or cap.parked >= S.PARK_MAX then return end
             if not S.embedEnabled then return end try()
@@ -3125,42 +2672,31 @@ function S.EndRunCapture(cap, label) if not cap or cap.cancelled then return 0 e
         if S.activeCap == cap then S.activeCap = nil end end)
     pcall(function() print("[taodepzai v5.0 NOIR] ▶ tab Code · " .. S.DiagText(st, recs) .. " · đã đưa vào menu: " .. cap.parked)
     end) return total end
-
 local function RunFeatureScript(code, name, containerFrame, indicator, statusLabel) if #code == 0 then
         if statusLabel then statusLabel.Text = "⚠️ Vui lòng nhập code!" end return false, "empty"
     end
-
     code = NormalizeCode(code)
     S.EnsureCompat()   -- v4.7: tab ➕ Tính Năng cũng được bù hàm executor còn thiếu
-
     if indicator then indicator.BackgroundColor3 = C.RED end if statusLabel then statusLabel.Text = "⏳ Đang thực thi..." end
     ReleaseHubFocus()   -- v4.4b: đang dán code trong TextBox mà chạy luôn thì game vẫn "khóa" input
-
     local ft = S.FindFeatureByHost(containerFrame) local runToken = nil
     if ft then ft._runToken = (tonumber(ft._runToken) or 0) + 1
         runToken = ft._runToken
         ft.records = nil              -- lần chạy mới -> bỏ danh sách GUI của lần chạy cũ
     end
-
     local embedCount, lateCandidate = 0, 0 local featureUnhook, records, lastWhy, hookState = nil, nil, nil, nil
     local ok, err = pcall(function() local fn, lerr = loadstring(code)
         if not fn then error("loadstring thất bại: "..tostring(lerr)) end
-
         local beforeGuis = {} for _, g in ipairs(playerGui:GetChildren()) do beforeGuis[g] = true end
         for _, g in ipairs(targetGui:GetChildren()) do beforeGuis[g] = true end pcall(function()
             for _, g in ipairs(game:GetService("CoreGui"):GetChildren()) do beforeGuis[g] = true end end)
-
         local unhook, recs, st = S.HookInstanceNew() local stopWatch = S.WatchNewGuis(recs, st)
         st.stopWatch = stopWatch featureUnhook, records, hookState = unhook, recs, st
         if ft then ft.records = recs ft.hookState = st end
-
         local fnOk, fnErr = pcall(fn)
-
         st.inRun = false st.graceUntil = os.clock() + 1.0
-
         local hookWorks = (st.available == true) local useScan = (not hookWorks) or (S.embedGuessNew == true)
         local mode = (S.embedGuessNew == true) and "any" or "run"
-
         for i = 1, S.EMBED_CHILD_WAIT do if useScan then
                 local found = ScanNewGuis(beforeGuis, nil, true) for _, g in ipairs(found) do
                     local now = os.clock() recs[#recs + 1] = {
@@ -3169,13 +2705,10 @@ local function RunFeatureScript(code, name, containerFrame, indicator, statusLab
             end local d, why = S.EmbedRecorded(recs, containerFrame, useScan and "any" or mode, true)
             embedCount += d if why then lastWhy = why end
             if embedCount > 0 then break end task.wait(0.2) end
-
         if embedCount > 0 then unhook()
             pcall(stopWatch) else
             task.delay(S.EMBED_HOOK_GRACE, function() pcall(unhook) pcall(stopWatch) end) end
-
         if not fnOk then error(fnErr) end
-
         for _, dly in ipairs(S.EMBED_TRY_DELAYS) do task.delay(dly, function()
                 if ft and ft._runToken ~= runToken then return end if embedCount > 0 then return end
                 if not (containerFrame and containerFrame.Parent) then return end if not S.embedEnabled then return end
@@ -3189,12 +2722,10 @@ local function RunFeatureScript(code, name, containerFrame, indicator, statusLab
                                 "✅ xong · GUI sinh trễ đã được nhúng vào tab (%d) — bấm ✕ để trả về màn hình game", embedCount)
                         end end)
                 end end) end
-
         if embedCount == 0 then local late = ScanNewGuis(beforeGuis, nil, true)
             local real = 0 for _, g in ipairs(late) do
                 if g.Parent and not g:IsDescendantOf(containerFrame) then real += 1 end end
             if real > 0 then lateCandidate = real end end end)
-
     if embedCount > 0 then if featureUnhook then pcall(featureUnhook) end
         pcall(function() if hookState and hookState.stopWatch then hookState.stopWatch() end end) end
     if ft then
@@ -3203,7 +2734,6 @@ local function RunFeatureScript(code, name, containerFrame, indicator, statusLab
         ft.hookState = hookState end
     pcall(function() print("[taodepzai v5.0 NOIR] ▶ '" .. tostring(name) .. "' · " .. S.DiagText(hookState, records)
             .. " · đã nhúng: " .. embedCount) end)
-
     if ok then if indicator then indicator.BackgroundColor3 = C.GREEN end
         if statusLabel then if embedCount > 0 then
                 statusLabel.Text = string.format( "✅ xong · %d GUI đã nhúng vào tab (bấm ✕ để trả về màn hình game)", embedCount)
@@ -3218,88 +2748,67 @@ local function RunFeatureScript(code, name, containerFrame, indicator, statusLab
         warn("[taodepzai v5.0 NOIR] Feature script error:", err) return false, err, records
     end end
 local function CreateFeatureTab(name, icon, codeContent) if not name or #name == 0 then name = "Tính Năng " .. (#featureTabs + 1) end if not icon or #icon == 0 then icon = "⚙️" end
-
     codeContent = NormalizeCode(codeContent)
-
     local featureData
-
     local sf  = MakeTabFrame() local btn = MakeTabButton(name, icon, featureTabIndex + #featureTabs, function()
         task.defer(function() S.OnFeatureTabOpened(featureData) end) end)
-
     table.insert(tabs, btn) table.insert(tabContent, sf)
     tabBar.CanvasSize = UDim2.new(0, 0, 0, #tabs * 36 + 10)
-
     local tabIdx = #tabs
-
     featureData = { name = name,
         icon = icon, code = codeContent,
         btn = btn, frame = sf,
         tabIdx = tabIdx, } table.insert(featureTabs, featureData)
-
     local embedHost = New("Frame", { Size = UDim2.new(1,0,1,-30),
         Position = UDim2.new(0,0,0,0), BackgroundTransparency = 1,
         BorderSizePixel = 0, ZIndex = 5,
         Name = "ScriptHost", Visible = true, }, sf)
     featureData.hostFrame = embedHost   -- v4.4g
-
     local toolbar = New("Frame", { Size = UDim2.new(1,0,0,30),
         Position = UDim2.new(0,0,1,-30), BackgroundColor3 = Color3.fromRGB(230,233,242),
         BackgroundTransparency = 0.1, BorderSizePixel = 0,
         ZIndex = 20, }, sf)
     Corner(toolbar, UDim.new(0,6)) Stroke(toolbar, Color3.fromRGB(180,185,200), 1)
-
     local runFeatureBtn = New("TextButton", { Size=UDim2.new(0,76,0,20), Position=UDim2.new(0,6,0,5),
         Text="▶ Chạy Script", BackgroundColor3=C.GREEN, BackgroundTransparency=0.1, TextColor3=C.WHITE, Font=Enum.Font.GothamBold, TextSize=8, BorderSizePixel=0, ZIndex=21,
     }, toolbar) Corner(runFeatureBtn, UDim.new(0,5))
-
     local saveFeatureBtn = New("TextButton", { Size=UDim2.new(0,72,0,20), Position=UDim2.new(0,86,0,5),
         Text="📤 Chép Code", BackgroundColor3=C.BLUE, BackgroundTransparency=0.1, TextColor3=C.WHITE, Font=Enum.Font.GothamBold, TextSize=8, BorderSizePixel=0, ZIndex=21,
     }, toolbar) Corner(saveFeatureBtn, UDim.new(0,5))
-
     local editFeatureBtn = New("TextButton", { Size=UDim2.new(0,46,0,20), Position=UDim2.new(0,162,0,5),
         Text="✏️ Sửa", BackgroundColor3=C.ORANGE, BackgroundTransparency=0.1, TextColor3=C.WHITE, Font=Enum.Font.GothamBold, TextSize=8, BorderSizePixel=0, ZIndex=21,
     }, toolbar) Corner(editFeatureBtn, UDim.new(0,5))
-
     local crosshairBtn = New("TextButton", { Size=UDim2.new(0,58,0,20), Position=UDim2.new(0,212,0,5),
         Text="🎯 Tâm", BackgroundColor3=C.PURPLE, BackgroundTransparency=0.1, TextColor3=C.WHITE, Font=Enum.Font.GothamBold, TextSize=8, BorderSizePixel=0, ZIndex=21,
     }, toolbar) Corner(crosshairBtn, UDim.new(0,5))
     S.RegisterCrosshairBtn(crosshairBtn)
-
     local closeFeatureBtn = New("TextButton", { Size=UDim2.new(0,32,0,20), Position=UDim2.new(1,-38,0,5),
         Text="✕", BackgroundColor3=C.RED, BackgroundTransparency=0.1, TextColor3=C.WHITE, Font=Enum.Font.GothamBold, TextSize=10, BorderSizePixel=0, ZIndex=21,
     }, toolbar) Corner(closeFeatureBtn, UDim.new(0,5))
-
     local fStatus = New("TextLabel", { Size=UDim2.new(1,-44-274,0,20), Position=UDim2.new(0,274,0,5),
         Text="", BackgroundTransparency=1, TextColor3=Color3.fromRGB(255, 205, 64), Font=Enum.Font.GothamMedium, TextSize=8, TextXAlignment=Enum.TextXAlignment.Left,
         TextTruncate=Enum.TextTruncate.AtEnd, ZIndex=21, }, toolbar)
     featureData.status = fStatus   -- v4.4g: hub tự sửa nhãn khi nhúng trễ thành công
-
     local editorFrame = New("Frame", { Size=UDim2.new(1,0,1,-30),
         Position=UDim2.new(0,0,0,0), BackgroundColor3=Color3.fromRGB(245,247,252),
         BackgroundTransparency=0, BorderSizePixel=0,
         ZIndex=30, Visible=false, }, sf)
-
     local editorBox = New("TextBox", { Size=UDim2.new(1,-16,1,-64), Position=UDim2.new(0,8,0,8),
         Text=codeContent, PlaceholderText="Dán script hoàn chỉnh HOẶC link raw vào đây...\nScript có thể tạo GUI riêng, GUI đó sẽ được nhúng vào tab này.",
         PlaceholderColor3=Color3.fromRGB(122, 130, 148), BackgroundColor3=Color3.fromRGB(26, 29, 38), BackgroundTransparency=0, TextColor3=Color3.fromRGB(233, 237, 245),
         Font=Enum.Font.Code, TextSize=11, BorderSizePixel=0, ClearTextOnFocus=false, MultiLine=true, TextWrapped=true, TextXAlignment=Enum.TextXAlignment.Left, TextYAlignment=Enum.TextYAlignment.Top,
         Active=true, Selectable=true, ZIndex=31, }, editorFrame)
     Corner(editorBox, UDim.new(0,5)) Stroke(editorBox, Color3.fromRGB(100,120,200), 1.5) New("UIPadding", {PaddingLeft=UDim.new(0,6), PaddingTop=UDim.new(0,4)}, editorBox)
-
     local applyEditBtn = New("TextButton", { Size=UDim2.new(0,96,0,20), Position=UDim2.new(0,8,1,-28),
         Text="✅ Áp Dụng", BackgroundColor3=C.GREEN, BackgroundTransparency=0.1, TextColor3=C.WHITE, Font=Enum.Font.GothamBold, TextSize=8, BorderSizePixel=0, ZIndex=31,
     }, editorFrame) Corner(applyEditBtn, UDim.new(0,5))
-
     local cancelEditBtn = New("TextButton", { Size=UDim2.new(0,96,0,20), Position=UDim2.new(0,110,1,-28),
         Text="❌ Hủy", BackgroundColor3=C.RED, BackgroundTransparency=0.1, TextColor3=C.WHITE, Font=Enum.Font.GothamBold, TextSize=8, BorderSizePixel=0, ZIndex=31,
     }, editorFrame) Corner(cancelEditBtn, UDim.new(0,5))
-
     local function ClearHost() S.ClearEmbedsUnder(embedHost) end
-
     runFeatureBtn.Activated:Connect(function() ClearHost()
         fStatus.Text = "⏳ Đang chạy..." RunFeatureScript(codeContent, name, embedHost, runFeatureBtn, fStatus)
     end)
-
     saveFeatureBtn.Activated:Connect(function() local c = codeContent
         if #c == 0 then fStatus.Text = "⚠️ Không có code!"
             return end
@@ -3311,25 +2820,19 @@ local function CreateFeatureTab(name, icon, codeContent) if not name or #name ==
             n = bn.." ("..cnt..")" end
         table.insert(scripts, {name = n, code = c, expanded = false}) if RebuildScripts then RebuildScripts() end
         Store.saveSoon() fStatus.Text = "✅ Đã chép sang tab Code!" end)
-
     editFeatureBtn.Activated:Connect(function() editorBox.Text = codeContent
         editorFrame.Visible = true end)
-
     applyEditBtn.Activated:Connect(function() codeContent = NormalizeCode(editorBox.Text)
         featureData.code = codeContent editorFrame.Visible = false
         ClearHost()
         Store.saveSoon()   -- code đã đổi thì bản lưu trên đĩa cũng phải đổi theo
         fStatus.Text = "✏️ Đã cập nhật code" end)
-
     cancelEditBtn.Activated:Connect(function() editorFrame.Visible = false
     end)
-
     closeFeatureBtn.Activated:Connect(function() ClearHost()
         OpenFirstPage()   -- v4.6.2: đóng tab tính năng thì về trang đầu (💾 Code Đã Lưu)
     end)
-
     return featureData end
-
 task.spawn(function() task.wait(1)
     local lastSize = main.AbsoluteSize while main and main.Parent do
         task.wait(0.15) if main.AbsoluteSize ~= lastSize then
@@ -3340,57 +2843,43 @@ task.spawn(function() task.wait(1)
                         table.remove(_G.BananaCatHub_EmbedHosts, i) end
                 end end
         end end end)
-
 local createFeatureTab = AddTab("Tạo Tính Năng", "➕", 7)   -- v4.15: 6 -> 7 (👥 chen vào ô 4)
-
 local cy = 8 Label(createFeatureTab, "➕ Tạo Tab Tính Năng Tích Hợp", cy)
 cy = cy + 16 Label(createFeatureTab, "Dán NGUYÊN một script hoàn chỉnh HOẶC link raw.", cy)
 cy = cy + 14 Label(createFeatureTab, "Script chạy trong tab; GUI của NÓ được nhúng vào menu (không đụng GUI game).", cy)
 cy = cy + 14 Label(createFeatureTab, "💾 Tab tạo ra TỰ ĐỘNG được lưu — thoát game vào lại vẫn còn, khỏi cần bấm gì thêm.", cy)
 cy = cy + 14 Label(createFeatureTab, "🧩 Bấm 🎯 Chạy Script xong nhớ bấm ✕ hoặc kéo menu to ra — hub tự nhả focus", cy)
 cy = cy + 14 Label(createFeatureTab, "    để bạn quay chuột/bắn lại bình thường. Nếu script vẫn chiếm chuột: 🧩 TẮT nhúng.", cy) cy = cy + 18
-
 Label(createFeatureTab, "🏷️ Tên Tính Năng:", cy) cy = cy + 14
-
 local featureNameIn = New("TextBox", { Size=UDim2.new(1,-16,0,26), Position=UDim2.new(0,8,0,cy), Text="",
     PlaceholderText="VD: Auto Farm, Fly, Speed...", PlaceholderColor3=Color3.fromRGB(122, 130, 148),
     BackgroundColor3=Color3.fromRGB(26, 29, 38), BackgroundTransparency=0, TextColor3=Color3.fromRGB(233, 237, 245), Font=Enum.Font.GothamMedium, TextSize=12, BorderSizePixel=0, ClearTextOnFocus=false,
     Active=true, Selectable=true, ZIndex=10, TextXAlignment=Enum.TextXAlignment.Left, }, createFeatureTab)
 Corner(featureNameIn, UDim.new(0,5)) Stroke(featureNameIn, Color3.fromRGB(100,120,200), 1.5) New("UIPadding", {PaddingLeft=UDim.new(0,6)}, featureNameIn)
-
 cy = cy + 32 Label(createFeatureTab, "🎨 Icon (1 ký tự, tùy chọn):", cy)
 cy = cy + 14
-
 local featureIconIn = New("TextBox", { Size=UDim2.new(0,60,0,26), Position=UDim2.new(0,8,0,cy), Text="⚙️",
     PlaceholderColor3=Color3.fromRGB(122, 130, 148), BackgroundColor3=Color3.fromRGB(26, 29, 38), BackgroundTransparency=0, TextColor3=Color3.fromRGB(233, 237, 245),
     Font=Enum.Font.GothamBold, TextSize=14, BorderSizePixel=0, ClearTextOnFocus=false, Active=true, Selectable=true, ZIndex=10,
 }, createFeatureTab) Corner(featureIconIn, UDim.new(0,5)) Stroke(featureIconIn, Color3.fromRGB(180,180,200), 1.2)
-
 cy = cy + 32 Label(createFeatureTab, "📜 Dán Script Hoàn Chỉnh HOẶC link raw:", cy)
 cy = cy + 14
-
 local featureCodeIn = New("TextBox", { Size=UDim2.new(1,-16,0,140), Position=UDim2.new(0,8,0,cy), Text="",
     PlaceholderText="Dán script hoặc link raw (https://...) vào đây...\nScript có thể tạo ScreenGui riêng, GUI đó sẽ được nhúng vào tab.", PlaceholderColor3=Color3.fromRGB(122, 130, 148),
     BackgroundColor3=Color3.fromRGB(28, 31, 41), BackgroundTransparency=0, TextColor3=Color3.fromRGB(233, 237, 245), Font=Enum.Font.Code, TextSize=11, BorderSizePixel=0, ClearTextOnFocus=false, MultiLine=true, TextWrapped=true, TextXAlignment=Enum.TextXAlignment.Left, TextYAlignment=Enum.TextYAlignment.Top,
     Active=true, Selectable=true, ZIndex=10, }, createFeatureTab)
 Corner(featureCodeIn, UDim.new(0,5)) Stroke(featureCodeIn, Color3.fromRGB(100,120,200), 1.5) New("UIPadding", {PaddingLeft=UDim.new(0,6), PaddingTop=UDim.new(0,4)}, featureCodeIn)
-
 cy = cy + 146
-
 local createTabBtn = Button(createFeatureTab, "➕ Tạo Tab Tính Năng", 8, cy, 160, 20, Color3.fromRGB(0,150,200)) local clearFormBtn = Button(createFeatureTab, "🧹 Xóa Form", 174, cy, 90, 20, C.ORANGE)
 cy = cy + 24
-
 local embedToggleBtn = Button(createFeatureTab, "🧩 Nhúng vào Tab: BẬT", 270, cy - 24, 114, 20, C.GREEN) local guessToggleBtn = Button(createFeatureTab, "🕵 Đoán GUI trễ: TẮT", 8, cy, 144, 20, C.GRAY)
 local grabSizeCodeBtn = Button(createFeatureTab, "📏 Code Tự Co Giãn (an toàn, Auto-Lưu)", 158, cy, 226, 20, C.PURPLE) cy = cy + 24
 local fixMouseBtn = Button(createFeatureTab, "🖱 Kẹt chuột / không bấm được? Bấm đây", 8, cy, 376, 18, C.RED) cy = cy + 22
 local copyTemplateBtn = Button(createFeatureTab, "📋 Copy Code Mẫu Cho AI (menu + niêm tâm)", 8, cy, 376, 20, C.BLUE) cy = cy + 24
-
 S.reembedBtn = Button(createFeatureTab, "🔁 Cứu GUI: nhúng lại GUI của tab ĐANG MỞ vào menu", 8, cy, 376, 20, C.BLUE)
 cy = cy + 24
-
 S.parkToggleBtn = Button(createFeatureTab, "🪟 GUI chạy ở tab 💻 Code → đưa vào menu: BẬT", 8, cy, 376, 20, C.GREEN)
 cy = cy + 24
-
 S.SyncEmbedToggles = function()
     pcall(function() if D.SyncPageChips then D.SyncPageChips() end end)   -- v4.5: chip trên header trang
     pcall(function() embedToggleBtn.Text = S.embedEnabled and "🧩 Nhúng vào Tab: BẬT" or "🧩 Nhúng vào Tab: TẮT"
@@ -3401,10 +2890,8 @@ S.SyncEmbedToggles = function()
             S.parkToggleBtn.Text = on and "🪟 GUI chạy ở tab 💻 Code → đưa vào menu: BẬT" or "🪟 GUI chạy ở tab 💻 Code → để ngoài màn hình: TẮT"
             D.SetBg(S.parkToggleBtn, on and C.GREEN or C.GRAY) end
     end) end S.SyncEmbedToggles()
-
 local createStatus = Label(createFeatureTab, "", cy) createStatus.TextColor3=C.YELLOW; createStatus.TextSize=9; createStatus.ZIndex=6
 cy = cy + 14
-
 S.DoToggleEmbed = function() S.embedEnabled = not S.embedEnabled
     if S.embedEnabled then embedToggleBtn.Text = "🧩 Nhúng vào Tab: BẬT"
         D.SetBg(embedToggleBtn, C.GREEN) createStatus.Text = "🧩 BẬT: GUI của script được mượn vào tab. Bấm ✕ trên tab để trả về như cũ."
@@ -3416,7 +2903,6 @@ S.DoToggleEmbed = function() S.embedEnabled = not S.embedEnabled
     Store.saveSoon()   -- v4.4g: lưu trạng thái 🧩 xuống đĩa -> thoát game vào lại vẫn giữ
     pcall(function() if Store.refreshStatus then Store.refreshStatus() end end) end
 embedToggleBtn.Activated:Connect(S.DoToggleEmbed)
-
 S.DoToggleGuess = function() S.embedGuessNew = not (S.embedGuessNew == true)
     if S.embedGuessNew then guessToggleBtn.Text = "🕵 Đoán GUI trễ: BẬT"
         D.SetBg(guessToggleBtn, C.ORANGE) createStatus.Text = "🕵 BẬT: script tạo GUI trễ (sau HttpGet/task.wait) sẽ được nhúng — tiện hơn"
@@ -3425,7 +2911,6 @@ S.DoToggleGuess = function() S.embedGuessNew = not (S.embedGuessNew == true)
         createStatus.Text = "🛡 An toàn nhất: chỉ nhúng GUI mà hub chắc chắn là của script." .. " Script tạo GUI trễ sẽ chạy bình thường ngoài màn hình, không bị nhúng." end
     Store.saveSoon()   -- v4.4g: lưu trạng thái 🕵 xuống đĩa
 end guessToggleBtn.Activated:Connect(S.DoToggleGuess)
-
 S.DoTogglePark = function()
     S.parkCodeGuis = (S.parkCodeGuis == false)   -- đảo trạng thái
     S.SyncEmbedToggles() if S.parkCodeGuis == false then
@@ -3436,7 +2921,6 @@ S.DoTogglePark = function()
     end
     Store.saveSoon()   -- lưu xuống đĩa: thoát game vào lại vẫn giữ lựa chọn này
 end S.parkToggleBtn.Activated:Connect(S.DoTogglePark)
-
 grabSizeCodeBtn.Activated:Connect(function() local currentCode = featureCodeIn.Text
     if #currentCode == 0 then createStatus.Text = "⚠️ Ô code đang trống, không có gì để lấy!"
         return end
@@ -3509,10 +2993,8 @@ end)
 
     table.insert(scripts, {name = saveName, code = wrappedCode, expanded = false}) if RebuildScripts then RebuildScripts() end
     Store.saveSoon()
-
     createStatus.Text = "✅ Đã lưu bản tự co giãn vào tab 'Code Đã Lưu': "..saveName.. " · để tab tính năng co giãn theo menu thì KHÔNG cần bản này, hub tự làm khi bấm ▶ Chạy Script."
 end)
-
 S.DoFixMouse = function() local done = {}
     ReleaseHubFocus() done[#done+1] = "nhả focus"
     local restored = 0 for _, ft in ipairs(featureTabs) do
@@ -3522,7 +3004,6 @@ S.DoFixMouse = function() local done = {}
     pcall(function() UserInputService.MouseBehavior = Enum.MouseBehavior.Default end) done[#done+1] = "chuột về mặc định"
     createStatus.Text = "🖱 " .. table.concat(done, " · ") .. " — vẫn không được? 🧩 TẮT nhúng rồi bấm ▶ lại (lúc đó hub không đụng GUI nào)"
     return table.concat(done, " · ") end fixMouseBtn.Activated:Connect(S.DoFixMouse)
-
 S.reembedBtn.Activated:Connect(function() ReleaseHubFocus()
     local ft = S.FindActiveFeature() if not ft then
         createStatus.Text = "⚠️ Hãy MỞ tab tính năng cần cứu trước (bấm vào tab đó cho nó hiện ra) rồi hãy bấm 🔁." return
@@ -3537,12 +3018,10 @@ S.reembedBtn.Activated:Connect(function() ReleaseHubFocus()
             createStatus.Text = "⚠️ Chưa nhúng được: " .. tostring(why or "không rõ lý do") .. " · bấm ▶ Chạy Script lại rồi CHỜ 10 giây (hub tự thử lại 5 lần) · xem console (F9) để biết hook có bị executor chặn không."
         end print(string.format("[taodepzai v5.0 NOIR] 🔁 Cứu GUI tab '%s': %d GUI đã nhúng%s",
             tostring(ft.name), n, why and (" · lý do bỏ qua: " .. tostring(why)) or "")) end) end)
-
 copyTemplateBtn.Activated:Connect(function() ReleaseHubFocus()
     local nm = (featureNameIn.Text or ""):gsub('[\r	"]', " "):gsub("^%s+", ""):gsub("%s+$", "") if #nm == 0 then nm = "Tính Năng Mới" end
     local ic = (featureIconIn.Text or ""):gsub('[\r	"]', " ") if #ic == 0 then ic = "⚙️" end
     local stamp pcall(function() stamp = os.date("sinh %H:%M %d/%m/%Y") end) local code = S.FeatureTemplate(nm, ic, stamp)
-
     local copied = S.CopyToClipboard(code) local inBox = false
     if #featureCodeIn.Text == 0 then featureCodeIn.Text = code
         inBox = true end
@@ -3553,45 +3032,36 @@ copyTemplateBtn.Activated:Connect(function() ReleaseHubFocus()
         if not exists then break end cnt = cnt + 1
         saveName = baseName .. " (" .. cnt .. ")" end
     table.insert(scripts, {name = saveName, code = code, expanded = false}) if RebuildScripts then RebuildScripts() end Store.saveSoon()
-
     createStatus.Text = (copied and ("📋 ĐÃ COPY " .. #code .. " ký tự vào clipboard") or ("⚠️ Executor không có setclipboard — lấy code ở tab 'Code Đã Lưu'"))
         .. " · đã lưu '" .. saveName .. "'" .. (inBox and " · đã điền vào ô code" or " · ô code giữ nguyên code của bạn")
         .. " · gửi NGUYÊN đoạn code đó cho AI/người viết script, dán lại rồi bấm ▶ Chạy Script." local oldLabel = copyTemplateBtn.Text
     copyTemplateBtn.Text = "✅ Đã copy code mẫu cho: " .. nm task.delay(2.6, function()
         if copyTemplateBtn and copyTemplateBtn.Parent then copyTemplateBtn.Text = oldLabel end end)
     print("[taodepzai v5.0 NOIR] 📋 Code mẫu '" .. nm .. "' (" .. #code .. " ký tự) — clipboard: " .. tostring(copied)) end)
-
 Label(createFeatureTab, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", cy) cy = cy + 16
 Label(createFeatureTab, "📋 Danh Sách Tab Tính Năng Đã Tạo:", cy) cy = cy + 16
-
 local featureListFrame = New("Frame", { Size=UDim2.new(1,-16,0,0), Position=UDim2.new(0,8,0,cy),
     BackgroundTransparency=1, BorderSizePixel=0, ZIndex=6, }, createFeatureTab)
 New("UIListLayout", {SortOrder=Enum.SortOrder.LayoutOrder, Padding=UDim.new(0,4)}, featureListFrame)
-
 local function RebuildFeatureList() for _, c in ipairs(featureListFrame:GetChildren()) do
         if not c:IsA("UIListLayout") then c:Destroy() end end
-
     if #featureTabs == 0 then New("TextLabel", {
             Size=UDim2.new(1,0,0,30), Text="📭 Chưa có tab tính năng nào.",
             BackgroundTransparency=1, TextColor3=C.GRAY, Font=Enum.Font.GothamMedium, TextSize=10, TextXAlignment=Enum.TextXAlignment.Center, TextYAlignment=Enum.TextYAlignment.Center, ZIndex=7,
         }, featureListFrame) createFeatureTab.CanvasSize = UDim2.new(0, 0, 0, cy + 50)
         return end
-
     local totalH = 0 for i, ft in ipairs(featureTabs) do
         local row = New("Frame", { Size=UDim2.new(1,0,0,28), BackgroundColor3=Color3.fromRGB(26, 29, 38),
             BackgroundTransparency=0.1, BorderSizePixel=0, ZIndex=6, }, featureListFrame)
         Corner(row, UDim.new(0,5)); Stroke(row)
-
         New("TextLabel", { Size=UDim2.new(1,-82,1,0), Position=UDim2.new(0,8,0,0),
             Text=ft.icon.." "..ft.name, BackgroundTransparency=1, TextColor3=C.DARK, Font=Enum.Font.GothamBold, TextSize=9, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7,
         }, row)
-
         local goBtn = New("TextButton", { Size=UDim2.new(0,44,0,18), Position=UDim2.new(1,-72,0,5),
             Text="➡ Mở", BackgroundColor3=C.BLUE, BackgroundTransparency=0.1, TextColor3=C.WHITE, Font=Enum.Font.GothamBold, TextSize=8, BorderSizePixel=0, ZIndex=8,
         }, row) Corner(goBtn, UDim.new(0,4))
         goBtn.Activated:Connect(function() for i, b in ipairs(tabs) do
                 if b == ft.btn then SwitchTab(i); break end end end)
-
         local delBtn = New("TextButton", { Size=UDim2.new(0,22,0,18), Position=UDim2.new(1,-25,0,5),
             Text="🗑", BackgroundColor3=C.RED, BackgroundTransparency=0.1, TextColor3=C.WHITE, Font=Enum.Font.GothamBold, TextSize=8, BorderSizePixel=0, ZIndex=8,
         }, row) Corner(delBtn, UDim.new(0,4)) delBtn.Activated:Connect(function()
@@ -3607,39 +3077,28 @@ local function RebuildFeatureList() for _, c in ipairs(featureListFrame:GetChild
                     end end RebuildFeatureList()
                 Store.saveSoon()   -- ⭐ xóa cũng phải ghi xuống đĩa, nếu không tab sẽ "sống lại" khi rejoin
             end end)
-
         totalH = totalH + 32 end
-
     featureListFrame.Size = UDim2.new(1,-16,0,totalH) createFeatureTab.CanvasSize = UDim2.new(0, 0, 0, cy + totalH + 30)
 end
-
 createTabBtn.Activated:Connect(function() local n = featureNameIn.Text
     local ic = featureIconIn.Text local c = featureCodeIn.Text
-
     if #n == 0 then createStatus.Text = "⚠️ Vui lòng nhập tên tính năng!"
         return end
     if #c == 0 then createStatus.Text = "⚠️ Vui lòng dán script!"
         return end
-
     for _, ft in ipairs(featureTabs) do if ft.name == n then
             createStatus.Text = "⚠️ Tên tính năng đã tồn tại!" return
         end end
-
     CreateFeatureTab(n, ic, c) RebuildFeatureList()
     Store.saveSoon()   -- ⭐ lưu ngay vào file để thoát game vào lại vẫn còn tab này
-
     createStatus.Text = "✅ Đã tạo tab: "..n.." (đã lưu)" featureNameIn.Text = ""
     featureIconIn.Text = "⚙️" featureCodeIn.Text = ""
-
     SwitchTab(#tabs) end)
-
 clearFormBtn.Activated:Connect(function() featureNameIn.Text = ""
     featureIconIn.Text = "⚙️" featureCodeIn.Text = ""
     createStatus.Text = "🧹 Đã xóa form" end)
-
 RebuildFeatureList() pcall(function()
     createFeatureTab.CanvasSize = UDim2.new(0, 0, 0, cy + 40) end)
-
 Store.restoreFeatures = function() for i = #featureTabs, 1, -1 do
         local ft = featureTabs[i] for j, b in ipairs(tabs) do
             if b == ft.btn then table.remove(tabs, j)
@@ -3649,16 +3108,12 @@ Store.restoreFeatures = function() for i = #featureTabs, 1, -1 do
         local hostFrame = ft.frame and ft.frame:FindFirstChild("ScriptHost") if hostFrame then S.ClearEmbedsUnder(hostFrame) end
         pcall(function() ft.btn:Destroy() end) pcall(function() ft.frame:Destroy() end)
         table.remove(featureTabs, i) end
-
     for _, f in ipairs(Store.loadedFeatures) do CreateFeatureTab(f.name, f.icon, f.code) end
-
     for j, t in ipairs(tabs) do t.LayoutOrder = j end tabBar.CanvasSize = UDim2.new(0, 0, 0, #tabs * 44 + 10)
     RebuildFeatureList() if Store.refreshStatus then Store.refreshStatus() end
 end
-
 if #Store.loadedFeatures > 0 then Store.restoreFeatures()
     createStatus.Text = string.format("💾 Đã khôi phục %d tab tính năng từ bộ nhớ", #Store.loadedFeatures) end
-
 S.Move = { fly = false, noclip = false, infJump = false, speed = false, carpet = false,
     runMode = false,                         -- 🏃 chế độ "chạy trên thảm" (gộp thảm + tốc độ + HUD)
     sprint = false, sprintSpeed = 50,        -- v4.37: 💨 tốc độ theo camera (mặt đất, không xuyên tường)
@@ -3676,16 +3131,13 @@ S.Move = { fly = false, noclip = false, infJump = false, speed = false, carpet =
     _carpetRetries = 0,                           -- số lần thảm bị game xoá
 } local MV = S.Move
 _G.BananaCatHub_MV = S.Move  -- v4.28: expose for legacy refs (HubLoc fly)
-
 function MV.comp(v, k, dft) if v == nil then return dft end
     local ok, val = pcall(function() return v[k] end) if ok and type(val) == "number" then return val end
     return dft end
 local function mvClamp(n, lo, hi, dft) n = tonumber(n)
     if n == nil or n ~= n then return dft end if n < lo then return lo end
     if n > hi then return hi end return n end
-
 function MV.Char() return player.Character end
--- v5.3 EXTREME PERF: cache Humanoid và RootPart để không FindFirstChild mỗi frame
 MV._cachedChar = nil MV._cachedHum = nil MV._cachedRoot = nil MV._cacheAt = 0
 function MV.Hum()
     local now = os.clock()
@@ -3696,7 +3148,6 @@ function MV.Hum()
     local h = c and c:FindFirstChildOfClass("Humanoid") or nil
     MV._cachedChar = c MV._cachedHum = h MV._cacheAt = now
     if h then
-        -- cache luôn Root từ Humanoid.RootPart nếu có
         local ok, rp = pcall(function() return h.RootPart end)
         if ok and rp then MV._cachedRoot = rp end
     end
@@ -3715,8 +3166,6 @@ end
 function MV.InvalidateCache()
     MV._cachedChar, MV._cachedHum, MV._cachedRoot, MV._cacheAt = nil, nil, nil, 0
 end
-
--- ---------- 🧱 XUYÊN TƯỜNG (NoClip) ----------
 function MV._NcPart(p) if not (p and p.IsA and p:IsA("BasePart")) then return end
     MV._ncParts = MV._ncParts or {} if MV._origCC[p] == nil then
         MV._origCC[p] = MV._ncParts[p] and true or p.CanCollide end if p.CanCollide ~= false then pcall(function() p.CanCollide = false end) end
@@ -3735,7 +3184,6 @@ function MV._NcEnforce() if not MV.noclip then return end local c = MV.Char()
             end end)
         if not ok then parts[p] = nil end end
 end
--- ---------- v4.22: 🧲 ĐẨY XUYÊN khi bị chặn CỨNG ----------
 function MV._NcAssist() if MV.fly or not (MV.noclip and MV.ncPass ~= false) then
         MV._passBlocked, MV._passPX, MV._passPZ, MV._passAt = 0, nil, nil, nil return
     end local onCarpet = (MV.carpet == true) or (MV.runMode == true) local h, r = MV.Hum(), MV.Root()
@@ -3768,7 +3216,6 @@ function MV._NcStep() if not MV.noclip then return end
     if MV._ncChar ~= c or not MV._ncLast or (now - MV._ncLast) > 0.5 then MV._ncLast = now
         MV._NcScan()                                  -- quét đầy đủ: bắt part mới / nhân vật mới
     end
-    -- v5.4 EXTREME+: chỉ enforce CanCollide + assist mỗi 0.15s thay vì mỗi frame, giảm 85% work
     MV._ncEnforceAcc = (MV._ncEnforceAcc or 0) + (now - (MV._ncEnforceLast or now))
     MV._ncEnforceLast = now
     if MV._ncEnforceAcc >= 0.15 then
@@ -3804,8 +3251,6 @@ end function MV.SetNoclip(on)
         MV._passBlocked, MV._passPX, MV._passPZ, MV._passAt = 0, nil, nil, nil MV._NcRestore()
     end MV._Watchdog()
     if MV.SyncFlyHud then MV.SyncFlyHud() end return MV.noclip end
-
--- ---------- 🦘 NHẢY VÔ HẠN ----------
 function MV._JumpGuard() local h = MV.Hum()
     if not h then return end pcall(function()
         local jp = mvClamp(MV.jumpPower, 1, 500) if h.UseJumpPower ~= false then
@@ -3846,8 +3291,6 @@ function MV.SetInfJump(on) on = (on == true)
             if MV._ijBaseJH ~= nil then pcall(function() h.JumpHeight = MV._ijBaseJH end) end end
         MV._ijBaseJP, MV._ijBaseJH = nil, nil end
     MV._Watchdog() return MV.infJump end
-
--- ---------- 👟 CHẠY ĐỘ (WalkSpeed / JumpPower) ----------
 function MV.WantSpeed() if MV.speedMode == "x" then
         local base = tonumber(MV._baseWS) or 16 return mvClamp(base * mvClamp(MV.speedMul, 1, 20), 0, 500)
     end return mvClamp(MV.walkSpeed, 0, 500)
@@ -3870,8 +3313,6 @@ end function MV.SetSpeed(on)
     end MV.speed = on
     MV.ApplyChar() MV._Watchdog()
     return MV.speed end
-
--- ---------- v4.12.2: VÒNG CANH GÁC (lý do nhiều game "không hoạt động") ----------
 function MV._NeedWatch() return (MV.fly or MV.noclip or MV.infJump or MV.speed or MV.runMode
             or MV.sprint or MV.highJump or (MV.Safe and MV.Safe.on)) == true end
 function MV._KeepAlive() if MV.speed or MV.runMode then pcall(MV.SpeedStep) end
@@ -3879,7 +3320,6 @@ function MV._KeepAlive() if MV.speed or MV.runMode then pcall(MV.SpeedStep) end
             MV._speedBound = false pcall(MV._BindSpeed)
             pcall(MV._SpeedFrame) end
     end if MV.infJump or MV.runMode then pcall(MV._JumpGuard) end if MV.highJump then pcall(MV._HighJumpApplyPower) end
-    -- [REMOVED] carpet keepalive
     if MV.fly then pcall(MV._EnsureFly)
         if not MV._flyBound or (tick() - (MV._flyFrameAt or 0)) > 0.6 then MV._flyBound = false
             pcall(MV._BindFly) pcall(MV._FlyFrame)
@@ -3895,11 +3335,8 @@ end function MV._Watchdog()
             pcall(MV._KeepAlive) task.wait(0.3)
         end if MV._wdToken == token then MV._wdToken, MV._wd = nil, nil end
     end) if MV._wdToken == token then MV._wd = thread end end
-
--- ---------- 🚀 BAY THEO CAMERA (v4.36) ----------
 do local FL = { x = 0, z = 0, y = 0, holds = {}, showHud = true, focused = true, conns = {} }
 MV.Flight = FL
-
 function MV.ClearFlyInput() FL.x, FL.z, FL.y = 0, 0, 0
     FL.holds, FL.joyInput, FL.dragInput = {}, nil, nil if FL.knob and FL.knob.Parent then FL.knob.Position = UDim2.new(0.5, -14, 0.5, -14) end
 end function MV.SetFlyVirtual(x, z, y)
@@ -3929,7 +3366,6 @@ end function MV._DestroyFlyParts()
             Name = "BC_FlyFloor", Size = Vector3.new(6, 0.2, 6), Transparency = 0.7, Color = Color3.fromRGB(200, 230, 255), Material = Enum.Material.Glass,
             Anchored = true, CanCollide = false, CanTouch = false, CanQuery = false, }, workspace)
     end return r, h end
-
 function MV._ReadFlyInput(cf, h) if not FL.focused or UserInputService:GetFocusedTextBox() then return Vector3.zero end
     local x, z, y = FL.x, FL.z, FL.y local virtualDirection = FL.joyInput ~= nil or math.abs(x) + math.abs(z) > 0
     for _, v in pairs(FL.holds) do x += v.X; y += v.Y; z += v.Z
@@ -3982,7 +3418,6 @@ end function MV.SetFlySpeed(n)
 end function MV.SetFlyHud(on)
     FL.showHud = (on == true) if not FL.showHud then MV.ClearFlyInput() end
     MV.SyncHud() return FL.showHud end
-
 function MV._BuildFlyHud() if FL.hud and FL.hud.Parent then return FL.hud end
     for _, c in ipairs(FL.conns) do c:Disconnect() end FL.conns = {}
     MV.ClearFlyInput() local function connect(signal, callback)
@@ -4041,15 +3476,11 @@ end function MV.SyncFlyHud()
         FL.hud.Visible = MV.fly and FL.showHud FL.status.Text = string.format("💨 %g · 🧱 %s\nThả phím / cần: đứng lơ lửng", MV.flySpeed, MV.noclip and "BẬT" or "TẮT")
     end if S.SyncFlyPanel then S.SyncFlyPanel() end end
 end -- 🚀 BAY THEO CAMERA
-
--- ---------- 💨 TỐC ĐỘ THEO CAMERA (v4.37) ----------
 do local CS = { focused = true }
 MV.CamSpeed = CS
-
 function MV._DestroySpeedParts() if MV._sv then MV._sv:Destroy(); MV._sv = nil end
 end function MV._EnsureSpeed()
     if not MV.sprint then return nil end
-    -- Bay mục tiêu có BodyVelocity riêng; tránh để chạy camera ghi đè vận tốc ngang.
     if MV.fly or MV._playerFlyActive or MV._glassFlyActive or MV._objFlyActive or (MV.Safe and MV.Safe.on) then
         MV._DestroySpeedParts() CS.root = nil return nil
     end
@@ -4064,7 +3495,6 @@ end function MV._EnsureSpeed()
         local mf = MV._sv.MaxForce if mf and (mf.Y ~= 0) then
             MV._sv.MaxForce = Vector3.new(1e9, 0, 1e9) end
     end return r, h end
-
 function MV._ReadSpeedInput(cf, h) if not CS.focused or UserInputService:GetFocusedTextBox() then return Vector3.zero end
     local x, z = 0, 0 local w = UserInputService:IsKeyDown(Enum.KeyCode.W)
     local s = UserInputService:IsKeyDown(Enum.KeyCode.S) local a = UserInputService:IsKeyDown(Enum.KeyCode.A)
@@ -4113,11 +3543,8 @@ end function MV.SetSprintSpeed(n)
     MV.sprintSpeed = mvClamp(n, 1, 2000, 50) if S.SyncSpeedPanel then S.SyncSpeedPanel() end
     if S.SyncTunePanel then pcall(S.SyncTunePanel) end return true, MV.sprintSpeed end
 end -- 💨 TỐC ĐỘ THEO CAMERA
-
--- ---------- 🦘 NHẢY CAO (v4.38) ----------
 do local HJ = { last = 0 }
 MV.HighJump = HJ
-
 function MV.WantJumpSpeed() if MV.highJump then return mvClamp(MV.highJumpSpeed, 1, 500, 80) end
     return mvClamp(MV.jumpPower, 1, 500, 50) end
 function MV.HighJumpVelocity(current, speed) local vx = MV.comp(current, "X", 0)
@@ -4162,7 +3589,6 @@ function MV.SetHighJumpSpeed(n) n = tonumber(n)
     if MV.highJump then pcall(MV._HighJumpApplyPower) end if S.SyncHighJumpPanel then S.SyncHighJumpPanel() end
     if S.SyncTunePanel then pcall(S.SyncTunePanel) end return true, MV.highJumpSpeed end
 end -- 🦘 NHẢY CAO
-
 do MV.Safe = {
     on = false,
     auto = true,        -- ➡ tự bay (không bấm gì vẫn bay theo hướng camera)
@@ -4198,7 +3624,6 @@ do MV.Safe = {
     showHud = true, _hud = nil,
     _joyBG = nil, _joyKnob = nil, _dragging = false, _bv = nil, _bg = nil,
 } local SF = MV.Safe
-
 local function sfIsPart(d) if d == nil then return false end
     local okA, isPart = pcall(function() return d:IsA("BasePart") end)   -- game thật: IsA có sẵn
     if okA and isPart ~= nil then return isPart == true end local okC, cls = pcall(function() return tostring(d.ClassName or "") end)
@@ -4296,7 +3721,6 @@ function MV.Safe.Scan(pos, dt) local char = MV.Char()
         if rep.Magnitude > 0 then SF._lastRep = rep end            -- nhớ HƯỚNG đang né
     end return n, near, rep
 end
--- ---------- v4.18: 🔲 BỨC TƯỜNG TRONG SUỐT HÌNH VUÔNG bao quanh mình ----------
 function MV.Safe.KillShield() for i = 1, 4 do
         local w = SF._shield and SF._shield[i] if w then pcall(function() w:Destroy() end) end
     end SF._shield, SF._shieldPos = nil, nil
@@ -4346,14 +3770,12 @@ function MV.Safe.UpdateShield(pos) if not (SF.on and SF.shield) then
             pcall(function() SF._autoRotatePrev = h.AutoRotate end) end
         pcall(function() h.PlatformStand = true end) pcall(function() h.AutoRotate = false end)
     end return bv, bg end
-
 function MV.Safe._RestoreHum() local h = SF._hum
     if h and h.Parent then if SF._platformStandPrev ~= nil then
             pcall(function() h.PlatformStand = SF._platformStandPrev end) end if SF._autoRotatePrev ~= nil then
             pcall(function() h.AutoRotate = SF._autoRotatePrev end) end
     end SF._hum = nil
     SF._platformStandPrev = nil SF._autoRotatePrev = nil end
-
 function MV.Safe.Repair() local r = MV.Root()
     if not r then return false end local bv, bg = MV.Safe._EnsureBV()
     if not bv or MV.Root() ~= r then return false
@@ -4377,7 +3799,6 @@ function MV.Safe.Step(dt) if not SF.on then return end
     end local dtv = tonumber(dt) or 0.016
     SF._sc = (SF._sc or 0) + dtv local sinceThreat = tick() - (SF._lastThreatAt or 0)
     local ivScan = (((SF.threats or 0) > 0) or sinceThreat < 1.0) and 0.10 or 0.30
-    -- v5.4 EXTREME+: khi menu đóng thì scan thưa hơn nữa 0.20/0.50
     if S.PagePerf and not S.PagePerf.IsMainVisible() then
         ivScan = ivScan * 1.8
     end
@@ -4487,7 +3908,6 @@ end function MV.Safe.SetRadius(n)
     if SF.on and SF.shield then local r = MV.Root()
         if r then pcall(MV.Safe.UpdateShield, r.Position) end end
     return SF.radius end
-
 function MV.Safe.SetShieldSize(n) SF.shieldSize = mvClamp(n, 0, 300, 0)
     SF._shieldPos = nil if SF.on and SF.shield then
         local r = MV.Root() if r then pcall(MV.Safe.UpdateShield, r.Position) end
@@ -4514,7 +3934,6 @@ function MV.Safe.Status() if not SF.on then return "🛡 bay an toàn: đang T�
         s = s .. " · ✅ quanh đây không có gì lao tới mình" end
     if SF.showHud and SF.on then s = s .. " · 📱 nút ảo BẬT"
     end return s end
-
 function MV.Safe.SetVirt(x, z, y) SF._virtX = mvClamp(tonumber(x) or 0, -1, 1, 0)
     SF._virtZ = mvClamp(tonumber(z) or 0, -1, 1, 0) SF._virtY = mvClamp(tonumber(y) or 0, -1, 1, 0)
     return SF._virtX, SF._virtZ, SF._virtY end
@@ -4532,33 +3951,27 @@ end function MV.Safe._BuildHud()
         BorderSizePixel = 0, Visible = false,
         ZIndex = 25, }, gui)
     Corner(hud, UDim.new(0, 10)) Stroke(hud, C.HAIRLINE, 1) D.Shade(hud, Color3.fromRGB(255,255,255), Color3.fromRGB(188,192,205), 90)
-
     local title = New("TextLabel", { Size = UDim2.new(1, -60, 0, 16), Position = UDim2.new(0, 8, 0, 3),
         Text = "🛡 Bay An Toàn - Nút Ảo", BackgroundTransparency = 1, TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 9,
         TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 26, }, hud)
-
     local hideBtn = New("TextButton", { Size = UDim2.new(0, 22, 0, 16), Position = UDim2.new(1, -50, 0, 2),
         Text = "👁", BackgroundColor3 = C.SURFACE3, BackgroundTransparency = 0.15, TextColor3 = C.MUTED, Font = Enum.Font.GothamBold, TextSize = 9,
         BorderSizePixel = 0, ZIndex = 26, }, hud)
     Corner(hideBtn, UDim.new(0, 5)) hideBtn.Activated:Connect(function()
         MV.Safe.SetShowHud(false) D.Say("📱 đã ẩn nút ảo 🛡 (vào khung 🛡 trong 📚 Script Hub để BẬT lại)", C.MUTED) end)
-
     local closeBtn = New("TextButton", { Size = UDim2.new(0, 22, 0, 16), Position = UDim2.new(1, -25, 0, 2),
         Text = "✕", BackgroundColor3 = C.RED, BackgroundTransparency = 0.2, TextColor3 = C.WHITE, Font = Enum.Font.GothamBold, TextSize = 9,
         BorderSizePixel = 0, ZIndex = 26, }, hud)
     Corner(closeBtn, UDim.new(0, 5)) closeBtn.Activated:Connect(function()
         MV.Safe.Stop() D.Say("🚫 đã tắt 🛡 Bay An Toàn", C.YELLOW) end)
-
     local joyBG = New("Frame", { Name = "JoyBG",
         Size = UDim2.new(0, 92, 0, 92), Position = UDim2.new(0, 8, 0, 22), BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.15,
         BorderSizePixel = 0, ZIndex = 26, }, hud)
     Corner(joyBG, UDim.new(0, 12)) Stroke(joyBG, C.BORDER, 1) SF._joyBG = joyBG
-
     local joyKnob = New("Frame", { Name = "JoyKnob",
         Size = UDim2.new(0, 26, 0, 26), Position = UDim2.new(0.5, -13, 0.5, -13), BackgroundColor3 = C.ACCENT, BackgroundTransparency = 0.15,
         BorderSizePixel = 0, ZIndex = 27, }, joyBG)
     Corner(joyKnob, UDim.new(1, 0)) Stroke(joyKnob, C.WHITE, 1) SF._joyKnob = joyKnob
-
     local function dirBtn(txt, x, y, vx, vz) local b = New("TextButton", {
             Size = UDim2.new(0, 22, 0, 22), Position = UDim2.new(0, x, 0, y), Text = txt, BackgroundColor3 = C.SURFACE3, BackgroundTransparency = 0.2,
             TextColor3 = C.DARK, Font = Enum.Font.GothamBold, TextSize = 10, BorderSizePixel = 0, ZIndex = 27,
@@ -4571,7 +3984,6 @@ end function MV.Safe._BuildHud()
         end) return b
     end dirBtn("↑", 35, 2, 0, -1)
     dirBtn("↓", 35, 68, 0, 1) dirBtn("←", 2, 35, -1, 0) dirBtn("→", 68, 35, 1, 0)
-
     local function updateJoy(inputPos) local okPos, absPos = pcall(function() return joyBG.AbsolutePosition end)
         local okSize, absSize = pcall(function() return joyBG.AbsoluteSize end) if not (okPos and okSize and absPos and absSize) then return end
         local cx = absPos.X + absSize.X * 0.5 local cy = absPos.Y + absSize.Y * 0.5
@@ -4585,7 +3997,6 @@ end function MV.Safe._BuildHud()
     local function resetJoy() SF._dragging = false
         pcall(function() joyKnob.Position = UDim2.new(0.5, -13, 0.5, -13)
         end) MV.Safe.SetVirt(0, 0, SF._virtY) end
-
     joyBG.InputBegan:Connect(function(inp) if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
             SF._dragging = true updateJoy(inp.Position)
         end end)
@@ -4596,7 +4007,6 @@ end function MV.Safe._BuildHud()
         end end))
     trackConn(UserInputService.InputEnded:Connect(function(inp) if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
             if SF._dragging then resetJoy() end end end))
-
     local function vBtn(txt, x, y, w, h, color, cb) local b = New("TextButton", {
             Size = UDim2.new(0, w, 0, h), Position = UDim2.new(0, x, 0, y), Text = txt, BackgroundColor3 = color or C.SURFACE3, BackgroundTransparency = 0.15,
             TextColor3 = D.BestText(color or C.SURFACE3), Font = Enum.Font.GothamBold, TextSize = 9, BorderSizePixel = 0, ZIndex = 27,
@@ -4609,29 +4019,23 @@ end function MV.Safe._BuildHud()
                     pcall(cb, false) end
             end) b.Activated:Connect(function() pcall(cb, nil) end)
         end return b end
-
     vBtn("⬆", 108, 22, 32, 30, Color3.fromRGB(0,150,0), function(isDown) if isDown == true then MV.Safe.SetVirt(SF._virtX, SF._virtZ, 1)
         elseif isDown == false then MV.Safe.SetVirt(SF._virtX, SF._virtZ, 0) else
             pcall(function() MV.Nudge(2.5) end) end end)
     vBtn("⬇", 108, 56, 32, 30, Color3.fromRGB(150,0,0), function(isDown) if isDown == true then MV.Safe.SetVirt(SF._virtX, SF._virtZ, -1)
         elseif isDown == false then MV.Safe.SetVirt(SF._virtX, SF._virtZ, 0) else
             pcall(function() MV.Nudge(-2.5) end) end end)
-
     vBtn("⏹ Dừng", 108, 92, 68, 22, C.RED, function() MV.Safe.Stop() end) vBtn("⭕ Tâm", 180, 92, 54, 22, C.PURPLE, function() MV.Safe.Recenter() end)
-
     vBtn("↻", 144, 22, 30, 30, C.SURFACE3, function() SF._ang = (SF._ang or 0) + 0.6
     end)
-
     local autoTog = vBtn("➡ Tự: BẬT", 8, 120, 74, 20, C.GREEN, function() MV.Safe.SetAuto(not SF.auto)
         D.Say(SF.auto and "➡ tự bay: BẬT" or "➡ tự bay: TẮT", C.ACCENT) pcall(function() if S.SyncSafePanel then S.SyncSafePanel() end end)
         pcall(function() MV.Safe.SyncHud() end) end) local circTog = vBtn("⭕ Vòng: BẬT", 86, 120, 74, 20, C.GREEN, function()
         MV.Safe.SetCircle(not SF.circle) D.Say(SF.circle and "⭕ vòng tròn: BẬT" or "⭕ vòng tròn: TẮT", C.ACCENT)
         pcall(function() if S.SyncSafePanel then S.SyncSafePanel() end end) pcall(function() MV.Safe.SyncHud() end) end)
-
     local speedLbl = New("TextLabel", { Size = UDim2.new(0, 80, 0, 20), Position = UDim2.new(0, 164, 0, 120),
         Text = "💨 60", BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium, TextSize = 8, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 27,
     }, hud)
-
     do local dragging, startPos, startInput
         title.InputBegan:Connect(function(inp) if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
                 dragging = true startInput = inp.Position
@@ -4642,7 +4046,6 @@ end function MV.Safe._BuildHud()
         end)) trackConn(UserInputService.InputEnded:Connect(function(inp)
             if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then dragging = false
             end end)) end
-
     function SF._hudUpdate() pcall(function()
             if autoTog then autoTog.Text = SF.auto and "➡ Tự: BẬT" or "➡ Tự: TẮT"
                 autoTog.BackgroundColor3 = SF.auto and C.GREEN or C.SURFACE3 autoTog.TextColor3 = D.BestText(autoTog.BackgroundColor3)
@@ -4652,10 +4055,8 @@ end function MV.Safe._BuildHud()
             if speedLbl then local thr = SF.threats or 0
                 speedLbl.Text = string.format("💨 %g · %s%d", SF.speed or 60, thr>0 and "⚠️" or "✅", thr) speedLbl.TextColor3 = thr>0 and C.YELLOW or C.MUTED
             end end) end
-
     SF._hud = hud return hud
 end
-
 function MV.Safe.SyncHud() pcall(function()
         local hud = MV.Safe._BuildHud() if hud then
             local should = (SF.on == true) and (SF.showHud ~= false) hud.Visible = should
@@ -4663,14 +4064,7 @@ function MV.Safe.SyncHud() pcall(function()
             local old = MV._hud if old then old.Visible = false end
         else pcall(function() MV.SyncHud() end)
         end end) end
-
 end   -- hết khối 🛡 BAY AN TOÀN (v4.18)
-
--- ---------- 🪩 THẢM KÍNH (chỉnh Rộng × Cao × Dài + khoảng cách tới chân) ----------
--- Có hai chế độ độc lập:
---   • SetCarpet: thảm bám dưới chân để tương thích API cũ.
---   • PlaceGlass: các tấm kính CỐ ĐỊNH, được lưu trong _placedGlasses và không bị
---     tấm mới ghi đè. UI dùng các record { id, part, position, size } bên dưới.
 function MV.SetCarpetSize(w, h, l) MV.carpetW = mvClamp(w, 0.5, 100, MV.carpetW or 6)
     MV.carpetH = mvClamp(h, 0.1, 20, MV.carpetH or 0.5) MV.carpetL = mvClamp(l, 0.5, 100, MV.carpetL or 6)
     if MV._carpet and MV._carpet.Parent then pcall(function()
@@ -4740,11 +4134,8 @@ end function MV.CreateCarpet(y)
     if not okBind then MV.SetCarpet(false)
         return false, "executor không bind được thảm kính" end
     pcall(function() if MV.SyncHud then MV.SyncHud() end end) return true end
-
--- ---------- v4.24: ĐẶT KÍNH DƯỚI CHÂN (đặt nhiều tấm kính cố định) ----------
 MV._placedGlasses = MV._placedGlasses or {} MV._glassId = tonumber(MV._glassId) or 0 MV.autoGlass = MV.autoGlass == true
 MV._lastGlassPos = MV._lastGlassPos or nil MV.glassMax = mvClamp(MV.glassMax, 1, 1000, 250) MV._autoGlassBound = MV._autoGlassBound == true
-
 function MV._GlassPart(entry) if type(entry) == "table" then return entry.part or entry.Part end
     return entry end
 function MV._GlassRecord(entry, fallbackId) if type(entry) == "table" then
@@ -4788,7 +4179,6 @@ function MV._RecoverPlacedGlasses() if type(MV._placedGlasses) ~= "table" then M
     end table.sort(recovered, function(a, b) return (a.id or 0) < (b.id or 0) end)
     for _, rec in ipairs(recovered) do table.insert(MV._placedGlasses, rec) end return #recovered
 end if type(MV._placedGlasses) ~= "table" then MV._placedGlasses = {} end if #MV._placedGlasses == 0 then pcall(MV._RecoverPlacedGlasses) end
-
 function MV.PlaceGlass(silent) local root = MV.Root()
     if not root then return false, "chưa có nhân vật để đặt kính" end local pos = MV._GlassPosition(root)
     local rec, err = MV._CreateGlassAt(pos) if not rec then return false, err end
@@ -4841,14 +4231,11 @@ function MV._AutoGlassTick(curPos) if not MV.autoGlass or not curPos then return
     if ok then MV._lastGlassPos = curPos
         MV._GlassChanged() return true
     end return false end
-
--- ---------- v4.27: BAY TỚI TẤM KÍNH (đổi đặt kính thành bay tới kính, chỉnh được tốc độ) ----------
 MV.glassFlySpeed = mvClamp(MV.glassFlySpeed, 1, 2000, 60) MV._glassFlyTarget = MV._glassFlyTarget or nil
 MV._glassFlyActive = MV._glassFlyActive == true MV._glassFlyIdx = MV._glassFlyIdx or nil
 MV._glassFlyBV = MV._glassFlyBV or nil MV._glassFlyBG = MV._glassFlyBG or nil
 MV._glassFlyNcPrev = MV._glassFlyNcPrev or nil MV._glassFlyHum = MV._glassFlyHum or nil
 MV._glassFlyPlatformStandPrev = MV._glassFlyPlatformStandPrev MV._glassFlyAutoRotatePrev = MV._glassFlyAutoRotatePrev
-
 function MV.SetGlassFlySpeed(n) local v = tonumber(n)
     if v == nil or v ~= v then return false, "nhập tốc độ bay 1-2000" end MV.glassFlySpeed = mvClamp(v, 1, 2000, MV.glassFlySpeed or 60)
     return true, MV.glassFlySpeed end
@@ -4927,26 +4314,21 @@ function MV.FlyToGlass(idx) local list = MV.GetPlacedGlasses() local n = math.fl
     if not okBind then MV.StopGlassFly()
         return false, "executor không bind được bay tới kính" end
     pcall(MV._Watchdog) return true, rec end
-
--- ---------- v4.28: BAY TỚI NGƯỜI CHƠI (xuyên tường, chỉnh tốc độ, 0=auto lấy tốc độ game) ----------
 MV.playerFlySpeed = MV.playerFlySpeed or 0 MV._playerFlyTarget = MV._playerFlyTarget or nil
 MV._playerFlyActive = MV._playerFlyActive or false MV._playerFlyPos = MV._playerFlyPos or nil
 MV._playerFlyBV = MV._playerFlyBV or nil MV._playerFlyBG = MV._playerFlyBG or nil
 MV._playerFlyNcPrev = MV._playerFlyNcPrev or nil
-
 function MV.SetPlayerFlySpeed(n) local v = tonumber(n)
     if v == nil then return false, "nhập số 0-500 (0=auto)" end if v == 0 then
         MV.playerFlySpeed = 0 return true, 0
     end MV.playerFlySpeed = mvClamp(v, 1, 500, MV.playerFlySpeed or 0)
     return true, MV.playerFlySpeed end
-
 function MV.GetPlayerFlySpeed() local s = tonumber(MV.playerFlySpeed) or 0
     if s == 0 then local base = tonumber(MV._baseWS) or 16
         local flySp = tonumber(MV.flySpeed) or 60 if MV._playerFlyActive or MV.fly then
             return flySp else
             return base > 0 and base or 16 end
     end return s end
-
 function MV._EnsurePlayerFlyBV() local r = MV.Root()
     if not r then return nil, nil end if MV._playerFlyBV and MV._playerFlyBV.Parent == r then
         return MV._playerFlyBV, MV._playerFlyBG end
@@ -4955,7 +4337,6 @@ function MV._EnsurePlayerFlyBV() local r = MV.Root()
     local h = MV.Hum() if h then
         pcall(function() h.PlatformStand = true end) pcall(function() h.AutoRotate = false end)
     end return bv, bg end
-
 function MV.StopPlayerFly() MV._playerFlyActive = false
     MV._playerFlyTarget = nil MV._playerFlyPos = nil
     pcall(function() RunService:UnbindFromRenderStep("BC_PlayerFly") end) pcall(function() if MV._playerFlyBV then MV._playerFlyBV:Destroy() end end)
@@ -4968,7 +4349,6 @@ function MV.StopPlayerFly() MV._playerFlyActive = false
             if was == false then pcall(function() MV.SetNoclip(false) end)
             end end
     end return true end
-
 function MV._PlayerFlyStep(dt) if not MV._playerFlyActive then return end
     local targetPlayer = MV._playerFlyTarget if not targetPlayer or not targetPlayer.Parent then
         MV.StopPlayerFly() return
@@ -4997,7 +4377,6 @@ function MV._PlayerFlyStep(dt) if not MV._playerFlyActive then return end
         bg.CFrame = CFrame.new(pos, Vector3.new(want.X, pos.Y, want.Z)) end
     if not bv and dist > 0.1 then local step = math.min(dist, speed * (tonumber(dt) or 0.05))
         myRoot.CFrame = CFrame.new(pos.X + dir.X * step, pos.Y + dir.Y * step, pos.Z + dir.Z * step) end end
-
 function MV.FlyToPlayer(p) if not p or not p.Parent then return false, "người chơi không tồn tại" end
     if p == player then return false, "không thể bay tới chính mình" end if not MV.Root() then return false, "chưa có nhân vật" end
     if MV.fly then MV.SetFly(false) end
@@ -5015,25 +4394,18 @@ function MV.FlyToPlayer(p) if not p or not p.Parent then return false, "người
     if not okBind then MV.StopPlayerFly()
         return false, "executor không bind được bay tới người chơi" end
     MV._Watchdog() return true, p end
-
--- ---------- v5.1: 🚀 BAY TỚI VẬT ĐANG ĐỊNH VỊ (bám theo vật, tự dừng nếu vật biến mất) ----------
 MV.objectFlySpeed = mvClamp(MV.objectFlySpeed, 1, 2000, 60) MV._objFlyTarget = MV._objFlyTarget or nil
 MV._objFlyActive = MV._objFlyActive == true MV._objFlyBV = MV._objFlyBV or nil
 MV._objFlyBG = MV._objFlyBG or nil MV._objFlyNcPrev = MV._objFlyNcPrev or nil
 MV._objFlyHum = MV._objFlyHum or nil MV._objFlyPS = MV._objFlyPS MV._objFlyAR = MV._objFlyAR
-
 function MV.SetObjectFlySpeed(n) local v = tonumber(n)
     if v == nil or v ~= v then return false, "nhập tốc độ bay 1-2000" end MV.objectFlySpeed = mvClamp(v, 1, 2000, MV.objectFlySpeed or 60)
     return true, MV.objectFlySpeed end
-
--- Vật cần bay tới có thể là BasePart hoặc Model -> luôn hỏi lại mỗi khung hình
--- nên vật bị dựng lại/đổi part vẫn bám đúng.
 function MV._ObjFlyPart() local t = MV._objFlyTarget
     if t == nil then return nil end local ok, part = pcall(function()
         if S.ObjTrack and S.ObjTrack.PartOf then return S.ObjTrack.PartOf(t) end if t:IsA("BasePart") then return t end if t.PrimaryPart then return t.PrimaryPart end
         return t:FindFirstChildWhichIsA("BasePart") end)
     if ok and part and part.Parent then return part end return nil end
-
 function MV._EnsureObjFlyBV() local r = MV.Root()
     if not r then return nil, nil end if MV._objFlyBV and MV._objFlyBV.Parent == r and MV._objFlyBG and MV._objFlyBG.Parent == r then
         local h = MV.Hum() if h and MV._objFlyHum ~= h then
@@ -5048,7 +4420,6 @@ function MV._EnsureObjFlyBV() local r = MV.Root()
         MV._objFlyHum = h pcall(function() MV._objFlyPS = h.PlatformStand end)
         pcall(function() MV._objFlyAR = h.AutoRotate end) pcall(function() h.PlatformStand = true; h.AutoRotate = false end)
     end return bv, bg end
-
 function MV.StopObjectFly() MV._objFlyActive = false
     MV._objFlyTarget = nil pcall(function() RunService:UnbindFromRenderStep("BC_ObjFly") end)
     pcall(function() if MV._objFlyBV then MV._objFlyBV:Destroy() end end) pcall(function() if MV._objFlyBG then MV._objFlyBG:Destroy() end end)
@@ -5060,7 +4431,6 @@ function MV.StopObjectFly() MV._objFlyActive = false
         if not MV._playerFlyActive and not MV._glassFlyActive and not safeOn then pcall(function() MV.SetNoclip(was) end)
         end end
     pcall(function() if S.ObjTrack and S.ObjTrack.OnFlyChange then S.ObjTrack.OnFlyChange() end end) return true end
-
 function MV._ObjectFlyStep(dt) if not MV._objFlyActive then return end
     local part = MV._ObjFlyPart() if not part then
         pcall(MV.StopObjectFly) pcall(function() if D.Say then D.Say("🌳 vật đang bay tới đã biến mất — đã dừng bay", C.YELLOW) end end)
@@ -5079,7 +4449,6 @@ function MV._ObjectFlyStep(dt) if not MV._objFlyActive then return end
         pcall(function() bg.CFrame = CFrame.new(pos, Vector3.new(want.X, pos.Y, want.Z)) end) end
     if not bv and dist > 0.1 then local step = math.min(dist, speed * (tonumber(dt) or 0.05))
         pcall(function() myRoot.CFrame = CFrame.new(pos + dir * step) end) end end
-
 function MV.FlyToObject(target, speed) if target == nil then return false, "chưa có vật để bay tới" end
     if not MV.Root() then return false, "chưa có nhân vật để bay" end local part = nil
     pcall(function() if S.ObjTrack and S.ObjTrack.PartOf then part = S.ObjTrack.PartOf(target) end
@@ -5094,15 +4463,11 @@ function MV.FlyToObject(target, speed) if target == nil then return false, "chư
     if not okBind then MV.StopObjectFly()
         return false, "executor không bind được bay tới vật" end
     pcall(function() if S.ObjTrack and S.ObjTrack.OnFlyChange then S.ObjTrack.OnFlyChange() end end) return true, target end
-
--- ---------- ⬆⬇ nâng/hạ: thảm thì đổi độ cao, bay thì đẩy người ----------
 function MV.Nudge(dy) if MV.carpet then
         MV.carpetY = (MV.carpetY or MV.FootY() or 0) + dy return true, "thảm"
     elseif MV.fly then local r = MV.Root()
         if r then r.CFrame = CFrame.new(r.Position.X, r.Position.Y + dy, r.Position.Z) end return true, "bay"
     end return false, nil end
-
--- ---------- HUD: cụm nút NỔI TRÊN MÀN HÌNH GAME (⬆ 🪩 ⬇ ✕) ----------
 function MV._HudNudge(dy) local ok, what = MV.Nudge(dy)
     MV._HudSay(ok and ((dy > 0 and "⬆ nâng " or "⬇ hạ ") .. tostring(what) .. " 2.5") or "⬆⬇ bật Bay trước đã")
 end function MV._BuildHud()
@@ -5133,14 +4498,10 @@ function MV.SyncHud() pcall(function()
             MV._hudCarpet.BackgroundColor3 = MV.carpet and C.GREEN or C.GRAY end
     end) if MV.SyncFlyHud then MV.SyncFlyHud() end
 end
-
--- ---------- 🏃 CHẠY TRÊN THẢM = "🕹️ BAY CHẠY BỘ" của aiaiaitao3 (v4.12.4: GIỐNG 100%) ----------
 function MV.SetRunMode(on) MV.runMode = false
     pcall(function() if main then main.Visible = true end end) pcall(function() if togBtn then togBtn.Text = (main and main.Visible) and "✕" or "" end end)
     MV._menuWasOpen = nil MV.SyncHud()
     return false, "tinh nang chay tren tham da bi xoa" end
-
--- ---------- tắt hết / khôi phục sau respawn / tóm tắt trạng thái ----------
 function MV.StopAll() pcall(function() if S.Free and S.Free.Stop then S.Free.Stop() end end)
     if MV.Safe and MV.Safe.on then pcall(function() MV.Safe.Stop() end) end pcall(function() MV.StopGlassFly() end)
     pcall(function() MV.StopPlayerFly() end)
@@ -5162,7 +4523,6 @@ S.MoveActionState = { fly     = function() return S.Move.fly     end,
     glow     = function() return S.Glow and S.Glow.on   end, freecam  = function() return S.Free and S.Free.on end, safefly  = function() return S.Move.Safe and S.Move.Safe.on end,
     objtrack = function() return S.ObjTrack and S.ObjTrack.on end,   -- v5.1: 🌳 định vị vật theo tên
 }
-
 function MV.Refresh()
     MV.InvalidateCache()
     MV._NcForgetLost()      -- v4.22: chỉ quên part đã mất (giữ giá trị gốc của part đang bật 🧱)
@@ -5195,31 +4555,24 @@ function MV.Status() local t = {}
 end trackConn(player.CharacterAdded:Connect(function()
     task.spawn(function() task.wait(0.3)
         pcall(MV.Refresh) end) end))
-
--- ---------- v4.6.3: NHÓM TÍNH NĂNG 🌐 SERVER (Reset · Hop · Lấy mã · Vào theo mã) ----------
 function S.GetJobId() local id = game.JobId
     if id == nil then return nil end id = tostring(id)
     if id == "" then return nil end return id
 end
-
 function S.CopyToClipboard(text) local did = false
     pcall(function() if setclipboard then setclipboard(text) did = true
         elseif toclipboard then toclipboard(text) did = true elseif set_clipboard then set_clipboard(text) did = true end
     end) return did end
-
 function S.FetchServers(cursor) local url = "https://games.roblox.com/v1/games/" .. tostring(game.PlaceId)
              .. "/servers/Public?sortOrder=Asc&limit=100" if cursor and cursor ~= "" then url = url .. "&cursor=" .. tostring(cursor) end
     local raw = game:HttpGet(url) local data = HttpService:JSONDecode(raw)
     if type(data) ~= "table" then return {}, nil end return (type(data.data) == "table" and data.data or {}), data.nextPageCursor end
-
 function S.ResetServer() local me = S.GetJobId()
     if me then TeleportService:TeleportToPlaceInstance(game.PlaceId, me, player)
         return "🔄 Đang vào lại ĐÚNG server này: " .. me .. " (giữ nguyên người chơi cùng server)..." end
     TeleportService:Teleport(game.PlaceId, player) return "🔄 Không đọc được mã server (Studio/server đơn) → đang nạp lại game..." end
-
 function S.JoinServer(jobId) TeleportService:TeleportToPlaceInstance(game.PlaceId, tostring(jobId), player)
 end
-
 function S.HopServer() local me = tostring(S.GetJobId() or "")
     local cand, cursor = {}, "" for _ = 1, 3 do
         local list, nextCursor = S.FetchServers(cursor) for _, sv in ipairs(list) do
@@ -5232,34 +4585,27 @@ function S.HopServer() local me = tostring(S.GetJobId() or "")
         return "⚠️ Không tìm thấy server nào còn chỗ trống (hoặc game này không cho xem danh sách server)" end
     local pick = cand[math.random(1, #cand)] S.JoinServer(pick.id)
     return "🔀 Đang nhảy sang server " .. pick.id .. " (" .. pick.playing .. "/" .. pick.maxPlayers .. " người) · tìm được " .. #cand .. " server khác để chọn, đã bỏ qua server hiện tại" end
-
-
 function S.HopLowServer() local me = tostring(S.GetJobId() or "")
     local cand, cursor = {}, "" local pages = 0
     local maxPages = 8 -- quét 800 server để tìm server vắng nhất
     for _ = 1, maxPages do pages = pages + 1
         local ok, list, nextCursor = pcall(function() return S.FetchServers(cursor) end) if not ok then
-            -- nếu lỗi http, thử lại 1 lần
             task.wait(0.3) ok, list, nextCursor = pcall(function() return S.FetchServers(cursor) end)
         end if not ok or type(list) ~= "table" then break end
         for _, sv in ipairs(list) do local sid = (sv and sv.id) and tostring(sv.id) or nil
             local playing = tonumber(sv and sv.playing) or 0 local maxp = tonumber(sv and sv.maxPlayers) or 0 if sid and sid ~= me and (maxp <= 0 or playing < maxp) then
-                -- chỉ lấy server còn chỗ và không phải server hiện tại
                 cand[#cand + 1] = {id = sid, playing = playing, maxPlayers = maxp} end
         end if not nextCursor or nextCursor == "" then break end
         cursor = nextCursor
         task.wait(0.15) -- tránh spam api
     end if #cand == 0 then
         return "⚠️ Không tìm thấy server nào còn chỗ trống (đã quét "..pages.." trang)" end
-    -- sắp xếp theo số người chơi tăng dần (ít người nhất lên đầu)
     table.sort(cand, function(a,b) return (a.playing or 0) < (b.playing or 0) end) local minPlay = cand[1].playing
-    -- lấy tất cả server có số người = minPlay (hoặc chênh lệch 1) để random cho đỡ trùng
     local best = {} for _, sv in ipairs(cand) do
         if sv.playing <= minPlay + 1 then best[#best+1] = sv
         else break end
     end local pick = best[math.random(1, #best)]
     S.JoinServer(pick.id) return "🔀 [ÍT NGƯỜI] Đang nhảy sang server " .. pick.id .. " (" .. pick.playing .. "/" .. pick.maxPlayers .. " người) · đã quét " .. #cand .. " server qua " .. pages .. " trang, vắng nhất " .. minPlay .. " người" end
-
 function S.HopEmptyServer() local me = tostring(S.GetJobId() or "")
     local cand, cursor = {}, "" local pages = 0
     local maxPages = 10 for _ = 1, maxPages do
@@ -5274,29 +4620,22 @@ function S.HopEmptyServer() local me = tostring(S.GetJobId() or "")
         if not nextCursor or nextCursor == "" then break end cursor = nextCursor
         task.wait(0.15) end
     if #cand == 0 then
-        -- fallback sang HopLowServer nếu không có server siêu vắng
         return S.HopLowServer() end
     table.sort(cand, function(a,b) return (a.playing or 0) < (b.playing or 0) end) local pick = cand[math.random(1, #cand)]
     S.JoinServer(pick.id) return "🔀 [SIÊU VẮNG ≤3] Đang nhảy sang server " .. pick.id .. " (" .. pick.playing .. "/" .. pick.maxPlayers .. " người) · tìm thấy " .. #cand .. " server vắng qua " .. pages .. " trang"
 end
-
-
--- ---------- 🔐 ANTI BAN (v4.43) ----------
 S.AntiBan = S.AntiBan or { on = (_G.BananaCatHub_AntiBan == true),
     busy = false, lastHop = 0, cooldown = 10, hops = 0, lastReason = "", armed = false, snaps = 0, snapAt = 0,
     conns = {}, _unhookKick = nil, }
-
 function S.AntiBanIsMsg(msg) local s = string.lower(tostring(msg or ""))
     if s == "" then return false end local keys = {
         "you have been banned", "you have been kicked", "you've been banned", "you've been kicked", "banned from this", "kicked from this", "exploit detected", "cheat detected", "cheats detected", "anti-cheat", "anticheat", "kicked by", "banned by",
         "you are banned", "account banned", "game banned", "server banned", "client kicked", }
     for i = 1, #keys do if string.find(s, keys[i], 1, true) then return true end
     end return false end
-
 function S.AntiBanStatus() local a = S.AntiBan
     if not a.on then return "🔐 Anti Ban: TẮT" end local extra = (a.lastReason ~= "" and (" · lần cuối: " .. a.lastReason)) or ""
     return "🔐 Anti Ban: BẬT · đã hop " .. tostring(a.hops) .. " lần · chờ " .. tostring(a.cooldown) .. "s" .. extra end
-
 function S.AntiBanHop(reason) local a = S.AntiBan
     if not a or not a.on then return false, "off" end if a.busy then return false, "busy" end
     local now = 0 pcall(function() now = tick() end)
@@ -5308,7 +4647,6 @@ function S.AntiBanHop(reason) local a = S.AntiBan
         msg = "🔐 không lấy danh sách được → rời PlaceId (không reset đúng server cũ)" end
     a.busy = false pcall(function() if S.SyncAntiBanPanel then S.SyncAntiBanPanel() end end)
     pcall(function() if D.Say then D.Say("🔐 " .. tostring(msg), C.ACCENT) end end) return true, msg end
-
 function S.AntiBanDisarm() local a = S.AntiBan
     if not a then return end if a._unhookKick then
         pcall(a._unhookKick) if _G.BananaCatHub_AntiBanUnhook == a._unhookKick then
@@ -5317,13 +4655,11 @@ function S.AntiBanDisarm() local a = S.AntiBan
     for i = #(a.conns or {}), 1, -1 do local c = a.conns[i]
         pcall(function() if c then c:Disconnect() end end) a.conns[i] = nil
     end a.armed = false end
-
 function S.AntiBanSet(on) S.AntiBan.on = on and true or false
     pcall(function() _G.BananaCatHub_AntiBan = S.AntiBan.on end) if S.AntiBan.on then
         S.AntiBanArm() else
         S.AntiBanDisarm() end
     if S.SyncAntiBanPanel then pcall(S.SyncAntiBanPanel) end return S.AntiBan.on end
-
 function S.AntiBanArm() local a = S.AntiBan
     if a.armed then return end a.armed = true
     a.conns = a.conns or {} local function antiConnect(signal, fn)
@@ -5363,8 +4699,6 @@ function S.AntiBanArm() local a = S.AntiBan
         antiConnect(player.CharacterAdded, function(ch) task.wait(0.25)
             watchHum(ch:FindFirstChildOfClass("Humanoid")) end)
     end) end if S.AntiBan.on then pcall(S.AntiBanArm) end
--- ---------- HẾT 🔐 ANTI BAN ----------
-
 S.ScriptHubList = { {icon="🛡", name="Infinite Yield", cat="Admin", ord=1,
      desc="Admin commands: kill, speed, jump, noclip, teleport, bring, prefix tùy chỉnh...", code=[[loadstring(game:HttpGet("https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source"))()]],
      noPark=true}, {icon="🧰", name="Dex Explorer", cat="Explorer", ord=2,
@@ -5401,7 +4735,6 @@ S.ScriptHubList = { {icon="🛡", name="Infinite Yield", cat="Admin", ord=1,
      desc="Xoá toàn bộ định vị vật theo tên (không ảnh hưởng 📍 định vị người chơi và 👣 xem người chơi)."}, {icon="👣", name="Xem Người Chơi", cat="Định vị", ord=19, action="spec_on",
      desc="Bám camera theo người gần nhất. Bấm lại để TRẢ CAMERA. Danh sách chọn người: tab 👥."}, }
 S.hubFavs   = S.hubFavs or {} S.hubCat    = "Tất cả" S.hubSearch = ""
-
 function S.RunHubAction(id) if id == "crosshair" then
         local okC = pcall(function() S.ToggleCrosshair() end) if not okC then return "⚠️ chưa bật được niêm tâm" end
         S.Rebuild()                                        -- cập nhật nhãn nút
@@ -5437,8 +4770,6 @@ function S.RunHubAction(id) if id == "crosshair" then
     elseif id == "getjobid" then local jid = S.GetJobId()
         if not jid then return "⚠️ Không đọc được mã server (đang ở Studio / server đơn)" end local okCp = S.CopyToClipboard(jid)
         pcall(function() if D.hubJobIn then D.hubJobIn.Text = jid end end) pcall(function() if S.SyncServerPanel then S.SyncServerPanel() end end) return (okCp and "🌐 Đã copy mã server: " or "🌐 Mã server (executor không cho copy, hãy chép tay): ") .. jid
-
-    -- ---------- v4.12: BỘ DI CHUYỂN ----------
     elseif id == "fly" then local wanted = not S.Move.fly
         local okF, on, err = pcall(S.Move.SetFly, wanted) if not okF then return "⚠️ lỗi bay: " .. tostring(on) end
         if wanted and not on then return "⚠️ " .. tostring(err) end S.Rebuild()
@@ -5492,7 +4823,6 @@ function S.RunHubAction(id) if id == "crosshair" then
         else pcall(function() S.Loc.SetTarget(S.Loc.target or S.Loc.Nearest()) end)
         end S.Rebuild()
         return (S.Loc.solo and "🎯 ĐỊNH VỊ LẺ: " .. tostring(S.Loc.target and S.Loc.target.Name or "?") .. " — chỉ hiện người này (bấm tên khác trong khung 📍 để đổi)") or "🎯 ĐỊNH VỊ LẺ: TẮT (trở lại bình thường)"
-    -- ---------- v4.17: 🛡 BAY AN TOÀN ----------
     elseif id == "safefly" then if not S.Move.Root() then return "⚠️ chưa có nhân vật để bay (đợi vào game xong hãy bấm)" end
         if not S.Move.Safe.on then local okf = S.Move.SetFly(true)
             if okf == false then return "⚠️ không bật được bay" end end
@@ -5500,22 +4830,16 @@ function S.RunHubAction(id) if id == "crosshair" then
         S.Rebuild() return S.Move.Safe.Status()
     elseif id == "safefly_off" then pcall(function() S.Move.Safe.Stop() end)
         pcall(function() if S.SyncSafePanel then S.SyncSafePanel() end end) S.Rebuild() return "🚫 " .. S.Move.Safe.Status()
-
-    -- ---------- v4.16: ✨ PHÁT SÁNG ----------
     elseif id == "glow" then pcall(function() S.Glow.Set(not S.Glow.on) end)
         pcall(function() if S.SyncGlowPanel then S.SyncGlowPanel() end end) S.Rebuild()
         return S.Glow.Status() elseif id == "glow_off" then
         pcall(function() S.Glow.Stop() end) pcall(function() if S.SyncGlowPanel then S.SyncGlowPanel() end end)
         S.Rebuild() return "🚫 " .. S.Glow.Status()
-
-    -- ---------- v4.64: 🎥 KHÁN GIẢ ----------
     elseif id == "freecam" then pcall(function() S.Free.Set(not S.Free.on) end)
         pcall(function() if S.SyncFreePanel then S.SyncFreePanel() end end) S.Rebuild()
         return S.Free.Status() elseif id == "freecam_off" then
         pcall(function() S.Free.Stop() end) pcall(function() if S.SyncFreePanel then S.SyncFreePanel() end end)
         S.Rebuild() return "🚫 " .. S.Free.Status()
-
-    -- ---------- v4.14: 👣 XEM NGƯỜI CHƠI ----------
     elseif id == "spec_on" then if S.Spec and S.Spec.on then
             pcall(function() S.Spec.Stop() end) pcall(function() if S.Spec.RefreshList then S.Spec.RefreshList() end end)
             S.Rebuild() return "🚫 " .. (S.Spec.Status and S.Spec.Status() or "đã dừng xem")
@@ -5528,7 +4852,6 @@ function S.RunHubAction(id) if id == "crosshair" then
         pcall(function() S.Loc.StopAll() end) S.Rebuild()
         return "🚫 đã tắt hết định vị: " .. S.Loc.Status() elseif id == "movestop" then
         pcall(function() S.Move.StopAll() end) S.Rebuild() return "🛑 đã tắt hết: " .. S.Move.Status()
-    -- ---------- v5.1: 🌳 ĐỊNH VỊ VẬT THEO TÊN ----------
     elseif id == "objfind" then pcall(function() if S.ObjTrack.Focus then S.ObjTrack.Focus() end end)
         S.Rebuild() return "🌳 định vị vật: gõ tên vào ô 🔎 (VD: cây) · " .. S.ObjTrack.Status()
     elseif id == "objfly" then local target = select(1, S.ObjTrack.Nearest())
@@ -5538,7 +4861,6 @@ function S.RunHubAction(id) if id == "crosshair" then
         for _ in pairs(S.ObjTrack.items) do n = n + 1 end pcall(function() S.ObjTrack.Set(false) end)
         S.Rebuild() return "🧹 đã xoá " .. tostring(n) .. " định vị vật theo tên"
     end return "⚠️ không rõ thao tác: " .. tostring(id) end
-
 function D.CardBtn(parent, text, posX, w, color) local b = New("TextButton", {
         Size = UDim2.new(0, w, 0, 20), Position = UDim2.new(1, posX, 0, 14), Text = text, BackgroundColor3 = color or C.SURFACE3, BackgroundTransparency = 0.08,
         TextColor3 = D.BestText(color or C.SURFACE3), Font = Enum.Font.GothamBold, TextSize = 8, BorderSizePixel = 0, ZIndex = 8,
@@ -5546,72 +4868,55 @@ function D.CardBtn(parent, text, posX, w, color) local b = New("TextButton", {
     D.Shade(b, Color3.fromRGB(255,255,255), Color3.fromRGB(182,187,201), 90)   -- v4.9: bevel sâu hơn
     D.Tactile(b, 0.08) return b
 end
-
 D.hubTab = AddTab("Script Hub", "📚", 3)
-
 D.hubSearchBox = New("TextBox", { Size = UDim2.new(1, -16, 0, 26), Position = UDim2.new(0, 8, 0, 8),
     PlaceholderText = "🔍  Tìm script hoặc tiện ích...", Text = "", ClearTextOnFocus = false, BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.08, TextColor3 = C.DARK,
     PlaceholderColor3 = C.GRAY, Font = Enum.Font.GothamMedium, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left, BorderSizePixel = 0, ZIndex = 6,
 }, D.hubTab) Corner(D.hubSearchBox, UDim.new(0, 10))
 Stroke(D.hubSearchBox, C.BORDER, 1) New("UIPadding", {PaddingLeft = UDim.new(0, 9)}, D.hubSearchBox)
-
 D.hubChips = New("Frame", { Size = UDim2.new(1, -16, 0, 22), Position = UDim2.new(0, 8, 0, 38),
     BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = 6, }, D.hubTab)
 New("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 5),
     SortOrder = Enum.SortOrder.LayoutOrder, VerticalAlignment = Enum.VerticalAlignment.Center, }, D.hubChips)
-
 D.hubList = New("ScrollingFrame", {
     Size = UDim2.new(1, -16, 1, -146), Position = UDim2.new(0, 8, 0, 64),   -- v4.6.3: bớt 54px cho khung 🌐 Server
     BackgroundTransparency = 1, BorderSizePixel = 0, CanvasSize = UDim2.new(0, 0, 0, 0), ScrollBarThickness = 3, ClipsDescendants = true, ZIndex = 6,
     AutomaticCanvasSize = Enum.AutomaticSize.Y, }, D.hubTab)
 New("UIListLayout", {Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder}, D.hubList)
-
 D.hubStatus = New("TextLabel", { Size = UDim2.new(1, -16, 0, 22), Position = UDim2.new(0, 8, 1, -24),
     Text = "📚 Bấm ▶ để chạy script, ⚡ để thực hiện tiện ích · ⭐ để ghim lên đầu", BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium, TextSize = 9,
     TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, ZIndex = 6,
 }, D.hubTab)
-
--- ---------- v4.6.3: KHUNG 🌐 SERVER nằm ngay dưới danh sách thẻ ----------
 D.hubSrvPanel = New("Frame", { Name = "HubServerPanel", Size = UDim2.new(1, -16, 0, 74), Position = UDim2.new(0, 8, 1, -76),
     BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.25, BorderSizePixel = 0, ZIndex = 6, }, D.hubTab)
 Corner(D.hubSrvPanel, UDim.new(0, 10)) Stroke(D.hubSrvPanel, C.BORDER, 1)
-
 D.hubJobLbl = New("TextLabel", { Size = UDim2.new(1, -40, 0, 14), Position = UDim2.new(0, 8, 0, 4),
     Text = "🌐 Mã server: đang đọc...", BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium, TextSize = 9,
     TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7, }, D.hubSrvPanel)
-
 D.hubJobCopy = New("TextButton", { Size = UDim2.new(0, 22, 0, 14), Position = UDim2.new(1, -28, 0, 4), Text = "📋",
     BackgroundColor3 = C.BLUE, BackgroundTransparency = 0.1, TextColor3 = C.INK, Font = Enum.Font.GothamBold, TextSize = 8, BorderSizePixel = 0, AutoButtonColor = false, ZIndex = 7,
 }, D.hubSrvPanel) Corner(D.hubJobCopy, UDim.new(0, 5))
 D.Tactile(D.hubJobCopy, 0.1)
-
 D.hubJobIn = New("TextBox", { Size = UDim2.new(1, -112, 0, 20), Position = UDim2.new(0, 8, 0, 22),
     PlaceholderText = "🎟 Dán mã server (JobId) vào đây...", Text = "", ClearTextOnFocus = false, BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.1, TextColor3 = C.DARK,
     PlaceholderColor3 = C.GRAY, Font = Enum.Font.GothamMedium, TextSize = 9, TextXAlignment = Enum.TextXAlignment.Left, BorderSizePixel = 0, ZIndex = 7,
 }, D.hubSrvPanel) Corner(D.hubJobIn, UDim.new(0, 7))
 Stroke(D.hubJobIn, C.BORDER, 1) New("UIPadding", {PaddingLeft = UDim.new(0, 7)}, D.hubJobIn)
-
 D.hubJoinBtn = D.CardBtn(D.hubSrvPanel, "🚀 Vào", -98, 46, C.GREEN) D.hubJoinBtn.Position = UDim2.new(1, -98, 0, 22)
 D.hubHopBtn = D.CardBtn(D.hubSrvPanel, "🔀 Hop", -48, 42, C.PURPLE) D.hubHopBtn.Position = UDim2.new(1, -48, 0, 22)
-
--- Nút hop ít người
 D.hubLowBtn = D.CardBtn(D.hubSrvPanel, "👥 Ít", -98, 38, C.BLUE) D.hubLowBtn.Position = UDim2.new(1, -98, 0, 46)
 D.hubEmptyBtn = D.CardBtn(D.hubSrvPanel, "🌙 Vắng", -56, 50, C.ORANGE) D.hubEmptyBtn.Position = UDim2.new(1, -56, 0, 46)
-
-
 function S.SyncServerPanel() pcall(function()
         if not D.hubJobLbl then return end local jid = S.GetJobId()
         if jid then D.hubJobLbl.Text = "🌐 Mã server: " .. jid
             D.hubJobLbl.TextColor3 = C.DARK else
             D.hubJobLbl.Text = "🌐 Không đọc được mã server (Studio/server đơn) — 🔄 Reset vẫn dùng được" D.hubJobLbl.TextColor3 = C.MUTED
         end end) end
-
 D.hubJobCopy.Activated:Connect(function() local jid = S.GetJobId()
     if not jid then D.Say("⚠️ Không có mã server để copy (đang ở Studio / server đơn)")
         return end
     local okCp = S.CopyToClipboard(jid) pcall(function() D.hubJobIn.Text = jid end)
     D.Say(okCp and ("📋 Đã copy mã server: " .. jid) or ("⚠️ Executor không cho copy — mã server là: " .. jid), okCp and C.GREEN or C.YELLOW) end)
-
 D.hubJoinBtn.Activated:Connect(function() local id = tostring(D.hubJobIn.Text or "")
     id = id:gsub("^%s+", ""):gsub("%s+$", "") id = id:gsub('^"', ""):gsub('"$', ""):gsub("^'", ""):gsub("'$", "") if id == "" then
         D.Say("⚠️ Hãy DÁN mã server (JobId) vào ô 🎟 trước khi bấm 🚀 Vào") ReleaseHubFocus()
@@ -5620,24 +4925,17 @@ D.hubJoinBtn.Activated:Connect(function() local id = tostring(D.hubJobIn.Text or
     local okJ, errJ = pcall(function() S.JoinServer(id) end) if not okJ then
         D.Say("⚠️ Không vào được server này (mã sai/hết chỗ/game chặn): " .. tostring(errJ)) end
 end)
-
 D.hubHopBtn.Activated:Connect(function() ReleaseHubFocus()
     D.Say("🔀 Đang đi lấy mã server...", C.YELLOW) D.hubStatus.Text = S.RunHubAction("hopserver")
 end)
-
 D.hubLowBtn.Activated:Connect(function() ReleaseHubFocus()
     D.Say("👥 Đang quét 800 server tìm server ÍT NGƯỜI nhất...", C.YELLOW) D.hubStatus.Text = S.RunHubAction("hoplow")
 end)
-
 D.hubEmptyBtn.Activated:Connect(function() ReleaseHubFocus()
     D.Say("🌙 Đang tìm server SIÊU VẮNG ≤3 người...", C.YELLOW) D.hubStatus.Text = S.RunHubAction("hopempty")
 end)
-
-
 function S.Rebuild() pcall(function() if S.RebuildHubList then S.RebuildHubList() end end)
 end
-
--- ---------- v5.4: CPU + ĐỒ HỌA NHẸ + GIẢM TẦM NHÌN CÓ THỂ ĐIỀU CHỈNH ----------
 do
     local STUDS_PER_METER = 1 / 0.28 -- quy đổi xấp xỉ theo kích thước chuẩn Roblox
     local PALE_COLOR = Color3.fromRGB(224, 224, 224)
@@ -5658,11 +4956,9 @@ do
     }
     S.Perf = Perf
     _G.BananaCatHub_Perf = Perf
-
     function Perf.GetViewDistanceStuds()
         return Perf.ViewDistanceMeters * STUDS_PER_METER
     end
-
     function Perf.SyncRangeFog()
         local lighting = game:GetService("Lighting")
         local atmosphere = lighting:FindFirstChildOfClass("Atmosphere")
@@ -5670,10 +4966,8 @@ do
             Perf.RestoreProperty(Perf.RangeAtmosphere, "Density")
             Perf.RangeAtmosphere = nil
         end
-
         local fogStart, fogEnd = nil, nil
         if Perf.Modes.range and atmosphere then
-            -- Atmosphere uses density instead of legacy FogStart/FogEnd; add more haze without removing it.
             local saved = Perf.Saved[atmosphere]
             local originalDensity = saved and saved.Density or atmosphere.Density
             local densityIncrease = math.clamp(40 / Perf.GetViewDistanceStuds(), 0.01, 0.7)
@@ -5689,14 +4983,12 @@ do
         Perf.Write(lighting, "FogStart", fogStart)
         Perf.Write(lighting, "FogEnd", fogEnd)
     end
-
     function Perf.HasActive()
         for _, on in pairs(Perf.Modes) do
             if on then return true end
         end
         return false
     end
-
     function Perf.RestoreProperty(instance, property)
         local saved = Perf.Saved[instance]
         local original = saved and saved[property]
@@ -5705,7 +4997,6 @@ do
         pcall(function() instance[property] = original end)
         if next(saved) == nil then Perf.Saved[instance] = nil end
     end
-
     function Perf.RestoreInstance(instance)
         local saved = Perf.Saved[instance]
         if not saved then return end
@@ -5713,7 +5004,6 @@ do
         for property in pairs(saved) do properties[#properties + 1] = property end
         for _, property in ipairs(properties) do Perf.RestoreProperty(instance, property) end
     end
-
     function Perf.RestoreAll(yieldEvery, token)
         local instances = {}
         for instance in pairs(Perf.Saved) do instances[#instances + 1] = instance end
@@ -5724,7 +5014,6 @@ do
         end
         return true
     end
-
     function Perf.Write(instance, property, value)
         if value == nil then
             Perf.RestoreProperty(instance, property)
@@ -5739,21 +5028,18 @@ do
         end
         pcall(function() instance[property] = value end)
     end
-
     function Perf.IsVisualEffect(instance)
         return instance:IsA("PostEffect") or instance:IsA("ParticleEmitter")
             or instance:IsA("Trail") or instance:IsA("Beam")
             or instance:IsA("Fire") or instance:IsA("Smoke")
             or instance:IsA("Sparkles") or instance:IsA("Light")
     end
-
     function Perf.ApplyInstance(instance)
         local character = player.Character
         if character and (instance == character or instance:IsDescendantOf(character)) then
             Perf.RestoreInstance(instance)
             return
         end
-
         local desired = {}
         local saved = Perf.Saved[instance]
         local isPart = instance:IsA("BasePart")
@@ -5774,7 +5060,6 @@ do
             desired.Color = originalColor:Lerp(PALE_COLOR, 0.22)
         end
         if Perf.Modes.cpu and Perf.IsVisualEffect(instance) then desired.Enabled = false end
-
         if saved then
             local restore = {}
             for property in pairs(saved) do
@@ -5784,14 +5069,12 @@ do
         end
         for property, value in pairs(desired) do Perf.Write(instance, property, value) end
     end
-
     function Perf.UpdateGlobals()
         local shadows = nil
         if Perf.Modes.cpu then shadows = false end
         local lighting = game:GetService("Lighting")
         Perf.Write(lighting, "GlobalShadows", shadows)
         Perf.SyncRangeFog()
-
         local terrain = workspace.Terrain
         local terrainDecoration, waveSize, waveSpeed = nil, nil, nil
         if Perf.Modes.cpu then terrainDecoration, waveSize, waveSpeed = false, 0, 0 end
@@ -5799,7 +5082,6 @@ do
         Perf.Write(terrain, "WaterWaveSize", waveSize)
         Perf.Write(terrain, "WaterWaveSpeed", waveSpeed)
     end
-
     function Perf.SyncPanel()
         for _, item in ipairs(modeList) do
             local button = Perf.Buttons[item.id]
@@ -5811,12 +5093,10 @@ do
         end
     end
     S.SyncPerfPanel = Perf.SyncPanel
-
     function Perf.QueueScan()
         Perf.ScanToken += 1
         local token = Perf.ScanToken
         if Perf.Worker then pcall(task.cancel, Perf.Worker); Perf.Worker = nil end
-
         if not Perf.Modes.cpu and not Perf.Modes.quality then
             if Perf.Status and Perf.Status.Parent then Perf.Status.Text = "↩ Đang khôi phục cài đặt hình ảnh..." end
             Perf.Worker = task.spawn(function()
@@ -5835,7 +5115,6 @@ do
             end)
             return true
         end
-
         if Perf.Status and Perf.Status.Parent then Perf.Status.Text = "⏳ Đang áp dụng chế độ đồ họa theo từng lô..." end
         Perf.Worker = task.spawn(function()
             Perf.UpdateGlobals()
@@ -5845,7 +5124,6 @@ do
             local visited = setmetatable({}, {__mode = "k"})
             local batchSize = 90
             local processed = 0
-
             for _, root in ipairs(roots) do
                 local stack = {root}
                 while #stack > 0 do
@@ -5866,7 +5144,6 @@ do
                     end
                 end
             end
-
             if token == Perf.ScanToken then
                 Perf.Worker = nil
                 if Perf.Status and Perf.Status.Parent then
@@ -5878,7 +5155,6 @@ do
         end)
         return true
     end
-
     function Perf.Toggle(id)
         if Perf.Modes[id] == nil then return end
         Perf.Modes[id] = not Perf.Modes[id]
@@ -5902,7 +5178,6 @@ do
         end
         D.Say((Perf.Modes[id] and "✅ " or "↩ ") .. note, C.YELLOW)
     end
-
     function Perf.ApplyViewDistance(text)
         local value = tonumber(text)
         if not value or value ~= value or value == math.huge or value == -math.huge then
@@ -5922,20 +5197,17 @@ do
             )
         end
     end
-
     function Perf.Reset()
         for id in pairs(Perf.Modes) do Perf.Modes[id] = false end
         Perf.QueueScan()
         Perf.SyncPanel()
     end
-
     function Perf.Stop()
         for id in pairs(Perf.Modes) do Perf.Modes[id] = false end
         Perf.ScanToken += 1
         if Perf.Worker then pcall(task.cancel, Perf.Worker); Perf.Worker = nil end
         Perf.RestoreAll()
     end
-
     local panel = New("Frame", {
         Name = "HubPerf_Panel", Size = UDim2.new(1, 0, 0, 184), LayoutOrder = -5,
         BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, BorderSizePixel = 0, ZIndex = 6,
@@ -5979,7 +5251,6 @@ do
         BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium,
         TextSize = 8, TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
     }, panel)
-
     for _, item in ipairs(modeList) do
         local modeId = item.id
         local button = New("TextButton", {
@@ -5992,7 +5263,6 @@ do
         Perf.Buttons[modeId] = button
         button.Activated:Connect(function() ReleaseHubFocus(); Perf.Toggle(modeId) end)
     end
-
     New("TextLabel", {
         Size = UDim2.new(0, 96, 0, 20), Position = UDim2.new(0, 8, 0, 96),
         Text = "Tầm nhìn (m)", BackgroundTransparency = 1, TextColor3 = C.MUTED,
@@ -6022,7 +5292,6 @@ do
         BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium,
         TextSize = 8, TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, ZIndex = 7,
     }, panel)
-
     resetButton.Activated:Connect(function()
         ReleaseHubFocus()
         Perf.Reset()
@@ -6035,7 +5304,6 @@ do
     trackConn(Perf.DistanceBox.FocusLost:Connect(function(enter)
         if enter then Perf.ApplyViewDistance(Perf.DistanceBox.Text) end
     end))
-
     local function watchRoot(root)
         if not root then return end
         trackConn(root.DescendantAdded:Connect(function(instance)
@@ -6069,12 +5337,10 @@ function S.SyncHubPanels() local list = D.hubList
     for _, c in ipairs(list:GetChildren()) do local want = S.HubPanelCat[c.Name]
         if want then c.Visible = (cat == "Tất cả") or (cat == want)
         end end end
-
 function S.RebuildHubList() local list = D.hubList
     if not list or not list.Parent then return end local stale = {}
     for _, c in ipairs(list:GetChildren()) do if c:IsA("Frame") and c.Name:sub(1, 8) == "HubCard_" then stale[#stale + 1] = c end
     end for _, c in ipairs(stale) do pcall(function() c:Destroy() end) end
-
     local q = tostring(S.hubSearch or ""):lower() local cat = S.hubCat or "Tất cả"
     local items = {} for _, it in ipairs(S.ScriptHubList) do
         local okCat = (cat == "Tất cả") or (it.cat == cat) local okQ = (q == "")
@@ -6083,18 +5349,15 @@ function S.RebuildHubList() local list = D.hubList
     end table.sort(items, function(a, b)
         local fa = S.hubFavs[a.name] and 1 or 0 local fb = S.hubFavs[b.name] and 1 or 0
         if fa ~= fb then return fa > fb end return (a.ord or 99) < (b.ord or 99) end)
-
     for i, it in ipairs(items) do local card = New("Frame", {
             Name = "HubCard_" .. tostring(it.name), Size = UDim2.new(1, 0, 0, 48), LayoutOrder = i + 1, BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, BorderSizePixel = 0, ZIndex = 6,
         }, list) Corner(card, UDim.new(0, 9))
         Stroke(card, S.hubFavs[it.name] and C.ACCENT or C.HAIRLINE, 1)   -- v4.9: viền tách khối rõ hơn
         D.Shade(card, Color3.fromRGB(255,255,255), Color3.fromRGB(188,192,205), 90)   -- v4.9: thẻ có khối
-
         local ico = New("TextLabel", { Size = UDim2.new(0, 28, 0, 28), Position = UDim2.new(0, 8, 0, 10), Text = it.icon,
             BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.15, TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 14, BorderSizePixel = 0, ZIndex = 7,
         }, card) Corner(ico, UDim.new(0, 8))
         D.Shade(ico, Color3.fromRGB(255,255,255), Color3.fromRGB(176,181,196), 90) Stroke(ico, C.HAIRLINE, 1)
-
         New("TextLabel", { Size = UDim2.new(1, -196, 0, 13), Position = UDim2.new(0, 44, 0, 6),
             Text = tostring(it.name) .. (S.hubFavs[it.name] and "  ⭐" or ""), BackgroundTransparency = 1, TextColor3 = C.DARK, Font = Enum.Font.GothamBold, TextSize = 10,
             TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7, }, card)
@@ -6103,7 +5366,6 @@ function S.RebuildHubList() local list = D.hubList
         }, card) New("TextLabel", {
             Size = UDim2.new(1, -196, 0, 18), Position = UDim2.new(0, 44, 0, 29), Text = tostring(it.desc or ""), BackgroundTransparency = 1, TextColor3 = C.MUTED,
             Font = Enum.Font.GothamMedium, TextSize = 8, TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, ZIndex = 7, }, card)
-
         local isAction = (it.action ~= nil) local runText
         if isAction then if it.action == "crosshair" then
                 runText = (S.crosshairOn and "🎯 TẮT") or "🎯 BẬT" elseif S.MoveActionState and S.MoveActionState[it.action] then
@@ -6116,7 +5378,6 @@ function S.RebuildHubList() local list = D.hubList
                 D.Say((okR and "▶ đã chạy '" or "⚠️ không chạy được '") .. it.name .. "'" .. (it.noPark and " · 🪟 GUI của nó ở NGOÀI màn hình game (đúng như tab 🛠)" or "")
                     .. " · xem chi tiết ở tab 💻 Code", C.YELLOW) else
                 D.Say(S.RunHubAction(it.action), C.YELLOW) end end)
-
         if it.code then local copyBtn = D.CardBtn(card, "📋", -74, 20, C.BLUE)
             copyBtn.Activated:Connect(function() local did = S.CopyToClipboard(it.code)
                 D.Say(did and ("📋 đã copy loadstring của '" .. it.name .. "'") or "⚠️ executor này không hỗ trợ clipboard", did and C.GREEN or C.RED)
@@ -6128,14 +5389,12 @@ function S.RebuildHubList() local list = D.hubList
                 end table.insert(scripts, {name = nm, code = it.code, expanded = false})
                 pcall(function() if RebuildScripts then RebuildScripts() end end) pcall(function() Store.saveSoon() end)
                 D.Say("💾 đã lưu '" .. nm .. "' sang tab 💾 Code Đã Lưu", C.GREEN) end) end
-
         local favBtn = D.CardBtn(card, S.hubFavs[it.name] and "⭐" or "☆", -26, 20, S.hubFavs[it.name] and C.YELLOW or C.SURFACE3)
         favBtn.Activated:Connect(function() if S.hubFavs[it.name] then S.hubFavs[it.name] = nil else S.hubFavs[it.name] = true end
             pcall(function() Store.saveSoon() end)   -- lưu yêu thích xuống đĩa
             S.RebuildHubList() D.Say(S.hubFavs[it.name] and ("⭐ đã ghim '" .. it.name .. "' lên đầu")
                                       or ("☆ đã bỏ ghim '" .. it.name .. "'"), C.MUTED) end)
     end
-
     pcall(function() if S.SyncHubPanels then S.SyncHubPanels() end
         local panelH = 0 for _, c in ipairs(list:GetChildren()) do
             if c:IsA("Frame") and c.Name:sub(1, 8) ~= "HubCard_" and c.Visible ~= false then panelH = panelH + ((c.Size and c.Size.Y.Offset) or 0) + 6
@@ -6153,8 +5412,6 @@ function S.RebuildHubList() local list = D.hubList
     if S.SyncPerfPanel then pcall(S.SyncPerfPanel) end         -- v5.3: ⚡️ giảm lag
     if #items == 0 and D.hubStatus then D.Say("🔍 không tìm thấy gì khớp '" .. tostring(S.hubSearch or "") .. "'", C.MUTED)
     end end
-
--- ---------- v4.40: KHUNG ⚙ TUỲ CHỈNH (Bay · Tốc độ camera · Nhảy cao · Di chuyển) ----------
 do local P = New("Frame", {
         Name = "HubTune_Panel", Size = UDim2.new(1, 0, 0, 172), LayoutOrder = -4, BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, BorderSizePixel = 0, ZIndex = 6,
     }, D.hubList) Corner(P, UDim.new(0, 10)); Stroke(P, C.HAIRLINE, 1)
@@ -6172,26 +5429,20 @@ do local P = New("Frame", {
     local function lab(txt, x, y, w) New("TextLabel", {
             Size = UDim2.new(0, w, 0, 18), Position = UDim2.new(0, x, 0, y), Text = txt, BackgroundTransparency = 1, TextColor3 = C.MUTED,
             Font = Enum.Font.GothamMedium, TextSize = 9, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7, }, P) end
-
     local flyBtn = button("TuneFly", "🚀 Bay: TẮT", 8, 24, 96, C.GRAY) local flyBox = box("TuneFlySpeed", 108, 24, MV.flySpeed)
     local flyApply = button("TuneFlyApply", "✔", 160, 24, 26, C.GREEN) local flyStop = button("TuneFlyStop", "⏹", 190, 24, 26, C.RED)
-
     local spdBtn = button("TuneSprint", "💨 Tốc độ: TẮT", 8, 50, 96, C.GRAY) local spdBox = box("TuneSprintSpeed", 108, 50, MV.sprintSpeed)
     local spdApply = button("TuneSprintApply", "✔", 160, 50, 26, C.GREEN) local spdStop = button("TuneSprintStop", "⏹", 190, 50, 26, C.RED)
-
     local hjBtn = button("TuneHighJump", "🦘 Nhảy cao: TẮT", 8, 76, 96, C.GRAY) local hjBox = box("TuneHighJumpSpeed", 108, 76, MV.highJumpSpeed)
     local hjApply = button("TuneHighJumpApply", "✔", 160, 76, 26, C.GREEN) local hjStop = button("TuneHighJumpStop", "⏹", 190, 76, 26, C.RED)
-
     lab("👟 Chạy", 226, 24, 48) local wsBox = box("TuneWalkSpeed", 276, 24, (MV.speedMode == "x") and ("x" .. tostring(MV.speedMul)) or tostring(MV.walkSpeed))
     lab("🦘 Lực nhảy", 226, 50, 70) local jpBox = box("TuneJumpPower", 296, 50, MV.jumpPower)
     local mvApply = button("TuneMoveApply", "✔ Di chuyển", 226, 76, 102, C.GREEN)
-
     local status = New("TextLabel", { Name = "TuneStatus", Size = UDim2.new(1, -16, 0, 28), Position = UDim2.new(0, 8, 0, 102),
         Text = "", BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium, TextSize = 9, TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
     }, P) New("TextLabel", {
         Size = UDim2.new(1, -16, 0, 32), Position = UDim2.new(0, 8, 0, 134), Text = "💡 ✔ = áp tốc độ dòng đó. 👟 gõ x3 = theo game ×3, gõ số = cố định. Bay tới người chơi và Safe Fly ở khung ⚙ bên dưới.",
         BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium, TextSize = 8, TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7, }, P)
-
     local function paintToggle(b, on, label) b.Text = label .. (on and "BẬT" or "TẮT")
         D.SetBg(b, on and C.GREEN or C.GRAY) end
     local function focused() return UserInputService:GetFocusedTextBox()
@@ -6202,7 +5453,6 @@ do local P = New("Frame", {
         if tb ~= hjBox then hjBox.Text = tostring(MV.highJumpSpeed) end if tb ~= wsBox then
             wsBox.Text = (MV.speedMode == "x") and ("x" .. tostring(MV.speedMul)) or tostring(MV.walkSpeed) end
         if tb ~= jpBox then jpBox.Text = tostring(MV.jumpPower) end status.Text = (MV.Status and MV.Status()) or "" end
-
     flyBtn.Activated:Connect(function() ReleaseHubFocus(); D.Say(S.RunHubAction("fly"), C.YELLOW) end) spdBtn.Activated:Connect(function() ReleaseHubFocus(); D.Say(S.RunHubAction("camspeed"), C.YELLOW) end)
     hjBtn.Activated:Connect(function() ReleaseHubFocus(); D.Say(S.RunHubAction("highjump"), C.YELLOW) end) flyStop.Activated:Connect(function()
         ReleaseHubFocus(); MV.SetFly(false); S.Rebuild() D.Say("🚀 Bay: TẮT", C.YELLOW)
@@ -6232,9 +5482,6 @@ do local P = New("Frame", {
         D.Say(string.format("⚙ di chuyển: chạy %s · lực nhảy %d", (MV.speedMode == "x") and ("×" .. tostring(MV.speedMul)) or tostring(MV.walkSpeed),
             MV.jumpPower), C.GREEN) end)
     S.tuneBtns = {panel = P, fly = flyBtn, sprint = spdBtn, highjump = hjBtn, flySpeed = flyBox, sprintSpeed = spdBox, highJumpSpeed = hjBox, walk = wsBox, jump = jpBox} S.SyncTunePanel() end
--- ---------- HẾT KHUNG ⚙ TUỲ CHỈNH ----------
-
--- ---------- v4.43: KHUNG 🔐 ANTI BAN ----------
 do local P = New("Frame", {
         Name = "HubAntiBan_Panel", Size = UDim2.new(1, 0, 0, 88), LayoutOrder = 3, BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, BorderSizePixel = 0, ZIndex = 6,
     }, D.hubList) Corner(P, UDim.new(0, 10)); Stroke(P, C.HAIRLINE, 1)
@@ -6266,9 +5513,6 @@ do local P = New("Frame", {
     cdBox.FocusLost:Connect(function() local n = tonumber(cdBox.Text)
         if n then S.AntiBan.cooldown = math.clamp(n, 3, 60) end S.SyncAntiBanPanel()
     end) S.SyncAntiBanPanel() end
--- ---------- HẾT KHUNG 🔐 ANTI BAN ----------
-
--- ---------- v4.36: KHUNG 🚀 BAY THEO CAMERA (công tắc 🧱 độc lập) ----------
 do local P = New("Frame", {
         Name = "HubFly_Panel", Size = UDim2.new(1, 0, 0, 154), LayoutOrder = -1, BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, BorderSizePixel = 0, ZIndex = 6,
     }, D.hubList) Corner(P, UDim.new(0, 10)); Stroke(P, C.HAIRLINE, 1)
@@ -6307,9 +5551,6 @@ do local P = New("Frame", {
     stop.Activated:Connect(function() ReleaseHubFocus(); MV.SetFly(false); S.Rebuild()
         D.Say("🚀 Bay: TẮT — xuyên tường giữ nguyên theo công tắc 🧱", C.YELLOW) end)
     S.flyBtns = {on = onBtn, noclip = ncBtn, hud = hudBtn, speed = speed, apply = apply, stop = stop, panel = P} S.SyncFlyPanel() end
--- ---------- HẾT KHUNG 🚀 BAY THEO CAMERA ----------
-
--- ---------- v4.37: KHUNG 💨 TỐC ĐỘ THEO CAMERA (không xuyên tường, không nút ảo) ----------
 do local P = New("Frame", {
         Name = "HubSpeed_Panel", Size = UDim2.new(1, 0, 0, 130), LayoutOrder = -2, BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, BorderSizePixel = 0, ZIndex = 6,
     }, D.hubList) Corner(P, UDim.new(0, 10)); Stroke(P, C.HAIRLINE, 1)
@@ -6343,9 +5584,6 @@ do local P = New("Frame", {
     stop.Activated:Connect(function() ReleaseHubFocus(); MV.SetSprint(false); S.Rebuild()
         D.Say("💨 Tốc độ theo camera: TẮT", C.YELLOW) end)
     S.speedBtns = {on = onBtn, speed = speed, apply = apply, stop = stop, panel = P} S.SyncSpeedPanel() end
--- ---------- HẾT KHUNG 💨 TỐC ĐỘ THEO CAMERA ----------
-
--- ---------- v4.38: KHUNG 🦘 NHẢY CAO (công tắc độc lập kiểu 👤 Né người) ----------
 do local P = New("Frame", {
         Name = "HubHighJump_Panel", Size = UDim2.new(1, 0, 0, 118), LayoutOrder = -3, BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, BorderSizePixel = 0, ZIndex = 6,
     }, D.hubList) Corner(P, UDim.new(0, 10)); Stroke(P, C.HAIRLINE, 1)
@@ -6379,16 +5617,11 @@ do local P = New("Frame", {
     stop.Activated:Connect(function() ReleaseHubFocus(); MV.SetHighJump(false); S.Rebuild()
         D.Say("🦘 Nhảy cao: TẮT", C.YELLOW) end)
     S.highJumpBtns = {on = onBtn, speed = speed, apply = apply, stop = stop, panel = P} S.SyncHighJumpPanel() end
--- ---------- HẾT KHUNG 🦘 NHẢY CAO ----------
-
--- ---------- v4.12: KHUNG ⚙ TUỲ CHỈNH DI CHUYỂN (DA XOA THAM KINH) ----------
--- ---------- v4.12: KHUNG ⚙ TUỲ CHỈNH DI CHUYỂN (DA XOA THAM KINH) ----------
 do local PH = 180
     local P = New("Frame", { Name = "HubMove_Panel",
         Size = UDim2.new(1, 0, 0, PH), LayoutOrder = 0,
         BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, BorderSizePixel = 0, ZIndex = 6, }, D.hubList)
     Corner(P, UDim.new(0, 10)) Stroke(P, C.HAIRLINE, 1) D.Shade(P, Color3.fromRGB(255, 255, 255), Color3.fromRGB(188, 192, 205), 90)
-
     local function title(txt) New("TextLabel", {
             Size = UDim2.new(1, -16, 0, 14), Position = UDim2.new(0, 8, 0, 4), Text = txt, BackgroundTransparency = 1, TextColor3 = C.ACCENT,
             Font = Enum.Font.GothamBold, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
@@ -6407,22 +5640,17 @@ do local PH = 180
             TextSize = 8, BorderSizePixel = 0, ZIndex = 8, }, P)
         Corner(b, UDim.new(0, 5)) D.Tactile(b, 0.08)
         return b end local function say(msg, good) D.Say(msg, good and C.GREEN or C.RED) end
-
     title("⚙ Tuỳ chỉnh di chuyển (áp dụng ngay)")
-
     lab("🚀 Bay", 8, 22, 52) local flyIn = box(62, 22, 44, S.Move.flySpeed)
     lab("👟 Chạy", 114, 22, 50) local wsIn = box(166, 22, 40, (S.Move.speedMode == "x") and ("x" .. tostring(S.Move.speedMul)) or tostring(S.Move.walkSpeed))
     lab("🦘 Nhảy", 214, 22, 46) local jpIn = box(262, 22, 40, S.Move.jumpPower)
     local ap1 = act("✔", 308, 22, 24, C.GREEN)
-
     lab("0=auto tốc độ bay người", 8, 46, 140) local speedPlayerBox = box(150, 46, 44, S.Move.playerFlySpeed or 0)
     local applyPlayerSpeedBtn = act("✔ Tốc bay người", 200, 46, 94, C.GREEN)
-
     local upBtn  = act("⬆ Nâng", 8, 70, 54, C.BLUE) local dnBtn  = act("⬇ Hạ", 66, 70, 48, C.BLUE)
     local stopBtn = act("🛑 Tắt hết", 118, 70, 64, C.RED) local st = New("TextLabel", {
         Size = UDim2.new(1, -200, 0, 18), Position = UDim2.new(0, 190, 0, 70), Text = S.Move.Status(), BackgroundTransparency = 1, TextColor3 = C.MUTED,
         Font = Enum.Font.GothamMedium, TextSize = 9, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7, }, P)
-
     ap1.Activated:Connect(function() ReleaseHubFocus()
         local f = tonumber(flyIn.Text); local w = tonumber(wsIn.Text); local j = tonumber(jpIn.Text) if f then
             S.Move.flySpeed = (f >= 1 and f <= 2000) and f or S.Move.flySpeed S.Move.SyncFlyHud()
@@ -6435,7 +5663,6 @@ do local PH = 180
         pcall(function() if S.Move.speed then S.Move.ApplyChar() end end) say(string.format("⚙ đã áp dụng: bay %d · chạy %s · nhảy %d%s",
             S.Move.flySpeed, (S.Move.speedMode == "x") and ("×" .. tostring(S.Move.speedMul) .. " (theo game)") or tostring(S.Move.walkSpeed),
             S.Move.jumpPower, (S.Move.speedMode == "x" and S.Move.speed) and (" = " .. tostring(S.Move.WantSpeed())) or ""), true) end)
-
     upBtn.Activated:Connect(function() ReleaseHubFocus()
         local ok, what = S.Move.Nudge(2.5) say(ok and ("⬆ đã nâng " .. tostring(what) .. " lên 2.5") or "⬆ bật Bay trước đã", ok == true)
         st.Text = S.Move.Status() end)
@@ -6444,7 +5671,6 @@ do local PH = 180
         st.Text = S.Move.Status() end)
     stopBtn.Activated:Connect(function() ReleaseHubFocus()
         D.Say(S.RunHubAction("movestop"), C.YELLOW) st.Text = S.Move.Status() end)
-
     local pcBtn local TXT_PASS_ON  = "🧲 Đẩy xuyên khi kẹt: BẬT"
     local TXT_PASS_OFF = "🧲 Đẩy xuyên khi kẹt: TẮT" local function paintPass()
         local on = (S.Move.ncPass ~= false) pcBtn.Text = on and TXT_PASS_ON or TXT_PASS_OFF
@@ -6453,9 +5679,7 @@ do local PH = 180
     S.Move._passBtn = pcBtn pcBtn.Activated:Connect(function()
         ReleaseHubFocus() S.Move.ncPass = (S.Move.ncPass == false)
         paintPass() say(S.Move.ncPass and "🧲 tự đẩy xuyên: BẬT" or "🧲 tự đẩy xuyên: TẮT", true) end)
-
     local flyPlayerBtn = act("🚀 Bay tới người gần nhất", 184, 100, 150, C.ACCENT) local stopPlayerFlyBtn = act("⏹ Dừng bay người", 340, 100, 110, C.RED)
-
     local function paintGlass() local pFlying = S.Move._playerFlyActive == true
         flyPlayerBtn.Text = pFlying and ("🚀 Đang bay tới " .. tostring(S.Move._playerFlyTarget and S.Move._playerFlyTarget.Name or "?")) or "🚀 Bay tới người gần nhất" flyPlayerBtn.BackgroundColor3 = pFlying and C.GREEN or C.ACCENT
         flyPlayerBtn.TextColor3 = D.BestText(flyPlayerBtn.BackgroundColor3) if speedPlayerBox then speedPlayerBox.Text = tostring(S.Move.playerFlySpeed or 0) end
@@ -6477,15 +5701,12 @@ do local PH = 180
             say("🚀 tốc độ bay tới người: " .. tostring(sp), true) end
         if S.Loc and S.Loc.RefreshList then pcall(S.Loc.RefreshList) end if S.SyncLocPanel then pcall(S.SyncLocPanel) end
     end) paintGlass() S.Move._glassBtns = { flyPlayer = flyPlayerBtn, stopPlayer = stopPlayerFlyBtn, speedPlayerBox = speedPlayerBox, paint = paintGlass }
-
     function S.RefreshMovePanel() pcall(function()
             st.Text = S.Move.Status() flyIn.Text = tostring(S.Move.flySpeed)
             wsIn.Text = (S.Move.speedMode == "x") and ("x" .. tostring(S.Move.speedMul)) or tostring(S.Move.walkSpeed) jpIn.Text = tostring(S.Move.jumpPower)
             paintPass() if S.Move._glassBtns and S.Move._glassBtns.paint then pcall(S.Move._glassBtns.paint) end
         end) end end
-
 S.Loc = {
-
     on = false,             -- 👁️ định vị TẤT CẢ người chơi
     solo = false,           -- 🎯 chỉ định vị ĐÚNG 1 người (S.Loc.target)
     target = nil,
@@ -6555,12 +5776,9 @@ end function S.Loc.TickOne(p) local it = LOC._items[p]
     if down then mid[#mid + 1] = "☠️ Hạ gục ⏱ " .. locTime(LOC.DownSecs(p)) end if h then mid[#mid + 1] = string.format("❤️ %d/%d", locRound(h.Health or 0), locRound(h.MaxHealth or 100)) end mid[#mid + 1] = dist and string.format("📏 %dm", locRound(dist)) or "📏 --m"
     it.lbl.Text = p.Name .. (fr and "  💗 Bạn Bè" or "") .. "\n" .. table.concat(mid, " · ")   -- v4.34: Name vốn là chuỗi, khỏi tostring
 end function S.Loc.Tick()
-    -- v5.2 PERF: nếu menu mở nhưng không ở tab Người Chơi thì tạm dừng cập nhật ESP để mượt
     if S.PagePerf and S.PagePerf.IsMainVisible() then
         local pt = D and D.playerTab
         if pt and not S.PagePerf.IsTabVisible(pt) then
-            -- menu mở ở tab khác: chỉ cập nhật list 1 lần/giây, không cập nhật ESP thế giới liên tục
-            -- để mượt hơn, bỏ qua TickOne nặng, chỉ giữ list
             return
         end
     end
@@ -6572,13 +5790,10 @@ end function S.Loc.Tick()
         if LOC.Wanted(p) and not LOC._items[p] and LOC.CharOf(p) then pcall(function() LOC.Make(p) end)
         end end
 end function S.Loc.OnPerfTick()
-    -- v5.2: được gọi khi đổi tab / đóng menu để quyết định có cần giảm tần suất không
-    -- Không cần làm gì thêm vì Tick đã tự check IsTabVisible
 end
 function S.Loc.Bind(on)
     if on and not LOC._bound then LOC._bound = true pcall(function()
             RunService:BindToRenderStep("BC_Loc", Enum.RenderPriority.Camera.Value - 2, function(dt) LOC._acc = (LOC._acc or 0) + (tonumber(dt) or 0.016)
-                -- v5.4 EXTREME+: menu đóng -> 3s, không ở tab -> 1.5s, ở tab -> 0.35s
                 local interval = 0.35
                 if S.PagePerf then
                     if not S.PagePerf.IsMainVisible() then
@@ -6591,7 +5806,6 @@ function S.Loc.Bind(on)
                 if LOC._acc < interval then return end LOC._acc = 0
                 pcall(function() LOC.Tick() end) LOC._listAcc = (LOC._listAcc or 0) + interval
                 if LOC._listAcc >= 1.5 then LOC._listAcc = 0
-                    -- chỉ refresh list UI khi đang ở tab Người Chơi
                     if not S.PagePerf or S.PagePerf.ShouldRunForPlayerTab() then
                         if LOC.RefreshList then pcall(LOC.RefreshList) end
                     end
@@ -6632,7 +5846,6 @@ do local function hookLoc(p)
     trackConn(Players.PlayerRemoving:Connect(function(p) LOC._friend[p.UserId] = nil
         LOC._downAt[p] = nil if LOC.target == p then LOC.target = nil end
         LOC.Kill(p) end)) end
-
 do
     local tab = AddTab("Người Chơi", "👥", 4)      -- 4 = ngay sau 📚 Script Hub (3), trước ➕ (7)
     D.playerTab = tab function S.OpenPlayerTab()
@@ -6648,7 +5861,6 @@ do
              .. "  🌳 = định vị MỌI vật theo tên (VD: cây) và bám theo vật đang di chuyển." .. "  (Các nút tắt/mở nhanh vẫn có thẻ trong 📚 Script Hub.)",
         BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium, TextSize = 8, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
     }, tab) D.playerY = 46 end
-
 S.Spec = {
     on = false, target = nil,       -- 👣 đang xem ai
     auto = true,                    -- người đang xem thoát thì tự chuyển sang người gần nhất
@@ -6656,7 +5868,6 @@ S.Spec = {
     lastMove = 0, lastJump = 0, lastFall = 0, _prev = nil, _oldType = nil, _oldSubject = nil, _bound = false, _ui = {},
 } local SP = S.Spec
 local function spRound(n) return math.floor((tonumber(n) or 0) + 0.5) end
-
 function S.Spec.CamOn() local cam = workspace.CurrentCamera
     if not cam then return end if SP._oldType == nil then
         pcall(function() local ct = cam.CameraType
@@ -6759,8 +5970,6 @@ do trackConn(Players.PlayerRemoving:Connect(function(p) if SP.target == p then
                 if SP.on and SP.follow then pcall(function() S.Spec.CamOn() end)
                 end end)
         end)) end) end
-
--- ---------- BẢNG NỔI 👣 (hiện trên màn hình game, menu đóng vẫn thấy) ----------
 do local g = New("ScreenGui", {
         Name = "BC_SpecHud", ResetOnSpawn = false, ZIndexBehavior = Enum.ZIndexBehavior.Sibling, Enabled = false,
     }, gui) local F = New("Frame", {
@@ -6810,20 +6019,16 @@ end function S.Spec.Sync()
             u.act.TextColor3 = S.Loc.IsDown(h) and Color3.fromRGB(255, 100, 100) or C.GREEN end
         if u.title then u.title.Text = "👣 ĐANG XEM" .. (SP.follow and "" or " (KHÔNG bám)") .. (SP.auto and " · 🔄" or "")
         end end) end
-
--- ---------- KHUNG HỢP NHẤT 📍 ĐỊNH VỊ & 👣 XEM NGƯỜI CHƠI (nằm trong trang 👥 NGƯỜI CHƠI) ----------
 do local PH = 386
     local P = New("Frame", { Name = "HubLoc_Panel",
         Size = UDim2.new(1, -16, 0, PH), Position = UDim2.new(0, 8, 0, D.playerY or 46),
         LayoutOrder = 1, BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, BorderSizePixel = 0, ZIndex = 6,
     }, D.playerTab) D.playerY = (D.playerY or 46) + PH + 8
     Corner(P, UDim.new(0, 10)) Stroke(P, C.HAIRLINE, 1) D.Shade(P, Color3.fromRGB(255, 255, 255), Color3.fromRGB(188, 192, 205), 90)
-
     New("TextLabel", { Size = UDim2.new(1, -16, 0, 14), Position = UDim2.new(0, 8, 0, 4),
         Text = "📍👣 ĐỊNH VỊ & XEM NGƯỜI CHƠI (XUYÊN TƯỜNG · SPECTATOR · 🚀 BAY TỚI)", BackgroundTransparency = 1,
         TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
     }, P)
-
     local function act(txt, x, y, w, color, name) local b = New("TextButton", {
             Name = name or "Button",
             Size = UDim2.new(0, w, 0, 18), Position = UDim2.new(0, x, 0, y), Text = txt, BackgroundColor3 = color, TextColor3 = D.BestText(color),
@@ -6834,21 +6039,15 @@ do local PH = 386
         New("TextLabel", { Size = UDim2.new(0, w, 0, 18), Position = UDim2.new(0, x, 0, y),
             Text = txt, BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium, TextSize = 9,
             TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7, }, P) end
-
-    -- Hàng 1: Định vị xuyên tường (📍) & Bay tới người (🚀)
     local allBtn     = act("👁️ Tất Cả", 8, 22, 68, C.GRAY, "LocAllBtn")
     local soloBtn    = act("🎯 Lẻ", 80, 22, 62, C.GRAY, "LocSoloBtn")
     local stopBtn    = act("🚫 Tắt ĐV", 146, 22, 56, C.SURFACE3, "LocStopBtn")
     local flyNearBtn = act("🚀 Gần nhất", 206, 22, 74, C.ACCENT, "LocFlyNearBtn")
     local flyStopBtn = act("⏹️ Dừng bay", 284, 22, 68, C.SURFACE3, "LocFlyStopBtn")
-
-    -- Hàng 2: Xem người chơi / Spectator (👣)
     local watchBtn    = act("👣 Bám theo", 8, 44, 88, C.GRAY, "SpecWatchBtn")
     local followBtn   = act("🎥 Bám: BẬT", 100, 44, 78, C.GREEN, "SpecFollowBtn")
     local autoBtn     = act("🔄 Tự chuyển", 182, 44, 72, C.GRAY, "SpecAutoBtn")
     local stopSpecBtn = act("🚫 Dừng xem", 258, 44, 74, C.RED, "SpecStopBtn")
-
-    -- Hàng 3: Khoảng cách định vị (📏) & Tốc độ bay tới người (🚀)
     lab("📏 Xa nhất:", 8, 66, 56) local distIn = New("TextBox", {
         Name = "LocDistIn",
         Size = UDim2.new(0, 44, 0, 18), Position = UDim2.new(0, 64, 0, 66), Text = "0", ClearTextOnFocus = false,
@@ -6861,8 +6060,6 @@ do local PH = 386
         BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.1, TextColor3 = C.DARK, PlaceholderColor3 = C.GRAY, Font = Enum.Font.GothamMedium, TextSize = 9,
         TextXAlignment = Enum.TextXAlignment.Center, BorderSizePixel = 0, ZIndex = 7, }, P)
     Corner(flySpeedIn, UDim.new(0, 5)) local flySpeedApply = act("✅ Đặt", 254, 66, 42, C.GREEN, "LocFlySpeedApplyBtn") lab("(0=auto)", 300, 66, 60)
-
-    -- Hàng 4: Chỉnh khoảng cách & độ cao Camera Xem người chơi (🎥)
     lab("🎥 Cam lùi:", 8, 88, 58) local specDistIn = New("TextBox", {
         Name = "SpecDistIn",
         Size = UDim2.new(0, 42, 0, 18), Position = UDim2.new(0, 66, 0, 88), Text = "12", ClearTextOnFocus = false,
@@ -6875,23 +6072,17 @@ do local PH = 386
         BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.1, TextColor3 = C.DARK, PlaceholderColor3 = C.GRAY, Font = Enum.Font.GothamMedium, TextSize = 9,
         TextXAlignment = Enum.TextXAlignment.Center, BorderSizePixel = 0, ZIndex = 7, }, P)
     Corner(specHiIn, UDim.new(0, 5)) local specApplyBtn = act("✔ Áp dụng Cam", 212, 88, 84, C.SURFACE3, "SpecApplyBtn")
-
-    -- Hàng 5: Ô tìm kiếm chung
     local searchIn = New("TextBox", { Name = "LocSearchIn", Size = UDim2.new(1, -16, 0, 20), Position = UDim2.new(0, 8, 0, 110),
         Text = "", PlaceholderText = "🔍 Tìm tên người chơi (Định vị · Xem camera · Bay tới)...", ClearTextOnFocus = false, PlaceholderColor3 = C.GRAY, BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.1,
         TextColor3 = C.DARK, Font = Enum.Font.GothamMedium, TextSize = 9, TextXAlignment = Enum.TextXAlignment.Left, BorderSizePixel = 0, ZIndex = 7,
     }, P) Corner(searchIn, UDim.new(0, 5)) New("UIPadding", { PaddingLeft = UDim.new(0, 6) }, searchIn)
-
-    -- Hàng 6: Danh sách người chơi hợp nhất (vừa Định vị, vừa Xem camera 👣, vừa Bay tới 🚀)
     local list = New("ScrollingFrame", { Name = "LocList", Size = UDim2.new(1, -16, 0, 196), Position = UDim2.new(0, 8, 0, 134),
         BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = 4, CanvasSize = UDim2.new(0, 0, 0, 0), ZIndex = 7,
     }, P) New("UIListLayout", { Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder }, list)
-
     New("TextLabel", { Size = UDim2.new(1, -16, 0, 48), Position = UDim2.new(0, 8, 0, 334),
         Text = "💡 Bấm TÊN = định vị lẻ người đó · 👣 Xem = gắn camera xem họ đang làm gì (chỉ đổi camera, nhân vật bạn đứng yên) · 🚀 Bay tới = bay xuyên tường bám theo mục tiêu. 🟢 thường · 💗 bạn bè · 🔴 bị hạ gục.",
         TextWrapped = true, BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium, TextSize = 8, TextXAlignment = Enum.TextXAlignment.Left,
         TextYAlignment = Enum.TextYAlignment.Top, ZIndex = 7, }, P)
-
     local function paint()
         allBtn.Text = LOC.on and "👁️ Tất Cả: BẬT" or "👁️ Tất Cả"
         allBtn.BackgroundColor3 = LOC.on and C.GREEN or C.GRAY allBtn.TextColor3 = D.BestText(allBtn.BackgroundColor3)
@@ -6909,8 +6100,6 @@ do local PH = 386
         flyNearBtn.BackgroundColor3 = active and C.GREEN or C.ACCENT
         flyNearBtn.TextColor3 = D.BestText(flyNearBtn.BackgroundColor3)
         flyNearBtn.Text = active and ("🚀 " .. tostring(mv._playerFlyTarget and mv._playerFlyTarget.Name or "?")) or "🚀 Gần nhất"
-
-        -- Cập nhật trạng thái cụm nút 👣 Xem người chơi
         local specNm = (SP.on and SP.target) and tostring(SP.target.Name) or nil
         watchBtn.Text = specNm and ("👣 " .. specNm) or "👣 Bám theo"
         watchBtn.BackgroundColor3 = SP.on and C.GREEN or C.GRAY
@@ -6922,7 +6111,6 @@ do local PH = 386
         autoBtn.TextColor3 = D.BestText(autoBtn.BackgroundColor3)
         specDistIn.Text, specHiIn.Text = tostring(SP.dist), tostring(SP.height)
     end
-
     local function buildRowText(p, nm, c, h, fr, down)
         local sub = {}
         if fr then sub[#sub + 1] = "💗 Bạn Bè" end
@@ -6935,7 +6123,6 @@ do local PH = 386
         local prefix = ((LOC.target == p) and "🎯 " or "") .. ((SP.on and SP.target == p) and "👣 " or "")
         return prefix .. nm .. (#sub > 0 and ("  " .. table.concat(sub, "  ")) or "")
     end
-
     LOC.RefreshList = function(force)
         if not (list and list.Parent) then return end
         local term = tostring(searchIn.Text or ""):lower()
@@ -6981,7 +6168,6 @@ do local PH = 386
                     BorderSizePixel = 0, ZIndex = 8,
                 }, list)
                 Corner(row, UDim.new(0, 6))
-
                 local b = New("TextButton", {
                     Name = "PlayerNameBtn",
                     Size = UDim2.new(1, -184, 1, 0), Position = UDim2.new(0, 6, 0, 0),
@@ -7002,7 +6188,6 @@ do local PH = 386
                     if LOC.RefreshList then LOC.RefreshList(true) end
                     S.Rebuild()
                 end)
-
                 local d = LOC.Dist(p)
                 local distLbl = New("TextLabel", {
                     Size = UDim2.new(0, 50, 1, 0), Position = UDim2.new(1, -180, 0, 0),
@@ -7010,8 +6195,6 @@ do local PH = 386
                     BackgroundTransparency = 1, TextColor3 = col.txt, Font = Enum.Font.GothamMedium, TextSize = 8,
                     TextXAlignment = Enum.TextXAlignment.Right, ZIndex = 9,
                 }, row)
-
-                -- Nút 👣 Xem / 🚫 Thôi ngay trên từng dòng người chơi
                 local specRowBtn = New("TextButton", {
                     Name = "SpecRowBtn",
                     Size = UDim2.new(0, 58, 0, 18), Position = UDim2.new(1, -126, 0, 4),
@@ -7033,8 +6216,6 @@ do local PH = 386
                     pcall(S.Rebuild)
                     if D.hubStatus then flash(D.hubStatus, S.Spec.Status(), 1.8, C.ACCENT) end
                 end)
-
-                -- Nút 🚀 Bay tới / ⏹️ Dừng ngay trên từng dòng người chơi
                 local mv = S.Move
                 local isFlyingToThis = mv and mv._playerFlyActive and mv._playerFlyTarget == p
                 local flyBtn = New("TextButton", {
@@ -7065,7 +6246,6 @@ do local PH = 386
                     if LOC.RefreshList then pcall(LOC.RefreshList, true) end
                     S.Rebuild()
                 end)
-
                 cache[p] = { dist = distLbl, fly = flyBtn, spec = specRowBtn, nameBtn = b, row = row }
             end
             pcall(function() list.CanvasSize = UDim2.new(0, 0, 0, order * 30) end)
@@ -7095,12 +6275,9 @@ do local PH = 386
         end
         paint()
     end
-
-    -- Đồng bộ S.Spec.RefreshList vào cùng bảng hợp nhất
     S.Spec.RefreshList = function()
         if LOC.RefreshList then LOC.RefreshList(true) end
     end
-
     searchIn:GetPropertyChangedSignal("Text"):Connect(function()
         if LOC.RefreshList then pcall(LOC.RefreshList, true) end
     end)
@@ -7108,7 +6285,6 @@ do local PH = 386
         ReleaseHubFocus()
         if LOC.RefreshList then pcall(LOC.RefreshList, true) end
     end)
-
     allBtn.Activated:Connect(function() ReleaseHubFocus()
         LOC.Set(not LOC.on) paint()
         if LOC.RefreshList then LOC.RefreshList(true) end S.Rebuild()
@@ -7156,8 +6332,6 @@ do local PH = 386
         if mv then pcall(function() mv.StopPlayerFly() end) end paint()
         if LOC.RefreshList then pcall(LOC.RefreshList, true) end if S.SyncMovePanel then pcall(S.SyncMovePanel) end
         S.Rebuild() if D.hubStatus then flash(D.hubStatus, "⏹️ Đã dừng bay tới người", 1.2, C.GRAY) end end)
-
-    -- Sự kiện các nút Xem người chơi (👣 Spectator)
     watchBtn.Activated:Connect(function() ReleaseHubFocus()
         if SP.on then S.Spec.Stop()
         else local p = SP.target or LOC.target or LOC.Nearest()
@@ -7181,7 +6355,6 @@ do local PH = 386
         S.Spec.Stop() paint()
         if LOC.RefreshList then LOC.RefreshList(true) end pcall(S.Rebuild)
         if D.hubStatus then flash(D.hubStatus, "🚫 " .. S.Spec.Status(), 2, C.ACCENT) end end)
-
     if LOC.RefreshList then pcall(LOC.RefreshList, true) end
     S.SyncLocPanel = function()
         paint()
@@ -7191,15 +6364,12 @@ do local PH = 386
         if LOC.RefreshList then pcall(LOC.RefreshList, true) end
     end
 end
-
--- ---------- 🎥 KHÁN GIẢ (v4.64) ----------
 S.Free = { on = false, speed = 50,
     _bound = false, _cf = nil, _wasAnchored = nil, _hrp = nil, _camType = nil, _camSub = nil, _yaw = 0, _pitch = 0,
     _mdx = 0, _mdy = 0, _step = nil, _mouse = nil, _pos = nil, _mouseBeh = nil, }
 local FR = S.Free function S.Free.Char() return player and player.Character or nil end
 function S.Free.HRP(ch) ch = ch or S.Free.Char()
     return ch and ch:FindFirstChild("HumanoidRootPart") end function S.Free.HoldChar()
-    -- Nhân vật ĐỨNG YÊN. Không cướp bay / đứng nền / xuyên tường.
     if not FR.on then return end local hrp = S.Free.HRP()
     if not hrp then return end if FR._hrp ~= hrp then
         FR._hrp = hrp FR._wasAnchored = hrp.Anchored
@@ -7211,7 +6381,6 @@ function S.Free.ReleaseChar() local hrp = FR._hrp or S.Free.HRP()
             hrp.Anchored = (FR._wasAnchored == true) if FR._cf then hrp.CFrame = FR._cf end
         end) end
     FR._hrp, FR._wasAnchored, FR._cf = nil, nil, nil end function S.Free.AimCam()
-    -- Lỗi: Scriptable tắt chuột game; InputChanged.Delta = 0 nếu không LockCenter → không quay được.
     local cam = workspace.CurrentCamera if not cam then return end
     if FR._camType == nil then FR._camType = cam.CameraType end if FR._camSub == nil then FR._camSub = cam.CameraSubject end
     cam.CameraType = Enum.CameraType.Scriptable pcall(function() cam.CameraSubject = nil end)
@@ -7236,8 +6405,6 @@ end function S.Free.Look() local yaw = FR._yaw or 0
     pitch = pitch - (FR._mdy or 0) * 0.004 if pitch > 1.4 then pitch = 1.4 elseif pitch < -1.4 then pitch = -1.4 end
     FR._mdx, FR._mdy = 0, 0 FR._yaw, FR._pitch = yaw, pitch
     return CFrame.Angles(0, yaw, 0) * CFrame.Angles(pitch, 0, 0) end function S.Free.Step(dt)
-    -- Lỗi: lấy vị trí camera đã bị Popper + Camera+1 → không xuyên tường.
-    -- Sửa: FR._pos tự lưu; Scriptable mỗi frame; ghi lúc Last.
     if not FR.on then return end S.Free.HoldChar()
     local cam = workspace.CurrentCamera if not cam then return end
     S.Free.AimCam() dt = tonumber(dt) or 0.016
@@ -7280,8 +6447,6 @@ function S.Free.Status() if not FR.on then return "🎥 khán giả: đang TẮT
         if not FR.on then return end task.defer(function()
             if FR.on then S.Free.HoldChar() end end)
     end)) end _G.BananaCatHub_Free = S.Free
--- ---------- HẾT 🎥 KHÁN GIẢ ----------
-
 S.Glow = { on = false, width = 18, bright = 3,
     color = Color3.fromRGB(120, 220, 255),
     thru = true,          -- 👁 xuyên tường (mặc định BẬT — đúng ý "ánh sáng không bị trói")
@@ -7322,7 +6487,6 @@ end function S.Glow.Apply()
 end function S.Glow.Bind(on)
     if on and not GL._bound then GL._bound = true
         pcall(function() RunService:BindToRenderStep("BC_Glow", Enum.RenderPriority.Camera.Value - 5, function(dt) GL._acc = (GL._acc or 0) + (tonumber(dt) or 0.016)
-                -- v5.4 EXTREME+: menu đóng thì 2.0s mới check, mở thì 0.8s
                 local interval = 0.8
                 if S.PagePerf and not S.PagePerf.IsMainVisible() then interval = 2.0 end
                 if GL._acc < interval then return end
@@ -7351,19 +6515,15 @@ end function S.Glow.Status() if not GL.on then return "✨ phát sáng: đang T�
     return "✨ phát sáng: BẬT · " .. table.concat(t, " · ") end
 do trackConn(player.CharacterAdded:Connect(function()
         if GL.on then pcall(S.Glow.Apply) end end)) end
-
--- ---------- KHUNG ✨ PHÁT SÁNG (trên cùng danh sách thẻ trong 📚 Script Hub) ----------
 do local PH = 132
     local P = New("Frame", { Name = "HubGlow_Panel",
         Size = UDim2.new(1, 0, 0, PH), LayoutOrder = 1, BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, BorderSizePixel = 0, ZIndex = 6,
     }, D.hubList) Corner(P, UDim.new(0, 10))
     Stroke(P, C.HAIRLINE, 1) D.Shade(P, Color3.fromRGB(255, 255, 255), Color3.fromRGB(188, 192, 205), 90)
-
     New("TextLabel", { Name = "GlowTitle",
         Size = UDim2.new(1, -16, 0, 14), Position = UDim2.new(0, 8, 0, 4), Text = "✨ PHÁT SÁNG (nhân vật của MÌNH)", BackgroundTransparency = 1,
         TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
     }, P)
-
     local function act(txt, x, y, w, color, name) local b = New("TextButton", {
             Name = name or "GlowBtn", Size = UDim2.new(0, w, 0, 18), Position = UDim2.new(0, x, 0, y),
             Text = txt, BackgroundColor3 = color, TextColor3 = D.BestText(color), Font = Enum.Font.GothamBold, TextSize = 8, BorderSizePixel = 0, ZIndex = 8,
@@ -7378,24 +6538,19 @@ do local PH = 132
             BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.1, TextColor3 = C.DARK, PlaceholderColor3 = C.GRAY, Font = Enum.Font.GothamMedium, TextSize = 9,
             TextXAlignment = Enum.TextXAlignment.Center, BorderSizePixel = 0, ZIndex = 7, }, P)
         Corner(b, UDim.new(0, 5)) return b end
-
     local onBtn   = act("✨ BẬT", 8, 22, 78, C.GRAY, "GlowOn") local thruBtn = act("👁 Xuyên tường: BẬT", 90, 22, 102, C.GREEN, "GlowThru")
     local litBtn  = act("💡 Đèn thật: BẬT", 196, 22, 92, C.GREEN, "GlowLight")
-
     lab("📏 Rộng", 8, 46, 44) local wIn = box(52, 46, 44, 18)
     lab("☀ Sáng", 102, 46, 44) local bIn = box(146, 46, 44, 3)
     local colBtn = act("🎨 Đổi màu", 196, 46, 108, C.PURPLE, "GlowColor")
-
     local applyBtn = act("✔ Áp dụng", 8, 70, 72, C.SURFACE3, "GlowApply") local stopBtn  = act("🚫 Tắt", 84, 70, 58, C.RED, "GlowStop")
     local statusLbl = New("TextLabel", { Name = "GlowStatus",
         Size = UDim2.new(1, -188, 0, 20), Position = UDim2.new(0, 174, 0, 74), Text = "", BackgroundTransparency = 1, TextColor3 = C.MUTED,
         Font = Enum.Font.GothamMedium, TextSize = 8, TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = 7, }, P)
-
     New("TextLabel", { Size = UDim2.new(1, -16, 0, 30), Position = UDim2.new(0, 8, 0, 98),
         Text = "💡 📏 Rộng = bán kính toả sáng (1–200) · ☀ Sáng = độ sáng (0–10). " .. "👁 Xuyên tường = thấy mình sáng qua tường · 💡 Đèn thật = ánh sáng KHÔNG bị vật cản chặn. "
              .. "Bị game xoá hay respawn thì tự gắn lại; chỉ thêm hiệu ứng, KHÔNG đụng vào di chuyển.", TextWrapped = true, BackgroundTransparency = 1, TextColor3 = C.MUTED,
         Font = Enum.Font.GothamMedium, TextSize = 8, TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, ZIndex = 7, }, P)
-
     local function paint() onBtn.Text = GL.on and "✨ TẮT" or "✨ BẬT"
         onBtn.BackgroundColor3 = GL.on and C.GREEN or C.GRAY onBtn.TextColor3 = D.BestText(onBtn.BackgroundColor3)
         thruBtn.Text = GL.thru and "👁 Xuyên tường: BẬT" or "👁 Xuyên tường: TẮT" thruBtn.BackgroundColor3 = GL.thru and C.GREEN or C.SURFACE3 thruBtn.TextColor3 = D.BestText(thruBtn.BackgroundColor3)
@@ -7404,7 +6559,6 @@ do local PH = 132
         colBtn.Text = "🎨 " .. S.Glow.ColorName() statusLbl.Text = S.Glow.Status() end
     S.SyncGlowPanel = paint                     -- S.RebuildHubList gọi để nhãn luôn đúng
     S.Glow.RefreshPanel = paint
-
     onBtn.Activated:Connect(function() ReleaseHubFocus()
         S.Glow.Set(not GL.on) paint()
         if D.hubStatus then flash(D.hubStatus, S.Glow.Status(), 2, C.ACCENT) end
@@ -7430,47 +6584,37 @@ do local PH = 132
         S.Glow.Stop() paint()
         if D.hubStatus then flash(D.hubStatus, "🚫 " .. S.Glow.Status(), 1.8, C.ACCENT) end pcall(S.Rebuild)
     end) paint() end
-
-
--- ---------- v4.64: KHUNG 🎥 KHÁN GIẢ ----------
 do local PH = 108
     local P = New("Frame", { Name = "HubFree_Panel", Size = UDim2.new(1, 0, 0, PH), LayoutOrder = 2,
         BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, BorderSizePixel = 0, ZIndex = 6, }, D.hubList)
     Corner(P, UDim.new(0, 10)) Stroke(P, C.HAIRLINE, 1) D.Shade(P, Color3.fromRGB(255, 255, 255), Color3.fromRGB(188, 192, 205), 90)
-
     New("TextLabel", { Name = "FreeTitle",
         Size = UDim2.new(1, -16, 0, 14), Position = UDim2.new(0, 8, 0, 4), Text = "🎥 KHÁN GIẢ (camera bay khắp nơi · nhân vật đứng yên)", BackgroundTransparency = 1,
         TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
     }, P)
-
     local function act(txt, x, y, w, color, name) local b = New("TextButton", {
             Name = name or "FreeBtn", Size = UDim2.new(0, w, 0, 18), Position = UDim2.new(0, x, 0, y),
             Text = txt, BackgroundColor3 = color, TextColor3 = D.BestText(color), Font = Enum.Font.GothamBold, TextSize = 8, BorderSizePixel = 0, ZIndex = 8, }, P)
         Corner(b, UDim.new(0, 5)) D.Shade(b, Color3.fromRGB(255, 255, 255), Color3.fromRGB(182, 187, 201), 90)
         D.Tactile(b, 0.08) return b end
-
     local onBtn = act("🎥 BẬT", 8, 22, 78, C.GRAY, "FreeOn") local stopBtn = act("🚫 Tắt", 90, 22, 58, C.RED, "FreeStop")
     local statusLbl = New("TextLabel", { Name = "FreeStatus",
         Size = UDim2.new(1, -162, 0, 18), Position = UDim2.new(0, 154, 0, 22), Text = "", BackgroundTransparency = 1, TextColor3 = C.MUTED,
         Font = Enum.Font.GothamMedium, TextSize = 8, TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = 7, }, P)
-
     New("TextLabel", { Size = UDim2.new(0, 36, 0, 18), Position = UDim2.new(0, 8, 0, 44),
         Text = "💨", BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium, TextSize = 9, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
     }, P) local spdIn = New("TextBox", { Size = UDim2.new(0, 48, 0, 18), Position = UDim2.new(0, 36, 0, 44),
         Text = tostring(FR.speed), ClearTextOnFocus = false, BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.1, TextColor3 = C.DARK,
         PlaceholderColor3 = C.GRAY, Font = Enum.Font.GothamMedium, TextSize = 9, TextXAlignment = Enum.TextXAlignment.Center, BorderSizePixel = 0, ZIndex = 7,
     }, P) Corner(spdIn, UDim.new(0, 5)) local applyBtn = act("✔ Áp dụng", 90, 44, 72, C.SURFACE3, "FreeApply")
-
     New("TextLabel", { Size = UDim2.new(1, -16, 0, 32), Position = UDim2.new(0, 8, 0, 70),
         Text = "WASD + Space/Shift bay camera giống 🚀. Chuột xoay nhìn. Nhân vật đứng yên. Không FireServer. Không cướp bay/nhảy/🛡.", TextWrapped = true, BackgroundTransparency = 1, TextColor3 = C.MUTED,
         Font = Enum.Font.GothamMedium, TextSize = 8, TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, ZIndex = 7,
     }, P)
-
     local function paint() onBtn.Text = FR.on and "🎥 TẮT" or "🎥 BẬT"
         onBtn.BackgroundColor3 = FR.on and C.GREEN or C.GRAY onBtn.TextColor3 = D.BestText(onBtn.BackgroundColor3)
         spdIn.Text = tostring(FR.speed) statusLbl.Text = S.Free.Status()
     end S.SyncFreePanel = paint S.Free.RefreshPanel = paint
-
     onBtn.Activated:Connect(function() ReleaseHubFocus()
         S.Free.Set(not FR.on) paint()
         if D.hubStatus then flash(D.hubStatus, S.Free.Status(), 2, C.ACCENT) end pcall(S.Rebuild)
@@ -7483,20 +6627,15 @@ do local PH = 108
         if not FR.on then S.Free.Set(true) end paint()
         if D.hubStatus then flash(D.hubStatus, S.Free.Status(), 2, C.ACCENT) end pcall(S.Rebuild)
     end) paint() end
--- ---------- HẾT KHUNG 🎥 KHÁN GIẢ ----------
-
--- ---------- KHUNG 🛡 BAY AN TOÀN (trên cùng danh sách thẻ, dưới ⚙ và ✨) ----------
 do local PH = 200
     local P = New("Frame", { Name = "HubSafe_Panel",
         Size = UDim2.new(1, 0, 0, PH), LayoutOrder = 2, BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, BorderSizePixel = 0, ZIndex = 6,
     }, D.hubList) Corner(P, UDim.new(0, 10))
     Stroke(P, C.HAIRLINE, 1) D.Shade(P, Color3.fromRGB(255, 255, 255), Color3.fromRGB(188, 192, 205), 90)
-
     New("TextLabel", { Name = "SafeTitle",
         Size = UDim2.new(1, -16, 0, 14), Position = UDim2.new(0, 8, 0, 4), Text = "🛡 BAY AN TOÀN (tự bay + né vật có dấu hiệu chuyển động)", BackgroundTransparency = 1,
         TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
     }, P)
-
     local function act(txt, x, y, w, color, name) local b = New("TextButton", {
             Name = name or "SafeBtn", Size = UDim2.new(0, w, 0, 18), Position = UDim2.new(0, x, 0, y),
             Text = txt, BackgroundColor3 = color, TextColor3 = D.BestText(color), Font = Enum.Font.GothamBold, TextSize = 8, BorderSizePixel = 0, ZIndex = 8,
@@ -7511,19 +6650,15 @@ do local PH = 200
             BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.1, TextColor3 = C.DARK, PlaceholderColor3 = C.GRAY, Font = Enum.Font.GothamMedium, TextSize = 9,
             TextXAlignment = Enum.TextXAlignment.Center, BorderSizePixel = 0, ZIndex = 7, }, P)
         Corner(b, UDim.new(0, 5)) return b end
-
     local onBtn = act("🛡 BẬT", 8, 22, 78, C.GRAY, "SafeOn") lab("📏 Né", 90, 22, 30)
     local radIn = box(118, 22, 42, 25) lab("💨 Bay", 164, 22, 36)
     local spdIn = box(200, 22, 42, 60) lab("🌀 Gắt", 246, 22, 32)
     local strIn = box(278, 22, 36, 4)
-
     local autoBtn  = act("➡ Tự bay: BẬT", 8, 46, 84, C.GREEN, "SafeAuto") local shBtn    = act("🔲 Khiên: BẬT", 96, 46, 72, C.GREEN, "SafeShield")
     local plBtn    = act("👤 Né người: BẬT", 172, 46, 82, C.GREEN, "SafePlayers") local ncBtn    = act("🧱 Xuyên: BẬT", 258, 46, 40, C.GREEN, "SafeNoclip")
-
     local ciBtn    = act("⭕ Vòng tròn: BẬT", 8, 70, 92, C.GREEN, "SafeCircle") lab("⭕ Bán kính", 104, 70, 48)
     local cirIn    = box(154, 70, 38, 20) lab("👁 Nhìn trước", 196, 70, 54)
     local lookIn   = box(252, 70, 32, 1) lab("giây", 286, 70, 30)
-
     local applyBtn = act("✔ Áp dụng", 8, 94, 72, C.SURFACE3, "SafeApply") local stopBtn  = act("🚫 Tắt", 84, 94, 44, C.RED, "SafeStop")
     lab("🔲 Cỡ", 134, 94, 32) local szIn = box(168, 94, 32, 0)
     lab("(0 = tự)", 202, 94, 40) local hudBtn = act("📱 Nút ảo: BẬT", 244, 94, 76, C.GREEN, "SafeHud")
@@ -7535,10 +6670,8 @@ do local PH = 200
              .. "thì chỉnh ô 🔲 Cỡ — 0 = tự động. 📏 Né chỉ là khoảng cách né, không kéo giãn khiên) · " .. "👤 Né người = coi NGƯỜI CHƠI khác là mối nguy dù họ đứng yên · 🧱 Xuyên = tự bật Xuyên "
              .. "Tường để lực đẩy đưa bạn QUA vật cản, tắt 🛡 là trả lại như cũ. ⭕ Vòng tròn = khi KHÔNG " .. "có ai/vật nào đang lao tới mình thì tự bay vòng tròn quanh chỗ đang đứng (bán kính "
              .. "chỉnh ở ô ⭕), đang né hoặc đang bấm WASD/joystick ảo thì TẠM DỪNG, né xong tự bay vòng lại. " .. "👁 Nhìn trước = quét xa 📏 × 1,6 và bắt vật ĐANG LAO TỚI từ ngoài tầm. 📱 Nút ảo = joystick " .. "kéo + ⬆⬇ giữ để lên/xuống, hiện khi 🛡 BẬT. 🛡 tự sống qua respawn / hết trận sang trận mới.",
-
         BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium, TextSize = 8, TextWrapped = true,
         TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, ZIndex = 7, }, P)
-
     local function paint() onBtn.Text = MV.Safe.on and "🛡 TẮT" or "🛡 BẬT"
         onBtn.BackgroundColor3 = MV.Safe.on and C.GREEN or C.GRAY onBtn.TextColor3 = D.BestText(onBtn.BackgroundColor3)
         autoBtn.Text = MV.Safe.auto and "➡ Tự bay: BẬT" or "➡ Tự bay: TẮT" autoBtn.BackgroundColor3 = MV.Safe.auto and C.GREEN or C.SURFACE3
@@ -7553,7 +6686,6 @@ do local PH = 200
         cirIn.Text, lookIn.Text = tostring(MV.Safe.circleR), tostring(MV.Safe.lookTime) szIn.Text = tostring(MV.Safe.shieldSize)
         statusLbl.Text = MV.Safe.Status() statusLbl.TextColor3 = ((MV.Safe.threats or 0) > 0) and C.YELLOW or C.MUTED
     end S.SyncSafePanel = paint MV.Safe.RefreshPanel = paint
-
     onBtn.Activated:Connect(function() ReleaseHubFocus()
         MV.Safe.Set(not MV.Safe.on) paint()
         if D.hubStatus then flash(D.hubStatus, MV.Safe.Status(), 2.2, C.ACCENT) end pcall(S.Rebuild)
@@ -7593,17 +6725,13 @@ do local PH = 200
         if D.hubStatus then flash(D.hubStatus, MV.Safe.showHud and "📱 nút ảo 🛡: BẬT — hiện joystick + ⬆⬇ khi 🛡 đang bật"
                  or "📱 nút ảo 🛡: TẮT — đã ẩn cụm nút nổi", 1.8, C.ACCENT) end
     end) paint() end
-
--- ---------- TỰ LÀM MỚI DANH SÁCH TRONG MENU (📍 + 👣 HỢP NHẤT) — v5.4 EXTREME+: 3s->4s, chỉ chạy khi menu mở và ở tab liên quan ----------
 do local acc = 0
     RunService:BindToRenderStep("BC_HubList", Enum.RenderPriority.Camera.Value - 4, function(dt) acc = acc + (tonumber(dt) or 0.016)
         if acc < 4 then return end acc = 0 pcall(function() -- v5.4 EXTREME+: 3->4s giảm thêm 25% work
-            -- v5.2: nếu menu đóng thì dừng hẳn việc refresh list UI
             if S.PagePerf and not S.PagePerf.IsMainVisible() then return end
             if main and not main.Visible then return end
             local visible = false local function open(t) if t and t.Visible == true then return true end return false end
             if open(D.playerTab) or open(D.hubTab) then visible = true end if not visible then return end
-            -- v5.2: chỉ refresh list khi tab tương ứng đang mở, tránh làm việc thừa
             local playerVisible = open(D.playerTab)
             local hubVisible = open(D.hubTab)
             if playerVisible then
@@ -7612,29 +6740,23 @@ do local acc = 0
                 if S.ObjTrack and S.ObjTrack.RefreshList then pcall(S.ObjTrack.RefreshList) end
             end
             if hubVisible then
-                -- hub list ít nặng hơn nhưng vẫn chỉ refresh khi ở hub tab
                 if S.Loc.RefreshList and not playerVisible then
-                    -- nếu chỉ ở hub tab, không cần refresh Loc (đã có ở player tab)
                 end
             end
         end) end)
 end
-
--- ---------- KHUNG 🧱 ĐẶT KÍNH & 🚀 BAY TỚI KÍNH (nhiều tấm cố định) ----------
 ;(function() local PH = 354
     local P = New("Frame", { Name = "HubGlass_Panel",
         Size = UDim2.new(1, -16, 0, PH), Position = UDim2.new(0, 8, 0, D.playerY or 46),
         LayoutOrder = 2, BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, BorderSizePixel = 0, ZIndex = 6,
     }, D.playerTab) D.playerY = (D.playerY or 46) + PH + 8
     Corner(P, UDim.new(0, 10)) Stroke(P, C.HAIRLINE, 1) D.Shade(P, Color3.fromRGB(255, 255, 255), Color3.fromRGB(188, 192, 205), 90)
-
     New("TextLabel", { Size = UDim2.new(1, -16, 0, 14), Position = UDim2.new(0, 8, 0, 4),
         Text = "🧱 THẢM KÍNH CỐ ĐỊNH · 🚀 BAY TỚI TỪNG TẤM", BackgroundTransparency = 1, TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 10,
         TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7, }, P)
     New("TextLabel", { Size = UDim2.new(1, -16, 0, 22), Position = UDim2.new(0, 8, 0, 20),
         Text = "Bấm 🧱 Đặt thêm để tạo tấm mới tại chân bạn. Tấm đã đặt đứng yên, không bị ghi đè; mỗi dòng có nút bay tới và xóa riêng.", TextWrapped = true, BackgroundTransparency = 1, TextColor3 = C.MUTED,
         Font = Enum.Font.GothamMedium, TextSize = 8, TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, ZIndex = 7, }, P)
-
     local function glassAct(txt, x, y, w, color) local b = New("TextButton", {
             Size = UDim2.new(0, w, 0, 18), Position = UDim2.new(0, x, 0, y), Text = txt, BackgroundColor3 = color, TextColor3 = D.BestText(color),
             Font = Enum.Font.GothamBold, TextSize = 8, BorderSizePixel = 0, ZIndex = 8, }, P)
@@ -7650,27 +6772,22 @@ end
         Corner(box, UDim.new(0, 5)) return box
     end local function numberFrom(box, fallback)
         local s = tostring(box and box.Text or "") return tonumber(s:match("[+-]?%d+%.?%d*")) or fallback end
-
     glassLab("Rộng", 8, 44, 32) local widthIn = glassInput(tostring(MV.carpetW or 6), 42, 44, 40)
     glassLab("Cao", 88, 44, 27) local heightIn = glassInput(tostring(MV.carpetH or 0.5), 116, 44, 40)
     glassLab("Dài", 162, 44, 27) local lengthIn = glassInput(tostring(MV.carpetL or 6), 190, 44, 40)
     glassLab("Gap", 236, 44, 28) local gapIn = glassInput(tostring(MV.carpetGap or 0.2), 266, 44, 40) local sizeApply = glassAct("✅ Áp dụng", 312, 44, 54, C.SURFACE3)
-
     local placeBtn = glassAct("🧱 Đặt thêm", 8, 68, 82, C.BLUE) local autoBtn = glassAct("🔄 Tự đặt: TẮT", 94, 68, 84, C.SURFACE3)
     local clearBtn = glassAct("🧹 Xóa tất cả", 182, 68, 82, C.RED) local stopBtn = glassAct("⏹ Dừng bay", 268, 68, 68, C.SURFACE3)
-
     glassLab("🚀 Tốc độ bay:", 8, 92, 90) local flySpeedIn = glassInput(tostring(MV.glassFlySpeed or 60), 98, 92, 46)
     local flySpeedApply = glassAct("✅ Đặt", 148, 92, 46, C.GREEN) local speedNote = New("TextLabel", {
         Size = UDim2.new(1, -206, 0, 18), Position = UDim2.new(0, 200, 0, 92), Text = "tấm gần nhất từ 📚 Script Hub · 1–2000",
         BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium, TextSize = 8, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7, }, P)
-
     local countLbl = New("TextLabel", { Size = UDim2.new(1, -16, 0, 18), Position = UDim2.new(0, 8, 0, 120),
         Text = "🧱 Đã đặt: 0 tấm · cố định", BackgroundTransparency = 1, TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 9,
         TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7, }, P) local list = New("ScrollingFrame", {
         Name = "GlassList", Size = UDim2.new(1, -16, 0, 208), Position = UDim2.new(0, 8, 0, 142), BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = 4,
         CanvasSize = UDim2.new(0, 0, 0, 0), ZIndex = 7, }, P)
     New("UIListLayout", { Padding = UDim.new(0, 3), SortOrder = Enum.SortOrder.LayoutOrder, }, list)
-
     local function applyGlassSettings() local w, h, l = MV.SetCarpetSize(
             numberFrom(widthIn, MV.carpetW or 6), numberFrom(heightIn, MV.carpetH or 0.5),
             numberFrom(lengthIn, MV.carpetL or 6) )
@@ -7682,7 +6799,6 @@ end
         local auto = MV.autoGlass == true autoBtn.Text = auto and "🔄 Tự đặt: BẬT" or "🔄 Tự đặt: TẮT"
         autoBtn.BackgroundColor3 = auto and C.GREEN or C.SURFACE3 autoBtn.TextColor3 = D.BestText(autoBtn.BackgroundColor3)
         countLbl.Text = "🧱 Đã đặt: " .. tostring(#items) .. " tấm · cố định" speedNote.Text = "tấm gần nhất từ 📚 Script Hub · " .. tostring(MV.glassFlySpeed or 60) .. "" end
-
     S.GlassRefreshList = function() if not (list and list.Parent) then return end
         local items = glassCount() for _, child in ipairs(list:GetChildren()) do
             if not child:IsA("UIListLayout") then pcall(function() child:Destroy() end) end end
@@ -7710,7 +6826,6 @@ end
                 end pcall(S.GlassRefreshList)
             end) end
         pcall(function() list.CanvasSize = UDim2.new(0, 0, 0, math.max(0, #items * 29)) end) paintGlassButtons(items) end
-
     S.OpenGlassPanel = function() local ok = S.OpenPlayerTab and S.OpenPlayerTab() or false
         pcall(S.GlassRefreshList) return ok
     end sizeApply.Activated:Connect(function()
@@ -7737,7 +6852,6 @@ end
         end end)
     pcall(S.GlassRefreshList) pcall(function()
         if D.playerTab then D.playerTab.CanvasSize = UDim2.new(0, 0, 0, (D.playerY or 600) + 16) end end) end)()
-
 D.hubChipBtns = {} for _, cname in ipairs({"Tất cả", "Admin", "Explorer", "Spy", "Tiện ích", "Server", "Di chuyển", "Định vị"}) do
     local w = (cname == "Tất cả" and 50) or (cname == "Explorer" and 58) or (cname == "Tiện ích" and 54) or (cname == "Server" and 48) or (cname == "Admin" and 46) or (cname == "Di chuyển" and 58) or (cname == "Định vị" and 50) or 38
     local chip = New("TextButton", { Size = UDim2.new(0, w, 0, 17), Text = cname,
@@ -7750,22 +6864,14 @@ D.hubChipBtns = {} for _, cname in ipairs({"Tất cả", "Admin", "Explorer", "S
             local st = cb:FindFirstChildOfClass("UIStroke") if st then st.Color = on and C.ACCENT2 or C.BORDER end
         end S.RebuildHubList()
     end) D.hubChipBtns[cname] = chip end
-
 trackConn(D.hubSearchBox:GetPropertyChangedSignal("Text"):Connect(function()
     S.hubSearch = D.hubSearchBox.Text          -- ghi nhận ngay (rẻ) để chip/lọc khác đọc đúng
     S.Debounce("hubSearch", 0.18, S.RebuildHubList)   -- nhưng chỉ DỰNG lại thẻ 1 lần sau phím cuối
 end)) S.RebuildHubList()
-
 D.SyncPageChips()
 S.SyncServerPanel()   -- v4.6.3: hiện mã server (JobId) lên khung 🌐 SERVER
-
 do   -- gói gọn trong 1 khối: tiết kiệm "local" ở cấp cao nhất của chunk
 -- ============================================================================
--- ---------- 🌳 ĐỊNH VỊ VẬT THEO TÊN (v5.1) — nhập tên là thấy MỌI vật khớp ---
--- Quét workspace để tìm mọi BasePart/Model có tên khớp (không phân biệt hoa
--- thường, không dấu), vẽ Highlight + nhãn + (tuỳ chọn) hộp bao quanh GẮN THẲNG
--- vào vật nên vật di chuyển tới đâu định vị đi theo tới đó. Định kỳ quét lại
--- nên vật mới xuất hiện hoặc vật bị xoá đều tự cập nhật.
 -- ============================================================================
 S.ObjTrack = {
     on = false,           -- đang định vị hay không
@@ -7795,7 +6901,6 @@ S.ObjTrack = {
     labelEvery = 0.12,    -- giây: cập nhật khoảng cách + nhãn (v5.6: 0.35->0.12 tăng tốc 3x)
     pathKeys = {},        -- từ khoá dạng PATH dán vào (VD: workspace.rung cay.thancay)
     entries = {},         -- nhiều mục ghim cùng lúc: { {raw="cây",kind="name"}, {raw="Workspace.Rừng Cây",kind="path"} }
-    -- trạng thái nội bộ cho quét chia lát + vòng xoay
     _order = {}, _tickIdx = 0, _pending = {}, _queue = {}, _qN = 0, _pathSet = {}, _pathN = 0, _chars = {},
     _nc = setmetatable({}, { __mode = "k" }),   -- đệm tên đã chuẩn hoá theo từng vật
     _gui = nil, _acc = 0, _scanAcc = 0, _bound = false, _scanned = 0, _renderErr = false,
@@ -7808,20 +6913,14 @@ local OT = S.ObjTrack OT.palette = {
     { name = "Xanh dương", fill = Color3.fromRGB(90, 170, 255), out = Color3.fromRGB(222, 240, 255) }, }
 function OT.Pal() local i = tonumber(OT.color) or 1
     return OT.palette[i] or OT.palette[1] end local function otRound(n) return math.floor((tonumber(n) or 0) + 0.5) end
-
--- Toạ độ 1 dòng "X 12.3 · Y 5.0 · Z -8.4" — y như khung 📍 Toạ Độ của hub.
 local function otXYZ(part) local ok, pos = pcall(function() return part.Position end)
     if not ok or not pos then return "" end return string.format("X %.1f · Y %.1f · Z %.1f", pos.X, pos.Y, pos.Z)
 end
-
--- Đường dẫn đầy đủ kiểu "Workspace.Rừng Cây.ThanCay"
 function OT.PathOf(inst) if inst == nil then return "nil" end
     local parts, cur, guard = {}, inst, 0 while cur and cur ~= game and guard < 40 do
         table.insert(parts, 1, tostring(cur.Name)) cur = cur.Parent
         guard = guard + 1 end
     return table.concat(parts, ".") end
-
--- Bảng thông tin 1 vật: ĐÚNG các dòng của khung "🎯 VẬT THỂ ĐƯỢC CHỌN" (phân tích toạ độ).
 function OT.Info(inst, part) if inst == nil then return {} end
     if part == nil then part = OT.PartOf(inst) end local rows = {}
     local function add(k, v) rows[#rows + 1] = { k = k, v = tostring(v) } end add("Name", tostring(inst.Name))
@@ -7837,25 +6936,19 @@ function OT.Info(inst, part) if inst == nil then return {} end
         if okCol and col then add("Color", string.format("R=%d G=%d B=%d",
                 math.floor(col.R * 255), math.floor(col.G * 255), math.floor(col.B * 255))) end
     end return rows end
-
--- Chọn 1 vật để hiện thông tin (giống chọn vật bằng 🎯 Phân Tích Vật Thể)
 function OT.Select(inst) if inst == nil or inst.Parent == nil then
         OT._sel, OT._selPart = nil, nil else
         OT._sel = inst OT._selPart = OT.PartOf(inst)
     end if OT.RefreshInfo then pcall(OT.RefreshInfo) end
     return OT._sel end
-
 function OT.CopyCoords(inst) local part = (inst and OT.PartOf(inst)) or OT._selPart
     if part == nil then return false, "chưa chọn vật nào" end local ok, pos = pcall(function() return part.Position end)
     if not ok or not pos then return false, "vật không còn toạ độ" end local txt = string.format("%.3f, %.3f, %.3f", pos.X, pos.Y, pos.Z)
     local did = (S.CopyToClipboard and S.CopyToClipboard(txt)) or false return did, txt end
-
 function OT.CopyPath(inst) local target = inst or OT._sel
     if target == nil then return false, "chưa chọn vật nào" end local txt = OT.PathOf(target)
     local did = (S.CopyToClipboard and S.CopyToClipboard(txt)) or false return did, txt
 end
-
--- Bảng "bỏ dấu" tiếng Việt: gõ "cay" vẫn khớp "Cây", gõ "da" khớp "Đá".
 local OT_FOLD = {} do
     local groups = { ["a"] = "áàảãạăắằẳẵặâấầẩẫậÁÀẢÃẠĂẮẰẲẴẶÂẤẦẨẪẬ",
         ["e"] = "éèẻẽẹêếềểễệÉÈẺẼẸÊẾỀỂỄỆ", ["i"] = "íìỉĩịÍÌỈĨỊ",
@@ -7865,7 +6958,6 @@ local OT_FOLD = {} do
         pcall(function() for base, chars in pairs(groups) do
                 for _, cp in utf8.codes(chars) do OT_FOLD[cp] = base end end
         end) end end
-
 function OT.Norm(s) local t = tostring(s or "")
     if t == "" then return "" end local out, k = {}, 0
     local okUtf = false if type(utf8) == "table" and type(utf8.codes) == "function" and type(utf8.char) == "function" then
@@ -7874,8 +6966,6 @@ function OT.Norm(s) local t = tostring(s or "")
         end) if not okUtf then out, k = {}, 0 end
     end if not okUtf then k = 1; out[1] = t end
     local s2 = table.concat(out, "", 1, k):gsub("%s+", " ") return (s2:lower()) end
-
--- Gõ tên thường (cây) hoặc dán cả PATH (Workspace.Rừng Cây.ThanCay / game.Workspace.Cây) đều được.
 function OT.Split(q) local out, paths = {}, {}
     for part in tostring(q or ""):gmatch("[^,;]+") do local k = (OT.Norm(part):gsub("^%s+", ""):gsub("%s+$", ""))
         if #k > 0 then local hasPath = k:find(".", 1, true) ~= nil or k:find("/", 1, true) ~= nil
@@ -7886,29 +6976,20 @@ function OT.Split(q) local out, paths = {}, {}
                 out[#out + 1] = k end
         end end
     OT.pathKeys = paths return out end
-
--- Tên đã chuẩn hoá được ĐỆM LẠI theo vật: đổi tên mới tính lại.
--- (Trước đây mỗi lượt quét phải chuẩn hoá lại tên của CẢ workspace -> khựng theo chu kỳ.)
 function OT.NormCached(inst) local nm = inst.Name
     if type(nm) ~= "string" then return "" end local c = OT._nc[inst]
     if c ~= nil and c.raw == nm then return c.norm end local norm = OT.Norm(nm)
     OT._nc[inst] = { raw = nm, norm = norm } return norm end
-
 function OT.MatchesNorm(n) if n == "" or #OT.keys == 0 then return false end
     local keys = OT.keys for i = 1, #keys do
         if n:find(keys[i], 1, true) then return true end end
     return false end
-
--- Gộp part vào Model cha nếu mọi từ khóa khớp part cũng khớp Model;
--- một từ khóa riêng của part vẫn được giữ làm kết quả độc lập.
 function OT.SharedNameMatch(a, b) local na, nb = OT.NormCached(a), OT.NormCached(b)
     local shared = false for i = 1, #OT.keys do local key = OT.keys[i]
         local inPart, inModel = na:find(key, 1, true) ~= nil, nb:find(key, 1, true) ~= nil
         if inPart and not inModel then return false end
         if inPart and inModel then shared = true end
     end return shared end
-
--- Dán PATH thì đi thẳng theo từng đoạn tên (không phải quét cả workspace để dò path nữa)
 function OT.ResolvePath(key) local segs = {}
     for s in tostring(key or ""):gmatch("[^%.]+") do s = s:gsub("^%s+", ""):gsub("%s+$", "")
         if #s > 0 then segs[#segs + 1] = s end end
@@ -7920,32 +7001,22 @@ function OT.ResolvePath(key) local segs = {}
             if OT.Norm(kids[k].Name) == segs[i] then found = kids[k] break end end
         if found == nil then return nil end cur, i = found, i + 1
     end return cur end
-
 function OT.RefreshPaths() OT._pathSet = {}
     OT._pathN = 0 local keys = OT.pathKeys or {}
     for i = 1, #keys do local ok, inst = pcall(OT.ResolvePath, keys[i]) if ok and inst ~= nil then
             OT._pathSet[inst] = true OT._pathN = OT._pathN + 1
         end end end
-
--- Vật này có phải "ứng viên" không (khớp TÊN hoặc nằm trong PATH đã dán)
 function OT.Candidate(inst) if OT._pathN > 0 and OT._pathSet[inst] then return true end
     return OT.MatchesNorm(OT.NormCached(inst)) end
 OT.Hit = OT.Candidate   -- tương thích tên hàm cũ
-
 -- ============================================================================
--- NHIỀU MỤC CHẠY CÙNG LÚC (v5.1.3): ghim từng tên/path thành "mục", mỗi mục có nút ✕
--- để xoá riêng. Tất cả mục + ô nhập đang gõ đều được gộp vào keys/pathKeys mỗi lượt quét.
 -- ============================================================================
 function OT.IsPathLike(raw) local t = tostring(raw or "")
     return t:find(".", 1, true) ~= nil or t:find("/", 1, true) ~= nil or t:find("\\", 1, true) ~= nil end
-
--- Chuẩn hoá 1 mục để so trùng (bỏ dấu, gộp / \ thành ., bỏ tiền tố game.)
 function OT.EntryKey(raw) local t = tostring(raw or ""):gsub("^%s+", ""):gsub("%s+$", "")
     t = OT.Norm(t) if OT.IsPathLike(t) then
         t = t:gsub("[/\\]", ".") if t:sub(1, 5) == "game." then t = t:sub(6) end
     end return t end
-
--- Gộp MỌI mục đã ghim + ô nhập đang gõ thành keys (tên) và pathKeys (path)
 function OT.RebuildKeys() local keys, paths = {}, {}
     local function push(raw) raw = tostring(raw or "")
         if raw:gsub("%s", "") == "" then return end if OT.IsPathLike(raw) then
@@ -7953,15 +7024,12 @@ function OT.RebuildKeys() local keys, paths = {}, {}
             if ok and inst ~= nil then          -- path còn trong game -> theo path
                 paths[#paths + 1] = key return
             end
-            -- path không resolve được: vẫn thử như TÊN (VD tên vật có dấu chấm) để không mất tính năng
         end local k = OT.Norm(raw):gsub("^%s+", ""):gsub("%s+$", "")
         if #k > 0 then keys[#keys + 1] = k end end
     for i = 1, #OT.entries do push(OT.entries[i].raw) end
     for part in tostring(OT.query or ""):gmatch("[^,;]+") do push(part) end   -- gõ là thấy ngay (như cũ)
     OT.keys, OT.pathKeys = keys, paths return #keys, #paths
 end
-
--- Ghim 1 mục mới. Trả về (ok, kind|why)
 function OT.AddEntry(raw) raw = tostring(raw or ""):gsub("^%s+", ""):gsub("%s+$", "")
     if raw == "" then return false, "chưa nhập gì" end local key = OT.EntryKey(raw)
     for i = 1, #OT.entries do if OT.EntryKey(OT.entries[i].raw) == key then return false, "mục này đã có trong danh sách rồi"
@@ -7975,8 +7043,6 @@ function OT.AddEntry(raw) raw = tostring(raw or ""):gsub("^%s+", ""):gsub("%s+$"
     pcall(OT.Rescan, true)          -- quét ngay: vừa ghim mục là thấy vật luôn (khỏi chờ 2s)
     if OT.RefreshTags then pcall(OT.RefreshTags) end return true, kind
 end
-
--- Xoá 1 mục; hết mục thì tự tắt định vị
 function OT.RemoveEntry(i) i = tonumber(i) or 0
     if i < 1 or i > #OT.entries then return false, "mục không tồn tại" end local raw = OT.entries[i].raw
     table.remove(OT.entries, i) OT._tagSig = nil
@@ -7984,18 +7050,14 @@ function OT.RemoveEntry(i) i = tonumber(i) or 0
         OT.Set(false) elseif OT.on then
         pcall(OT.Rescan, true) end
     if OT.RefreshTags then pcall(OT.RefreshTags) end return true, raw end
-
 function OT.ClearEntries() OT.entries = {}
     OT.query = "" OT._tagSig = nil
     OT.RebuildKeys() if OT.RefreshTags then pcall(OT.RefreshTags) end
 end
-
 function OT.Matches(name) local n = OT.Norm(name)
     if n == "" or #OT.keys == 0 then return false end for i = 1, #OT.keys do
         if n:find(OT.keys[i], 1, true) then return true end end
     return false end
-
--- Vật nào để gắn nhãn: BasePart -> chính nó; Model -> PrimaryPart / part đầu tiên.
 function OT.PartOf(inst, depth) if inst == nil then return nil end
     depth = tonumber(depth) or 0 if depth > 4 then return nil end
     local okA, isA = pcall(function() return inst:IsA("BasePart") end) if okA and isA then return inst end
@@ -8006,7 +7068,6 @@ function OT.PartOf(inst, depth) if inst == nil then return nil end
         for i = 1, #kids do local p = OT.PartOf(kids[i], depth + 1)
             if p then return p end end
     end return nil end
-
 function OT.RefreshChars()   -- lấy nhân vật người chơi 1 lần cho cả lượt quét
     local out = {} if OT.skipPlayers then
         local okL, list = pcall(function() return Players:GetPlayers() end) if okL and type(list) == "table" then
@@ -8014,48 +7075,37 @@ function OT.RefreshChars()   -- lấy nhân vật người chơi 1 lần cho c�
                 pcall(function() c = list[i].Character end) if c ~= nil then out[#out + 1] = c end
             end end
     end OT._chars = out end
-
 function OT.Skip(inst) if inst == nil then return true end
     local chars = OT._chars if chars == nil then
         OT.RefreshChars() chars = OT._chars
     end for i = 1, #chars do
         local okD, inside = pcall(function() return inst:IsDescendantOf(chars[i]) end) if okD and inside then return true end
     end return false end
-
 function OT.Gui() if OT._gui and OT._gui.Parent then return OT._gui end
     OT._gui = New("ScreenGui", { Name = "BC_ObjTrackESP", ResetOnSpawn = false, ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
     }, targetGui) return OT._gui end
-
 function OT.Kill(inst) local it = OT.items[inst]
     if not it then return end pcall(function() if it.hl then it.hl:Destroy() end end)
     pcall(function() if it.bb then it.bb:Destroy() end end) pcall(function() if it.box then it.box:Destroy() end end)
     OT.items[inst] = nil
     if it.slot then OT._order[it.slot] = nil end   -- để lượt cập nhật nhãn xoay vòng khỏi quét nhầm
 end
-
 function OT.Clear() for inst in pairs(OT.items) do OT.Kill(inst) end
     OT.items = {} OT._order, OT._tickIdx, OT._pending = {}, 0, {}
     OT._passing = false OT._queue, OT._qN = {}, 0
     OT._sel, OT._selPart = nil, nil OT.list = {}
     OT._found = 0 OT._capped = false
     OT._rowSig = nil pcall(function() if OT._gui then OT._gui:ClearAllChildren() end end) end
-
 function OT._MakeBox(part, pal) local ok, box = pcall(function()
-        -- BoxHandleAdornment là lớp tạo được bằng Instance.new; nếu executor chặn thì bỏ qua hộp.
         return New("BoxHandleAdornment", {   -- phải nằm trong Workspace mới hiện -> gắn vào part
             Name = "BC_OT_BOX", Adornee = part, Size = part.Size + Vector3.new(0.4, 0.4, 0.4),
             Color3 = pal.fill, Transparency = 0.35, AlwaysOnTop = OT.thru, ZIndex = 3, Visible = OT.showBox,
         }, part) end)
     if ok and box then return box end return nil end
-
 function OT.Make(inst, part) if inst == nil or part == nil then return end
     local okP, alive = pcall(function() return (part.Parent ~= nil) and (inst.Parent ~= nil) end) if not okP or not alive then return end
     OT.Kill(inst) local g = OT.Gui()
     local pal = OT.Pal()
-
-    -- ⚠️ QUAN TRỌNG: Highlight phải nằm trong Workspace mới render. Gắn vào PlayerGui là
-    -- "nhập tên mà không thấy gì" — nên gắn thẳng vào vật (giống 🎯 Phân Tích Vật Thể).
-    -- Folder không phải BasePart/Model nên Adornee phải trỏ vào part bên trong mới hiện
     local okAM, adornee = pcall(function() return (inst:IsA("BasePart") or inst:IsA("Model")) and inst or part
     end) if not okAM or adornee == nil then adornee = part end
     local hl = nil local okH = pcall(function()
@@ -8069,8 +7119,6 @@ function OT.Make(inst, part) if inst == nil or part == nil then return end
                 FillColor = pal.fill, FillTransparency = 0.7, OutlineColor = pal.out, OutlineTransparency = 0,
                 DepthMode = OT.thru and Enum.HighlightDepthMode.AlwaysOnTop or Enum.HighlightDepthMode.Occluded, }, g)
         end) end
-
-    -- Nhãn BillboardGui: gắn vào part (nằm trong Workspace) nên chắc chắn hiện + bám theo vật
     local bb, lbl = nil, nil pcall(function()
         bb = New("BillboardGui", { Name = "BC_OT_BB", Adornee = part,
             Size = UDim2.new(0, 210, 0, OT.showXYZ and 46 or 30), StudsOffset = Vector3.new(0, 2.4, 0), AlwaysOnTop = OT.thru, MaxDistance = 3000, ResetOnSpawn = false,
@@ -8085,24 +7133,16 @@ function OT.Make(inst, part) if inst == nil or part == nil then return end
                 Text = tostring(inst.Name), TextColor3 = pal.out, Font = Enum.Font.GothamBold, TextSize = 11,
                 TextStrokeColor3 = Color3.fromRGB(0, 0, 0), TextStrokeTransparency = 0.35, TextWrapped = true,
             }, bb) end) end
-
     local box = nil if OT.showBox then box = OT._MakeBox(part, pal) end
     OT._slotN = (OT._slotN or 0) + 1 OT._order[OT._slotN] = inst
     OT._orderN = OT._slotN OT.items[inst] = { hl = hl, bb = bb, lbl = lbl, box = box, part = part, dist = 0,
                        adornee = adornee, slot = OT._slotN, txt = nil } OT._renderErr = (hl == nil and bb == nil)
     if OT._renderErr then OT._err = "executor chặn Highlight/BillboardGui — không vẽ được định vị" end end
-
--- Cập nhật nhãn/khoảng cách + xoá vật đã biến mất. Highlight và nhãn gắn vào vật
--- nên vật tự di chuyển theo, không cần bám bằng tay.
--- Cập nhật nhãn XOAY VÒNG: mỗi lượt chỉ đụng tối đa labelBudget vật, có trần thời gian.
--- (Trước đây mỗi 0,2s là cập nhật HẾT mọi vật -> vừa đi vừa khựng.)
--- Cập nhật MỘT vật (tách riêng cho gọn + đỡ lồng nhiều tầng).
 function OT.TickOne(inst, myPos, pal) local it = OT.items[inst]
     if it == nil then return end local part = it.part
     local okA, alive = pcall(function() return part ~= nil and part.Parent ~= nil and inst.Parent ~= nil end) if not okA or not alive then OT.Kill(inst) return end
     local okD, d = pcall(function() return myPos and (part.Position - myPos).Magnitude or nil end) d = (okD and d) or nil
     it.dist = d or 0 local far = (OT.maxDist > 0 and d ~= nil and d > OT.maxDist)
-    -- Highlight/nhãn/hộp phải nằm trong Workspace mới hiện -> giữ luôn gắn đúng chỗ
     local anchor = it.adornee or inst if it.hl and it.hl.Parent ~= anchor then
         local okRe = pcall(function() it.hl.Parent = anchor end) if not okRe then
             pcall(function() it.hl:Destroy() end) it.hl = nil
@@ -8123,16 +7163,12 @@ function OT.TickOne(inst, myPos, pal) local it = OT.items[inst]
         it.box.Adornee = part pcall(function() it.box.Size = part.Size + Vector3.new(0.4, 0.4, 0.4) end)
         it.box.Visible = (not far) and OT.showBox it.box.Color3 = pal.fill
         it.box.AlwaysOnTop = OT.thru end if it.lbl then
-        -- chỉ dựng lại chuỗi khi số liệu ĐỔI (đỡ rác bộ nhớ + đỡ vẽ lại chữ mỗi khung hình)
         local dm = otRound(d or 0) if it.txtName ~= inst.Name or it.txtDist ~= dm then
             it.txtName, it.txtDist = inst.Name, dm it.txtXYZ = OT.showXYZ and otXYZ(part) or nil
         elseif OT.showXYZ then it.txtXYZ = otXYZ(part) end
         local txt = tostring(inst.Name) .. (d and ("  📏 " .. dm .. "m") or "  📏 --m") if OT.showXYZ and it.txtXYZ ~= nil and it.txtXYZ ~= "" then txt = txt .. "\n🧭 " .. it.txtXYZ end
         if it.txt ~= txt then it.txt = txt end if it.lbl.Text ~= it.txt then it.lbl.Text = it.txt end
         it.lbl.TextColor3 = pal.out end end
-
--- Cập nhật nhãn XOAY VÒNG: mỗi lượt chỉ đụng tối đa labelBudget vật, có trần thời gian.
--- (Trước đây mỗi 0,2s là cập nhật HẾT mọi vật -> vừa đi vừa khựng.)
 function OT.Tick() local t0 = os.clock()
     local order = OT._order or {} local n = tonumber(OT._orderN) or 0
     OT._tickUpdates = 0 if n > 0 then
@@ -8140,29 +7176,21 @@ function OT.Tick() local t0 = os.clock()
         local quota = math.min(tonumber(OT.labelBudget) or 20, n) local guard = 0
         while quota > 0 and guard < n * 2 do guard = guard + 1
             OT._tickIdx = (OT._tickIdx % n) + 1 local inst = order[OT._tickIdx] if inst == nil then
-                -- khe trống (vật đã bị xoá) — đi tiếp
             elseif OT.items[inst] == nil then order[OT._tickIdx] = nil
             else quota = quota - 1
                 OT._tickUpdates = OT._tickUpdates + 1 pcall(OT.TickOne, inst, myPos, pal)
             end
             if (os.clock() - t0) * 1000 > (OT.tickSliceMs or 1.5) then break end   -- nhả khung hình
         end end
-    -- vật đang xem bị xoá -> ẩn khung 🎯 NGAY (không chờ hết 0,5s)
     if OT._sel ~= nil then local okS, aliveS = pcall(function() return OT._sel.Parent ~= nil end)
         if not okS or not aliveS then OT._sel, OT._selPart = nil, nil
             OT._infoAt = os.clock()
             if OT.RefreshInfo then pcall(OT.RefreshInfo) end   -- ẩn khung 🎯 ngay
         end end
-    -- khung 🎯 thông tin vật đang chọn: làm mới thưa hơn (0,5s) cho khỏi nặng
     if OT._sel and OT.RefreshInfo and (os.clock() - (OT._infoAt or 0)) >= (OT.infoEvery or 0.5) then OT._infoAt = os.clock()
         pcall(OT.RefreshInfo) end
 end
-
 -- ============================================================================
--- QUÉT CHIA NHỎ THEO TỪNG KHUNG HÌNH (không còn GetDescendants() một phát)
--- Mỗi khung hình chỉ xử lý ~scanBudget vật trong ~scanSliceMs, nên dù map có
--- hàng chục nghìn vật thì cũng không khựng. Không dùng workspace:GetDescendants()
--- nữa (nó tạo mảng khổng lồ mỗi lượt -> đúng thủ phạm gây khựng theo chu kỳ).
 -- ============================================================================
 function OT.ScanBegin() OT.RefreshPaths()
     OT.RefreshChars() local root = S.Move and S.Move.Root and S.Move.Root() or nil
@@ -8172,9 +7200,6 @@ function OT.ScanBegin() OT.RefreshPaths()
     OT._scanned, OT._skipped = 0, 0 OT._passing = true
     OT._passT0 = os.clock() OT._err = nil
 end
-
--- Phân loại 1 vật khớp: BasePart -> chính nó; Model/Folder -> part đại diện.
--- Part cùng khớp một từ khóa với Model cha thì gộp lại để tránh định vị trùng.
 function OT.ScanHit(inst) local okP, posOrBool = pcall(function() return inst:IsA("BasePart") end)
     if okP and posOrBool then local anc, guard, covered = inst.Parent, 0, false
         while anc and guard < 32 do guard = guard + 1
@@ -8193,8 +7218,6 @@ function OT.ScanHit(inst) local okP, posOrBool = pcall(function() return inst:Is
     local okP3, pos = pcall(function() return part.Position end) local d = 0
     if okP3 and pos and OT._myPos then d = (pos - OT._myPos).Magnitude end if OT.maxDist <= 0 or d <= OT.maxDist then
         OT._hits[#OT._hits + 1] = { inst = inst, part = part, dist = d } end end
-
--- Xử lý 1 lát. budget = số vật, msCap = trần thời gian (ms), runToEnd = chạy hết ngay.
 function OT.ScanSlice(budget, msCap, runToEnd) if not OT._passing then return true end
     budget = tonumber(budget) or tonumber(OT.scanBudget) or 180 msCap = tonumber(msCap) or tonumber(OT.scanSliceMs) or 1.2
     local t0 = os.clock() local done = 0
@@ -8211,8 +7234,6 @@ function OT.ScanSlice(budget, msCap, runToEnd) if not OT._passing then return tr
         end end
     OT.ScanFinish() return true
 end
-
--- Chốt 1 lượt quét: sắp theo khoảng cách, bỏ vật cũ, xếp hàng tạo vật mới (rải ra)
 function OT.ScanFinish() OT._passing = false
     local hits = OT._hits or {} table.sort(hits, function(a, b) return a.dist < b.dist end)
     local maxN = math.max(1, tonumber(OT.maxItems) or 60) local keep, list = {}, {}
@@ -8231,8 +7252,6 @@ function OT.ScanFinish() OT._passing = false
     OT._found = #hits OT._capped = (#hits > #list)
     OT._scanMs = otRound((os.clock() - (OT._passT0 or os.clock())) * 1000) OT._lastScan = os.clock()
     if OT.RefreshList then pcall(OT.RefreshList) end return #hits end
-
--- Tạo định vị mới rải ra nhiều khung hình (mỗi khung tối đa makeBudget vật)
 function OT.DrainPending(quota) local pend = OT._pending
     if pend == nil or #pend == 0 then return 0 end quota = tonumber(quota) or tonumber(OT.makeBudget) or 8
     local made = 0 while quota > 0 and #pend > 0 do
@@ -8241,8 +7260,6 @@ function OT.DrainPending(quota) local pend = OT._pending
                 made = made + 1 end
         end quota = quota - 1
     end return made end
-
--- API cũ: quét & chốt NGAY (nút 🔄, gõ tên, test). Chỉ dùng cho hành động người dùng bấm.
 function OT.Rescan(force) if not OT.on and not (force and (#OT.keys > 0 or #(OT.pathKeys or {}) > 0)) then return 0 end
     if not force and (os.clock() - (OT._lastScan or 0)) < OT.rescanEvery then return OT._found or 0 end pcall(OT.ScanBegin)
     if not OT._passing then return OT._found or 0 end
@@ -8250,16 +7267,7 @@ function OT.Rescan(force) if not OT.on and not (force and (#OT.keys > 0 or #(OT.
     if OT._passing then OT.ScanFinish() end
     OT.DrainPending(1e9)            -- tạo hết ngay cho hành động có chủ đích
     return OT._found or 0 end
-
--- Vòng lặp mỗi khung hình: KHÔNG bao giờ làm việc nặng một phát.
---  • tạo định vị mới: rải ra makeBudget vật / khung hình
---  • quét: chia lát scanBudget vật, tối đa scanSliceMs mỗi khung hình
---  • nhãn: xoay vòng labelBudget vật mỗi labelEvery giây
--- v5.5: YÊU CẦU MỚI - khi đã nhập tên vật thì hoạt động LIÊN TỤC kể cả lưu tên, chỉ dừng khi xóa hết tên
---       + vẫn tối ưu: ở tab khác thì quét thưa hơn, menu đóng thì thưa hơn nữa, nhưng KHÔNG dừng hẳn
 function OT.Step(dt) local step = tonumber(dt) or 0.016
-    -- v5.5: nếu đã bật và có keys thì LUÔN quét liên tục, không dừng khi đổi tab
-    -- chỉ điều chỉnh tần suất để tiết kiệm
     local hasKeys = OT.on and (#OT.keys > 0 or #(OT.pathKeys or {}) > 0)
     local isPlayerTab = true
     local isMenuOpen = true
@@ -8270,11 +7278,7 @@ function OT.Step(dt) local step = tonumber(dt) or 0.016
             isPlayerTab = S.PagePerf.IsTabVisible(pt)
         end
     end
-
-    -- v5.6 FAST: kiểm tra chế độ siêu tốc (vừa gõ tên)
     local isFast = OT._fastUntil and tick() < OT._fastUntil
-
-    -- Tính interval cho Tick (cập nhật nhãn)
     local tickInterval = OT.labelEvery or 0.12
     if isFast then
         tickInterval = 0.06  -- siêu tốc: cập nhật nhãn mỗi 0.06s
@@ -8285,15 +7289,12 @@ function OT.Step(dt) local step = tonumber(dt) or 0.016
     elseif not isPlayerTab then
         tickInterval = tickInterval * 1.8
     end
-
     OT._acc = (OT._acc or 0) + step
     if OT._acc >= tickInterval then
         OT._acc = 0
         pcall(OT.Tick)
     end
-
     if hasKeys then
-        -- LUÔN quét liên tục khi có keys, chỉ thay đổi idle time
         local scanIdle = OT.scanIdle or 1.0
         if isFast then
             scanIdle = 0.3  -- v5.6 FAST: vừa gõ xong quét mỗi 0.3s để phát hiện tức thì
@@ -8302,9 +7303,7 @@ function OT.Step(dt) local step = tonumber(dt) or 0.016
         elseif not isPlayerTab then
             scanIdle = scanIdle * 1.2  -- tab khác: 1.0 -> 1.2s
         end
-
         if OT._pending ~= nil and #OT._pending > 0 then
-            -- đang có vật chờ tạo highlight: tạo SIÊU TỐC khi vừa gõ
             local drainQuota
             if isFast then
                 drainQuota = nil  -- nil = dùng makeBudget (15) - tạo nhanh nhất
@@ -8313,7 +7312,6 @@ function OT.Step(dt) local step = tonumber(dt) or 0.016
             end
             pcall(OT.DrainPending, drainQuota)
         end
-
         if not OT._passing then
             OT._scanAcc = (OT._scanAcc or 0) + step
             if OT._scanAcc >= scanIdle then
@@ -8321,12 +7319,10 @@ function OT.Step(dt) local step = tonumber(dt) or 0.016
                 pcall(OT.ScanBegin)
             end
         end
-
         if OT._passing then
             pcall(OT.ScanSlice)
         end
     else
-        -- không có keys: không quét, chỉ drain pending nếu còn sót
         if OT._pending ~= nil and #OT._pending > 0 then
             OT._scanAcc = (OT._scanAcc or 0) + step
             if OT._scanAcc >= 0.5 then
@@ -8337,16 +7333,13 @@ function OT.Step(dt) local step = tonumber(dt) or 0.016
     end
 end
 function OT.OnPerfTick()
-    -- được gọi khi đổi tab, không cần làm gì thêm vì Step đã tự check
 end
 function OT.Bind() if OT._bound then return end
     OT._bound = true pcall(function()
         RunService:BindToRenderStep("BC_ObjTrack", Enum.RenderPriority.Camera.Value - 6, function(dt) pcall(OT.Step, dt)
         end) end) end
-
 function OT.Unbind() OT._bound = false
     pcall(function() RunService:UnbindFromRenderStep("BC_ObjTrack") end) end
-
 function OT.Set(on) on = on and true or false
     if on and #OT.keys == 0 then OT.on = false
         OT.Unbind() OT.Clear()
@@ -8355,16 +7348,11 @@ function OT.Set(on) on = on and true or false
     if on then OT.Bind()
         OT.Rescan(true) return true
     end OT.Clear() OT.Unbind()
-    -- tắt định vị thì dừng luôn 🚀 bay tới vật (không còn vật để bám theo)
     pcall(function() if S.Move and S.Move.StopObjectFly then S.Move.StopObjectFly() end end) if OT.RefreshList then pcall(OT.RefreshList) end
     return false end
-
 function OT.Toggle() return OT.Set(not OT.on) end
-
--- Gõ tên là tự bật định vị (chờ 0,2s sau phím cuối - v5.6 FAST: giảm từ 0,35s xuống 0,2s để phản hồi nhanh hơn)
 function OT.SetQuery(q) OT.query = tostring(q or "")
     OT.RebuildKeys()   -- gộp ô nhập đang gõ + các mục đã ghim
-    -- v5.6 FAST: kích hoạt chế độ quét SIÊU TỐC trong 4s khi vừa gõ
     OT._fastUntil = tick() + 4
     S.Debounce("objtrack", 0.2, function() if #OT.keys == 0 and #(OT.pathKeys or {}) == 0 then
             if OT.on then OT.Set(false) end OT.Clear()
@@ -8377,16 +7365,13 @@ function OT.SetQuery(q) OT.query = tostring(q or "")
                 end end)
         end if OT.RefreshList then pcall(OT.RefreshList) end
     end) return OT.keys end
-
 function OT.SetMaxDist(n) local v = tonumber(n) or 0
     if v ~= v or v < 0 then v = 0 end if v > 100000 then v = 100000 end
     OT.maxDist = v if OT.on then OT.Rescan(true) end
     return OT.maxDist end
-
 function OT.CycleColor() OT.color = ((tonumber(OT.color) or 1) % #OT.palette) + 1
     OT.ApplyStyle() return OT.Pal().name
 end
-
 function OT.ApplyStyle() local pal = OT.Pal()
     for _, it in pairs(OT.items) do if it.hl then
             it.hl.FillColor = pal.fill it.hl.OutlineColor = pal.out
@@ -8398,13 +7383,11 @@ function OT.ApplyStyle() local pal = OT.Pal()
             it.box = OT._MakeBox(it.part, pal) elseif it.box then
             it.box.Visible = OT.showBox it.box.Color3 = pal.fill
         end end end
-
 function OT.Nearest() local best, bestH = nil, nil
     for i = 1, #OT.list do local h = OT.list[i]
         if h.part and h.part.Parent and h.inst.Parent then if best == nil or h.dist < best then best, bestH = h.dist, h end
         end end
     return bestH and bestH.inst or nil, bestH end
-
 function OT.Status() if #OT.keys == 0 and #(OT.pathKeys or {}) == 0 then return "🌳 Định vị vật: chưa nhập tên" end
     local n = 0 for _ in pairs(OT.items) do n = n + 1 end
     if n == 0 and (OT._found or 0) == 0 then return "⚠️ không thấy vật nào khớp \"" .. tostring(OT.query)
@@ -8415,12 +7398,8 @@ function OT.Status() if #OT.keys == 0 and #(OT.pathKeys or {}) == 0 then return 
     if (OT._scanMs or 0) > 0 then t = t .. " · quét " .. OT._scanMs .. "ms" end if S.Move and S.Move._objFlyActive and S.Move._objFlyTarget then
         t = t .. " · 🚀 bay tới " .. tostring(S.Move._objFlyTarget.Name) end
     if OT._err then t = t .. " · ⚠️ " .. OT._err end return t end
-
 function OT.OnFlyChange() if OT.RefreshList then pcall(OT.RefreshList) end
 end end
-
--- ---------- 🌳 KHUNG ĐỊNH VỊ VẬT THEO TÊN (trong trang 👥 NGƯỜI CHƠI) ----------
--- v5.5: bọc khối này trong hàm để không vượt giới hạn 200 local của hàm chính (Lua/Luau)
 (function() local OT = S.ObjTrack
     local function otRound(n) return math.floor((tonumber(n) or 0) + 0.5) end local function otAlive(inst) return inst ~= nil and inst.Parent ~= nil end
     local P = New("Frame", { Name = "HubObjTrack_Panel",
@@ -8428,7 +7407,6 @@ end end
         LayoutOrder = 4, BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, BorderSizePixel = 0, ZIndex = 6,
     }, D.playerTab) D.playerY = (D.playerY or 46) + 452 + 8
     Corner(P, UDim.new(0, 10)) Stroke(P, C.HAIRLINE, 1) D.Shade(P, Color3.fromRGB(255, 255, 255), Color3.fromRGB(188, 192, 205), 90)
-
     New("TextLabel", { Size = UDim2.new(1, -16, 0, 14), Position = UDim2.new(0, 8, 0, 4),
         Text = "🌳 ĐỊNH VỊ VẬT THEO TÊN (nhập tên là thấy MỌI vật khớp · bám theo vật đang di chuyển)", BackgroundTransparency = 1, TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 10,
         TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7, }, P)
@@ -8436,7 +7414,6 @@ end end
         Text = "Gõ tên vật vào ô 🔎 (VD: cây, đá, rương). Nhiều tên thì cách nhau dấu phẩy. Giống tên không cần dấu: gõ " .. "\"cay\" vẫn khớp \"Cây\". Bấm Enter (hoặc ➕ Thêm mục) để GHIM lại thành 1 mục — ghim được "
             .. "NHIỀU mục cùng lúc, mỗi mục có nút ✕ để xoá riêng. Vật mới xuất hiện hay bị xoá đều tự cập nhật.", TextWrapped = true, BackgroundTransparency = 1, TextColor3 = C.MUTED,
         Font = Enum.Font.GothamMedium, TextSize = 8, TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, ZIndex = 7, }, P)
-
     local function otAct(txt, x, y, w, color) local b = New("TextButton", {
             Size = UDim2.new(0, w, 0, 18), Position = UDim2.new(0, x, 0, y), Text = txt, BackgroundColor3 = color, TextColor3 = D.BestText(color),
             Font = Enum.Font.GothamBold, TextSize = 8, BorderSizePixel = 0, ZIndex = 8, }, P)
@@ -8451,24 +7428,19 @@ end end
             PlaceholderColor3 = C.GRAY, Font = Enum.Font.GothamMedium, TextSize = 9, TextXAlignment = Enum.TextXAlignment.Left, BorderSizePixel = 0, ZIndex = 7,
         }, P) Corner(box, UDim.new(0, 5))
         New("UIPadding", { PaddingLeft = UDim.new(0, 6) }, box) return box end
-
     otLab("🔎 Tên vật:", 8, 46, 66) local queryIn = otInput(S.ObjTrack.query or "", 76, 46, 210, "VD: cây, đá, rương...")
     local toggleBtn = otAct("🌳 Định vị: TẮT", 292, 46, 108, C.GREEN) local rescanBtn = otAct("🔄 Quét lại", 404, 46, 88, C.BLUE)
-
     local boxBtn = otAct("🔲 Hộp: TẮT", 8, 70, 74, C.SURFACE3) local thruBtn = otAct("🕶 Xuyên tường: BẬT", 86, 70, 112, C.GREEN)
     local labelBtn = otAct("💬 Nhãn: BẬT", 202, 70, 82, C.GREEN) local colorBtn = otAct("🎨 " .. S.ObjTrack.Pal().name, 288, 70, 118, C.PURPLE)
     local clearBtn = otAct("🧹 Xoá hết", 410, 70, 82, C.RED)
-
     otLab("📏 Xa nhất:", 8, 94, 66) local distIn = otInput(S.ObjTrack.maxDist > 0 and tostring(S.ObjTrack.maxDist) or "0", 74, 94, 44, "0")
     local distApply = otAct("✅ Đặt", 122, 94, 44, C.SURFACE3) local flyBtn = otAct("🚀 Bay tới gần nhất", 170, 94, 116, C.ACCENT)
     local flyStop = otAct("⏹ Dừng bay", 290, 94, 72, C.SURFACE3) otLab("🚀 Tốc độ:", 368, 94, 58)
     local speedIn = otInput(tostring(S.Move.objectFlySpeed or 60), 428, 94, 44, "60") local speedApply = otAct("✅", 476, 94, 34, C.GREEN)
-
     local statusLbl = New("TextLabel", { Size = UDim2.new(1, -16, 0, 16), Position = UDim2.new(0, 8, 0, 118),
         Text = S.ObjTrack.Status(), BackgroundTransparency = 1, TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 9,
         TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7, }, P)
     local xyzBtn = otAct("🧭 Nhãn toạ độ: BẬT", 8, 138, 136, C.GREEN) local skipBtn = otAct("🚫 Bỏ qua người chơi: BẬT", 148, 138, 156, C.GREEN)
-    -- ➕ Hàng "MỤC ĐANG CHẠY": ghim nhiều tên/path, mỗi mục bấm ✕ để xoá riêng
     S.ObjTrack.BuildTagsUI = function() local tagsY = 162
         local addBtn = otAct("➕ Thêm mục", 8, tagsY, 96, C.ACCENT) addBtn.Name = "OTAdd"
         local tags = New("ScrollingFrame", { Name = "OTTags",
@@ -8477,7 +7449,6 @@ end end
         }, P) Corner(tags, UDim.new(0, 6))
         New("UIListLayout", { Padding = UDim.new(0, 4), FillDirection = Enum.FillDirection.Horizontal,
             SortOrder = Enum.SortOrder.LayoutOrder, VerticalAlignment = Enum.VerticalAlignment.Center, }, tags) New("UIPadding", { PaddingLeft = UDim.new(0, 6), PaddingRight = UDim.new(0, 6), PaddingTop = UDim.new(0, 4) }, tags)
-
         local function refreshTags() if not (tags and tags.Parent) then return end
             local entries = S.ObjTrack.entries or {} local sig = {}
             for i = 1, #entries do sig[i] = tostring(entries[i].kind) .. ":" .. tostring(entries[i].raw) end sig = table.concat(sig, "|")
@@ -8503,7 +7474,6 @@ end end
                     pcall(S.ObjTrack.RefreshList) end)
                 w = w + width + 4 end
             pcall(function() tags.CanvasSize = UDim2.new(0, w + 20, 0, 0) end) end S.ObjTrack.RefreshTags = refreshTags
-
         addBtn.Activated:Connect(function() ReleaseHubFocus()
             local raw = tostring(queryIn.Text or "") local okA, kindOrWhy = S.ObjTrack.AddEntry(raw)
             if okA then queryIn.Text = ""
@@ -8512,16 +7482,9 @@ end end
                 D.Say("⚠️ " .. tostring(kindOrWhy), C.RED) end
             pcall(S.ObjTrack.RefreshTags) pcall(S.ObjTrack.RefreshList)
         end) end S.ObjTrack.BuildTagsUI()
-
     local list = New("ScrollingFrame", { Name = "ObjTrackList", Size = UDim2.new(1, -16, 0, 94), Position = UDim2.new(0, 8, 0, 194),
         BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = 4, CanvasSize = UDim2.new(0, 0, 0, 0), ZIndex = 7,
     }, P) New("UIListLayout", { Padding = UDim.new(0, 3), SortOrder = Enum.SortOrder.LayoutOrder }, list)
-
-    -- 🎯 Khung thông tin vật đang chọn — y hệt khung "🎯 VẬT THỂ ĐƯỢC CHỌN" của phần
-    -- "Phân Tích Vật Thể": Name/Class/Position/Size/Rotation/Look/Material/Color/Path,
-    -- cập nhật theo vật đang chuyển động + 2 nút Copy Tọa Độ / Copy Path.
-    -- (gói trong 1 hàm riêng: mỗi hàm chỉ được 200 local — xem chú thích ở tests/luau/README.md)
-    -- Gán vào field của bảng thay vì "local function ...": KHÔNG chiếm slot local của khối này.
     S.ObjTrack.BuildInfoUI = function() local info = New("Frame", {
         Name = "OTInfo", Size = UDim2.new(1, -16, 0, 148), Position = UDim2.new(0, 8, 0, 296),
         BackgroundColor3 = Color3.fromRGB(20, 25, 35), BackgroundTransparency = 0, BorderSizePixel = 0, ZIndex = 7, Visible = false,
@@ -8537,7 +7500,6 @@ end end
     Corner(copyPosBtn, UDim.new(0, 4)); D.Tactile(copyPosBtn, 0.08) local copyPathBtn = New("TextButton", {
         Size = UDim2.new(0, 96, 0, 16), Position = UDim2.new(0, 110, 0, 128), Text = "📋 Copy Path", BackgroundColor3 = C.PURPLE, TextColor3 = D.BestText(C.PURPLE),
         Font = Enum.Font.GothamBold, TextSize = 8, BorderSizePixel = 0, ZIndex = 9, }, info) Corner(copyPathBtn, UDim.new(0, 4)); D.Tactile(copyPathBtn, 0.08)
-
     local function refreshInfo() local sel, part = OT._sel, OT._selPart
         if sel == nil or not otAlive(sel) then OT._sel, OT._selPart = nil, nil
             info.Visible = false return
@@ -8548,18 +7510,14 @@ end end
         if infoLbl.Text ~= txt then infoLbl.Text = txt end   -- chỉ ghi khi số liệu đổi
         info.Visible = true end
     OT.RefreshInfo = refreshInfo infoLbl.Name, copyPosBtn.Name, copyPathBtn.Name = "OTInfoLbl", "OTCopyPos", "OTCopyPath"
-
     copyPosBtn.Activated:Connect(function() ReleaseHubFocus()
         local did, txt = OT.CopyCoords() D.Say(did and ("📋 đã copy toạ độ: " .. tostring(txt)) or ("⚠️ " .. tostring(txt)),
               did and C.GREEN or C.RED) end) copyPathBtn.Activated:Connect(function()
         ReleaseHubFocus() local did, txt = OT.CopyPath()
         D.Say(did and ("📋 đã copy path: " .. tostring(txt)) or ("⚠️ " .. tostring(txt)), did and C.GREEN or C.RED)
     end) end S.ObjTrack.BuildInfoUI()
-
-    -- đặt tên control để dễ soi lỗi / kiểm thử tự động
     queryIn.Name, toggleBtn.Name, rescanBtn.Name = "OTQuery", "OTToggle", "OTRescan" statusLbl.Name, clearBtn.Name = "OTStatus", "OTClear"
     xyzBtn.Name, skipBtn.Name = "OTXyz", "OTSkip"
-
     local function paint() toggleBtn.Text = OT.on and "🌳 Định vị: BẬT" or "🌳 Định vị: TẮT"
         toggleBtn.BackgroundColor3 = OT.on and C.GREEN or C.SURFACE3 toggleBtn.TextColor3 = D.BestText(toggleBtn.BackgroundColor3)
         boxBtn.Text = OT.showBox and "🔲 Hộp: BẬT" or "🔲 Hộp: TẮT" boxBtn.BackgroundColor3 = OT.showBox and C.GREEN or C.SURFACE3
@@ -8572,7 +7530,6 @@ end end
         skipBtn.TextColor3 = D.BestText(skipBtn.BackgroundColor3) local flying = (S.Move and S.Move._objFlyActive == true)
         flyStop.BackgroundColor3 = flying and C.RED or C.SURFACE3 flyStop.TextColor3 = D.BestText(flyStop.BackgroundColor3)
         statusLbl.Text = OT.Status() statusLbl.TextColor3 = OT.on and C.GREEN or C.ACCENT end
-
     S.ObjTrack.RefreshList = function() if not (list and list.Parent) then return end
         if not (D.playerTab and D.playerTab.Visible) then return end local shown = math.max(0, math.min(#OT.list, tonumber(OT.showRows) or 8))
         local sigParts = {} for i = 1, shown do
@@ -8581,7 +7538,6 @@ end end
         if #OT.list == 0 then sig = "EMPTY:" .. tostring(OT.query) .. ":" .. tostring(OT._scanned or 0) end if sig ~= OT._rowSig then
             OT._rowSig = sig for _, child in ipairs(list:GetChildren()) do
                 if not child:IsA("UIListLayout") then pcall(function() child:Destroy() end) end end if #OT.list == 0 then
-                -- nói rõ vì sao trống, thay vì để người dùng tưởng tính năng hỏng
                 New("TextLabel", { Name = "OTEmpty",
                     Size = UDim2.new(1, 0, 0, 60), LayoutOrder = 1, Text = "⚠️ Không có vật nào khớp \"" .. tostring(OT.query) .. "\"\n"
                         .. "Đã quét " .. tostring(OT._scanned or 0) .. " vật trong Workspace.\n" .. "Thử tên ngắn hơn (VD: cây) hoặc dán đúng Path (VD: Workspace.Rừng Cây).",
@@ -8617,16 +7573,13 @@ end end
                               or "⚠️ executor không có setclipboard", did and C.GREEN or C.RED) end)
             end pcall(function() list.CanvasSize = UDim2.new(0, 0, 0, math.max(0, shown * 27)) end)
         end paint() end
-
     S.OpenObjectPanel = function() local ok = S.OpenPlayerTab and S.OpenPlayerTab() or false
         if S.ObjTrack.RefreshTags then pcall(S.ObjTrack.RefreshTags) end pcall(S.ObjTrack.RefreshList)
         return ok end
     S.ObjTrack.Focus = function() if S.OpenObjectPanel then pcall(S.OpenObjectPanel) end
         pcall(function() if queryIn and queryIn.Parent then queryIn:CaptureFocus() end end) end
-
     queryIn:GetPropertyChangedSignal("Text"):Connect(function() S.ObjTrack.SetQuery(queryIn.Text) end)
     queryIn.FocusLost:Connect(function(enterPressed) ReleaseHubFocus() if enterPressed then
-            -- Enter = GHIM mục này lại (chạy chung với các mục khác), không thay thế mục cũ
             local raw = tostring(queryIn.Text or "") local okA, kindOrWhy = S.ObjTrack.AddEntry(raw)
             if okA then queryIn.Text = ""
                 S.ObjTrack.SetQuery("") D.Say("➕ đã ghim mục '" .. raw .. "' (Enter) — đang chạy cùng " ..
@@ -8683,7 +7636,6 @@ end end
             D.Say("⚠️ " .. tostring(value), C.RED) end
     end) speedIn.FocusLost:Connect(function()
         ReleaseHubFocus() speedIn.Text = tostring(S.Move.objectFlySpeed or 60) end)
-
     skipBtn.Activated:Connect(function() ReleaseHubFocus()
         OT.skipPlayers = not OT.skipPlayers if OT.on then pcall(OT.Rescan, true) end
         D.Say(OT.skipPlayers and "🚫 bỏ qua nhân vật người chơi: BẬT" or "🚫 bỏ qua nhân vật người chơi: TẮT", C.YELLOW) pcall(S.ObjTrack.RefreshList)
@@ -8693,10 +7645,6 @@ end end
     end) paint()
     pcall(S.ObjTrack.RefreshList) pcall(function()
         if D.playerTab then D.playerTab.CanvasSize = UDim2.new(0, 0, 0, (D.playerY or 600) + 16) end end) end)()
-
--- ---------- 🔎 TRA CỨU + XEM 3D + LẤY SKIN (v5.7) — nhập tên/UserId: xem thông tin, xem 3D và hóa thân thành người đó (ẩn skin bạn, thay bằng skin người kia, vẫn di chuyển) ----------
--- Chỉ dùng dữ liệu CÔNG KHAI của Roblox (users / presence / thumbnails API + GetHumanoidDescriptionFromUserId).
--- Xem 3D: dựng một rig do client tạo (CreateHumanoidModelFromDescription) chỉ để hiển thị, không ảnh hưởng nhân vật thật.
 ;(function()
     pcall(function()
         local oldPI = _G.BananaCatHub_PlayerInfo
@@ -8739,15 +7687,11 @@ end end
     PI._virtualAvatarRec = nil
     PI._virtualAvatarCFrame = nil
     PI.SPIN_BIND = "BC_PlayerViewSpin"
-    -- Chạy lại script: gỡ bind của phần xem 3D
     pcall(function() RunService:UnbindFromRenderStep("BC_PlayerViewSpin") end)
     _G.BananaCatHub_PlayerInfo = PI
     local MarketplaceService = game:GetService("MarketplaceService")
-
     local PRESENCE = { [0] = "⚫ Offline", [1] = "🟢 Online (web/app)", [2] = "🎮 Đang trong game", [3] = "🛠 Đang trong Studio" }
-
     local function trimStr(s) return (tostring(s or ""):gsub("^%s+", ""):gsub("%s+$", "")) end
-
     local function clipText(s, n)  -- cắt theo ký tự UTF-8 (không cắt giữa dấu tiếng Việt)
         s = tostring(s or "")
         local okL, len = pcall(utf8.len, s)
@@ -8757,11 +7701,7 @@ end end
         end
         return s
     end
-
     local function jsonEncode(t) local ok, s = pcall(function() return HttpService:JSONEncode(t) end) if ok then return s end return nil end
-
-    -- Gọi HTTP: ưu tiên hàm request của executor (hỗ trợ POST), không có thì dùng S.CompatRequest.
-    -- Trả về (table đã decode | nil, lỗi)
     function PI.Http(method, url, body)
         local rq = (type(request) == "function" and request) or (type(http_request) == "function" and http_request) or S.CompatRequest
         local headers = nil
@@ -8775,9 +7715,6 @@ end end
         if not okD or type(data) ~= "table" then return nil, "phản hồi không hợp lệ" end
         return data, nil
     end
-
-    -- Tên Roblox: 3–20 ký tự, chỉ chữ/số/_ . Nhập toàn số thì coi là UserId.
-    -- Trả về (userId, tên) hoặc (nil, thông báo lỗi)
     function PI.ResolveUser(query)
         local q = trimStr(query)
         if q == "" then return nil, "chưa nhập tên hoặc UserId" end
@@ -8799,7 +7736,6 @@ end end
         if okId and tonumber(id) then return tonumber(id), q end
         return nil, "không tìm thấy người chơi '" .. q .. "'" .. (err and (" (" .. err .. ")") or "")
     end
-
     function PI.FetchProfile(id)
         local data, err = PI.Http("GET", "https://users.roblox.com/v1/users/" .. tostring(id), nil)
         if type(data) ~= "table" or tonumber(data.id) == nil then
@@ -8808,14 +7744,12 @@ end end
         end
         return data, nil
     end
-
     function PI.FetchPresence(id)
         local data = PI.Http("POST", "https://presence.roblox.com/v1/presence/users", jsonEncode({ userIds = { id } }))
         local p = type(data) == "table" and type(data.userPresences) == "table" and data.userPresences[1] or nil
         if type(p) ~= "table" then return nil end
         return p
     end
-
     function PI.PresenceText(p)
         if type(p) ~= "table" then return "❔ không rõ" end
         local t = tonumber(p.userPresenceType) or -1
@@ -8823,8 +7757,6 @@ end end
         if t == 2 and type(p.lastLocation) == "string" and p.lastLocation ~= "" then text = text .. ": " .. p.lastLocation end
         return text
     end
-
-    -- Người này có đang ở ĐÚNG server của bạn không?
     function PI.InThisServer(id, p)
         local okP, inst = pcall(function() return Players:GetPlayerByUserId(id) end)
         if okP and inst then return true end
@@ -8833,15 +7765,12 @@ end end
         end
         return false
     end
-
-    -- Skin công khai của người bất kỳ (kể cả offline) — HumanoidDescription
     function PI.FetchDesc(id)
         local ok, desc = pcall(function() return Players:GetHumanoidDescriptionFromUserId(id) end)
         if not ok then return nil, tostring(desc) end
         if desc == nil then return nil, "không có dữ liệu skin" end
         return desc, nil
     end
-
     function PI.FetchThumb(id)
         local ok, content = pcall(function() return Players:GetUserThumbnailAsync(id, Enum.ThumbnailType.AvatarThumbnail, Enum.ThumbnailSize.Size420x420) end)
         if ok and type(content) == "string" and content ~= "" then return content end
@@ -8850,11 +7779,7 @@ end end
         if type(e) == "table" and type(e.imageUrl) == "string" and e.imageUrl ~= "" then return e.imageUrl end
         return nil
     end
-
     local function stale(my) return PI.reqId ~= my end
-
-    -- Tra cứu đầy đủ. Chạy trong task.spawn (có yield). Trả về (bản ghi | nil, lỗi | nil).
-    -- Hỗ trợ fallback qua API nội bộ của Players nếu HTTP tới users.roblox.com bị chặn (giống script.js1.js).
     function PI.Lookup(query)
         PI.reqId = PI.reqId + 1
         local my = PI.reqId
@@ -8864,7 +7789,6 @@ end end
         local prof, perr = PI.FetchProfile(id)
         if stale(my) then return nil, nil end
         if not prof then
-            -- Fallback khi HTTP bị chặn: lấy tên từ server hoặc GetNameFromUserIdAsync (từ script.js1.js)
             local fallbackName = nm
             local fallbackDisplay = nil
             pcall(function()
@@ -8919,7 +7843,6 @@ end end
         pcall(PI.ParseSkinItems, rec)
         return rec, nil
     end
-
     -- ===== PHÂN LOẠI SKIN & BỘ LỌC XOÁ SKIN TẠO NHÂN VẬT ẢO =====
     do
         local ACC_TYPE_LABELS = {
@@ -8959,7 +7882,6 @@ end end
             { prop = "RightLeg", label = "🦿 Chân phải (RightLeg)", parts = { "Right Leg", "RightUpperLeg", "RightLowerLeg", "RightFoot" } },
         }
         local ANIM_PROPS = { "IdleAnimation", "WalkAnimation", "RunAnimation", "JumpAnimation", "FallAnimation", "ClimbAnimation", "SwimAnimation" }
-
         function PI.ProductInfo(assetId)
             local id = tonumber(assetId)
             if not id or id <= 0 then return nil end
@@ -8976,7 +7898,6 @@ end end
             PI.productCache[id] = false
             return nil
         end
-
         function PI.ParseSkinItems(rec)
             if type(rec) ~= "table" then return {} end
             local liveChar = nil
@@ -8996,7 +7917,6 @@ end end
                     end
                 end)
             end
-
             local list = {}
             local catCounts = { all = 0, accessory = 0, clothing = 0, headface = 0, bodypart = 0, style = 0 }
             local function addItem(entry)
@@ -9007,8 +7927,6 @@ end end
                 catCounts[c] = (catCounts[c] or 0) + 1
                 return entry
             end
-
-            -- 1. Nhóm 🎩 Phụ kiện (Accessories + Layered Clothing 3D)
             local liveAccs = {}
             if liveChar then
                 pcall(function()
@@ -9020,7 +7938,6 @@ end end
             local usedLive = {}
             local seenAccIds = {}
             local accOrder = 0
-
             local function extractAccAssetId(la)
                 if not la then return nil end
                 local aid = nil
@@ -9037,9 +7954,7 @@ end end
                 end)
                 return aid
             end
-
             local function matchLiveAcc(aid, subType)
-                -- Ưu tiên 1: khớp chính xác AssetId / MeshId
                 if aid and aid > 0 then
                     for li, la in ipairs(liveAccs) do
                         if not usedLive[li] then
@@ -9051,7 +7966,6 @@ end end
                         end
                     end
                 end
-                -- Ưu tiên 2: khớp theo AccessoryType (chỉ khi Accessory đó không có AssetId khác)
                 if subType and subType ~= "" then
                     for li, la in ipairs(liveAccs) do
                         if not usedLive[li] then
@@ -9073,7 +7987,6 @@ end end
                 end
                 return nil
             end
-
             if desc then
                 local okA, rawAcc = pcall(function() return desc:GetAccessories(true) end)
                 if okA and type(rawAcc) == "table" then
@@ -9112,8 +8025,6 @@ end end
                         end
                     end
                 end
-
-                -- Fallback đọc từ thuộc tính chuỗi CSV nếu GetAccessories trống hoặc thiếu
                 for _, cp in ipairs(CSV_ACC_PROPS) do
                     pcall(function()
                         local csv = tostring(desc[cp.prop] or "")
@@ -9141,8 +8052,6 @@ end end
                     end)
                 end
             end
-
-            -- Phụ kiện trực tiếp trên nhân vật live trong server (khi chưa có trong desc)
             for li, la in ipairs(liveAccs) do
                 if not usedLive[li] then
                     local laAid = 0
@@ -9165,8 +8074,6 @@ end end
                     end
                 end
             end
-
-            -- 2. Nhóm 👕 Quần áo 2D (Shirt, Pants, GraphicTShirt)
             local function checkCloth(prop, className, label, defaultName)
                 local aid = 0
                 if desc then pcall(function() aid = tonumber(desc[prop]) or 0 end) end
@@ -9189,8 +8096,6 @@ end end
             checkCloth("Shirt", "Shirt", "👕 Áo 2D (Shirt)", "Áo 2D đang mặc")
             checkCloth("Pants", "Pants", "👖 Quần 2D (Pants)", "Quần 2D đang mặc")
             checkCloth("GraphicTShirt", "ShirtGraphic", "🖼️ Áo thun (T-Shirt)", "Áo thun hình")
-
-            -- 3. Nhóm 🙂 Đầu & Khuôn mặt (Face, Head / Dynamic Head / Headless)
             local liveHead = nil
             if liveChar then pcall(function() liveHead = liveChar:FindFirstChild("Head") end) end
             local faceAid = 0
@@ -9209,7 +8114,6 @@ end end
                     loading = faceAid > 0,
                 })
             end
-
             local headAid = 0
             if desc then pcall(function() headAid = tonumber(desc.Head) or 0 end) end
             local isHeadless = false
@@ -9229,8 +8133,6 @@ end end
                     loading = headAid > 0,
                 })
             end
-
-            -- 4. Nhóm 🦾 Gói cơ thể / Bộ phận (Torso, LeftArm, RightArm, LeftLeg, RightLeg)
             for _, bp in ipairs(BODY_PART_PROPS) do
                 local aid = 0
                 if desc then pcall(function() aid = tonumber(desc[bp.prop]) or 0 end) end
@@ -9246,8 +8148,6 @@ end end
                     })
                 end
             end
-
-            -- 5. Nhóm 🎨 Da & Dáng (Màu da BodyColors, Bố cục tỉ lệ Mập/Gầy/Cao/Lùn, Gói Hoạt ảnh)
             local ws, hs, ds, hds = 1, 1, 1, 1
             if desc then
                 pcall(function() if tonumber(desc.WidthScale) and tonumber(desc.WidthScale) > 0 then ws = tonumber(desc.WidthScale) end end)
@@ -9275,7 +8175,6 @@ end end
             end
             rec.bodySummary = string.format("Rộng %d%% · Cao %d%% · Dày %d%% · Đầu %d%%",
                 math.floor(ws * 100 + 0.5), math.floor(hs * 100 + 0.5), math.floor(ds * 100 + 0.5), math.floor(hds * 100 + 0.5))
-
             if desc or liveChar then
                 addItem({
                     category = "style",
@@ -9315,7 +8214,6 @@ end end
             else
                 rec.bodySummary = "Không có dữ liệu skin công khai"
             end
-
             rec.skinItems = list
             rec.acc = list
             rec.catCounts = catCounts
@@ -9325,12 +8223,10 @@ end end
             end
             return list
         end
-
         function PI.ParseAccessories(desc)
             local dummy = { desc = desc, keep = {} }
             return PI.ParseSkinItems(dummy)
         end
-
         function PI.EnsureSkinItems(rec)
             if type(rec) ~= "table" then return {} end
             if type(rec.skinItems) ~= "table" then
@@ -9338,7 +8234,6 @@ end end
             end
             return rec.skinItems or {}
         end
-
         function PI.KeptCount(rec, categoryFilter)
             if type(rec) ~= "table" then return 0, 0, 0 end
             local list = PI.EnsureSkinItems(rec)
@@ -9353,21 +8248,17 @@ end end
             end
             return k, total, (total - k)
         end
-
         function PI.HasRemovedSkinItems(rec)
             if type(rec) ~= "table" then return false end
             local k, total = PI.KeptCount(rec)
             return total > 0 and k < total
         end
-
-        -- Tạo bản sao HumanoidDescription chỉ giữ các món skin người dùng chưa xoá (không sửa rec.desc gốc)
         function PI.FilteredDesc(rec)
             if type(rec) ~= "table" or rec.desc == nil then return nil end
             PI.EnsureSkinItems(rec)
             if not PI.HasRemovedSkinItems(rec) then return rec.desc end
             local ok, d = pcall(function() return rec.desc:Clone() end)
             if not ok or d == nil then return rec.desc end
-
             local keep = rec.keep or {}
             local keptSpecs = {}
             local removedAccIds = {}
@@ -9404,7 +8295,6 @@ end end
                     end
                 end
             end
-
             if hasAccChange then
                 pcall(function() d:SetAccessories(keptSpecs, true) end)
                 for _, cp in ipairs(CSV_ACC_PROPS) do
@@ -9423,13 +8313,10 @@ end end
             end
             return d
         end
-
-        -- Áp dụng trực tiếp bộ lọc xoá skin lên Model 3D / Nhân vật ảo / Nhân vật LOCAL
         function PI.ApplySkinFilterToModel(model, rec)
             if not model or type(rec) ~= "table" then return end
             PI.EnsureSkinItems(rec)
             if not PI.HasRemovedSkinItems(rec) then return end
-
             local keep = rec.keep or {}
             local list = rec.skinItems or {}
             local totalAcc, keptAcc = 0, 0
@@ -9439,8 +8326,6 @@ end end
                     if keep[it.idx] ~= false then keptAcc = keptAcc + 1 end
                 end
             end
-
-            -- Thu thập danh sách Accessory hiện có trên model trước khi xoá (trên nhân vật thật: không bao giờ xoá Accessory thuộc skin của game hỗ trợ!)
             local realChar = player and player.Character
             local isRealCharTarget = (realChar ~= nil and (model == realChar or model:IsDescendantOf(realChar)))
             local modelAccs = {}
@@ -9455,13 +8340,11 @@ end end
                 end
             end)
             local canPositionalMatch = (#modelAccs == totalAcc and totalAcc > 0)
-
             if totalAcc > 0 and keptAcc == 0 then
                 for _, acc in ipairs(modelAccs) do
                     pcall(function() acc:Destroy() end)
                 end
             end
-
             for _, it in ipairs(list) do
                 if keep[it.idx] == false then
                     if it.category == "accessory" and keptAcc > 0 then
@@ -9604,10 +8487,7 @@ end end
             end
         end
     end
-
     -- ===== LOGIC XEM 3D / NHÂN VẬT =====
-
-    -- Dựng một nhân vật do CLIENT tạo từ skin (thử lần lượt các kiểu rig). Trả về (Model | nil, lỗi | nil)
     function PI.MakeRig(desc, rigTypes)
         local lastErr = "không có kiểu rig phù hợp"
         for _, rt in ipairs(rigTypes) do
@@ -9617,9 +8497,6 @@ end end
         end
         return nil, lastErr
     end
-
-    -- Chẩn đoán đồ mặc nhưng KHÔNG gán ID catalog vào ShirtTemplate/PantsTemplate.
-    -- HumanoidDescription.Shirt/Pants là ID vật phẩm; Roblox cần tự resolve thành texture.
     function PI.DiagnoseClothes(model, desc)
         if not model or not desc then return end
         local function readId(key)
@@ -9650,30 +8527,34 @@ end end
             tostring(shirt ~= nil), tostring(pants ~= nil), tostring(graphic ~= nil),
             tostring(shirtHasTemplate), tostring(pantsHasTemplate), tostring(graphicHasImage), layered, modelAccessories))
     end
-
-    -- Tìm Character & Humanoid thực tế (hỗ trợ cả các game custom như Evade đặt nhân vật trong workspace.Game.Players hoặc đặt Humanoid/Visual trong sub-model)
     function PI.GetCharacterAndHumanoid(plr)
         plr = plr or player
         if not plr then return nil, nil, Enum.HumanoidRigType.R15 end
         local char = plr.Character
         local function hasAnyBodyPart(m)
-            if not m then return false end
-            return (m:FindFirstChild("Head", true) ~= nil)
-                or (m:FindFirstChild("Torso", true) ~= nil)
-                or (m:FindFirstChild("UpperTorso", true) ~= nil)
-                or (m:FindFirstChild("HumanoidRootPart", true) ~= nil)
-                or (m:FindFirstChildWhichIsA("BasePart", true) ~= nil)
+            return m and ((m:FindFirstChild("Head", true) ~= nil) or (m:FindFirstChild("Torso", true) ~= nil)
+                or (m:FindFirstChild("UpperTorso", true) ~= nil) or (m:FindFirstChild("HumanoidRootPart", true) ~= nil)
+                or (m:FindFirstChildWhichIsA("BasePart", true) ~= nil))
         end
         if not (char and char.Parent and hasAnyBodyPart(char)) then
             pcall(function()
                 local g = workspace:FindFirstChild("Game")
                 local gp = g and g:FindFirstChild("Players")
-                local cand = (gp and (gp:FindFirstChild(plr.Name) or gp:FindFirstChild(tostring(plr.UserId))))
-                    or (workspace:FindFirstChild("Players") and workspace.Players:FindFirstChild(plr.Name))
-                    or (workspace:FindFirstChild("Characters") and workspace.Characters:FindFirstChild(plr.Name))
-                if cand and hasAnyBodyPart(cand) then
-                    char = cand
+                local uidStr = tostring(plr.UserId or "")
+                local cand = (gp and (gp:FindFirstChild(plr.Name) or gp:FindFirstChild(uidStr)))
+                    or (workspace:FindFirstChild("Players") and (workspace.Players:FindFirstChild(plr.Name) or workspace.Players:FindFirstChild(uidStr)))
+                    or (workspace:FindFirstChild("Characters") and (workspace.Characters:FindFirstChild(plr.Name) or workspace.Characters:FindFirstChild(uidStr)))
+                    or (workspace:FindFirstChild("Live") and (workspace.Live:FindFirstChild(plr.Name) or workspace.Live:FindFirstChild(uidStr)))
+                    or workspace:FindFirstChild(plr.Name)
+                if not (cand and hasAnyBodyPart(cand)) and plr == player then
+                    local cam = workspace.CurrentCamera
+                    local subj = cam and cam.CameraSubject
+                    local subModel = subj and (subj:IsA("Model") and subj or subj:FindFirstAncestorOfClass("Model"))
+                    if subModel and subModel ~= PI._skinFake and subModel ~= PI._virtualAvatar and hasAnyBodyPart(subModel) then
+                        cand = subModel
+                    end
                 end
+                if cand and hasAnyBodyPart(cand) then char = cand end
             end)
         end
         if not char then return nil, nil, Enum.HumanoidRigType.R15 end
@@ -9686,39 +8567,41 @@ end end
         end
         return char, hum, rigType
     end
-
-    -- Tìm các sub-model hiển thị ngoại hình bên trong Character (VD: game Evade có thể để rig hiển thị trong Visual / Character / Rig / WorldModel)
+    PI.LocateUserCharacter = function() return PI.GetCharacterAndHumanoid(player) end
     function PI.GetVisualSubRigs(char)
-        local list = {}
+        local list, seen = {}, {}
         if not char then return list end
+        local function checkSub(ch)
+            if not ch or seen[ch] or not ch:IsA("Model") or ch == char or ch == PI._skinFake or ch == PI._virtualAvatar then return end
+            if tostring(ch.Name):find("^BC_") or (PI.IsInsideHeldItemOrTool and PI.IsInsideHeldItemOrTool(ch, char)) then return end
+            local isGameModel = false
+            pcall(function()
+                isGameModel = (ch:GetAttribute("BC_GameSkinItem") == true) or (ch:GetAttribute("GameSkin") == true)
+                    or (ch:GetAttribute("InGameSkin") == true) or (ch:GetAttribute("Cosmetic") == true) or (ch:GetAttribute("IsCosmetic") == true)
+            end)
+            local ln = string.lower(tostring(ch.Name))
+            if ln:find("gameskin", 1, true) or ln:find("cosmetic", 1, true) or ln:find("stilts", 1, true) or ln:find("unusual", 1, true) or ln:find("armor", 1, true) then
+                isGameModel = true
+            end
+            if not isGameModel then
+                local hasBodyRig = ((ch:FindFirstChild("Head") ~= nil) and ((ch:FindFirstChild("Torso") ~= nil) or (ch:FindFirstChild("UpperTorso") ~= nil)))
+                    or (ch:FindFirstChildOfClass("Humanoid") ~= nil)
+                if hasBodyRig then
+                    seen[ch] = true
+                    table.insert(list, ch)
+                end
+            end
+        end
         pcall(function()
             for _, ch in ipairs(char:GetChildren()) do
-                if ch:IsA("Model") and ch ~= PI._skinFake and not tostring(ch.Name):find("^BC_") and not (PI.IsInsideHeldItemOrTool and PI.IsInsideHeldItemOrTool(ch, char)) then
-                    local isGameModel = false
-                    pcall(function()
-                        isGameModel = (ch:GetAttribute("BC_GameSkinItem") == true)
-                            or (ch:GetAttribute("GameSkin") == true)
-                            or (ch:GetAttribute("InGameSkin") == true)
-                            or (ch:GetAttribute("Cosmetic") == true)
-                            or (ch:GetAttribute("IsCosmetic") == true)
-                    end)
-                    local ln = string.lower(tostring(ch.Name))
-                    if ln:find("gameskin", 1, true) or ln:find("cosmetic", 1, true) or ln:find("stilts", 1, true) or ln:find("unusual", 1, true) or ln:find("armor", 1, true) then
-                        isGameModel = true
-                    end
-                    if not isGameModel then
-                        local hasBodyRig = ((ch:FindFirstChild("Head") ~= nil) and ((ch:FindFirstChild("Torso") ~= nil) or (ch:FindFirstChild("UpperTorso") ~= nil)))
-                            or (ch:FindFirstChildOfClass("Humanoid") ~= nil)
-                        if hasBodyRig then
-                            table.insert(list, ch)
-                        end
-                    end
+                if ch:IsA("Model") then checkSub(ch)
+                elseif ch:IsA("Folder") then
+                    for _, sub in ipairs(ch:GetChildren()) do checkSub(sub) end
                 end
             end
         end)
         return list
     end
-
     local VISIBLE_LIMB_NAMES = {
         ["Head"] = true, ["Torso"] = true, ["Left Arm"] = true, ["Right Arm"] = true, ["Left Leg"] = true, ["Right Leg"] = true,
         ["UpperTorso"] = true, ["LowerTorso"] = true,
@@ -9727,11 +8610,8 @@ end end
         ["LeftUpperLeg"] = true, ["LeftLowerLeg"] = true, ["LeftFoot"] = true,
         ["RightUpperLeg"] = true, ["RightLowerLeg"] = true, ["RightFoot"] = true,
     }
-
-    -- Sao chép rig live nếu người đó đang ở cùng server: giữ nguyên rig, bundle, phụ kiện và pose hiện tại.
     function PI.CloneLiveCharacter(source, modelName)
         if not source then return nil, "không có character nguồn" end
-        -- Nếu source (như trong Evade) đặt rig hiển thị trong sub-model mà bản thân source không có chi hiển thị, ưu tiên lấy sub-model
         local cloneTarget = source
         pcall(function()
             if not source:FindFirstChild("Head") and not source:FindFirstChild("Torso") and not source:FindFirstChild("UpperTorso") then
@@ -9822,7 +8702,6 @@ end end
                 cHum.PlatformStand = false
             end
         end)
-        -- Clone đôi khi bỏ sót clothing instance; clone trực tiếp từ nguồn để giữ texture đã resolve.
         for _, className in ipairs({"Shirt", "Pants", "ShirtGraphic", "BodyColors"}) do
             pcall(function()
                 local sourceClothing = cloneTarget:FindFirstChildOfClass(className) or source:FindFirstChildOfClass(className)
@@ -9836,12 +8715,10 @@ end end
         end
         return clone, nil
     end
-
     -- ===== LƯU SKIN & LƯU SKIN DÙNG (TỰ ĐỘNG MẶC KHI CHẠY SCRIPT) =====
     do
         PI.savedSkins = (type(Store) == "table" and type(Store.savedSkins) == "table") and Store.savedSkins or {}
         PI.autoUseSkin = (type(Store) == "table" and type(Store.autoUseSkin) == "table") and Store.autoUseSkin or nil
-
         local SCALAR_DESC_NUMS = {
             "Shirt", "Pants", "GraphicTShirt", "Face", "Head",
             "Torso", "LeftArm", "RightArm", "LeftLeg", "RightLeg",
@@ -9855,7 +8732,6 @@ end end
         local COLOR_DESC_KEYS = {
             "HeadColor", "TorsoColor", "LeftArmColor", "RightArmColor", "LeftLegColor", "RightLegColor",
         }
-
         function PI.SerializeDesc(desc)
             if not desc then return nil end
             local snap = { nums = {}, strs = {}, cols = {}, accs = {} }
@@ -9895,7 +8771,6 @@ end end
             end)
             return snap
         end
-
         function PI.DeserializeDesc(snap)
             if type(snap) ~= "table" then return nil end
             local okD, d = pcall(function() return Instance.new("HumanoidDescription") end)
@@ -9931,7 +8806,6 @@ end end
             end
             return d
         end
-
         function PI.SerializeSkinEntry(rec, mode)
             if type(rec) ~= "table" then return nil end
             PI.EnsureSkinItems(rec)
@@ -9987,7 +8861,6 @@ end end
                 savedAt = savedAt,
             }
         end
-
         function PI.BuildRecFromSavedEntry(entry)
             if type(entry) ~= "table" then return nil, "bản lưu skin không hợp lệ" end
             local id = tonumber(entry.id) or 0
@@ -10021,8 +8894,6 @@ end end
                 keep = {},
             }
             PI.ParseSkinItems(rec)
-
-            -- Khôi phục đúng các món skin đã xoá trong bản lưu
             local remAssets, remSubs, remInsts = {}, {}, {}
             for _, a in ipairs(entry.removedAssets or {}) do remAssets[tonumber(a) or -1] = true end
             for _, s in ipairs(entry.removedSubTypes or {}) do remSubs[tostring(s)] = true end
@@ -10050,7 +8921,6 @@ end end
             end
             return rec, nil
         end
-
         function PI.PersistSkins()
             if type(Store) == "table" then
                 Store.savedSkins = PI.savedSkins
@@ -10058,7 +8928,6 @@ end end
                 pcall(Store.save)
             end
         end
-
         function PI.IsSameSavedSkin(a, b)
             if type(a) ~= "table" or type(b) ~= "table" then return false end
             if tonumber(a.id) and tonumber(b.id) and tonumber(a.id) > 0 and tonumber(b.id) > 0 then
@@ -10068,8 +8937,6 @@ end end
             end
             return string.lower(tostring(a.name or "")) == string.lower(tostring(b.name or ""))
         end
-
-        -- 💾 LƯU SKIN: Lưu skin hiện tại (kèm các món đã xoá) vào danh sách Kho Skin Đã Lưu
         function PI.SaveSkin(rec, mode)
             if type(rec) ~= "table" or (rec.desc == nil and rec.id == nil) then
                 return false, "chưa có skin người chơi để lưu (hãy tra cứu trước)", nil
@@ -10097,8 +8964,6 @@ end end
                 tostring(entry.name), entry.keptCount or 0, entry.totalCount or 0, entry.deletedCount or 0)
             return true, msg, entry
         end
-
-        -- ▶ Áp dụng một bản lưu skin (từ Kho Đã Lưu hoặc từ Lưu Skin Dùng khi mở script)
         function PI.ApplySavedSkinEntry(entry, modeOverride, existingRec)
             if type(entry) ~= "table" then return false, "bản lưu skin trống", nil end
             if type(modeOverride) == "table" then
@@ -10125,8 +8990,6 @@ end end
             if PI.RefreshButtons then pcall(PI.RefreshButtons) end
             return ok, msg, rec
         end
-
-        -- ⚡ LƯU SKIN DÙNG: Lưu skin này làm skin mặc định tự động sử dụng mỗi khi chạy script!
         function PI.SaveSkinForAutoUse(rec, mode, applyNow)
             if type(rec) ~= "table" or (rec.desc == nil and rec.id == nil) then
                 return false, "chưa có skin người chơi để Lưu Skin Dùng (hãy tra cứu trước)", nil
@@ -10147,7 +9010,6 @@ end end
                 tostring(entry.name), entry.keptCount or 0, entry.totalCount or 0, tostring(applyMsg or "đã mặc"))
             return okApply ~= false, fullMsg, entry
         end
-
         function PI.SetEntryAsAutoUse(entryOrIndex, applyNow)
             local entry = (type(entryOrIndex) == "table") and entryOrIndex or PI.savedSkins[tonumber(entryOrIndex) or 0]
             if not entry then return false, "không tìm thấy bản lưu skin" end
@@ -10161,7 +9023,6 @@ end end
             if PI.RefreshButtons then pcall(PI.RefreshButtons) end
             return okApply, string.format("Đã đặt @%s làm Skin Tự Dùng khi chạy script (%s)", tostring(entry.name), tostring(applyMsg or "OK")), entry
         end
-
         function PI.ClearAutoUseSkin()
             if not PI.autoUseSkin then
                 return false, "Hiện chưa bật Lưu Skin Dùng nào"
@@ -10173,7 +9034,6 @@ end end
             if PI.RefreshButtons then pcall(PI.RefreshButtons) end
             return true, "🚫 Đã tắt tự động dùng skin (@" .. oldName .. ") khi chạy script"
         end
-
         function PI.DeleteSavedSkin(index)
             local idx = tonumber(index) or 0
             local entry = PI.savedSkins[idx]
@@ -10187,8 +9047,6 @@ end end
             if PI.RefreshButtons then pcall(PI.RefreshButtons) end
             return true, "🗑️ Đã xoá skin @" .. tostring(entry.name or entry.id) .. " khỏi Kho Đã Lưu"
         end
-
-        -- Tự động nạp & mặc skin đã dùng tính năng ⚡ Lưu Skin Dùng ngay khi chạy script
         function PI.AutoApplySavedUseSkin()
             if type(PI.autoUseSkin) ~= "table" then return false, "chưa cài Lưu Skin Dùng" end
             local entry = PI.autoUseSkin
@@ -10215,7 +9073,6 @@ end end
                 return true, "đang chờ nhân vật tải xong để tự mặc skin"
             end
         end
-
         if type(Store) == "table" then
             Store.restoreSkins = function()
                 PI.savedSkins = type(Store.savedSkins) == "table" and Store.savedSkins or {}
@@ -10225,7 +9082,6 @@ end end
             end
         end
     end
-
     local function descHasOutfitItems(d)
         if not d then return false end
         local hasAny = false
@@ -10246,7 +9102,6 @@ end end
         end)
         return hasAny
     end
-
     local function modelHasValidBodyAndOutfit(m, d)
         if not m then return false end
         local hasHead = (m:FindFirstChild("Head") ~= nil)
@@ -10264,8 +9119,6 @@ end end
         end
         return true
     end
-
-    -- Dùng rig live cho đúng dáng khi player đang trong server; nếu rig live trong game (như Evade) bị ẩn/thiếu đồ thì tự dựng từ HumanoidDescription.
     function PI.BuildAvatarModel(rec, modelName, preferredRigType)
         local lastErr = nil
         if type(rec) == "table" then PI.EnsureSkinItems(rec) end
@@ -10332,7 +9185,6 @@ end end
         end
         return nil, lastErr or "không dựng được avatar từ character hoặc HumanoidDescription", nil, nil
     end
-
     -- ===== GIAO DIỆN (trong trang 👥 NGƯỜI CHƠI, nằm dưới 🌳) =====
     local PH = 366 -- kết hợp Lấy Skin (script.js) + Mặc LOCAL / Mặc SERVER + Lưu Skin & Lưu Skin Dùng + Tra cứu & Xem 3D
     local P = New("Frame", {
@@ -10341,8 +9193,6 @@ end end
         LayoutOrder = 5, BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, BorderSizePixel = 0, ZIndex = 6,
     }, D.playerTab) D.playerY = (D.playerY or 46) + PH + 8
     Corner(P, UDim.new(0, 10)) Stroke(P, C.HAIRLINE, 1) D.Shade(P, Color3.fromRGB(255, 255, 255), Color3.fromRGB(188, 192, 205), 90)
-
-    -- Nút nhảy nhanh "🔎 XEM 3D & SKIN" ở đầu trang 👥 NGƯỜI CHƠI
     local shortcut3d = New("TextButton", {
         Name = "Skin3DShortcut", Size = UDim2.new(0, 88, 0, 16), Position = UDim2.new(1, -96, 0, 8),
         Text = "🔎 XEM 3D & SKIN", BackgroundColor3 = C.PURPLE, TextColor3 = D.BestText(C.PURPLE),
@@ -10355,11 +9205,9 @@ end end
             D.playerTab.CanvasPosition = Vector2.new(0, math.max(0, P.Position.Y.Offset - 8))
         end
     end)
-
     New("TextLabel", { Size = UDim2.new(1, -16, 0, 14), Position = UDim2.new(0, 8, 0, 4),
         Text = "🔎 TRA CỨU · XEM 3D · 👕 LẤY SKIN & MẶC LOCAL", BackgroundTransparency = 1,
         TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7, }, P)
-
     local function pAct(txt, x, y, w, color, parent)
         local b = New("TextButton", {
             Size = UDim2.new(0, w, 0, 18), Position = UDim2.new(0, x, 0, y), Text = txt, BackgroundColor3 = color, TextColor3 = D.BestText(color),
@@ -10367,27 +9215,21 @@ end end
         Corner(b, UDim.new(0, 5)) D.Shade(b, Color3.fromRGB(255, 255, 255), Color3.fromRGB(182, 187, 201), 90)
         D.Tactile(b, 0.08) return b
     end
-
     local queryIn = New("TextBox", {
         Name = "HubPlayerInfo_Query", Size = UDim2.new(0, 290, 0, 18), Position = UDim2.new(0, 8, 0, 22), Text = "", PlaceholderText = "Nhập tên (VD: Roblox) hoặc UserId",
         ClearTextOnFocus = false, BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.1, TextColor3 = C.DARK,
         PlaceholderColor3 = C.GRAY, Font = Enum.Font.GothamMedium, TextSize = 9, TextXAlignment = Enum.TextXAlignment.Left,
         BorderSizePixel = 0, ZIndex = 7, }, P)
     Corner(queryIn, UDim.new(0, 5)) New("UIPadding", { PaddingLeft = UDim.new(0, 6) }, queryIn)
-
     local searchBtn = pAct("🔍 Tra cứu", 304, 22, 78, C.GREEN)
     local clearBtn = pAct("✕ Xoá", 386, 22, 48, C.RED)
-
     local statusLbl = New("TextLabel", { Name = "HubPlayerInfo_Status", Size = UDim2.new(1, -16, 0, 16), Position = UDim2.new(0, 8, 0, 48),
         Text = "Nhập tên rồi bấm 🔍 (hoặc Enter).", BackgroundTransparency = 1, TextColor3 = C.MUTED,
         Font = Enum.Font.GothamMedium, TextSize = 9, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7, }, P)
-
     local function setStatus(text, color)
         statusLbl.Text = tostring(text or "")
         statusLbl.TextColor3 = color or C.MUTED
     end
-
-    -- Khung 3D: ảnh đại diện nằm dưới (dự phòng), ViewportFrame chồng lên trên
     local thumbImg = New("ImageLabel", { Name = "HubPlayerInfo_Thumb", Size = UDim2.new(0, 220, 0, 200), Position = UDim2.new(0, 8, 0, 70),
         BackgroundColor3 = C.SURFACE2, BorderSizePixel = 0, Image = "", ScaleType = Enum.ScaleType.Fit, ZIndex = 7, }, P)
     Corner(thumbImg, UDim.new(0, 8))
@@ -10397,7 +9239,6 @@ end end
     local vCam = New("Camera", { Name = "HubPlayerInfo_ViewCam" }, vp)
     vp.CurrentCamera = vCam
     PI.view.vp, PI.view.wm, PI.view.cam = vp, vWorld, vCam
-
     function PI.ViewerUpdate()
         local v = PI.view
         if not v.cam then return end
@@ -10406,18 +9247,14 @@ end end
         local pos = center + Vector3.new(math.sin(v.yaw) * cp * v.dist, math.sin(v.pitch) * v.dist, math.cos(v.yaw) * cp * v.dist)
         v.cam.CFrame = CFrame.lookAt(pos, center)
     end
-
     function PI.ViewerZoom(f)
         PI.view.dist = math.clamp(PI.view.dist * f, 3, 20)
         PI.ViewerUpdate()
     end
-
     function PI.ViewerReset()
         PI.view.yaw, PI.view.pitch, PI.view.dist = 0.6, 0.15, 9
         PI.ViewerUpdate()
     end
-
-    -- Dựng model 3D của người kia (skin gốc, không lọc phụ kiện). Trả về (ok, lỗi)
     function PI.ViewerBuild(rec)
         local v = PI.view
         if v.model then pcall(function() v.model:Destroy() end) v.model = nil end
@@ -10425,7 +9262,6 @@ end end
         local m, merr, modelDesc, source = PI.BuildAvatarModel(rec, "BC_ViewModel")
         if not m then return false, merr end
         m.Parent = v.wm
-        -- Character live có tọa độ trong map; căn tâm bounding box vào camera của WorldModel, giữ góc xoay.
         if source == "live" then
             pcall(function()
                 local pivot = m:GetPivot()
@@ -10440,16 +9276,13 @@ end end
         PI.ViewerUpdate()
         return true, nil
     end
-
     -- ===== LẤY SKIN: ẩn nhân vật của bạn và thay bằng skin người đã tra cứu (BẢN SỬA v5.7.5: FIX KHÔNG THẤY FAKE - ROBUST) =====
-    -- Fixes: HRP nil fallback, fake Humanoid destruction, InServer clone, đảm bảo luôn thấy
     PI._skinHidden = PI._skinHidden or {}
     PI._skinFake = PI._skinFake or nil
     PI._skinFollow = PI._skinFollow or nil
     PI._skinFollowBind = "BC_SkinFollow"
     PI._skinGroupsSetup = PI._skinGroupsSetup or false
     PI._skinHeartbeat = PI._skinHeartbeat or nil
-
     local function SetupSkinCollisionGroups()
         if PI._skinGroupsSetup then return end
         pcall(function()
@@ -10463,8 +9296,6 @@ end end
         end)
         PI._skinGroupsSetup = true
     end
-
-    -- Kiểm tra xem nhân vật có đang bị hàn vào ghế (Seat/VehicleSeat) qua SeatWeld không
     local function findActiveSeatWeld(char)
         if not char then return nil, nil end
         for _, d in ipairs(char:GetDescendants()) do
@@ -10505,8 +9336,6 @@ end end
         end
         return nil, nil
     end
-
-    -- Phá trạng thái kẹt ngồi (Sit = true) khi dùng Mặc LOCAL / Lấy Skin / Nhân vật ảo
     function PI.StandUpFromSit(char)
         char = char or (player and player.Character)
         if not char then return false end
@@ -10560,8 +9389,6 @@ end end
         end)
         return true
     end
-
-    -- Tự động hỗ trợ đứng dậy khi người chơi bấm Nhảy (Space / nút Nhảy) hoặc di chuyển lúc đang ngồi
     pcall(function()
         if PI._sitJumpConn then pcall(function() PI._sitJumpConn:Disconnect() end) end
         PI._sitJumpConn = trackConn(UserInputService.JumpRequest:Connect(function()
@@ -10592,9 +9419,7 @@ end end
             end)
         end))
     end)
-
     local function getCharPivot(char)
-        -- thử nhiều cách lấy vị trí nhân vật (HRP -> PrimaryPart -> bất kỳ BasePart -> GetPivot)
         if not char then return nil end
         local hrp = char:FindFirstChild("HumanoidRootPart")
         if hrp and hrp:IsA("BasePart") then return hrp.CFrame, hrp end
@@ -10607,7 +9432,6 @@ end end
         if ok2 and cf2 then return cf2, nil end
         return nil, nil
     end
-
     local function isCameraFirstPerson(char)
         local isFP = false
         pcall(function()
@@ -10621,7 +9445,6 @@ end end
         end)
         return isFP
     end
-
     local HELPER_BOX_NAMES = {
         humanoidrootpart = true, rootpart = true, root = true, hitbox = true,
         collisionbox = true, collider = true, boundingbox = true, hurtbox = true,
@@ -10633,19 +9456,15 @@ end end
         raycast = true, stepbox = true, crouchbox = true, emitter = true,
         effect = true, point = true, node = true,
     }
-
     local HELD_ITEM_KEYWORDS = {
         "tool", "weapon", "item", "equip", "held", "gun", "sword", "knife",
         "flashlight", "lantern", "light", "cola", "drink", "medkit", "heal",
         "radar", "compass", "grapple", "pad", "trap", "bomb", "grenade",
         "viewmodel", "handitem", "usable", "pistol", "rifle",
     }
-
     local GAME_SKIN_KEYWORDS = {
         "evade", "stilts", "unusual", "cosmetic", "gameskin", "ingameskin",
     }
-
-    -- Kiểm tra xem một Instance có nằm trong vật phẩm cầm tay (Tool / Vũ khí / Item của game) hay không
     function PI.IsInsideHeldItemOrTool(inst, rootChar)
         if not inst then return false end
         local cur = inst
@@ -10673,7 +9492,6 @@ end end
             end
             cur = cur.Parent
         end
-        -- Kiểm tra nếu BasePart được hàn vào tay qua RightGrip / LeftGrip / ToolGrip
         if inst:IsA("BasePart") then
             for _, ch in ipairs(inst:GetChildren()) do
                 if ch:IsA("JointInstance") or ch:IsA("WeldConstraint") then
@@ -10686,8 +9504,6 @@ end end
         end
         return false
     end
-
-    -- Kiểm tra xem một BasePart có phải là khối hộp ẩn (Handle vô hình của Tool/Accessory đa chi tiết, Hitbox, Collider, WrapLayer cage) không được phép bật Transparency = 0
     function PI.IsInvisibleHelperOrHandleBox(part, rootChar)
         if not (part and part:IsA("BasePart")) then return false end
         local pn = string.lower(tostring(part.Name))
@@ -10699,7 +9515,6 @@ end end
         end
         local par = part.Parent
         if par and par ~= rootChar then
-            -- Nếu là khối Part thường (không phải MeshPart, không có SpecialMesh/Decal) và đang có Transparency >= 0.95 bên trong Accessory đa chi tiết hoặc Model con -> đó là khối hộp hàn (weld box) vô hình!
             local isPlainBox = (part.ClassName == "Part")
                 and (part:FindFirstChildOfClass("SpecialMesh") == nil)
                 and (part:FindFirstChildOfClass("Decal") == nil)
@@ -10721,8 +9536,6 @@ end end
         end
         return false
     end
-
-    -- Kiểm tra xem chi cơ thể (part) có đang được gắn mô hình morph/skin của game hỗ trợ hoặc sub-rig hiển thị (khiến chi gốc cần giữ nguyên Transparency = 1 để không hiện khối vuông đè lên)
     local function hasInGameMorphOnLimb(char, part)
         if not (char and part) then return false end
         for _, ch in ipairs(part:GetChildren()) do
@@ -10740,7 +9553,103 @@ end end
         end
         return false
     end
-
+    local HAIR_KEYWORDS = {
+        "hair", "tóc", "toc", "bangs", "ponytail", "twintail", "pigtail", "braid", "mullet",
+        "afro", "bun", "curls", "dreads", "locks", "wig", "shag", "wolfcut", "bob", "fringe",
+        "ahoge", "mohawk", "undercut", "fluffy", "messy",
+    }
+    local function hasGameSkinAttr(item)
+        local res = false
+        pcall(function()
+            res = (item:GetAttribute("BC_GameSkinItem") == true) or (item:GetAttribute("GameSkin") == true)
+                or (item:GetAttribute("InGameSkin") == true) or (item:GetAttribute("Cosmetic") == true)
+                or (item:GetAttribute("IsCosmetic") == true) or (item:GetAttribute("CosmeticId") ~= nil)
+                or (item:GetAttribute("SkinId") ~= nil) or (item:GetAttribute("Unusual") ~= nil)
+                or (item:GetAttribute("Stilts") ~= nil) or (item:GetAttribute("EquippedCosmetic") ~= nil)
+        end)
+        return res
+    end
+    function PI.IsHairItem(item, char)
+        if not item or item == char or item == PI._skinFake or item == PI._virtualAvatar then return false end
+        if VISIBLE_LIMB_NAMES[item.Name] or item:IsA("Humanoid") or item:IsA("Shirt") or item:IsA("Pants") or item:IsA("ShirtGraphic") or item:IsA("BodyColors") then
+            return false
+        end
+        if item:IsA("Model") and ((item:FindFirstChild("Head") ~= nil) or (item:FindFirstChild("Torso") ~= nil) or (item:FindFirstChild("UpperTorso") ~= nil) or (item:FindFirstChildOfClass("Humanoid") ~= nil)) then
+            return false
+        end
+        if PI.IsInsideHeldItemOrTool and PI.IsInsideHeldItemOrTool(item, char) then return false end
+        local isHair = false
+        pcall(function()
+            local isAcc = item:IsA("Accessory") or item:IsA("Hat") or item:IsA("Accoutrement")
+            if isAcc then
+                local at = item.AccessoryType
+                if at == Enum.AccessoryType.Hair or tostring(at or ""):lower():find("hair", 1, true)
+                    or tostring(item:GetAttribute("AccessoryType") or ""):lower():find("hair", 1, true)
+                    or item:FindFirstChild("HairAttachment", true) ~= nil then
+                    isHair = true
+                    return
+                end
+                for _, d in ipairs(item:GetDescendants()) do
+                    if (d:IsA("Attachment") or d:IsA("Weld") or d:IsA("Motor6D")) and string.lower(tostring(d.Name)):find("hair", 1, true) then
+                        isHair = true
+                        return
+                    end
+                end
+            end
+            if isAcc or item:IsA("Model") or item:IsA("BasePart") then
+                local ln = string.lower(tostring(item.Name or ""))
+                for _, kw in ipairs(HAIR_KEYWORDS) do
+                    if ln:find(kw, 1, true) then
+                        isHair = true
+                        return
+                    end
+                end
+            end
+        end)
+        return isHair
+    end
+    function PI.ForceHideAndRemoveOwnItem(item)
+        if not item then return end
+        pcall(function()
+            item:SetAttribute("BC_HiddenOriginalItem", true)
+            item:SetAttribute("BC_GameSkinItem", nil)
+        end)
+        pcall(function()
+            if item:IsA("Shirt") then item.ShirtTemplate = ""
+            elseif item:IsA("Pants") then item.PantsTemplate = ""
+            elseif item:IsA("ShirtGraphic") then item.Graphic = ""
+            elseif item:IsA("BasePart") then
+                item.Transparency = 1
+                item.LocalTransparencyModifier = 1
+                item.CanCollide = false
+                item.CanTouch = false
+                item.CanQuery = false
+                pcall(function() item.Size = Vector3.new(0.001, 0.001, 0.001) end)
+            end
+            for _, d in ipairs(item:GetDescendants()) do
+                if d:IsA("WrapLayer") or d:IsA("WrapTarget") then
+                    pcall(function() d.Enabled = false end)
+                    pcall(function() d:Destroy() end)
+                elseif d:IsA("Weld") or d:IsA("WeldConstraint") or d:IsA("Motor6D") or d:IsA("JointInstance") then
+                    pcall(function() d.Enabled = false; d.Part0 = nil; d.Part1 = nil end)
+                    pcall(function() d:Destroy() end)
+                elseif d:IsA("BasePart") then
+                    d.Transparency = 1
+                    d.LocalTransparencyModifier = 1
+                    d.CanCollide = false
+                    d.CanTouch = false
+                    d.CanQuery = false
+                    pcall(function() d.Size = Vector3.new(0.001, 0.001, 0.001) end)
+                elseif d:IsA("SpecialMesh") or d:IsA("FileMesh") then
+                    pcall(function() d.MeshId = ""; d.TextureId = ""; d.Scale = Vector3.zero end)
+                elseif d:IsA("Decal") or d:IsA("Texture") or d:IsA("SurfaceAppearance") then
+                    pcall(function() d.Transparency = 1 end)
+                    if d:IsA("SurfaceAppearance") then pcall(function() d:Destroy() end) end
+                end
+            end
+        end)
+        pcall(function() item:Destroy() end)
+    end
     -- ===== PHÂN TÍCH SKIN CỦA NGƯỜI DÙNG SCRIPT & PHÂN BIỆT SKIN CẦN XOÁ VS SKIN CỦA GAME HỖ TRỢ =====
     function PI.AnalyzeUserOwnSkin(char, hum, forceRefresh)
         if PI.userSkinAnalysis and PI.userSkinAnalysis.hasProfileData and not forceRefresh then
@@ -10765,6 +9674,29 @@ end end
             ownLimbTexIds = {},
             ownLimbTexNums = {},
         }
+        local function indexAccInstance(ch)
+            local nm = tostring(ch.Name or "")
+            if nm ~= "" then
+                analysis.ownAccNames[nm] = true
+                local lnm = string.lower(nm)
+                analysis.ownAccNamesLower[lnm] = true
+                analysis.ownAccNamesLower[(lnm:gsub("[%s_%-]", ""))] = true
+            end
+            for _, d in ipairs(ch:GetDescendants()) do
+                if d:IsA("MeshPart") or d:IsA("SpecialMesh") then
+                    local mid = tostring(d.MeshId or "")
+                    local tid = tostring((d:IsA("SpecialMesh") and d.TextureId) or d.TextureID or "")
+                    if mid ~= "" then
+                        analysis.ownAccMeshIds[mid] = true
+                        for numStr in mid:gmatch("(%d+)") do analysis.ownAccMeshNums[numStr] = true end
+                    end
+                    if tid ~= "" then
+                        analysis.ownAccTexIds[tid] = true
+                        for numStr in tid:gmatch("(%d+)") do analysis.ownAccTexNums[numStr] = true end
+                    end
+                end
+            end
+        end
         pcall(function()
             local profDesc = nil
             local okP, pd = pcall(function() return Players:GetHumanoidDescriptionFromUserId(player.UserId) end)
@@ -10779,36 +9711,27 @@ end end
                 end
             end
             if not profDesc then return end
-
             local CSV_FIELDS = {
                 "HatAccessory", "HairAccessory", "FaceAccessory", "NeckAccessory",
                 "ShouldersAccessory", "FrontAccessory", "BackAccessory", "WaistAccessory",
             }
+            local function addAid(n)
+                n = tonumber(n)
+                if n and n > 0 then
+                    analysis.ownAssetIds[n] = true
+                    analysis.ownAccMeshNums[tostring(n)] = true
+                    analysis.ownAccTexNums[tostring(n)] = true
+                    analysis.hasProfileData = true
+                end
+            end
             for _, fk in ipairs(CSV_FIELDS) do
                 pcall(function()
-                    local raw = tostring(profDesc[fk] or "")
-                    for numStr in raw:gmatch("(%d+)") do
-                        local n = tonumber(numStr)
-                        if n and n > 0 then
-                            analysis.ownAssetIds[n] = true
-                            analysis.ownAccMeshNums[tostring(n)] = true
-                            analysis.ownAccTexNums[tostring(n)] = true
-                            analysis.hasProfileData = true
-                        end
-                    end
+                    for numStr in tostring(profDesc[fk] or ""):gmatch("(%d+)") do addAid(numStr) end
                 end)
             end
             local okGA, accList = pcall(function() return profDesc:GetAccessories(true) end)
             if okGA and type(accList) == "table" then
-                for _, entry in ipairs(accList) do
-                    local n = tonumber(type(entry) == "table" and entry.AssetId or nil)
-                    if n and n > 0 then
-                        analysis.ownAssetIds[n] = true
-                        analysis.ownAccMeshNums[tostring(n)] = true
-                        analysis.ownAccTexNums[tostring(n)] = true
-                        analysis.hasProfileData = true
-                    end
-                end
+                for _, entry in ipairs(accList) do addAid(type(entry) == "table" and entry.AssetId or nil) end
             end
             for _, ck in ipairs({ "Shirt", "Pants", "GraphicTShirt" }) do
                 pcall(function()
@@ -10832,8 +9755,6 @@ end end
                     end
                 end)
             end
-
-            -- Dựng model tham chiếu từ hồ sơ Roblox của chính người dùng script để thu thập chính xác Tên Accessory, MeshId, TextureID và Quần áo thuộc SKIN CẦN XOÁ
             local okM, profModel = pcall(function()
                 return Players:CreateHumanoidModelFromDescription(profDesc, Enum.HumanoidRigType.R15)
             end)
@@ -10843,69 +9764,24 @@ end end
                 end)
             end
             if okM and profModel then
-                analysis.hasProfileModel = true
-                analysis.hasProfileData = true
                 pcall(function()
+                    local accCount = 0
                     for _, ch in ipairs(profModel:GetChildren()) do
                         if ch:IsA("Accessory") or ch:IsA("Hat") or ch:IsA("Accoutrement") then
-                            local nm = tostring(ch.Name or "")
-                            if nm ~= "" then
-                                analysis.ownAccNames[nm] = true
-                                analysis.ownAccNamesLower[string.lower(nm)] = true
-                            end
-                            for _, d in ipairs(ch:GetDescendants()) do
-                                if d:IsA("MeshPart") then
-                                    local mid = tostring(d.MeshId or "")
-                                    local tid = tostring(d.TextureID or "")
-                                    if mid ~= "" then
-                                        analysis.ownAccMeshIds[mid] = true
-                                        for numStr in mid:gmatch("(%d+)") do analysis.ownAccMeshNums[numStr] = true end
-                                    end
-                                    if tid ~= "" then
-                                        analysis.ownAccTexIds[tid] = true
-                                        for numStr in tid:gmatch("(%d+)") do analysis.ownAccTexNums[numStr] = true end
-                                    end
-                                elseif d:IsA("SpecialMesh") then
-                                    local mid = tostring(d.MeshId or "")
-                                    local tid = tostring(d.TextureId or "")
-                                    if mid ~= "" then
-                                        analysis.ownAccMeshIds[mid] = true
-                                        for numStr in mid:gmatch("(%d+)") do analysis.ownAccMeshNums[numStr] = true end
-                                    end
-                                    if tid ~= "" then
-                                        analysis.ownAccTexIds[tid] = true
-                                        for numStr in tid:gmatch("(%d+)") do analysis.ownAccTexNums[numStr] = true end
-                                    end
-                                end
-                            end
-                        elseif ch:IsA("Shirt") then
-                            local t = tostring(ch.ShirtTemplate or "")
-                            if t ~= "" then
-                                analysis.ownClothingTemplates[t] = true
-                                for numStr in t:gmatch("(%d+)") do analysis.ownClothingNums[numStr] = true end
-                            end
-                        elseif ch:IsA("Pants") then
-                            local t = tostring(ch.PantsTemplate or "")
-                            if t ~= "" then
-                                analysis.ownClothingTemplates[t] = true
-                                for numStr in t:gmatch("(%d+)") do analysis.ownClothingNums[numStr] = true end
-                            end
-                        elseif ch:IsA("ShirtGraphic") then
-                            local t = tostring(ch.Graphic or "")
+                            accCount = accCount + 1
+                            indexAccInstance(ch)
+                        elseif ch:IsA("Shirt") or ch:IsA("Pants") or ch:IsA("ShirtGraphic") then
+                            local t = tostring((ch:IsA("Shirt") and ch.ShirtTemplate) or (ch:IsA("Pants") and ch.PantsTemplate) or ch.Graphic or "")
                             if t ~= "" then
                                 analysis.ownClothingTemplates[t] = true
                                 for numStr in t:gmatch("(%d+)") do analysis.ownClothingNums[numStr] = true end
                             end
                         elseif ch:IsA("CharacterMesh") then
                             local mid = tostring(ch.MeshId or "")
-                            if mid ~= "" then
-                                analysis.ownLimbMeshIds[mid] = true
-                                analysis.ownLimbMeshNums[mid] = true
-                            end
+                            if mid ~= "" then analysis.ownLimbMeshIds[mid] = true; analysis.ownLimbMeshNums[mid] = true end
                         elseif ch:IsA("BasePart") then
                             if ch:IsA("MeshPart") then
-                                local mid = tostring(ch.MeshId or "")
-                                local tid = tostring(ch.TextureID or "")
+                                local mid, tid = tostring(ch.MeshId or ""), tostring(ch.TextureID or "")
                                 if mid ~= "" then
                                     analysis.ownLimbMeshIds[mid] = true
                                     for numStr in mid:gmatch("(%d+)") do analysis.ownLimbMeshNums[numStr] = true end
@@ -10917,8 +9793,7 @@ end end
                             end
                             for _, sub in ipairs(ch:GetChildren()) do
                                 if sub:IsA("SpecialMesh") then
-                                    local mid = tostring(sub.MeshId or "")
-                                    local tid = tostring(sub.TextureId or "")
+                                    local mid, tid = tostring(sub.MeshId or ""), tostring(sub.TextureId or "")
                                     if mid ~= "" then
                                         analysis.ownLimbMeshIds[mid] = true
                                         for numStr in mid:gmatch("(%d+)") do analysis.ownLimbMeshNums[numStr] = true end
@@ -10931,11 +9806,29 @@ end end
                             end
                         end
                     end
+                    if accCount > 0 or next(analysis.ownAssetIds) == nil then
+                        analysis.hasProfileModel = true
+                    end
                 end)
                 pcall(function() profModel:Destroy() end)
             end
+            if not analysis.hasProfileModel and type(game.GetObjects) == "function" then
+                for aid, _ in pairs(analysis.ownAssetIds) do
+                    pcall(function()
+                        local objs = game:GetObjects("rbxassetid://" .. tostring(aid))
+                        if type(objs) == "table" then
+                            for _, obj in ipairs(objs) do
+                                if obj:IsA("Accessory") or obj:IsA("Hat") or obj:IsA("Accoutrement") then
+                                    indexAccInstance(obj)
+                                    analysis.hasProfileModel = true
+                                end
+                                pcall(function() obj:Destroy() end)
+                            end
+                        end
+                    end)
+                end
+            end
         end)
-
         PI.userSkinAnalysis = analysis
         PI._defaultProfileAssetIds = analysis.ownAssetIds
         PI._defaultProfileAccNames = analysis.ownAccNames
@@ -10943,46 +9836,33 @@ end end
         PI._defaultProfileHasData = analysis.hasProfileData
         return analysis
     end
-
-    -- Kiểm tra xem một món đồ (Accessory / Quần áo / CharacterMesh / BodyColors) có thuộc SKIN CỦA NGƯỜI DÙNG SCRIPT (SKIN CẦN XOÁ) hay không
     function PI.IsOwnUserSkinItem(item, char)
         if not item then return false end
-        local isLocalOutfit, isOwnMarked, isGameMarked = false, false, false
+        local isLocalOutfit, isOwnMarked = false, false
         pcall(function()
             isLocalOutfit = (item:GetAttribute("BC_LocalOutfitItem") == true)
             isOwnMarked = (item:GetAttribute("BC_DefaultAvatarItem") == true)
                 or (item:GetAttribute("BC_HiddenOriginalItem") == true)
-            isGameMarked = (item:GetAttribute("BC_GameSkinItem") == true)
-                or (item:GetAttribute("GameSkin") == true)
-                or (item:GetAttribute("InGameSkin") == true)
-                or (item:GetAttribute("Cosmetic") == true)
-                or (item:GetAttribute("IsCosmetic") == true)
-                or (item:GetAttribute("CosmeticId") ~= nil)
-                or (item:GetAttribute("SkinId") ~= nil)
-                or (item:GetAttribute("Unusual") ~= nil)
-                or (item:GetAttribute("Stilts") ~= nil)
-                or (item:GetAttribute("EquippedCosmetic") ~= nil)
         end)
-        if isLocalOutfit or isGameMarked then return false end
+        if isLocalOutfit then return false end
         if PI.IsInsideHeldItemOrTool(item, char) then return false end
-        if item:IsA("Folder") or item:IsA("Model") then return false end
         if isOwnMarked then return true end
-
+        if PI.IsHairItem(item, char) then return true end
+        if hasGameSkinAttr(item) then return false end
+        if item:IsA("Folder") or item:IsA("Model") then return false end
         local nm = tostring(item.Name or "")
         local ln = string.lower(nm)
         for _, kw in ipairs(GAME_SKIN_KEYWORDS) do
-            if ln:find(kw, 1, true) then
-                return false
-            end
+            if ln:find(kw, 1, true) then return false end
         end
         if ln:find("my_own", 1, true) or ln:find("mycustom", 1, true) or ln:find("myugc", 1, true)
             or ln:find("ownskin", 1, true) or ln:find("lateown", 1, true) or ln:find("lateloadedown", 1, true) then
             return true
         end
-
         local analysis = PI.AnalyzeUserOwnSkin(char)
         if item:IsA("Accessory") or item:IsA("Hat") or item:IsA("Accoutrement") then
-            if analysis.ownAccNames[nm] or analysis.ownAccNamesLower[ln] then
+            local lnNorm = (ln:gsub("[%s_%-]", ""))
+            if analysis.ownAccNames[nm] or analysis.ownAccNamesLower[ln] or analysis.ownAccNamesLower[lnNorm] then
                 return true
             end
             local aid, midStr, tidStr = nil, "", ""
@@ -10995,31 +9875,24 @@ end end
                     tidStr = (sm and tostring(sm.TextureId or "")) or tostring(h.TextureID or "")
                 end
             end)
-            if aid and aid > 0 and analysis.ownAssetIds[aid] then
-                return true
-            end
+            if aid and aid > 0 and analysis.ownAssetIds[aid] then return true end
             if midStr ~= "" then
                 if analysis.ownAccMeshIds[midStr] then return true end
                 local lmid = string.lower(midStr)
                 if lmid:find("my_own", 1, true) or lmid:find("mesh_ugc", 1, true) then return true end
                 for numStr in midStr:gmatch("(%d+)") do
                     local n = tonumber(numStr)
-                    if analysis.ownAccMeshNums[numStr] or (n and analysis.ownAssetIds[n]) then
-                        return true
-                    end
+                    if analysis.ownAccMeshNums[numStr] or (n and analysis.ownAssetIds[n]) then return true end
                 end
             end
             if tidStr ~= "" then
                 if analysis.ownAccTexIds[tidStr] then return true end
                 for numStr in tidStr:gmatch("(%d+)") do
                     local n = tonumber(numStr)
-                    if analysis.ownAccTexNums[numStr] or (n and analysis.ownAssetIds[n]) then
-                        return true
-                    end
+                    if analysis.ownAccTexNums[numStr] or (n and analysis.ownAssetIds[n]) then return true end
                 end
             end
-            -- Nếu đã phân tích xong hồ sơ Roblox của người dùng script (hasProfileData == true) mà phụ kiện này KHÔNG khớp bất kỳ Tên / AssetId / MeshId / TextureID nào -> Đây là SKIN CỦA GAME HỖ TRỢ (không xoá!)
-            if analysis.hasProfileData then
+            if analysis.hasProfileData and analysis.hasProfileModel then
                 return false
             end
             return true
@@ -11033,30 +9906,22 @@ end end
             if tmpl == "" or analysis.ownClothingTemplates[tmpl] then return true end
             for numStr in tmpl:gmatch("(%d+)") do
                 local n = tonumber(numStr)
-                if analysis.ownClothingNums[numStr] or (n and analysis.ownAssetIds[n]) then
-                    return true
-                end
+                if analysis.ownClothingNums[numStr] or (n and analysis.ownAssetIds[n]) then return true end
             end
-            if analysis.hasProfileData and tmpl ~= "" then
-                return false
-            end
+            if analysis.hasProfileData and tmpl ~= "" then return false end
             return true
         elseif item:IsA("CharacterMesh") then
             local mid = tostring(item.MeshId or "")
             if mid == "" or analysis.ownLimbMeshIds[mid] or analysis.ownLimbMeshNums[mid] or analysis.ownAssetIds[tonumber(mid) or 0] then
                 return true
             end
-            if analysis.hasProfileData then
-                return false
-            end
+            if analysis.hasProfileData then return false end
             return true
         elseif item:IsA("BodyColors") then
             return true
         end
         return false
     end
-
-    -- Kiểm tra xem một món đồ (Accessory / Model / Folder / CharacterMesh / Clothing) trên nhân vật có phải là SKIN CỦA GAME HỖ TRỢ hay không (phân biệt chính xác với SKIN CẦN XOÁ của người dùng script!)
     function PI.IsInGameSupportedSkinItem(item, char)
         if not item then return false end
         local isLocalOrOwn = false
@@ -11067,23 +9932,9 @@ end end
         end)
         if isLocalOrOwn then return false end
         if PI.IsInsideHeldItemOrTool(item, char) then return true end
-        local isGameAttr = false
-        pcall(function()
-            isGameAttr = (item:GetAttribute("BC_GameSkinItem") == true)
-                or (item:GetAttribute("GameSkin") == true)
-                or (item:GetAttribute("InGameSkin") == true)
-                or (item:GetAttribute("Cosmetic") == true)
-                or (item:GetAttribute("IsCosmetic") == true)
-                or (item:GetAttribute("CosmeticId") ~= nil)
-                or (item:GetAttribute("SkinId") ~= nil)
-                or (item:GetAttribute("Unusual") ~= nil)
-                or (item:GetAttribute("Stilts") ~= nil)
-                or (item:GetAttribute("EquippedCosmetic") ~= nil)
-        end)
-        if isGameAttr then return true end
-        if item:IsA("Folder") then
-            return true
-        end
+        if PI.IsHairItem(item, char) then return false end
+        if hasGameSkinAttr(item) then return true end
+        if item:IsA("Folder") then return true end
         if item:IsA("Model") then
             if item == PI._skinFake or tostring(item.Name):find("^BC_") then return false end
             for _, sub in ipairs(PI.GetVisualSubRigs(char)) do
@@ -11093,9 +9944,7 @@ end end
         end
         local ln = string.lower(tostring(item.Name))
         for _, kw in ipairs(GAME_SKIN_KEYWORDS) do
-            if ln:find(kw, 1, true) then
-                return true
-            end
+            if ln:find(kw, 1, true) then return true end
         end
         if item:IsA("Accessory") or item:IsA("Hat") or item:IsA("Accoutrement")
             or item:IsA("CharacterMesh") or item:IsA("Shirt") or item:IsA("Pants") or item:IsA("ShirtGraphic") then
@@ -11103,24 +9952,13 @@ end end
         end
         return false
     end
-
-    -- Phân tích & phân loại toàn bộ các món đồ đang có trên nhân vật thành 3 nhóm:
-    -- 1) ownSkinToDelete (Skin của người dùng script -> CẦN XOÁ)
-    -- 2) gameSkinToKeep (Skin của game hỗ trợ -> GIỮ LẠI)
-    -- 3) localTargetSkin (Skin của người chơi mục tiêu -> ĐANG MẶC LOCAL)
     function PI.ClassifyCharacterSkin(char)
-        local result = {
-            ownSkinToDelete = {},
-            gameSkinToKeep = {},
-            localTargetSkin = {},
-        }
+        local result = { ownSkinToDelete = {}, gameSkinToKeep = {}, localTargetSkin = {} }
         if not char then return result end
         local hum = char:FindFirstChildOfClass("Humanoid") or char:FindFirstChildWhichIsA("Humanoid", true)
         PI.AnalyzeUserOwnSkin(char, hum)
         local targets = { char }
-        for _, sub in ipairs(PI.GetVisualSubRigs(char)) do
-            table.insert(targets, sub)
-        end
+        for _, sub in ipairs(PI.GetVisualSubRigs(char)) do table.insert(targets, sub) end
         for _, m in ipairs(targets) do
             for _, ch in ipairs(m:GetChildren()) do
                 if ch ~= PI._skinFake and not tostring(ch.Name):find("^BC_") and not PI.IsInsideHeldItemOrTool(ch, m) then
@@ -11128,6 +9966,9 @@ end end
                     pcall(function() isLocal = (ch:GetAttribute("BC_LocalOutfitItem") == true) end)
                     if isLocal then
                         table.insert(result.localTargetSkin, ch)
+                    elseif PI.IsHairItem(ch, m) then
+                        pcall(function() ch:SetAttribute("BC_GameSkinItem", nil) end)
+                        table.insert(result.ownSkinToDelete, ch)
                     elseif ch:IsA("Accessory") or ch:IsA("Hat") or ch:IsA("Accoutrement")
                         or ch:IsA("Shirt") or ch:IsA("Pants") or ch:IsA("ShirtGraphic") or ch:IsA("CharacterMesh") then
                         if PI.IsOwnUserSkinItem(ch, m) then
@@ -11145,45 +9986,34 @@ end end
         end
         return result
     end
-
     function PI.IsInGameSupportedSkinElement(inst, char)
         if not inst or not char then return false end
         local cur = inst
         while cur and cur ~= char and cur ~= workspace do
-            if PI.IsInGameSupportedSkinItem(cur, char) then
-                return true
-            end
+            if PI.IsInGameSupportedSkinItem(cur, char) then return true end
             cur = cur.Parent
         end
         return false
     end
-
     local function EnsureCharacterVisible(char)
         if not char then return end
         local fp = isCameraFirstPerson(char)
         local origVis = (PI.localSaved and PI.localSaved.character == char and PI.localSaved.visuals) or nil
         pcall(function()
             local targets = { char }
-            for _, sub in ipairs(PI.GetVisualSubRigs(char)) do
-                table.insert(targets, sub)
-            end
+            for _, sub in ipairs(PI.GetVisualSubRigs(char)) do table.insert(targets, sub) end
             for _, m in ipairs(targets) do
-                -- 1. Chỉ đảm bảo các chi cơ thể trực tiếp của m hiển thị (nếu không bị morph của game hoặc sub-rig ẩn chủ đích)
                 for _, d in ipairs(m:GetChildren()) do
                     if d:IsA("BasePart") then
                         local pn = string.lower(tostring(d.Name))
-                        if HELPER_BOX_NAMES[pn] then
-                            d.Transparency = 1
+                        if HELPER_BOX_NAMES[pn] or (PI.localActive and PI.IsHairItem(d, m) and d:GetAttribute("BC_LocalOutfitItem") ~= true) then
+                            PI.ForceHideAndRemoveOwnItem(d)
                         elseif VISIBLE_LIMB_NAMES[d.Name] then
                             local savedEntry = (m == char and origVis and origVis[d.Name]) or nil
                             local keptHiddenForMorph = (m == char) and ((savedEntry and savedEntry.hadMorphHidden == true) or hasInGameMorphOnLimb(char, d))
                             if not keptHiddenForMorph then
-                                if (tonumber(d.Transparency) or 0) >= 0.95 then
-                                    d.Transparency = 0
-                                end
-                                if not fp then
-                                    d.LocalTransparencyModifier = 0
-                                end
+                                if (tonumber(d.Transparency) or 0) >= 0.95 then d.Transparency = 0 end
+                                if not fp then d.LocalTransparencyModifier = 0 end
                             end
                             local fc = d:FindFirstChildOfClass("Decal")
                             if fc and not keptHiddenForMorph and (tonumber(fc.Transparency) or 0) >= 0.95 then
@@ -11192,39 +10022,32 @@ end end
                         end
                     end
                 end
-                -- 2. Khi Mặc LOCAL đang bật (PI.localActive): chỉ tự động ẩn/xoá những phụ kiện được phân tích là SKIN CỦA NGƯỜI DÙNG SCRIPT (IsOwnUserSkinItem == true), đồng thời bảo vệ 100% SKIN CỦA GAME HỖ TRỢ và trang phục Mặc LOCAL!
-                for _, ch in ipairs(m:GetChildren()) do
-                    local isHiddenOrig = false
-                    local isLocalItem = false
-                    pcall(function()
-                        isHiddenOrig = (ch:GetAttribute("BC_HiddenOriginalItem") == true)
-                        isLocalItem = (ch:GetAttribute("BC_LocalOutfitItem") == true)
-                    end)
-                    local isOwnSkinAcc = PI.localActive
-                        and (ch:IsA("Accessory") or ch:IsA("Hat") or ch:IsA("Accoutrement"))
-                        and (not isLocalItem)
-                        and PI.IsOwnUserSkinItem(ch, m)
-                    if isHiddenOrig or isOwnSkinAcc then
-                        for _, p in ipairs(ch:GetDescendants()) do
-                            if p:IsA("BasePart") or p:IsA("Decal") or p:IsA("Texture") then
-                                p.Transparency = 1
-                                if p:IsA("BasePart") then p.LocalTransparencyModifier = 1 end
-                            end
-                        end
-                        if isOwnSkinAcc then
-                            pcall(function() ch:SetAttribute("BC_HiddenOriginalItem", true) end)
-                            pcall(function() ch:Destroy() end)
-                        end
-                    elseif not PI.IsInsideHeldItemOrTool(ch, m) and (ch:IsA("Accessory") or ch:IsA("Hat") or ch:IsA("Accoutrement") or (ch:IsA("Model") and ch ~= PI._skinFake) or ch:IsA("Folder")) then
-                        for _, p in ipairs(ch:GetDescendants()) do
-                            if p:IsA("BasePart") then
-                                if not PI.IsInvisibleHelperOrHandleBox(p, m) then
+                local containers = { m }
+                local headPart = m:FindFirstChild("Head")
+                if headPart then table.insert(containers, headPart) end
+                for _, c in ipairs(m:GetChildren()) do
+                    if c:IsA("Folder") then table.insert(containers, c) end
+                end
+                for _, cont in ipairs(containers) do
+                    for _, ch in ipairs(cont:GetChildren()) do
+                        local isHiddenOrig, isLocalItem = false, false
+                        pcall(function()
+                            isHiddenOrig = (ch:GetAttribute("BC_HiddenOriginalItem") == true)
+                            isLocalItem = (ch:GetAttribute("BC_LocalOutfitItem") == true)
+                        end)
+                        local isOwnOrHair = PI.localActive and (not isLocalItem) and (
+                            PI.IsHairItem(ch, m)
+                            or ((ch:IsA("Accessory") or ch:IsA("Hat") or ch:IsA("Accoutrement")) and PI.IsOwnUserSkinItem(ch, m))
+                        )
+                        if isHiddenOrig or isOwnOrHair then
+                            PI.ForceHideAndRemoveOwnItem(ch)
+                        elseif cont == m and not PI.IsInsideHeldItemOrTool(ch, m) and (ch:IsA("Accessory") or ch:IsA("Hat") or ch:IsA("Accoutrement") or (ch:IsA("Model") and ch ~= PI._skinFake) or ch:IsA("Folder")) then
+                            for _, p in ipairs(ch:GetDescendants()) do
+                                if p:IsA("BasePart") and not PI.IsInvisibleHelperOrHandleBox(p, m) then
                                     if (tonumber(p.Transparency) or 0) >= 0.95 and (p:IsA("MeshPart") or p:FindFirstChildOfClass("SpecialMesh") or p:FindFirstChildOfClass("Decal")) then
                                         p.Transparency = 0
                                     end
-                                    if not fp then
-                                        p.LocalTransparencyModifier = 0
-                                    end
+                                    if not fp then p.LocalTransparencyModifier = 0 end
                                 end
                             end
                         end
@@ -11233,7 +10056,6 @@ end end
             end
         end)
     end
-
     local function ShowCharacter()
         if PI._skinDescAddedConn then
             pcall(function() PI._skinDescAddedConn:Disconnect() end)
@@ -11264,10 +10086,8 @@ end end
         local curChar = select(1, PI.GetCharacterAndHumanoid(player))
         if curChar then EnsureCharacterVisible(curChar) end
     end
-
     local function hideDescendantElement(d, char)
         if not d then return end
-        -- KHÔNG BAO GIỜ ẩn vật phẩm cầm tay của game (Tool/Item) hoặc skin của game hỗ trợ!
         if PI.IsInsideHeldItemOrTool(d, char) or PI.IsInGameSupportedSkinElement(d, char) then
             return
         end
@@ -11291,7 +10111,6 @@ end end
             d.Transparency = 1
             d.LocalTransparencyModifier = 1
             pcall(function() d.CastShadow = false end)
-            -- KHÔNG đổi CollisionGroup của nhân vật thật sang BC_SkinReal để tránh làm hỏng va chạm sàn/vật lý của các game như Evade!
         elseif d:IsA("Decal") or d:IsA("Texture") then
             if PI._skinHidden[d] == nil then
                 local rawDT = d.Transparency
@@ -11310,7 +10129,6 @@ end end
             d.Enabled = false
         end
     end
-
     local function EnforceCharacterHidden(char)
         if not (char and char.Parent) then return end
         pcall(function()
@@ -11319,7 +10137,6 @@ end end
             end
         end)
     end
-
     local function HideCharacter(char)
         if not char then return end
         SetupSkinCollisionGroups()
@@ -11336,7 +10153,6 @@ end end
             end)
         end)
     end
-
     local function StopSkinFollow()
         pcall(function() RunService:UnbindFromRenderStep(PI._skinFollowBind) end)
         pcall(function() RunService:UnbindFromRenderStep("BC_SkinHideLast") end)
@@ -11349,16 +10165,13 @@ end end
             PI._skinFake = nil
         end
     end
-
     local function StopVirtualAvatarSync()
         pcall(function() RunService:UnbindFromRenderStep("BC_VirtualAvatarSync") end)
         if PI._vAvatarStepped then pcall(function() PI._vAvatarStepped:Disconnect() end) PI._vAvatarStepped = nil end
         if PI._vAvatarHeartbeat then pcall(function() PI._vAvatarHeartbeat:Disconnect() end) PI._vAvatarHeartbeat = nil end
         PI._vAvatarPosePairs = nil
     end
-
     local function makeFakeVisible(fake, rigHint)
-        -- Đảm bảo fake/nhân vật ảo hiển thị đúng ngoại hình, không va chạm ghế/vật cản và KHÔNG tự chạy Animator riêng gây mất đồng bộ hành động (emote)
         pcall(function()
             SetupSkinCollisionGroups()
             local primary = fake.PrimaryPart or fake:FindFirstChild("HumanoidRootPart") or fake:FindFirstChildWhichIsA("BasePart", true)
@@ -11409,7 +10222,6 @@ end end
             end
             local fh = fake:FindFirstChildOfClass("Humanoid")
             if fh then
-                -- Gỡ Animator trên fake để Roblox Animation Step không ghi đè Motor6D.Transform về Idle/T-pose làm mất hành động (emote) của bạn!
                 pcall(function()
                     for _, ch in ipairs(fh:GetChildren()) do
                         if ch:IsA("Animator") then ch:Destroy() end
@@ -11432,8 +10244,6 @@ end end
             end
         end)
     end
-
-    -- Thứ tự giải khớp động học từ gốc (Root/Torso) ra các chi (Đầu/Tay/Chân) để đồng bộ 100% mọi hành động/emote
     local JOINT_LIMB_ORDER = {
         lowertorso = 1, torso = 1, root = 1,
         uppertorso = 2, waist = 2,
@@ -11466,13 +10276,11 @@ end end
         "LeftUpperLeg", "LeftLowerLeg", "LeftFoot", "Left Leg",
         "RightUpperLeg", "RightLowerLeg", "RightFoot", "Right Leg",
     }
-
     local function normJointKey(s)
         local k = string.lower(tostring(s or ""):gsub("[%s_%-]", ""))
         if k == "rootjoint" or k == "root" then return "root" end
         return k
     end
-
     local function isInsideAccessoryOrTool(inst, rootModel)
         local p = inst and inst.Parent
         while p and p ~= rootModel do
@@ -11483,7 +10291,6 @@ end end
         end
         return false
     end
-
     local function isNonIdentityCF(cf)
         if not cf then return false end
         local ok, res = pcall(function()
@@ -11505,8 +10312,6 @@ end end
         end)
         return ok and res == true
     end
-
-    -- Dựng danh sách ánh xạ khớp Motor6D + Bone + Limb + Phụ kiện giữa nhân vật thật và nhân vật ảo / fake
     local function BuildSkinPosePairs(sourceModel, fakeModel)
         local posePairs = {
             _sourceModel = sourceModel,
@@ -11516,7 +10321,6 @@ end end
             _welds = {},
         }
         if not sourceModel or not fakeModel then return posePairs end
-
         local function collectMotor6Ds(model)
             local byPart1, byName, byParentName = {}, {}, {}
             for _, d in ipairs(model:GetDescendants()) do
@@ -11532,11 +10336,9 @@ end end
             end
             return byPart1, byName, byParentName
         end
-
         local srcByP1, srcByName, srcByPar = collectMotor6Ds(sourceModel)
         local fakeByP1, fakeByName, fakeByPar = collectMotor6Ds(fakeModel)
         local usedFake = {}
-
         local function resolvePartInModel(model, part, fallback)
             if part then
                 local okN, pName = pcall(function() return part.Name end)
@@ -11552,7 +10354,6 @@ end end
             end
             return part
         end
-
         local function addMotorPair(srcJ, fakeJ, sortKey)
             if not srcJ or not fakeJ or usedFake[fakeJ] then return end
             usedFake[fakeJ] = true
@@ -11586,7 +10387,6 @@ end end
                 order = JOINT_LIMB_ORDER[sortKey] or 3,
             })
         end
-
         for p1Key, fakeJ in pairs(fakeByP1) do
             local srcJ = srcByP1[p1Key]
             if not srcJ and CROSS_RIG_LIMB_ALIASES[p1Key] then
@@ -11606,12 +10406,9 @@ end end
                 addMotorPair(srcByPar[parKey], fakeJ, parKey)
             end
         end
-
         table.sort(posePairs, function(a, b)
             return (a.order or 3) < (b.order or 3)
         end)
-
-        -- Đồng bộ cả Bone (Dynamic Head / biểu cảm khuôn mặt / Skinned Mesh)
         local srcBonesByFull, srcBonesByName = {}, {}
         for _, b in ipairs(sourceModel:GetDescendants()) do
             if b:IsA("Bone") then
@@ -11631,8 +10428,6 @@ end end
                 end
             end
         end
-
-        -- Ánh xạ trực tiếp các bộ phận cơ thể (Limb BaseParts) để đồng bộ CFrame hành động kể cả khi rig thiếu Motor6D hoặc khác R6/R15
         local srcLimbs = {}
         for _, ch in ipairs(sourceModel:GetChildren()) do
             if ch:IsA("BasePart") then
@@ -11662,17 +10457,13 @@ end end
                 end
             end
         end
-
-        -- Thu thập các mối hàn phụ kiện (AccessoryWeld) và BC_MorphWeld trên fakeModel để bám chặt theo chi khi múa/hành động
         for _, d in ipairs(fakeModel:GetDescendants()) do
             if d:IsA("JointInstance") and (d.Name == "AccessoryWeld" or d.Name == "BC_MorphWeld" or (d.Parent and d.Parent.Name == "Handle")) then
                 table.insert(posePairs._welds, d)
             end
         end
-
         return posePairs
     end
-
     local function SyncSkinFakePose(posePairs, sourceModel, fakeModel, targetRootCF)
         if type(posePairs) ~= "table" then return end
         sourceModel = sourceModel or posePairs._sourceModel or (player and player.Character)
@@ -11690,8 +10481,6 @@ end end
             end)
         end
         local fakeRootCF = targetRootCF or (fakeRoot and fakeRoot.CFrame) or nil
-
-        -- 1. Giải khớp Motor6D (vừa gán Transform + C0/C1 delta, vừa tính trực tiếp CFrame chi để không bao giờ bị T-pose khi Anchored)
         for _, pair in ipairs(posePairs) do
             pcall(function()
                 local sj, fj = pair.source, pair.fake
@@ -11704,7 +10493,6 @@ end end
                 if pair.baseSrcC1 and sj.C1 then
                     pcall(function() dC1 = pair.baseSrcC1:Inverse() * sj.C1 end)
                 end
-
                 local effTr = tr
                 if not isNonIdentityCF(effTr) and not isNonIdentityCF(dC0) and not isNonIdentityCF(dC1) then
                     local sp0, sp1 = pair.srcPart0, pair.srcPart1
@@ -11724,7 +10512,6 @@ end end
                         end)
                     end
                 end
-
                 fj.Transform = effTr
                 local effFakeC0 = (pair.baseFakeC0 or fj.C0 or CFrame.new()) * dC0
                 local effFakeC1 = (pair.baseFakeC1 or fj.C1 or CFrame.new()) * dC1
@@ -11732,7 +10519,6 @@ end end
                     fj.C0 = effFakeC0
                     fj.C1 = effFakeC1
                 end)
-
                 local fp0, fp1 = pair.fakePart0, pair.fakePart1
                 if fp0 and fp1 and fp0.Parent and fp1.Parent and fp0 ~= fp1 then
                     pcall(function()
@@ -11741,8 +10527,6 @@ end end
                 end
             end)
         end
-
-        -- 2. Đồng bộ trực tiếp CFrame cho các bộ phận cơ thể chưa có Motor6D (hoặc khi bật hành động dịch chuyển trực tiếp CFrame bộ phận)
         if srcRootCF and fakeRootCF and posePairs._limbs then
             local noMotorCount = (#posePairs == 0)
             for _, lp in ipairs(posePairs._limbs) do
@@ -11756,8 +10540,6 @@ end end
                 end
             end
         end
-
-        -- 3. Đồng bộ Bone.Transform (khuôn mặt Dynamic Head / आभूषण / Mesh biến dạng)
         if posePairs._bones then
             for _, bp in ipairs(posePairs._bones) do
                 pcall(function()
@@ -11767,8 +10549,6 @@ end end
                 end)
             end
         end
-
-        -- 4. Cập nhật CFrame phụ kiện (Accessory Handle & BC_MorphPart) bám khít theo từng bộ phận đang múa/hành động
         if posePairs._welds then
             for _, w in ipairs(posePairs._welds) do
                 pcall(function()
@@ -11783,15 +10563,12 @@ end end
             end
         end
     end
-
-    -- Đồng bộ cả Nhân Vật Ảo (PI._virtualAvatar) trên map theo mọi hành động / emote của bạn trong game!
     local function StartVirtualAvatarSync()
         StopVirtualAvatarSync()
         if not (PI._virtualAvatar and PI._virtualAvatar.Parent) then return false end
         local char = player and player.Character
         if not char then return false end
         PI._vAvatarPosePairs = BuildSkinPosePairs(char, PI._virtualAvatar)
-
         local function stepVirtualAvatar()
             local curChar = player and player.Character
             local vModel = PI._virtualAvatar
@@ -11817,7 +10594,6 @@ end end
             end
             SyncSkinFakePose(PI._vAvatarPosePairs, curChar, vModel, targetCF)
         end
-
         stepVirtualAvatar()
         pcall(function()
             PI._vAvatarStepped = RunService.Stepped:Connect(stepVirtualAvatar)
@@ -11830,7 +10606,6 @@ end end
         end)
         return true
     end
-
     local function StartSkinFollow(char)
         if not char or not PI._skinFake then
             warn("[BC_Skin] StartSkinFollow thiếu char/fake")
@@ -11860,13 +10635,11 @@ end end
         SyncSkinFakePose(posePairs, char, PI._skinFake, pivot)
         local placed = true
         print("[BC_Skin] đặt fake tại", tostring(pivot), "placed", placed, "parts", #PI._skinFake:GetDescendants())
-
         pcall(function() RunService:UnbindFromRenderStep(PI._skinFollowBind) end)
         pcall(function() RunService:UnbindFromRenderStep("BC_SkinHideLast") end)
         if PI._skinStepped then pcall(function() PI._skinStepped:Disconnect() end) PI._skinStepped = nil end
         if PI._skinHeartbeat then pcall(function() PI._skinHeartbeat:Disconnect() end) PI._skinHeartbeat = nil end
         PI._skinFollow = nil
-
         local function stepFollow()
             if not (char and char.Parent and PI._skinFake and PI._skinFake.Parent) then
                 pcall(function() RunService:UnbindFromRenderStep(PI._skinFollowBind) end)
@@ -11878,7 +10651,6 @@ end end
             end
             local cf = getCharPivot(char)
             SyncSkinFakePose(posePairs, char, PI._skinFake, cf)
-            -- Ép ẩn toàn bộ nhân vật gốc mỗi khung hình (chống các game như Evade tự reset LocalTransparencyModifier = 0 ở RenderStepped)
             EnforceCharacterHidden(char)
             local fpCam = isCameraFirstPerson(char)
             pcall(function()
@@ -11894,7 +10666,6 @@ end end
                 end
             end)
         end
-
         pcall(function()
             PI._skinStepped = RunService.Stepped:Connect(stepFollow)
         end)
@@ -11917,23 +10688,29 @@ end end
         end
         return true
     end
-
     -- ===== CHỨC NĂNG MẶC LOCAL (kết hợp từ script.js1.js) =====
-    -- Sao chép trực tiếp quần áo, phụ kiện, BodyColors, CharacterMesh + mặt/màu da/texture lên nhân vật thật của LocalPlayer.
     function PI.OutfitParts(character)
-        local out = {}
+        local out, seen = {}, {}
         if not character then return out end
+        local function addItem(it)
+            if it and not seen[it] then seen[it] = true; out[#out + 1] = it end
+        end
         for _, item in ipairs(character:GetChildren()) do
             if item:IsA("Shirt") or item:IsA("Pants") or item:IsA("ShirtGraphic") or item:IsA("Accessory")
-                or item:IsA("Accoutrement") or item:IsA("Hat") or item:IsA("BodyColors") or item:IsA("CharacterMesh") then
-                out[#out + 1] = item
+                or item:IsA("Accoutrement") or item:IsA("Hat") or item:IsA("BodyColors") or item:IsA("CharacterMesh")
+                or (PI.IsHairItem and PI.IsHairItem(item, character)) then
+                addItem(item)
+            elseif item:IsA("Folder") or item.Name == "Head" then
+                for _, sub in ipairs(item:GetChildren()) do
+                    if sub:IsA("Accessory") or sub:IsA("Accoutrement") or sub:IsA("Hat")
+                        or (PI.IsHairItem and PI.IsHairItem(sub, character)) then
+                        addItem(sub)
+                    end
+                end
             end
         end
         return out
     end
-
-    -- Sao chép đầy đủ cả hình ảnh lẫn BỐ CỤC NGƯỜI CHƠI (kích thước mập/gầy/cao/lùn, khớp Motor6D, vị trí Attachment, khuôn mặt, đầu & MeshPart).
-    -- KHÔNG đưa WrapTarget / WrapLayer vào VisualChildren để không bao giờ phá hỏng skin 3D Layered Clothing hoặc skin của game hỗ trợ!
     function PI.VisualChildren(part)
         local out = {}
         if not part then return out end
@@ -11946,7 +10723,6 @@ end end
         end
         return out
     end
-
     local function scaleCFramePos(cf, sx, sy, sz)
         if not cf then return cf end
         local ok, res = pcall(function()
@@ -11960,7 +10736,6 @@ end end
         end)
         return (ok and res) or cf
     end
-
     function PI.SaveVisuals(character, desc)
         local result = { _scales = {}, _hipHeight = nil, _bodyColors = nil }
         if not character then return result end
@@ -12020,12 +10795,10 @@ end end
                 }
             end)
         end
-
         local ws = tonumber(result._scales.BodyWidthScale) or 1
         local hs = tonumber(result._scales.BodyHeightScale) or 1
         local ds = tonumber(result._scales.BodyDepthScale) or 1
         local hds = tonumber(result._scales.HeadScale) or 1
-
         for _, part in ipairs(character:GetChildren()) do
             if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
                 local isHead = (part.Name == "Head")
@@ -12033,13 +10806,11 @@ end end
                 local sy = isHead and hds or hs
                 local sz = isHead and hds or ds
                 local hasCustomScale = (math.abs(sx - 1) > 0.01 or math.abs(sy - 1) > 0.01 or math.abs(sz - 1) > 0.01)
-
                 local origSizeObj = part:FindFirstChild("OriginalSize")
                 local origSizeVal = nil
                 pcall(function()
                     if origSizeObj and origSizeObj:IsA("Vector3Value") then origSizeVal = origSizeObj.Value end
                 end)
-
                 local partSize = part.Size
                 local needsManualScale = false
                 if hasCustomScale and partSize then
@@ -12057,7 +10828,6 @@ end end
                         partSize = Vector3.new(partSize.X * sx, partSize.Y * sy, partSize.Z * sz)
                     end)
                 end
-
                 local motors = {}
                 for _, ch in ipairs(part:GetChildren()) do
                     if ch:IsA("Motor6D") then
@@ -12071,7 +10841,6 @@ end end
                         motors[ch.Name] = { c0 = c0, c1 = c1 }
                     end
                 end
-
                 local attachments = {}
                 for _, ch in ipairs(part:GetChildren()) do
                     if ch:IsA("Attachment") then
@@ -12087,7 +10856,6 @@ end end
                         attachments[ch.Name] = { cf = cf, origPos = opVal }
                     end
                 end
-
                 local meshClone, meshId, textureId = nil, nil, nil
                 if part:IsA("MeshPart") then
                     pcall(function() meshId = tostring(part.MeshId or "") end)
@@ -12104,14 +10872,12 @@ end end
                         meshClone = mc
                     end
                 end
-
                 local rawTrans = tonumber(part.Transparency) or 0
                 local morphHidden = (rawTrans >= 0.95) and hasInGameMorphOnLimb(character, part)
                 local partTrans = rawTrans
                 if VISIBLE_LIMB_NAMES[part.Name] and partTrans >= 0.95 and not morphHidden then
                     partTrans = 0
                 end
-
                 local entry = {
                     color = part.Color,
                     material = part.Material,
@@ -12137,7 +10903,6 @@ end end
         end
         return result
     end
-
     function PI.CleanupVisuals(visuals)
         if type(visuals) ~= "table" then return end
         for name, entry in pairs(visuals) do
@@ -12152,7 +10917,6 @@ end end
             end
         end
     end
-
     local CROSS_RIG_VISUAL_FALLBACK = {
         ["Torso"] = { "UpperTorso", "LowerTorso" },
         ["Left Arm"] = { "LeftUpperArm", "LeftLowerArm", "LeftHand" },
@@ -12174,14 +10938,12 @@ end end
         ["RightLowerLeg"] = { "Right Leg" },
         ["RightFoot"] = { "Right Leg" },
     }
-
     function PI.ApplyVisuals(character, visuals)
         if not character or type(visuals) ~= "table" then return end
         local realChar = select(1, PI.GetCharacterAndHumanoid(player)) or (player and player.Character)
         local isLocalRealChar = (realChar ~= nil and (character == realChar or character:IsDescendantOf(realChar)))
         local isRestore = (visuals._isOriginalRestore == true)
         local baseVis = (isLocalRealChar and not isRestore and PI.localSaved and PI.localSaved.character == realChar) and PI.localSaved.visuals or nil
-
         local ws = tonumber(visuals._scales and visuals._scales.BodyWidthScale) or 1
         local hs = tonumber(visuals._scales and visuals._scales.BodyHeightScale) or 1
         local ds = tonumber(visuals._scales and visuals._scales.BodyDepthScale) or 1
@@ -12190,7 +10952,6 @@ end end
         local baseHs = tonumber(baseVis and baseVis._scales and baseVis._scales.BodyHeightScale) or 1
         local baseDs = tonumber(baseVis and baseVis._scales and baseVis._scales.BodyDepthScale) or 1
         local baseHds = tonumber(baseVis and baseVis._scales and baseVis._scales.HeadScale) or 1
-
         local hum = character:FindFirstChildOfClass("Humanoid") or character:FindFirstChildWhichIsA("Humanoid", true)
         if hum then
             if type(visuals._scales) == "table" then
@@ -12201,7 +10962,6 @@ end end
                     end)
                 end
             end
-            -- Bảo vệ HipHeight của nhân vật thật: gán SAU khi cập nhật NumberValue scale và KHÔNG BAO GIỜ gán HipHeight = 0 từ rig dummy chưa step (gây kẹt ngồi không đứng dậy được)!
             pcall(function()
                 if isRestore and visuals._hipHeight ~= nil then
                     local hh = tonumber(visuals._hipHeight) or 2.0
@@ -12235,8 +10995,6 @@ end end
                 end)
             end
         end
-
-        -- Ánh xạ màu da chéo R6 <-> R15 nếu có BodyColors
         if type(visuals._bodyColors) == "table" then
             local bc = visuals._bodyColors
             local colorMap = {
@@ -12256,8 +11014,6 @@ end end
                 end
             end
         end
-
-        -- Duyệt mọi BasePart trên character (hỗ trợ cả khớp trực tiếp tên chi lẫn ánh xạ chéo R6 <-> R15 trong Evade)
         for _, part in ipairs(character:GetChildren()) do
             if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
                 local name = part.Name
@@ -12279,7 +11035,6 @@ end end
                     end
                     for _, child in ipairs(PI.VisualChildren(part)) do
                         pcall(function()
-                            -- Xoá sạch Decal/SpecialMesh/Texture thuộc SKIN CẦN XOÁ của mình trên các chi, giữ lại SurfaceAppearance / SpecialMesh thuộc SKIN CỦA GAME HỖ TRỢ nếu avatar nguồn không có món thay thế!
                             local isGameSkinChild = (child:GetAttribute("BC_GameSkinItem") == true)
                                 or (child:IsA("SurfaceAppearance") and not incomingChildClasses["SurfaceAppearance"])
                             if not isGameSkinChild and child:IsA("SpecialMesh") and not incomingChildClasses["SpecialMesh"] and (entry.meshId == nil or entry.meshId == "") then
@@ -12333,14 +11088,12 @@ end end
                             pcall(function() part:ApplyMesh(entry.meshClone) end)
                         end
                     end
-
                     local isHead = (name == "Head")
                     local rx = isHead and ((baseHds > 0) and (hds / baseHds) or hds) or ((baseWs > 0) and (ws / baseWs) or ws)
                     local ry = isHead and ((baseHds > 0) and (hds / baseHds) or hds) or ((baseHs > 0) and (hs / baseHs) or hs)
                     local rz = isHead and ((baseHds > 0) and (hds / baseHds) or hds) or ((baseDs > 0) and (ds / baseDs) or ds)
                     local hasScaleRatio = (math.abs(rx - 1) > 0.01 or math.abs(ry - 1) > 0.01 or math.abs(rz - 1) > 0.01)
                     local basePartEntry = baseVis and baseVis[name] or nil
-
                     if entry.size then
                         pcall(function()
                             if (isLocalRealChar or isCrossRigEntry) and not isRestore then
@@ -12378,7 +11131,6 @@ end end
                             local m = part:FindFirstChild(mName)
                             if m and m:IsA("Motor6D") then
                                 pcall(function()
-                                    -- Trên nhân vật thật: giữ nguyên ma trận xoay C0/C1 gốc của game (chỉ nhân tỉ lệ khoảng cách khi mập/gầy/cao/lùn) để mọi hành động/emote giống 100% lúc không bật tính năng!
                                     local bm = basePartEntry and basePartEntry.motors and basePartEntry.motors[mName] or nil
                                     if isLocalRealChar and not isRestore and bm then
                                         if hasScaleRatio then
@@ -12437,7 +11189,6 @@ end end
             end
         end
     end
-
     local ATTACHMENT_LIMB_FALLBACK = {
         HatAttachment = { r15 = "Head", r6 = "Head", cf = CFrame.new(0, 0.6, 0) },
         HairAttachment = { r15 = "Head", r6 = "Head", cf = CFrame.new(0, 0.6, 0) },
@@ -12458,8 +11209,6 @@ end end
         LeftFootAttachment = { r15 = "LeftFoot", r6 = "Left Leg", cf = CFrame.new(0, -0.8, 0) },
         RightFootAttachment = { r15 = "RightFoot", r6 = "Right Leg", cf = CFrame.new(0, -0.8, 0) },
     }
-
-    -- Hàn (Weld) phụ kiện trên Client: hỗ trợ đầy đủ cả R15 <-> R6 và các rig custom trong Evade, không làm hiện khối hộp Handle vô hình!
     function PI.AttachAccessoryClient(character, humanoid, clone)
         if not character or not clone then return end
         pcall(function() clone.Parent = character end)
@@ -12486,7 +11235,6 @@ end end
             handle.CanTouch = false
             handle.CanQuery = false
             handle.Massless = true
-
             local accAtt = handle:FindFirstChildOfClass("Attachment")
             local charAtt = nil
             if accAtt then
@@ -12508,7 +11256,6 @@ end end
                     end
                 end
             end
-
             local savedC0, savedC1 = nil, nil
             local refPartName = nil
             for _, ch in ipairs(handle:GetChildren()) do
@@ -12529,7 +11276,6 @@ end end
                     pcall(function() ch:Destroy() end)
                 end
             end
-
             local attInfo = accAtt and ATTACHMENT_LIMB_FALLBACK[accAtt.Name] or nil
             local targetPart = (charAtt and charAtt.Parent and charAtt.Parent:IsA("BasePart") and charAtt.Parent) or nil
             if not targetPart and refPartName then
@@ -12553,7 +11299,6 @@ end end
                 or character:FindFirstChild("Torso")
                 or character.PrimaryPart
             if not (targetPart and targetPart:IsA("BasePart")) then return end
-
             local c0 = (accAtt and accAtt.CFrame) or savedC0 or CFrame.new(0, 0, 0)
             local c1 = (charAtt and charAtt.CFrame) or savedC1 or (attInfo and attInfo.cf) or CFrame.new(0, 0.5, 0)
             pcall(function()
@@ -12568,7 +11313,6 @@ end end
             weld.Parent = handle
         end)
     end
-
     function PI.CopyOutfit(source, character, humanoid, desc, rec, isRestore)
         if not source or not character then
             return false, "Thiếu dữ liệu nhân vật để sao chép"
@@ -12587,8 +11331,6 @@ end end
         if #items == 0 and not hasPartVisuals and not hasFilteredRemoval and #PI.OutfitParts(character) == 0 then
             return false, "Avatar nguồn không có ngoại hình để sao chép"
         end
-
-        -- Kiểm tra nguồn có Shirt / Pants / ShirtGraphic / BodyColors hay không để không xoá nhầm quần áo thuộc skin của game hỗ trợ!
         local hasSrcShirt, hasSrcPants, hasSrcTShirt, hasSrcBC = false, false, false, false
         for _, it in ipairs(items) do
             if it:IsA("Shirt") then hasSrcShirt = true
@@ -12597,62 +11339,34 @@ end end
             elseif it:IsA("BodyColors") then hasSrcBC = true
             end
         end
-
-        -- Phân tích skin của người dùng script & phân loại skin cần xoá vs skin của game hỗ trợ trước khi thay đồ
         local deletedOwnCount, keptGameCount = 0, 0
         if isRealCharTarget and not isRestore then
             PI.AnalyzeUserOwnSkin(character, humanoid)
             PI.ClassifyCharacterSkin(character)
         end
-
         for _, item in ipairs(PI.OutfitParts(character)) do
             pcall(function()
-                -- BẢO VỆ SKIN CỦA GAME HỖ TRỢ: Giữ nguyên mọi món được phân loại là skin của game hỗ trợ, và chỉ ẨN & XOÁ SẠCH toàn bộ SKIN CẦN XOÁ (thuộc skin của người dùng script)!
-                if isRealCharTarget and not isRestore then
+                if isRealCharTarget and not isRestore and not PI.IsHairItem(item, character) then
+                    local keepGame = false
                     if item:IsA("Accessory") or item:IsA("Hat") or item:IsA("Accoutrement") or item:IsA("CharacterMesh") then
-                        if PI.IsInGameSupportedSkinItem(item, character) then
-                            pcall(function() item:SetAttribute("BC_GameSkinItem", true) end)
-                            keptGameCount = keptGameCount + 1
-                            return
-                        end
+                        keepGame = PI.IsInGameSupportedSkinItem(item, character)
                     elseif item:IsA("Shirt") then
-                        if not hasSrcShirt and not hasFilteredRemoval and PI.IsInGameSupportedSkinItem(item, character) then
-                            pcall(function() item:SetAttribute("BC_GameSkinItem", true) end)
-                            keptGameCount = keptGameCount + 1
-                            return
-                        end
+                        keepGame = (not hasSrcShirt and not hasFilteredRemoval and PI.IsInGameSupportedSkinItem(item, character))
                     elseif item:IsA("Pants") then
-                        if not hasSrcPants and not hasFilteredRemoval and PI.IsInGameSupportedSkinItem(item, character) then
-                            pcall(function() item:SetAttribute("BC_GameSkinItem", true) end)
-                            keptGameCount = keptGameCount + 1
-                            return
-                        end
+                        keepGame = (not hasSrcPants and not hasFilteredRemoval and PI.IsInGameSupportedSkinItem(item, character))
                     elseif item:IsA("ShirtGraphic") then
-                        if not hasSrcTShirt and not hasFilteredRemoval and PI.IsInGameSupportedSkinItem(item, character) then
-                            pcall(function() item:SetAttribute("BC_GameSkinItem", true) end)
-                            keptGameCount = keptGameCount + 1
-                            return
-                        end
+                        keepGame = (not hasSrcTShirt and not hasFilteredRemoval and PI.IsInGameSupportedSkinItem(item, character))
+                    end
+                    if keepGame then
+                        pcall(function() item:SetAttribute("BC_GameSkinItem", true) end)
+                        keptGameCount = keptGameCount + 1
+                        return
                     end
                 end
-                -- Ẩn sạch các phần tử của món đồ cần xoá trước khi Destroy (phòng trường hợp game khoá Destroy trên phụ kiện/quần áo gốc của bạn!)
                 deletedOwnCount = deletedOwnCount + 1
-                pcall(function() item:SetAttribute("BC_HiddenOriginalItem", true) end)
-                pcall(function()
-                    if item:IsA("Shirt") then item.ShirtTemplate = ""
-                    elseif item:IsA("Pants") then item.PantsTemplate = ""
-                    elseif item:IsA("ShirtGraphic") then item.Graphic = "" end
-                    for _, d in ipairs(item:GetDescendants()) do
-                        if d:IsA("BasePart") or d:IsA("Decal") or d:IsA("Texture") then
-                            d.Transparency = 1
-                            if d:IsA("BasePart") then d.LocalTransparencyModifier = 1 end
-                        end
-                    end
-                end)
-                item:Destroy()
+                PI.ForceHideAndRemoveOwnItem(item)
             end)
         end
-        -- Áp dụng bố cục cơ thể (Size mập/gầy/cao/lùn, khớp Motor6D, vị trí Attachment, đầu/mặt, màu da) TRƯỚC khi hàn phụ kiện!
         PI.ApplyVisuals(character, visuals)
         local count = 0
         for _, item in ipairs(items) do
@@ -12679,11 +11393,9 @@ end end
         end
         return true, summary
     end
-
     function PI.SaveOriginalState(char, hum)
         if not char then return end
         hum = hum or char:FindFirstChildOfClass("Humanoid") or char:FindFirstChildWhichIsA("Humanoid", true)
-        -- Đảm bảo nhân vật đang hiện rõ trước khi lưu trạng thái gốc (không lưu nhầm Transparency = 1)
         local wasHidden = next(PI._skinHidden) ~= nil
         if wasHidden then ShowCharacter() end
         if hum and (not PI.originalDesc or PI.originalHum ~= hum) then
@@ -12701,7 +11413,6 @@ end end
                 end
             end
         end
-        -- Phân tích toàn diện hồ sơ skin của người dùng script (LocalPlayer) và phân biệt với skin của game hỗ trợ!
         PI.AnalyzeUserOwnSkin(char, hum)
         PI.ClassifyCharacterSkin(char)
         if not PI.localSaved or PI.localSaved.character ~= char then
@@ -12723,7 +11434,6 @@ end end
         end
         if wasHidden then HideCharacter(char) end
     end
-
     function PI.ApplyLocalToChar(char, hum, desc, rec)
         if not char then return false, false, nil, "Chưa có nhân vật" end
         local _, foundHum, charRigType = PI.GetCharacterAndHumanoid(player)
@@ -12757,7 +11467,6 @@ end end
                 pcall(PI.ApplySkinFilterToModel, source, rec)
             end
         end
-        -- Nếu source clone từ nhân vật live trong server nhưng khác kiểu Rig (VD người kia R15 còn bạn R6 trong Evade), tạo thêm rig cùng kiểu để lấy đúng bố cục Size/Motor6D
         local rigSource = nil
         if okModel and source and effDesc then
             pcall(function()
@@ -12790,7 +11499,6 @@ end end
             if type(rec) == "table" then
                 pcall(PI.ApplySkinFilterToModel, char, rec)
             end
-            -- Nếu nhân vật trong game (như Evade) có các sub-rig hình người hiển thị bên trong (Visual / Character / Rig), thay luôn SKIN CỦA MÌNH trên sub-rig đó bằng trang phục Mặc LOCAL!
             for _, subRig in ipairs(PI.GetVisualSubRigs(char)) do
                 pcall(function()
                     local subHum = subRig:FindFirstChildOfClass("Humanoid") or hum
@@ -12799,7 +11507,6 @@ end end
                     if type(rec) == "table" then pcall(PI.ApplySkinFilterToModel, subRig, rec) end
                 end)
             end
-            -- Khi Lấy Skin đã chạy TRƯỚC (PI._skinFake đã tồn tại), Mặc LOCAL chạy SAU sẽ đắp thẳng quần áo/phụ kiện/bố cục/mặt lên cả PI._skinFake!
             if PI.skinActive and PI._skinFake and PI._skinFake.Parent then
                 local fakeHum = PI._skinFake:FindFirstChildOfClass("Humanoid")
                 pcall(PI.CopyOutfit, source, PI._skinFake, fakeHum, effDesc, rec)
@@ -12809,7 +11516,6 @@ end end
         end
         if source then pcall(function() source:Destroy() end) end
         if rigSource then pcall(function() rigSource:Destroy() end) end
-        -- Chỉ gọi ApplyDescription làm dự phòng khi không dựng được model nguồn (tránh gọi ApplyDescriptionReset trên Client làm kẹt ngồi & mất đồng bộ Animator/emote!)
         local applied, err = false, nil
         if not copied and effDesc and hum then
             local descToApply = effDesc
@@ -12822,8 +11528,6 @@ end end
         end
         return copied, applied, detail, err
     end
-
-    -- 👕 Mặc LOCAL (từ script.js1.js): chạy độc lập HOẶC chạy SAU 👕 Lấy Skin khi dùng cả 2 cùng lúc
     function PI.ApplyLocal(rec)
         print("[BC_Skin] ApplyLocal (Bước Mặc LOCAL) rec", rec and rec.id or "nil", rec and rec.name or "")
         if type(rec) ~= "table" or (rec.desc == nil and rec.id == nil) then
@@ -12831,7 +11535,6 @@ end end
         end
         local char, hum, _ = PI.GetCharacterAndHumanoid(player)
         if not char then
-            -- Trong Evade khi đang ở Menu/Lobby chưa deploy vào map: ghi nhận trạng thái Mặc LOCAL để tự mặc ngay khi nhân vật xuất hiện!
             PI.localActive = true
             PI.localId = rec.id
             PI.localRec = rec
@@ -12844,12 +11547,9 @@ end end
         end
         PI.executionLog = PI.executionLog or {}
         table.insert(PI.executionLog, "local")
-
-        -- Hiện lại nhân vật thật tạm thời trước khi thay đồ để không lưu nhầm Transparency = 1
         if next(PI._skinHidden) ~= nil then
             ShowCharacter()
         end
-
         local copied, applied, detail, err = PI.ApplyLocalToChar(char, hum, rec.desc, rec)
         if copied or applied then
             PI.localActive = true
@@ -12861,8 +11561,6 @@ end end
             PI._lastAppliedChar = char
         end
         pcall(function() PI.DiagnoseClothes(char, PI.FilteredDesc(rec) or rec.desc) end)
-
-        -- Nếu đang bật Lấy Skin cùng lúc thì ẩn nhân vật thật để hiện fake; nếu chỉ bật Mặc LOCAL thì giữ nhân vật thật HIỆN RÕ 100% (không bị ẩn skin)!
         if PI.skinActive and PI._skinFake and PI._skinFake.Parent then
             HideCharacter(char)
         else
@@ -12870,7 +11568,6 @@ end end
             ShowCharacter()
             EnsureCharacterVisible(char)
         end
-
         if char.Parent == nil then
             return false, "nhân vật đã hồi sinh khi tải đồ; bấm Mặc LOCAL lại"
         elseif copied or applied then
@@ -12883,8 +11580,6 @@ end end
             return false, tostring(err or detail or "không áp được trang phục LOCAL")
         end
     end
-
-    -- 🌐 Mặc / Khôi phục SERVER (từ script.js1.js: yêu cầu OutfitServer.server.lua trong ServerScriptService)
     function PI.ServerOutfitAction(action, uid)
         local remote = game:GetService("ReplicatedStorage"):FindFirstChild("BC_OutfitRequest")
         if not remote or not remote:IsA("RemoteFunction") then
@@ -12894,32 +11589,23 @@ end end
         if not sent then return false, tostring(success) end
         return success == true, tostring(message or (success and "Đã gửi yêu cầu SERVER" or "Yêu cầu SERVER thất bại"))
     end
-
-    -- 👕 Lấy Skin (từ script.js): luôn thực hiện bước Lấy Skin TRƯỚC, nếu đang bật cả Mặc LOCAL thì tự chạy Mặc LOCAL SAU!
     function PI.ApplySkin(rec, onlySkinStep)
         print("[BC_Skin] ApplySkin (Bước Lấy Skin TRƯỚC) rec", rec and rec.id or "nil", rec and rec.name or "")
         if type(rec) ~= "table" or (rec.desc == nil and rec.id == nil) then return false, "chưa tra cứu người nào có skin (bấm 🔍 trước)" end
         local char, hum, rigType = PI.GetCharacterAndHumanoid(player)
         if not char then return false, "chưa có nhân vật (đợi load xong, thử lại sau 1s)" end
-
         PI.executionLog = PI.executionLog or {}
         table.insert(PI.executionLog, "skin")
-
-        -- Hiện lại nhân vật thật trước khi lưu trạng thái gốc để tránh lưu nhầm Transparency = 1
         if next(PI._skinHidden) ~= nil then
             ShowCharacter()
         end
         PI.SaveOriginalState(char, hum)
-
-        -- BƯỚC 1: Dựng model Lấy Skin (fake rig) TRƯỚC
         local fake, ferr, fakeDesc, avatarSource = PI.BuildAvatarModel(rec, "BC_SkinFake_" .. tostring(rec.id or "avatar"), rigType)
         if not rec.desc and fakeDesc then rec.desc = fakeDesc end
-
         pcall(function() if PI._skinFake then PI._skinFake:Destroy() end end)
         PI._skinFake = nil
         if PI._skinStepped then pcall(function() PI._skinStepped:Disconnect() end) PI._skinStepped = nil end
         if PI._skinHeartbeat then pcall(function() PI._skinHeartbeat:Disconnect() end) PI._skinHeartbeat = nil end
-
         print("[BC_Skin] fake", fake and "có" or "nil", "source", avatarSource, "err", ferr)
         if fake then
             pcall(function()
@@ -12927,7 +11613,6 @@ end end
                 PI.ApplyVisuals(fake, fVis)
                 PI.CleanupVisuals(fVis)
             end)
-            -- Đảm bảo các phụ kiện có sẵn trên fake rig được hàn (weld) chắc chắn trên Client
             pcall(function()
                 local fHum = fake:FindFirstChildOfClass("Humanoid")
                 for _, item in ipairs(fake:GetChildren()) do
@@ -12936,7 +11621,6 @@ end end
                     end
                 end
             end)
-            -- chuẩn bị PrimaryPart trước khi Parent
             pcall(function()
                 if not fake.PrimaryPart then
                     local cand = fake:FindFirstChild("HumanoidRootPart") or fake:FindFirstChild("Torso") or fake:FindFirstChild("UpperTorso") or fake:FindFirstChildWhichIsA("BasePart", true)
@@ -12952,7 +11636,6 @@ end end
                 fake.Parent = workspace
                 print("[BC_Skin] fake Parent workspace, PrimaryPart", fake.PrimaryPart and fake.PrimaryPart.Name or "nil")
             end)
-            -- nếu game xóa Humanoid làm fake mất, thử lại không Humanoid
             if not fake.Parent then
                 warn("[BC_Skin] fake Parent nil sau khi gán, thử lại không Humanoid")
                 pcall(function()
@@ -12964,7 +11647,6 @@ end end
             PI._skinFake = fake
             pcall(function() PI.DiagnoseClothes(fake, fakeDesc or rec.desc) end)
             makeFakeVisible(fake, rigType)
-            -- chỉ ẩn char SAU khi đặt fake xong và StartSkinFollow thành công
             local cf, _ = getCharPivot(char)
             if cf then
                 pcall(function() fake:PivotTo(cf) end)
@@ -13005,7 +11687,6 @@ end end
             ShowCharacter()
             return false, "không tạo được model: "..tostring(ferr).." (thử người khác hoặc người đang trong server)"
         end
-
         PI.skinActive = true
         PI.skinId = rec.id
         PI.skinRec = rec
@@ -13013,8 +11694,6 @@ end end
         PI.appliedId = rec.id
         PI.appliedMode = PI.localActive and "both" or "skin"
         PI._lastAppliedChar = char
-
-        -- BƯỚC 2: Nếu người dùng đang bật sẵn Mặc LOCAL (hoặc bật trước đó), tự chạy lại Mặc LOCAL SAU khi Lấy Skin đã xong!
         if not onlySkinStep and PI.localActive then
             local targetLocalRec = PI.localRec or rec
             local okL, msgL = PI.ApplyLocal(targetLocalRec)
@@ -13022,19 +11701,14 @@ end end
             if PI.RefreshButtons then pcall(PI.RefreshButtons) end
             return true, "1️⃣ Lấy Skin trước -> 2️⃣ Mặc LOCAL sau (" .. tostring(msgL or "thấy rõ, theo bạn") .. ")"
         end
-
         if D.SyncOutfitPanel then pcall(D.SyncOutfitPanel) end
         if PI.RefreshButtons then pcall(PI.RefreshButtons) end
         return true, "fake (thấy rõ, theo bạn)"
     end
-
-    -- ✨ Bật CẢ 2 CÙNG LÚC: Chạy 1️⃣ Lấy Skin TRƯỚC -> rồi mới tới 2️⃣ Mặc LOCAL SAU!
     function PI.ApplyBoth(rec)
         print("[BC_Skin] ApplyBoth: 1) Lấy Skin TRƯỚC -> 2) Mặc LOCAL SAU", rec and rec.id or "nil")
         PI.executionLog = {}
-        -- Bước 1: Chạy Lấy Skin TRƯỚC
         local okSkin, skinMsg = PI.ApplySkin(rec, true)
-        -- Bước 2: Chạy Mặc LOCAL SAU
         local okLocal, localMsg = PI.ApplyLocal(rec)
         if okSkin and okLocal then
             PI.skinActive = true
@@ -13055,8 +11729,6 @@ end end
             return false, tostring(skinMsg or localMsg or "không áp được")
         end
     end
-
-    -- 👥 Tạo nhân vật ảo độc lập đứng ngoài Map từ skin đã xoá/lọc của người chơi (đồng bộ 100% hành động/emote với nhân vật của bạn!)
     function PI.SpawnVirtualAvatar(rec, isRefresh)
         if type(rec) ~= "table" or (rec.desc == nil and rec.id == nil) then
             return false, "chưa có dữ liệu người chơi để tạo nhân vật ảo"
@@ -13114,7 +11786,6 @@ end end
         if PI.RefreshButtons then pcall(PI.RefreshButtons) end
         return true, string.format("nhân vật ảo @%s (giữ %d/%d món, đã xoá %d món · đồng bộ hành động)", tostring(rec.name or rec.id), kept, total, deleted)
     end
-
     function PI.ClearVirtualAvatar()
         local hadMap = (PI._virtualAvatar ~= nil)
         StopVirtualAvatarSync()
@@ -13128,7 +11799,6 @@ end end
         if PI.RefreshButtons then pcall(PI.RefreshButtons) end
         return hadMap, hadMap and "Đã xoá nhân vật ảo trên map" or "Chưa có nhân vật ảo nào trên map"
     end
-
     function PI.ResetSkin()
         print("[BC_Skin] ResetSkin")
         local hadVirtualMap = (PI._virtualAvatar ~= nil)
@@ -13150,7 +11820,6 @@ end end
         StopSkinFollow()
         local char, hum = PI.GetCharacterAndHumanoid(player)
         local restoredLocal = false
-        -- Khôi phục bố cục cơ thể / quần áo / phụ kiện / màu da / mặt từ bản lưu cục bộ (không gọi ApplyDescriptionReset làm mất đồng bộ Animator!)
         if char and PI.localSaved and PI.localSaved.character == char then
             for _, item in ipairs(PI.OutfitParts(char)) do
                 if not PI.IsInGameSupportedSkinItem(item, char) then
@@ -13194,7 +11863,6 @@ end end
         if PI.RefreshButtons then pcall(PI.RefreshButtons) end
         return true, restoredLocal and "Đã khôi phục skin & trang phục LOCAL gốc" or nil
     end
-
     local function ReapplyActiveSkinToNewChar(newChar)
         if not PI.isApplied or not PI.appliedId then return end
         local wantSkin = PI.skinActive
@@ -13222,7 +11890,6 @@ end end
         if D.SyncOutfitPanel then pcall(D.SyncOutfitPanel) end
         if PI.RefreshButtons then pcall(PI.RefreshButtons) end
     end
-
     pcall(function()
         trackConn(player.CharacterAdded:Connect(function(newChar)
             if not PI.isApplied or not PI.appliedId then return end
@@ -13231,7 +11898,6 @@ end end
             task.wait(0.2)
             ReapplyActiveSkinToNewChar(newChar)
         end))
-        -- Hỗ trợ game Evade: tự phát hiện khi nhân vật mới được tạo trong workspace.Game.Players và giữ cho Mặc LOCAL luôn hiện rõ (không bị ẩn skin)!
         if PI._evadeLocalGuardConn then pcall(function() PI._evadeLocalGuardConn:Disconnect() end) end
         PI._evadeLocalGuardConn = trackConn(RunService.Heartbeat:Connect(function()
             if not (PI.isApplied and (PI.localActive or PI.skinActive)) then return end
@@ -13252,8 +11918,6 @@ end end
             end)
         end))
     end)
-
-    -- Kéo chuột trái (hoặc chạm) trong khung 3D để xoay; cuộn để zoom
     vp.InputBegan:Connect(function(input)
         local t = input.UserInputType
         if t == Enum.UserInputType.MouseButton1 or t == Enum.UserInputType.Touch then PI.view.drag = true end
@@ -13274,7 +11938,6 @@ end end
             PI.ViewerZoom(input.Position.Z > 0 and 0.89 or 1.12)
         end
     end))
-    -- Tự xoay (chỉ khi có model và không đang kéo)
     local okSpin = pcall(function()
         RunService:BindToRenderStep(PI.SPIN_BIND, Enum.RenderPriority.Last.Value, function(dt)
             local v = PI.view
@@ -13284,22 +11947,18 @@ end end
             end
         end)
     end)
-
     local vBtnL = pAct("⟲ Trái", 8, 274, 46, C.GRAY)
     local vBtnR = pAct("Phải ⟳", 58, 274, 46, C.GRAY)
     local vBtnIn = pAct("➕ Gần", 108, 274, 46, C.GRAY)
     local vBtnOut = pAct("➖ Xa", 158, 274, 46, C.GRAY)
     local autoBtn = pAct("", 8, 296, 96, C.GREEN)
     local resetBtn = pAct("🎯 Đặt lại góc", 108, 296, 96, C.GRAY)
-
     local function refreshAutoBtn()
         autoBtn.Text = PI.view.auto and "🔄 Tự xoay: BẬT" or "🔄 Tự xoay: TẮT"
         autoBtn.BackgroundColor3 = PI.view.auto and C.GREEN or C.SURFACE3
         autoBtn.TextColor3 = D.BestText(autoBtn.BackgroundColor3)
     end
     refreshAutoBtn()
-
-    -- Thông tin
     local rows = {}
     local ROW_NAMES = { "name", "display", "id", "created", "presence", "server", "flags", "desc" }
     local ROW_TITLES = { "Tên", "Tên hiển thị", "UserId", "Ngày tạo", "Trạng thái", "Trong server này", "Huy hiệu / Cấm", "Mô tả" }
@@ -13310,11 +11969,9 @@ end end
             TextSize = 9, TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top,
             TextWrapped = key == "desc", ZIndex = 7, }, P)
     end
-
     local function setRow(key, title, value)
         if rows[key] then rows[key].Text = title .. ": " .. tostring(value) end
     end
-
     local function render(rec)
         thumbImg.Image = (type(rec.thumb) == "string") and rec.thumb or ""
         setRow("name", "Tên", "@" .. rec.name)
@@ -13329,7 +11986,6 @@ end end
         thumbImg.Visible = not okV
         return okV, verr
     end
-
     local function clearRows()
         thumbImg.Image = ""
         thumbImg.Visible = true
@@ -13337,7 +11993,6 @@ end end
         PI.view.model = nil
         for i, key in ipairs(ROW_NAMES) do rows[key].Text = ROW_TITLES[i] .. ": —" end
     end
-
     local function startLookup(afterCb)
         local q = trimStr(queryIn.Text)
         if q == "" then setStatus("⚠️ Chưa nhập tên hoặc UserId", C.YELLOW) return end
@@ -13363,8 +12018,6 @@ end end
             end
         end)
     end
-
-    -- Cụm nút hành động bên cột phải (x = 236..460, dưới bảng thông tin y = 205, KHÔNG đè lên các nút xoay 3D ở x = 8..228)
     local copyProfBtn    = pAct("📋 Link", 236, 212, 62, C.GRAY)
     local copyIdBtn      = pAct("🔗 ID", 302, 212, 62, C.GRAY)
     local serverSkinBtn  = pAct("🌐 SERVER", 368, 212, 68, C.BLUE)
@@ -13374,12 +12027,10 @@ end end
     local resetSkinBtn   = pAct("↩ Trả Skin", 338, 256, 98, C.GRAY)
     local saveSkinTopBtn = pAct("💾 Lưu Skin", 236, 278, 98, C.BLUE)
     local saveUseTopBtn  = pAct("⚡ Lưu Skin Dùng", 338, 278, 98, C.YELLOW)
-
     local skinStatusLbl = New("TextLabel", { Name = "HubPlayerInfo_SkinStatus", Size = UDim2.new(1, -244, 0, 42), Position = UDim2.new(0, 236, 0, 300),
         Text = "✨ Bấm Cả 2 Cùng Lúc sẽ chạy 1️⃣ Lấy Skin trước -> 2️⃣ Mặc LOCAL sau. Bấm ⚡ Lưu Skin Dùng để tự mặc khi mở script.",
         TextWrapped = true, BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium,
         TextSize = 8, TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, ZIndex = 7, }, P)
-
     local function refreshSkinButtons()
         local sOn = PI.skinActive == true
         local lOn = PI.localActive == true
@@ -13406,13 +12057,10 @@ end end
         if rec and rec.desc then pcall(function() PI.ViewerBuild(rec) end) end
         refreshSkinButtons()
     end
-
     local function requireLast()
         if PI.last == nil then setStatus("⚠️ Hãy tra cứu một người chơi trước", C.YELLOW) return nil end
         return PI.last
     end
-
-    -- Hỗ trợ bấm Mặc LOCAL hoặc Lấy Skin trực tiếp ngay khi vừa nhập tên (giống script.js1.js)
     local function withTargetRec(cb)
         local q = trimStr(queryIn.Text)
         if q == "" and D.OutfitInput then
@@ -13431,10 +12079,8 @@ end end
             setStatus("⚠️ Hãy nhập tên/UserId hoặc bấm 🔍 Tra cứu trước", C.YELLOW)
         end
     end
-
     searchBtn.Activated:Connect(function() ReleaseHubFocus() startLookup() end)
     queryIn.FocusLost:Connect(function(enter) if enter then startLookup() end end)
-
     clearBtn.Activated:Connect(function()
         ReleaseHubFocus()
         PI.reqId = PI.reqId + 1  -- huỷ kết quả đang chờ
@@ -13444,8 +12090,6 @@ end end
         if PI.ClearSkinClassUI then pcall(PI.ClearSkinClassUI) end
         setStatus("Đã xoá. Nhập tên khác rồi bấm 🔍.", C.MUTED)
     end)
-
-    -- 👕 Lấy Skin (luôn chạy bước Lấy Skin TRƯỚC; nếu Mặc LOCAL đang bật thì tự chạy Mặc LOCAL SAU!)
     applySkinBtn.Activated:Connect(function()
         ReleaseHubFocus()
         withTargetRec(function(rec)
@@ -13476,8 +12120,6 @@ end end
             end
         end)
     end)
-
-    -- 👕 Mặc LOCAL (chạy độc lập HOẶC chạy SAU 👕 Lấy Skin nếu Lấy Skin đang bật)
     applyLocalBtn.Activated:Connect(function()
         ReleaseHubFocus()
         withTargetRec(function(rec)
@@ -13508,8 +12150,6 @@ end end
             end
         end)
     end)
-
-    -- ✨ Cả 2 Cùng Lúc: chạy 1️⃣ Lấy Skin TRƯỚC -> rồi mới chạy 2️⃣ Mặc LOCAL SAU!
     applyBothBtn.Activated:Connect(function()
         ReleaseHubFocus()
         withTargetRec(function(rec)
@@ -13535,8 +12175,6 @@ end end
             end
         end)
     end)
-
-    -- 🌐 Mặc SERVER (từ script.js1.js: gửi yêu cầu qua BC_OutfitRequest nếu game có cài OutfitServer)
     serverSkinBtn.Activated:Connect(function()
         ReleaseHubFocus()
         withTargetRec(function(rec)
@@ -13551,8 +12189,6 @@ end end
             end)
         end)
     end)
-
-    -- ↩ Trả Skin / Khôi phục LOCAL
     resetSkinBtn.Activated:Connect(function()
         ReleaseHubFocus()
         local ok, err = PI.ResetSkin()
@@ -13572,8 +12208,6 @@ end end
             end
         end
     end)
-
-    -- 💾 Lưu Skin (nút trên bảng Tra cứu & Xem 3D)
     saveSkinTopBtn.Activated:Connect(function()
         ReleaseHubFocus()
         withTargetRec(function(rec)
@@ -13588,8 +12222,6 @@ end end
             end
         end)
     end)
-
-    -- ⚡ Lưu Skin Dùng (nút trên bảng Tra cứu & Xem 3D: lưu + mặc ngay + tự động mặc khi chạy lại script)
     saveUseTopBtn.Activated:Connect(function()
         ReleaseHubFocus()
         withTargetRec(function(rec)
@@ -13605,8 +12237,6 @@ end end
             pcall(function() PI.ViewerBuild(rec) end)
         end)
     end)
-
-    -- Tự động cập nhật trạng thái skin & bảng Phân loại skin khi đổi người tra cứu
     pcall(function()
         local _origRender = render
         render = function(rec)
@@ -13633,14 +12263,12 @@ end end
             return okV, verr
         end
     end)
-
     PI.OnSavedRecLoaded = function(rec)
         if type(rec) == "table" then
             if rec.name and queryIn then queryIn.Text = tostring(rec.name) end
             pcall(render, rec)
         end
     end
-
     PI.OnAutoUseApplied = function(ok, msg, rec, entry)
         refreshSkinButtons()
         if PI.RefreshSavedSkinsUI then pcall(PI.RefreshSavedSkinsUI) end
@@ -13656,14 +12284,12 @@ end end
             setStatus("⚠️ Tự mặc Skin Dùng: " .. tostring(msg), C.YELLOW)
         end
     end
-
     vBtnL.Activated:Connect(function() ReleaseHubFocus() PI.view.yaw = PI.view.yaw + 0.5 PI.ViewerUpdate() end)
     vBtnR.Activated:Connect(function() ReleaseHubFocus() PI.view.yaw = PI.view.yaw - 0.5 PI.ViewerUpdate() end)
     vBtnIn.Activated:Connect(function() ReleaseHubFocus() PI.ViewerZoom(0.85) end)
     vBtnOut.Activated:Connect(function() ReleaseHubFocus() PI.ViewerZoom(1.18) end)
     autoBtn.Activated:Connect(function() ReleaseHubFocus() PI.view.auto = not PI.view.auto refreshAutoBtn() end)
     resetBtn.Activated:Connect(function() ReleaseHubFocus() PI.ViewerReset() end)
-
     copyProfBtn.Activated:Connect(function()
         ReleaseHubFocus()
         local rec = requireLast() if not rec then return end
@@ -13672,7 +12298,6 @@ end end
         if type(setclipboard) == "function" then did = pcall(setclipboard, url) end
         setStatus(did and ("📋 Đã copy: " .. url) or ("🔗 " .. url .. " (executor không có setclipboard)"), did and C.GREEN or C.YELLOW)
     end)
-
     copyIdBtn.Activated:Connect(function()
         ReleaseHubFocus()
         local rec = requireLast() if not rec then return end
@@ -13680,7 +12305,6 @@ end end
         if type(setclipboard) == "function" then did = pcall(setclipboard, tostring(rec.id)) end
         setStatus(did and ("📋 Đã copy UserId " .. tostring(rec.id)) or ("UserId: " .. tostring(rec.id)), did and C.GREEN or C.YELLOW)
     end)
-
     -- ===== PHẦN DƯỚI TRA CỨU & XEM 3D: 🗂️ PHÂN LOẠI SKIN · XOÁ MÓN & TẠO NHÂN VẬT ẢO + 💾 LƯU SKIN & ⚡ LƯU SKIN DÙNG =====
     ;(function()
         local SH = 484
@@ -13690,15 +12314,12 @@ end end
             LayoutOrder = 6, BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, BorderSizePixel = 0, ZIndex = 6,
         }, D.playerTab) D.playerY = (D.playerY or 424) + SH + 8
         Corner(SP, UDim.new(0, 10)) Stroke(SP, C.HAIRLINE, 1) D.Shade(SP, Color3.fromRGB(255, 255, 255), Color3.fromRGB(188, 192, 205), 90)
-
         New("TextLabel", { Size = UDim2.new(1, -170, 0, 14), Position = UDim2.new(0, 8, 0, 4),
             Text = "🗂️ PHÂN LOẠI SKIN · XOÁ MÓN · TẠO NHÂN VẬT ẢO & LƯU SKIN", BackgroundTransparency = 1,
             TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7, }, SP)
-
         local summaryBadge = New("TextLabel", { Name = "HubSkinClass_Summary", Size = UDim2.new(0, 160, 0, 14), Position = UDim2.new(1, -168, 0, 4),
             Text = "Giữ: —/— món · Đã xoá: 0", BackgroundTransparency = 1,
             TextColor3 = C.MUTED, Font = Enum.Font.GothamBold, TextSize = 8, TextXAlignment = Enum.TextXAlignment.Right, ZIndex = 7, }, SP)
-
         local function sAct(txt, x, y, w, h, color, parent, name)
             local bh = math.min(h or 18, 18)
             local b = New("TextButton", {
@@ -13708,8 +12329,6 @@ end end
             Corner(b, UDim.new(0, 4)) D.Shade(b, Color3.fromRGB(255, 255, 255), Color3.fromRGB(182, 187, 201), 90)
             D.Tactile(b, 0.08) return b
         end
-
-        -- Hàng 1: Ô nhập tên / UserId để hiển thị thông tin người chơi & phân loại các loại skin của người đó
         local skinQueryIn = New("TextBox", {
             Name = "HubSkinClass_Query", Size = UDim2.new(0, 224, 0, 18), Position = UDim2.new(0, 8, 0, 22), Text = "",
             PlaceholderText = "Nhập tên người chơi / UserId để phân loại skin...",
@@ -13717,30 +12336,23 @@ end end
             PlaceholderColor3 = C.GRAY, Font = Enum.Font.GothamMedium, TextSize = 9, TextXAlignment = Enum.TextXAlignment.Left,
             BorderSizePixel = 0, ZIndex = 7, }, SP)
         Corner(skinQueryIn, UDim.new(0, 5)) New("UIPadding", { PaddingLeft = UDim.new(0, 6) }, skinQueryIn)
-
         local classifyBtn  = sAct("🔍 Phân loại", 236, 22, 68, 18, C.GREEN, SP, "HubSkinClass_ClassifyBtn")
         local selfSkinBtn  = sAct("👤 Skin tôi", 308, 22, 60, 18, C.BLUE, SP, "HubSkinClass_SelfBtn")
         local clearSkinBtn = sAct("✕ Xoá ô", 372, 22, 58, 18, C.RED, SP, "HubSkinClass_ClearBtn")
-
-        -- Hàng 2: Khung thông tin người chơi + tổng quan các loại skin
         local infoBox = New("Frame", {
             Name = "HubSkinClass_InfoBox", Size = UDim2.new(1, -16, 0, 34), Position = UDim2.new(0, 8, 0, 46),
             BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.08, BorderSizePixel = 0, ZIndex = 7, }, SP)
         Corner(infoBox, UDim.new(0, 6)) Stroke(infoBox, C.HAIRLINE, 1)
-
         local infoUserLbl = New("TextLabel", {
             Name = "HubSkinClass_UserInfo", Size = UDim2.new(1, -12, 0, 15), Position = UDim2.new(0, 6, 0, 2),
             Text = "👤 Người chơi: — (Nhập tên người chơi rồi bấm 🔍 Phân loại hoặc Enter)",
             BackgroundTransparency = 1, TextColor3 = C.DARK, Font = Enum.Font.GothamBold, TextSize = 8,
             TextXAlignment = Enum.TextXAlignment.Left, TextWrapped = false, ZIndex = 8, }, infoBox)
-
         local infoCatLbl = New("TextLabel", {
             Name = "HubSkinClass_CatInfo", Size = UDim2.new(1, -12, 0, 15), Position = UDim2.new(0, 6, 0, 17),
             Text = "📊 Phân loại skin: 🎩 Phụ kiện: — · 👕 Quần áo: — · 🙂 Đầu/Mặt: — · 🦾 Cơ thể: — · 🎨 Da/Dáng: —",
             BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium, TextSize = 8,
             TextXAlignment = Enum.TextXAlignment.Left, TextWrapped = false, ZIndex = 8, }, infoBox)
-
-        -- Hàng 3: Các nút Chip lọc theo từng loại skin của người chơi
         local CAT_DEFS = {
             { key = "all",       title = "📋 Tất cả",    x = 8,   w = 60 },
             { key = "accessory", title = "🎩 Phụ kiện",  x = 71,  w = 68 },
@@ -13753,59 +12365,42 @@ end end
         for _, cd in ipairs(CAT_DEFS) do
             catBtns[cd.key] = sAct(cd.title, cd.x, 84, cd.w, 17, C.SURFACE3)
         end
-
-        -- Hàng 4: Thanh công cụ xoá / khôi phục nhanh skin của người chơi
         local keepAllBtn = sAct("✔ Giữ hết skin", 8, 105, 92, 17, C.GREEN)
         local delCatBtn  = sAct("✖ Xoá nhóm đang chọn", 104, 105, 112, 17, C.YELLOW)
         local delAllBtn  = sAct("🗑️ Xoá sạch skin (Trơn)", 220, 105, 110, 17, C.RED)
         local invertBtn  = sAct("🔄 Đảo chọn", 334, 105, 72, 17, C.GRAY)
-
-        -- Hàng 5: Danh sách chi tiết các món skin đã phân loại (mỗi món có nút ✖ Xoá skin / ↩ Giữ lại)
         local accList = New("ScrollingFrame", {
             Name = "HubPlayerInfo_AccList", Size = UDim2.new(1, -16, 0, 144), Position = UDim2.new(0, 8, 0, 126),
             BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.08, BorderSizePixel = 0, ScrollBarThickness = 4,
             ScrollBarImageColor3 = C.GRAY, CanvasSize = UDim2.new(0, 0, 0, 0), ZIndex = 7, }, SP)
         Corner(accList, UDim.new(0, 6)) Stroke(accList, C.HAIRLINE, 1)
-
-        -- Hàng 6: Nút Tạo Nhân Vật Ảo từ skin đã xoá/chỉnh sửa
         local makeVirtualSkinBtn  = sAct("🧍 Tạo Nhân Vật Ảo (Theo Bạn)", 8, 274, 132, 18, C.PURPLE, SP, "HubSkinClass_MakeVirtualBtn")
         local spawnVirtualMapBtn  = sAct("👥 Đặt Nhân Vật Ảo Ra Map", 144, 274, 124, 18, C.ACCENT, SP, "HubSkinClass_SpawnVirtualBtn")
         local applyFilteredLocBtn = sAct("👕 Mặc LOCAL", 272, 274, 72, 18, C.GREEN, SP, "HubSkinClass_ApplyLocalBtn")
         local clearVirtualBtn     = sAct("🗑️ Xoá Ảo", 348, 274, 62, 18, C.GRAY, SP, "HubSkinClass_ClearVirtualBtn")
-
-        -- Hàng 7: 💾 LƯU SKIN & ⚡ LƯU SKIN DÙNG (tự động sử dụng skin khi chạy script)
         local saveSkinBtn     = sAct("💾 Lưu Skin", 8, 296, 110, 18, C.BLUE, SP, "HubSkinClass_SaveBtn")
         local saveUseSkinBtn  = sAct("⚡ Lưu Skin Dùng (Tự Mặc)", 122, 296, 166, 18, C.YELLOW, SP, "HubSkinClass_SaveUseBtn")
         local clearUseSkinBtn = sAct("🚫 Tắt Tự Dùng", 292, 296, 94, 18, C.GRAY, SP, "HubSkinClass_ClearUseBtn")
-
-        -- Hàng 8: Thanh hiển thị Skin Dùng hiện tại + Tổng số skin đã lưu
         local autoUseBannerLbl = New("TextLabel", {
             Name = "HubSkinClass_AutoUseBanner", Size = UDim2.new(1, -16, 0, 16), Position = UDim2.new(0, 8, 0, 326),
             Text = "⚡ Skin Dùng Khi Chạy Script: Chưa bật (bấm '⚡ Lưu Skin Dùng' trên skin bất kỳ để tự mặc khi chạy script)",
             BackgroundTransparency = 1, TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 8,
             TextXAlignment = Enum.TextXAlignment.Left, TextWrapped = false, ZIndex = 7, }, SP)
-
-        -- Hàng 9: Danh sách các Skin đã lưu (bấm ▶ Mặc để dùng ngay, ⚡ Tự Dùng để đặt làm skin tự mặc khi mở script, ✕ để xoá)
         local savedSkinsList = New("ScrollingFrame", {
             Name = "HubSkinClass_SavedList", Size = UDim2.new(1, -16, 0, 102), Position = UDim2.new(0, 8, 0, 344),
             BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.08, BorderSizePixel = 0, ScrollBarThickness = 4,
             ScrollBarImageColor3 = C.GRAY, CanvasSize = UDim2.new(0, 0, 0, 0), ZIndex = 7, }, SP)
         Corner(savedSkinsList, UDim.new(0, 6)) Stroke(savedSkinsList, C.HAIRLINE, 1)
-
-        -- Hàng 10: Dòng trạng thái Phân loại skin & Nhân vật ảo & Lưu skin
         local scStatusLbl = New("TextLabel", {
             Name = "HubSkinClass_Status", Size = UDim2.new(1, -16, 0, 28), Position = UDim2.new(0, 8, 0, 450),
             Text = "💡 Nhập tên người chơi -> xoá món tuỳ ý -> bấm '💾 Lưu Skin' hoặc '⚡ Lưu Skin Dùng' để tự mặc khi mở script!",
             TextWrapped = true, BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium,
             TextSize = 8, TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, ZIndex = 7, }, SP)
-
         local function setScStatus(text, color)
             scStatusLbl.Text = tostring(text or "")
             scStatusLbl.TextColor3 = color or C.MUTED
         end
-
         local accRows = {} -- idx -> { label, btn }
-
         local function refreshCatChips(rec)
             local counts = (type(rec) == "table" and type(rec.catCounts) == "table") and rec.catCounts or nil
             for _, cd in ipairs(CAT_DEFS) do
@@ -13819,7 +12414,6 @@ end end
                 end
             end
         end
-
         local function refreshSkinSummary(rec)
             refreshCatChips(rec)
             if type(rec) ~= "table" then
@@ -13839,7 +12433,6 @@ end end
             infoCatLbl.Text = string.format("📊 🎩 Phụ kiện: %d · 👕 Quần áo: %d · 🙂 Đầu/Mặt: %d · 🦾 Cơ thể: %d · 📐 %s",
                 cc.accessory or 0, cc.clothing or 0, cc.headface or 0, cc.bodypart or 0, tostring(rec.bodySummary or "Mặc định"))
         end
-
         local function refreshSkinRow(rec, item)
             local r = accRows[item.idx]
             if not r then return end
@@ -13862,7 +12455,6 @@ end end
             r.btn.BackgroundColor3 = kept and C.RED or C.GREEN
             r.btn.TextColor3 = D.BestText(r.btn.BackgroundColor3)
         end
-
         local function renderSkinList(rec)
             for _, ch in ipairs(accList:GetChildren()) do
                 if ch:IsA("GuiObject") then ch:Destroy() end
@@ -13909,7 +12501,6 @@ end end
                 refreshSkinRow(rec, item)
             end
         end
-
         local function loadSkinNames(rec)
             task.spawn(function()
                 for _, item in ipairs((type(rec) == "table" and rec.skinItems) or {}) do
@@ -13926,7 +12517,6 @@ end end
                 end
             end)
         end
-
         local function syncLiveAvatarsAfterFilter(rec)
             task.spawn(function()
                 local okV, verr = PI.ViewerBuild(rec)
@@ -13944,7 +12534,6 @@ end end
                     tostring(rec.name or rec.id), kept, total, deleted), C.GREEN)
             end)
         end
-
         function PI.SetKeep(rec, idx, keep)
             if type(rec) ~= "table" then return end
             PI.EnsureSkinItems(rec)
@@ -13954,7 +12543,6 @@ end end
             refreshSkinSummary(rec)
             syncLiveAvatarsAfterFilter(rec)
         end
-
         function PI.SetKeepAll(rec, keep, categoryFilter)
             if type(rec) ~= "table" then return end
             local list = PI.EnsureSkinItems(rec)
@@ -13969,7 +12557,6 @@ end end
             refreshSkinSummary(rec)
             syncLiveAvatarsAfterFilter(rec)
         end
-
         function PI.InvertKeep(rec, categoryFilter)
             if type(rec) ~= "table" then return end
             local list = PI.EnsureSkinItems(rec)
@@ -13983,12 +12570,10 @@ end end
             refreshSkinSummary(rec)
             syncLiveAvatarsAfterFilter(rec)
         end
-
         function PI.SetCategoryFilter(catKey)
             PI.activeCategory = tostring(catKey or "all")
             renderSkinList(PI.last)
         end
-
         PI.RenderSkinClass = function(rec)
             if rec and rec.name then
                 skinQueryIn.Text = tostring(rec.name)
@@ -14001,13 +12586,11 @@ end end
                     total, tostring(rec.name or rec.id), kept, deleted), C.GREEN)
             end
         end
-
         PI.ClearSkinClassUI = function()
             skinQueryIn.Text = ""
             renderSkinList(nil)
             setScStatus("Đã xoá. Nhập tên người chơi khác để phân loại skin & tạo nhân vật ảo.", C.MUTED)
         end
-
         for _, cd in ipairs(CAT_DEFS) do
             local b = catBtns[cd.key]
             if b then
@@ -14017,7 +12600,6 @@ end end
                 end)
             end
         end
-
         local function triggerFromSkinPanel(afterCb)
             local q = trimStr(skinQueryIn.Text)
             if q == "" then q = trimStr(queryIn.Text) end
@@ -14037,10 +12619,8 @@ end end
                 if type(afterCb) == "function" then pcall(afterCb, rec) end
             end)
         end
-
         classifyBtn.Activated:Connect(function() ReleaseHubFocus() triggerFromSkinPanel() end)
         skinQueryIn.FocusLost:Connect(function(enter) if enter then triggerFromSkinPanel() end end)
-
         selfSkinBtn.Activated:Connect(function()
             ReleaseHubFocus()
             if player and player.Name then
@@ -14049,7 +12629,6 @@ end end
                 startLookup()
             end
         end)
-
         clearSkinBtn.Activated:Connect(function()
             ReleaseHubFocus()
             PI.reqId = PI.reqId + 1
@@ -14058,32 +12637,26 @@ end end
             clearRows()
             PI.ClearSkinClassUI()
         end)
-
         keepAllBtn.Activated:Connect(function()
             ReleaseHubFocus()
             if not PI.last then setScStatus("⚠️ Hãy tra cứu người chơi trước!", C.YELLOW) return end
             PI.SetKeepAll(PI.last, true, "all")
         end)
-
         delCatBtn.Activated:Connect(function()
             ReleaseHubFocus()
             if not PI.last then setScStatus("⚠️ Hãy tra cứu người chơi trước!", C.YELLOW) return end
             PI.SetKeepAll(PI.last, false, PI.activeCategory or "all")
         end)
-
         delAllBtn.Activated:Connect(function()
             ReleaseHubFocus()
             if not PI.last then setScStatus("⚠️ Hãy tra cứu người chơi trước!", C.YELLOW) return end
             PI.SetKeepAll(PI.last, false, "all")
         end)
-
         invertBtn.Activated:Connect(function()
             ReleaseHubFocus()
             if not PI.last then setScStatus("⚠️ Hãy tra cứu người chơi trước!", C.YELLOW) return end
             PI.InvertKeep(PI.last, PI.activeCategory or "all")
         end)
-
-        -- 🧍 Tạo Nhân Vật Ảo (Theo Bạn) từ bộ skin đã xoá/chỉnh sửa
         makeVirtualSkinBtn.Activated:Connect(function()
             ReleaseHubFocus()
             triggerFromSkinPanel(function(rec)
@@ -14099,8 +12672,6 @@ end end
                 end
             end)
         end)
-
-        -- 👥 Đặt Nhân Vật Ảo Ra Map (đứng cạnh bạn trong Workspace với các món skin đã xoá)
         spawnVirtualMapBtn.Activated:Connect(function()
             ReleaseHubFocus()
             triggerFromSkinPanel(function(rec)
@@ -14113,8 +12684,6 @@ end end
                 end
             end)
         end)
-
-        -- 👕 Mặc LOCAL bộ skin đã xoá bớt món
         applyFilteredLocBtn.Activated:Connect(function()
             ReleaseHubFocus()
             triggerFromSkinPanel(function(rec)
@@ -14129,8 +12698,6 @@ end end
                 end
             end)
         end)
-
-        -- 🗑️ Xoá Nhân Vật Ảo / Khôi phục gốc
         clearVirtualBtn.Activated:Connect(function()
             ReleaseHubFocus()
             local hadMap = PI.ClearVirtualAvatar()
@@ -14142,7 +12709,6 @@ end end
                 setScStatus("ℹ️ Hiện chưa có Nhân Vật Ảo nào đang bật.", C.MUTED)
             end
         end)
-
         -- ===== KHO SKIN ĐÃ LƯU & LƯU SKIN DÙNG (TỰ MẶC KHI CHẠY SCRIPT) =====
         local function renderSavedSkinsList()
             for _, ch in ipairs(savedSkinsList:GetChildren()) do
@@ -14150,7 +12716,6 @@ end end
             end
             local list = type(PI.savedSkins) == "table" and PI.savedSkins or {}
             local autoEntry = type(PI.autoUseSkin) == "table" and PI.autoUseSkin or nil
-
             if autoEntry then
                 local autoModeTxt = (autoEntry.mode == "local" and "Mặc LOCAL") or (autoEntry.mode == "skin" and "Lấy Skin") or "Cả 2"
                 local delCnt = tonumber(autoEntry.deletedCount) or 0
@@ -14163,7 +12728,6 @@ end end
                 autoUseBannerLbl.Text = string.format("⚡ Skin Dùng Khi Chạy Script: CHƯA BẬT (Bấm '⚡ Lưu Skin Dùng' trên skin bất kỳ) · Đã lưu: %d skin", #list)
                 autoUseBannerLbl.TextColor3 = C.MUTED
             end
-
             savedSkinsList.CanvasSize = UDim2.new(0, 0, 0, math.max(28, #list * 26 + 4))
             if #list == 0 then
                 New("TextLabel", { Size = UDim2.new(1, -8, 0, 26), Position = UDim2.new(0, 4, 0, 2), BackgroundTransparency = 1,
@@ -14172,7 +12736,6 @@ end end
                     TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 8, }, savedSkinsList)
                 return
             end
-
             for idx, entry in ipairs(list) do
                 local isAuto = (autoEntry ~= nil and PI.IsSameSavedSkin(autoEntry, entry))
                 local row = New("Frame", {
@@ -14182,7 +12745,6 @@ end end
                     BorderSizePixel = 0, ZIndex = 8, }, savedSkinsList)
                 Corner(row, UDim.new(0, 5))
                 if isAuto then Stroke(row, C.GREEN, 1) end
-
                 local labelTxt = tostring(entry.label or ("@" .. tostring(entry.name or entry.id)))
                 if isAuto then labelTxt = "⚡ [ĐANG ĐẶT TỰ DÙNG] " .. labelTxt end
                 New("TextLabel", {
@@ -14190,16 +12752,12 @@ end end
                     TextColor3 = isAuto and C.GREEN or C.DARK, Font = isAuto and Enum.Font.GothamBold or Enum.Font.GothamMedium,
                     TextSize = 8, TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Center,
                     TextWrapped = false, Text = clipText(labelTxt, 50), ZIndex = 9, }, row)
-
-                -- Nút ▶ Mặc ngay skin đã lưu
                 local useBtn = New("TextButton", {
                     Name = "UseSavedSkinBtn_" .. tostring(idx),
                     Size = UDim2.new(0, 46, 0, 16), Position = UDim2.new(1, -144, 0, 3),
                     Text = "▶ Mặc", BackgroundColor3 = C.GREEN, TextColor3 = D.BestText(C.GREEN),
                     BorderSizePixel = 0, Font = Enum.Font.GothamBold, TextSize = 7, ZIndex = 10, }, row)
                 Corner(useBtn, UDim.new(0, 4)) D.Tactile(useBtn, 0.08)
-
-                -- Nút ⚡ Tự Dùng (đặt skin này làm Lưu Skin Dùng để tự mặc khi chạy script)
                 local autoUseRowBtn = New("TextButton", {
                     Name = "AutoUseSavedSkinBtn_" .. tostring(idx),
                     Size = UDim2.new(0, 64, 0, 16), Position = UDim2.new(1, -94, 0, 3),
@@ -14208,15 +12766,12 @@ end end
                     TextColor3 = D.BestText(isAuto and C.GREEN or C.YELLOW),
                     BorderSizePixel = 0, Font = Enum.Font.GothamBold, TextSize = 7, ZIndex = 10, }, row)
                 Corner(autoUseRowBtn, UDim.new(0, 4)) D.Tactile(autoUseRowBtn, 0.08)
-
-                -- Nút ✕ Xoá skin khỏi danh sách đã lưu
                 local delRowBtn = New("TextButton", {
                     Name = "DeleteSavedSkinBtn_" .. tostring(idx),
                     Size = UDim2.new(0, 24, 0, 16), Position = UDim2.new(1, -26, 0, 3),
                     Text = "✕", BackgroundColor3 = C.RED, TextColor3 = D.BestText(C.RED),
                     BorderSizePixel = 0, Font = Enum.Font.GothamBold, TextSize = 7, ZIndex = 10, }, row)
                 Corner(delRowBtn, UDim.new(0, 4)) D.Tactile(delRowBtn, 0.08)
-
                 useBtn.Activated:Connect(function()
                     ReleaseHubFocus()
                     local ok, msg = PI.ApplySavedSkinEntry(entry, entry.mode or "both")
@@ -14225,7 +12780,6 @@ end end
                     setScStatus((ok and "✅ Đã mặc skin đã lưu: " or "⚠️ ") .. tostring(msg), ok and C.GREEN or C.RED)
                     setStatus((ok and "✅ Đã mặc skin đã lưu: @" .. tostring(entry.name or entry.id) or "⚠️ " .. tostring(msg)), ok and C.GREEN or C.RED)
                 end)
-
                 autoUseRowBtn.Activated:Connect(function()
                     ReleaseHubFocus()
                     local ok, msg = PI.SetEntryAsAutoUse(entry, true)
@@ -14234,7 +12788,6 @@ end end
                     setScStatus((ok and "⚡ " or "⚠️ ") .. tostring(msg), ok and C.GREEN or C.RED)
                     setStatus((ok and "⚡ " or "⚠️ ") .. tostring(msg), ok and C.GREEN or C.RED)
                 end)
-
                 delRowBtn.Activated:Connect(function()
                     ReleaseHubFocus()
                     local ok, msg = PI.DeleteSavedSkin(idx)
@@ -14244,10 +12797,7 @@ end end
                 end)
             end
         end
-
         PI.RefreshSavedSkinsUI = renderSavedSkinsList
-
-        -- 💾 Lưu Skin (lưu bộ skin hiện tại + các món đã xoá vào Kho Skin Đã Lưu)
         saveSkinBtn.Activated:Connect(function()
             ReleaseHubFocus()
             triggerFromSkinPanel(function(rec)
@@ -14259,8 +12809,6 @@ end end
                 setStatus((ok and "💾 " or "⚠️ ") .. tostring(msg), ok and C.GREEN or C.RED)
             end)
         end)
-
-        -- ⚡ Lưu Skin Dùng (Tự Mặc): lưu skin + mặc ngay + tự động mặc mỗi khi chạy script
         saveUseSkinBtn.Activated:Connect(function()
             ReleaseHubFocus()
             triggerFromSkinPanel(function(rec)
@@ -14272,8 +12820,6 @@ end end
                 setStatus((ok and "⚡ " or "⚠️ ") .. tostring(msg), ok and C.GREEN or C.RED)
             end)
         end)
-
-        -- 🚫 Tắt Tự Dùng (huỷ tự động mặc skin khi chạy script)
         clearUseSkinBtn.Activated:Connect(function()
             ReleaseHubFocus()
             local ok, msg = PI.ClearAutoUseSkin()
@@ -14282,26 +12828,19 @@ end end
             setScStatus("🚫 " .. tostring(msg), C.YELLOW)
             setStatus("🚫 " .. tostring(msg), C.YELLOW)
         end)
-
         renderSkinList(nil)
         renderSavedSkinsList()
     end)()
-
     pcall(function()
         if D.playerTab then D.playerTab.CanvasSize = UDim2.new(0, 0, 0, (D.playerY or 600) + 16) end
     end)
-
-    -- ⚡ TỰ ĐỘNG SỬ DỤNG SKIN ĐÃ LƯU TRONG "LƯU SKIN DÙNG" NGAY KHI CHẠY SCRIPT!
     if type(PI.autoUseSkin) == "table" and tonumber(PI.autoUseSkin.id) then
         pcall(PI.AutoApplySavedUseSkin)
     end
 end)()
-
 _G.BananaCatHub_ObjTrack = S.ObjTrack   -- v5.1: cho script khác đọc trạng thái định vị vật
-
 do
     local setTab = AddTab("Thiết Lập", "⚙️", 6)   -- v4.15: 5 -> 6 (👥 chen vào ô 4)
-
     local sy = 8 local function rule(y)
         New("TextLabel", { Size = UDim2.new(1, -16, 0, 14), Position = UDim2.new(0, 8, 0, y),
             Text = "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", BackgroundTransparency = 1, TextColor3 = C.HAIRLINE, Font = Enum.Font.Gotham, TextSize = 8,
@@ -14322,12 +12861,9 @@ do
             TextColor3 = D.BestText(color or C.SURFACE3), Font = Enum.Font.GothamBold, TextSize = 8, BorderSizePixel = 0, ZIndex = 8,
         }, parent) Corner(b, UDim.new(0, 5))
         Stroke(b, D.Edge(color or C.SURFACE3), 0.22) return b end
-
-    -- ---------- [1] TÌNH TRẠNG LƯU TRỮ ----------
     local c1 = card("💾  LƯU TRỮ — dữ liệu của bạn đang nằm ở đâu?", 82) local stTitle = line(c1, "", 24, C.GRAY, 12)
     local stBody  = line(c1, "", 38, C.MUTED, 26) local saveNow = act(c1, "💾 Lưu ngay", 8, 56, 78, C.GREEN)
     local reload  = act(c1, "🔄 Đọc lại từ đĩa", 92, 56, 98)
-
     local function refreshStorage() local ns, nw, nf = #scripts, #waypoints, #featureTabs
         local canDisk = Store.canWrite() stTitle.TextColor3 = canDisk and C.GREEN or C.YELLOW
         if canDisk then stTitle.Text = "✅  ĐANG GHI XUỐNG ĐĨA THẬT"
@@ -14340,28 +12876,23 @@ do
         refreshStorage() flash(saveNow, ok and "✅ Đã lưu" or "❌ Lỗi", 1.4)
     end) reload.Activated:Connect(function()
         pcall(function() if S.DoReload then S.DoReload() end end) refreshStorage() end)
-
-    -- ---------- [2] XUẤT / NHẬP ----------
     local c2 = card("📤  SAO LƯU & CHUYỂN MÁY", 132) line(c2, "Xuất toàn bộ dữ liệu ra clipboard để dán sang máy/executor khác, hoặc nhập lại chuỗi đã lưu. Nhập là GHÉP theo tên — không ghi đè cái đang có.", 24, C.MUTED, 24)
     local expBtn = act(c2, "📤 Xuất ra clipboard", 8, 50, 110, C.BLUE) local paste = New("TextBox", {
         Size = UDim2.new(1, -16, 0, 44), Position = UDim2.new(0, 8, 0, 74), PlaceholderText = "Dán JSON đã xuất vào đây rồi bấm 📥 Nhập…", Text = "", BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.06,
         TextColor3 = C.DARK, PlaceholderColor3 = C.GRAY, Font = Enum.Font.Code, TextSize = 9, TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left,
         TextYAlignment = Enum.TextYAlignment.Top, ClearTextOnFocus = false, ZIndex = 7, }, c2)
     Corner(paste, UDim.new(0, 7)) Stroke(paste, C.HAIRLINE, 0.2) local impBtn = act(c2, "📥 Nhập", 124, 50, 56, C.GREEN)
-
     expBtn.Activated:Connect(function() local ok, json = pcall(function() return HttpService:JSONEncode(Store.serialize()) end)
         if not ok or type(json) ~= "string" then flash(expBtn, "❌ Lỗi JSON", 1.6)
             return end local done = S.CopyToClipboard(json)
         if not done then paste.Text = json
             flash(expBtn, "⚠️ Đã dán vào ô", 1.8) else
             flash(expBtn, "✅ Đã copy", 1.8) end end)
-
     impBtn.Activated:Connect(function() local txt = paste.Text
         if type(txt) ~= "string" or #txt < 2 then flash(impBtn, "⚠️ Trống", 1.6); return
         end local ok, data = pcall(function() return HttpService:JSONDecode(txt) end) local hasPayload = ok and type(data) == "table" and (
             type(data.scripts) == "table" or type(data.waypoints) == "table" or type(data.features) == "table" or type(data.settings) == "table")
         if not hasPayload then flash(impBtn, "❌ JSON sai", 1.8); return end
-
         local function uniqueName(base, used, fallback) local nm = tostring(base or "")
             if nm == "" then nm = fallback end if not used[nm] then
                 used[nm] = true return nm
@@ -14369,26 +12900,22 @@ do
             repeat nm = root .. " (" .. k .. ")"
                 k += 1 until not used[nm]
             used[nm] = true return nm end
-
         local haveScripts, addedScripts = {}, 0 for _, s in ipairs(scripts) do haveScripts[tostring(s.name)] = true end
         for _, s in ipairs(data.scripts or {}) do if type(s) == "table" and type(s.code) == "string" and #s.code > 0 then
                 local nm = uniqueName(s.name, haveScripts, "Script " .. (#scripts + 1)) scripts[#scripts + 1] = {
                     name = nm, code = S.SanitizeCode(s.code),
                     expanded = (s.expanded == true), }
                 addedScripts += 1 end end
-
         local haveWaypoints, addedWaypoints = {}, 0 for _, w in ipairs(waypoints) do haveWaypoints[tostring(w.name)] = true end
         for _, w in ipairs(data.waypoints or {}) do if type(w) == "table" and Store.isFinite(w.x) and Store.isFinite(w.y) and Store.isFinite(w.z) then
                 local nm = uniqueName(w.name, haveWaypoints, "WP " .. (#waypoints + 1)) waypoints[#waypoints + 1] = { name = nm,
                     pos = Vector3.new(w.x, w.y, w.z), }
                 addedWaypoints += 1 end end
-
         local haveFeatures, addedFeatures = {}, 0 for _, f in ipairs(featureTabs) do haveFeatures[tostring(f.name)] = true end
         for _, f in ipairs(data.features or {}) do if type(f) == "table" and type(f.code) == "string" and #f.code > 0 then
                 local nm = uniqueName(f.name, haveFeatures, "Tính Năng " .. (#featureTabs + 1)) local ic = tostring(f.icon or "⚙️")
                 CreateFeatureTab(nm, ic, S.SanitizeCode(f.code)) addedFeatures += 1
             end end
-
         if type(data.savedSkins) == "table" then
             Store.savedSkins = Store.savedSkins or {}
             for _, sk in ipairs(data.savedSkins) do
@@ -14400,7 +12927,6 @@ do
         if type(data.autoUseSkin) == "table" and (tonumber(data.autoUseSkin.id) or (type(data.autoUseSkin.name) == "string" and #data.autoUseSkin.name > 0)) then
             Store.autoUseSkin = data.autoUseSkin
         end
-
         if type(data.settings) == "table" then if type(data.settings.embedEnabled) == "boolean" then
                 S.embedEnabled = data.settings.embedEnabled end
             if type(data.settings.embedGuessNew) == "boolean" then S.embedGuessNew = data.settings.embedGuessNew
@@ -14409,7 +12935,6 @@ do
             if type(data.settings.hubFavs) == "table" then S.hubFavs = S.hubFavs or {}
                 for _, nm in ipairs(data.settings.hubFavs) do if tostring(nm) ~= "" then S.hubFavs[tostring(nm)] = true end
                 end end end
-
         pcall(function() RebuildScripts() end) pcall(function() RebuildWaypoints() end)
         pcall(function() RebuildFeatureList() end) pcall(function() if S.SyncEmbedToggles then S.SyncEmbedToggles() end end)
         pcall(function() if Store.restoreSkins then Store.restoreSkins() end end)
@@ -14419,8 +12944,6 @@ do
             pcall(S.PruneEmbeds) end
         refreshStorage() Store.saveSoon()
         paste.Text = "" flash(impBtn, string.format("✅ +%d script · +%d WP · +%d tab", addedScripts, addedWaypoints, addedFeatures), 2.4) end)
-
-    -- ---------- [3] MÔI TRƯỜNG EXECUTOR ----------
     local c3 = card("🖥  MÔI TRƯỜNG EXECUTOR", 74) local envTitle = line(c3, "", 24, C.DARK, 12)
     local envBody  = line(c3, "", 38, C.MUTED, 26) pcall(function()
         local nm, ver = "không rõ", "" if identifyexecutor then
@@ -14431,8 +12954,6 @@ do
             envBody.Text = "✅ Executor đủ mọi hàm hub cần — không phải bù gì." envBody.TextColor3 = C.GREEN
         else envBody.Text = "Hub đã tự bù " .. #miss .. " hàm còn thiếu: " .. table.concat(miss, ", ")
             envBody.TextColor3 = C.YELLOW end end)
-
-    -- ---------- [4] VÙNG NGUY HIỂM ----------
     local c4 = card("⚠️  VÙNG NGUY HIỂM", 64) line(c4, "Xoá sạch script đã lưu, waypoint và tab tính năng. Không hoàn tác được.", 24, C.MUTED, 14)
     local clearBtn = act(c4, "🗑 Xoá sạch dữ liệu", 8, 40, 112, C.RED) local armed = false
     clearBtn.Activated:Connect(function() if not armed then
@@ -14444,13 +12965,11 @@ do
         for i = #waypoints, 1, -1 do waypoints[i] = nil end pcall(function() RebuildScripts() end)
         pcall(function() if Store.restoreWaypoints then Store.restoreWaypoints() end end) Store.save()
         refreshStorage() flash(clearBtn, "✅ Đã xoá", 1.6) end)
-
     setTab.CanvasSize = UDim2.new(0, 0, 0, sy + 8) S.settingsTab = setTab
     S.settingsBtns = {save = saveNow, reload = reload, export = expBtn, import = impBtn, paste = paste, clear = clearBtn, statusTitle = stTitle, statusBody = stBody,
                       envTitle = envTitle, envBody = envBody, cardStorage = c1, cardEnv = c3}
     S.refreshStorageCard = refreshStorage   -- để chỗ khác gọi lại sau khi trạng thái lưu thay đổi
 end
-
 local function ToggleMainFrame() main.Visible = not main.Visible
     togBtn.Text = main.Visible and "✕" or ""
     if not main.Visible then ReleaseHubFocus() end   -- v4.4b: đóng menu là phải trả input cho game
@@ -14465,63 +12984,51 @@ local function ToggleMainFrame() main.Visible = not main.Visible
     end
     pcall(function() if S.PagePerf and S.PagePerf.OnMainVisibilityChanged then S.PagePerf.OnMainVisibilityChanged() end end)
 end
-
 closeBtn.Activated:Connect(function() pcall(function() if D.openTween then D.openTween:Cancel() D.openTween = nil end end)
     main.Visible = false togBtn.Text = ""
     ReleaseHubFocus()   -- v4.5: đóng bằng ✕ cũng phải trả input cho game (trước đây chỉ có nút  làm)
     pcall(function() if S.PagePerf and S.PagePerf.OnMainVisibilityChanged then S.PagePerf.OnMainVisibilityChanged() end end)
 end)
-
 dragLockBtn.Activated:Connect(function() S.dragMenu = not S.dragMenu
     if S.dragMenu then dragLockBtn.Text = "🔓"
         dragLockBtn.TextColor3 = C.ACCENT   -- v4.5: vàng accent thay vì xanh
     else dragLockBtn.Text = "🔒"
         dragLockBtn.TextColor3 = C.MUTED end
 end)
-
 trackConn(titleBar.InputBegan:Connect(function(i) if S.dragMenu and (i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch) then
         pcall(function() if D.openTween then D.openTween:Cancel() D.openTween = nil end end)  -- v4.5
         S.dragging=true S.dragStart=i.Position
         S.startPos=main.Position end
 end))
-
 trackConn(UserInputService.InputChanged:Connect(function(i) if S.dragging and S.startPos and S.dragStart and (i.UserInputType==Enum.UserInputType.MouseMovement or i.UserInputType==Enum.UserInputType.Touch) then
         local d=i.Position-S.dragStart main.Position=UDim2.new(S.startPos.X.Scale, S.startPos.X.Offset+d.X, S.startPos.Y.Scale, S.startPos.Y.Offset+d.Y)
     end end))
-
 trackConn(UserInputService.InputEnded:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then
         S.dragging=false end
 end))
-
 trackConn(togBtn.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
         if S.dragMenu then S.togDragging = true
             S.togDragStart = i.Position S.togStartPos = togBtn.Position
             S.togMoved = false end
     end end))
-
 trackConn(UserInputService.InputChanged:Connect(function(i) if S.togDragging and S.dragMenu and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
         local delta = i.Position - S.togDragStart if delta.Magnitude > 5 then
             S.togMoved = true end if S.togMoved then
             togBtn.Position = UDim2.new( S.togStartPos.X.Scale, S.togStartPos.X.Offset + delta.X,
                 S.togStartPos.Y.Scale, S.togStartPos.Y.Offset + delta.Y )
         end end end))
-
 trackConn(UserInputService.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
         if S.togDragging then S.togDragging = false
             if not S.togMoved then ToggleMainFrame()
             end end
     end end))
-
 togBtn.Activated:Connect(function() if not S.dragMenu then
         ToggleMainFrame() end
 end)
-
 trackConn(UserInputService.InputBegan:Connect(function(i, gp) if not gp and i.KeyCode == Enum.KeyCode.RightControl then
         ToggleMainFrame() end
 end))
-
 main.Visible = true togBtn.Text = "✕"
-
 print(string.format( "✅ taodepzai v5.0 NOIR — sẵn sàng! Đã nạp lại %d script + %d waypoint + %d tab tính năng từ bộ nhớ (chế độ: %s%s)",
     Store.loadedScripts, Store.loadedWp, #Store.loadedFeatures, Store.mode, Store.lastError and (" | ⚠️ " .. Store.lastError) or ""
 )) print("   💾 File lưu: " .. Store.SAVE_FILE .. " (trong thư mục workspace của executor — sống qua cả lần rejoin)")
