@@ -9610,6 +9610,12 @@ end end
     end
     function PI.ForceHideAndRemoveOwnItem(item)
         if not item then return end
+        local iname = tostring(item.Name or "")
+        local lnm = string.lower(iname)
+        -- BẢO VỆ TUYỆT ĐỐI: Không bao giờ ẩn/xoá hoặc ngắt khớp của HumanoidRootPart, Collider, Hitbox, các chi cơ thể hay Humanoid (đảm bảo nhân vật di chuyển bình thường 100%)!
+        if VISIBLE_LIMB_NAMES[iname] or HELPER_BOX_NAMES[lnm] or item:IsA("Humanoid") or item:IsA("Animator") then
+            return
+        end
         pcall(function()
             item:SetAttribute("BC_HiddenOriginalItem", true)
             item:SetAttribute("BC_GameSkinItem", nil)
@@ -9621,9 +9627,11 @@ end end
             elseif item:IsA("BasePart") then
                 item.Transparency = 1
                 item.LocalTransparencyModifier = 1
+                item.Anchored = false
                 item.CanCollide = false
                 item.CanTouch = false
                 item.CanQuery = false
+                item.Massless = true
                 pcall(function() item.Size = Vector3.new(0.001, 0.001, 0.001) end)
             end
             for _, d in ipairs(item:GetDescendants()) do
@@ -9636,9 +9644,11 @@ end end
                 elseif d:IsA("BasePart") then
                     d.Transparency = 1
                     d.LocalTransparencyModifier = 1
+                    d.Anchored = false
                     d.CanCollide = false
                     d.CanTouch = false
                     d.CanQuery = false
+                    d.Massless = true
                     pcall(function() d.Size = Vector3.new(0.001, 0.001, 0.001) end)
                 elseif d:IsA("SpecialMesh") or d:IsA("FileMesh") then
                     pcall(function() d.MeshId = ""; d.TextureId = ""; d.Scale = Vector3.zero end)
@@ -10006,7 +10016,10 @@ end end
                 for _, d in ipairs(m:GetChildren()) do
                     if d:IsA("BasePart") then
                         local pn = string.lower(tostring(d.Name))
-                        if HELPER_BOX_NAMES[pn] or (PI.localActive and PI.IsHairItem(d, m) and d:GetAttribute("BC_LocalOutfitItem") ~= true) then
+                        if HELPER_BOX_NAMES[pn] then
+                            -- Chỉ đặt Transparency = 1 cho HumanoidRootPart / Hitbox / Collider, TUYỆT ĐỐI KHÔNG xoá hay ngắt khớp để nhân vật di chuyển bình thường!
+                            d.Transparency = 1
+                        elseif PI.localActive and PI.IsHairItem(d, m) and d:GetAttribute("BC_LocalOutfitItem") ~= true then
                             PI.ForceHideAndRemoveOwnItem(d)
                         elseif VISIBLE_LIMB_NAMES[d.Name] then
                             local savedEntry = (m == char and origVis and origVis[d.Name]) or nil
@@ -10043,11 +10056,20 @@ end end
                             PI.ForceHideAndRemoveOwnItem(ch)
                         elseif cont == m and not PI.IsInsideHeldItemOrTool(ch, m) and (ch:IsA("Accessory") or ch:IsA("Hat") or ch:IsA("Accoutrement") or (ch:IsA("Model") and ch ~= PI._skinFake) or ch:IsA("Folder")) then
                             for _, p in ipairs(ch:GetDescendants()) do
-                                if p:IsA("BasePart") and not PI.IsInvisibleHelperOrHandleBox(p, m) then
-                                    if (tonumber(p.Transparency) or 0) >= 0.95 and (p:IsA("MeshPart") or p:FindFirstChildOfClass("SpecialMesh") or p:FindFirstChildOfClass("Decal")) then
-                                        p.Transparency = 0
+                                if p:IsA("BasePart") then
+                                    if PI.localActive then
+                                        p.Anchored = false
+                                        p.CanCollide = false
+                                        p.CanTouch = false
+                                        p.CanQuery = false
+                                        p.Massless = true
                                     end
-                                    if not fp then p.LocalTransparencyModifier = 0 end
+                                    if not PI.IsInvisibleHelperOrHandleBox(p, m) then
+                                        if (tonumber(p.Transparency) or 0) >= 0.95 and (p:IsA("MeshPart") or p:FindFirstChildOfClass("SpecialMesh") or p:FindFirstChildOfClass("Decal")) then
+                                            p.Transparency = 0
+                                        end
+                                        if not fp then p.LocalTransparencyModifier = 0 end
+                                    end
                                 end
                             end
                         end
@@ -11375,10 +11397,20 @@ end end
                 if not isRestore then
                     pcall(function() clone:SetAttribute("BC_LocalOutfitItem", true) end)
                 end
-                if clone:IsA("Accessory") then
+                if clone:IsA("Accessory") or clone:IsA("Accoutrement") or clone:IsA("Hat") then
                     PI.AttachAccessoryClient(character, humanoid, clone)
                 else
-                    pcall(function() clone.Parent = character end)
+                    pcall(function()
+                        if clone:IsA("BasePart") then
+                            clone.Anchored = false; clone.CanCollide = false; clone.CanTouch = false; clone.CanQuery = false; clone.Massless = true
+                        end
+                        for _, bp in ipairs(clone:GetDescendants()) do
+                            if bp:IsA("BasePart") then
+                                bp.Anchored = false; bp.CanCollide = false; bp.CanTouch = false; bp.CanQuery = false; bp.Massless = true
+                            end
+                        end
+                        clone.Parent = character
+                    end)
                 end
                 count += 1
             end
