@@ -9440,11 +9440,18 @@ end end
                 end
             end
 
-            -- Thu thập danh sách Accessory hiện có trên model trước khi xoá
+            -- Thu thập danh sách Accessory hiện có trên model trước khi xoá (trên nhân vật thật: không bao giờ xoá Accessory thuộc skin của game hỗ trợ!)
+            local realChar = player and player.Character
+            local isRealCharTarget = (realChar ~= nil and (model == realChar or model:IsDescendantOf(realChar)))
             local modelAccs = {}
             pcall(function()
                 for _, ch in ipairs(model:GetChildren()) do
-                    if ch:IsA("Accessory") then modelAccs[#modelAccs + 1] = ch end
+                    if ch:IsA("Accessory") then
+                        local keepGameSkin = isRealCharTarget and PI.IsInGameSupportedSkinItem and PI.IsInGameSupportedSkinItem(ch, model)
+                        if not keepGameSkin then
+                            modelAccs[#modelAccs + 1] = ch
+                        end
+                    end
                 end
             end)
             local canPositionalMatch = (#modelAccs == totalAcc and totalAcc > 0)
@@ -9491,7 +9498,12 @@ end end
                         if cls then
                             pcall(function()
                                 for _, ch in ipairs(model:GetChildren()) do
-                                    if ch:IsA(cls) then ch:Destroy() end
+                                    if ch:IsA(cls) then
+                                        local keepGameClothing = isRealCharTarget and (ch:GetAttribute("BC_GameSkinItem") == true)
+                                        if not keepGameClothing then
+                                            ch:Destroy()
+                                        end
+                                    end
                                 end
                             end)
                         end
@@ -9751,6 +9763,8 @@ end end
         pcall(function()
             for _, child in ipairs(clone:GetDescendants()) do
                 if child:IsA("Script") or child:IsA("LocalScript") or child:IsA("ForceField")
+                    or child:IsA("Tool") or child:IsA("HopperBin") or child:IsA("BackpackItem")
+                    or (PI.IsInsideHeldItemOrTool and PI.IsInsideHeldItemOrTool(child, clone))
                     or child:IsA("BodyMover") or child:IsA("LinearVelocity") or child:IsA("AngularVelocity")
                     or child:IsA("AlignPosition") or child:IsA("AlignOrientation") or child:IsA("VectorForce") then
                     child:Destroy()
@@ -10603,22 +10617,213 @@ end end
         return isFP
     end
 
+    local HELPER_BOX_NAMES = {
+        humanoidrootpart = true, rootpart = true, root = true, hitbox = true,
+        collisionbox = true, collider = true, boundingbox = true, hurtbox = true,
+        grip = true, rightgrip = true, leftgrip = true, toolgrip = true,
+        handlebox = true, weldpart = true, weldbox = true, mount = true,
+        attach = true, attachmentpart = true, pivot = true, origin = true,
+        center = true, primary = true, camera = true, campart = true,
+        sensor = true, detector = true, trigger = true, zone = true,
+        raycast = true, stepbox = true, crouchbox = true, emitter = true,
+        effect = true, point = true, node = true,
+    }
+
+    local HELD_ITEM_KEYWORDS = {
+        "tool", "weapon", "item", "equip", "held", "gun", "sword", "knife",
+        "flashlight", "lantern", "light", "cola", "drink", "medkit", "heal",
+        "radar", "compass", "grapple", "pad", "trap", "bomb", "grenade",
+        "viewmodel", "handitem", "usable", "pistol", "rifle",
+    }
+
+    local GAME_SKIN_KEYWORDS = {
+        "skin", "morph", "cosmetic", "unusual", "stilts", "armor", "outfit",
+        "custom", "game", "evade", "perk", "badge", "aura", "gear", "pack",
+        "wings", "halo", "tail", "horn", "mask", "cape",
+    }
+
+    -- Kiểm tra xem một Instance có nằm trong vật phẩm cầm tay (Tool / Vũ khí / Item của game) hay không
+    function PI.IsInsideHeldItemOrTool(inst, rootChar)
+        if not inst then return false end
+        local cur = inst
+        while cur and cur ~= rootChar and cur ~= workspace do
+            if cur:IsA("Tool") or cur:IsA("HopperBin") or cur:IsA("BackpackItem") then
+                return true
+            end
+            local okAttr, isToolAttr = pcall(function()
+                return cur:GetAttribute("IsTool") == true
+                    or cur:GetAttribute("IsItem") == true
+                    or cur:GetAttribute("IsWeapon") == true
+                    or cur:GetAttribute("EquippedItem") == true
+            end)
+            if okAttr and isToolAttr then return true end
+            if cur:FindFirstChildOfClass("TouchTransmitter") or cur:FindFirstChild("TouchInterest") then
+                return true
+            end
+            if (cur:IsA("Model") or cur:IsA("Folder")) and cur ~= rootChar then
+                local ln = string.lower(tostring(cur.Name))
+                for _, kw in ipairs(HELD_ITEM_KEYWORDS) do
+                    if ln:find(kw, 1, true) then
+                        return true
+                    end
+                end
+            end
+            cur = cur.Parent
+        end
+        -- Kiểm tra nếu BasePart được hàn vào tay qua RightGrip / LeftGrip / ToolGrip
+        if inst:IsA("BasePart") then
+            for _, ch in ipairs(inst:GetChildren()) do
+                if ch:IsA("JointInstance") or ch:IsA("WeldConstraint") then
+                    local jn = string.lower(tostring(ch.Name))
+                    if jn == "rightgrip" or jn == "leftgrip" or jn == "toolgrip" or jn == "weaponmotor" or jn == "itemweld" then
+                        return true
+                    end
+                end
+            end
+        end
+        return false
+    end
+
+    -- Kiểm tra xem một BasePart có phải là khối hộp ẩn (Handle vô hình của Tool/Accessory đa chi tiết, Hitbox, Collider, WrapLayer cage) không được phép bật Transparency = 0
+    function PI.IsInvisibleHelperOrHandleBox(part, rootChar)
+        if not (part and part:IsA("BasePart")) then return false end
+        local pn = string.lower(tostring(part.Name))
+        if HELPER_BOX_NAMES[pn] then return true end
+        if PI.IsInsideHeldItemOrTool(part, rootChar) then return true end
+        local curT = tonumber(part.Transparency) or 0
+        if part:FindFirstChildOfClass("WrapLayer") and (curT >= 0.95 or (part.ClassName == "Part" and not part:FindFirstChildOfClass("SpecialMesh"))) then
+            return true
+        end
+        local par = part.Parent
+        if par and par ~= rootChar then
+            -- Nếu là khối Part thường (không phải MeshPart, không có SpecialMesh/Decal) và đang có Transparency >= 0.95 bên trong Accessory đa chi tiết hoặc Model con -> đó là khối hộp hàn (weld box) vô hình!
+            local isPlainBox = (part.ClassName == "Part")
+                and (part:FindFirstChildOfClass("SpecialMesh") == nil)
+                and (part:FindFirstChildOfClass("Decal") == nil)
+                and (part:FindFirstChildOfClass("Texture") == nil)
+            if isPlainBox and curT >= 0.95 then
+                local otherParts = 0
+                pcall(function()
+                    for _, sib in ipairs(par:GetDescendants()) do
+                        if sib ~= part and sib:IsA("BasePart") then
+                            otherParts = otherParts + 1
+                            break
+                        end
+                    end
+                end)
+                if otherParts > 0 or not (par:IsA("Accessory") or par:IsA("Hat") or par:IsA("Accoutrement")) then
+                    return true
+                end
+            end
+        end
+        return false
+    end
+
+    -- Kiểm tra xem chi cơ thể (part) có đang được gắn mô hình morph/skin của game hỗ trợ (khiến chi gốc cần giữ nguyên Transparency = 1 để không hiện khối vuông đè lên skin game)
+    local function hasInGameMorphOnLimb(char, part)
+        if not (char and part) then return false end
+        for _, ch in ipairs(part:GetChildren()) do
+            if (ch:IsA("BasePart") or ch:IsA("Model")) and not tostring(ch.Name):find("^BC_") then
+                return true
+            end
+        end
+        for _, ch in ipairs(char:GetChildren()) do
+            if (ch:IsA("Model") or ch:IsA("Folder")) and ch ~= PI._skinFake and not tostring(ch.Name):find("^BC_") and not PI.IsInsideHeldItemOrTool(ch, char) then
+                local ln = string.lower(tostring(ch.Name))
+                if ln:find("morph", 1, true) or ln:find("skin", 1, true) or ln:find("cosmetic", 1, true) or ln:find("armor", 1, true) or ln:find("outfit", 1, true) then
+                    local partInSub = ch:FindFirstChild(part.Name, true)
+                    if partInSub and partInSub:IsA("BasePart") and (tonumber(partInSub.Transparency) or 0) < 0.95 then
+                        return true
+                    end
+                end
+            end
+        end
+        return false
+    end
+
+    -- Kiểm tra xem một món đồ (Accessory / Model / Folder / CharacterMesh) trên nhân vật có phải là SKIN CỦA GAME HỖ TRỢ hay không
+    function PI.IsInGameSupportedSkinItem(item, char)
+        if not item then return false end
+        local addedByLocal = false
+        pcall(function() addedByLocal = (item:GetAttribute("BC_LocalOutfitItem") == true) end)
+        if addedByLocal then return false end
+        if PI.IsInsideHeldItemOrTool(item, char) then return true end
+        local isGameAttr = false
+        pcall(function()
+            isGameAttr = item:GetAttribute("BC_GameSkinItem") == true
+                or item:GetAttribute("GameSkin") == true
+                or item:GetAttribute("InGameSkin") == true
+                or item:GetAttribute("Cosmetic") == true
+        end)
+        if isGameAttr then return true end
+        if item:IsA("Model") or item:IsA("Folder") then
+            return true
+        end
+        local ln = string.lower(tostring(item.Name))
+        for _, kw in ipairs(GAME_SKIN_KEYWORDS) do
+            if ln:find(kw, 1, true) then
+                return true
+            end
+        end
+        if item:IsA("Accessory") or item:IsA("Hat") or item:IsA("Accoutrement") or item:IsA("CharacterMesh") then
+            local partCount = 0
+            pcall(function()
+                for _, d in ipairs(item:GetDescendants()) do
+                    if d:IsA("BasePart") then partCount = partCount + 1 end
+                end
+            end)
+            if partCount > 1 then
+                return true
+            end
+            local aid = nil
+            pcall(function()
+                aid = tonumber(item.AssetId) or tonumber(item._assetId) or tonumber(item:GetAttribute("AssetId")) or tonumber(item.MeshId)
+            end)
+            if aid and aid > 0 then
+                if type(PI._defaultProfileAssetIds) == "table" and next(PI._defaultProfileAssetIds) ~= nil then
+                    if not PI._defaultProfileAssetIds[aid] then
+                        return true
+                    end
+                end
+            else
+                if type(PI._defaultProfileAccNames) == "table" and PI._defaultProfileAccNames[tostring(item.Name)] then
+                    return false
+                end
+                if tostring(item.Name) ~= "Accessory" and tostring(item.Name) ~= "Hat" then
+                    return true
+                end
+            end
+        end
+        return false
+    end
+
+    function PI.IsInGameSupportedSkinElement(inst, char)
+        if not inst or not char then return false end
+        local cur = inst
+        while cur and cur ~= char and cur ~= workspace do
+            if PI.IsInGameSupportedSkinItem(cur, char) then
+                return true
+            end
+            cur = cur.Parent
+        end
+        return false
+    end
+
     local function EnsureCharacterVisible(char)
         if not char then return end
         local fp = isCameraFirstPerson(char)
+        local origVis = (PI.localSaved and PI.localSaved.character == char and PI.localSaved.visuals) or nil
         pcall(function()
-            local targets = { char }
-            for _, sub in ipairs(PI.GetVisualSubRigs(char)) do
-                table.insert(targets, sub)
-            end
-            for _, m in ipairs(targets) do
-                for _, d in ipairs(m:GetDescendants()) do
-                    if d:IsA("BasePart") then
-                        local pn = string.lower(tostring(d.Name))
-                        local isRoot = (pn == "humanoidrootpart" or pn == "rootpart" or pn == "hitbox" or pn == "collisionbox" or pn == "collider" or pn == "boundingbox")
-                        if isRoot then
-                            d.Transparency = 1
-                        elseif VISIBLE_LIMB_NAMES[d.Name] or d.Name == "Handle" or tostring(d.Name):sub(1, 12) == "BC_MorphPart" then
+            -- 1. Chỉ đảm bảo các chi cơ thể trực tiếp của char hiển thị (nếu không bị morph của game ẩn chủ đích)
+            for _, d in ipairs(char:GetChildren()) do
+                if d:IsA("BasePart") then
+                    local pn = string.lower(tostring(d.Name))
+                    if HELPER_BOX_NAMES[pn] then
+                        d.Transparency = 1
+                    elseif VISIBLE_LIMB_NAMES[d.Name] then
+                        local savedEntry = origVis and origVis[d.Name]
+                        local keptHiddenForMorph = (savedEntry and savedEntry.hadMorphHidden == true) or hasInGameMorphOnLimb(char, d)
+                        if not keptHiddenForMorph then
                             if (tonumber(d.Transparency) or 0) >= 0.95 then
                                 d.Transparency = 0
                             end
@@ -10626,9 +10831,26 @@ end end
                                 d.LocalTransparencyModifier = 0
                             end
                         end
-                    elseif (d:IsA("Decal") or d:IsA("Texture")) and d.Parent and (VISIBLE_LIMB_NAMES[d.Parent.Name] or d.Parent.Name == "Handle") then
-                        if (tonumber(d.Transparency) or 0) >= 0.95 then
-                            d.Transparency = 0
+                        local fc = d:FindFirstChildOfClass("Decal")
+                        if fc and not keptHiddenForMorph and (tonumber(fc.Transparency) or 0) >= 0.95 then
+                            fc.Transparency = 0
+                        end
+                    end
+                end
+            end
+            -- 2. Đảm bảo các món đồ thuộc SKIN CỦA GAME HỖ TRỢ (Model / Folder / Accessory của game) luôn hiện rõ mà KHÔNG làm hiện các khối hộp Handle/Hitbox của vật phẩm cầm tay!
+            for _, ch in ipairs(char:GetChildren()) do
+                if not PI.IsInsideHeldItemOrTool(ch, char) and (ch:IsA("Accessory") or ch:IsA("Hat") or ch:IsA("Accoutrement") or (ch:IsA("Model") and ch ~= PI._skinFake) or ch:IsA("Folder")) then
+                    for _, p in ipairs(ch:GetDescendants()) do
+                        if p:IsA("BasePart") then
+                            if not PI.IsInvisibleHelperOrHandleBox(p, char) then
+                                if (tonumber(p.Transparency) or 0) >= 0.95 and (p:IsA("MeshPart") or p:FindFirstChildOfClass("SpecialMesh") or p:FindFirstChildOfClass("Decal")) then
+                                    p.Transparency = 0
+                                end
+                                if not fp then
+                                    p.LocalTransparencyModifier = 0
+                                end
+                            end
                         end
                     end
                 end
@@ -10669,15 +10891,19 @@ end end
 
     local function hideDescendantElement(d, char)
         if not d then return end
+        -- KHÔNG BAO GIỜ ẩn vật phẩm cầm tay của game (Tool/Item) hoặc skin của game hỗ trợ!
+        if PI.IsInsideHeldItemOrTool(d, char) or PI.IsInGameSupportedSkinElement(d, char) then
+            return
+        end
         local origVis = (PI.localSaved and PI.localSaved.character == char and PI.localSaved.visuals) or nil
         if d:IsA("BasePart") then
             if PI._skinHidden[d] == nil then
                 local pName = string.lower(tostring(d.Name))
-                local isRoot = (pName == "humanoidrootpart" or pName == "rootpart" or pName == "hitbox" or pName == "collisionbox" or pName == "collider" or pName == "boundingbox")
+                local isRoot = HELPER_BOX_NAMES[pName] or PI.IsInvisibleHelperOrHandleBox(d, char)
                 local isTempMorph = (tostring(d.Name):sub(1, 12) == "BC_MorphPart")
                 local savedPartEntry = (d.Parent == char and origVis and origVis[d.Name]) or nil
                 local rawT = (savedPartEntry and savedPartEntry.transparency ~= nil and savedPartEntry.transparency) or d.Transparency
-                if VISIBLE_LIMB_NAMES[d.Name] and (tonumber(rawT) or 0) >= 0.95 then
+                if d.Parent == char and VISIBLE_LIMB_NAMES[d.Name] and not (savedPartEntry and savedPartEntry.hadMorphHidden) and (tonumber(rawT) or 0) >= 0.95 then
                     rawT = 0
                 end
                 local origT = (isRoot or isTempMorph) and 1 or rawT
@@ -10693,7 +10919,9 @@ end end
         elseif d:IsA("Decal") or d:IsA("Texture") then
             if PI._skinHidden[d] == nil then
                 local rawDT = d.Transparency
-                if (tonumber(rawDT) or 0) >= 0.95 then rawDT = 0 end
+                if d.Parent and d.Parent.Parent == char and VISIBLE_LIMB_NAMES[d.Parent.Name] and (tonumber(rawDT) or 0) >= 0.95 then
+                    rawDT = 0
+                end
                 PI._skinHidden[d] = { t = rawDT }
             end
             d.Transparency = 1
@@ -10761,7 +10989,7 @@ end end
             for _, pp in ipairs(fake:GetDescendants()) do
                 if pp:IsA("BasePart") then
                     local partName = string.lower(tostring(pp.Name))
-                    local isInvisibleHelper = partName == "humanoidrootpart" or partName == "rootpart" or partName == "hitbox" or partName == "collisionbox" or partName == "collider"
+                    local isInvisibleHelper = HELPER_BOX_NAMES[partName] or PI.IsInvisibleHelperOrHandleBox(pp, fake)
                     local hasMorphOverlay = (pp:FindFirstChild("BC_MorphPart_" .. tostring(pp.Name)) ~= nil)
                     pp.Transparency = (isInvisibleHelper or hasMorphOverlay) and 1 or 0
                     pp.LocalTransparencyModifier = (isInvisibleHelper or hasMorphOverlay) and 1 or 0
@@ -10782,8 +11010,9 @@ end end
                     pcall(function()
                         local h = pp:FindFirstChild("Handle")
                         if h and h:IsA("BasePart") then
-                            h.Transparency = 0
-                            h.LocalTransparencyModifier = 0
+                            local isInvHandle = PI.IsInvisibleHelperOrHandleBox(h, fake)
+                            h.Transparency = isInvHandle and 1 or 0
+                            h.LocalTransparencyModifier = isInvHandle and 1 or 0
                             h.Anchored = false
                             h.CanCollide = false
                             h.CanTouch = false
@@ -11280,7 +11509,7 @@ end end
                 for _, fp in ipairs(PI._skinFake:GetDescendants()) do
                     if fp:IsA("BasePart") then
                         local pn = string.lower(tostring(fp.Name))
-                        local isHelper = (pn == "humanoidrootpart" or pn == "rootpart" or pn == "hitbox" or pn == "collisionbox" or pn == "collider")
+                        local isHelper = HELPER_BOX_NAMES[pn] or PI.IsInvisibleHelperOrHandleBox(fp, PI._skinFake)
                         local hasMorph = (fp:FindFirstChild("BC_MorphPart_" .. tostring(fp.Name)) ~= nil)
                         if not isHelper and not hasMorph then
                             fp.LocalTransparencyModifier = fpCam and 1 or 0
@@ -11328,12 +11557,13 @@ end end
     end
 
     -- Sao chép đầy đủ cả hình ảnh lẫn BỐ CỤC NGƯỜI CHƠI (kích thước mập/gầy/cao/lùn, khớp Motor6D, vị trí Attachment, khuôn mặt, đầu & MeshPart).
+    -- KHÔNG đưa WrapTarget / WrapLayer vào VisualChildren để không bao giờ phá hỏng skin 3D Layered Clothing hoặc skin của game hỗ trợ!
     function PI.VisualChildren(part)
         local out = {}
         if not part then return out end
         for _, child in ipairs(part:GetChildren()) do
             if child:IsA("Decal") or child:IsA("Texture") or child:IsA("SurfaceAppearance")
-                or child:IsA("SpecialMesh") or child:IsA("WrapTarget") or child:IsA("WrapLayer")
+                or child:IsA("SpecialMesh")
                 or tostring(child.Name):sub(1, 12) == "BC_MorphPart" then
                 out[#out + 1] = child
             end
@@ -11499,8 +11729,10 @@ end end
                     end
                 end
 
-                local partTrans = tonumber(part.Transparency) or 0
-                if VISIBLE_LIMB_NAMES[part.Name] and partTrans >= 0.95 then
+                local rawTrans = tonumber(part.Transparency) or 0
+                local morphHidden = (rawTrans >= 0.95) and hasInGameMorphOnLimb(character, part)
+                local partTrans = rawTrans
+                if VISIBLE_LIMB_NAMES[part.Name] and partTrans >= 0.95 and not morphHidden then
                     partTrans = 0
                 end
 
@@ -11510,6 +11742,7 @@ end end
                     size = partSize,
                     origSize = origSizeVal,
                     transparency = partTrans,
+                    hadMorphHidden = morphHidden,
                     motors = motors,
                     attachments = attachments,
                     meshClone = meshClone,
@@ -11664,13 +11897,23 @@ end end
                     end
                 end
                 if type(entry) == "table" then
+                    local incomingChildClasses = {}
+                    for _, ch in ipairs(entry.children or {}) do
+                        pcall(function() incomingChildClasses[ch.ClassName] = true end)
+                    end
                     for _, child in ipairs(PI.VisualChildren(part)) do
-                        pcall(function() child:Destroy() end)
+                        pcall(function()
+                            -- Trên nhân vật thật: chỉ thay thế child cùng ClassName hoặc child do Mặc LOCAL thêm vào, giữ nguyên SurfaceAppearance/SpecialMesh/Texture thuộc skin của game hỗ trợ!
+                            local addedByLocalVis = (child:GetAttribute("BC_LocalVisualChild") == true) or (tostring(child.Name):sub(1, 12) == "BC_MorphPart")
+                            if isRestore or not isLocalRealChar or addedByLocalVis or incomingChildClasses[child.ClassName] then
+                                child:Destroy()
+                            end
+                        end)
                     end
                     if entry.color then pcall(function() part.Color = entry.color end) end
                     if entry.material then pcall(function() part.Material = entry.material end) end
                     if not isCrossRigEntry and part:IsA("MeshPart") then
-                        if entry.textureId ~= nil then
+                        if entry.textureId ~= nil and (isRestore or entry.textureId ~= "") then
                             pcall(function() part.TextureID = entry.textureId end)
                         end
                         if entry.meshClone and entry.meshClone:IsA("MeshPart") then
@@ -11715,8 +11958,11 @@ end end
                     end
                     if entry.transparency ~= nil then
                         pcall(function()
+                            local keepMorphHidden = (basePartEntry and basePartEntry.hadMorphHidden == true) or hasInGameMorphOnLimb(character, part)
                             local targetT = tonumber(entry.transparency) or 0
-                            if VISIBLE_LIMB_NAMES[name] and targetT >= 0.95 then
+                            if keepMorphHidden then
+                                targetT = 1
+                            elseif VISIBLE_LIMB_NAMES[name] and targetT >= 0.95 then
                                 targetT = 0
                             end
                             part.Transparency = targetT
@@ -11776,7 +12022,10 @@ end end
                     for _, child in ipairs(entry.children or {}) do
                         pcall(function()
                             local c = child:Clone()
-                            if c then c.Parent = part end
+                            if c then
+                                pcall(function() c:SetAttribute("BC_LocalVisualChild", true) end)
+                                c.Parent = part
+                            end
                         end)
                     end
                 end
@@ -11805,14 +12054,14 @@ end end
         RightFootAttachment = { r15 = "RightFoot", r6 = "Right Leg", cf = CFrame.new(0, -0.8, 0) },
     }
 
-    -- Hàn (Weld) phụ kiện trên Client: hỗ trợ đầy đủ cả R15 <-> R6 và các rig custom trong Evade
+    -- Hàn (Weld) phụ kiện trên Client: hỗ trợ đầy đủ cả R15 <-> R6 và các rig custom trong Evade, không làm hiện khối hộp Handle vô hình!
     function PI.AttachAccessoryClient(character, humanoid, clone)
         if not character or not clone then return end
         pcall(function() clone.Parent = character end)
         pcall(function()
             for _, d in ipairs(clone:GetDescendants()) do
                 if d:IsA("BasePart") then
-                    if (tonumber(d.Transparency) or 0) >= 0.95 then
+                    if not PI.IsInvisibleHelperOrHandleBox(d, character) and (tonumber(d.Transparency) or 0) >= 0.95 then
                         d.Transparency = 0
                     end
                     d.Anchored = false
@@ -11824,7 +12073,7 @@ end end
             end
             local handle = clone:FindFirstChild("Handle")
             if not (handle and handle:IsA("BasePart")) then return end
-            if (tonumber(handle.Transparency) or 0) >= 0.95 then
+            if not PI.IsInvisibleHelperOrHandleBox(handle, character) and (tonumber(handle.Transparency) or 0) >= 0.95 then
                 handle.Transparency = 0
             end
             handle.Anchored = false
@@ -11915,13 +12164,16 @@ end end
         end)
     end
 
-    function PI.CopyOutfit(source, character, humanoid, desc, rec)
+    function PI.CopyOutfit(source, character, humanoid, desc, rec, isRestore)
         if not source or not character then
             return false, "Thiếu dữ liệu nhân vật để sao chép"
         end
         humanoid = humanoid or character:FindFirstChildOfClass("Humanoid") or character:FindFirstChildWhichIsA("Humanoid", true)
+        local realChar = select(1, PI.GetCharacterAndHumanoid(player)) or (player and player.Character)
+        local isRealCharTarget = (realChar ~= nil and (character == realChar or character:IsDescendantOf(realChar)))
         local items = PI.OutfitParts(source)
         local visuals = PI.SaveVisuals(source, desc)
+        if isRestore then visuals._isOriginalRestore = true end
         local hasPartVisuals = false
         for k, _ in pairs(visuals) do
             if type(k) == "string" and k:sub(1, 1) ~= "_" then hasPartVisuals = true; break end
@@ -11930,8 +12182,31 @@ end end
         if #items == 0 and not hasPartVisuals and not hasFilteredRemoval and #PI.OutfitParts(character) == 0 then
             return false, "Avatar nguồn không có ngoại hình để sao chép"
         end
+
+        -- Kiểm tra nguồn có Shirt / Pants / ShirtGraphic / BodyColors hay không để không xoá nhầm quần áo thuộc skin của game hỗ trợ!
+        local hasSrcShirt, hasSrcPants, hasSrcTShirt, hasSrcBC = false, false, false, false
+        for _, it in ipairs(items) do
+            if it:IsA("Shirt") then hasSrcShirt = true
+            elseif it:IsA("Pants") then hasSrcPants = true
+            elseif it:IsA("ShirtGraphic") then hasSrcTShirt = true
+            elseif it:IsA("BodyColors") then hasSrcBC = true
+            end
+        end
+
         for _, item in ipairs(PI.OutfitParts(character)) do
-            pcall(function() item:Destroy() end)
+            pcall(function()
+                -- BẢO VỆ SKIN CỦA GAME HỖ TRỢ: Không bao giờ xoá Accessory / CharacterMesh / trang phục thuộc skin của game hỗ trợ trên nhân vật thật!
+                if isRealCharTarget and not isRestore then
+                    if PI.IsInGameSupportedSkinItem(item, character) then
+                        return
+                    end
+                    if item:IsA("Shirt") and not hasSrcShirt and not hasFilteredRemoval then return end
+                    if item:IsA("Pants") and not hasSrcPants and not hasFilteredRemoval then return end
+                    if item:IsA("ShirtGraphic") and not hasSrcTShirt and not hasFilteredRemoval then return end
+                    if item:IsA("BodyColors") and not hasSrcBC and not hasFilteredRemoval then return end
+                end
+                item:Destroy()
+            end)
         end
         -- Áp dụng bố cục cơ thể (Size mập/gầy/cao/lùn, khớp Motor6D, vị trí Attachment, đầu/mặt, màu da) TRƯỚC khi hàn phụ kiện!
         PI.ApplyVisuals(character, visuals)
@@ -11939,6 +12214,9 @@ end end
         for _, item in ipairs(items) do
             local okC, clone = pcall(function() return item:Clone() end)
             if okC and clone then
+                if not isRestore then
+                    pcall(function() clone:SetAttribute("BC_LocalOutfitItem", true) end)
+                end
                 if clone:IsA("Accessory") then
                     PI.AttachAccessoryClient(character, humanoid, clone)
                 else
@@ -11974,6 +12252,38 @@ end end
                     PI.originalHum = hum
                 end
             end
+        end
+        -- Ghi nhận danh sách AssetId mặc định trên hồ sơ Roblox của LocalPlayer để phân biệt với skin của game hỗ trợ!
+        if not PI._defaultProfileAssetIds then
+            PI._defaultProfileAssetIds = {}
+            PI._defaultProfileAccNames = {}
+            pcall(function()
+                local profDesc = nil
+                local okP, pd = pcall(function() return Players:GetHumanoidDescriptionFromUserId(player.UserId) end)
+                if okP and pd then profDesc = pd else profDesc = PI.originalDesc end
+                if profDesc then
+                    local CSV_FIELDS = {
+                        "HatAccessory", "HairAccessory", "FaceAccessory", "NeckAccessory",
+                        "ShouldersAccessory", "FrontAccessory", "BackAccessory", "WaistAccessory",
+                    }
+                    for _, fk in ipairs(CSV_FIELDS) do
+                        pcall(function()
+                            local raw = tostring(profDesc[fk] or "")
+                            for numStr in raw:gmatch("(%d+)") do
+                                local n = tonumber(numStr)
+                                if n and n > 0 then PI._defaultProfileAssetIds[n] = true end
+                            end
+                        end)
+                    end
+                    local okGA, accList = pcall(function() return profDesc:GetAccessories(true) end)
+                    if okGA and type(accList) == "table" then
+                        for _, entry in ipairs(accList) do
+                            local n = tonumber(type(entry) == "table" and entry.AssetId or nil)
+                            if n and n > 0 then PI._defaultProfileAssetIds[n] = true end
+                        end
+                    end
+                end
+            end)
         end
         if not PI.localSaved or PI.localSaved.character ~= char then
             if PI.localSaved and PI.localSaved.visuals then
@@ -12058,14 +12368,17 @@ end end
             if type(rec) == "table" then
                 pcall(PI.ApplySkinFilterToModel, char, rec)
             end
-            -- Nếu nhân vật trong game (như Evade) có các sub-model hiển thị bên trong (Visual / Character / Rig), đắp trang phục lên cả sub-model đó!
-            for _, subRig in ipairs(PI.GetVisualSubRigs(char)) do
-                pcall(function()
-                    local subHum = subRig:FindFirstChildOfClass("Humanoid") or hum
-                    local okSub = PI.CopyOutfit(rigSource or source, subRig, subHum, effDesc, rec)
-                    if okSub then copied = true end
-                    if type(rec) == "table" then pcall(PI.ApplySkinFilterToModel, subRig, rec) end
-                end)
+            -- Chỉ đắp lên sub-model con nếu nhân vật ngoài chưa có chi cơ thể hiển thị (tránh ghi đè làm mất các Model Skin / Morph của game hỗ trợ!)
+            local outerHasLimbs = (char:FindFirstChild("Head") ~= nil) and (char:FindFirstChild("Torso") ~= nil or char:FindFirstChild("UpperTorso") ~= nil)
+            if not outerHasLimbs then
+                for _, subRig in ipairs(PI.GetVisualSubRigs(char)) do
+                    pcall(function()
+                        local subHum = subRig:FindFirstChildOfClass("Humanoid") or hum
+                        local okSub = PI.CopyOutfit(rigSource or source, subRig, subHum, effDesc, rec)
+                        if okSub then copied = true end
+                        if type(rec) == "table" then pcall(PI.ApplySkinFilterToModel, subRig, rec) end
+                    end)
+                end
             end
             -- Khi Lấy Skin đã chạy TRƯỚC (PI._skinFake đã tồn tại), Mặc LOCAL chạy SAU sẽ đắp thẳng quần áo/phụ kiện/bố cục/mặt lên cả PI._skinFake!
             if PI.skinActive and PI._skinFake and PI._skinFake.Parent then
