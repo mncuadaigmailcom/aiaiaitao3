@@ -5351,8 +5351,35 @@ function OT.OnFlyChange() if OT.RefreshList then pcall(OT.RefreshList) end end e
         if t == 2 and type(p.lastLocation) == "string" and p.lastLocation ~= "" then text = text .. ": " .. p.lastLocation end return text
     end function PI.InThisServer(id, p)
         local okP, inst = pcall(function() return Players:GetPlayerByUserId(id) end) if okP and inst then return true end
-        if type(p) == "table" and p.gameId ~= nil and tostring(p.gameId) ~= "" and tostring(p.gameId) == tostring(game.JobId or "") then return true
-        end return false
+        if type(p) == "table" and p.gameId ~= nil and tostring(p.gameId) ~= "" and tostring(p.gameId) == tostring(game.JobId or "") then return true end return false
+    end function PI.ExtractServerInfo(id, p) local inSrv = PI.InThisServer(id, p)
+        local jobId = (type(p) == "table" and type(p.gameId) == "string" and p.gameId ~= "" and tostring(p.gameId)) or (inSrv and tostring(game.JobId or "") ~= "" and tostring(game.JobId)) or nil
+        local placeId = (type(p) == "table" and (tonumber(p.placeId) or tonumber(p.rootPlaceId))) or (inSrv and tonumber(game.PlaceId)) or nil
+        local code = (jobId and placeId and (tostring(placeId) .. ":" .. tostring(jobId))) or jobId or (placeId and ("PlaceId:" .. tostring(placeId)) or "")
+        local txt = jobId and (jobId .. (placeId and (" (Place: " .. tostring(placeId) .. ")") or "")) or (placeId and ("Ẩn JobId · Place: " .. tostring(placeId)) or "Offline / Ẩn quyền riêng tư")
+        return jobId, placeId, code, txt
+    end function PI.JoinPlayerServer(recOrQuery) local TS = game:GetService("TeleportService") local jobId, placeId, targetName = nil, nil, ""
+        if type(recOrQuery) == "table" then targetName = tostring(recOrQuery.name or recOrQuery.id or "") jobId = recOrQuery.serverJobId placeId = tonumber(recOrQuery.placeId)
+            if not jobId and recOrQuery.id and PI.InThisServer(recOrQuery.id, nil) and tostring(game.JobId or "") ~= "" then jobId = tostring(game.JobId) placeId = placeId or tonumber(game.PlaceId) end
+        elseif type(recOrQuery) == "string" then local s = trimStr(recOrQuery) local pId, jId = s:match("^(%d+)%s*[:/|,]%s*([%w%-]+)$")
+            if pId and jId then placeId = tonumber(pId); jobId = jId
+            elseif s:find("-", 1, true) and #s >= 16 then jobId = s; placeId = tonumber(game.PlaceId) end
+        end
+        placeId = placeId or tonumber(game.PlaceId)
+        if jobId and jobId ~= "" and placeId and placeId > 0 then
+            local okT, errT = pcall(function() TS:TeleportToPlaceInstance(placeId, jobId, player) end)
+            if not okT then
+                return false, "Lỗi dịch chuyển vào server: " .. tostring(errT)
+            end
+            return true, string.format("🚀 Đang vào server mã %s (PlaceId: %d)%s!", tostring(jobId), placeId, targetName ~= "" and (" cùng @" .. targetName) or "")
+        elseif placeId and placeId > 0 then
+            local okT, errT = pcall(function() TS:Teleport(placeId, player) end)
+            if not okT then
+                return false, "Lỗi dịch chuyển vào game: " .. tostring(errT)
+            end
+            return true, string.format("🚀 Đang vào game PlaceId %d%s (JobId bị ẩn do cài đặt riêng tư)!", placeId, targetName ~= "" and (" của @" .. targetName) or "")
+        end
+        return false, "Người chơi đang Offline hoặc ẩn mã Server (hãy thử khi họ đang trong game)"
     end function PI.FetchDesc(id)
         local ok, desc = pcall(function() return Players:GetHumanoidDescriptionFromUserId(id) end) if not ok then return nil, tostring(desc) end
         if desc == nil then return nil, "không có dữ liệu skin" end return desc, nil
@@ -5385,15 +5412,16 @@ function OT.OnFlyChange() if OT.RefreshList then pcall(OT.RefreshList) end end e
         end local pres = PI.FetchPresence(id)
         if stale(my) then return nil, nil end local desc, derr = PI.FetchDesc(id)
         if stale(my) then return nil, nil end local thumb = PI.FetchThumb(id)
-        if stale(my) then return nil, nil end local rec = {
+        if stale(my) then return nil, nil end
+        local srvJobId, srvPlaceId, srvCode, srvCodeTxt = PI.ExtractServerInfo(id, pres)
+        local rec = {
             id = tonumber(prof.id) or id, name = tostring(prof.name or nm or ""),
             displayName = tostring(prof.displayName or prof.name or ""), created = type(prof.created) == "string" and prof.created:sub(1, 10) or "—",
             description = type(prof.description) == "string" and prof.description or "", isBanned = prof.isBanned == true,
             verified = prof.hasVerifiedBadge == true, presence = PI.PresenceText(pres),
-            inServer = PI.InThisServer(id, pres), desc = desc,
-            descErr = derr, thumb = thumb,
-            keep = {}, }
-        pcall(PI.ParseSkinItems, rec) return rec, nil
+            inServer = PI.InThisServer(id, pres), serverJobId = srvJobId, placeId = srvPlaceId, serverCode = srvCode, serverCodeText = srvCodeTxt,
+            desc = desc, descErr = derr, thumb = thumb, keep = {}, }
+        pcall(PI.ParseSkinItems, rec) PI.last = rec return rec, nil
     end
     -- ===== PHÂN LOẠI SKIN & BỘ LỌC XOÁ SKIN TẠO NHÂN VẬT ẢO =====
     do local ACC_TYPE_LABELS = {
@@ -6097,11 +6125,11 @@ function OT.OnFlyChange() if OT.RefreshList then pcall(OT.RefreshList) end end e
             Font = Enum.Font.GothamBold, TextSize = 8, BorderSizePixel = 0, ZIndex = 8, }, parent or P)
         Corner(b, UDim.new(0, 5)) D.Shade(b, Color3.fromRGB(255, 255, 255), Color3.fromRGB(182, 187, 201), 90) D.Tactile(b, 0.08) return b
     end local queryIn = New("TextBox", {
-        Name = "HubPlayerInfo_Query", Size = UDim2.new(0, 290, 0, 18), Position = UDim2.new(0, 8, 0, 22), Text = "", PlaceholderText = "Nhập tên (VD: Roblox) hoặc UserId",
+        Name = "HubPlayerInfo_Query", Size = UDim2.new(0, 290, 0, 18), Position = UDim2.new(0, 8, 0, 22), Text = "", PlaceholderText = "Nhập tên / UserId hoặc Mã Server (JobId)...",
         ClearTextOnFocus = false, BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.1, TextColor3 = C.DARK,
         PlaceholderColor3 = C.GRAY, Font = Enum.Font.GothamMedium, TextSize = 9, TextXAlignment = Enum.TextXAlignment.Left,
         BorderSizePixel = 0, ZIndex = 7, }, P) Corner(queryIn, UDim.new(0, 5)) New("UIPadding", { PaddingLeft = UDim.new(0, 6) }, queryIn)
-    local searchBtn = pAct("🔍 Tra cứu", 304, 22, 78, C.GREEN) local clearBtn = pAct("✕ Xoá", 386, 22, 48, C.RED)
+    local searchBtn = pAct("🔍 Tra cứu", 304, 22, 78, C.GREEN) searchBtn.Name = "HubPlayerInfo_Search" local clearBtn = pAct("✕ Xoá", 386, 22, 48, C.RED)
     local statusLbl = New("TextLabel", { Name = "HubPlayerInfo_Status", Size = UDim2.new(1, -16, 0, 16), Position = UDim2.new(0, 8, 0, 48),
         Text = "Nhập tên rồi bấm 🔍 (hoặc Enter).", BackgroundTransparency = 1, TextColor3 = C.MUTED,
         Font = Enum.Font.GothamMedium, TextSize = 9, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7, }, P) local function setStatus(text, color)
@@ -7385,11 +7413,11 @@ function OT.OnFlyChange() if OT.RefreshList then pcall(OT.RefreshList) end end e
     local function refreshAutoBtn() autoBtn.Text = PI.view.auto and "🔄 Tự xoay: BẬT" or "🔄 Tự xoay: TẮT"
         autoBtn.BackgroundColor3 = PI.view.auto and C.GREEN or C.SURFACE3 autoBtn.TextColor3 = D.BestText(autoBtn.BackgroundColor3)
     end refreshAutoBtn()
-    local rows = {} local ROW_NAMES = { "name", "display", "id", "created", "presence", "server", "flags", "desc" }
-    local ROW_TITLES = { "Tên", "Tên hiển thị", "UserId", "Ngày tạo", "Trạng thái", "Trong server này", "Huy hiệu / Cấm", "Mô tả" }
-    for i, key in ipairs(ROW_NAMES) do local y = 70 + (i - 1) * 15
-        rows[key] = New("TextLabel", { Size = UDim2.new(1, -244, 0, key == "desc" and 30 or 15), Position = UDim2.new(0, 236, 0, y),
-            Text = ROW_TITLES[i] .. ": —", BackgroundTransparency = 1, TextColor3 = C.DARK, Font = Enum.Font.GothamMedium,
+    local rows = {} local ROW_NAMES = { "name", "display", "id", "created", "presence", "server", "serverCode", "flags", "desc" }
+    local ROW_TITLES = { "Tên", "Tên hiển thị", "UserId", "Ngày tạo", "Trạng thái", "Trong server này", "Mã Server (JobId)", "Huy hiệu / Cấm", "Mô tả" }
+    for i, key in ipairs(ROW_NAMES) do local y = 68 + (i - 1) * 14
+        rows[key] = New("TextLabel", { Name = "HubPlayerInfo_Row_" .. tostring(key), Size = UDim2.new(1, -244, 0, key == "desc" and 28 or 14), Position = UDim2.new(0, 236, 0, y),
+            Text = ROW_TITLES[i] .. ": —", BackgroundTransparency = 1, TextColor3 = key == "serverCode" and C.ACCENT or C.DARK, Font = key == "serverCode" and Enum.Font.GothamBold or Enum.Font.GothamMedium,
             TextSize = 9, TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, TextWrapped = key == "desc", ZIndex = 7, }, P)
     end local function setRow(key, title, value)
         if rows[key] then rows[key].Text = title .. ": " .. tostring(value) end end
@@ -7397,6 +7425,7 @@ function OT.OnFlyChange() if OT.RefreshList then pcall(OT.RefreshList) end end e
         setRow("name", "Tên", "@" .. rec.name) setRow("display", "Tên hiển thị", rec.displayName)
         setRow("id", "UserId", rec.id) setRow("created", "Ngày tạo", rec.created)
         setRow("presence", "Trạng thái", rec.presence) setRow("server", "Trong server này", rec.inServer and "CÓ" or "KHÔNG")
+        setRow("serverCode", "Mã Server (JobId)", rec.serverCodeText or rec.serverJobId or (rec.inServer and tostring(game.JobId or "Cùng server")) or "Offline / Ẩn")
         setRow("flags", "Huy hiệu / Cấm", (rec.verified and "✔ xác minh" or "chưa xác minh") .. " · " .. (rec.isBanned and "⛔ bị cấm" or "không bị cấm"))
         setRow("desc", "Mô tả", clipText(rec.description ~= "" and rec.description or "(trống)", 140)) local okV, verr = PI.ViewerBuild(rec)
         thumbImg.Visible = not okV return okV, verr
@@ -7417,120 +7446,90 @@ function OT.OnFlyChange() if OT.RefreshList then pcall(OT.RefreshList) end end e
             setStatus("✅ Đã tải hồ sơ " .. rec.name .. (rec.desc and "" or " (không có skin công khai)") .. note, rec.desc and C.GREEN or C.YELLOW)
             if type(afterCb) == "function" then pcall(afterCb, rec)
             end end)
-    end local copyProfBtn    = pAct("📋 Link", 236, 212, 62, C.GRAY)
-    local copyIdBtn      = pAct("🔗 ID", 302, 212, 62, C.GRAY) local serverSkinBtn  = pAct("🌐 SERVER", 368, 212, 68, C.BLUE)
+    end local copyProfBtn    = pAct("📋 Link", 236, 212, 38, C.GRAY)
+    local copyIdBtn      = pAct("🔗 ID", 276, 212, 34, C.GRAY)
+    PI.copySrvCodeBtn    = pAct("📋 Mã SV", 312, 212, 42, C.ACCENT) PI.copySrvCodeBtn.Name = "HubPlayerInfo_CopyServerCodeBtn"
+    PI.joinSrvBtn        = pAct("🚀 Vào SV", 356, 212, 42, C.GREEN) PI.joinSrvBtn.Name = "HubPlayerInfo_JoinServerBtn"
+    local serverSkinBtn  = pAct("🌐 SV", 400, 212, 36, C.BLUE)
     local applyLocalBtn  = pAct("👕 Mặc LOCAL", 236, 236, 98, C.GREEN) local resetSkinBtn   = pAct("↩ Trả Skin", 338, 236, 98, C.GRAY)
     local saveSkinTopBtn = pAct("💾 Lưu Skin", 236, 260, 98, C.BLUE) local saveUseTopBtn  = pAct("⚡ Lưu Skin Dùng", 338, 260, 98, C.YELLOW)
     local skinStatusLbl = New("TextLabel", { Name = "HubPlayerInfo_SkinStatus", Size = UDim2.new(1, -244, 0, 56), Position = UDim2.new(0, 236, 0, 284),
         Text = "👕 Bấm Mặc LOCAL để mặc trang phục cục bộ. Bấm ⚡ Lưu Skin Dùng để tự mặc khi mở script.",
         TextWrapped = true, BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium,
         TextSize = 8, TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, ZIndex = 7, }, P)
-    local function refreshSkinButtons() local lOn = PI.localActive == true
-        local hasAutoUse = (type(PI.autoUseSkin) == "table") applyLocalBtn.Text = lOn and "👕 Mặc LOCAL: BẬT" or "👕 Mặc LOCAL"
-        applyLocalBtn.BackgroundColor3 = lOn and C.GREEN or C.SURFACE3 applyLocalBtn.TextColor3 = D.BestText(applyLocalBtn.BackgroundColor3)
+    local function refreshSkinButtons() local lOn = PI.localActive == true local hasAutoUse = (type(PI.autoUseSkin) == "table")
+        applyLocalBtn.Text = lOn and "👕 Mặc LOCAL: BẬT" or "👕 Mặc LOCAL" applyLocalBtn.BackgroundColor3 = lOn and C.GREEN or C.SURFACE3 applyLocalBtn.TextColor3 = D.BestText(applyLocalBtn.BackgroundColor3)
         if saveUseTopBtn then local isCurAuto = hasAutoUse and PI.last and tonumber(PI.autoUseSkin.id) == tonumber(PI.last.id)
-            saveUseTopBtn.Text = isCurAuto and "⚡ Tự Dùng: BẬT" or "⚡ Lưu Skin Dùng" saveUseTopBtn.BackgroundColor3 = isCurAuto and C.GREEN or C.YELLOW
-            saveUseTopBtn.TextColor3 = D.BestText(saveUseTopBtn.BackgroundColor3) end
+            saveUseTopBtn.Text = isCurAuto and "⚡ Tự Dùng: BẬT" or "⚡ Lưu Skin Dùng" saveUseTopBtn.BackgroundColor3 = isCurAuto and C.GREEN or C.YELLOW saveUseTopBtn.TextColor3 = D.BestText(saveUseTopBtn.BackgroundColor3) end
     end PI.RefreshButtons = refreshSkinButtons
-    PI.SyncFromTopPanel = function(name, uid, rec) if name and queryIn then queryIn.Text = tostring(name) end
-        if rec and rec.desc then pcall(function() PI.ViewerBuild(rec) end) end refreshSkinButtons()
-    end local function requireLast()
-        if PI.last == nil then setStatus("⚠️ Hãy tra cứu một người chơi trước", C.YELLOW) return nil end return PI.last
-    end local function withTargetRec(cb)
-        local q = trimStr(queryIn.Text) if q == "" and D.OutfitInput then
-            q = trimStr(D.OutfitInput.Text) if q ~= "" then queryIn.Text = q end
-        end if PI.last ~= nil then
-            if q == "" or string.lower(q) == string.lower(tostring(PI.last.name or "")) or tonumber(q) == PI.last.id then cb(PI.last)
-                return end
-        end if q ~= "" then
-            startLookup(cb) else
-            setStatus("⚠️ Hãy nhập tên/UserId hoặc bấm 🔍 Tra cứu trước", C.YELLOW) end
+    PI.SyncFromTopPanel = function(name, uid, rec) if name and queryIn then queryIn.Text = tostring(name) end if rec and rec.desc then pcall(function() PI.ViewerBuild(rec) end) end refreshSkinButtons() end
+    local function requireLast() if PI.last == nil then setStatus("⚠️ Hãy tra cứu một người chơi trước", C.YELLOW) return nil end return PI.last end
+    local function withTargetRec(cb) local q = trimStr(queryIn.Text)
+        if q == "" and D.OutfitInput then q = trimStr(D.OutfitInput.Text) if q ~= "" then queryIn.Text = q end end
+        if PI.last ~= nil and (q == "" or string.lower(q) == string.lower(tostring(PI.last.name or "")) or tonumber(q) == PI.last.id) then cb(PI.last) return end
+        if q ~= "" then startLookup(cb) else setStatus("⚠️ Hãy nhập tên/UserId hoặc bấm 🔍 Tra cứu trước", C.YELLOW) end
     end searchBtn.Activated:Connect(function() ReleaseHubFocus() startLookup() end)
-    queryIn.FocusLost:Connect(function(enter) if enter then startLookup() end end) clearBtn.Activated:Connect(function()
-        ReleaseHubFocus()
-        PI.reqId = PI.reqId + 1  -- huỷ kết quả đang chờ
-        PI.last = nil queryIn.Text = ""
-        clearRows() if PI.ClearSkinClassUI then pcall(PI.ClearSkinClassUI) end
-        setStatus("Đã xoá. Nhập tên khác rồi bấm 🔍.", C.MUTED) end)
+    queryIn.FocusLost:Connect(function(enter) if enter then startLookup() end end)
+    clearBtn.Activated:Connect(function() ReleaseHubFocus() PI.reqId = PI.reqId + 1 PI.last = nil queryIn.Text = "" clearRows()
+        if PI.ClearSkinClassUI then pcall(PI.ClearSkinClassUI) end setStatus("Đã xoá. Nhập tên khác rồi bấm 🔍.", C.MUTED) end)
     applyLocalBtn.Activated:Connect(function() ReleaseHubFocus()
-        withTargetRec(function(rec) if D.OutfitInput and trimStr(D.OutfitInput.Text) == "" and rec.name then
-                D.OutfitInput.Text = tostring(rec.name) end
-            local ok, detail = PI.ApplyLocal(rec) refreshSkinButtons()
-            if D.SyncOutfitPanel then pcall(D.SyncOutfitPanel) end if ok then
-                setStatus("✅ Đã Mặc LOCAL @" .. rec.name .. " (" .. tostring(detail) .. ")", C.GREEN) if skinStatusLbl then
-                    skinStatusLbl.Text = "✅ Đã Mặc LOCAL @" .. rec.name .. " (" .. tostring(detail) .. ") — ↩ Trả Skin để về." skinStatusLbl.TextColor3 = C.GREEN
-                end pcall(function() PI.ViewerBuild(rec) end)
+        withTargetRec(function(rec) if D.OutfitInput and trimStr(D.OutfitInput.Text) == "" and rec.name then D.OutfitInput.Text = tostring(rec.name) end
+            local ok, detail = PI.ApplyLocal(rec) refreshSkinButtons() if D.SyncOutfitPanel then pcall(D.SyncOutfitPanel) end
+            if ok then setStatus("✅ Đã Mặc LOCAL @" .. rec.name .. " (" .. tostring(detail) .. ")", C.GREEN)
+                if skinStatusLbl then skinStatusLbl.Text = "✅ Đã Mặc LOCAL @" .. rec.name .. " (" .. tostring(detail) .. ") — ↩ Trả Skin để về." skinStatusLbl.TextColor3 = C.GREEN end pcall(function() PI.ViewerBuild(rec) end)
             else setStatus("⚠️ Không Mặc LOCAL được: " .. tostring(detail), C.RED)
-                if skinStatusLbl then skinStatusLbl.Text = "⚠️ Mặc LOCAL thất bại: " .. tostring(detail)
-                    skinStatusLbl.TextColor3 = C.RED end
-            end end)
-    end) serverSkinBtn.Activated:Connect(function()
-        ReleaseHubFocus() withTargetRec(function(rec)
-            setStatus("⏳ Đang gửi yêu cầu Mặc SERVER cho @" .. tostring(rec.name) .. "...", C.YELLOW) task.spawn(function()
-                local ok, msg = PI.ServerOutfitAction("apply", rec.id) setStatus((ok and "✅ " or "⚠️ ") .. tostring(msg), ok and C.GREEN or C.YELLOW)
-                if skinStatusLbl then skinStatusLbl.Text = (ok and "🌐 " or "⚠️ ") .. tostring(msg)
-                    skinStatusLbl.TextColor3 = ok and C.GREEN or C.YELLOW end
-            end) end)
-    end) resetSkinBtn.Activated:Connect(function()
-        ReleaseHubFocus() local ok, err = PI.ResetSkin()
-        refreshSkinButtons() if D.SyncOutfitPanel then pcall(D.SyncOutfitPanel) end
+                if skinStatusLbl then skinStatusLbl.Text = "⚠️ Mặc LOCAL thất bại: " .. tostring(detail) skinStatusLbl.TextColor3 = C.RED end
+            end end) end)
+    serverSkinBtn.Activated:Connect(function() ReleaseHubFocus() withTargetRec(function(rec)
+        setStatus("⏳ Đang gửi yêu cầu Mặc SERVER cho @" .. tostring(rec.name) .. "...", C.YELLOW) task.spawn(function()
+            local ok, msg = PI.ServerOutfitAction("apply", rec.id) setStatus((ok and "✅ " or "⚠️ ") .. tostring(msg), ok and C.GREEN or C.YELLOW)
+            if skinStatusLbl then skinStatusLbl.Text = (ok and "🌐 " or "⚠️ ") .. tostring(msg) skinStatusLbl.TextColor3 = ok and C.GREEN or C.YELLOW end
+        end) end) end)
+    resetSkinBtn.Activated:Connect(function() ReleaseHubFocus() local ok, err = PI.ResetSkin() refreshSkinButtons() if D.SyncOutfitPanel then pcall(D.SyncOutfitPanel) end
         if ok then setStatus("↩ Đã khôi phục skin & trang phục gốc của bạn", C.GREEN)
-            if skinStatusLbl then skinStatusLbl.Text = "↩ Đã về trang phục gốc — bấm 👕 Mặc LOCAL để mặc trang phục cục bộ!"
-                skinStatusLbl.TextColor3 = C.MUTED end
-        else setStatus("⚠️ " .. tostring(err), C.YELLOW)
-            if skinStatusLbl then skinStatusLbl.Text = "⚠️ " .. tostring(err)
-                skinStatusLbl.TextColor3 = C.YELLOW end
-        end end)
-    saveSkinTopBtn.Activated:Connect(function() ReleaseHubFocus()
-        withTargetRec(function(rec) local ok, msg = PI.SaveSkin(rec, "local")
-            refreshSkinButtons() if PI.RefreshSavedSkinsUI then pcall(PI.RefreshSavedSkinsUI) end
-            setStatus((ok and "💾 " or "⚠️ ") .. tostring(msg), ok and C.GREEN or C.RED) if skinStatusLbl then
-                skinStatusLbl.Text = (ok and "💾 " or "⚠️ ") .. tostring(msg) skinStatusLbl.TextColor3 = ok and C.GREEN or C.RED
-            end end)
-    end) saveUseTopBtn.Activated:Connect(function()
-        ReleaseHubFocus() withTargetRec(function(rec)
-            local ok, msg = PI.SaveSkinForAutoUse(rec, "local", true) refreshSkinButtons()
-            if PI.RefreshSavedSkinsUI then pcall(PI.RefreshSavedSkinsUI) end setStatus((ok and "⚡ " or "⚠️ ") .. tostring(msg), ok and C.GREEN or C.RED)
-            if skinStatusLbl then skinStatusLbl.Text = (ok and "⚡ " or "⚠️ ") .. tostring(msg)
-                skinStatusLbl.TextColor3 = ok and C.GREEN or C.RED end
-            pcall(function() PI.ViewerBuild(rec) end) end)
-    end) pcall(function()
-        local _origRender = render render = function(rec)
-            local okV, verr = _origRender(rec) if D.OutfitInput and rec and rec.name then D.OutfitInput.Text = tostring(rec.name) end
-            refreshSkinButtons() if D.SyncOutfitPanel then pcall(D.SyncOutfitPanel) end
-            if PI.RenderSkinClass then pcall(PI.RenderSkinClass, rec) end if PI.RefreshSavedSkinsUI then pcall(PI.RefreshSavedSkinsUI) end
-            pcall(function() if PI.isApplied and PI.appliedId == rec.id then
-                    skinStatusLbl.Text = "👕 Đang dùng (Mặc LOCAL) @" .. rec.name .. " — bấm ↩ Trả Skin để về." skinStatusLbl.TextColor3 = C.GREEN
-                elseif PI.isApplied then skinStatusLbl.Text = "👕 Đang mặc ID " .. tostring(PI.appliedId) .. " — bấm 👕 Mặc LOCAL để đổi sang @" .. rec.name .. "."
-                    skinStatusLbl.TextColor3 = C.YELLOW else
-                    skinStatusLbl.Text = "👕 Sẵn sàng @" .. rec.name .. " — bấm 👕 Mặc LOCAL để mặc trang phục!" skinStatusLbl.TextColor3 = C.MUTED
-                end end)
-            return okV, verr end
-    end) PI.OnSavedRecLoaded = function(rec)
-        if type(rec) == "table" then if rec.name and queryIn then queryIn.Text = tostring(rec.name) end
-            pcall(render, rec) end
-    end PI.OnAutoUseApplied = function(ok, msg, rec, entry)
-        refreshSkinButtons() if PI.RefreshSavedSkinsUI then pcall(PI.RefreshSavedSkinsUI) end
-        if ok and type(rec) == "table" then if rec.name and queryIn then queryIn.Text = tostring(rec.name) end
-            pcall(render, rec) setStatus("⚡ [Tự Mặc Skin Dùng] @" .. tostring(rec.name or rec.id) .. " (" .. tostring(msg) .. ")", C.GREEN)
-            if skinStatusLbl then skinStatusLbl.Text = "⚡ Đã tự động mặc Skin Dùng @" .. tostring(rec.name or rec.id) .. " khi khởi chạy script!"
-                skinStatusLbl.TextColor3 = C.GREEN end
-        elseif not ok then setStatus("⚠️ Tự mặc Skin Dùng: " .. tostring(msg), C.YELLOW)
-        end end
+            if skinStatusLbl then skinStatusLbl.Text = "↩ Đã về trang phục gốc — bấm 👕 Mặc LOCAL để mặc trang phục cục bộ!" skinStatusLbl.TextColor3 = C.MUTED end
+        else setStatus("⚠️ " .. tostring(err), C.YELLOW) if skinStatusLbl then skinStatusLbl.Text = "⚠️ " .. tostring(err) skinStatusLbl.TextColor3 = C.YELLOW end end end)
+    saveSkinTopBtn.Activated:Connect(function() ReleaseHubFocus() withTargetRec(function(rec) local ok, msg = PI.SaveSkin(rec, "local")
+        refreshSkinButtons() if PI.RefreshSavedSkinsUI then pcall(PI.RefreshSavedSkinsUI) end setStatus((ok and "💾 " or "⚠️ ") .. tostring(msg), ok and C.GREEN or C.RED)
+        if skinStatusLbl then skinStatusLbl.Text = (ok and "💾 " or "⚠️ ") .. tostring(msg) skinStatusLbl.TextColor3 = ok and C.GREEN or C.RED end end) end)
+    saveUseTopBtn.Activated:Connect(function() ReleaseHubFocus() withTargetRec(function(rec) local ok, msg = PI.SaveSkinForAutoUse(rec, "local", true)
+        refreshSkinButtons() if PI.RefreshSavedSkinsUI then pcall(PI.RefreshSavedSkinsUI) end setStatus((ok and "⚡ " or "⚠️ ") .. tostring(msg), ok and C.GREEN or C.RED)
+        if skinStatusLbl then skinStatusLbl.Text = (ok and "⚡ " or "⚠️ ") .. tostring(msg) skinStatusLbl.TextColor3 = ok and C.GREEN or C.RED end pcall(function() PI.ViewerBuild(rec) end) end) end)
+    pcall(function() local _origRender = render render = function(rec) local okV, verr = _origRender(rec)
+        if D.OutfitInput and rec and rec.name then D.OutfitInput.Text = tostring(rec.name) end
+        refreshSkinButtons() if D.SyncOutfitPanel then pcall(D.SyncOutfitPanel) end
+        if PI.RenderSkinClass then pcall(PI.RenderSkinClass, rec) end if PI.RefreshSavedSkinsUI then pcall(PI.RefreshSavedSkinsUI) end
+        pcall(function() if PI.isApplied and PI.appliedId == rec.id then skinStatusLbl.Text = "👕 Đang dùng (Mặc LOCAL) @" .. rec.name .. " — bấm ↩ Trả Skin để về." skinStatusLbl.TextColor3 = C.GREEN
+            elseif PI.isApplied then skinStatusLbl.Text = "👕 Đang mặc ID " .. tostring(PI.appliedId) .. " — bấm 👕 Mặc LOCAL để đổi sang @" .. rec.name .. "." skinStatusLbl.TextColor3 = C.YELLOW
+            else skinStatusLbl.Text = "👕 Sẵn sàng @" .. rec.name .. " — bấm 👕 Mặc LOCAL để mặc trang phục!" skinStatusLbl.TextColor3 = C.MUTED end end)
+        return okV, verr end end)
+    PI.OnSavedRecLoaded = function(rec) if type(rec) == "table" then if rec.name and queryIn then queryIn.Text = tostring(rec.name) end pcall(render, rec) end end
+    PI.OnAutoUseApplied = function(ok, msg, rec, entry) refreshSkinButtons() if PI.RefreshSavedSkinsUI then pcall(PI.RefreshSavedSkinsUI) end
+        if ok and type(rec) == "table" then if rec.name and queryIn then queryIn.Text = tostring(rec.name) end pcall(render, rec)
+            setStatus("⚡ [Tự Mặc Skin Dùng] @" .. tostring(rec.name or rec.id) .. " (" .. tostring(msg) .. ")", C.GREEN)
+            if skinStatusLbl then skinStatusLbl.Text = "⚡ Đã tự động mặc Skin Dùng @" .. tostring(rec.name or rec.id) .. " khi khởi chạy script!" skinStatusLbl.TextColor3 = C.GREEN end
+        elseif not ok then setStatus("⚠️ Tự mặc Skin Dùng: " .. tostring(msg), C.YELLOW) end end
     vBtnL.Activated:Connect(function() ReleaseHubFocus() PI.view.yaw = PI.view.yaw + 0.5 PI.ViewerUpdate() end)
     vBtnR.Activated:Connect(function() ReleaseHubFocus() PI.view.yaw = PI.view.yaw - 0.5 PI.ViewerUpdate() end)
     vBtnIn.Activated:Connect(function() ReleaseHubFocus() PI.ViewerZoom(0.85) end)
     vBtnOut.Activated:Connect(function() ReleaseHubFocus() PI.ViewerZoom(1.18) end)
     autoBtn.Activated:Connect(function() ReleaseHubFocus() PI.view.auto = not PI.view.auto refreshAutoBtn() end)
-    resetBtn.Activated:Connect(function() ReleaseHubFocus() PI.ViewerReset() end) copyProfBtn.Activated:Connect(function()
-        ReleaseHubFocus() local rec = requireLast() if not rec then return end
-        local url = "https://www.roblox.com/users/" .. tostring(rec.id) .. "/profile" local did = false
-        if type(setclipboard) == "function" then did = pcall(setclipboard, url) end
+    resetBtn.Activated:Connect(function() ReleaseHubFocus() PI.ViewerReset() end)
+    copyProfBtn.Activated:Connect(function() ReleaseHubFocus() local rec = requireLast() if not rec then return end
+        local url = "https://www.roblox.com/users/" .. tostring(rec.id) .. "/profile" local did = false if type(setclipboard) == "function" then did = pcall(setclipboard, url) end
         setStatus(did and ("📋 Đã copy: " .. url) or ("🔗 " .. url .. " (executor không có setclipboard)"), did and C.GREEN or C.YELLOW) end)
-    copyIdBtn.Activated:Connect(function() ReleaseHubFocus()
-        local rec = requireLast() if not rec then return end local did = false
+    copyIdBtn.Activated:Connect(function() ReleaseHubFocus() local rec = requireLast() if not rec then return end local did = false
         if type(setclipboard) == "function" then did = pcall(setclipboard, tostring(rec.id)) end
         setStatus(did and ("📋 Đã copy UserId " .. tostring(rec.id)) or ("UserId: " .. tostring(rec.id)), did and C.GREEN or C.YELLOW) end)
+    PI.copySrvCodeBtn.Activated:Connect(function() ReleaseHubFocus() local rec = requireLast() if not rec then return end
+        local code = (rec.serverJobId and rec.serverJobId ~= "" and rec.serverJobId) or (rec.inServer and tostring(game.JobId or "")) or rec.serverCode or ""
+        if code == "" then setStatus("⚠️ Người chơi đang Offline hoặc ẩn Mã Server", C.YELLOW) return end
+        local did = false if type(setclipboard) == "function" then did = pcall(setclipboard, tostring(code)) end
+        setStatus(did and ("📋 Đã copy Mã Server: " .. tostring(code)) or ("Mã Server: " .. tostring(code)), did and C.GREEN or C.YELLOW) end)
+    PI.joinSrvBtn.Activated:Connect(function() ReleaseHubFocus() local q = trimStr(queryIn.Text)
+        if q:find("-", 1, true) and #q >= 16 then local okJ, msgJ = PI.JoinPlayerServer(q) setStatus((okJ and "✅ " or "⚠️ ") .. tostring(msgJ), okJ and C.GREEN or C.YELLOW) return end
+        withTargetRec(function(rec) local okJ, msgJ = PI.JoinPlayerServer(rec) setStatus((okJ and "✅ " or "⚠️ ") .. tostring(msgJ), okJ and C.GREEN or C.YELLOW)
+            if skinStatusLbl then skinStatusLbl.Text = tostring(msgJ); skinStatusLbl.TextColor3 = okJ and C.GREEN or C.YELLOW end end) end)
     -- ===== PHẦN DƯỚI TRA CỨU & XEM 3D: 🗂️ PHÂN LOẠI SKIN · XOÁ MÓN & TẠO NHÂN VẬT ẢO + 💾 LƯU SKIN & ⚡ LƯU SKIN DÙNG =====
     ;(function() local SH = 484
         local SP = New("Frame", { Name = "HubSkinClass_Panel",
@@ -7615,9 +7614,11 @@ function OT.OnFlyChange() if OT.RefreshList then pcall(OT.RefreshList) end end e
                 infoCatLbl.Text = "📊 Phân loại skin: 🎩 Phụ kiện: — · 👕 Quần áo: — · 🙂 Đầu/Mặt: — · 🦾 Cơ thể: — · 🎨 Da/Dáng: —" return
             end PI.EnsureSkinItems(rec)
             local kept, total, deleted = PI.KeptCount(rec) summaryBadge.Text = string.format("Giữ: %d/%d món · Đã xoá: %d", kept, total, deleted)
-            summaryBadge.TextColor3 = deleted > 0 and C.YELLOW or C.GREEN infoUserLbl.Text = string.format("👤 @%s (%s) · ID: %s · %s · Server này: %s",
+            summaryBadge.TextColor3 = deleted > 0 and C.YELLOW or C.GREEN
+            local srvTag = rec.serverJobId or (rec.inServer and tostring(game.JobId or "Cùng SV")) or "Ẩn/Offline"
+            infoUserLbl.Text = string.format("👤 @%s (%s) · ID: %s · %s · Mã SV: %s",
                 tostring(rec.name or "—"), tostring(rec.displayName or "—"), tostring(rec.id or "—"),
-                tostring(rec.presence or "—"), rec.inServer and "CÓ" or "KHÔNG") local cc = rec.catCounts or {}
+                tostring(rec.presence or "—"), tostring(srvTag)) local cc = rec.catCounts or {}
             infoCatLbl.Text = string.format("📊 🎩 Phụ kiện: %d · 👕 Quần áo: %d · 🙂 Đầu/Mặt: %d · 🦾 Cơ thể: %d · 📐 %s",
                 cc.accessory or 0, cc.clothing or 0, cc.headface or 0, cc.bodypart or 0, tostring(rec.bodySummary or "Mặc định")) end
         local function refreshSkinRow(rec, item) local r = accRows[item.idx]
