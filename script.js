@@ -3136,16 +3136,114 @@ end trackConn(player.CharacterAdded:Connect(function() task.spawn(function() tas
 end function S.CopyToClipboard(text) local did = false
     pcall(function() if setclipboard then setclipboard(text) did = true
         elseif toclipboard then toclipboard(text) did = true elseif set_clipboard then set_clipboard(text) did = true end end) return did end
-function S.FetchServers(cursor) local url = "https://games.roblox.com/v1/games/" .. tostring(game.PlaceId)
-             .. "/servers/Public?sortOrder=Asc&limit=100" if cursor and cursor ~= "" then url = url .. "&cursor=" .. tostring(cursor) end
-    local raw = game:HttpGet(url) local data = HttpService:JSONDecode(raw)
-    if type(data) ~= "table" then return {}, nil end return (type(data.data) == "table" and data.data or {}), data.nextPageCursor end
-function S.ResetServer() local me = S.GetJobId() if me then TeleportService:TeleportToPlaceInstance(game.PlaceId, me, player)
+function S.FetchServers(cursor, customPlaceId)
+    local pId = tonumber(customPlaceId) or tonumber(game.PlaceId) or 0
+    local url = "https://games.roblox.com/v1/games/" .. tostring(pId) .. "/servers/Public?sortOrder=Asc&limit=100"
+    if cursor and cursor ~= "" then url = url .. "&cursor=" .. tostring(cursor) end
+    local raw = nil
+    local okG, resG = pcall(function() return game:HttpGet(url) end)
+    if okG and type(resG) == "string" and #resG > 0 then raw = resG end
+    if not raw or #raw == 0 then
+        local rq = (type(request) == "function" and request)
+            or (type(http_request) == "function" and http_request)
+            or (type(syn) == "table" and type(syn.request) == "function" and syn.request)
+            or S.CompatRequest
+        if type(rq) == "function" then
+            local okR, resR = pcall(rq, { Url = url, Method = "GET" })
+            if okR and type(resR) == "table" and type(resR.Body) == "string" and #resR.Body > 0 then raw = resR.Body end
+        end
+    end
+    if type(raw) ~= "string" or #raw == 0 then return {}, nil end
+    local okD, data = pcall(function() return HttpService:JSONDecode(raw) end)
+    if not okD or type(data) ~= "table" then return {}, nil end
+    return (type(data.data) == "table" and data.data or {}), data.nextPageCursor
+end
+function S.ParseServerCode(raw)
+    local s = tostring(raw or ""):gsub("^%s+", ""):gsub("%s+$", "")
+    s = s:gsub('^"', ""):gsub('"$', ""):gsub("^'", ""):gsub("'$", "")
+    s = s:gsub("^Mã Server %(JobId%)%s*:%s*", ""):gsub("^Mã SV%s*:%s*", ""):gsub("^🌐 Mã server%s*:%s*", "")
+    if s == "" then return nil, nil end
+    local pId, jId = s:match("^(%d+)%s*[:/|,]%s*([%w%-]+)$")
+    if pId and jId and jId:find("-", 1, true) then
+        return jId, tonumber(pId)
+    end
+    local placeHint = s:match("PlaceId%s*[:=]%s*(%d+)") or s:match("Place%s*[:=]%s*(%d+)")
+    local uuid = s:match("(%x%x%x%x%x%x%x%x%-%x%x%x%x%-%x%x%x%x%-%x%x%x%x%-%x%x%x%x%x%x%x%x%x%x%x%x)")
+    if uuid then
+        return uuid, tonumber(placeHint)
+    end
+    local token = s:match("^([%w]+%-[%w%-]+)")
+    if token and #token >= 8 then
+        return token, tonumber(placeHint)
+    end
+    if placeHint and s:match("^PlaceId%s*[:=]%s*%d+$") then
+        return nil, tonumber(placeHint)
+    end
+    return nil, nil
+end
+function S.TeleportToServer(placeId, jobId)
+    pcall(ReleaseHubFocus)
+    local pId = tonumber(placeId) or tonumber(game.PlaceId) or 0
+    local jId = tostring(jobId or ""):gsub("^%s+", ""):gsub("%s+$", "")
+    S._intentionalTeleport = true
+    if jId ~= "" and pId > 0 then
+        local okT, errT = pcall(function() TeleportService:TeleportToPlaceInstance(pId, jId, player) end)
+        if not okT then
+            okT, errT = pcall(function() TeleportService:TeleportToPlaceInstance(pId, jId) end)
+        end
+        if not okT then
+            S._intentionalTeleport = false
+            return false, tostring(errT)
+        end
+        return true, nil
+    elseif pId > 0 then
+        local okT, errT = pcall(function() TeleportService:Teleport(pId, player) end)
+        if not okT then
+            okT, errT = pcall(function() TeleportService:Teleport(pId) end)
+        end
+        if not okT then
+            S._intentionalTeleport = false
+            return false, tostring(errT)
+        end
+        return true, nil
+    end
+    S._intentionalTeleport = false
+    return false, "Thiếu PlaceId hoặc JobId hợp lệ"
+end
+function S.ResetServer() local me = S.GetJobId() if me then S.TeleportToServer(game.PlaceId, me)
         return "🔄 Đang vào lại ĐÚNG server này: " .. me .. " (giữ nguyên người chơi cùng server)..." end
-    TeleportService:Teleport(game.PlaceId, player) return "🔄 Không đọc được mã server (Studio/server đơn) → đang nạp lại game..." end
-function S.JoinServer(jobId) TeleportService:TeleportToPlaceInstance(game.PlaceId, tostring(jobId), player) end
+    S.TeleportToServer(game.PlaceId, nil) return "🔄 Không đọc được mã server (Studio/server đơn) → đang nạp lại game..." end
+function S.JoinServer(jobIdOrQuery, customPlaceId)
+    local s = tostring(jobIdOrQuery or ""):gsub("^%s+", ""):gsub("%s+$", "")
+    local jId, pId = S.ParseServerCode(s)
+    pId = tonumber(customPlaceId) or pId
+    if jId and jId ~= "" then
+        local targetPlace = pId or tonumber(game.PlaceId)
+        local pi = _G.BananaCatHub_PlayerInfo
+        if not pId and type(pi) == "table" and type(pi.last) == "table" and tostring(pi.last.serverJobId or "") == jId and tonumber(pi.last.placeId) then
+            targetPlace = tonumber(pi.last.placeId)
+        end
+        local okT, errT = S.TeleportToServer(targetPlace, jId)
+        if not okT then error(tostring(errT)) end
+        return "🚀 Đang vào server mã " .. tostring(jId) .. " (PlaceId: " .. tostring(targetPlace or game.PlaceId) .. ")!"
+    end
+    local pi = _G.BananaCatHub_PlayerInfo
+    if type(pi) == "table" and type(pi.JoinPlayerServer) == "function" and s ~= "" then
+        local okP, msgP = pi.JoinPlayerServer(s)
+        if not okP then error(tostring(msgP)) end
+        return tostring(msgP)
+    end
+    if pId and pId > 0 then
+        local okT, errT = S.TeleportToServer(pId, nil)
+        if not okT then error(tostring(errT)) end
+        return "🚀 Đang vào game PlaceId " .. tostring(pId) .. "!"
+    end
+    error("Mã server không hợp lệ: " .. tostring(s))
+end
 function S.HopServer() local me = tostring(S.GetJobId() or "") local cand, cursor = {}, "" for _ = 1, 3 do
-        local list, nextCursor = S.FetchServers(cursor) for _, sv in ipairs(list) do
+        local okF, list, nextCursor = pcall(function() return S.FetchServers(cursor) end)
+        if not okF or type(list) ~= "table" then list, nextCursor = {}, nil end
+        for _, sv in ipairs(list) do
             local sid = (sv and sv.id) and tostring(sv.id) or nil local playing = tonumber(sv and sv.playing) or 0
             local maxp = tonumber(sv and sv.maxPlayers) or 0 if sid and sid ~= me and (maxp <= 0 or playing < maxp) then
                 cand[#cand + 1] = {id = sid, playing = playing, maxPlayers = maxp} end end
@@ -3212,7 +3310,7 @@ function S.AntiBanArm() local a = S.AntiBan if a.armed then return end a.armed =
             end) if old then local removed = false local function unhookKick() if removed then return end
                     removed = true pcall(function() hookfunction(player.Kick, old) end) end a._unhookKick = unhookKick
                 _G.BananaCatHub_AntiBanUnhook = unhookKick end end end) pcall(function()
-        antiConnect(Players.PlayerRemoving, function(p) if p == player and a.on then S.AntiBanHop("player_removing") end end) end)
+        antiConnect(Players.PlayerRemoving, function(p) if p == player and a.on and not S._intentionalTeleport then S.AntiBanHop("player_removing") end end) end)
     pcall(function() local gs = game:GetService("GuiService")
         antiConnect(gs.ErrorMessageChanged, function() if not a.on then return end local msg = ""
             pcall(function() msg = tostring(gs.ErrorMessage or "") end) if msg == "" then pcall(function() msg = tostring(gs:GetErrorMessage()) end) end
@@ -3405,29 +3503,59 @@ D.hubJobLbl = New("TextLabel", { Size = UDim2.new(1, -40, 0, 14), Position = UDi
 D.hubJobCopy = New("TextButton", { Size = UDim2.new(0, 22, 0, 14), Position = UDim2.new(1, -28, 0, 4), Text = "📋",
     BackgroundColor3 = C.BLUE, BackgroundTransparency = 0.1, TextColor3 = C.INK, Font = Enum.Font.GothamBold, TextSize = 8, BorderSizePixel = 0, AutoButtonColor = false, ZIndex = 7,
 }, D.hubSrvPanel) Corner(D.hubJobCopy, UDim.new(0, 5)) D.Tactile(D.hubJobCopy, 0.1)
-D.hubJobIn = New("TextBox", { Size = UDim2.new(1, -112, 0, 20), Position = UDim2.new(0, 8, 0, 22),
-    PlaceholderText = "🎟 Dán mã server (JobId) vào đây...", Text = "", ClearTextOnFocus = false, BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.1, TextColor3 = C.DARK,
+D.hubJobIn = New("TextBox", { Name = "HubServer_JobInput", Size = UDim2.new(1, -112, 0, 20), Position = UDim2.new(0, 8, 0, 22),
+    PlaceholderText = "🎟 Dán mã server (JobId) hoặc tên người chơi vào đây...", Text = "", ClearTextOnFocus = false, BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.1, TextColor3 = C.DARK,
     PlaceholderColor3 = C.GRAY, Font = Enum.Font.GothamMedium, TextSize = 9, TextXAlignment = Enum.TextXAlignment.Left, BorderSizePixel = 0, ZIndex = 7,
 }, D.hubSrvPanel) Corner(D.hubJobIn, UDim.new(0, 7)) Stroke(D.hubJobIn, C.BORDER, 1) New("UIPadding", {PaddingLeft = UDim.new(0, 7)}, D.hubJobIn)
-D.hubJoinBtn = D.CardBtn(D.hubSrvPanel, "🚀 Vào", -98, 46, C.GREEN) D.hubJoinBtn.Position = UDim2.new(1, -98, 0, 22)
-D.hubHopBtn = D.CardBtn(D.hubSrvPanel, "🔀 Hop", -48, 42, C.PURPLE) D.hubHopBtn.Position = UDim2.new(1, -48, 0, 22)
+D.hubJoinBtn = D.CardBtn(D.hubSrvPanel, "🚀 Vào", -98, 46, C.GREEN) D.hubJoinBtn.Name = "HubServer_JoinBtn" D.hubJoinBtn.Position = UDim2.new(1, -98, 0, 22)
+D.hubHopBtn = D.CardBtn(D.hubSrvPanel, "🔀 Hop", -48, 42, C.PURPLE) D.hubHopBtn.Name = "HubServer_HopBtn" D.hubHopBtn.Position = UDim2.new(1, -48, 0, 22)
 D.hubLowBtn = D.CardBtn(D.hubSrvPanel, "👥 Ít", -98, 38, C.BLUE) D.hubLowBtn.Position = UDim2.new(1, -98, 0, 46)
 D.hubEmptyBtn = D.CardBtn(D.hubSrvPanel, "🌙 Vắng", -56, 50, C.ORANGE) D.hubEmptyBtn.Position = UDim2.new(1, -56, 0, 46)
 function S.SyncServerPanel() pcall(function() if not D.hubJobLbl then return end local jid = S.GetJobId()
         if jid then D.hubJobLbl.Text = "🌐 Mã server: " .. jid D.hubJobLbl.TextColor3 = C.DARK else
             D.hubJobLbl.Text = "🌐 Không đọc được mã server (Studio/server đơn) — 🔄 Reset vẫn dùng được" D.hubJobLbl.TextColor3 = C.MUTED end end) end
+function S.DoHubJoinByInput(rawText)
+    local id = tostring(rawText or (D.hubJobIn and D.hubJobIn.Text) or "")
+    id = id:gsub("^%s+", ""):gsub("%s+$", "") id = id:gsub('^"', ""):gsub('"$', ""):gsub("^'", ""):gsub("'$", "")
+    if id == "" then
+        local pi = _G.BananaCatHub_PlayerInfo
+        if type(pi) == "table" and type(pi.last) == "table" and type(pi.last.serverJobId) == "string" and pi.last.serverJobId ~= "" then
+            id = pi.last.serverJobId
+            pcall(function() if D.hubJobIn then D.hubJobIn.Text = id end end)
+        end
+    end
+    if id == "" then
+        local msg = "⚠️ Hãy DÁN mã server (JobId) hoặc tên người chơi vào ô 🎟 trước khi bấm 🚀 Vào"
+        D.Say(msg) if D.hubStatus then D.hubStatus.Text = msg end
+        ReleaseHubFocus()
+        return false, msg
+    end
+    D.Say("🚀 Đang vào server " .. id .. " ...", C.YELLOW)
+    if D.hubStatus then D.hubStatus.Text = "🚀 Đang xử lý vào server: " .. id .. " ..." end
+    ReleaseHubFocus()
+    local okJ, msgOrErr = pcall(function() return S.JoinServer(id) end)
+    if not okJ then
+        local failMsg = "⚠️ Không vào được server này: " .. tostring(msgOrErr)
+        D.Say(failMsg) if D.hubStatus then D.hubStatus.Text = failMsg end
+        return false, failMsg
+    end
+    local okMsg = tostring(msgOrErr or ("🚀 Đang vào server " .. id .. "!"))
+    D.Say(okMsg, C.GREEN) if D.hubStatus then D.hubStatus.Text = okMsg end
+    return true, okMsg
+end
 D.hubJobCopy.Activated:Connect(function() local jid = S.GetJobId()
     if not jid then D.Say("⚠️ Không có mã server để copy (đang ở Studio / server đơn)") return end
     local okCp = S.CopyToClipboard(jid) pcall(function() D.hubJobIn.Text = jid end)
     D.Say(okCp and ("📋 Đã copy mã server: " .. jid) or ("⚠️ Executor không cho copy — mã server là: " .. jid), okCp and C.GREEN or C.YELLOW) end)
-D.hubJoinBtn.Activated:Connect(function() local id = tostring(D.hubJobIn.Text or "")
-    id = id:gsub("^%s+", ""):gsub("%s+$", "") id = id:gsub('^"', ""):gsub('"$', ""):gsub("^'", ""):gsub("'$", "") if id == "" then
-        D.Say("⚠️ Hãy DÁN mã server (JobId) vào ô 🎟 trước khi bấm 🚀 Vào") ReleaseHubFocus()
-        return end D.Say("🚀 Đang vào server " .. id .. " ...", C.YELLOW)
-    ReleaseHubFocus()   -- nhả focus ô nhập, không thì game chặn input sau khi teleport
-    local okJ, errJ = pcall(function() S.JoinServer(id) end) if not okJ then
-        D.Say("⚠️ Không vào được server này (mã sai/hết chỗ/game chặn): " .. tostring(errJ)) end end)
+D.hubJoinBtn.Activated:Connect(function() S.DoHubJoinByInput(D.hubJobIn and D.hubJobIn.Text) end)
+D.hubJobIn.FocusLost:Connect(function(enter) if enter then S.DoHubJoinByInput(D.hubJobIn.Text) end end)
 D.hubHopBtn.Activated:Connect(function() ReleaseHubFocus()
+    local id = tostring(D.hubJobIn and D.hubJobIn.Text or ""):gsub("^%s+", ""):gsub("%s+$", "")
+    local myJid = tostring(S.GetJobId() or "")
+    if id ~= "" and id ~= myJid then
+        S.DoHubJoinByInput(id)
+        return
+    end
     D.Say("🔀 Đang đi lấy mã server...", C.YELLOW) D.hubStatus.Text = S.RunHubAction("hopserver") end)
 D.hubLowBtn.Activated:Connect(function() ReleaseHubFocus()
     D.Say("👥 Đang quét 800 server tìm server ÍT NGƯỜI nhất...", C.YELLOW) D.hubStatus.Text = S.RunHubAction("hoplow") end)
@@ -5318,16 +5446,29 @@ function OT.OnFlyChange() if OT.RefreshList then pcall(OT.RefreshList) end end e
         return s end
     local function jsonEncode(t) local ok, s = pcall(function() return HttpService:JSONEncode(t) end) if ok then return s end return nil end
     function PI.Http(method, url, body)
-        local rq = (type(request) == "function" and request) or (type(http_request) == "function" and http_request) or S.CompatRequest local headers = nil
+        local rq = (type(request) == "function" and request)
+            or (type(http_request) == "function" and http_request)
+            or (type(syn) == "table" and type(syn.request) == "function" and syn.request)
+            or (type(http) == "table" and type(http.request) == "function" and http.request)
+            or (type(fluxus) == "table" and type(fluxus.request) == "function" and fluxus.request)
+            or S.CompatRequest
+        local headers = nil
         if body then headers = { ["Content-Type"] = "application/json", ["Accept"] = "application/json" } end
         local ok, res = pcall(rq, { Url = url, Method = method, Headers = headers, Body = body })
+        if (not ok or type(res) ~= "table" or type(res.Body) ~= "string" or #res.Body == 0) and tostring(method or "GET"):upper() == "GET" then
+            local okG, rawG = pcall(function() return game:HttpGet(url) end)
+            if okG and type(rawG) == "string" and #rawG > 0 then
+                res = { StatusCode = 200, Success = true, Body = rawG }
+                ok = true
+            end
+        end
         if not ok or type(res) ~= "table" then return nil, "lỗi mạng" end local code = tonumber(res.StatusCode) or 0
         if res.Success == false or code >= 400 then return nil, "HTTP " .. tostring(code) end
         if type(res.Body) ~= "string" or #res.Body == 0 then return nil, "phản hồi rỗng" end
         local okD, data = pcall(function() return HttpService:JSONDecode(res.Body) end)
         if not okD or type(data) ~= "table" then return nil, "phản hồi không hợp lệ" end return data, nil
     end function PI.ResolveUser(query)
-        local q = trimStr(query) if q == "" then return nil, "chưa nhập tên hoặc UserId" end
+        local q = trimStr(query):gsub("^@", "") if q == "" then return nil, "chưa nhập tên hoặc UserId" end
         if q:match("^%d+$") then
             if #q > 15 then return nil, "UserId không hợp lệ (quá dài)" end  -- tránh số bị đổi sang dạng 1e+22
             local id = tonumber(q) if not id or id <= 0 then return nil, "UserId không hợp lệ" end
@@ -5352,34 +5493,199 @@ function OT.OnFlyChange() if OT.RefreshList then pcall(OT.RefreshList) end end e
     end function PI.InThisServer(id, p)
         local okP, inst = pcall(function() return Players:GetPlayerByUserId(id) end) if okP and inst then return true end
         if type(p) == "table" and p.gameId ~= nil and tostring(p.gameId) ~= "" and tostring(p.gameId) == tostring(game.JobId or "") then return true end return false
-    end function PI.ExtractServerInfo(id, p) local inSrv = PI.InThisServer(id, p)
-        local jobId = (type(p) == "table" and type(p.gameId) == "string" and p.gameId ~= "" and tostring(p.gameId)) or (inSrv and tostring(game.JobId or "") ~= "" and tostring(game.JobId)) or nil
-        local placeId = (type(p) == "table" and (tonumber(p.placeId) or tonumber(p.rootPlaceId))) or (inSrv and tonumber(game.PlaceId)) or nil
-        local code = (jobId and placeId and (tostring(placeId) .. ":" .. tostring(jobId))) or jobId or (placeId and ("PlaceId:" .. tostring(placeId)) or "")
-        local txt = jobId and (jobId .. (placeId and (" (Place: " .. tostring(placeId) .. ")") or "")) or (placeId and ("Ẩn JobId · Place: " .. tostring(placeId)) or "Offline / Ẩn quyền riêng tư")
-        return jobId, placeId, code, txt
-    end function PI.JoinPlayerServer(recOrQuery) local TS = game:GetService("TeleportService") local jobId, placeId, targetName = nil, nil, ""
-        if type(recOrQuery) == "table" then targetName = tostring(recOrQuery.name or recOrQuery.id or "") jobId = recOrQuery.serverJobId placeId = tonumber(recOrQuery.placeId)
-            if not jobId and recOrQuery.id and PI.InThisServer(recOrQuery.id, nil) and tostring(game.JobId or "") ~= "" then jobId = tostring(game.JobId) placeId = placeId or tonumber(game.PlaceId) end
-        elseif type(recOrQuery) == "string" then local s = trimStr(recOrQuery) local pId, jId = s:match("^(%d+)%s*[:/|,]%s*([%w%-]+)$")
-            if pId and jId then placeId = tonumber(pId); jobId = jId
-            elseif s:find("-", 1, true) and #s >= 16 then jobId = s; placeId = tonumber(game.PlaceId) end
+    end
+    local function normalizeThumbKey(u)
+        if type(u) ~= "string" or u == "" then return nil end
+        return u:match("rbxcdn%.com/([^%?]+)") or u
+    end
+    function PI.FetchHeadshotUrl(id)
+        local data = PI.Http("GET", "https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=" .. tostring(id) .. "&size=150x150&format=Png&isCircular=false", nil)
+        local e = type(data) == "table" and type(data.data) == "table" and data.data[1] or nil
+        if type(e) == "table" and type(e.imageUrl) == "string" and e.imageUrl ~= "" then return e.imageUrl end
+        local bData = PI.Http("POST", "https://thumbnails.roblox.com/v1/batch", jsonEncode({
+            { requestId = "target:" .. tostring(id), targetId = tonumber(id), type = "AvatarHeadShot", size = "150x150", format = "Png", isCircular = false }
+        }))
+        if type(bData) == "table" and type(bData.data) == "table" then
+            for _, be in ipairs(bData.data) do
+                if type(be) == "table" and (tonumber(be.targetId) == tonumber(id) or tostring(be.requestId or "") == ("target:" .. tostring(id))) then
+                    if type(be.imageUrl) == "string" and be.imageUrl ~= "" then return be.imageUrl end
+                end
+            end
         end
-        placeId = placeId or tonumber(game.PlaceId)
-        if jobId and jobId ~= "" and placeId and placeId > 0 then
-            local okT, errT = pcall(function() TS:TeleportToPlaceInstance(placeId, jobId, player) end)
+        return nil
+    end
+    function PI.FindPlayerServerByTokens(id, targetPlaceId, onProgress, maxPages)
+        id = tonumber(id)
+        if not id or id <= 0 then return nil, nil end
+        if PI.InThisServer(id, nil) and tostring(game.JobId or "") ~= "" then
+            return tostring(game.JobId), tonumber(game.PlaceId), "same_server"
+        end
+        local pres = PI.FetchPresence(id)
+        if type(pres) == "table" and type(pres.gameId) == "string" and pres.gameId ~= "" then
+            local pId = tonumber(pres.placeId) or tonumber(pres.rootPlaceId) or tonumber(targetPlaceId) or tonumber(game.PlaceId)
+            return tostring(pres.gameId), pId, "presence"
+        end
+        local scanPlaceId = tonumber(targetPlaceId)
+            or (type(pres) == "table" and (tonumber(pres.placeId) or tonumber(pres.rootPlaceId)))
+            or tonumber(game.PlaceId)
+        if not scanPlaceId or scanPlaceId <= 0 then return nil, nil end
+        local targetThumb = PI.FetchHeadshotUrl(id)
+        local targetKey = normalizeThumbKey(targetThumb)
+        local cursor = ""
+        local pages = tonumber(maxPages) or 8
+        for page = 1, pages do
+            local url = "https://games.roblox.com/v1/games/" .. tostring(scanPlaceId) .. "/servers/Public?limit=100"
+                .. (cursor ~= "" and ("&cursor=" .. tostring(cursor)) or "")
+            local sData = PI.Http("GET", url, nil)
+            local list = type(sData) == "table" and type(sData.data) == "table" and sData.data or nil
+            local nextCursor = type(sData) == "table" and sData.nextPageCursor or nil
+            if not list and type(S.FetchServers) == "function" then
+                local okS, fList, fCur = pcall(S.FetchServers, cursor, scanPlaceId)
+                if okS and type(fList) == "table" then list, nextCursor = fList, fCur end
+            end
+            if type(list) ~= "table" or #list == 0 then break end
+            if type(onProgress) == "function" then pcall(onProgress, page, #list) end
+            local batch = {}
+            for _, sv in ipairs(list) do
+                local sid = type(sv) == "table" and sv.id and tostring(sv.id) or nil
+                if sid and sid ~= "" then
+                    if type(sv.playerIds) == "table" then
+                        for _, pid in ipairs(sv.playerIds) do
+                            if tonumber(pid) == id then return sid, scanPlaceId, "playerIds" end
+                        end
+                    end
+                    if type(sv.playerTokens) == "table" then
+                        for _, tok in ipairs(sv.playerTokens) do
+                            if type(tok) == "string" and tok ~= "" then
+                                if tok == tostring(id) or tok == ("token_" .. tostring(id)) then
+                                    return sid, scanPlaceId, "token_direct"
+                                end
+                                batch[#batch + 1] = {
+                                    requestId = sid,
+                                    token = tok,
+                                    type = "AvatarHeadShot",
+                                    size = "150x150",
+                                    format = "Png",
+                                    isCircular = false,
+                                }
+                            end
+                        end
+                    end
+                end
+            end
+            if #batch > 0 then
+                for startIdx = 1, #batch, 100 do
+                    local chunk = {}
+                    for k = startIdx, math.min(#batch, startIdx + 99) do
+                        chunk[#chunk + 1] = batch[k]
+                    end
+                    local bRes = PI.Http("POST", "https://thumbnails.roblox.com/v1/batch", jsonEncode(chunk))
+                    local items = type(bRes) == "table" and type(bRes.data) == "table" and bRes.data or nil
+                    if type(items) == "table" then
+                        for _, it in ipairs(items) do
+                            if type(it) == "table" then
+                                local rSid = type(it.requestId) == "string" and it.requestId:match("^([^:]+)") or nil
+                                if rSid and rSid ~= "" then
+                                    if tonumber(it.targetId) == id then
+                                        return rSid, scanPlaceId, "batch_targetId"
+                                    end
+                                    if targetKey and type(it.imageUrl) == "string" and normalizeThumbKey(it.imageUrl) == targetKey then
+                                        return rSid, scanPlaceId, "batch_thumb"
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+            if type(nextCursor) ~= "string" or nextCursor == "" then break end
+            cursor = nextCursor
+        end
+        return nil, scanPlaceId, nil
+    end
+    function PI.ExtractServerInfo(id, p)
+        local inSrv = PI.InThisServer(id, p)
+        local jobId = (type(p) == "table" and type(p.gameId) == "string" and p.gameId ~= "" and tostring(p.gameId))
+            or (inSrv and tostring(game.JobId or "") ~= "" and tostring(game.JobId))
+            or nil
+        local placeId = (type(p) == "table" and (tonumber(p.placeId) or tonumber(p.rootPlaceId)))
+            or (inSrv and tonumber(game.PlaceId))
+            or nil
+        local code = (jobId and jobId ~= "" and tostring(jobId)) or ""
+        local txt = jobId and (jobId .. (placeId and (" (Place: " .. tostring(placeId) .. ")") or ""))
+            or (placeId and ("Ẩn JobId · Place: " .. tostring(placeId)) or "Offline / Ẩn quyền riêng tư")
+        return jobId, placeId, code, txt
+    end
+    function PI.JoinPlayerServer(recOrQuery, onProgress)
+        local jobId, placeId, explicitPlaceId, targetName, targetId = nil, nil, nil, "", nil
+        if type(recOrQuery) == "table" then
+            targetName = tostring(recOrQuery.name or recOrQuery.id or "")
+            targetId = tonumber(recOrQuery.id)
+            jobId = type(recOrQuery.serverJobId) == "string" and recOrQuery.serverJobId ~= "" and recOrQuery.serverJobId or nil
+            explicitPlaceId = tonumber(recOrQuery.placeId)
+            placeId = explicitPlaceId
+            if not jobId and targetId and PI.InThisServer(targetId, nil) and tostring(game.JobId or "") ~= "" then
+                jobId = tostring(game.JobId)
+                placeId = placeId or tonumber(game.PlaceId)
+            end
+            if not jobId and targetId then
+                local foundJ, foundP = PI.FindPlayerServerByTokens(targetId, placeId or game.PlaceId, onProgress, 10)
+                if foundJ and foundJ ~= "" then
+                    jobId = foundJ
+                    placeId = tonumber(foundP) or placeId or tonumber(game.PlaceId)
+                    recOrQuery.serverJobId = jobId
+                    recOrQuery.placeId = placeId
+                    recOrQuery.serverCode = jobId
+                    recOrQuery.serverCodeText = jobId .. (placeId and (" (Place: " .. tostring(placeId) .. ")") or "")
+                    pcall(function() if D.hubJobIn then D.hubJobIn.Text = tostring(jobId) end end)
+                end
+            end
+        elseif type(recOrQuery) == "string" then
+            local s = trimStr(recOrQuery)
+            local parsedJob, parsedPlace = S.ParseServerCode(s)
+            if parsedJob and parsedJob ~= "" then
+                jobId = parsedJob
+                explicitPlaceId = parsedPlace
+                placeId = parsedPlace or tonumber(game.PlaceId)
+            elseif parsedPlace and s:match("^PlaceId%s*[:=]%s*%d+$") then
+                explicitPlaceId = parsedPlace
+                placeId = parsedPlace
+            elseif s ~= "" then
+                local uid, uname = PI.ResolveUser(s)
+                if uid then
+                    targetId = uid
+                    targetName = tostring(uname or s)
+                    local pres = PI.FetchPresence(uid)
+                    local ej, ep = PI.ExtractServerInfo(uid, pres)
+                    jobId = ej
+                    explicitPlaceId = ep
+                    placeId = ep
+                    if not jobId or jobId == "" then
+                        local foundJ, foundP = PI.FindPlayerServerByTokens(uid, placeId or game.PlaceId, onProgress, 10)
+                        if foundJ and foundJ ~= "" then
+                            jobId = foundJ
+                            placeId = tonumber(foundP) or placeId or tonumber(game.PlaceId)
+                        end
+                    end
+                end
+            end
+        end
+        if jobId and jobId ~= "" then
+            placeId = tonumber(placeId) or tonumber(game.PlaceId) or 0
+            pcall(function() if D.hubJobIn then D.hubJobIn.Text = tostring(jobId) end end)
+            local okT, errT = S.TeleportToServer(placeId, jobId)
             if not okT then
                 return false, "Lỗi dịch chuyển vào server: " .. tostring(errT)
             end
             return true, string.format("🚀 Đang vào server mã %s (PlaceId: %d)%s!", tostring(jobId), placeId, targetName ~= "" and (" cùng @" .. targetName) or "")
-        elseif placeId and placeId > 0 then
-            local okT, errT = pcall(function() TS:Teleport(placeId, player) end)
+        elseif explicitPlaceId and explicitPlaceId > 0 then
+            local okT, errT = S.TeleportToServer(explicitPlaceId, nil)
             if not okT then
                 return false, "Lỗi dịch chuyển vào game: " .. tostring(errT)
             end
-            return true, string.format("🚀 Đang vào game PlaceId %d%s (JobId bị ẩn do cài đặt riêng tư)!", placeId, targetName ~= "" and (" của @" .. targetName) or "")
+            return true, string.format("🚀 Đang vào game PlaceId %d%s (JobId bị ẩn do cài đặt riêng tư)!", explicitPlaceId, targetName ~= "" and (" của @" .. targetName) or "")
         end
-        return false, "Người chơi đang Offline hoặc ẩn mã Server (hãy thử khi họ đang trong game)"
+        return false, "Không tìm thấy server công khai của người chơi này (Offline, Server VIP/riêng tư, hoặc ẩn quyền riêng tư)"
     end function PI.FetchDesc(id)
         local ok, desc = pcall(function() return Players:GetHumanoidDescriptionFromUserId(id) end) if not ok then return nil, tostring(desc) end
         if desc == nil then return nil, "không có dữ liệu skin" end return desc, nil
@@ -5414,6 +5720,18 @@ function OT.OnFlyChange() if OT.RefreshList then pcall(OT.RefreshList) end end e
         if stale(my) then return nil, nil end local thumb = PI.FetchThumb(id)
         if stale(my) then return nil, nil end
         local srvJobId, srvPlaceId, srvCode, srvCodeTxt = PI.ExtractServerInfo(id, pres)
+        if not srvJobId or srvJobId == "" then
+            local foundJ, foundP = PI.FindPlayerServerByTokens(id, srvPlaceId or game.PlaceId, nil, 4)
+            if foundJ and foundJ ~= "" then
+                srvJobId = tostring(foundJ)
+                srvPlaceId = tonumber(foundP) or srvPlaceId or tonumber(game.PlaceId)
+                srvCode = tostring(srvJobId)
+                srvCodeTxt = tostring(srvJobId) .. (srvPlaceId and (" (Place: " .. tostring(srvPlaceId) .. ")") or "")
+            end
+        end
+        if srvJobId and srvJobId ~= "" then
+            pcall(function() if D.hubJobIn then D.hubJobIn.Text = tostring(srvJobId) end end)
+        end
         local rec = {
             id = tonumber(prof.id) or id, name = tostring(prof.name or nm or ""),
             displayName = tostring(prof.displayName or prof.name or ""), created = type(prof.created) == "string" and prof.created:sub(1, 10) or "—",
@@ -7434,7 +7752,17 @@ function OT.OnFlyChange() if OT.RefreshList then pcall(OT.RefreshList) end end e
         pcall(function() if PI.view.model then PI.view.model:Destroy() end end) PI.view.model = nil
         for i, key in ipairs(ROW_NAMES) do rows[key].Text = ROW_TITLES[i] .. ": —" end end
     local function startLookup(afterCb) local q = trimStr(queryIn.Text)
-        if q == "" then setStatus("⚠️ Chưa nhập tên hoặc UserId", C.YELLOW) return end setStatus("⏳ Đang tra cứu '" .. q .. "'...", C.YELLOW)
+        if q == "" then setStatus("⚠️ Chưa nhập tên hoặc UserId", C.YELLOW) return end
+        local directJob, directPlace = S.ParseServerCode(q)
+        if directJob and directJob ~= "" then
+            pcall(function() if D.hubJobIn then D.hubJobIn.Text = tostring(directJob) end end)
+            S.CopyToClipboard(tostring(directJob))
+            setRow("serverCode", "Mã Server (JobId)", tostring(directJob) .. (directPlace and (" (Place: " .. tostring(directPlace) .. ")") or ""))
+            local okJ, msgJ = PI.JoinPlayerServer(q)
+            setStatus((okJ and "✅ " or "⚠️ ") .. tostring(msgJ), okJ and C.GREEN or C.YELLOW)
+            return
+        end
+        setStatus("⏳ Đang tra cứu '" .. q .. "'...", C.YELLOW)
         task.spawn(function() local ok, rec, err = pcall(PI.Lookup, q)
             if not ok then setStatus("⚠️ Lỗi không mong đợi: " .. tostring(rec), C.RED)
                 return end
@@ -7516,20 +7844,54 @@ function OT.OnFlyChange() if OT.RefreshList then pcall(OT.RefreshList) end end e
     autoBtn.Activated:Connect(function() ReleaseHubFocus() PI.view.auto = not PI.view.auto refreshAutoBtn() end)
     resetBtn.Activated:Connect(function() ReleaseHubFocus() PI.ViewerReset() end)
     copyProfBtn.Activated:Connect(function() ReleaseHubFocus() local rec = requireLast() if not rec then return end
-        local url = "https://www.roblox.com/users/" .. tostring(rec.id) .. "/profile" local did = false if type(setclipboard) == "function" then did = pcall(setclipboard, url) end
+        local url = "https://www.roblox.com/users/" .. tostring(rec.id) .. "/profile"
+        local did = S.CopyToClipboard(url)
         setStatus(did and ("📋 Đã copy: " .. url) or ("🔗 " .. url .. " (executor không có setclipboard)"), did and C.GREEN or C.YELLOW) end)
-    copyIdBtn.Activated:Connect(function() ReleaseHubFocus() local rec = requireLast() if not rec then return end local did = false
-        if type(setclipboard) == "function" then did = pcall(setclipboard, tostring(rec.id)) end
+    copyIdBtn.Activated:Connect(function() ReleaseHubFocus() local rec = requireLast() if not rec then return end
+        local did = S.CopyToClipboard(tostring(rec.id))
         setStatus(did and ("📋 Đã copy UserId " .. tostring(rec.id)) or ("UserId: " .. tostring(rec.id)), did and C.GREEN or C.YELLOW) end)
-    PI.copySrvCodeBtn.Activated:Connect(function() ReleaseHubFocus() local rec = requireLast() if not rec then return end
-        local code = (rec.serverJobId and rec.serverJobId ~= "" and rec.serverJobId) or (rec.inServer and tostring(game.JobId or "")) or rec.serverCode or ""
-        if code == "" then setStatus("⚠️ Người chơi đang Offline hoặc ẩn Mã Server", C.YELLOW) return end
-        local did = false if type(setclipboard) == "function" then did = pcall(setclipboard, tostring(code)) end
-        setStatus(did and ("📋 Đã copy Mã Server: " .. tostring(code)) or ("Mã Server: " .. tostring(code)), did and C.GREEN or C.YELLOW) end)
-    PI.joinSrvBtn.Activated:Connect(function() ReleaseHubFocus() local q = trimStr(queryIn.Text)
-        if q:find("-", 1, true) and #q >= 16 then local okJ, msgJ = PI.JoinPlayerServer(q) setStatus((okJ and "✅ " or "⚠️ ") .. tostring(msgJ), okJ and C.GREEN or C.YELLOW) return end
-        withTargetRec(function(rec) local okJ, msgJ = PI.JoinPlayerServer(rec) setStatus((okJ and "✅ " or "⚠️ ") .. tostring(msgJ), okJ and C.GREEN or C.YELLOW)
-            if skinStatusLbl then skinStatusLbl.Text = tostring(msgJ); skinStatusLbl.TextColor3 = okJ and C.GREEN or C.YELLOW end end) end)
+    PI.copySrvCodeBtn.Activated:Connect(function() ReleaseHubFocus()
+        local rec = requireLast() if not rec then return end
+        local code = (rec.serverJobId and rec.serverJobId ~= "" and rec.serverJobId) or (rec.inServer and tostring(game.JobId or "")) or ""
+        if code == "" and rec.id then
+            setStatus("🔍 Đang quét tìm Mã Server của @" .. tostring(rec.name or rec.id) .. "...", C.YELLOW)
+            local foundJ, foundP = PI.FindPlayerServerByTokens(rec.id, rec.placeId or game.PlaceId, nil, 8)
+            if foundJ and foundJ ~= "" then
+                code = tostring(foundJ)
+                rec.serverJobId = code
+                rec.placeId = tonumber(foundP) or rec.placeId or tonumber(game.PlaceId)
+                rec.serverCode = code
+                rec.serverCodeText = code .. (rec.placeId and (" (Place: " .. tostring(rec.placeId) .. ")") or "")
+                setRow("serverCode", "Mã Server (JobId)", rec.serverCodeText)
+                if PI.RenderSkinClass then pcall(PI.RenderSkinClass, rec) end
+            end
+        end
+        if code == "" then setStatus("⚠️ Không tìm thấy Mã Server (người chơi đang Offline hoặc ở Server VIP/riêng tư)", C.YELLOW) return end
+        local did = S.CopyToClipboard(tostring(code))
+        pcall(function() if D.hubJobIn then D.hubJobIn.Text = tostring(code) end end)
+        setStatus((did and "📋 Đã copy Mã Server: " or "Mã Server: ") .. tostring(code) .. " (đã điền sẵn vào ô Hop ở Script Hub)", did and C.GREEN or C.YELLOW)
+    end)
+    PI.joinSrvBtn.Activated:Connect(function() ReleaseHubFocus()
+        local q = trimStr(queryIn.Text)
+        local parsedJob = S.ParseServerCode(q)
+        if parsedJob and parsedJob ~= "" then
+            local okJ, msgJ = PI.JoinPlayerServer(q)
+            setStatus((okJ and "✅ " or "⚠️ ") .. tostring(msgJ), okJ and C.GREEN or C.YELLOW)
+            if skinStatusLbl then skinStatusLbl.Text = tostring(msgJ); skinStatusLbl.TextColor3 = okJ and C.GREEN or C.YELLOW end
+            return
+        end
+        withTargetRec(function(rec)
+            local okJ, msgJ = PI.JoinPlayerServer(rec, function(pg)
+                setStatus("🔍 Đang quét server tìm @" .. tostring(rec.name or rec.id) .. " (trang " .. tostring(pg) .. ")...", C.YELLOW)
+            end)
+            if rec.serverJobId and rec.serverJobId ~= "" then
+                setRow("serverCode", "Mã Server (JobId)", rec.serverCodeText or rec.serverJobId)
+                if PI.RenderSkinClass then pcall(PI.RenderSkinClass, rec) end
+            end
+            setStatus((okJ and "✅ " or "⚠️ ") .. tostring(msgJ), okJ and C.GREEN or C.YELLOW)
+            if skinStatusLbl then skinStatusLbl.Text = tostring(msgJ); skinStatusLbl.TextColor3 = okJ and C.GREEN or C.YELLOW end
+        end)
+    end)
     -- ===== PHẦN DƯỚI TRA CỨU & XEM 3D: 🗂️ PHÂN LOẠI SKIN · XOÁ MÓN & TẠO NHÂN VẬT ẢO + 💾 LƯU SKIN & ⚡ LƯU SKIN DÙNG =====
     ;(function() local SH = 484
         local SP = New("Frame", { Name = "HubSkinClass_Panel",
