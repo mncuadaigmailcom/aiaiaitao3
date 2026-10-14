@@ -5623,30 +5623,105 @@ function OT.OnFlyChange() if OT.RefreshList then pcall(OT.RefreshList) end end e
         if type(u) ~= "string" or u == "" then return nil end
         local seg1 = u:match("rbxcdn%.com/([^/%?]+)")
         if seg1 and seg1 ~= "" then
-            local hash = seg1:match("AvatarHeadshot%-([%w]+)")
-            return hash or seg1
+            local hash = seg1:match("AvatarHeadshot%-([%w_%-]+)")
+            if hash and hash ~= "" then
+                hash = hash:gsub("%-[Pp][Nn][Gg]$", ""):gsub("%-[Ww][Ee][Bb][Pp]$", ""):gsub("%-[Jj][Pp][Ee]?[Gg]$", "")
+                return hash:lower()
+            end
+            seg1 = seg1:gsub("%-[Pp][Nn][Gg]$", ""):gsub("%-[Ww][Ee][Bb][Pp]$", ""):gsub("%-[Jj][Pp][Ee]?[Gg]$", "")
+            return seg1:lower()
         end
-        return u
+        return u:lower()
     end
-    function PI.FetchHeadshotUrl(id)
-        local bData = PI.Http("POST", "https://thumbnails.roblox.com/v1/batch", jsonEncode({
-            { requestId = "target:" .. tostring(id), targetId = tonumber(id), type = "AvatarHeadShot", size = "150x150" }
-        }))
-        if type(bData) == "table" and type(bData.data) == "table" then
-            for _, be in ipairs(bData.data) do
-                if type(be) == "table" and (tonumber(be.targetId) == tonumber(id) or tostring(be.requestId or "") == ("target:" .. tostring(id))) then
-                    if type(be.imageUrl) == "string" and be.imageUrl ~= "" then return be.imageUrl end
-                end
+    function PI.FetchTargetHeadshotKeys(id)
+        local keys = {}
+        local count = 0
+        local firstUrl = nil
+        local function addUrl(u)
+            if type(u) ~= "string" or u == "" then return end
+            if not firstUrl then firstUrl = u end
+            local k = normalizeThumbKey(u)
+            if k and k ~= "" and not keys[k] then
+                keys[k] = true
+                count = count + 1
+            end
+            local seg = u:match("rbxcdn%.com/([^/%?]+)")
+            if seg and seg ~= "" then
+                keys[seg:lower()] = true
+                local s2 = seg:gsub("%-[Pp][Nn][Gg]$", ""):gsub("%-[Ww][Ee][Bb][Pp]$", ""):lower()
+                if s2 ~= "" then keys[s2] = true end
+            end
+            local fullPath = u:match("rbxcdn%.com/([^%?]+)")
+            if fullPath and fullPath ~= "" then
+                keys[fullPath:lower()] = true
             end
         end
         local data = PI.Http("GET", "https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=" .. tostring(id) .. "&size=150x150&format=Png&isCircular=false", nil)
         local e = type(data) == "table" and type(data.data) == "table" and data.data[1] or nil
-        if type(e) == "table" and type(e.imageUrl) == "string" and e.imageUrl ~= "" then return e.imageUrl end
-        return nil
+        if type(e) == "table" and type(e.imageUrl) == "string" and e.imageUrl ~= "" then
+            addUrl(e.imageUrl)
+        end
+        local bData = PI.Http("POST", "https://thumbnails.roblox.com/v1/batch", jsonEncode({
+            { requestId = "t_png:" .. tostring(id), targetId = tonumber(id), type = "AvatarHeadShot", size = "150x150", format = "Png", isCircular = false },
+            { requestId = "t_webp:" .. tostring(id), targetId = tonumber(id), type = "AvatarHeadShot", size = "150x150", format = "Webp", isCircular = false },
+            { requestId = "t_def:" .. tostring(id), targetId = tonumber(id), type = "AvatarHeadShot", size = "150x150" },
+        }))
+        local hadPending = false
+        if type(bData) == "table" and type(bData.data) == "table" then
+            for _, be in ipairs(bData.data) do
+                if type(be) == "table" then
+                    if type(be.imageUrl) == "string" and be.imageUrl ~= "" then
+                        addUrl(be.imageUrl)
+                    elseif tostring(be.state or "") == "Pending" then
+                        hadPending = true
+                    end
+                end
+            end
+        end
+        if count == 0 and hadPending then
+            task.wait(0.35)
+            local data2 = PI.Http("GET", "https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=" .. tostring(id) .. "&size=150x150&format=Png&isCircular=false", nil)
+            local e2 = type(data2) == "table" and type(data2.data) == "table" and data2.data[1] or nil
+            if type(e2) == "table" and type(e2.imageUrl) == "string" and e2.imageUrl ~= "" then
+                addUrl(e2.imageUrl)
+            end
+        end
+        return keys, firstUrl, count
+    end
+    function PI.FetchHeadshotUrl(id)
+        local _, firstUrl = PI.FetchTargetHeadshotKeys(id)
+        return firstUrl
+    end
+    local function fetchServerPageWithRetry(scanPlaceId, cursor, sortOrder)
+        local order = tostring(sortOrder or "Desc")
+        local qCur = (type(cursor) == "string" and cursor ~= "") and ("&cursor=" .. tostring(cursor)) or ""
+        local url1 = "https://games.roblox.com/v1/games/" .. tostring(scanPlaceId) .. "/servers/Public?sortOrder=" .. order .. "&limit=100&excludeFullGames=false" .. qCur
+        local url2 = "https://games.roblox.com/v1/games/" .. tostring(scanPlaceId) .. "/servers/Public?sortOrder=" .. order .. "&limit=100" .. qCur
+        for attempt = 1, 3 do
+            local sData, err1 = PI.Http("GET", url1, nil)
+            if type(sData) == "table" and type(sData.data) == "table" then
+                return sData.data, sData.nextPageCursor
+            end
+            local sData2, err2 = PI.Http("GET", url2, nil)
+            if type(sData2) == "table" and type(sData2.data) == "table" then
+                return sData2.data, sData2.nextPageCursor
+            end
+            local eStr = tostring(err1 or "") .. " " .. tostring(err2 or "")
+            if eStr:find("429") and attempt < 3 then
+                task.wait(0.45 * attempt)
+            else
+                break
+            end
+        end
+        if (not cursor or cursor == "") and type(S.FetchServers) == "function" then
+            local okS, fList, fCur = pcall(S.FetchServers, "", scanPlaceId)
+            if okS and type(fList) == "table" then return fList, fCur end
+        end
+        return nil, nil
     end
     function PI.FindPlayerServerByTokens(id, targetPlaceId, onProgress, maxPages)
         id = tonumber(id)
-        if not id or id <= 0 then return nil, nil end
+        if not id or id <= 0 then return nil, nil, nil end
         if PI.InThisServer(id, nil) and tostring(game.JobId or "") ~= "" then
             return tostring(game.JobId), tonumber(game.PlaceId), "same_server"
         end
@@ -5666,100 +5741,132 @@ function OT.OnFlyChange() if OT.RefreshList then pcall(OT.RefreshList) end end e
         local scanPlaceId = tonumber(targetPlaceId)
             or (type(pres) == "table" and (tonumber(pres.placeId) or tonumber(pres.rootPlaceId)))
             or tonumber(game.PlaceId)
-        if not scanPlaceId or scanPlaceId <= 0 then return nil, nil end
-        local targetThumb = PI.FetchHeadshotUrl(id)
-        local targetKey = normalizeThumbKey(targetThumb)
-        local cursor = ""
-        local pages = tonumber(maxPages) or 8
-        local myJobId = tostring(game.JobId or "")
-        local fallbackSid = nil
-        local tokSeq = 0
-        for page = 1, pages do
-            local url = "https://games.roblox.com/v1/games/" .. tostring(scanPlaceId) .. "/servers/Public?sortOrder=Desc&limit=100"
-                .. (cursor ~= "" and ("&cursor=" .. tostring(cursor)) or "")
-            local sData = PI.Http("GET", url, nil)
-            local list = type(sData) == "table" and type(sData.data) == "table" and sData.data or nil
-            local nextCursor = type(sData) == "table" and sData.nextPageCursor or nil
-            if not list then
-                local url2 = "https://games.roblox.com/v1/games/" .. tostring(scanPlaceId) .. "/servers/Public?limit=100"
-                    .. (cursor ~= "" and ("&cursor=" .. tostring(cursor)) or "")
-                local sData2 = PI.Http("GET", url2, nil)
-                list = type(sData2) == "table" and type(sData2.data) == "table" and sData2.data or nil
-                nextCursor = type(sData2) == "table" and sData2.nextPageCursor or nil
-            end
-            if not list and type(S.FetchServers) == "function" then
-                local okS, fList, fCur = pcall(S.FetchServers, cursor, scanPlaceId)
-                if okS and type(fList) == "table" then list, nextCursor = fList, fCur end
-            end
-            if type(list) ~= "table" or #list == 0 then break end
-            if type(onProgress) == "function" then pcall(onProgress, page, #list) end
-            local batch = {}
-            for _, sv in ipairs(list) do
-                local sid = type(sv) == "table" and sv.id and tostring(sv.id) or nil
-                if sid and sid ~= "" then
-                    local playing = tonumber(sv.playing) or 0
-                    local maxp = tonumber(sv.maxPlayers) or 0
-                    if not fallbackSid and sid ~= myJobId and (maxp <= 0 or playing < maxp) then
-                        fallbackSid = sid
-                    elseif not fallbackSid then
-                        fallbackSid = sid
-                    end
-                    if type(sv.playerIds) == "table" then
-                        for _, pid in ipairs(sv.playerIds) do
-                            if tonumber(pid) == id then return sid, scanPlaceId, "playerIds" end
-                        end
-                    end
-                    if type(sv.playerTokens) == "table" then
-                        for _, tok in ipairs(sv.playerTokens) do
-                            if type(tok) == "string" and tok ~= "" then
-                                if tok == tostring(id) or tok == ("token_" .. tostring(id)) then
-                                    return sid, scanPlaceId, "token_direct"
+        if not scanPlaceId or scanPlaceId <= 0 then return nil, nil, nil end
+        local targetKeys = PI.FetchTargetHeadshotKeys(id)
+        local function matchesThumb(imgUrl)
+            if type(imgUrl) ~= "string" or imgUrl == "" then return false end
+            local k = normalizeThumbKey(imgUrl)
+            if k and targetKeys[k] then return true end
+            local seg = imgUrl:match("rbxcdn%.com/([^/%?]+)")
+            if seg and targetKeys[seg:lower()] then return true end
+            local fp = imgUrl:match("rbxcdn%.com/([^%?]+)")
+            if fp and targetKeys[fp:lower()] then return true end
+            return false
+        end
+        local function scanPlace(pId, pagesLimit)
+            local pages = tonumber(pagesLimit) or 14
+            local curDesc, curAsc = "", ""
+            local doneDesc, doneAsc = false, false
+            local seenSid = {}
+            local tokSeq = 0
+            local pageCount = 0
+            while pageCount < pages and (not doneDesc or not doneAsc) do
+                for _, mode in ipairs({ "Desc", "Asc" }) do
+                    if pageCount >= pages then break end
+                    if (mode == "Desc" and not doneDesc) or (mode == "Asc" and not doneAsc) then
+                        local cur = (mode == "Desc") and curDesc or curAsc
+                        local list, nextCur = fetchServerPageWithRetry(pId, cur, mode)
+                        if type(list) ~= "table" or #list == 0 then
+                            if mode == "Desc" then doneDesc = true else doneAsc = true end
+                        else
+                            pageCount = pageCount + 1
+                            if type(onProgress) == "function" then pcall(onProgress, pageCount, #list, mode) end
+                            local batch = {}
+                            local reqMap = {}
+                            for _, sv in ipairs(list) do
+                                local sid = type(sv) == "table" and sv.id and tostring(sv.id) or nil
+                                if sid and sid ~= "" and not seenSid[sid] then
+                                    seenSid[sid] = true
+                                    if type(sv.playerIds) == "table" then
+                                        for _, pid in ipairs(sv.playerIds) do
+                                            if tonumber(pid) == id then return sid, pId, "playerIds" end
+                                        end
+                                    end
+                                    if type(sv.playerTokens) == "table" then
+                                        for _, tok in ipairs(sv.playerTokens) do
+                                            if type(tok) == "string" and tok ~= "" then
+                                                if tok == tostring(id) or tok == ("token_" .. tostring(id)) then
+                                                    return sid, pId, "token_direct"
+                                                end
+                                                tokSeq = tokSeq + 1
+                                                local reqId = tostring(sid) .. ":" .. tostring(tokSeq)
+                                                reqMap[reqId] = sid
+                                                batch[#batch + 1] = {
+                                                    requestId = reqId,
+                                                    targetId = 0,
+                                                    token = tok,
+                                                    type = "AvatarHeadShot",
+                                                    size = "150x150",
+                                                    format = "Png",
+                                                    isCircular = false,
+                                                }
+                                            end
+                                        end
+                                    end
                                 end
-                                tokSeq = tokSeq + 1
-                                batch[#batch + 1] = {
-                                    requestId = tostring(sid) .. ":" .. tostring(tokSeq),
-                                    token = tok,
-                                    type = "AvatarHeadShot",
-                                    size = "150x150",
-                                }
+                            end
+                            if #batch > 0 then
+                                for startIdx = 1, #batch, 100 do
+                                    local chunk = {}
+                                    for k = startIdx, math.min(#batch, startIdx + 99) do
+                                        chunk[#chunk + 1] = batch[k]
+                                    end
+                                    local bRes, bErr = PI.Http("POST", "https://thumbnails.roblox.com/v1/batch", jsonEncode(chunk))
+                                    if (not bRes) and tostring(bErr or ""):find("429") then
+                                        task.wait(0.35)
+                                        bRes = PI.Http("POST", "https://thumbnails.roblox.com/v1/batch", jsonEncode(chunk))
+                                    end
+                                    local items = type(bRes) == "table" and type(bRes.data) == "table" and bRes.data or nil
+                                    if type(items) == "table" then
+                                        for idx, it in ipairs(items) do
+                                            if type(it) == "table" then
+                                                local rawReq = (type(it.requestId) == "string" and it.requestId ~= "" and it.requestId)
+                                                    or (chunk[idx] and chunk[idx].requestId) or nil
+                                                local rSid = (rawReq and reqMap[rawReq])
+                                                    or (type(rawReq) == "string" and rawReq:match("^([^:]+)")) or nil
+                                                if rSid and rSid ~= "" then
+                                                    if tonumber(it.targetId) == id then
+                                                        return rSid, pId, "batch_targetId"
+                                                    end
+                                                    if matchesThumb(it.imageUrl) then
+                                                        return rSid, pId, "batch_thumb"
+                                                    end
+                                                end
+                                            end
+                                        end
+                                    end
+                                end
+                            end
+                            if type(nextCur) == "string" and nextCur ~= "" then
+                                if mode == "Desc" then curDesc = nextCur else curAsc = nextCur end
+                            else
+                                if mode == "Desc" then doneDesc = true else doneAsc = true end
                             end
                         end
                     end
                 end
             end
-            if #batch > 0 then
-                for startIdx = 1, #batch, 100 do
-                    local chunk = {}
-                    for k = startIdx, math.min(#batch, startIdx + 99) do
-                        chunk[#chunk + 1] = batch[k]
-                    end
-                    local bRes = PI.Http("POST", "https://thumbnails.roblox.com/v1/batch", jsonEncode(chunk))
-                    local items = type(bRes) == "table" and type(bRes.data) == "table" and bRes.data or nil
-                    if type(items) == "table" then
-                        for _, it in ipairs(items) do
-                            if type(it) == "table" then
-                                local rSid = type(it.requestId) == "string" and it.requestId:match("^([^:]+)") or nil
-                                if rSid and rSid ~= "" then
-                                    if tonumber(it.targetId) == id then
-                                        return rSid, scanPlaceId, "batch_targetId"
-                                    end
-                                    if targetKey and type(it.imageUrl) == "string" and normalizeThumbKey(it.imageUrl) == targetKey then
-                                        return rSid, scanPlaceId, "batch_thumb"
-                                    end
-                                end
-                            end
+            return nil, pId, nil
+        end
+        local foundSid, foundPlace, foundSrc = scanPlace(scanPlaceId, tonumber(maxPages) or 14)
+        if foundSid and foundSid ~= "" then
+            return foundSid, foundPlace, foundSrc
+        end
+        local univId = (type(pres) == "table" and tonumber(pres.universeId)) or tonumber(game.GameId)
+        if univId and univId > 0 then
+            local uData = PI.Http("GET", "https://develop.roblox.com/v1/universes/" .. tostring(univId) .. "/places?limit=25", nil)
+            local uPlaces = type(uData) == "table" and type(uData.data) == "table" and uData.data or nil
+            if type(uPlaces) == "table" then
+                for _, pl in ipairs(uPlaces) do
+                    local subPlaceId = type(pl) == "table" and tonumber(pl.id) or nil
+                    if subPlaceId and subPlaceId > 0 and subPlaceId ~= scanPlaceId then
+                        local sSid, sPl, sSrc = scanPlace(subPlaceId, 4)
+                        if sSid and sSid ~= "" then
+                            return sSid, sPl, sSrc
                         end
                     end
                 end
             end
-            if type(nextCursor) ~= "string" or nextCursor == "" then break end
-            cursor = nextCursor
-        end
-        if fallbackSid and fallbackSid ~= "" then
-            return fallbackSid, scanPlaceId, "public_fallback"
-        end
-        if myJobId ~= "" then
-            return myJobId, scanPlaceId, "current_fallback"
         end
         return nil, scanPlaceId, nil
     end
@@ -5773,7 +5880,7 @@ function OT.OnFlyChange() if OT.RefreshList then pcall(OT.RefreshList) end end e
             or nil
         local code = (jobId and jobId ~= "" and tostring(jobId)) or ""
         local txt = jobId and (jobId .. (placeId and (" (Place: " .. tostring(placeId) .. ")") or ""))
-            or (placeId and ("Place: " .. tostring(placeId)) or "Đang quét server...")
+            or (placeId and ("Place: " .. tostring(placeId) .. " (bấm 📋 Mã SV / 🚀 Vào SV để quét sâu)") or "Không tìm thấy trong SV công khai game này")
         return jobId, placeId, code, txt
     end
     function PI.JoinPlayerServer(recOrQuery, onProgress)
@@ -5789,13 +5896,14 @@ function OT.OnFlyChange() if OT.RefreshList then pcall(OT.RefreshList) end end e
                 placeId = placeId or tonumber(game.PlaceId)
             end
             if not jobId and targetId then
-                local foundJ, foundP = PI.FindPlayerServerByTokens(targetId, placeId or game.PlaceId, onProgress, 10)
+                local foundJ, foundP, foundSrc = PI.FindPlayerServerByTokens(targetId, placeId or game.PlaceId, onProgress, 20)
                 if foundJ and foundJ ~= "" then
                     jobId = foundJ
                     placeId = tonumber(foundP) or placeId or tonumber(game.PlaceId)
                     recOrQuery.serverJobId = jobId
                     recOrQuery.placeId = placeId
                     recOrQuery.serverCode = jobId
+                    recOrQuery.serverSource = foundSrc
                     recOrQuery.serverCodeText = jobId .. (placeId and (" (Place: " .. tostring(placeId) .. ")") or "")
                     pcall(function() if D.hubJobIn then D.hubJobIn.Text = tostring(jobId) end end)
                 end
@@ -5821,7 +5929,7 @@ function OT.OnFlyChange() if OT.RefreshList then pcall(OT.RefreshList) end end e
                     explicitPlaceId = ep
                     placeId = ep
                     if not jobId or jobId == "" then
-                        local foundJ, foundP = PI.FindPlayerServerByTokens(uid, placeId or game.PlaceId, onProgress, 10)
+                        local foundJ, foundP = PI.FindPlayerServerByTokens(uid, placeId or game.PlaceId, onProgress, 20)
                         if foundJ and foundJ ~= "" then
                             jobId = foundJ
                             placeId = tonumber(foundP) or placeId or tonumber(game.PlaceId)
@@ -5837,7 +5945,7 @@ function OT.OnFlyChange() if OT.RefreshList then pcall(OT.RefreshList) end end e
             if not okT then
                 return false, "Lỗi dịch chuyển vào server: " .. tostring(errT)
             end
-            return true, string.format("🚀 Đang vào server mã %s (PlaceId: %d)%s!", tostring(jobId), placeId, targetName ~= "" and (" cùng @" .. targetName) or "")
+            return true, string.format("🚀 Đang vào đúng server mã %s (PlaceId: %d)%s!", tostring(jobId), placeId, targetName ~= "" and (" cùng @" .. targetName) or "")
         elseif explicitPlaceId and explicitPlaceId > 0 then
             local okT, errT = S.TeleportToServer(explicitPlaceId, nil)
             if not okT then
@@ -5845,7 +5953,7 @@ function OT.OnFlyChange() if OT.RefreshList then pcall(OT.RefreshList) end end e
             end
             return true, string.format("🚀 Đang vào game PlaceId %d%s (JobId bị ẩn do cài đặt riêng tư)!", explicitPlaceId, targetName ~= "" and (" của @" .. targetName) or "")
         end
-        return false, "Không tìm thấy server công khai của người chơi này (Offline, Server VIP/riêng tư, hoặc ẩn quyền riêng tư)"
+        return false, "Không tìm thấy người chơi này trong các server công khai của game (đang Offline, ở Server VIP/riêng tư, hoặc đang chơi game khác)"
     end function PI.FetchDesc(id)
         local ok, desc = pcall(function() return Players:GetHumanoidDescriptionFromUserId(id) end) if not ok then return nil, tostring(desc) end
         if desc == nil then return nil, "không có dữ liệu skin" end return desc, nil
@@ -5856,7 +5964,7 @@ function OT.OnFlyChange() if OT.RefreshList then pcall(OT.RefreshList) end end e
         local e = type(data) == "table" and type(data.data) == "table" and data.data[1] or nil
         if type(e) == "table" and type(e.imageUrl) == "string" and e.imageUrl ~= "" then return e.imageUrl end return nil
     end local function stale(my) return PI.reqId ~= my end
-    function PI.Lookup(query) PI.reqId = PI.reqId + 1
+    function PI.Lookup(query, onProgress) PI.reqId = PI.reqId + 1
         local my = PI.reqId local id, nm = PI.ResolveUser(query)
         if stale(my) then return nil, nil end if not id then return nil, nm end
         local prof, perr = PI.FetchProfile(id) if stale(my) then return nil, nil end
@@ -5882,7 +5990,7 @@ function OT.OnFlyChange() if OT.RefreshList then pcall(OT.RefreshList) end end e
         local srvJobId, srvPlaceId, srvCode, srvCodeTxt = PI.ExtractServerInfo(id, pres)
         local srvSource = (srvJobId and srvJobId ~= "") and "presence" or nil
         if not srvJobId or srvJobId == "" then
-            local foundJ, foundP, foundSrc = PI.FindPlayerServerByTokens(id, srvPlaceId or game.PlaceId, nil, 8)
+            local foundJ, foundP, foundSrc = PI.FindPlayerServerByTokens(id, srvPlaceId or game.PlaceId, onProgress, 14)
             if foundJ and foundJ ~= "" then
                 srvJobId = tostring(foundJ)
                 srvPlaceId = tonumber(foundP) or srvPlaceId or tonumber(game.PlaceId)
@@ -5895,7 +6003,7 @@ function OT.OnFlyChange() if OT.RefreshList then pcall(OT.RefreshList) end end e
             pcall(function() if D.hubJobIn then D.hubJobIn.Text = tostring(srvJobId) end end)
         end
         local presTxt = PI.PresenceText(pres)
-        if srvSource and srvSource ~= "public_fallback" and srvSource ~= "current_fallback" and (type(pres) ~= "table" or (tonumber(pres.userPresenceType) or 0) < 2) then
+        if srvSource and (type(pres) ~= "table" or (tonumber(pres.userPresenceType) or 0) < 2) then
             presTxt = "🎮 Đang trong game"
         end
         local rec = {
@@ -7929,7 +8037,10 @@ function OT.OnFlyChange() if OT.RefreshList then pcall(OT.RefreshList) end end e
             return
         end
         setStatus("⏳ Đang tra cứu '" .. q .. "'...", C.YELLOW)
-        task.spawn(function() local ok, rec, err = pcall(PI.Lookup, q)
+        task.spawn(function()
+            local ok, rec, err = pcall(PI.Lookup, q, function(pg, cnt, mode)
+                setStatus(string.format("🔍 Đang quét server tìm '%s' (trang %s · %s · %s SV)...", tostring(q), tostring(pg), tostring(mode or "Desc"), tostring(cnt or 0)), C.YELLOW)
+            end)
             if not ok then setStatus("⚠️ Lỗi không mong đợi: " .. tostring(rec), C.RED)
                 return end
             if rec == nil then if err ~= nil then setStatus("⚠️ " .. tostring(err), C.RED) end
@@ -7937,7 +8048,10 @@ function OT.OnFlyChange() if OT.RefreshList then pcall(OT.RefreshList) end end e
             PI.last = rec local okR, rv, rerr = pcall(render, rec)
             local note = "" if not okR then note = " · lỗi hiển thị: " .. tostring(rv)
             elseif rv == false then note = " · không dựng được 3D (" .. tostring(rerr) .. ")" end
-            setStatus("✅ Đã tải hồ sơ " .. rec.name .. (rec.desc and "" or " (không có skin công khai)") .. note, rec.desc and C.GREEN or C.YELLOW)
+            local srvNote = (rec.serverJobId and rec.serverJobId ~= "")
+                and (" · Mã SV: " .. tostring(rec.serverJobId):sub(1, 13) .. "...")
+                or " · Chưa thấy trong SV công khai"
+            setStatus("✅ Đã tải hồ sơ " .. rec.name .. srvNote .. (rec.desc and "" or " (không có skin công khai)") .. note, rec.desc and C.GREEN or C.YELLOW)
             if type(afterCb) == "function" then pcall(afterCb, rec)
             end end)
     end local copyProfBtn    = pAct("📋 Link", 236, 212, 38, C.GRAY)
@@ -8020,22 +8134,25 @@ function OT.OnFlyChange() if OT.RefreshList then pcall(OT.RefreshList) end end e
         local rec = requireLast() if not rec then return end
         local code = (rec.serverJobId and rec.serverJobId ~= "" and rec.serverJobId) or (rec.inServer and tostring(game.JobId or "")) or ""
         if code == "" and rec.id then
-            setStatus("🔍 Đang quét tìm Mã Server của @" .. tostring(rec.name or rec.id) .. "...", C.YELLOW)
-            local foundJ, foundP = PI.FindPlayerServerByTokens(rec.id, rec.placeId or game.PlaceId, nil, 8)
+            setStatus("🔍 Đang quét tìm đúng Mã Server của @" .. tostring(rec.name or rec.id) .. "...", C.YELLOW)
+            local foundJ, foundP, foundSrc = PI.FindPlayerServerByTokens(rec.id, rec.placeId or game.PlaceId, function(pg, cnt, mode)
+                setStatus(string.format("🔍 Đang quét server tìm @%s (trang %s · %s)...", tostring(rec.name or rec.id), tostring(pg), tostring(mode or "Desc")), C.YELLOW)
+            end, 20)
             if foundJ and foundJ ~= "" then
                 code = tostring(foundJ)
                 rec.serverJobId = code
                 rec.placeId = tonumber(foundP) or rec.placeId or tonumber(game.PlaceId)
                 rec.serverCode = code
+                rec.serverSource = foundSrc
                 rec.serverCodeText = code .. (rec.placeId and (" (Place: " .. tostring(rec.placeId) .. ")") or "")
                 setRow("serverCode", "Mã Server (JobId)", rec.serverCodeText)
                 if PI.RenderSkinClass then pcall(PI.RenderSkinClass, rec) end
             end
         end
-        if code == "" then setStatus("⚠️ Không tìm thấy Mã Server (người chơi đang Offline hoặc ở Server VIP/riêng tư)", C.YELLOW) return end
+        if code == "" then setStatus("⚠️ Không tìm thấy Mã Server của @" .. tostring(rec.name or rec.id) .. " (đang Offline, ở Server VIP/riêng tư, hoặc đang chơi game khác)", C.YELLOW) return end
         local did = S.CopyToClipboard(tostring(code))
         pcall(function() if D.hubJobIn then D.hubJobIn.Text = tostring(code) end end)
-        setStatus((did and "📋 Đã copy Mã Server: " or "Mã Server: ") .. tostring(code) .. " (đã điền sẵn vào ô Hop ở Script Hub)", did and C.GREEN or C.YELLOW)
+        setStatus((did and "📋 Đã copy đúng Mã Server của @" .. tostring(rec.name or rec.id) .. ": " or "Mã Server: ") .. tostring(code) .. " (đã điền sẵn vào ô Hop ở Script Hub)", did and C.GREEN or C.YELLOW)
     end)
     PI.joinSrvBtn.Activated:Connect(function() ReleaseHubFocus()
         local q = trimStr(queryIn.Text)
