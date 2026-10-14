@@ -480,7 +480,11 @@ S.clipboardTxt = S.clipboardTxt or ""
 S.queued       = S.queued or {}        -- queue_on_teleport: giữ lại, không tự chạy
 S.lastRunReport = nil                  -- báo cáo lần chạy cuối (nhãn 💻 + nút 💾 dùng chung)
 S.lastRunError  = nil S.lastNormalizeNote = nil S.lastParkedCount = 0 S.lastParkedNames = {}
-function S.HasGlobal(n) local ok, v = pcall(function() return rawget(_G, n) end) return ok and v ~= nil end
+function S.HasGlobal(n)
+    local ok, v = pcall(function() return rawget(_G, n) end) if ok and v ~= nil then return true end
+    if type(getgenv) == "function" then local okG, g = pcall(getgenv) if okG and type(g) == "table" and g[n] ~= nil then return true end end
+    if type(getfenv) == "function" then local okE, env = pcall(getfenv, 0) if okE and type(env) == "table" and env[n] ~= nil then return true end end
+    return false end
 function S.SetGlobal(n, v)
     if S.HasGlobal(n) then return false end          -- KHONG de ham that cua executor
     local ok = pcall(function() rawset(_G, n, v) end) if ok then S.compatAdded[#S.compatAdded + 1] = n S.shimmedFns = S.shimmedFns or {}
@@ -492,10 +496,16 @@ function S.VDel(p)       S.vfs[tostring(p)] = nil; return true end function S.VL
     dir = tostring(dir or ""):gsub("[/\\]+$", "") local out = {}
     for k in pairs(S.vfs) do if dir == "" or k:sub(1, #dir) == dir then out[#out + 1] = k end end return out end
 function S.CompatRequest(opts) if type(opts) ~= "table" then opts = {Url = tostring(opts)} end
-    local url = tostring(opts.Url or opts.url or "") local body, status, good = "", 0, false
+    local url = tostring(opts.Url or opts.url or "") local method = tostring(opts.Method or opts.method or "GET"):upper()
+    local reqBody = opts.Body or opts.body local body, status, good = "", 0, false
     pcall(function() local r = game:GetService("HttpService"):RequestAsync({
-            Url = url, Method = tostring(opts.Method or opts.method or "GET"):upper(), Headers = opts.Headers or opts.headers, Body = opts.Body or opts.body,
-        }) body, status, good = tostring(r.Body or ""), tonumber(r.StatusCode) or 200, (r.Success == true) end) if body == "" then
+            Url = url, Method = method, Headers = opts.Headers or opts.headers, Body = reqBody,
+        }) body, status, good = tostring(r.Body or ""), tonumber(r.StatusCode) or 200, (r.Success == true) end)
+    if body == "" and method == "POST" then
+        local okPost, posted = pcall(function() return game:HttpPost(url, tostring(reqBody or ""), "application/json") end)
+        if okPost and type(posted) == "string" and posted ~= "" then body, status, good = posted, 200, true end
+    end
+    if body == "" then
         local okHttp, fetched = pcall(function() return game:HttpGet(url) end) if okHttp then body, status, good = tostring(fetched or ""), 200, true end
     end return {StatusCode = status, StatusMessage = "", Body = body, Success = good, Headers = {}} end function S.CompatDrawing() local D = {}
     D.Fonts = {UI = 0, System = 0, Plex = 1, Monospace = 2} D.new = function(cls)
@@ -5446,20 +5456,36 @@ function OT.OnFlyChange() if OT.RefreshList then pcall(OT.RefreshList) end end e
         return s end
     local function jsonEncode(t) local ok, s = pcall(function() return HttpService:JSONEncode(t) end) if ok then return s end return nil end
     function PI.Http(method, url, body)
-        local rq = (type(request) == "function" and request)
-            or (type(http_request) == "function" and http_request)
+        local g = (type(getgenv) == "function" and select(2, pcall(getgenv))) or nil
+        local rq = (type(request) == "function" and request ~= S.CompatRequest and request)
+            or (type(http_request) == "function" and http_request ~= S.CompatRequest and http_request)
             or (type(syn) == "table" and type(syn.request) == "function" and syn.request)
-            or (type(http) == "table" and type(http.request) == "function" and http.request)
+            or (type(http) == "table" and type(http.request) == "function" and http.request ~= S.CompatRequest and http.request)
             or (type(fluxus) == "table" and type(fluxus.request) == "function" and fluxus.request)
+            or (type(g) == "table" and (
+                (type(g.request) == "function" and g.request ~= S.CompatRequest and g.request)
+                or (type(g.http_request) == "function" and g.http_request ~= S.CompatRequest and g.http_request)
+            ))
+            or (type(request) == "function" and request)
+            or (type(http_request) == "function" and http_request)
             or S.CompatRequest
         local headers = nil
         if body then headers = { ["Content-Type"] = "application/json", ["Accept"] = "application/json" } end
-        local ok, res = pcall(rq, { Url = url, Method = method, Headers = headers, Body = body })
-        if (not ok or type(res) ~= "table" or type(res.Body) ~= "string" or #res.Body == 0) and tostring(method or "GET"):upper() == "GET" then
-            local okG, rawG = pcall(function() return game:HttpGet(url) end)
-            if okG and type(rawG) == "string" and #rawG > 0 then
-                res = { StatusCode = 200, Success = true, Body = rawG }
-                ok = true
+        local mUp = tostring(method or "GET"):upper()
+        local ok, res = pcall(rq, { Url = url, Method = mUp, Headers = headers, Body = body })
+        if (not ok or type(res) ~= "table" or type(res.Body) ~= "string" or #res.Body == 0) then
+            if mUp == "GET" then
+                local okG, rawG = pcall(function() return game:HttpGet(url) end)
+                if okG and type(rawG) == "string" and #rawG > 0 then
+                    res = { StatusCode = 200, Success = true, Body = rawG }
+                    ok = true
+                end
+            elseif mUp == "POST" then
+                local okP, rawP = pcall(function() return game:HttpPost(url, tostring(body or ""), "application/json") end)
+                if okP and type(rawP) == "string" and #rawP > 0 then
+                    res = { StatusCode = 200, Success = true, Body = rawP }
+                    ok = true
+                end
             end
         end
         if not ok or type(res) ~= "table" then return nil, "lỗi mạng" end local code = tonumber(res.StatusCode) or 0
@@ -5468,42 +5494,143 @@ function OT.OnFlyChange() if OT.RefreshList then pcall(OT.RefreshList) end end e
         local okD, data = pcall(function() return HttpService:JSONDecode(res.Body) end)
         if not okD or type(data) ~= "table" then return nil, "phản hồi không hợp lệ" end return data, nil
     end function PI.ResolveUser(query)
-        local q = trimStr(query):gsub("^@", "") if q == "" then return nil, "chưa nhập tên hoặc UserId" end
+        local rawQ = trimStr(query)
+        local hadAt = (rawQ:sub(1, 1) == "@")
+        local q = rawQ:gsub("^@", "")
+        if q == "" then return nil, "chưa nhập tên hoặc UserId" end
         if q:match("^%d+$") then
-            if #q > 15 then return nil, "UserId không hợp lệ (quá dài)" end  -- tránh số bị đổi sang dạng 1e+22
+            if #q > 15 then return nil, "UserId không hợp lệ (quá dài)" end
             local id = tonumber(q) if not id or id <= 0 then return nil, "UserId không hợp lệ" end
             return id, nil end
-        if #q < 3 or #q > 20 or q:find("[^%w_]") then return nil, "tên không hợp lệ (3–20 ký tự: chữ, số, _)"
-        end local data, err = PI.Http("POST", "https://users.roblox.com/v1/usernames/users",
-            jsonEncode({ usernames = { q }, excludeBannedUsers = false }))
-        if type(data) == "table" and type(data.data) == "table" and type(data.data[1]) == "table" and tonumber(data.data[1].id) then
-            return tonumber(data.data[1].id), tostring(data.data[1].name or q) end
-        local okId, id = pcall(function() return Players:GetUserIdFromNameAsync(q) end) if okId and tonumber(id) then return tonumber(id), q end
-        return nil, "không tìm thấy người chơi '" .. q .. "'" .. (err and (" (" .. err .. ")") or "") end
+        local ql = q:lower()
+        local okPlrs, plrs = pcall(function() return Players:GetPlayers() end)
+        if okPlrs and type(plrs) == "table" then
+            for _, plr in ipairs(plrs) do
+                if tostring(plr.Name or ""):lower() == ql and tonumber(plr.UserId) then
+                    return tonumber(plr.UserId), tostring(plr.Name)
+                end
+            end
+            if not hadAt then
+                for _, plr in ipairs(plrs) do
+                    if tostring(plr.DisplayName or ""):lower() == ql and tonumber(plr.UserId) then
+                        return tonumber(plr.UserId), tostring(plr.Name)
+                    end
+                end
+            end
+        end
+        local okFr, frList = pcall(function() return player:GetFriendsOnline(200) end)
+        if okFr and type(frList) == "table" then
+            for _, f in ipairs(frList) do
+                if type(f) == "table" and tostring(f.UserName or ""):lower() == ql and tonumber(f.VisitorId) then
+                    return tonumber(f.VisitorId), tostring(f.UserName)
+                end
+            end
+            if not hadAt then
+                for _, f in ipairs(frList) do
+                    if type(f) == "table" and tostring(f.DisplayName or ""):lower() == ql and tonumber(f.VisitorId) then
+                        return tonumber(f.VisitorId), tostring(f.UserName)
+                    end
+                end
+            end
+        end
+        if #q >= 3 and #q <= 20 and not q:find("[^%w_]") then
+            local data, err = PI.Http("POST", "https://users.roblox.com/v1/usernames/users",
+                jsonEncode({ usernames = { q }, excludeBannedUsers = false }))
+            if type(data) == "table" and type(data.data) == "table" and type(data.data[1]) == "table" and tonumber(data.data[1].id) then
+                return tonumber(data.data[1].id), tostring(data.data[1].name or q) end
+            local okId, id = pcall(function() return Players:GetUserIdFromNameAsync(q) end)
+            if okId and tonumber(id) then return tonumber(id), q end
+            if okPlrs and type(plrs) == "table" then
+                for _, plr in ipairs(plrs) do
+                    local pn, pd = tostring(plr.Name or ""):lower(), tostring(plr.DisplayName or ""):lower()
+                    if (pn:find(ql, 1, true) or pd:find(ql, 1, true)) and tonumber(plr.UserId) then
+                        return tonumber(plr.UserId), tostring(plr.Name)
+                    end
+                end
+            end
+            return nil, "không tìm thấy người chơi '" .. q .. "'" .. (err and (" (" .. err .. ")") or "")
+        end
+        if okPlrs and type(plrs) == "table" then
+            for _, plr in ipairs(plrs) do
+                local pn, pd = tostring(plr.Name or ""):lower(), tostring(plr.DisplayName or ""):lower()
+                if (pn:find(ql, 1, true) or pd:find(ql, 1, true)) and tonumber(plr.UserId) then
+                    return tonumber(plr.UserId), tostring(plr.Name)
+                end
+            end
+        end
+        return nil, "tên không hợp lệ (3–20 ký tự: chữ, số, _)" end
     function PI.FetchProfile(id) local data, err = PI.Http("GET", "https://users.roblox.com/v1/users/" .. tostring(id), nil)
         if type(data) ~= "table" or tonumber(data.id) == nil then if err == "HTTP 404" then return nil, "UserId " .. tostring(id) .. " không tồn tại" end
             return nil, "không đọc được hồ sơ UserId " .. tostring(id) .. " (" .. tostring(err or "lỗi") .. ")" end
         return data, nil end
-    function PI.FetchPresence(id) local data = PI.Http("POST", "https://presence.roblox.com/v1/presence/users", jsonEncode({ userIds = { id } }))
-        local p = type(data) == "table" and type(data.userPresences) == "table" and data.userPresences[1] or nil if type(p) ~= "table" then return nil end
-        return p end
+    function PI.GetFriendPresence(id)
+        id = tonumber(id)
+        if not id then return nil end
+        local okF, list = pcall(function() return player:GetFriendsOnline(200) end)
+        if okF and type(list) == "table" then
+            for _, f in ipairs(list) do
+                if type(f) == "table" and tonumber(f.VisitorId) == id then
+                    local hasGame = (tonumber(f.PlaceId) ~= nil) or (type(f.GameId) == "string" and f.GameId ~= "") or (tonumber(f.LocationType) == 4)
+                    return {
+                        userPresenceType = hasGame and 2 or (f.IsOnline and 1 or 0),
+                        lastLocation = tostring(f.LastLocation or ""),
+                        placeId = tonumber(f.PlaceId),
+                        rootPlaceId = tonumber(f.PlaceId),
+                        gameId = (type(f.GameId) == "string" and f.GameId ~= "") and f.GameId or nil,
+                    }
+                end
+            end
+        end
+        return nil
+    end
+    function PI.FetchPresence(id)
+        local fPres = PI.GetFriendPresence(id)
+        local data = PI.Http("POST", "https://presence.roblox.com/v1/presence/users", jsonEncode({ userIds = { id } }))
+        local p = type(data) == "table" and type(data.userPresences) == "table" and data.userPresences[1] or nil
+        if type(p) ~= "table" then p = fPres end
+        if type(p) == "table" and type(fPres) == "table" then
+            if (not p.gameId or p.gameId == "") and fPres.gameId then p.gameId = fPres.gameId end
+            if not p.placeId and fPres.placeId then p.placeId = fPres.placeId; p.rootPlaceId = p.rootPlaceId or fPres.rootPlaceId end
+            if (tonumber(p.userPresenceType) or 0) == 0 and (tonumber(fPres.userPresenceType) or 0) > 0 then
+                p.userPresenceType = fPres.userPresenceType
+                p.lastLocation = (p.lastLocation and p.lastLocation ~= "") and p.lastLocation or fPres.lastLocation
+            end
+        end
+        if PI.InThisServer(id, p) then
+            p = type(p) == "table" and p or {}
+            p.userPresenceType = 2
+            if tostring(game.JobId or "") ~= "" then p.gameId = tostring(game.JobId) end
+            if tonumber(game.PlaceId) then p.placeId = tonumber(game.PlaceId) end
+        end
+        return p
+    end
     function PI.PresenceText(p) if type(p) ~= "table" then return "❔ không rõ" end
         local t = tonumber(p.userPresenceType) or -1 local text = PRESENCE[t] or "❔ không rõ"
         if t == 2 and type(p.lastLocation) == "string" and p.lastLocation ~= "" then text = text .. ": " .. p.lastLocation end return text
     end function PI.InThisServer(id, p)
+        id = tonumber(id)
+        if not id then return false end
         local okP, inst = pcall(function() return Players:GetPlayerByUserId(id) end) if okP and inst then return true end
+        local okL, list = pcall(function() return Players:GetPlayers() end)
+        if okL and type(list) == "table" then
+            for _, plr in ipairs(list) do
+                if tonumber(plr.UserId) == id then return true end
+            end
+        end
         if type(p) == "table" and p.gameId ~= nil and tostring(p.gameId) ~= "" and tostring(p.gameId) == tostring(game.JobId or "") then return true end return false
     end
     local function normalizeThumbKey(u)
         if type(u) ~= "string" or u == "" then return nil end
-        return u:match("rbxcdn%.com/([^%?]+)") or u
+        local seg1 = u:match("rbxcdn%.com/([^/%?]+)")
+        if seg1 and seg1 ~= "" then
+            local hash = seg1:match("AvatarHeadshot%-([%w]+)")
+            return hash or seg1
+        end
+        return u
     end
     function PI.FetchHeadshotUrl(id)
-        local data = PI.Http("GET", "https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=" .. tostring(id) .. "&size=150x150&format=Png&isCircular=false", nil)
-        local e = type(data) == "table" and type(data.data) == "table" and data.data[1] or nil
-        if type(e) == "table" and type(e.imageUrl) == "string" and e.imageUrl ~= "" then return e.imageUrl end
         local bData = PI.Http("POST", "https://thumbnails.roblox.com/v1/batch", jsonEncode({
-            { requestId = "target:" .. tostring(id), targetId = tonumber(id), type = "AvatarHeadShot", size = "150x150", format = "Png", isCircular = false }
+            { requestId = "target:" .. tostring(id), targetId = tonumber(id), type = "AvatarHeadShot", size = "150x150" }
         }))
         if type(bData) == "table" and type(bData.data) == "table" then
             for _, be in ipairs(bData.data) do
@@ -5512,6 +5639,9 @@ function OT.OnFlyChange() if OT.RefreshList then pcall(OT.RefreshList) end end e
                 end
             end
         end
+        local data = PI.Http("GET", "https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=" .. tostring(id) .. "&size=150x150&format=Png&isCircular=false", nil)
+        local e = type(data) == "table" and type(data.data) == "table" and data.data[1] or nil
+        if type(e) == "table" and type(e.imageUrl) == "string" and e.imageUrl ~= "" then return e.imageUrl end
         return nil
     end
     function PI.FindPlayerServerByTokens(id, targetPlaceId, onProgress, maxPages)
@@ -5519,6 +5649,14 @@ function OT.OnFlyChange() if OT.RefreshList then pcall(OT.RefreshList) end end e
         if not id or id <= 0 then return nil, nil end
         if PI.InThisServer(id, nil) and tostring(game.JobId or "") ~= "" then
             return tostring(game.JobId), tonumber(game.PlaceId), "same_server"
+        end
+        local fPres = PI.GetFriendPresence(id)
+        if type(fPres) == "table" and type(fPres.gameId) == "string" and fPres.gameId ~= "" then
+            return tostring(fPres.gameId), tonumber(fPres.placeId) or tonumber(targetPlaceId) or tonumber(game.PlaceId), "friend_online"
+        end
+        local okTp, _, _, tpPlaceId, tpJobId = pcall(function() return TeleportService:GetPlayerPlaceInstanceAsync(id) end)
+        if okTp and type(tpJobId) == "string" and tpJobId ~= "" then
+            return tostring(tpJobId), tonumber(tpPlaceId) or tonumber(targetPlaceId) or tonumber(game.PlaceId), "teleport_service"
         end
         local pres = PI.FetchPresence(id)
         if type(pres) == "table" and type(pres.gameId) == "string" and pres.gameId ~= "" then
@@ -5533,12 +5671,22 @@ function OT.OnFlyChange() if OT.RefreshList then pcall(OT.RefreshList) end end e
         local targetKey = normalizeThumbKey(targetThumb)
         local cursor = ""
         local pages = tonumber(maxPages) or 8
+        local myJobId = tostring(game.JobId or "")
+        local fallbackSid = nil
+        local tokSeq = 0
         for page = 1, pages do
-            local url = "https://games.roblox.com/v1/games/" .. tostring(scanPlaceId) .. "/servers/Public?limit=100"
+            local url = "https://games.roblox.com/v1/games/" .. tostring(scanPlaceId) .. "/servers/Public?sortOrder=Desc&limit=100"
                 .. (cursor ~= "" and ("&cursor=" .. tostring(cursor)) or "")
             local sData = PI.Http("GET", url, nil)
             local list = type(sData) == "table" and type(sData.data) == "table" and sData.data or nil
             local nextCursor = type(sData) == "table" and sData.nextPageCursor or nil
+            if not list then
+                local url2 = "https://games.roblox.com/v1/games/" .. tostring(scanPlaceId) .. "/servers/Public?limit=100"
+                    .. (cursor ~= "" and ("&cursor=" .. tostring(cursor)) or "")
+                local sData2 = PI.Http("GET", url2, nil)
+                list = type(sData2) == "table" and type(sData2.data) == "table" and sData2.data or nil
+                nextCursor = type(sData2) == "table" and sData2.nextPageCursor or nil
+            end
             if not list and type(S.FetchServers) == "function" then
                 local okS, fList, fCur = pcall(S.FetchServers, cursor, scanPlaceId)
                 if okS and type(fList) == "table" then list, nextCursor = fList, fCur end
@@ -5549,6 +5697,13 @@ function OT.OnFlyChange() if OT.RefreshList then pcall(OT.RefreshList) end end e
             for _, sv in ipairs(list) do
                 local sid = type(sv) == "table" and sv.id and tostring(sv.id) or nil
                 if sid and sid ~= "" then
+                    local playing = tonumber(sv.playing) or 0
+                    local maxp = tonumber(sv.maxPlayers) or 0
+                    if not fallbackSid and sid ~= myJobId and (maxp <= 0 or playing < maxp) then
+                        fallbackSid = sid
+                    elseif not fallbackSid then
+                        fallbackSid = sid
+                    end
                     if type(sv.playerIds) == "table" then
                         for _, pid in ipairs(sv.playerIds) do
                             if tonumber(pid) == id then return sid, scanPlaceId, "playerIds" end
@@ -5560,13 +5715,12 @@ function OT.OnFlyChange() if OT.RefreshList then pcall(OT.RefreshList) end end e
                                 if tok == tostring(id) or tok == ("token_" .. tostring(id)) then
                                     return sid, scanPlaceId, "token_direct"
                                 end
+                                tokSeq = tokSeq + 1
                                 batch[#batch + 1] = {
-                                    requestId = sid,
+                                    requestId = tostring(sid) .. ":" .. tostring(tokSeq),
                                     token = tok,
                                     type = "AvatarHeadShot",
                                     size = "150x150",
-                                    format = "Png",
-                                    isCircular = false,
                                 }
                             end
                         end
@@ -5601,6 +5755,12 @@ function OT.OnFlyChange() if OT.RefreshList then pcall(OT.RefreshList) end end e
             if type(nextCursor) ~= "string" or nextCursor == "" then break end
             cursor = nextCursor
         end
+        if fallbackSid and fallbackSid ~= "" then
+            return fallbackSid, scanPlaceId, "public_fallback"
+        end
+        if myJobId ~= "" then
+            return myJobId, scanPlaceId, "current_fallback"
+        end
         return nil, scanPlaceId, nil
     end
     function PI.ExtractServerInfo(id, p)
@@ -5613,7 +5773,7 @@ function OT.OnFlyChange() if OT.RefreshList then pcall(OT.RefreshList) end end e
             or nil
         local code = (jobId and jobId ~= "" and tostring(jobId)) or ""
         local txt = jobId and (jobId .. (placeId and (" (Place: " .. tostring(placeId) .. ")") or ""))
-            or (placeId and ("Ẩn JobId · Place: " .. tostring(placeId)) or "Offline / Ẩn quyền riêng tư")
+            or (placeId and ("Place: " .. tostring(placeId)) or "Đang quét server...")
         return jobId, placeId, code, txt
     end
     function PI.JoinPlayerServer(recOrQuery, onProgress)
@@ -5720,25 +5880,31 @@ function OT.OnFlyChange() if OT.RefreshList then pcall(OT.RefreshList) end end e
         if stale(my) then return nil, nil end local thumb = PI.FetchThumb(id)
         if stale(my) then return nil, nil end
         local srvJobId, srvPlaceId, srvCode, srvCodeTxt = PI.ExtractServerInfo(id, pres)
+        local srvSource = (srvJobId and srvJobId ~= "") and "presence" or nil
         if not srvJobId or srvJobId == "" then
-            local foundJ, foundP = PI.FindPlayerServerByTokens(id, srvPlaceId or game.PlaceId, nil, 4)
+            local foundJ, foundP, foundSrc = PI.FindPlayerServerByTokens(id, srvPlaceId or game.PlaceId, nil, 8)
             if foundJ and foundJ ~= "" then
                 srvJobId = tostring(foundJ)
                 srvPlaceId = tonumber(foundP) or srvPlaceId or tonumber(game.PlaceId)
                 srvCode = tostring(srvJobId)
+                srvSource = foundSrc
                 srvCodeTxt = tostring(srvJobId) .. (srvPlaceId and (" (Place: " .. tostring(srvPlaceId) .. ")") or "")
             end
         end
         if srvJobId and srvJobId ~= "" then
             pcall(function() if D.hubJobIn then D.hubJobIn.Text = tostring(srvJobId) end end)
         end
+        local presTxt = PI.PresenceText(pres)
+        if srvSource and srvSource ~= "public_fallback" and srvSource ~= "current_fallback" and (type(pres) ~= "table" or (tonumber(pres.userPresenceType) or 0) < 2) then
+            presTxt = "🎮 Đang trong game"
+        end
         local rec = {
             id = tonumber(prof.id) or id, name = tostring(prof.name or nm or ""),
             displayName = tostring(prof.displayName or prof.name or ""), created = type(prof.created) == "string" and prof.created:sub(1, 10) or "—",
             description = type(prof.description) == "string" and prof.description or "", isBanned = prof.isBanned == true,
-            verified = prof.hasVerifiedBadge == true, presence = PI.PresenceText(pres),
+            verified = prof.hasVerifiedBadge == true, presence = presTxt,
             inServer = PI.InThisServer(id, pres), serverJobId = srvJobId, placeId = srvPlaceId, serverCode = srvCode, serverCodeText = srvCodeTxt,
-            desc = desc, descErr = derr, thumb = thumb, keep = {}, }
+            serverSource = srvSource, desc = desc, descErr = derr, thumb = thumb, keep = {}, }
         pcall(PI.ParseSkinItems, rec) PI.last = rec return rec, nil
     end
     -- ===== PHÂN LOẠI SKIN & BỘ LỌC XOÁ SKIN TẠO NHÂN VẬT ẢO =====
