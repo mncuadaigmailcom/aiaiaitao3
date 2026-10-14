@@ -2,8 +2,7 @@
     taodepzai v5.0 NOIR — FULL CODE  ·  OBSIDIAN NOIR + layout kiểu DELTA
     v5.0 NOIR: taodepzai - khoi phuc tham kinh co dinh, them hop it nguoi, doi ten. KHONG cat ham/khung/the.
     v4.66: 🎥 quay camera. v4.65: xuyên tường. v4.64: khán giả thay 👻.
-    v4.43: 🔐 Anti Ban. v4.42 rút gọn. v4.41 chip. v4.40 ⚙. v4.39–v4.36 bay/nhảy/tốc độ.
-    Giữ: 🚀/🛡 bay · 🧱 noclip · 🦘 nhảy · 💨 sprint · 📍👣 · ✨ · 👥 · ⚙️.
+    v4.43: 🔐 Anti Ban. v4.42 rút gọn. v4.41 chip. v4.40 ⚙. v4.39–v4.36 bay/nhảy/tốc độ. Giữ: 🚀/🛡 bay · 🧱 noclip · 🦘 nhảy · 💨 sprint · 📍👣 · ✨ · 👥 · ⚙️.
     Kiem tra: parser Luau + static regression (script.js la Luau, khong phai JavaScript).
 --]]
 local Players = game:GetService("Players") local TweenService = game:GetService("TweenService")
@@ -11,15 +10,13 @@ local RunService = game:GetService("RunService") local UserInputService = game:G
 local HttpService = game:GetService("HttpService")
 local TeleportService = game:GetService("TeleportService")   -- v4.6.3: Reset / Hop / vào server theo mã
 local player = Players.LocalPlayer local playerGui = player:WaitForChild("PlayerGui") local camera = workspace.CurrentCamera
-local targetGui = playerGui pcall(function() if type(gethui) == "function" then local hui = gethui()
-        if hui then targetGui = hui end end end)
+local targetGui = playerGui pcall(function() if type(gethui) == "function" then local hui = gethui() if hui then targetGui = hui end end end)
 do local old = _G.BananaCatHub_MV if old then if old.StopAll then pcall(old.StopAll) end
         old._wdToken = nil if type(old._wd) == "thread" then pcall(task.cancel, old._wd) end old._wd = nil end end
 pcall(function() local oldPerf = _G.BananaCatHub_Perf
     if type(oldPerf) == "table" and type(oldPerf.Stop) == "function" then pcall(oldPerf.Stop) end _G.BananaCatHub_Perf = nil
 end) if _G.BananaCatHub_Connections then for _, c in ipairs(_G.BananaCatHub_Connections) do
-        pcall(function() c:Disconnect() end) end end _G.BananaCatHub_Connections = {}
-pcall(function() local oldUnhook = _G.BananaCatHub_AntiBanUnhook
+        pcall(function() c:Disconnect() end) end end _G.BananaCatHub_Connections = {} pcall(function() local oldUnhook = _G.BananaCatHub_AntiBanUnhook
     if type(oldUnhook) == "function" then pcall(oldUnhook) end _G.BananaCatHub_AntiBanUnhook = nil end) pcall(function()
     local f = _G.BananaCatHub_Free if type(f) == "table" and f.Stop then pcall(f.Stop) end end) pcall(function() local old = _G.BananaCatHub_SpecCam
     if old ~= nil then local cam = workspace.CurrentCamera if cam then if old ~= Enum.CameraType.Scriptable then
@@ -28,8 +25,7 @@ pcall(function() local oldUnhook = _G.BananaCatHub_AntiBanUnhook
                 local hum = char and char:FindFirstChildOfClass("Humanoid") local root = char and char:FindFirstChild("HumanoidRootPart")
                 if hum then cam.CameraSubject = hum end if root then
                     cam.CFrame = CFrame.new(root.Position + Vector3.new(0, 3.2, 12), root.Position + Vector3.new(0,1.5,0)) cam.Focus = CFrame.new(root.Position)
-                end end) end _G.BananaCatHub_SpecCam = nil
-    end pcall(function() RunService:UnbindFromRenderStep("BC_Spec") end) end)
+                end end) end _G.BananaCatHub_SpecCam = nil end pcall(function() RunService:UnbindFromRenderStep("BC_Spec") end) end)
 for _, parent in ipairs({targetGui, playerGui, game:GetService("CoreGui")}) do pcall(function()
         local old = parent:FindFirstChild("BananaCatHub_Crosshair") if old then old:Destroy() end end)
     pcall(function()   -- v5.1: dọn định vị vật của lần chạy trước (tránh chồng Highlight)
@@ -93,8 +89,7 @@ local C = { WHITE  = Color3.fromRGB(255, 255, 255),
         if (cls == "TextButton" or cls == "TextLabel") and props and props.BackgroundColor3 ~= nil and props.TextColor3 ~= nil
            and (props.BackgroundTransparency or 0) < 0.5 then local bg = props.BackgroundColor3
             if typeof(bg) == "Color3" then local lum = 0.2126 * bg.R + 0.7152 * bg.G + 0.0722 * bg.B if lum > 0.6 and props.TextColor3 == Color3.fromRGB(255, 255, 255) then
-                    obj.TextColor3 = C.INK end end end
-    end) return obj end local function Corner(p, r)
+                    obj.TextColor3 = C.INK end end end end) return obj end local function Corner(p, r)
     return New("UICorner", {CornerRadius = r or UDim.new(0, 10)}, p)   -- v4.5: bo 10px (trước 8px)
 end local function Stroke(p, c, t) return New("UIStroke", {
         Color = c or C.BORDER,                          -- v4.9: viền tách khối rõ hơn trên nền obsidian
@@ -107,8 +102,7 @@ local flashBack = setmetatable({}, { __mode = "k" }) local function flash(btn, t
         if not (btn and btn.Parent) then return end local old = flashBack[btn]
         if not old then return end pcall(function() btn.Text = old[1]; btn.TextColor3 = old[2] end) flashBack[btn] = nil end) end
 local function Tween(o, p, d, e) TweenService:Create(o, TweenInfo.new(d or 1.5, e or Enum.EasingStyle.Quart, Enum.EasingDirection.Out), p):Play()
-end local D = {}
-local S function D.Say(msg, color) if not D.hubStatus then return end
+end local D = {} local S function D.Say(msg, color) if not D.hubStatus then return end
     pcall(function() D.hubStatus.Text = tostring(msg) D.hubStatus.TextColor3 = color or C.RED end)
 end function D.BestText(bg) if typeof(bg) ~= "Color3" then return C.WHITE end
     local lum = 0.2126 * bg.R + 0.7152 * bg.G + 0.0722 * bg.B return (lum > 0.6) and C.INK or C.WHITE end
@@ -118,8 +112,7 @@ function D.Grad(obj) local g = obj:FindFirstChildOfClass("UIGradient")
     if not g then g = New("UIGradient", {Color = ColorSequence.new(Color3.new(1,1,1), Color3.new(1,1,1))}, obj) end return g
 end function D.Paint(obj, c1, c2, rotation) pcall(function()
         obj.BackgroundColor3 = Color3.new(1, 1, 1) local g = D.Grad(obj) g.Color = ColorSequence.new(c1, c2 or c1) g.Rotation = rotation or 90
-    end) return obj end function D.Unpaint(obj) pcall(function()
-        if not obj then return end local g = obj:FindFirstChildOfClass("UIGradient")
+    end) return obj end function D.Unpaint(obj) pcall(function() if not obj then return end local g = obj:FindFirstChildOfClass("UIGradient")
         if g then g.Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.new(1, 1, 1)) end end) return obj end
 function D.Paint3(obj, colors, rotation) pcall(function()
         if type(colors) ~= "table" or #colors == 0 then return obj end obj.BackgroundColor3 = Color3.new(1, 1, 1) local g = D.Grad(obj) local n = #colors
@@ -137,8 +130,7 @@ function D.TopLight(obj, color, thickness, inset) local line = nil pcall(functio
             ColorSequenceKeypoint.new(0.00, a),        -- mép trên: hắt sáng
             ColorSequenceKeypoint.new(0.10, mix(0.28)), ColorSequenceKeypoint.new(0.58, mix(0.62)),
             ColorSequenceKeypoint.new(1.00, b),        -- đáy: hút tối
-        }) g.Rotation = rotation or 90 end) return obj
-end function D.PaintText(obj, c1, c2) pcall(function()
+        }) g.Rotation = rotation or 90 end) return obj end function D.PaintText(obj, c1, c2) pcall(function()
         obj.TextColor3 = Color3.new(1, 1, 1) local g = D.Grad(obj) g.Color = ColorSequence.new(c1, c2 or c1) g.Rotation = 0
     end) return obj end function D.Tactile(btn, baseTrans) baseTrans = baseTrans or 0.08
     pcall(function() trackConn(btn.MouseEnter:Connect(function() Tween(btn, {BackgroundTransparency = math.max(0, baseTrans - 0.06)}, 0.16) end))
@@ -162,15 +154,12 @@ function D.SetBg(obj, color, trans) pcall(function() if not obj then return end 
         local ti = TweenInfo.new(dur or 1.9, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true) TweenService:Create(obj, ti, props):Play()
     end) end local function ReleaseHubFocus() pcall(function()
         local tb = UserInputService:GetFocusedTextBox() if tb then tb:ReleaseFocus() end end) pcall(function() playerGui:ReleaseFocus() end)
-end if targetGui:FindFirstChild("ExMenu") then targetGui.ExMenu:Destroy()
-end local gui = New("ScreenGui", { Name="ExMenu",
+end if targetGui:FindFirstChild("ExMenu") then targetGui.ExMenu:Destroy() end local gui = New("ScreenGui", { Name="ExMenu",
     IgnoreGuiInset=true, ResetOnSpawn=false, ZIndexBehavior=Enum.ZIndexBehavior.Sibling, }, targetGui)
-local togBtn = New("TextButton", { Size=UDim2.new(0,36,0,36), Position=UDim2.new(1,-48,1,-48), Text="",
-    BackgroundColor3=Color3.fromRGB(0,0,0),
+local togBtn = New("TextButton", { Size=UDim2.new(0,36,0,36), Position=UDim2.new(1,-48,1,-48), Text="", BackgroundColor3=Color3.fromRGB(0,0,0),
     BackgroundTransparency=1, -- trong suốt hoàn toàn, không che màn hình
     TextColor3=Color3.fromRGB(255,255,255), Font=Enum.Font.GothamBold, TextSize=22, BorderSizePixel=0,
-    ZIndex=1000, }, gui) Corner(togBtn, UDim.new(1,0))
-local rainbowStroke = Instance.new("UIStroke") rainbowStroke.Thickness = 2
+    ZIndex=1000, }, gui) Corner(togBtn, UDim.new(1,0)) local rainbowStroke = Instance.new("UIStroke") rainbowStroke.Thickness = 2
 rainbowStroke.Color = Color3.fromRGB(255,255,255) rainbowStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 rainbowStroke.Parent = togBtn pcall(function() local grad = Instance.new("UIGradient") grad.Color = ColorSequence.new{
         ColorSequenceKeypoint.new(0.00, Color3.fromRGB(255,0,0)), ColorSequenceKeypoint.new(0.20, Color3.fromRGB(255,255,0)), ColorSequenceKeypoint.new(0.40, Color3.fromRGB(0,255,0)),
@@ -193,8 +182,7 @@ local Hit = {} function Hit.inObject(o, x, y) if not o then return false end
         local containers = {playerGui} if targetGui and targetGui ~= playerGui then containers[#containers + 1] = targetGui end
         for _, container in ipairs(containers) do local okAim, aimObjs = pcall(function() return container:GetGuiObjectsAtPosition(x, y) end)
             if okAim and type(aimObjs) == "table" then for _, o in ipairs(aimObjs) do if o:IsDescendantOf(overlay) then local dot = S.AnaUi and S.AnaUi.aimDot
-                        if not dot or (o ~= dot and not o:IsDescendantOf(dot)) then aimOverlayHit = true return end end
-                end end end end)
+                        if not dot or (o ~= dot and not o:IsDescendantOf(dot)) then aimOverlayHit = true return end end end end end end)
     if aimOverlayHit then return true end if Hit.inObject(main, x, y) then return true end
     if Hit.inObject(togBtn, x, y) then return true end return false end local bgPattern = New("ImageLabel", { Name = "CheckeredBG",
     Size = UDim2.new(1, 0, 1, 0), Position = UDim2.new(0, 0, 0, 0), BackgroundTransparency = 1, Image = "rbxassetid://9822602710",
@@ -202,17 +190,14 @@ local Hit = {} function Hit.inObject(o, x, y) if not o then return false end
     TileSize = UDim2.new(0, 13, 0, 13),               -- v4.9: hạt nhỏ hơn -> chất liệu mịn như vải, không còn "caro"
     ImageTransparency = 0.955,                        -- v4.9: nhẹ hơn nữa, chỉ còn là ánh kim loại
     ImageColor3 = C.ACCENT2,                          -- v4.9: ánh đồng (trước là vàng chuối gắt)
-    ZIndex = 2, }, main) Corner(bgPattern, UDim.new(0, 14))
-local titleBar = New("Frame", { Size=UDim2.new(1,0,0,30), BackgroundColor3=C.SURFACE2,
+    ZIndex = 2, }, main) Corner(bgPattern, UDim.new(0, 14)) local titleBar = New("Frame", { Size=UDim2.new(1,0,0,30), BackgroundColor3=C.SURFACE2,
     BackgroundTransparency=0,      -- v4.9: đục để gradient 3 chặng lên đúng
-    BorderSizePixel=0, ZIndex=3, }, main) Corner(titleBar, UDim.new(0,16))
-D.Paint3(titleBar, {C.SURFACE3, C.SURFACE2, C.SURFACE}, 90)
+    BorderSizePixel=0, ZIndex=3, }, main) Corner(titleBar, UDim.new(0,16)) D.Paint3(titleBar, {C.SURFACE3, C.SURFACE2, C.SURFACE}, 90)
 D.TopLight(titleBar, C.ACCENT3, 1, 22)   -- v4.9: chỉ vàng mảnh chạy dọc mép trên cửa sổ
 D.Paint3(New("Frame", { Name="TitleAccent", Size=UDim2.new(1,-2,0,2), Position=UDim2.new(0,1,1,-1),
     BackgroundColor3=C.ACCENT, BorderSizePixel=0, ZIndex=5, }, titleBar), {C.ACCENT2, C.ACCENT3, C.ACCENT2}, 0)
 D.PaintText(New("TextLabel", { Size=UDim2.new(1,-90,1,0), Position=UDim2.new(0,12,0,0), Text="taodepzai v5.0 NOIR",
-    BackgroundTransparency=1, TextColor3=C.DARK, Font=Enum.Font.GothamBold, TextSize=13,
-    TextXAlignment=Enum.TextXAlignment.Left, ZIndex=4,
+    BackgroundTransparency=1, TextColor3=C.DARK, Font=Enum.Font.GothamBold, TextSize=13, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=4,
 }, titleBar), C.ACCENT, C.ACCENT3)   -- v4.9: chữ gradient vàng sâm-panh -> trắng ngà
 D.verPill = New("Frame", { Name="VersionPill", Size=UDim2.new(0,62,0,16), Position=UDim2.new(0,158,0,7),
     BackgroundColor3=C.DEEP, BackgroundTransparency=0.15, BorderSizePixel=0, ZIndex=5, }, titleBar) Corner(D.verPill, UDim.new(1,0))
@@ -227,8 +212,7 @@ local function BcFit() local fn = _G.BananaCatHub_SyncEmbeds if type(fn) ~= "fun
 local function SetupResizeHandle(btn, cornerType) local resizing, sizeStart, posStart, inputStart
     trackConn(btn.InputBegan:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then
             pcall(function() if D.openTween then D.openTween:Cancel() D.openTween = nil end end)  -- v4.5
-            resizing=true sizeStart=main.Size posStart=main.Position inputStart=i.Position
-        end end))
+            resizing=true sizeStart=main.Size posStart=main.Position inputStart=i.Position end end))
     trackConn(UserInputService.InputChanged:Connect(function(i) if resizing and sizeStart and posStart and inputStart and (i.UserInputType==Enum.UserInputType.MouseMovement or i.UserInputType==Enum.UserInputType.Touch) then
             local d = i.Position - inputStart local w, h = sizeStart.X.Offset, sizeStart.Y.Offset local posX, posY = posStart.X.Offset, posStart.Y.Offset
             local newW, newH = w, h local newX, newY = posX, posY if cornerType == "BR" then newW = math.max(minW, w + d.X)
@@ -252,8 +236,7 @@ local tabs = {} local tabContent = {} local tabBar = New("ScrollingFrame", { Siz
 New("Frame", { Name="TabRailDivider", Size=UDim2.new(0,1,1,-30), Position=UDim2.new(0,56,0,30),
     BackgroundColor3=C.HAIRLINE, BackgroundTransparency=0.45, BorderSizePixel=0, ZIndex=4, }, main)
 New("UIListLayout", { FillDirection=Enum.FillDirection.Vertical, SortOrder=Enum.SortOrder.LayoutOrder, Padding=UDim.new(0,4),
-}, tabBar) New("UIPadding", {PaddingTop=UDim.new(0,6), PaddingLeft=UDim.new(0,4)}, tabBar)
-local contentArea = New("Frame", {
+}, tabBar) New("UIPadding", {PaddingTop=UDim.new(0,6), PaddingLeft=UDim.new(0,4)}, tabBar) local contentArea = New("Frame", {
     Size=UDim2.new(1,-56,1,-54),     -- v4.5: nhường 56px cho thanh icon + 24px cho header trang
     Position=UDim2.new(0,56,0,54), BackgroundTransparency=1, BorderSizePixel=0, ZIndex=3,
     ClipsDescendants=true, }, main) D.pageHeader = New("Frame", { Name="PageHeader", Size=UDim2.new(1,-56,0,24), Position=UDim2.new(0,56,0,30),
@@ -286,8 +269,7 @@ D.hdrSwitches = {} for i, sw in ipairs({
         local back = D.hoverName or D.activeName if back then D.pageTitle.Text = back end D.pageTitle.TextTransparency = D.hoverName and 0.4 or 0 end) end
 New("Frame", {   -- kẻ mảnh dưới header
     Name="PageHeaderRule", Size=UDim2.new(1,-56,0,1), Position=UDim2.new(0,56,0,53), BackgroundColor3=C.HAIRLINE, BackgroundTransparency=0.5, BorderSizePixel=0, ZIndex=4,
-}, main) local activeTab = nil
-local function SwitchTab(index)
+}, main) local activeTab = nil local function SwitchTab(index)
     ReleaseHubFocus()   -- v4.4b: đổi tab mà để TextBox còn focus là game chặn input (không đi/không bắn)
     for _, t in ipairs(tabContent) do t.Visible = false end for _, b in ipairs(tabs) do b.BackgroundColor3 = C.SURFACE2 b.BackgroundTransparency = 1
         b.TextColor3 = C.MUTED
@@ -298,17 +280,14 @@ local function SwitchTab(index)
             bar = New("Frame", { Name = "BC_Bar", Size = UDim2.new(0, 3, 1, -12), Position = UDim2.new(0, 2, 0, 6),
                 BackgroundColor3 = C.ACCENT, BorderSizePixel = 0, ZIndex = 6, }, b) Corner(bar, UDim.new(1, 0))
             D.Paint3(bar, {C.ACCENT3, C.ACCENT, C.ACCENT2}, 90)   -- v4.9: vạch như thanh kim loại đánh bóng
-        end bar.Visible = true activeTab = tabContent[index] pcall(function()
-            if D.pageTitle then local ic = b:GetAttribute("BCTabIcon")
+        end bar.Visible = true activeTab = tabContent[index] pcall(function() if D.pageTitle then local ic = b:GetAttribute("BCTabIcon")
                 local nm = b:GetAttribute("BCTabName") D.activeName = (ic and (ic .. "  ") or "") .. tostring(nm or ("Trang " .. index))
-                if not D.hoverName then D.pageTitle.Text = D.activeName D.pageTitle.TextTransparency = 0 end
-            end end) end
+                if not D.hoverName then D.pageTitle.Text = D.activeName D.pageTitle.TextTransparency = 0 end end end) end
     BcFit()   -- v4.4c: tab vừa hiện -> đo lại để GUI nằm vừa đúng ô của tab
     pcall(function() if S.PagePerf and S.PagePerf.OnTabChanged then S.PagePerf.OnTabChanged() end end) end
 local function OpenFirstPage() local idx, best = 1, nil for i, b in ipairs(tabs) do local o = b and b.LayoutOrder
         if type(o) == "number" and (best == nil or o < best) then best = o; idx = i end end SwitchTab(idx) end
-local function MakeTabFrame() return New("ScrollingFrame", { Size=UDim2.new(1,0,1,0), BackgroundTransparency=1,
-        BorderSizePixel=0,
+local function MakeTabFrame() return New("ScrollingFrame", { Size=UDim2.new(1,0,1,0), BackgroundTransparency=1, BorderSizePixel=0,
         ScrollBarThickness=4,                                   -- v4.9: mảnh hơn
         ScrollBarImageColor3=Color3.fromRGB(88, 96, 118),       -- v4.9: thấy rõ trên nền obsidian
         ClipsDescendants=true, CanvasSize=UDim2.new(0,0,0,0), Visible=false, Active=true,
@@ -330,10 +309,8 @@ local function MakeTabButton(name, icon, order, onClick) local btn = New("TextBu
                     D.pageTitle.TextTransparency = 0.4 end end) end))
         trackConn(btn.MouseLeave:Connect(function() if btn.TextColor3 ~= C.ACCENT then Tween(btn, {BackgroundTransparency = 1}, 0.2) end
             pcall(function()   -- rời chuột: header trả về tên trang ĐANG MỞ
-                D.hoverName = nil if D.pageTitle and D.activeName then D.pageTitle.Text = D.activeName D.pageTitle.TextTransparency = 0
-                end end) end)) end)
-    btn.Activated:Connect(function() for i, b in ipairs(tabs) do if b == btn then SwitchTab(i)
-                if onClick then pcall(onClick) end break end end
+                D.hoverName = nil if D.pageTitle and D.activeName then D.pageTitle.Text = D.activeName D.pageTitle.TextTransparency = 0 end end) end)) end)
+    btn.Activated:Connect(function() for i, b in ipairs(tabs) do if b == btn then SwitchTab(i) if onClick then pcall(onClick) end break end end
     end) return btn end local function AddTab(name, icon, order, customContent) local sf
     if customContent then sf = customContent sf.Parent = contentArea sf.Visible = false
     else sf = MakeTabFrame() end local btn = MakeTabButton(name, icon, order)
@@ -346,37 +323,25 @@ S = { dragMenu     = false, dragging     = false, dragStart    = nil,
     embedGuessNew = false,   -- 🕵 nhận cả ScreenGui "lạ" mới xuất hiện (mạnh hơn nhưng dễ ăn GUI game)
     parkCodeGuis = true,
     embeds       = {},       -- registry: {host, gui, recs={{child,origParent,origPos,origSize}}, conns={}}
-} S.PagePerf = S.PagePerf or {
-    currentTab = nil, mainVisible = true,
-    _paused = {}, _lastMainVisible = true,
-} function S.PagePerf.IsMainVisible()
-    local ok, vis = pcall(function() return main and main.Visible == true end) return ok and vis == true
-end function S.PagePerf.GetActiveTabName()
+} S.PagePerf = S.PagePerf or { currentTab = nil, mainVisible = true,
+    _paused = {}, _lastMainVisible = true, } function S.PagePerf.IsMainVisible()
+    local ok, vis = pcall(function() return main and main.Visible == true end) return ok and vis == true end function S.PagePerf.GetActiveTabName()
     local ok, name = pcall(function() if D and D.activeName then return tostring(D.activeName) end
-        if activeTab and activeTab.Name then return tostring(activeTab.Name) end return nil
-    end) if ok then return name end
-    return nil end
-function S.PagePerf.IsTabVisible(tab) if not tab then return false end
-    local ok, vis = pcall(function() return tab.Visible == true end) return ok and vis == true
-end function S.PagePerf.ShouldRunForPlayerTab()
-    if not S.PagePerf.IsMainVisible() then return false
-    end local pt = D and D.playerTab
-    if not pt then return false end return S.PagePerf.IsTabVisible(pt)
-end function S.PagePerf.ShouldRunForSupportTab()
+        if activeTab and activeTab.Name then return tostring(activeTab.Name) end return nil end) if ok then return name end
+    return nil end function S.PagePerf.IsTabVisible(tab) if not tab then return false end
+    local ok, vis = pcall(function() return tab.Visible == true end) return ok and vis == true end function S.PagePerf.ShouldRunForPlayerTab()
+    if not S.PagePerf.IsMainVisible() then return false end local pt = D and D.playerTab
+    if not pt then return false end return S.PagePerf.IsTabVisible(pt) end function S.PagePerf.ShouldRunForSupportTab()
     if not S.PagePerf.IsMainVisible() then return false end local st = nil
     pcall(function() if S.AnaUi and S.AnaUi.supportTabIndex and tabContent and tabContent[S.AnaUi.supportTabIndex] then
-            st = tabContent[S.AnaUi.supportTabIndex] end
-    end) if not st then
-        local ok, t = pcall(function() return supportTab end) if ok then st = t end
-    end if not st then return false end
-    return S.PagePerf.IsTabVisible(st) end
-function S.PagePerf.OnTabChanged() pcall(function()
+            st = tabContent[S.AnaUi.supportTabIndex] end end) if not st then
+        local ok, t = pcall(function() return supportTab end) if ok then st = t end end if not st then return false end
+    return S.PagePerf.IsTabVisible(st) end function S.PagePerf.OnTabChanged() pcall(function()
         S.PagePerf.currentTab = S.PagePerf.GetActiveTabName() S.PagePerf.mainVisible = S.PagePerf.IsMainVisible()
         if S.Coord and S.Coord.RefreshBind then pcall(S.Coord.RefreshBind) end
         if S.SpeedMeter and S.SpeedMeter.OnTabChanged then pcall(S.SpeedMeter.OnTabChanged) end
         if S.ObjTrack and S.ObjTrack.OnPerfTick then pcall(S.ObjTrack.OnPerfTick) end if S.Loc and S.Loc.OnPerfTick then pcall(S.Loc.OnPerfTick) end
-    end) end
-function S.PagePerf.OnMainVisibilityChanged() pcall(function()
+    end) end function S.PagePerf.OnMainVisibilityChanged() pcall(function()
         S.PagePerf.mainVisible = S.PagePerf.IsMainVisible() if S.Coord and S.Coord.RefreshBind then pcall(S.Coord.RefreshBind) end
         if S.SpeedMeter and S.SpeedMeter.OnTabChanged then pcall(S.SpeedMeter.OnTabChanged) end
         if S.ObjTrack and S.ObjTrack.OnPerfTick then pcall(S.ObjTrack.OnPerfTick) end if S.Loc and S.Loc.OnPerfTick then pcall(S.Loc.OnPerfTick) end
@@ -398,8 +363,7 @@ local totalRuns, cancelled = 0, false local curThread, curIndicator = nil, nil
 local runActive = false       -- cờ trạng thái chạy (không dựa vào curThread nữa)
 local Store = {} Store.SAVE_FILE      = "banana_cat_saved.json" Store.SAVE_VERSION   = 3
 Store.mode           = "none"   -- "file" | "memory" | "empty" | "none"
-Store.lastError      = nil Store.lastSavedAt    = nil Store.saveCount      = 0 Store.loadedScripts  = 0
-Store.loadedWp       = 0
+Store.lastError      = nil Store.lastSavedAt    = nil Store.saveCount      = 0 Store.loadedScripts  = 0 Store.loadedWp       = 0
 Store.loadedFeatures = {}     -- dữ liệu thô đọc từ đĩa; TAB5 sẽ dựng thành tab thật
 Store.savedSkins     = {}     -- danh sách các skin đã bấm 💾 Lưu Skin
 Store.autoUseSkin    = nil    -- bản ghi skin đã bấm ⚡ Lưu Skin Dùng (tự động dùng khi mở script)
@@ -440,12 +404,10 @@ end function Store.read() if Store.canWrite() then
         settings  = { embedEnabled  = (S.embedEnabled == true), embedGuessNew = (S.embedGuessNew == true),
             parkCodeGuis  = (S.parkCodeGuis ~= false),   -- v4.4i
             hubFavs = (function() local out = {}
-                if type(S.hubFavs) == "table" then for nm, v in pairs(S.hubFavs) do if v then out[#out + 1] = tostring(nm) end end end return out
-            end)(), }, } end
+                if type(S.hubFavs) == "table" then for nm, v in pairs(S.hubFavs) do if v then out[#out + 1] = tostring(nm) end end end return out end)(), }, } end
 function Store.save() local ok = Store.write(Store.serialize()) if Store.refreshStatus then pcall(Store.refreshStatus) end return ok
 end function Store.saveSoon() if Store._scheduled then return end
-    Store._scheduled = true task.delay(0.3, function() Store._scheduled = false Store.save()
-    end) end function Store.load() local data = Store.read()
+    Store._scheduled = true task.delay(0.3, function() Store._scheduled = false Store.save() end) end function Store.load() local data = Store.read()
     if type(data) ~= "table" then Store.mode = Store.canWrite() and "empty" or "none"
         Store.loadedScripts, Store.loadedWp = 0, 0 Store.loadedFeatures = {} Store.savedSkins = {} Store.autoUseSkin = nil
         return end local fileVer = tonumber(data.version) or 1 if fileVer > Store.SAVE_VERSION then
@@ -456,23 +418,18 @@ end function Store.saveSoon() if Store._scheduled then return end
             for _, nm in ipairs(data.settings.hubFavs) do S.hubFavs[tostring(nm)] = true end end end local sOut = {} if type(data.scripts) == "table" then
         for _, s in ipairs(data.scripts) do if type(s) == "table" and type(s.code) == "string" and #s.code > 0 then
                 table.insert(sOut, { name     = (type(s.name) == "string" and #s.name > 0) and s.name or ("Script " .. (#sOut + 1)), code     = S.SanitizeCode(s.code),
-                    expanded = (s.expanded == true), }) end end end
-    local wOut = {} if type(data.waypoints) == "table" then
+                    expanded = (s.expanded == true), }) end end end local wOut = {} if type(data.waypoints) == "table" then
         for _, w in ipairs(data.waypoints) do if type(w) == "table" and Store.isFinite(w.x) and Store.isFinite(w.y) and Store.isFinite(w.z) then
                 table.insert(wOut, { name = (type(w.name) == "string" and #w.name > 0) and w.name or ("WP " .. (#wOut + 1)), pos  = Vector3.new(w.x, w.y, w.z), })
             end end end local fOut = {} if type(data.features) == "table" then
         for _, f in ipairs(data.features) do if type(f) == "table" and type(f.code) == "string" and #f.code > 0 then
                 table.insert(fOut, { name = (type(f.name) == "string" and #f.name > 0) and f.name or ("Tính Năng " .. (#fOut + 1)), icon = (type(f.icon) == "string" and #f.icon > 0) and f.icon or "⚙️",
-                    code = S.SanitizeCode(f.code), }) end end end
-    local skOut = {} if type(data.savedSkins) == "table" then for _, sk in ipairs(data.savedSkins) do
-            if type(sk) == "table" and (tonumber(sk.id) or (type(sk.name) == "string" and #sk.name > 0)) then table.insert(skOut, sk)
-            end end
+                    code = S.SanitizeCode(f.code), }) end end end local skOut = {} if type(data.savedSkins) == "table" then for _, sk in ipairs(data.savedSkins) do
+            if type(sk) == "table" and (tonumber(sk.id) or (type(sk.name) == "string" and #sk.name > 0)) then table.insert(skOut, sk) end end
     end Store.savedSkins = skOut
     if type(data.autoUseSkin) == "table" and (tonumber(data.autoUseSkin.id) or (type(data.autoUseSkin.name) == "string" and #data.autoUseSkin.name > 0)) then
-        Store.autoUseSkin = data.autoUseSkin else
-        Store.autoUseSkin = nil end
-    scripts   = sOut waypoints = wOut Store.loadedFeatures = fOut Store.loadedScripts, Store.loadedWp = #sOut, #wOut
-end Store.load()
+        Store.autoUseSkin = data.autoUseSkin else Store.autoUseSkin = nil end
+    scripts   = sOut waypoints = wOut Store.loadedFeatures = fOut Store.loadedScripts, Store.loadedWp = #sOut, #wOut end Store.load()
 S.compatAdded  = S.compatAdded or {}   -- tên các hàm đã bù (để báo lại cho người dùng)
 S.compatTried  = false
 S.vfs          = S.vfs or {}           -- ổ đĩa ảo trong RAM (khi executor không có readfile/writefile)
@@ -480,16 +437,39 @@ S.clipboardTxt = S.clipboardTxt or ""
 S.queued       = S.queued or {}        -- queue_on_teleport: giữ lại, không tự chạy
 S.lastRunReport = nil                  -- báo cáo lần chạy cuối (nhãn 💻 + nút 💾 dùng chung)
 S.lastRunError  = nil S.lastNormalizeNote = nil S.lastParkedCount = 0 S.lastParkedNames = {}
-function S.HasGlobal(n)
-    local ok, v = pcall(function() return rawget(_G, n) end) if ok and v ~= nil then return true end
-    if type(getgenv) == "function" then local okG, g = pcall(getgenv) if okG and type(g) == "table" and g[n] ~= nil then return true end end
-    if type(getfenv) == "function" then local okE, env = pcall(getfenv, 0) if okE and type(env) == "table" and env[n] ~= nil then return true end end
-    return false end
-function S.SetGlobal(n, v)
+_G.__BC_SHIMMED_MAP = type(rawget(_G, "__BC_SHIMMED_MAP")) == "table" and rawget(_G, "__BC_SHIMMED_MAP") or {} pcall(function()
+    local idFn = rawget(_G, "identifyexecutor") local isOldShim = false
+    if type(idFn) == "function" then local okI, rI = pcall(idFn)
+        if okI and tostring(rI or ""):find("NOIR%-Compat") then isOldShim = true end end
+    local shimMap = rawget(_G, "__BC_SHIMMED_MAP")
+    for _, k in ipairs({ "getgenv", "getrenv", "request", "http_request", "http", "HttpRequest", "identifyexecutor", "getexecutorname", "setclipboard", "toclipboard", "set_clipboard" }) do
+        local cur = rawget(_G, k) if cur ~= nil then
+            local isLuaShim = isOldShim or (type(shimMap) == "table" and shimMap[cur] == true)
+            if not isLuaShim and type(cur) == "function" and type(debug) == "table" and type(debug.info) == "function" then
+                local okD, src = pcall(debug.info, cur, "s") if okD and type(src) == "string" and src ~= "[C]" and src ~= "=[C]" then
+                    isLuaShim = true end
+            end if isLuaShim then
+                rawset(_G, k, nil) end
+        end end
+end) function S.IsRealExecutorFn(fn)
+    if type(fn) ~= "function" then return false end if fn == S.CompatRequest then return false end
+    local shimMap = rawget(_G, "__BC_SHIMMED_MAP") if type(shimMap) == "table" and shimMap[fn] then return false end
+    if type(S.shimmedFns) == "table" then for _, sf in pairs(S.shimmedFns) do
+            if sf == fn then return false end end
+    end return true
+end function S.HasGlobal(n)
+    local ok, v = pcall(function() return rawget(_G, n) end) if ok and v ~= nil then
+        local shimMap = rawget(_G, "__BC_SHIMMED_MAP") if not (type(shimMap) == "table" and shimMap[v]) then return true end
+    end if type(getgenv) == "function" and S.IsRealExecutorFn(getgenv) then
+        local okG, g = pcall(getgenv) if okG and type(g) == "table" and g ~= _G and g[n] ~= nil then return true end
+    end if type(getfenv) == "function" then
+        local okE, env = pcall(getfenv, 0) if okE and type(env) == "table" and env ~= _G and env[n] ~= nil then return true end
+    end return false
+end function S.SetGlobal(n, v)
     if S.HasGlobal(n) then return false end          -- KHONG de ham that cua executor
     local ok = pcall(function() rawset(_G, n, v) end) if ok then S.compatAdded[#S.compatAdded + 1] = n S.shimmedFns = S.shimmedFns or {}
-        S.shimmedFns[n] = rawget(_G, n) end return ok end
-function S.VRead(p) local f = S.vfs[tostring(p)] if f == nil then error("File not found: " .. tostring(p)) end return f
+        S.shimmedFns[n] = rawget(_G, n) if v ~= nil then _G.__BC_SHIMMED_MAP[v] = true end
+    end return ok end function S.VRead(p) local f = S.vfs[tostring(p)] if f == nil then error("File not found: " .. tostring(p)) end return f
 end function S.VWrite(p, c)  S.vfs[tostring(p)] = tostring(c); return true end
 function S.VAppend(p, c) S.vfs[tostring(p)] = (S.vfs[tostring(p)] or "") .. tostring(c); return true end function S.VExists(p)    return S.vfs[tostring(p)] ~= nil end
 function S.VDel(p)       S.vfs[tostring(p)] = nil; return true end function S.VList(dir)
@@ -500,20 +480,17 @@ function S.CompatRequest(opts) if type(opts) ~= "table" then opts = {Url = tostr
     local reqBody = opts.Body or opts.body local body, status, good = "", 0, false
     pcall(function() local r = game:GetService("HttpService"):RequestAsync({
             Url = url, Method = method, Headers = opts.Headers or opts.headers, Body = reqBody,
-        }) body, status, good = tostring(r.Body or ""), tonumber(r.StatusCode) or 200, (r.Success == true) end)
-    if body == "" and method == "POST" then
+        }) body, status, good = tostring(r.Body or ""), tonumber(r.StatusCode) or 200, (r.Success == true) end) if body == "" and method == "POST" then
         local okPost, posted = pcall(function() return game:HttpPost(url, tostring(reqBody or ""), "application/json") end)
-        if okPost and type(posted) == "string" and posted ~= "" then body, status, good = posted, 200, true end
-    end
-    if body == "" then
+        if okPost and type(posted) == "string" and posted ~= "" then body, status, good = posted, 200, true end end
+    if body == "" and method == "GET" then
         local okHttp, fetched = pcall(function() return game:HttpGet(url) end) if okHttp then body, status, good = tostring(fetched or ""), 200, true end
     end return {StatusCode = status, StatusMessage = "", Body = body, Success = good, Headers = {}} end function S.CompatDrawing() local D = {}
     D.Fonts = {UI = 0, System = 0, Plex = 1, Monospace = 2} D.new = function(cls)
         local o = {__class = tostring(cls or ""), Visible = false, ZIndex = 1, Transparency = 1} return setmetatable(o, {
             __index = function(t, k) if k == "Remove" or k == "Destroy" then return function(self) rawset(self, "Visible", false) end end
                 return rawget(t, k) end, __newindex = function(t, k, v) rawset(t, k, v) end, })
-    end return D end function S.EnsureCompat() if S.compatTried then return S.compatAdded end
-    S.compatTried = true pcall(function()
+    end return D end function S.EnsureCompat() if S.compatTried then return S.compatAdded end S.compatTried = true pcall(function()
         S.SetGlobal("loadstring", function(src, nm) return load(tostring(src), nm or "compat") end) S.SetGlobal("getgenv", function() return _G end)
         S.SetGlobal("getrenv", function() return _G end) S.SetGlobal("identifyexecutor", function() return "taodepzai v5.0 NOIR-Compat", "4.7" end)
         S.SetGlobal("getexecutorname", function() return "taodepzai v5.0 NOIR-Compat" end) S.SetGlobal("getscript", function() return nil end) S.SetGlobal("getcallingscript", function() return nil end)
@@ -524,9 +501,9 @@ function S.CompatRequest(opts) if type(opts) ~= "table" then opts = {Url = tostr
         S.SetGlobal("isfile",     function(p) return S.VExists(p) end) S.SetGlobal("delfile",    function(p) return S.VDel(p) end)
         S.SetGlobal("listfiles",  function(d) return S.VList(d) end) S.SetGlobal("makefolder", function() return true end)
         S.SetGlobal("isfolder",   function() return true end) S.SetGlobal("delfolder",  function() return true end)
-        S.SetGlobal("getcustomasset", function(_, p) return tostring(p) end) S.SetGlobal("getsynasset",    function(_, p) return tostring(p) end) S.SetGlobal("request",      function(o) return S.CompatRequest(o) end)
-        S.SetGlobal("http_request", function(o) return S.CompatRequest(o) end) S.SetGlobal("http", {request = function(o) return S.CompatRequest(o) end})
-        S.SetGlobal("HttpRequest",  function(o) return S.CompatRequest(o) end) S.SetGlobal("hookfunction",      function(_, nw) return nw end)
+        S.SetGlobal("getcustomasset", function(_, p) return tostring(p) end) S.SetGlobal("getsynasset",    function(_, p) return tostring(p) end) S.SetGlobal("request",      S.CompatRequest)
+        S.SetGlobal("http_request", S.CompatRequest) S.SetGlobal("http", {request = S.CompatRequest})
+        S.SetGlobal("HttpRequest",  S.CompatRequest) S.SetGlobal("hookfunction",      function(_, nw) return nw end)
         S.SetGlobal("hookmetamethod",    function() return function() end end) S.SetGlobal("getrawmetatable",   function(o) return getmetatable(o) or {} end)
         S.SetGlobal("setrawmetatable",   function(o, m) pcall(setmetatable, o, m); return o end) S.SetGlobal("setreadonly",       function() return true end)
         S.SetGlobal("isreadonly",        function() return false end) S.SetGlobal("newcclosure",       function(f) return f end) S.SetGlobal("getnamecallmethod", function() return "" end)
@@ -561,8 +538,7 @@ local function ExecOnce(code, name) if #name>0 then print("👤 Chạy bởi:", 
     code = S.SanitizeCode(code)          -- v4.4b: cắt wrapper "tự dãn kích thước" độc hại của bản cũ
     code = S.NormalizeRunnable(code)     -- v4.7: link trần / thiếu () / BOM -> chạy được
     S.EnsureCompat()                     -- v4.7: bù hàm executor còn thiếu (không đè hàm thật)
-    local ok, err = pcall(function() local fn, lerr = loadstring(code) if not fn then error(lerr) end fn()
-    end) if ok then S.lastRunError = nil else
+    local ok, err = pcall(function() local fn, lerr = loadstring(code) if not fn then error(lerr) end fn() end) if ok then S.lastRunError = nil else
         S.lastRunError = tostring(err) pcall(function() warn("[taodepzai v5.0 NOIR] ❌ '" .. tostring(name) .. "' lỗi: " .. tostring(err)) end)
     end return ok, err end local function Cancel() pcall(function() if S.AbortRunCapture then S.AbortRunCapture() end end)
     cancelled=true runActive=false
@@ -577,19 +553,16 @@ end local function RunCode(code, name, ind, times, delay, noPark) Cancel()
         local cap = nil if skipPark then
             S.lastParkNote = "🪟 GUI để NGOÀI màn hình game (công cụ cửa sổ riêng) — không đưa vào menu" pcall(function() print("[taodepzai v5.0 NOIR] 🛠 '" .. tostring(name) .. "': GUI ở NGOÀI màn hình game như cũ"
                     .. " (lý do không đưa vào menu: " .. tostring(skipWhy) .. ")") end) else S.lastParkNote = nil
-            cap = S.BeginRunCapture() end for i=1,times do if cancelled then break end
-            if i>1 and delay>0 then local e=0 while e<delay do
-                    if cancelled then break end task.wait(0.1); e+=0.1
-                end if cancelled then break end end local ok, err = ExecOnce(code, name)
-            if ok then okC+=1 else failC+=1; warn("❌ Lần",i,err) end if cap then S.EndRunCapture(cap, (#name>0 and name or "Script"))
+            cap = S.BeginRunCapture() end for i=1,times do if cancelled then break end if i>1 and delay>0 then local e=0 while e<delay do
+                    if cancelled then break end task.wait(0.1); e = e + (0.1) end if cancelled then break end end local ok, err = ExecOnce(code, name)
+            if ok then okC = okC + (1)  else failC = failC + (1) ; warn("❌ Lần",i,err) end if cap then S.EndRunCapture(cap, (#name>0 and name or "Script"))
                 S.lastParkedCount = cap.parked or 0    -- v4.7: để báo "GUI đang nằm ở đâu"
                 S.lastParkedNames = cap.names or {} cap = nil end end
         if cap then S.EndRunCapture(cap, (#name>0 and name or "Script")) cap = nil end S.lastRunReport = { name   = name, ok     = okC,
             fail   = failC, err    = S.lastRunError, parked = (skipPark and S.lastParkNote or nil), guis   = S.lastParkedCount,
             names  = S.lastParkedNames, note   = S.lastNormalizeNote, compat = S.CompatNote(), }
-        totalRuns+=okC+failC if ind then ind.BackgroundColor3=C.GREEN; if curIndicator==ind then curIndicator=nil end end
-        runActive=false curThread=nil end) return true, nil end
-local function Label(parent, text, y) local isRule = (tostring(text):find("━") ~= nil)
+        totalRuns = totalRuns + (okC+failC)  if ind then ind.BackgroundColor3=C.GREEN; if curIndicator==ind then curIndicator=nil end end
+        runActive=false curThread=nil end) return true, nil end local function Label(parent, text, y) local isRule = (tostring(text):find("━") ~= nil)
     return New("TextLabel", { Size=UDim2.new(1,-16,0,14), Position=UDim2.new(0,8,0,y or 0), Text=text, BackgroundTransparency=1,
         TextColor3=(isRule and C.BORDER or C.MUTED),   -- v4.5: chữ phụ / đường kẻ trên nền tối
         Font=Enum.Font.GothamMedium, TextSize=10, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=6, }, parent) end
@@ -600,8 +573,7 @@ local function Button(parent, text, x, y, w, h, color) local base = color or C.S
     D.Tactile(btn, 0.08) return btn end function S.Debounce(key, secs, fn) S._dbt = S._dbt or {}
     local n = (S._dbt[key] or 0) + 1 S._dbt[key] = n task.delay(secs or 0.18, function()
         if S._dbt[key] ~= n then return end   -- đã có phím mới hơn -> lượt này bỏ qua
-        S._dbt[key] = nil pcall(fn) end) end
-local y = 8 Label(codeTab, "💻 Nhập Code Tùy Chỉnh", y) y = y + 14 Label(codeTab, "👤 Tên Script", y)
+        S._dbt[key] = nil pcall(fn) end) end local y = 8 Label(codeTab, "💻 Nhập Code Tùy Chỉnh", y) y = y + 14 Label(codeTab, "👤 Tên Script", y)
 y = y + 14 local nameIn = New("TextBox", { Size=UDim2.new(1,-16,0,26), Position=UDim2.new(0,8,0,y), Text="",
     PlaceholderText="Nhập tên script...", PlaceholderColor3=Color3.fromRGB(122, 130, 148), BackgroundColor3=Color3.fromRGB(26, 29, 38), BackgroundTransparency=0, TextColor3=Color3.fromRGB(233, 237, 245), Font=Enum.Font.GothamMedium, TextSize=12, BorderSizePixel=0, ClearTextOnFocus=false,
     Active=true, Selectable=true, ZIndex=10, TextXAlignment=Enum.TextXAlignment.Left, }, codeTab)
@@ -636,8 +608,7 @@ unitBtn.Activated:Connect(function() ddFrame.Visible=not ddFrame.Visible end) se
 minOpt.Activated:Connect(function() unitBtn.Text="Phút ▾"; ddFrame.Visible=false end)
 trackConn(UserInputService.InputBegan:Connect(function(i,gp) if gp then return end
     if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then local f = Hit.inObject(unitBtn, i.Position.X, i.Position.Y)
-            or Hit.inObject(ddFrame, i.Position.X, i.Position.Y) if not f then ddFrame.Visible=false end end end))
-y = y + 78
+            or Hit.inObject(ddFrame, i.Position.X, i.Position.Y) if not f then ddFrame.Visible=false end end end)) y = y + 78
 local runBtn = Button(codeTab, "▶ Chạy Code", 8, y, 220, 20, Color3.fromRGB(0,160,90)) local stopBtn = Button(codeTab, "⏹ Dừng", 234, y, 90, 20, C.RED)
 y = y + 24 local saveBtn = Button(codeTab, "💾 Lưu Vào Danh Sách", 8, y, 316, 20, C.BLUE) y = y + 24
 local statusLbl = Label(codeTab, "", y) statusLbl.TextColor3=Color3.fromRGB(255, 205, 64); statusLbl.TextSize=9; statusLbl.ZIndex=6 y = y + 14
@@ -652,12 +623,10 @@ runBtn.Activated:Connect(function() local t=math.clamp(tonumber(repIn.Text)or 1,
                     or ("✅ Hoàn thành!" .. (S.lastParkNote and (" · " .. S.lastParkNote) or "")) statusLbl.TextColor3 = (S.lastRunReport and S.lastRunReport.fail > 0
                     and S.lastRunReport.ok == 0) and C.RED or Color3.fromRGB(255, 205, 64) end countLbl.Text="🔄 Tổng số lần đã chạy: "..totalRuns
             task.delay(1.5, function() if statusLbl and statusLbl.Parent and (S.lastParkNote or S.lastRunReport) then
-                    local rep7 = S.RunReportText() if rep7 ~= "" then statusLbl.Text = rep7 end end end)
-        end) end end) local RebuildScripts
+                    local rep7 = S.RunReportText() if rep7 ~= "" then statusLbl.Text = rep7 end end end) end) end end) local RebuildScripts
 saveBtn.Activated:Connect(function() local n=nameIn.Text local c=codeIn.Text if #c==0 then statusLbl.Text="⚠️ Vui lòng nhập code!"; return end
     if #n==0 then n="Script "..(#scripts+1) end local bn=n local cnt=1 while true do local ex=false
-        for _,s in ipairs(scripts) do if s.name==n then ex=true; break end end if not ex then break end
-        cnt+=1; n=bn.." ("..cnt..")" end
+        for _,s in ipairs(scripts) do if s.name==n then ex=true; break end end if not ex then break end cnt = cnt + (1) ; n=bn.." ("..cnt..")" end
     table.insert(scripts,{name=n, code=c, expanded=false}) if RebuildScripts then RebuildScripts() end
     Store.saveSoon() statusLbl.Text="✅ Đã lưu vào Tab 'Code Đã Lưu'! (đã ghi xuống đĩa)" end)
 local sy = 8 Label(savedCodeTab, "💾 Danh Sách Script Đã Lưu", sy) sy = sy + 18
@@ -693,8 +662,7 @@ RebuildScripts = function() for _,c in ipairs(scriptList:GetChildren()) do if no
     if #disp==0 then New("TextLabel", {
             Size=UDim2.new(1,0,0,40), Text=term~="" and "📭 Không tìm thấy script phù hợp" or "📭 Chưa có script nào được lưu",
             BackgroundTransparency=1, TextColor3=C.GRAY, Font=Enum.Font.GothamMedium, TextSize=11, TextXAlignment=Enum.TextXAlignment.Center, TextYAlignment=Enum.TextYAlignment.Center, ZIndex=7,
-        }, scriptList) end local totalHeight = 0
-    for _, d in ipairs(disp) do local isExpanded = d.expanded or false local rowH = isExpanded and 160 or 42
+        }, scriptList) end local totalHeight = 0 for _, d in ipairs(disp) do local isExpanded = d.expanded or false local rowH = isExpanded and 160 or 42
         local row = New("Frame", { Size=UDim2.new(1,0,0,rowH), BackgroundColor3=Color3.fromRGB(26, 29, 38),
             BackgroundTransparency=0.1, BorderSizePixel=0, ZIndex=6, ClipsDescendants=true, }, scriptList) Corner(row,UDim.new(0,6)); Stroke(row)
         local arrowBtn = New("TextButton", { Size=UDim2.new(0,20,0,20), Position=UDim2.new(0,6,0,10),
@@ -735,24 +703,18 @@ RebuildScripts = function() for _,c in ipairs(scriptList:GetChildren()) do if no
                 end) task.delay(2.2, function() if runScriptBtn and runScriptBtn.Parent then runScriptBtn.Text = prev
                         runScriptBtn.TextColor3 = prevColor end end) end) end)
         delScriptBtn.Activated:Connect(function() local origIdx = nil for idx, s in ipairs(scripts) do if s == d then origIdx = idx; break end
-            end if origIdx then table.remove(scripts, origIdx) RebuildScripts()
-                Store.saveSoon() end end)
-        totalHeight = totalHeight + rowH + 6 end
-    local listH = math.max(totalHeight, 40) scriptList.Size = UDim2.new(1,-16,0,listH)
-    savedCodeTab.CanvasSize = UDim2.new(0, 0, 0, sy + listH + 30) if Store.refreshStatus then Store.refreshStatus() end
-end
+            end if origIdx then table.remove(scripts, origIdx) RebuildScripts() Store.saveSoon() end end)
+        totalHeight = totalHeight + rowH + 6 end local listH = math.max(totalHeight, 40) scriptList.Size = UDim2.new(1,-16,0,listH)
+    savedCodeTab.CanvasSize = UDim2.new(0, 0, 0, sy + listH + 30) if Store.refreshStatus then Store.refreshStatus() end end
 searchIn:GetPropertyChangedSignal("Text"):Connect(function() S.Debounce("savedSearch", 0.18, RebuildScripts) end) RebuildScripts()
 local supportTab = AddTab("Hỗ Trợ", "🛠", 5)     -- v4.15: 4 -> 5 để nhường chỗ cho 👥 Người Chơi
-S.AnaUi = S.AnaUi or {} S.AnaUi.supportTabIndex = #tabContent
-local posY = 8
+S.AnaUi = S.AnaUi or {} S.AnaUi.supportTabIndex = #tabContent local posY = 8
 Label(supportTab, "⚡ Script Nhanh - Nhấn để chạy ngay", posY) posY = posY + 16
 local quickScripts = { {n="Dex Explorer", d="Mở Dex Explorer", c=[[loadstring(game:HttpGet("https://raw.githubusercontent.com/infyiff/backup/main/dex.lua"))()]], cl=Color3.fromRGB(72, 148, 248)},
     {n="Infinite Yield", d="Admin Commands", c=[[loadstring(game:HttpGet("https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source"))()]], cl=C.PURPLE}, {n="SimpleSpy v3", d="Theo dõi RemoteEvent & RemoteFunction", c=[[loadstring(game:HttpGet("https://raw.githubusercontent.com/ex-serum/SimpleSpy/main/SimpleSpy.lua"))()]], cl=Color3.fromRGB(38, 194, 118)},
-}
-for _, s in ipairs(quickScripts) do local btn = New("TextButton", {
+} for _, s in ipairs(quickScripts) do local btn = New("TextButton", {
         Size=UDim2.new(1,-16,0,22), Position=UDim2.new(0,8,0,posY), Text="", BackgroundColor3=s.cl, BackgroundTransparency=0.3, BorderSizePixel=0, ZIndex=6,
-    }, supportTab) Corner(btn, UDim.new(0,5))
-    Stroke(btn, s.cl, 1.2) New("TextLabel", {
+    }, supportTab) Corner(btn, UDim.new(0,5)) Stroke(btn, s.cl, 1.2) New("TextLabel", {
         Size=UDim2.new(1,-10,1,0), Position=UDim2.new(0,10,0,0), Text=s.n.." — "..s.d, BackgroundTransparency=1, TextColor3=C.WHITE, Font=Enum.Font.GothamBold, TextSize=8,
         TextXAlignment=Enum.TextXAlignment.Left, TextYAlignment=Enum.TextYAlignment.Center, ZIndex=7, }, btn)
     btn.Activated:Connect(function() RunCode(s.c, s.n, nil, 1, 0, true) end) posY = posY + 26 end
@@ -858,10 +820,8 @@ local placeLbl = New("TextLabel", { Size=UDim2.new(1,-16,0,14), Position=UDim2.n
     Font=Enum.Font.GothamMedium, TextSize=9, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7, }, coordDisplay)
 posY = posY + 298 local lastPos = Vector3.new() local lastSize = Vector3.new()
 local lastRot = Vector3.new() local lastLook = Vector3.new() local lastState = "" local lastHp = -1
-local function GetRootPart() if S.Move and S.Move.Root then
-        local ok, r = pcall(S.Move.Root) if ok and r and r.Parent then return r end
-    end local char = player.Character
-    if not char then return nil end local humanoid = char:FindFirstChildOfClass("Humanoid")
+local function GetRootPart() if S.Move and S.Move.Root then local ok, r = pcall(S.Move.Root) if ok and r and r.Parent then return r end
+    end local char = player.Character if not char then return nil end local humanoid = char:FindFirstChildOfClass("Humanoid")
     local rootPart = (humanoid and humanoid.RootPart) or char:FindFirstChild("HumanoidRootPart")
         or char.PrimaryPart or char:FindFirstChild("UpperTorso") or char:FindFirstChild("Torso") return rootPart end
 local _groundParams = nil local _groundChar = nil local function GetGroundPosition() local char = player.Character
@@ -869,32 +829,25 @@ local _groundParams = nil local _groundChar = nil local function GetGroundPositi
     local origin = rootPart.Position local direction = Vector3.new(0, -500, 0) if not _groundParams or _groundChar ~= char then
         _groundChar = char local ok, p = pcall(function() return RaycastParams.new() end)
         if ok and p then pcall(function() p.FilterType = Enum.RaycastFilterType.Exclude end)
-            pcall(function() p.FilterDescendantsInstances = {char} end) pcall(function() p.IgnoreWater = false end)
-            _groundParams = p end
-    else pcall(function() _groundParams.FilterDescendantsInstances = {char} end)
-    end local params = _groundParams
+            pcall(function() p.FilterDescendantsInstances = {char} end) pcall(function() p.IgnoreWater = false end) _groundParams = p end
+    else pcall(function() _groundParams.FilterDescendantsInstances = {char} end) end local params = _groundParams
     if not params then params = RaycastParams.new() params.FilterType = Enum.RaycastFilterType.Exclude
         params.FilterDescendantsInstances = {char} params.IgnoreWater = false end
     local result = workspace:Raycast(origin, direction, params) if result then
-        return result.Position, result.Instance, result.Normal, result.Material end return nil end
-local coordAcc = 0 local coordLbls
+        return result.Position, result.Instance, result.Normal, result.Material end return nil end local coordAcc = 0 local coordLbls
 local function coordNA(all) coordLbls = coordLbls or {xValLbl, yValLbl, zValLbl, sizeXValLbl, sizeYValLbl, sizeZValLbl,
                               rotPValLbl, rotYValLbl, rotRValLbl} for _, l in ipairs(coordLbls) do pcall(function() l.Text = "N/A" end) end if all then
         lookValLbl.Text = "Look: N/A" stateValLbl.Text = "State: N/A" hpValLbl.Text = "HP: N/A" end end
 S.Coord = S.Coord or { _conn = nil, _bound = false } function S.Coord.IsActive()
     if S.PagePerf and S.PagePerf.ShouldRunForSupportTab then return S.PagePerf.ShouldRunForSupportTab()
     end local ok1 = pcall(function() return main and main.Visible end)
-    local ok2 = pcall(function() return supportTab and supportTab.Visible end) return ok1 and ok2
-end function S.Coord.Bind(on)
-    on = (on == true) if on and not S.Coord._bound then
-        S.Coord._bound = true elseif (not on) and S.Coord._bound then
-        S.Coord._bound = false if S.Coord._conn then pcall(function() S.Coord._conn:Disconnect() end) S.Coord._conn = nil end
-        return end
+    local ok2 = pcall(function() return supportTab and supportTab.Visible end) return ok1 and ok2 end function S.Coord.Bind(on)
+    on = (on == true) if on and not S.Coord._bound then S.Coord._bound = true elseif (not on) and S.Coord._bound then
+        S.Coord._bound = false if S.Coord._conn then pcall(function() S.Coord._conn:Disconnect() end) S.Coord._conn = nil end return end
     if not S.Coord._bound then return end if S.Coord._conn then return end
     S.Coord._conn = RunService.RenderStepped:Connect(function(stepDt) coordAcc = coordAcc + (tonumber(stepDt) or 0.016)
         if coordAcc < 0.15 then return end coordAcc = 0 -- v5.4 EXTREME+: 0.10->0.15 giảm thêm 33% raycast
-        if not S.Coord.IsActive() then return end if S.PagePerf and not S.PagePerf.ShouldRunForSupportTab() then
-            return end
+        if not S.Coord.IsActive() then return end if S.PagePerf and not S.PagePerf.ShouldRunForSupportTab() then return end
         if not (main and main.Visible) then return end if not (supportTab and supportTab.Visible) then return end
     local char = player.Character if not char then coordNA(true) return end
     local humanoid = char:FindFirstChildOfClass("Humanoid") local rootPart = GetRootPart() if not rootPart then coordNA()
@@ -915,12 +868,9 @@ end function S.Coord.Bind(on)
     if placeLbl.Text == "Place: ..." and (os.clock() - (D.placeTryAt or -99)) >= 10 then D.placeTryAt = os.clock()
         pcall(function() local info = game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId)
             placeLbl.Text = "Place: "..game.PlaceId.." — "..info.Name end) end end)
-    S.Coord._conn = S.Coord._conn or nil if S.Coord._conn then trackConn(S.Coord._conn) end
-end function S.Coord.RefreshBind()
-    if S.Coord.IsActive() then S.Coord.Bind(true)
-    else if S.Coord._conn then pcall(function() S.Coord._conn:Disconnect() end) S.Coord._conn = nil end
-        S.Coord._bound = false end
-end pcall(function() S.Coord.RefreshBind() end)
+    S.Coord._conn = S.Coord._conn or nil if S.Coord._conn then trackConn(S.Coord._conn) end end function S.Coord.RefreshBind()
+    if S.Coord.IsActive() then S.Coord.Bind(true) else if S.Coord._conn then pcall(function() S.Coord._conn:Disconnect() end) S.Coord._conn = nil end
+        S.Coord._bound = false end end pcall(function() S.Coord.RefreshBind() end)
 local currentHighlight = nil local function RemoveCurrentHighlight() if currentHighlight then
         pcall(function() currentHighlight:Destroy() end) currentHighlight = nil end end
 local function CreateHighlight(target) if not target then RemoveCurrentHighlight() return
@@ -930,8 +880,7 @@ local function CreateHighlight(target) if not target then RemoveCurrentHighlight
     hl.Adornee = target hl.FillColor = Color3.fromRGB(160, 60, 255) hl.FillTransparency = 0.7 hl.OutlineColor = Color3.fromRGB(200, 100, 255)
     hl.OutlineTransparency = 0 hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop hl.Parent = target currentHighlight = hl end
 local function GetFullPath(obj) if not obj then return "nil" end local parts = {} local cur = obj
-    while cur and cur ~= game do table.insert(parts, 1, cur.Name) cur = cur.Parent end
-    return table.concat(parts, ".") end S.AnaCfg = S.AnaCfg or {
+    while cur and cur ~= game do table.insert(parts, 1, cur.Name) cur = cur.Parent end return table.concat(parts, ".") end S.AnaCfg = S.AnaCfg or {
     skipGameGui  = true,   -- 🛡 bỏ qua HUD/nền của game khi phân tích (nguyên nhân số 1)
     scanFallback = true,   -- 🧭 tia trượt thì quét vật gần tia (game dùng CanQuery=false)
     ignoreWater  = true,   -- 🌊 không để mặt nước ăn tia
@@ -939,8 +888,7 @@ local function GetFullPath(obj) if not obj then return "nil" end local parts = {
     holdMove     = 18,     -- 📱 ngón xê dịch tối đa (px) mà vẫn tính là "giữ"
     maxDist      = 10000,  -- tầm tia
 } S.AnaUi   = S.AnaUi or {} S.AnaLast = S.AnaLast or {ok = false, why = nil, name = nil, how = nil} S.AnaNote = nil
-S.AnaWhyScan = nil function S.AnaCam() local cam = workspace.CurrentCamera
-    if not cam then pcall(function() cam = camera end) end return cam end
+S.AnaWhyScan = nil function S.AnaCam() local cam = workspace.CurrentCamera if not cam then pcall(function() cam = camera end) end return cam end
 function S.AnaSay(msg) S.AnaLast.why = tostring(msg or "") pcall(function() local l = S.AnaUi.whyLbl
         if l and l.Parent then l.Text = "🔎 " .. tostring(msg) end end) pcall(function() print("[taodepzai v5.0 NOIR] 🔎 " .. tostring(msg)) end) end
 function S.DeviceText() local touch, mouse = false, false
@@ -960,8 +908,7 @@ function S.GuiBlockAt(x, y) local hard, soft = nil, nil local vpx, vpy = 1280, 7
                     pcall(function() area = o.AbsoluteSize.X * o.AbsoluteSize.Y end) pcall(function() trans = o.BackgroundTransparency end)
                     pcall(function() isAct = (o.Active == true) end) local interactive = (o:IsA("GuiButton") or o:IsA("TextBox"))
                     local tag = tostring(o.Name) .. " (" .. tostring(o.ClassName) .. ")" if interactive and area < bigArea then hard = hard or tag
-                    elseif interactive or isAct or trans < 0.5 then soft = soft or tag end end
-            end end end return hard, soft end
+                    elseif interactive or isAct or trans < 0.5 then soft = soft or tag end end end end end return hard, soft end
 function S.PickByRayScan(ray, filterList) if not ray or not ray.Origin or not ray.Direction then return nil, "không có tia ngắm hợp lệ" end
     local dir = ray.Direction local dirMagnitude = dir.Magnitude
     if dirMagnitude < 0.001 then return nil, "tia ngắm không có hướng hợp lệ" end dir = dir / dirMagnitude
@@ -979,8 +926,7 @@ function S.PickByRayScan(ray, filterList) if not ray or not ray.Origin or not ra
                 local sample = ray.Origin + dir * (startD + length / 2) local okRadius, around = pcall(function()
                     return workspace:GetPartBoundsInRadius(sample, length / 2 + corridor, op) end)
                 if okRadius and type(around) == "table" then for _, pt in ipairs(around) do if pt and not seen[pt] then seen[pt] = true parts[#parts + 1] = pt
-                        end end end end
-        end end if #parts == 0 then return nil, string.format("không tìm thấy vật quanh tia trong %.0f studs", maxD) end
+                        end end end end end end if #parts == 0 then return nil, string.format("không tìm thấy vật quanh tia trong %.0f studs", maxD) end
     local best, bestSurfaceD, bestOffset = nil, math.huge, math.huge for _, pt in ipairs(parts) do
         local okV, along, offset, radius = pcall(function() local rel = pt.Position - ray.Origin
             local t = rel:Dot(dir) if t <= 0.5 or t > maxD then return nil end
@@ -1003,8 +949,7 @@ function S.NearestParts(n) local char = player.Character
 function S.FillObjPanel(inst, hitPos, hitNormal, hitMat, how, quiet) if not inst then return false end objResultPanel.Visible = true
     objNameLbl.Text = "Name: "..inst.Name objClassLbl.Text = "Class: "..inst.ClassName
     objPosLbl.Text = string.format("Position: %.3f, %.3f, %.3f", hitPos.X, hitPos.Y, hitPos.Z) if inst:IsA("BasePart") then local size = inst.Size
-        local cf = inst.CFrame local rx, ry, rz = cf:ToOrientation() local look = cf.LookVector local color = inst.Color
-        local material = inst.Material
+        local cf = inst.CFrame local rx, ry, rz = cf:ToOrientation() local look = cf.LookVector local color = inst.Color local material = inst.Material
         objSizeLbl.Text = string.format("Size: %.3f, %.3f, %.3f", size.X, size.Y, size.Z) objRotLbl.Text = string.format("Rotation: P=%.1f° Y=%.1f° R=%.1f°",
             math.deg(rx), math.deg(ry), math.deg(rz)) objLookLbl.Text = string.format("Look: %.3f, %.3f, %.3f", look.X, look.Y, look.Z)
         objMatLbl.Text = "Material: "..tostring(material):gsub("Enum.Material.", "") objColorLbl.Text = string.format("Color: R=%d G=%d B=%d",
@@ -1132,8 +1077,7 @@ trackConn(UserInputService.InputBegan:Connect(function(input, gp)
                     task.spawn(function() PickObjectAt(input.Position, false) end) end end end)
         moveConn = UserInputService.InputChanged:Connect(function(e) if e == input then local d = (e.Position - startPos).Magnitude
                 if d > S.AnaCfg.holdMove then   -- v4.8: ngón tay trên mobile hay xê dịch -> nới 12px lên 18px
-                    holdConn:Disconnect() moveConn:Disconnect() end end
-        end) return end end))
+                    holdConn:Disconnect() moveConn:Disconnect() end end end) return end end))
 objectAnalyzeBtn.Activated:Connect(function() analyzeObjectEnabled = not analyzeObjectEnabled
     if analyzeObjectEnabled then objectAnalyzeBtn.Text = "🎯 Phân Tích Vật: BẬT"
         D.SetBg(objectAnalyzeBtn, C.GREEN)   -- v4.5: đổi màu kèm chữ tương phản
@@ -1219,53 +1163,41 @@ local function move() return S.Move end local function myHum() local m = move() 
     local baseWS = m and num(m._baseWS) or nil local applying = (m ~= nil) and (m.speed == true or m.runMode == true)
     local src if applying and baseWS then SV.base = baseWS src = "game (hub đã học khi 👟 bật)" elseif hws and hws > 0 then
         if (not applying) and SV._lastWS and math.abs(hws - SV._lastWS) > 0.01 then src = "game VỪA ĐỔI tốc độ → mặc định mới"
-        else src = "game (WalkSpeed của nhân vật)" end SV.base = hws
-    elseif baseWS then SV.base = baseWS src = "hub (đã học)" else SV.base = 16
+        else src = "game (WalkSpeed của nhân vật)" end SV.base = hws elseif baseWS then SV.base = baseWS src = "hub (đã học)" else SV.base = 16
         src = "mặc định Roblox" end if hws and hws > 0 and not applying then SV._lastWS = hws end if hws then SV.ws = hws end
     SV.src = src return SV.base, SV.src end function SV.Step(dt) dt = num(dt)
     if not dt or dt <= 0 then dt = 1 / 60 end if dt > 0.5 then dt = 0.5 end SV._stepAcc = (SV._stepAcc or 0) + dt
-    local needSupport = true if S.PagePerf and S.PagePerf.ShouldRunForSupportTab then
-        needSupport = S.PagePerf.ShouldRunForSupportTab() end
-    local threshold = 0.05 if not needSupport then
-        if S.PagePerf and not S.PagePerf.IsMainVisible() then threshold = 0.50
-        else threshold = 0.25
-        end end
-    if SV._stepAcc < threshold then return SV.live end SV._stepAcc = 0
-    local h = myHum() local x, y, z = readPos(myRoot()) if x then if SV._px then
+    local needSupport = true if S.PagePerf and S.PagePerf.ShouldRunForSupportTab then needSupport = S.PagePerf.ShouldRunForSupportTab() end
+    local threshold = 0.05 if not needSupport then if S.PagePerf and not S.PagePerf.IsMainVisible() then threshold = 0.50
+        else threshold = 0.25 end end
+    if SV._stepAcc < threshold then return SV.live end SV._stepAcc = 0 local h = myHum() local x, y, z = readPos(myRoot()) if x then if SV._px then
             local dx, dy, dz = x - SV._px, y - SV._py, z - SV._pz local d = math.sqrt(dx * dx + dy * dy + dz * dz) if d <= 25 then
-                local inst = d / dt if d > 0.001 then
-                    SV._n = (SV._n or 0) + 1 SV.live = (SV._n <= 1) and inst or (SV.live + (inst - SV.live) * 0.35)
-                    if inst >= 0.5 and inst > SV.max then SV.max = inst end end end end
-        SV._px, SV._py, SV._pz = x, y, z else SV._px = nil SV.live = 0 end
+                local inst = d / dt if d > 0.001 then SV._n = (SV._n or 0) + 1 SV.live = (SV._n <= 1) and inst or (SV.live + (inst - SV.live) * 0.35)
+                    if inst >= 0.5 and inst > SV.max then SV.max = inst end end end end SV._px, SV._py, SV._pz = x, y, z else SV._px = nil SV.live = 0 end
     if h then SV.ws = readWS(h) or SV.ws end SV.Detect() SV.Sync() return SV.live end
 local function setText(lbl, s) if lbl and lbl.Text ~= s then lbl.Text = s end end
 function SV.Sync() local base = num(SV.base) or 0 local ratio = (base > 0) and (SV.ws / base) or 0 local scale = math.max(SV.max, base, 1)
     local pct = SV.live / scale if pct < 0 then pct = 0 elseif pct > 1 then pct = 1 end
     local bpct = base / scale if bpct < 0 then bpct = 0 elseif bpct > 1 then bpct = 1 end local isSupportVisible = true
-    if S.PagePerf and S.PagePerf.ShouldRunForSupportTab then isSupportVisible = S.PagePerf.ShouldRunForSupportTab()
-    end if isSupportVisible then
+    if S.PagePerf and S.PagePerf.ShouldRunForSupportTab then isSupportVisible = S.PagePerf.ShouldRunForSupportTab() end if isSupportVisible then
         setText(SV.baseLbl, string.format("🎯 Mặc định game: %s studs/s · nguồn: %s", fmt(base), tostring(SV.src))) setText(SV.wsLbl, string.format("🚶 WalkSpeed hiện tại: %s%s", fmt(SV.ws),
             (ratio > 0) and string.format("  (×%.2f mặc định)", ratio) or "")) setText(SV.liveLbl, string.format("⚡ Tốc độ thật: %s studs/s", fmt(SV.live)))
         setText(SV.maxLbl, string.format("🏁 Cao nhất: %s studs/s", fmt(SV.max))) if SV.btn then
             setText(SV.btn, SV.on and "🎯 Định vị tốc độ: BẬT" or "🎯 Định vị tốc độ: TẮT") if SV._btnOn ~= SV.on then
                 SV._btnOn = SV.on SV.btn.BackgroundColor3 = SV.on and C.GREEN or C.GRAY end end if SV.barFill and SV._barPct ~= pct then
             SV._barPct = pct SV.barFill.Size = UDim2.new(pct, 0, 1, 0) end if SV.barBase and SV._barBase ~= bpct then
-            SV._barBase = bpct SV.barBase.Position = UDim2.new(bpct, -1, 0, 0) end
-    end if SV.hud then
+            SV._barBase = bpct SV.barBase.Position = UDim2.new(bpct, -1, 0, 0) end end if SV.hud then
         if SV.hud.Visible ~= SV.on then SV.hud.Visible = SV.on end setText(SV.hudLbl, string.format("🎯 %s (mặc định game) · 🚶 %s\n⚡ %s · 🏁 %s studs/s",
             fmt(base), fmt(SV.ws), fmt(SV.live), fmt(SV.max))) end end function SV.OnTabChanged()
-    if S.PagePerf and S.PagePerf.ShouldRunForSupportTab() then pcall(SV.Sync)
-    end end
+    if S.PagePerf and S.PagePerf.ShouldRunForSupportTab() then pcall(SV.Sync) end end
 function SV.Status() return string.format("🎯 %s · ⚡ %s · 🏁 %s", fmt(SV.base), fmt(SV.live), fmt(SV.max)) end
 function SV.Bind(on) if on and not SV._bound then SV._bound = true local ok = pcall(function()
             RunService:BindToRenderStep("BC_SpeedMeter", Enum.RenderPriority.Camera.Value - 6, function(dt) pcall(function() SV.Step(dt) end) end) end)
         if not ok then SV._bound = false end elseif (not on) and SV._bound then SV._bound = false
         pcall(function() RunService:UnbindFromRenderStep("BC_SpeedMeter") end) end return SV._bound end
-function SV.Set(on) SV.on = (on == true) if SV.on then SV._px, SV._n = nil, 0
-        SV.Detect() SV._lastWS = nil SV.Bind(true)
+function SV.Set(on) SV.on = (on == true) if SV.on then SV._px, SV._n = nil, 0 SV.Detect() SV._lastWS = nil SV.Bind(true)
         SV.Step(1 / 60)                 -- có số ngay, không phải đợi frame sau
-    else SV.Bind(false) SV._px, SV._n = nil, 0 end
-    SV.Sync() return SV.on end function SV.Toggle() return SV.Set(not SV.on) end
+    else SV.Bind(false) SV._px, SV._n = nil, 0 end SV.Sync() return SV.on end function SV.Toggle() return SV.Set(not SV.on) end
 function SV.Reset()                     -- xoá đỉnh, vẫn đo tiếp
     SV.max, SV.live = 0, 0 SV._n = 0 SV.Sync() return SV.max
 end Label(supportTab, "🎯 Định vị tốc độ game (mặc định · hiện tại · cao nhất)", posY) posY = posY + 18
@@ -1342,8 +1274,7 @@ local function ScanNewGuis(beforeGuis, mine, allowGuess) local found, seen = {},
         if obj:IsA("GuiObject") then if obj:IsA("Frame") or obj:IsA("ScrollingFrame") or obj:IsA("CanvasGroup") then
                 local s = obj.Size if s.X.Scale < 0.9 and s.X.Offset > 0 then obj.Size = UDim2.new(1, 0, s.Y.Scale > 0 and s.Y.Scale or 1, 0) end
                 if obj.Position.X.Offset ~= 0 or obj.Position.Y.Offset ~= 0 then obj.Position = UDim2.new(0, 0, 0, 0) end end
-        end end) if maxDepth <= 0 then return end for _, child in ipairs(obj:GetChildren()) do
-        ForceStretchToParent(child, maxDepth - 1) end end
+        end end) if maxDepth <= 0 then return end for _, child in ipairs(obj:GetChildren()) do ForceStretchToParent(child, maxDepth - 1) end end
 function S.RegisterEmbed(host, gui, recs) local entry = {host = host, gui = gui, recs = recs or {}, conns = {}}
     pcall(function() entry.conns[#entry.conns+1] = gui:GetPropertyChangedSignal("Enabled"):Connect(function()
             pcall(function() host.Visible = gui.Enabled end) end) end) pcall(function()
@@ -1353,13 +1284,11 @@ function S.RegisterEmbed(host, gui, recs) local entry = {host = host, gui = gui,
 function S.FindEmbedByHost(host) for i, e in ipairs(S.embeds) do if e.host == host then return e, i end end
     return nil end function S.RemoveEmbedAt(i) local e = S.embeds[i]
     if not e then return end for _, c in ipairs(e.conns) do pcall(function() c:Disconnect() end) end table.remove(S.embeds, i) return e
-end function S.DropEmbed(entry, keepQuiet) for i, e in ipairs(S.embeds) do
-        if e == entry then S.RemoveEmbedAt(i); break end end
+end function S.DropEmbed(entry, keepQuiet) for i, e in ipairs(S.embeds) do if e == entry then S.RemoveEmbedAt(i); break end end
     pcall(function() if entry.host and entry.host.Parent then entry.host:Destroy() end end) if not keepQuiet then
         print("[taodepzai v5.0 NOIR] Đã gỡ host nhúng khỏi tab") end end function S.RestoreEmbed(entry) pcall(function() S.RestoreSnap(entry) end)
     entry.snap = nil for _, rec in ipairs(entry.recs or {}) do pcall(function() if rec.obj and rec.origParent then
-                rec.obj.Parent = rec.origParent end end) end
-    for i, e in ipairs(S.embeds) do if e == entry then S.RemoveEmbedAt(i); break end
+                rec.obj.Parent = rec.origParent end end) end for i, e in ipairs(S.embeds) do if e == entry then S.RemoveEmbedAt(i); break end
     end pcall(function() if entry.host and entry.host.Parent then entry.host:Destroy() end end) end
 function S.PruneEmbeds() for i = #S.embeds, 1, -1 do local e = S.embeds[i] local hostAlive = e.host and e.host.Parent
         local guiAlive = e.gui and e.gui.Parent if not hostAlive or not guiAlive then
@@ -1368,8 +1297,7 @@ function S.MeasureHost(host) local hx, hy = host.AbsolutePosition.X, host.Absolu
     local minX, minY, maxX, maxY = math.huge, math.huge, -math.huge, -math.huge local n = 0
     for _, ch in ipairs(host:GetChildren()) do if ch:IsA("GuiObject") and ch.Visible ~= false then
             local p, sz = ch.AbsolutePosition, ch.AbsoluteSize if p and sz then
-                minX = math.min(minX, p.X); minY = math.min(minY, p.Y) maxX = math.max(maxX, p.X + sz.X); maxY = math.max(maxY, p.Y + sz.Y) n = n + 1 end
-        end end
+                minX = math.min(minX, p.X); minY = math.min(minY, p.Y) maxX = math.max(maxX, p.X + sz.X); maxY = math.max(maxY, p.Y + sz.Y) n = n + 1 end end end
     if n == 0 or maxX <= minX or maxY <= minY then return nil end return { x = minX - hx, y = minY - hy, w = maxX - minX, h = maxY - minY } end
 function S.SnapSubtree(list, node, isTop) for _, c in ipairs(node:GetChildren()) do if c:IsA("GuiObject") then list[#list+1] = {
                 obj = c, top = isTop or nil, Position = c.Position, Size = c.Size,
@@ -1408,8 +1336,7 @@ function S.FitEmbedded(entry) local host, gui = entry.host, entry.gui if not hos
             for _, rec in ipairs(entry.snap) do if rec.top then rec.dx, rec.dy = (rec.dx or 0) + dx, (rec.dy or 0) + dy end end apply(k)
             m = S.MeasureHost(host) or m end if m and tries < 2 and (m.w > hw + 1 or m.h > hh + 1) then local k2 = k * math.min(hw / m.w, hh / m.h)
             if k2 < k * 0.98 then for _, rec in ipairs(entry.snap) do rec.dx, rec.dy = 0, 0 end return align(math.max(k2, 0.15), tries + 1) end
-        end return k end s = align(s, 0) entry.fitScale = s
-    return s end function S.TabArea(nm) local frame
+        end return k end s = align(s, 0) entry.fitScale = s return s end function S.TabArea(nm) local frame
     if type(nm) == "string" and #nm > 0 then for _, ft in ipairs(featureTabs) do if ft.name == nm then frame = ft.frame break end end end
     frame = frame or activeTab if not frame then return nil end local host = frame:FindFirstChild("ScriptHost") local area = host or frame
     local sz = area.AbsoluteSize return Vector2.new(math.max(0, sz.X - 6), math.max(0, sz.Y - 6)) end S.resizedCbs = {} function S.OnResized(fn)
@@ -1420,8 +1347,7 @@ function S.FeatureTabHost(nm) if type(nm) == "string" and #nm > 0 then for _, ft
                 local h = ft.frame and ft.frame:FindFirstChild("ScriptHost") if h then return h end end end
     end return activeTab and activeTab:FindFirstChild("ScriptHost") end function S.FitToTab(obj, nm) if not obj then return nil end
     local host = S.FeatureTabHost(nm) if host and obj.Parent ~= host then pcall(function() obj.Parent = host end) end pcall(function()
-        obj.Size = UDim2.new(1, 0, 1, 0) obj.Position = UDim2.new(0, 0, 0, 0) end) return obj end
-_G.BananaCatHubAPI = { Version = "5.0",
+        obj.Size = UDim2.new(1, 0, 1, 0) obj.Position = UDim2.new(0, 0, 0, 0) end) return obj end _G.BananaCatHubAPI = { Version = "5.0",
     LegacyVersion = "4.61", -- giữ thông tin tương thích cho script cũ
     HubGui = gui,     -- v4.4e: sửa lỗi cũ — biến tên là `gui`, không phải `hubGui` (trước đây là nil)
     Main = main, TabArea = function(self, nm) return S.TabArea(nm) end,
@@ -1441,138 +1367,93 @@ function S.FeatureTemplate(nm, icon, stamp) if type(nm) ~= "string" or #nm == 0 
     if type(icon) ~= "string" or #icon == 0 then icon = "⚙️" end if type(stamp) ~= "string" then stamp = "" end local head = [==[
 local BC = { Name = "__BC_NAME__", Icon = "__BC_ICON__", DesignW = 620, DesignH = 384 } local Players = game:GetService("Players")
 local player = Players.LocalPlayer local pg = player and player:WaitForChild("PlayerGui")
-if not pg then return end local gui = Instance.new("ScreenGui")
-gui.Name = BC.Name gui.ResetOnSpawn = false
-gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling gui.Parent = pg
-local root = Instance.new("Frame") root.Name = "Root"
+if not pg then return end local gui = Instance.new("ScreenGui") gui.Name = BC.Name gui.ResetOnSpawn = false
+gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling gui.Parent = pg local root = Instance.new("Frame") root.Name = "Root"
 root.Size = UDim2.new(0, BC.DesignW, 0, BC.DesignH) root.Position = UDim2.new(0.5, -BC.DesignW / 2, 0.5, -BC.DesignH / 2)
-root.BackgroundColor3 = Color3.fromRGB(24, 26, 38) root.BorderSizePixel = 0
-root.Parent = gui local function bcCorner(o, r)
-    local c = Instance.new("UICorner") c.CornerRadius = UDim.new(0, r)
-    c.Parent = o return c
-end bcCorner(root, 8)
-local API = _G.BananaCatHubAPI
+root.BackgroundColor3 = Color3.fromRGB(24, 26, 38) root.BorderSizePixel = 0 root.Parent = gui local function bcCorner(o, r)
+    local c = Instance.new("UICorner") c.CornerRadius = UDim.new(0, r) c.Parent = o return c
+end bcCorner(root, 8) local API = _G.BananaCatHubAPI
 local bcConn = nil        -- connection của API:OnResize, bcClose sẽ ngắt để không leak
 local function bcHubMain() local ok, m = pcall(function() return API and API.Main end)
     if ok and m and m.AbsoluteSize then return m end local hub = pg:FindFirstChild("ExMenu") or pg:FindFirstChild("BananaCatHub")
-    if hub then local f = hub:FindFirstChildWhichIsA("Frame")
-        if f and f.AbsoluteSize.X > 300 then return f end end
+    if hub then local f = hub:FindFirstChildWhichIsA("Frame") if f and f.AbsoluteSize.X > 300 then return f end end
 end local function bcArea()
     local ok, v = pcall(function() return API and API.TabArea and API:TabArea(BC.Name) end) if ok and v and v.X and v.X > 60 then return v end
-    local m = bcHubMain() if m and m.AbsoluteSize.X > 300 then
-        return Vector2.new(m.AbsoluteSize.X - 30, m.AbsoluteSize.Y - 72) end
+    local m = bcHubMain() if m and m.AbsoluteSize.X > 300 then return Vector2.new(m.AbsoluteSize.X - 30, m.AbsoluteSize.Y - 72) end
     local vp = Vector2.new(1280, 720) pcall(function() vp = workspace.CurrentCamera.ViewportSize end)
-    local w = math.max(320, math.min(vp.X * 0.55, vp.X - 60)) return Vector2.new(w, w * BC.DesignH / BC.DesignW)
-end local function bcFit()
-    pcall(function() local par = root.Parent
-        if par and not par:IsA("ScreenGui") then root.Size = UDim2.new(1, 0, 1, 0)
-            root.Position = UDim2.new(0, 0, 0, 0) return
-        end local a = bcArea()
+    local w = math.max(320, math.min(vp.X * 0.55, vp.X - 60)) return Vector2.new(w, w * BC.DesignH / BC.DesignW) end local function bcFit()
+    pcall(function() local par = root.Parent if par and not par:IsA("ScreenGui") then root.Size = UDim2.new(1, 0, 1, 0)
+            root.Position = UDim2.new(0, 0, 0, 0) return end local a = bcArea()
         root.Size = UDim2.new(0, math.floor(a.X), 0, math.floor(a.Y)) root.Position = UDim2.new(0.5, -math.floor(a.X / 2), 0.5, -math.floor(a.Y / 2))
-    end) end
-bcConn = nil bcFit()
-pcall(function() if API and API.OnResize then bcConn = API:OnResize(bcFit) end
-end) local bcHubFrame = bcHubMain()
-if bcHubFrame then pcall(function()
-        bcHubFrame:GetPropertyChangedSignal("AbsoluteSize"):Connect(bcFit) end)
+    end) end bcConn = nil bcFit()
+pcall(function() if API and API.OnResize then bcConn = API:OnResize(bcFit) end end) local bcHubFrame = bcHubMain()
+if bcHubFrame then pcall(function() bcHubFrame:GetPropertyChangedSignal("AbsoluteSize"):Connect(bcFit) end)
 end task.delay(0.25, bcFit)
 task.delay(1.2, bcFit) ]==]
     local body = [==[ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -56, 0, 32) title.Position = UDim2.new(0, 10, 0, 0)
-title.BackgroundTransparency = 1 title.Text = BC.Icon .. "  " .. BC.Name
-title.Font = Enum.Font.GothamBold title.TextSize = 15
+title.BackgroundTransparency = 1 title.Text = BC.Icon .. "  " .. BC.Name title.Font = Enum.Font.GothamBold title.TextSize = 15
 title.TextXAlignment = Enum.TextXAlignment.Left title.TextColor3 = Color3.fromRGB(255, 255, 255)
-title.Parent = root local closeBtn = Instance.new("TextButton")
-closeBtn.Name = "CloseBtn" closeBtn.Size = UDim2.new(0, 20, 0, 20)
+title.Parent = root local closeBtn = Instance.new("TextButton") closeBtn.Name = "CloseBtn" closeBtn.Size = UDim2.new(0, 20, 0, 20)
 closeBtn.Position = UDim2.new(1, -26, 0, 5) closeBtn.BackgroundColor3 = Color3.fromRGB(210, 70, 70)
-closeBtn.Text = "X" closeBtn.Font = Enum.Font.GothamBold
-closeBtn.TextSize = 11 closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-closeBtn.AutoButtonColor = true closeBtn.Parent = root
-bcCorner(closeBtn, 5) local panel = Instance.new("ScrollingFrame")
-panel.Name = "Panel" panel.Size = UDim2.new(1, -20, 1, -74)
-panel.Position = UDim2.new(0, 10, 0, 38) panel.BackgroundTransparency = 1
+closeBtn.Text = "X" closeBtn.Font = Enum.Font.GothamBold closeBtn.TextSize = 11 closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeBtn.AutoButtonColor = true closeBtn.Parent = root bcCorner(closeBtn, 5) local panel = Instance.new("ScrollingFrame")
+panel.Name = "Panel" panel.Size = UDim2.new(1, -20, 1, -74) panel.Position = UDim2.new(0, 10, 0, 38) panel.BackgroundTransparency = 1
 panel.BorderSizePixel = 0
 panel.ScrollBarThickness = 4   -- v4.9: đồng bộ
 panel.AutomaticCanvasSize = Enum.AutomaticSize.Y panel.CanvasSize = UDim2.new(0, 0, 0, 0)
-panel.Parent = root local list = Instance.new("UIListLayout")
-list.Padding = UDim.new(0, 6) list.SortOrder = Enum.SortOrder.LayoutOrder
-list.Parent = panel local pad = Instance.new("UIPadding")
-pad.PaddingRight = UDim.new(0, 8) pad.Parent = panel
+panel.Parent = root local list = Instance.new("UIListLayout") list.Padding = UDim.new(0, 6) list.SortOrder = Enum.SortOrder.LayoutOrder
+list.Parent = panel local pad = Instance.new("UIPadding") pad.PaddingRight = UDim.new(0, 8) pad.Parent = panel
 local bcStatus = Instance.new("TextLabel") bcStatus.Name = "Status"
-bcStatus.Size = UDim2.new(1, -20, 0, 22) bcStatus.Position = UDim2.new(0, 10, 1, -30)
-bcStatus.BackgroundTransparency = 1 bcStatus.Text = "Tắt"
+bcStatus.Size = UDim2.new(1, -20, 0, 22) bcStatus.Position = UDim2.new(0, 10, 1, -30) bcStatus.BackgroundTransparency = 1 bcStatus.Text = "Tắt"
 bcStatus.TextColor3 = Color3.fromRGB(255, 214, 90) bcStatus.Font = Enum.Font.Gotham
-bcStatus.TextSize = 12 bcStatus.TextXAlignment = Enum.TextXAlignment.Left
-bcStatus.Parent = root local function bcButton(txt, color)
-    local b = Instance.new("TextButton") b.Size = UDim2.new(1, 0, 0, 22)
-    b.BackgroundColor3 = color or Color3.fromRGB(60, 120, 220) b.Text = txt
-    b.Font = Enum.Font.GothamMedium b.TextSize = 10
-    b.TextColor3 = Color3.fromRGB(255, 255, 255) b.AutoButtonColor = true
-    b.Parent = panel bcCorner(b, 5)
-    return b end
+bcStatus.TextSize = 12 bcStatus.TextXAlignment = Enum.TextXAlignment.Left bcStatus.Parent = root local function bcButton(txt, color)
+    local b = Instance.new("TextButton") b.Size = UDim2.new(1, 0, 0, 22) b.BackgroundColor3 = color or Color3.fromRGB(60, 120, 220) b.Text = txt
+    b.Font = Enum.Font.GothamMedium b.TextSize = 10 b.TextColor3 = Color3.fromRGB(255, 255, 255) b.AutoButtonColor = true
+    b.Parent = panel bcCorner(b, 5) return b end
 bcToggle = bcButton(BC.Icon .. "  Bật " .. BC.Name) local function bcMakeExternalGui(name, order)
     local ext local ok, API = pcall(function() return _G.BananaCatHubAPI end)
-    if ok and API and API.ExternalGui then ext = API:ExternalGui({Name = name, DisplayOrder = order})
-    else ext = Instance.new("ScreenGui")
-        ext.Name = name ext.IgnoreGuiInset = true
-        ext.ResetOnSpawn = false ext.ZIndexBehavior = Enum.ZIndexBehavior.Global
+    if ok and API and API.ExternalGui then ext = API:ExternalGui({Name = name, DisplayOrder = order}) else ext = Instance.new("ScreenGui")
+        ext.Name = name ext.IgnoreGuiInset = true ext.ResetOnSpawn = false ext.ZIndexBehavior = Enum.ZIndexBehavior.Global
         ext.DisplayOrder = order or 9500 ext:SetAttribute("BCHub_External", true)
         local pg2 = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui") local hui = pg2
-        if type(gethui) == "function" then local okH, gotH = pcall(gethui)
-            if okH and gotH then hui = gotH end end
-        ext.Parent = hui end
-    return ext end
+        if type(gethui) == "function" then local okH, gotH = pcall(gethui) if okH and gotH then hui = gotH end end
+        ext.Parent = hui end return ext end
 local extGui = nil            -- ScreenGui overlay ngoài màn hình (được tạo khi bật tính năng)
-local extCrossOn = false local function bcToggleCross()
-    if not extGui then return end extCrossOn = not extCrossOn
+local extCrossOn = false local function bcToggleCross() if not extGui then return end extCrossOn = not extCrossOn
     local ring = extGui:FindFirstChild("BC_Ring") local dot  = extGui:FindFirstChild("BC_Dot")
     if ring then ring.Visible = extCrossOn end if dot  then dot.Visible  = extCrossOn end
-    pcall(function() if _G.BananaCatHubAPI and _G.BananaCatHubAPI.Crosshair then
-        end end)
+    pcall(function() if _G.BananaCatHubAPI and _G.BananaCatHubAPI.Crosshair then end end)
 end local bcCrossBtn = bcButton("🎯  Niêm tâm: TẮT", Color3.fromRGB(160, 60, 255))
-pcall(function() if _G.BananaCatHubAPI and _G.BananaCatHubAPI.OnResize then
-    end end)
+pcall(function() if _G.BananaCatHubAPI and _G.BananaCatHubAPI.OnResize then end end)
 ]==] local foot = [==[
-local bcEnabled = false local bcConns = {}
-local function bcOn(inst, sig, fn) table.insert(bcConns, inst[sig]:Connect(fn))
+local bcEnabled = false local bcConns = {} local function bcOn(inst, sig, fn) table.insert(bcConns, inst[sig]:Connect(fn))
 end local function bcClose()
     if bcConn then pcall(function() bcConn:Disconnect() end) bcConn = nil end for _, c in ipairs(bcConns) do pcall(function() c:Disconnect() end) end
     for i = #bcConns, 1, -1 do bcConns[i] = nil end bcEnabled = false
     pcall(function() gui.Enabled = false end) task.delay(0.06, function() pcall(function() gui:Destroy() end) end)
 end bcOn(closeBtn, "MouseButton1Click", bcClose)
 _G.BC_FEATURES = _G.BC_FEATURES or {} _G.BC_FEATURES[BC.Name] = { name = BC.Name, Close = bcClose, Gui = gui, Root = root }
-bcOn(bcCrossBtn, "MouseButton1Click", function() if not bcEnabled then
-        bcToggle:Activate() task.wait(0.1)
-    end bcToggleCross()
-    bcCrossBtn.Text = extCrossOn and "🎯  Niêm tâm: BẬT" or "🎯  Niêm tâm: TẮT" end)
+bcOn(bcCrossBtn, "MouseButton1Click", function() if not bcEnabled then bcToggle:Activate() task.wait(0.1)
+    end bcToggleCross() bcCrossBtn.Text = extCrossOn and "🎯  Niêm tâm: BẬT" or "🎯  Niêm tâm: TẮT" end)
 bcOn(bcToggle, "MouseButton1Click", function() bcEnabled = not bcEnabled
     bcToggle.Text = (bcEnabled and "⏹  Tắt " or BC.Icon .. "  Bật ") .. BC.Name bcStatus.Text = bcEnabled and "Đang chạy…" or "Tắt"
-    if bcEnabled then if not extGui or not extGui.Parent then
-            extGui = bcMakeExternalGui(BC.Name .. "_Ext", 9500) local ring = Instance.new("Frame")
-            ring.Name = "BC_Ring" ring.Size = UDim2.new(0, 32, 0, 32)
-            ring.Position = UDim2.new(0.5, -16, 0.5, -16) ring.BackgroundTransparency = 1
-            ring.BorderSizePixel = 0 ring.AnchorPoint = Vector2.new(0.5, 0.5)
-            ring.Visible = false ring.Parent = extGui
+    if bcEnabled then if not extGui or not extGui.Parent then extGui = bcMakeExternalGui(BC.Name .. "_Ext", 9500) local ring = Instance.new("Frame")
+            ring.Name = "BC_Ring" ring.Size = UDim2.new(0, 32, 0, 32) ring.Position = UDim2.new(0.5, -16, 0.5, -16) ring.BackgroundTransparency = 1
+            ring.BorderSizePixel = 0 ring.AnchorPoint = Vector2.new(0.5, 0.5) ring.Visible = false ring.Parent = extGui
             local rc = Instance.new("UICorner"); rc.CornerRadius = UDim.new(1, 0); rc.Parent = ring
             local rs = Instance.new("UIStroke"); rs.Thickness = 1.5; rs.Color = Color3.fromRGB(255,255,255); rs.Parent = ring
-            local dot = Instance.new("Frame") dot.Name = "BC_Dot"
-            dot.Size = UDim2.new(0, 3, 0, 3) dot.Position = UDim2.new(0.5, -2, 0.5, -2)
-            dot.BackgroundColor3 = Color3.fromRGB(255,255,255) dot.BorderSizePixel = 0
-            dot.AnchorPoint = Vector2.new(0.5, 0.5) dot.Visible = false
+            local dot = Instance.new("Frame") dot.Name = "BC_Dot" dot.Size = UDim2.new(0, 3, 0, 3) dot.Position = UDim2.new(0.5, -2, 0.5, -2)
+            dot.BackgroundColor3 = Color3.fromRGB(255,255,255) dot.BorderSizePixel = 0 dot.AnchorPoint = Vector2.new(0.5, 0.5) dot.Visible = false
             dot.Parent = extGui local dc = Instance.new("UICorner"); dc.CornerRadius = UDim.new(1, 0); dc.Parent = dot
             local gap, ll = 22, 10 local function ln(w, h, x, y)
                 local f = Instance.new("Frame") f.Size = UDim2.new(0,w,0,h); f.Position = UDim2.new(0.5,x,0.5,y)
                 f.BackgroundColor3 = Color3.fromRGB(255,255,255); f.BorderSizePixel = 0 f.AnchorPoint = Vector2.new(0.5,0.5); f.BackgroundTransparency = 0.2
-                f.Name = "BC_Line"; f.Parent = extGui end
-            ln(2, ll, -1, -gap - ll/2) ln(2, ll, -1,  gap + ll/2)
-            ln(ll, 2, -gap - ll/2, -1) ln(ll, 2,  gap + ll/2, -1)
-        end table.insert(bcConns, task.spawn(function()
-            while bcEnabled do task.wait(0.2)
-                pcall(function() end)
-            end end))
-    else extCrossOn = false
-        pcall(function() if extGui then extGui:Destroy() end end) extGui = nil
-        bcCrossBtn.Text = "🎯  Niêm tâm: TẮT" end
+                f.Name = "BC_Line"; f.Parent = extGui end ln(2, ll, -1, -gap - ll/2) ln(2, ll, -1,  gap + ll/2)
+            ln(ll, 2, -gap - ll/2, -1) ln(ll, 2,  gap + ll/2, -1) end table.insert(bcConns, task.spawn(function()
+            while bcEnabled do task.wait(0.2) pcall(function() end)
+            end end)) else extCrossOn = false
+        pcall(function() if extGui then extGui:Destroy() end end) extGui = nil bcCrossBtn.Text = "🎯  Niêm tâm: TẮT" end
 end) print("✅ [" .. BC.Name .. "] đã nạp — dán vào tab \"Tạo Tính Năng\" của taodepzai v5.0 NOIR rồi bấm ▶ Chạy Script")
 return BC.Name ]==]
     local out = head .. body .. foot out = (out:gsub("__BC_NAME__", function() return nm end))
@@ -1584,17 +1465,14 @@ end pcall(function() trackConn(main:GetPropertyChangedSignal("Size"):Connect(fun
     end)) end) function S.SyncAllEmbeds() for _, e in ipairs(S.embeds) do
         if e.host and e.host.Parent then pcall(function() S.FitEmbedded(e) end) end end
 end function S.ClearEmbedsUnder(containerFrame) if not containerFrame then return 0 end
-    local n = 0 for i = #S.embeds, 1, -1 do local e = S.embeds[i] if e.host and e.host.Parent == containerFrame then
-            S.RestoreEmbed(e) n += 1
+    local n = 0 for i = #S.embeds, 1, -1 do local e = S.embeds[i] if e.host and e.host.Parent == containerFrame then S.RestoreEmbed(e) n = n + (1) 
         end end for _, child in ipairs(containerFrame:GetChildren()) do if child.Name:sub(1, 9) == "Embedded_" then
-            pcall(function() child:Destroy() end) end end return n end
-function S.EmbedGui(scr, containerFrame) if not S.embedEnabled then return nil end
+            pcall(function() child:Destroy() end) end end return n end function S.EmbedGui(scr, containerFrame) if not S.embedEnabled then return nil end
     if not scr or not scr.Parent then return nil end if not containerFrame or not containerFrame.Parent then return nil end
     if scr == gui or scr:IsDescendantOf(gui) then return nil end local isExt = false
     pcall(function() isExt = (scr:GetAttribute("BCHub_External") == true) end) if isExt then return nil end
     local hostName = "Embedded_"..scr.Name for _, ex in ipairs(containerFrame:GetChildren()) do
-        if ex.Name == hostName then local e = S.FindEmbedByHost(ex) if e then S.RestoreEmbed(e)
-            else pcall(function() ex:Destroy() end) end end end
+        if ex.Name == hostName then local e = S.FindEmbedByHost(ex) if e then S.RestoreEmbed(e) else pcall(function() ex:Destroy() end) end end end
     local host = New("Frame", { Size = UDim2.new(1,0,1,0), Position = UDim2.new(0,0,0,0), BackgroundTransparency = 1,
         BorderSizePixel = 0, ZIndex = 5, Name = hostName, ClipsDescendants = true, }, containerFrame)
     local recs = {} for _, ch in ipairs(scr:GetChildren()) do
@@ -1622,8 +1500,7 @@ function S._buildCrosshair() if S.crosshairGui and S.crosshairGui.Parent then re
             BackgroundColor3 = S.crosshairColor, BorderSizePixel = 0, AnchorPoint = Vector2.new(0.5, 0.5), BackgroundTransparency = 0.15, }, g) return ln
     end line("Top",    2, lineLen, -1, -gap - lineLen/2)
     line("Bottom", 2, lineLen, -1,  gap + lineLen/2) line("Left",   lineLen, 2, -gap - lineLen/2, -1) line("Right",  lineLen, 2,  gap + lineLen/2, -1)
-    S.crosshairGui = g return g end
-function S.SetCrosshair(on) S.crosshairOn = (on == true) if S.crosshairOn then S._buildCrosshair()
+    S.crosshairGui = g return g end function S.SetCrosshair(on) S.crosshairOn = (on == true) if S.crosshairOn then S._buildCrosshair()
         if S.crosshairGui then S.crosshairGui.Enabled = true end else if S.crosshairGui then S.crosshairGui.Enabled = false end end
     for _, b in ipairs(S.crosshairBtns) do pcall(function() if b and b.Parent then b.Text = S.crosshairOn and "🎯 Tâm: BẬT" or "🎯 Tâm"
                 b.BackgroundColor3 = S.crosshairOn and Color3.fromRGB(180, 80, 220) or C.PURPLE end end) end end
@@ -1661,25 +1538,21 @@ function S.IsEmbeddable(g, containerFrame, trust) if not g then return false, "k
         if st.probing then if cls == "ScreenGui" then st.probeSeen = true end return inst end
         if st.hooked and cls == "ScreenGui" then local now = os.clock() records[#records + 1] = { inst      = inst,
                 certain   = (coroutine.running() == myCo), duringRun = (st.inRun == true) or (st.graceUntil ~= nil and now < st.graceUntil),
-                age       = now - st.t0, embedded  = false, via       = "hook", }
-        end return inst end pcall(function() st.realNew = Instance.new
+                age       = now - st.t0, embedded  = false, via       = "hook", } end return inst end pcall(function() st.realNew = Instance.new
         st.ours = recorder Instance.new = st.ours st.hooked = (Instance.new == st.ours) end)
     if not st.hooked and type(hookfunction) == "function" then pcall(function()
             st.ours = recorder st.origFromHook = hookfunction(Instance.new, st.ours) if st.origFromHook then st.realNew = st.origFromHook end st.hooked = true
-            st.viaHookfunction = true end) end if st.hooked then pcall(function()
-            st.probing, st.probeSeen = true, false
+            st.viaHookfunction = true end) end if st.hooked then pcall(function() st.probing, st.probeSeen = true, false
             local probe = Instance.new("ScreenGui")   -- không gắn Parent, hủy ngay
             st.probing = false st.available = (st.probeSeen == true) if probe and probe.Destroy then pcall(function() probe:Destroy() end) end end)
-        if not st.available then pcall(unhook) end end
-    S.activeHook = unhook return unhook, records, st end
+        if not st.available then pcall(unhook) end end S.activeHook = unhook return unhook, records, st end
 function S.WatchNewGuis(records, st) local conns = {}
     local function already(g) for _, r in ipairs(records) do if r.inst == g then return true end end return false end
     local function makeHandler() return function(child) if st.watchOn == false then return end if not child then return end
             local okType, isGui = pcall(function() return child:IsA("ScreenGui") or child:IsA("Folder") end)
             if not (okType and isGui) then return end if child == gui or already(child) then return end local now = os.clock() records[#records + 1] = {
                 inst      = child, certain   = false, duringRun = (st.inRun == true) or (st.graceUntil ~= nil and now < st.graceUntil), age       = now - st.t0,
-                embedded  = false, via       = "watch", } end end
-    local seenCtn, containers = {}, {playerGui, targetGui} pcall(function()
+                embedded  = false, via       = "watch", } end end local seenCtn, containers = {}, {playerGui, targetGui} pcall(function()
         local cg = game:GetService("CoreGui") if cg then containers[#containers + 1] = cg end end) for _, ctn in ipairs(containers) do
         if ctn and not seenCtn[ctn] then seenCtn[ctn] = true pcall(function() conns[#conns + 1] = ctn.ChildAdded:Connect(makeHandler()) end)
         end end st.watchOn = true local function stopWatch()
@@ -1694,32 +1567,26 @@ function S.EmbedRecorded(records, containerFrame, mode, verbose) if type(records
             accept = true elseif mode == "any" and (r.age or 0) <= S.EMBED_PROBABLE_AGE then accept = true end if accept then
             local trust if r.certain then trust = "certain" elseif r.duringRun or mode == "all" then trust = "manual" else trust = "guess" end
             local okE, why = S.IsEmbeddable(r.inst, containerFrame, trust) if okE then
-                if S.EmbedGui(r.inst, containerFrame) then r.embedded = true r.why = nil
-                    done += 1 else
+                if S.EmbedGui(r.inst, containerFrame) then r.embedded = true r.why = nil done = done + (1)  else
                     r.why = "S.EmbedGui từ chối" whyTop = r.why end else
                 r.why = why if why then whyTop = why end if verbose and not r.reported then r.reported = true pcall(function()
                         print(string.format("[taodepzai v5.0 NOIR] 🔍 bỏ qua GUI '%s' (%s, %s): %s", tostring(r.inst and r.inst.Name), tostring(r.via), trust, tostring(why)))
-                    end) end end end
-    end return done, whyTop end function S.FindFeatureByHost(host) if not host then return nil end
+                    end) end end end end return done, whyTop end function S.FindFeatureByHost(host) if not host then return nil end
     for _, ft in ipairs(featureTabs) do if ft.frame and ft.frame.Parent and ft.frame:FindFirstChild("ScriptHost") == host then return ft end
-    end return nil end
-function S.FindActiveFeature() for _, ft in ipairs(featureTabs) do if ft.frame == activeTab then return ft end end
+    end return nil end function S.FindActiveFeature() for _, ft in ipairs(featureTabs) do if ft.frame == activeTab then return ft end end
     return nil end function S.DiagText(st, records) local hookTxt = "không rõ"
     if st then if st.available then hookTxt = st.viaHookfunction and "OK (qua hookfunction)" or "OK (ghi đè Instance.new)" elseif st.hooked then
             hookTxt = "cài được nhưng KHÔNG ăn (executor bỏ qua hook)" else hookTxt = "BỊ CHẶN (executor không cho sửa Instance.new)" end
-    end local n, certain, watch, scan = 0, 0, 0, 0
-    for _, r in ipairs(records or {}) do n += 1
-        if r.certain then certain += 1 end if r.via == "watch" then watch += 1 end
-        if r.via == "scan" then scan += 1 end end
-    local lastWhy = nil for _, r in ipairs(records or {}) do if r.why then lastWhy = r.why end end
+    end local n, certain, watch, scan = 0, 0, 0, 0 for _, r in ipairs(records or {}) do n = n + (1) 
+        if r.certain then certain = certain + (1)  end if r.via == "watch" then watch = watch + (1)  end
+        if r.via == "scan" then scan = scan + (1)  end end local lastWhy = nil for _, r in ipairs(records or {}) do if r.why then lastWhy = r.why end end
     return string.format("hook=%s · ghi nhận %d GUI (chắc chắn %d, watcher %d, quét %d) · nhúng=%s · lý do cuối: %s", hookTxt, n, certain, watch, scan, tostring(S.embedEnabled and "BẬT" or "TẮT"), tostring(lastWhy or "—")) end
 function S.RescueScan(ft, host) host = host or (ft and ft.frame and ft.frame:FindFirstChild("ScriptHost"))
     if not host or not host.Parent then return 0 end if not S.embedEnabled then return 0 end
     local containers = {playerGui} if targetGui ~= playerGui then containers[#containers + 1] = targetGui end
     pcall(function() local cg = game:GetService("CoreGui") if cg then containers[#containers + 1] = cg end end) local seen, n = {}, 0
     for _, ctn in ipairs(containers) do pcall(function() for _, g in ipairs(ctn:GetChildren()) do if n < 3 and not seen[g] then seen[g] = true
-                    local okE = S.IsEmbeddable(g, host, "manual") if okE and S.EmbedGui(g, host) then
-                        n += 1 if ft then
+                    local okE = S.IsEmbeddable(g, host, "manual") if okE and S.EmbedGui(g, host) then n = n + (1)  if ft then
                             ft.records = ft.records or {} ft.records[#ft.records + 1] =
                                 {inst = g, certain = false, duringRun = true, age = 0, embedded = true, via = "rescue"} end end end end
         end) if n >= 3 then break end end return n end
@@ -1748,7 +1615,7 @@ function S.ParkHost(label) if not (S.parkList and S.parkList.Parent) then
                 print("[taodepzai v5.0 NOIR] ↩ đã trả " .. n .. " GUI về màn hình game") end) end) S.parkList = New("Frame", {
             Name = "ParkList", Size = UDim2.new(1, -16, 1, -42), Position = UDim2.new(0, 8, 0, 38), BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = 5,
         }, S.parkTab) New("UIListLayout", {Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder}, S.parkList) end
-    S.parkCount += 1 local box = New("Frame", {
+    S.parkCount = S.parkCount + (1)  local box = New("Frame", {
         Name = "ParkBox_" .. tostring(label or "GUI"), Size = UDim2.new(1, 0, 0, 240), LayoutOrder = S.parkCount, BackgroundColor3 = C.BG, BackgroundTransparency = 0.35, BorderSizePixel = 0, ZIndex = 5,
     }, S.parkList) Corner(box, UDim.new(0, 8)) Stroke(box, nil, 1)
     local back = New("TextButton", { Size = UDim2.new(0, 92, 0, 18), Position = UDim2.new(1, -96, 0, 3),
@@ -1770,8 +1637,7 @@ function S.ShouldSkipPark(code, name) local hay = (tostring(code or "") .. "\n" 
     if hasFetch and (code_l:find("loadstring", 1, true) or code_l:find("load(", 1, true)) then return true, "script tải từ mạng (để GUI ngoài màn hình như tác giả thiết kế)"
     end return false, nil end function S.RemoveAllParked() if not (S.parkList and S.parkList.Parent) then return 0 end
     local n = 0 local kids = S.parkList:GetChildren() for i = #kids, 1, -1 do local box = kids[i]
-        if box.Name:sub(1, 8) == "ParkBox_" then S.ClearEmbedsUnder(box)
-            pcall(function() box:Destroy() end) n += 1
+        if box.Name:sub(1, 8) == "ParkBox_" then S.ClearEmbedsUnder(box) pcall(function() box:Destroy() end) n = n + (1) 
         end end S.parkCount = 0 pcall(function() S.parkTab.CanvasSize = UDim2.new(0, 0, 0, 10) end)
     pcall(function() if S.parkBtn then S.parkBtn.Text = "🧩 GUI Ngoài" end end) return n end
 function S.BeginRunCapture() if not S.embedEnabled then return nil end
@@ -1780,8 +1646,7 @@ function S.BeginRunCapture() if not S.embedEnabled then return nil end
         st.stopWatch = stopWatch return {unhook = unhook, recs = recs, st = st, stopWatch = stopWatch,
             parked = 0, names = {}, cancelled = false} end) if not ok then return nil end
     S.activeCap = cap     -- để Cancel() gỡ được hook+watcher nếu người dùng bấm ⏹ Dừng giữa chừng
-    return cap end function S.AbortRunCapture() local cap = S.activeCap
-    if not cap then return false end S.activeCap = nil
+    return cap end function S.AbortRunCapture() local cap = S.activeCap if not cap then return false end S.activeCap = nil
     cap.cancelled = true pcall(function() if cap.st then cap.st.watchOn = false cap.st.inRun = false end end) pcall(cap.stopWatch) pcall(cap.unhook)
     return true end function S.EndRunCapture(cap, label) if not cap or cap.cancelled then return 0 end
     local st, recs = cap.st, cap.recs pcall(function() st.inRun = false st.graceUntil = os.clock() + 1.0
@@ -1789,22 +1654,18 @@ function S.BeginRunCapture() if not S.embedEnabled then return nil end
         local added = 0 for _, r in ipairs(recs) do if cap.parked >= S.PARK_MAX then break end if r and r.inst and not r.embedded then
                 local trust if r.certain then trust = "certain"
                 elseif r.duringRun then trust = "manual" else trust = "guess" end if S.IsEmbeddable(r.inst, nil, trust) then
-                    local area, box = S.ParkHost(label) if area and S.EmbedGui(r.inst, area) then
-                        r.embedded = true cap.parked += 1
-                        cap.names[#cap.names + 1] = tostring(r.inst.Name) added += 1
+                    local area, box = S.ParkHost(label) if area and S.EmbedGui(r.inst, area) then r.embedded = true cap.parked = cap.parked + (1) 
+                        cap.names[#cap.names + 1] = tostring(r.inst.Name) added = added + (1) 
                         pcall(function() print(string.format("[taodepzai v5.0 NOIR] 🧩 đã đưa GUI '%s' vào tab 'GUI Ngoài' (script chạy ở tab Code)",
                                 tostring(r.inst.Name))) end) elseif box then
                         pcall(function() box:Destroy() end)   -- không nhúng được -> đừng để ô rỗng
-                        S.parkCount = math.max(0, S.parkCount - 1) end end end
-        end return added end
+                        S.parkCount = math.max(0, S.parkCount - 1) end end end end return added end
     local total = try() for _, d in ipairs(S.EMBED_TRY_DELAYS) do
         task.delay(d, function() if cap.cancelled or cap.parked >= S.PARK_MAX then return end if not S.embedEnabled then return end try()
-        end) end task.delay(S.EMBED_HOOK_GRACE, function() pcall(cap.unhook) pcall(cap.stopWatch)
-        if S.activeCap == cap then S.activeCap = nil end end)
+        end) end task.delay(S.EMBED_HOOK_GRACE, function() pcall(cap.unhook) pcall(cap.stopWatch) if S.activeCap == cap then S.activeCap = nil end end)
     pcall(function() print("[taodepzai v5.0 NOIR] ▶ tab Code · " .. S.DiagText(st, recs) .. " · đã đưa vào menu: " .. cap.parked)
     end) return total end local function RunFeatureScript(code, name, containerFrame, indicator, statusLabel) if #code == 0 then
-        if statusLabel then statusLabel.Text = "⚠️ Vui lòng nhập code!" end return false, "empty" end
-    code = NormalizeCode(code)
+        if statusLabel then statusLabel.Text = "⚠️ Vui lòng nhập code!" end return false, "empty" end code = NormalizeCode(code)
     S.EnsureCompat()   -- v4.7: tab ➕ Tính Năng cũng được bù hàm executor còn thiếu
     if indicator then indicator.BackgroundColor3 = C.RED end if statusLabel then statusLabel.Text = "⏳ Đang thực thi..." end
     ReleaseHubFocus()   -- v4.4b: đang dán code trong TextBox mà chạy luôn thì game vẫn "khóa" input
@@ -1824,21 +1685,18 @@ function S.BeginRunCapture() if not S.embedEnabled then return nil end
                 local found = ScanNewGuis(beforeGuis, nil, true) for _, g in ipairs(found) do local now = os.clock() recs[#recs + 1] = {
                         inst = g, certain = false, duringRun = (st.inRun == true) or (now < (st.graceUntil or 0)), age = now - st.t0, embedded = false, via = "scan",
                     } end end local d, why = S.EmbedRecorded(recs, containerFrame, useScan and "any" or mode, true)
-            embedCount += d if why then lastWhy = why end
-            if embedCount > 0 then break end task.wait(0.2) end if embedCount > 0 then unhook()
+            embedCount = embedCount + (d)  if why then lastWhy = why end if embedCount > 0 then break end task.wait(0.2) end if embedCount > 0 then unhook()
             pcall(stopWatch) else task.delay(S.EMBED_HOOK_GRACE, function() pcall(unhook) pcall(stopWatch) end) end
         if not fnOk then error(fnErr) end for _, dly in ipairs(S.EMBED_TRY_DELAYS) do task.delay(dly, function()
                 if ft and ft._runToken ~= runToken then return end if embedCount > 0 then return end
                 if not (containerFrame and containerFrame.Parent) then return end if not S.embedEnabled then return end
                 if useScan then local found = ScanNewGuis(beforeGuis, nil, true) for _, g in ipairs(found) do local now = os.clock() recs[#recs + 1] = {
                             inst = g, certain = false, duringRun = false, age = now - st.t0, embedded = false, via = "scan", } end end
-                local more = S.EmbedRecorded(recs, containerFrame, "any", true) if more > 0 then
-                    embedCount += more pcall(function()
+                local more = S.EmbedRecorded(recs, containerFrame, "any", true) if more > 0 then embedCount = embedCount + (more)  pcall(function()
                         if indicator and indicator.Parent then indicator.BackgroundColor3 = C.GREEN end if statusLabel and statusLabel.Parent then statusLabel.Text = string.format(
                                 "✅ xong · GUI sinh trễ đã được nhúng vào tab (%d) — bấm ✕ để trả về màn hình game", embedCount) end end)
-                end end) end if embedCount == 0 then local late = ScanNewGuis(beforeGuis, nil, true)
-            local real = 0 for _, g in ipairs(late) do
-                if g.Parent and not g:IsDescendantOf(containerFrame) then real += 1 end end
+                end end) end if embedCount == 0 then local late = ScanNewGuis(beforeGuis, nil, true) local real = 0 for _, g in ipairs(late) do
+                if g.Parent and not g:IsDescendantOf(containerFrame) then real = real + (1)  end end
             if real > 0 then lateCandidate = real end end end) if embedCount > 0 then if featureUnhook then pcall(featureUnhook) end
         pcall(function() if hookState and hookState.stopWatch then hookState.stopWatch() end end) end if ft then
         ft.records   = records    -- giữ lại để MỞ tab / bấm 🔁 là nhúng tiếp được
@@ -1859,8 +1717,7 @@ local function CreateFeatureTab(name, icon, codeContent) if not name or #name ==
     codeContent = NormalizeCode(codeContent) local featureData
     local sf  = MakeTabFrame() local btn = MakeTabButton(name, icon, featureTabIndex + #featureTabs, function()
         task.defer(function() S.OnFeatureTabOpened(featureData) end) end) table.insert(tabs, btn) table.insert(tabContent, sf)
-    tabBar.CanvasSize = UDim2.new(0, 0, 0, #tabs * 36 + 10) local tabIdx = #tabs
-    featureData = { name = name, icon = icon, code = codeContent,
+    tabBar.CanvasSize = UDim2.new(0, 0, 0, #tabs * 36 + 10) local tabIdx = #tabs featureData = { name = name, icon = icon, code = codeContent,
         btn = btn, frame = sf, tabIdx = tabIdx, } table.insert(featureTabs, featureData)
     local embedHost = New("Frame", { Size = UDim2.new(1,0,1,-30), Position = UDim2.new(0,0,0,0), BackgroundTransparency = 1,
         BorderSizePixel = 0, ZIndex = 5, Name = "ScriptHost", Visible = true, }, sf)
@@ -1904,10 +1761,8 @@ local function CreateFeatureTab(name, icon, codeContent) if not name or #name ==
     runFeatureBtn.Activated:Connect(function() ClearHost()
         fStatus.Text = "⏳ Đang chạy..." RunFeatureScript(codeContent, name, embedHost, runFeatureBtn, fStatus) end)
     saveFeatureBtn.Activated:Connect(function() local c = codeContent if #c == 0 then fStatus.Text = "⚠️ Không có code!"
-            return end local n = name local bn = n
-        local cnt = 1 while true do local ex = false for _, s in ipairs(scripts) do
-                if s.name == n then ex = true; break end end
-            if not ex then break end cnt += 1
+            return end local n = name local bn = n local cnt = 1 while true do local ex = false for _, s in ipairs(scripts) do
+                if s.name == n then ex = true; break end end if not ex then break end cnt = cnt + (1) 
             n = bn.." ("..cnt..")" end table.insert(scripts, {name = n, code = c, expanded = false}) if RebuildScripts then RebuildScripts() end
         Store.saveSoon() fStatus.Text = "✅ Đã chép sang tab Code!" end) editFeatureBtn.Activated:Connect(function() editorBox.Text = codeContent
         editorFrame.Visible = true end) applyEditBtn.Activated:Connect(function() codeContent = NormalizeCode(editorBox.Text)
@@ -1916,8 +1771,7 @@ local function CreateFeatureTab(name, icon, codeContent) if not name or #name ==
         fStatus.Text = "✏️ Đã cập nhật code" end) cancelEditBtn.Activated:Connect(function() editorFrame.Visible = false
     end) closeFeatureBtn.Activated:Connect(function() ClearHost()
         OpenFirstPage()   -- v4.6.2: đóng tab tính năng thì về trang đầu (💾 Code Đã Lưu)
-    end) return featureData end
-task.spawn(function() task.wait(1) local lastSize = main.AbsoluteSize while main and main.Parent do
+    end) return featureData end task.spawn(function() task.wait(1) local lastSize = main.AbsoluteSize while main and main.Parent do
         task.wait(0.15) if main.AbsoluteSize ~= lastSize then lastSize = main.AbsoluteSize if #S.embeds > 0 then
                 S.SyncAllEmbeds() end S.PruneEmbeds() if _G.BananaCatHub_EmbedHosts then for i = #_G.BananaCatHub_EmbedHosts, 1, -1 do
                     local host = _G.BananaCatHub_EmbedHosts[i] if not host or not host.Parent then table.remove(_G.BananaCatHub_EmbedHosts, i) end
@@ -1987,79 +1841,44 @@ end guessToggleBtn.Activated:Connect(S.DoToggleGuess) S.DoTogglePark = function(
         createStatus.Text = "🪟 BẬT: GUI của script chạy ở tab 💻 Code sẽ được đưa vào tab '🧩 GUI Ngoài'" .. " (mỗi GUI có nút ↩ trả về màn hình). Dex/IY/SimpleSpy vẫn LUÔN ở ngoài màn hình game."
     end
     Store.saveSoon()   -- lưu xuống đĩa: thoát game vào lại vẫn giữ lựa chọn này
-end S.parkToggleBtn.Activated:Connect(S.DoTogglePark)
-grabSizeCodeBtn.Activated:Connect(function() local currentCode = featureCodeIn.Text
-    if #currentCode == 0 then createStatus.Text = "⚠️ Ô code đang trống, không có gì để lấy!"
-        return end
-
+end S.parkToggleBtn.Activated:Connect(S.DoTogglePark) grabSizeCodeBtn.Activated:Connect(function() local currentCode = featureCodeIn.Text
+    if #currentCode == 0 then createStatus.Text = "⚠️ Ô code đang trống, không có gì để lấy!" return end
     local wrappedCode = [[
-local _FIT_WRAPPER = true
-local _bcRealNew = Instance.new
-local _bcMine = {}
-local _bcHookOn = true
-pcall(function()
-    Instance.new = function(cls, ...)
-        local inst = _bcRealNew(cls, ...)
-        if _bcHookOn and cls == "ScreenGui" then _bcMine[#_bcMine + 1] = inst end
-        return inst
-    end
+local _FIT_WRAPPER = true local _bcRealNew = Instance.new
+local _bcMine = {} local _bcHookOn = true
+pcall(function() Instance.new = function(cls, ...)
+        local inst = _bcRealNew(cls, ...) if _bcHookOn and cls == "ScreenGui" then _bcMine[#_bcMine + 1] = inst end
+        return inst end
 end)
-
 ]] .. currentCode .. [[
-
 pcall(function() _bcHookOn = false; Instance.new = _bcRealNew end)
-
-task.delay(4, function()
-    pcall(function() _bcHookOn = false; Instance.new = _bcRealNew end)
+task.delay(4, function() pcall(function() _bcHookOn = false; Instance.new = _bcRealNew end)
 end)
-
-task.defer(function()
-    task.wait(0.4)
-    local hub = nil
-    pcall(function()
+task.defer(function() task.wait(0.4)
+    local hub = nil pcall(function()
         local hubGui = (gethui and gethui()) or game:GetService("Players").LocalPlayer:FindFirstChildOfClass("PlayerGui")
-        hub = hubGui and hubGui:FindFirstChild("ExMenu") and hubGui.ExMenu:FindFirstChildWhichIsA("Frame")
-        if not hub then
+        hub = hubGui and hubGui:FindFirstChild("ExMenu") and hubGui.ExMenu:FindFirstChildWhichIsA("Frame") if not hub then
             local pg = game:GetService("Players").LocalPlayer:FindFirstChildOfClass("PlayerGui")
-            hub = pg and pg:FindFirstChild("ExMenu") and pg.ExMenu:FindFirstChildWhichIsA("Frame")
-        end
-    end)
-    for _, g in ipairs(_bcMine) do
-        pcall(function()
-            if not g or not g.Parent then return end
-            local root = g:FindFirstChildWhichIsA("Frame")
-                or g:FindFirstChildWhichIsA("ScrollingFrame")
-                or g:FindFirstChildWhichIsA("GuiObject")
-            if not root then return end
-            if root.Size and (root.Size.X.Scale ~= 0 or root.Size.Y.Scale ~= 0) then return end
-            local us = root:FindFirstChild("BananaCatFitScale")
-            if not us then
-                us = _bcRealNew("UIScale")
-                us.Name = "BananaCatFitScale"
-                us.Parent = root
-            end
-            if hub then
-                local function _bcSync()
-                    us.Scale = math.clamp(hub.AbsoluteSize.X / 540, 0.8, 1.6)
-                end
-                _bcSync()
-                hub:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
-                    pcall(_bcSync)
-                end)
-            end
-        end)
-    end
+            hub = pg and pg:FindFirstChild("ExMenu") and pg.ExMenu:FindFirstChildWhichIsA("Frame") end
+    end) for _, g in ipairs(_bcMine) do
+        pcall(function() if not g or not g.Parent then return end
+            local root = g:FindFirstChildWhichIsA("Frame") or g:FindFirstChildWhichIsA("ScrollingFrame")
+                or g:FindFirstChildWhichIsA("GuiObject") if not root then return end
+            if root.Size and (root.Size.X.Scale ~= 0 or root.Size.Y.Scale ~= 0) then return end local us = root:FindFirstChild("BananaCatFitScale")
+            if not us then us = _bcRealNew("UIScale")
+                us.Name = "BananaCatFitScale" us.Parent = root
+            end if hub then
+                local function _bcSync() us.Scale = math.clamp(hub.AbsoluteSize.X / 540, 0.8, 1.6)
+                end _bcSync()
+                hub:GetPropertyChangedSignal("AbsoluteSize"):Connect(function() pcall(_bcSync)
+                end) end
+        end) end
 end)
 ]]
-
-    local saveName = "AutoSize_"..os.date("%H%M%S") local bn = saveName
-    local cnt = 1 while true do
-        local ex = false for _, s in ipairs(scripts) do if s.name == saveName then ex = true; break end
-        end if not ex then break end
-        cnt += 1 saveName = bn.." ("..cnt..")" end
-
-    table.insert(scripts, {name = saveName, code = wrappedCode, expanded = false}) if RebuildScripts then RebuildScripts() end
-    Store.saveSoon()
+    local saveName = "AutoSize_"..os.date("%H%M%S") local bn = saveName local cnt = 1 while true do
+        local ex = false for _, s in ipairs(scripts) do if s.name == saveName then ex = true; break end end if not ex then break end
+        cnt = cnt + (1)  saveName = bn.." ("..cnt..")" end
+    table.insert(scripts, {name = saveName, code = wrappedCode, expanded = false}) if RebuildScripts then RebuildScripts() end Store.saveSoon()
     createStatus.Text = "✅ Đã lưu bản tự co giãn vào tab 'Code Đã Lưu': "..saveName.. " · để tab tính năng co giãn theo menu thì KHÔNG cần bản này, hub tự làm khi bấm ▶ Chạy Script."
 end) S.DoFixMouse = function() local done = {}
     ReleaseHubFocus() done[#done+1] = "nhả focus" local restored = 0 for _, ft in ipairs(featureTabs) do
@@ -2087,8 +1906,7 @@ copyTemplateBtn.Activated:Connect(function() ReleaseHubFocus()
     local copied = S.CopyToClipboard(code) local inBox = false if #featureCodeIn.Text == 0 then featureCodeIn.Text = code
         inBox = true end local saveName = "Mẫu " .. nm local baseName = saveName
     local cnt = 1 while true do local exists = false for _, sc in ipairs(scripts) do
-            if sc.name == saveName then exists = true break end end if not exists then break end cnt = cnt + 1
-        saveName = baseName .. " (" .. cnt .. ")" end
+            if sc.name == saveName then exists = true break end end if not exists then break end cnt = cnt + 1 saveName = baseName .. " (" .. cnt .. ")" end
     table.insert(scripts, {name = saveName, code = code, expanded = false}) if RebuildScripts then RebuildScripts() end Store.saveSoon()
     createStatus.Text = (copied and ("📋 ĐÃ COPY " .. #code .. " ký tự vào clipboard") or ("⚠️ Executor không có setclipboard — lấy code ở tab 'Code Đã Lưu'"))
         .. " · đã lưu '" .. saveName .. "'" .. (inBox and " · đã điền vào ô code" or " · ô code giữ nguyên code của bạn")
@@ -2104,8 +1922,7 @@ New("UIListLayout", {SortOrder=Enum.SortOrder.LayoutOrder, Padding=UDim.new(0,4)
 local function RebuildFeatureList() for _, c in ipairs(featureListFrame:GetChildren()) do if not c:IsA("UIListLayout") then c:Destroy() end end
     if #featureTabs == 0 then New("TextLabel", { Size=UDim2.new(1,0,0,30), Text="📭 Chưa có tab tính năng nào.",
             BackgroundTransparency=1, TextColor3=C.GRAY, Font=Enum.Font.GothamMedium, TextSize=10, TextXAlignment=Enum.TextXAlignment.Center, TextYAlignment=Enum.TextYAlignment.Center, ZIndex=7,
-        }, featureListFrame) createFeatureTab.CanvasSize = UDim2.new(0, 0, 0, cy + 50) return end
-    local totalH = 0 for i, ft in ipairs(featureTabs) do
+        }, featureListFrame) createFeatureTab.CanvasSize = UDim2.new(0, 0, 0, cy + 50) return end local totalH = 0 for i, ft in ipairs(featureTabs) do
         local row = New("Frame", { Size=UDim2.new(1,0,0,28), BackgroundColor3=Color3.fromRGB(26, 29, 38),
             BackgroundTransparency=0.1, BorderSizePixel=0, ZIndex=6, }, featureListFrame) Corner(row, UDim.new(0,5)); Stroke(row)
         New("TextLabel", { Size=UDim2.new(1,-82,1,0), Position=UDim2.new(0,8,0,0),
@@ -2136,15 +1953,13 @@ createTabBtn.Activated:Connect(function() local n = featureNameIn.Text local ic 
     featureIconIn.Text = "⚙️" featureCodeIn.Text = "" createStatus.Text = "🧹 Đã xóa form" end)
 RebuildFeatureList() pcall(function() createFeatureTab.CanvasSize = UDim2.new(0, 0, 0, cy + 40) end)
 Store.restoreFeatures = function() for i = #featureTabs, 1, -1 do local ft = featureTabs[i] for j, b in ipairs(tabs) do
-            if b == ft.btn then table.remove(tabs, j) table.remove(tabContent, j) break
-            end end
+            if b == ft.btn then table.remove(tabs, j) table.remove(tabContent, j) break end end
         if activeTab == ft.frame then OpenFirstPage() end   -- v4.6.2
         local hostFrame = ft.frame and ft.frame:FindFirstChild("ScriptHost") if hostFrame then S.ClearEmbedsUnder(hostFrame) end
         pcall(function() ft.btn:Destroy() end) pcall(function() ft.frame:Destroy() end) table.remove(featureTabs, i) end
     for _, f in ipairs(Store.loadedFeatures) do CreateFeatureTab(f.name, f.icon, f.code) end
     for j, t in ipairs(tabs) do t.LayoutOrder = j end tabBar.CanvasSize = UDim2.new(0, 0, 0, #tabs * 44 + 10)
-    RebuildFeatureList() if Store.refreshStatus then Store.refreshStatus() end end
-if #Store.loadedFeatures > 0 then Store.restoreFeatures()
+    RebuildFeatureList() if Store.refreshStatus then Store.refreshStatus() end end if #Store.loadedFeatures > 0 then Store.restoreFeatures()
     createStatus.Text = string.format("💾 Đã khôi phục %d tab tính năng từ bộ nhớ", #Store.loadedFeatures) end
 S.Move = { fly = false, noclip = false, infJump = false, speed = false, carpet = false,
     runMode = false,                         -- 🏃 chế độ "chạy trên thảm" (gộp thảm + tốc độ + HUD)
@@ -2169,17 +1984,13 @@ local function mvClamp(n, lo, hi, dft) n = tonumber(n) if n == nil or n ~= n the
     if n > hi then return hi end return n end function MV.Char() return player.Character end
 MV._cachedChar = nil MV._cachedHum = nil MV._cachedRoot = nil MV._cacheAt = 0 function MV.Hum()
     local now = os.clock() if MV._cachedChar == player.Character and MV._cachedHum and MV._cachedHum.Parent and (now - MV._cacheAt) < 1.0 then
-        return MV._cachedHum end
-    local c = player.Character local h = c and c:FindFirstChildOfClass("Humanoid") or nil
+        return MV._cachedHum end local c = player.Character local h = c and c:FindFirstChildOfClass("Humanoid") or nil
     MV._cachedChar = c MV._cachedHum = h MV._cacheAt = now if h then
-        local ok, rp = pcall(function() return h.RootPart end) if ok and rp then MV._cachedRoot = rp end
-    end return h
+        local ok, rp = pcall(function() return h.RootPart end) if ok and rp then MV._cachedRoot = rp end end return h
 end function MV.Root()
     local now = os.clock() if MV._cachedChar == player.Character and MV._cachedRoot and MV._cachedRoot.Parent and (now - MV._cacheAt) < 1.0 then
-        return MV._cachedRoot end
-    local c = player.Character local r = c and c:FindFirstChild("HumanoidRootPart") or nil
-    MV._cachedChar = c MV._cachedRoot = r MV._cacheAt = now return r
-end function MV.InvalidateCache()
+        return MV._cachedRoot end local c = player.Character local r = c and c:FindFirstChild("HumanoidRootPart") or nil
+    MV._cachedChar = c MV._cachedRoot = r MV._cacheAt = now return r end function MV.InvalidateCache()
     MV._cachedChar, MV._cachedHum, MV._cachedRoot, MV._cacheAt = nil, nil, nil, 0 end
 function MV._NcPart(p) if not (p and p.IsA and p:IsA("BasePart")) then return end MV._ncParts = MV._ncParts or {} if MV._origCC[p] == nil then
         MV._origCC[p] = MV._ncParts[p] and true or p.CanCollide end if p.CanCollide ~= false then pcall(function() p.CanCollide = false end) end
@@ -2191,8 +2002,7 @@ function MV._NcPart(p) if not (p and p.IsA and p:IsA("BasePart")) then return en
 function MV._NcEnforce() if not MV.noclip then return end local c = MV.Char() local parts = MV._ncParts if not c or not parts then return end
     for p in pairs(parts) do local ok = pcall(function() if p:IsDescendantOf(c) then if p.CanCollide ~= false then p.CanCollide = false end else
                 parts[p] = nil                 -- part đã rời khỏi người (game xoá) -> thôi theo dõi
-            end end) if not ok then parts[p] = nil end end
-end function MV._NcAssist() if MV.fly or not (MV.noclip and MV.ncPass ~= false) then
+            end end) if not ok then parts[p] = nil end end end function MV._NcAssist() if MV.fly or not (MV.noclip and MV.ncPass ~= false) then
         MV._passBlocked, MV._passPX, MV._passPZ, MV._passAt = 0, nil, nil, nil return
     end local onCarpet = (MV.carpet == true) or (MV.runMode == true) local h, r = MV.Hum(), MV.Root()
     if not h or not r then MV._passBlocked, MV._passPX, MV._passPZ, MV._passAt = 0, nil, nil, nil return end
@@ -2218,13 +2028,11 @@ end function MV._NcAssist() if MV.fly or not (MV.noclip and MV.ncPass ~= false) 
     local c = MV.Char() if not c then return end local now = os.clock()
     if MV._ncChar ~= c or not MV._ncLast or (now - MV._ncLast) > 0.5 then MV._ncLast = now
         MV._NcScan()                                  -- quét đầy đủ: bắt part mới / nhân vật mới
-    end MV._ncEnforceAcc = (MV._ncEnforceAcc or 0) + (now - (MV._ncEnforceLast or now))
-    MV._ncEnforceLast = now if MV._ncEnforceAcc >= 0.15 then
+    end MV._ncEnforceAcc = (MV._ncEnforceAcc or 0) + (now - (MV._ncEnforceLast or now)) MV._ncEnforceLast = now if MV._ncEnforceAcc >= 0.15 then
         MV._ncEnforceAcc = 0
         MV._NcEnforce()                               -- thắng game bật lại CanCollide
         MV._NcAssist()                                -- 🧲 bị chặn cứng -> tự đẩy xuyên
-    end end function MV._NcBind(on)
-    if on and not MV._ncBound then MV._ncBound = true
+    end end function MV._NcBind(on) if on and not MV._ncBound then MV._ncBound = true
         local ok = pcall(function() RunService:BindToRenderStep("BC_NoClip", Enum.RenderPriority.Last.Value, function() pcall(MV._NcStep) end)
         end) if not ok then MV._ncBound = false end
     elseif (not on) and MV._ncBound then MV._ncBound = false pcall(function() RunService:UnbindFromRenderStep("BC_NoClip") end) end return MV._ncBound
@@ -2250,8 +2058,7 @@ function MV._JumpConfirm(y0) if not MV.infJump then return end local r2 = MV.Roo
     local up = r2.Position.Y - y0 local v  = r2.AssemblyLinearVelocity local vy = MV.comp(v, "Y", 0)
     if up < 0.4 and vy < 10 then        -- chưa nhúc nhích -> game đã bỏ qua lệnh nhảy
         pcall(function() r2.AssemblyLinearVelocity = Vector3.new( MV.comp(v, "X", 0), MV.WantJumpSpeed(), MV.comp(v, "Z", 0)) end)
-    end end function MV._DoJump() if not MV.infJump then return false end
-    local h, r = MV.Hum(), MV.Root() if not h or not r then return false end
+    end end function MV._DoJump() if not MV.infJump then return false end local h, r = MV.Hum(), MV.Root() if not h or not r then return false end
     if h.Sit or h.PlatformStand then return false end      -- đang ngồi ghế/xe: không nhảy
     local now = os.clock()
     if MV._lastJump and (now - MV._lastJump) < 0.12 then return false end   -- chống bốc đúp
@@ -2275,11 +2082,9 @@ end function MV.ApplyChar() local h = MV.Hum() if not h then return end if MV.sp
         if not MV.highJump then h.JumpPower  = MV._baseJP or 50 end MV.appliedWS = nil
     end end function MV.SpeedStep() local h = MV.Hum() if not h or not MV.speed then return end
     if MV.appliedWS ~= nil and math.abs((tonumber(h.WalkSpeed) or 0) - MV.appliedWS) > 0.01 then MV._baseWS = tonumber(h.WalkSpeed) or MV._baseWS
-    end MV.ApplyChar() end function MV.SetSpeed(on)
-    on = (on == true) if on == MV.speed then return MV.speed end local h = MV.Hum()
+    end MV.ApplyChar() end function MV.SetSpeed(on) on = (on == true) if on == MV.speed then return MV.speed end local h = MV.Hum()
     if on and not MV.speed and h then          -- chỉ nhớ mặc định ở lần BẬT đầu tiên
-        MV._baseWS = h.WalkSpeed  or 16 MV._baseJP = h.JumpPower  or 50 end MV.speed = on
-    MV.ApplyChar() MV._Watchdog() return MV.speed end
+        MV._baseWS = h.WalkSpeed  or 16 MV._baseJP = h.JumpPower  or 50 end MV.speed = on MV.ApplyChar() MV._Watchdog() return MV.speed end
 function MV._NeedWatch() return (MV.fly or MV.noclip or MV.infJump or MV.speed or MV.runMode
             or MV.sprint or MV.highJump or (MV.Safe and MV.Safe.on)) == true end
 function MV._KeepAlive() if MV.speed or MV.runMode then pcall(MV.SpeedStep) end
@@ -2303,8 +2108,7 @@ function MV._RestoreFlyHum() local h = FL.hum if h and h.Parent then h.PlatformS
     for _, key in ipairs({"_bv", "_bg", "_floor"}) do if MV[key] then MV[key]:Destroy(); MV[key] = nil end end end function MV._EnsureFly()
     local r, h = MV.Root(), MV.Hum() if not MV.fly then return nil end if not r or not h or h.Health <= 0 then MV._DestroyFlyParts()
         MV._RestoreFlyHum() MV.ClearFlyInput() FL.root = nil return nil
-    end if FL.root ~= r then MV._DestroyFlyParts() MV._RestoreFlyHum() MV.ClearFlyInput()
-        FL.root = r end if FL.hum ~= h then MV._RestoreFlyHum()
+    end if FL.root ~= r then MV._DestroyFlyParts() MV._RestoreFlyHum() MV.ClearFlyInput() FL.root = r end if FL.hum ~= h then MV._RestoreFlyHum()
         FL.hum, FL.platformStand, FL.autoRotate = h, h.PlatformStand, h.AutoRotate end
     if not MV._bv or MV._bv.Parent ~= r then if MV._bv then MV._bv:Destroy() end MV._bv = New("BodyVelocity", {
             Name = "BC_FlyVel", MaxForce = Vector3.new(1e9, 1e9, 1e9), Velocity = Vector3.zero, }, r) end if not MV._bg or MV._bg.Parent ~= r then
@@ -2315,8 +2119,7 @@ function MV._RestoreFlyHum() local h = FL.hum if h and h.Parent then h.PlatformS
             Anchored = true, CanCollide = false, CanTouch = false, CanQuery = false, }, workspace) end return r, h end
 function MV._ReadFlyInput(cf, h) if not FL.focused or UserInputService:GetFocusedTextBox() then return Vector3.zero end
     local x, z, y = FL.x, FL.z, FL.y local virtualDirection = FL.joyInput ~= nil or math.abs(x) + math.abs(z) > 0
-    for _, v in pairs(FL.holds) do x += v.X; y += v.Y; z += v.Z
-        if v.X ~= 0 or v.Z ~= 0 then virtualDirection = true end end
+    for _, v in pairs(FL.holds) do x = x + (v.X) ; y = y + (v.Y) ; z = z + (v.Z) if v.X ~= 0 or v.Z ~= 0 then virtualDirection = true end end
     local w = UserInputService:IsKeyDown(Enum.KeyCode.W) local s = UserInputService:IsKeyDown(Enum.KeyCode.S) local a = UserInputService:IsKeyDown(Enum.KeyCode.A)
     local d = UserInputService:IsKeyDown(Enum.KeyCode.D) if w or s or a or d then
         x, z = (d and 1 or 0) - (a and 1 or 0), (s and 1 or 0) - (w and 1 or 0) elseif not virtualDirection and h then
@@ -2337,14 +2140,12 @@ function MV._ReadFlyInput(cf, h) if not FL.focused or UserInputService:GetFocuse
     end end function MV._BindFly() if MV._flyBound or not MV.fly then return end RunService:UnbindFromRenderStep("Fly")
     RunService:BindToRenderStep("Fly", Enum.RenderPriority.Camera.Value + 1, MV._FlyFrame) MV._flyBound = true MV._flyFrameAt = tick() end
 function MV._StopFly() RunService:UnbindFromRenderStep("Fly") MV._flyBound = false MV._DestroyFlyParts() MV._RestoreFlyHum()
-    MV.ClearFlyInput() FL.root = nil end function MV.SetFly(on)
-    on = (on == true) if on then local r, h = MV.Root(), MV.Hum()
+    MV.ClearFlyInput() FL.root = nil end function MV.SetFly(on) on = (on == true) if on then local r, h = MV.Root(), MV.Hum()
         if not r or not h or h.Health <= 0 then return false, "chưa có nhân vật sống để bay" end if MV.Safe and MV.Safe.on then MV.Safe.Stop() end
         if MV._glassFlyActive then MV.StopGlassFly() end if MV._playerFlyActive then MV.StopPlayerFly() end
         if MV.runMode then MV.SetRunMode(false) end if not MV.fly then MV.ClearFlyInput() end MV.fly = true MV._EnsureFly() MV._BindFly()
         MV._FlyFrame() -- thả phím là giữ tại chỗ ngay, không có vận tốc mặc định lúc mới bật
-    else MV.fly = false MV._StopFly() end
-    MV._Watchdog() MV.SyncHud() if S.SyncTunePanel then pcall(S.SyncTunePanel) end return MV.fly
+    else MV.fly = false MV._StopFly() end MV._Watchdog() MV.SyncHud() if S.SyncTunePanel then pcall(S.SyncTunePanel) end return MV.fly
 end function MV.SetFlySpeed(n)
     n = tonumber(n) if not n or n ~= n or n == math.huge or n == -math.huge then return false, "nhập tốc độ 1–2000" end MV.flySpeed = mvClamp(n, 1, 2000, 50)
     MV.SyncHud() if S.RefreshMovePanel then S.RefreshMovePanel() end if S.SyncTunePanel then pcall(S.SyncTunePanel) end return true, MV.flySpeed
@@ -2402,8 +2203,7 @@ do local CS = { focused = true } MV.CamSpeed = CS
 function MV._DestroySpeedParts() if MV._sv then MV._sv:Destroy(); MV._sv = nil end end function MV._EnsureSpeed()
     if not MV.sprint then return nil end if MV.fly or MV._playerFlyActive or MV._glassFlyActive or MV._objFlyActive or (MV.Safe and MV.Safe.on) then
         MV._DestroySpeedParts() CS.root = nil return nil end
-    local r, h = MV.Root(), MV.Hum() if not r or not h or h.Health <= 0 then MV._DestroySpeedParts()
-        CS.root = nil return nil end if CS.root ~= r then
+    local r, h = MV.Root(), MV.Hum() if not r or not h or h.Health <= 0 then MV._DestroySpeedParts() CS.root = nil return nil end if CS.root ~= r then
         MV._DestroySpeedParts() CS.root = r end if not MV._sv or MV._sv.Parent ~= r then if MV._sv then MV._sv:Destroy() end
         MV._sv = New("BodyVelocity", { Name = "BC_SpeedVel", MaxForce = Vector3.new(1e9, 0, 1e9), Velocity = Vector3.zero, }, r) else
         local mf = MV._sv.MaxForce if mf and (mf.Y ~= 0) then MV._sv.MaxForce = Vector3.new(1e9, 0, 1e9) end
@@ -2423,8 +2223,7 @@ end function MV.SpeedVelocity(cf, input, speed) local look = Vector3.new(cf.Look
     if magnitude < 0.001 then return Vector3.zero end if magnitude > 1 then direction = direction / magnitude end
     return direction * mvClamp(speed, 1, 2000, 50) end function MV._SpeedStep() if not MV.sprint then return end
     MV._speedFrameAt = tick() local r, h = MV._EnsureSpeed() if not r or not MV._sv then return end
-    local cam = workspace.CurrentCamera if not cam then MV._sv.MaxForce = Vector3.new(0, 0, 0) MV._sv.Velocity = Vector3.zero
-        return end
+    local cam = workspace.CurrentCamera if not cam then MV._sv.MaxForce = Vector3.new(0, 0, 0) MV._sv.Velocity = Vector3.zero return end
     local vel = MV.SpeedVelocity(cam.CFrame, MV._ReadSpeedInput(cam.CFrame, h), MV.sprintSpeed) if vel.Magnitude < 0.001 then MV._sv.MaxForce = Vector3.new(0, 0, 0)
         MV._sv.Velocity = Vector3.zero else MV._sv.MaxForce = Vector3.new(1e9, 0, 1e9) MV._sv.Velocity = Vector3.new(vel.X, 0, vel.Z)
     end end function MV._SpeedFrame() local ok, err = pcall(MV._SpeedStep) if not ok then
@@ -2435,8 +2234,7 @@ end function MV.SpeedVelocity(cf, input, speed) local look = Vector3.new(cf.Look
 function MV._StopSpeed() RunService:UnbindFromRenderStep("BC_Speed") MV._speedBound = false MV._DestroySpeedParts() CS.root = nil
 end function MV.SetSprint(on) on = (on == true) if on then
         local r, h = MV.Root(), MV.Hum() if not r or not h or h.Health <= 0 then return false, "chưa có nhân vật sống để chạy" end
-        MV.sprint = true MV._EnsureSpeed() MV._BindSpeed() MV._SpeedFrame() else
-        MV.sprint = false MV._StopSpeed() end MV._Watchdog()
+        MV.sprint = true MV._EnsureSpeed() MV._BindSpeed() MV._SpeedFrame() else MV.sprint = false MV._StopSpeed() end MV._Watchdog()
     if S.SyncSpeedPanel then S.SyncSpeedPanel() end if S.SyncTunePanel then pcall(S.SyncTunePanel) end return MV.sprint
 end function MV.SetSprintSpeed(n)
     n = tonumber(n) if not n or n ~= n or n == math.huge or n == -math.huge then return false, "nhập tốc độ 1–2000" end
@@ -2523,8 +2321,7 @@ local function sfIgnore(d, char) local nm = tostring(d.Name or "") if nm:sub(1, 
     pcall(function() op.RespectCanCollide = false end)                     -- vật không va chạm vẫn tính
     pcall(function() op.FilterType = Enum.RaycastFilterType.Exclude end)   -- API mới
     pcall(function() op.FilterDescendantsInstances = { char } end)         -- bỏ qua part của chính mình
-    SF._op, SF._opChar = op, char return op end local function sfCandidates(pos, dt, reach)
-    local r0 = reach or SF.radius local char0 = MV.Char()
+    SF._op, SF._opChar = op, char return op end local function sfCandidates(pos, dt, reach) local r0 = reach or SF.radius local char0 = MV.Char()
     local op0 = sfOverlap(char0) local okL, list = pcall(function() return workspace:GetPartBoundsInRadius(pos, r0, op0) end)
     if not okL then okL, list = pcall(function() return workspace:GetPartBoundsInRadius(pos, r0) end) end if okL and type(list) == "table" then return list end SF._listAcc = (SF._listAcc or 0) + (dt or 0.15)
     if not SF._cache or SF._listAcc >= 2 then SF._listAcc = 0 local out = {} local ok2, desc = pcall(function() return workspace:GetDescendants() end)
@@ -2538,8 +2335,7 @@ end local function sfPlayers(pos, rad, rep0, near0) local rep, n, near = rep0, 0
                 if pp then local delta = pp - pos local dist = delta.Magnitude if dist <= rad and dist > 0.01 then
                         n = n + 1 if near == nil or dist < near then near = dist end local w = 1 - (dist / rad)
                         rep = rep - (delta / dist) * (0.5 + w * w * 3)   -- TRỪ = đẩy RA XA
-                    end end end end
-    end return rep, n, near end function MV.Safe.Scan(pos, dt) local char = MV.Char()
+                    end end end end end return rep, n, near end function MV.Safe.Scan(pos, dt) local char = MV.Char()
     local rad = mvClamp(SF.radius, 1, 300, 25) local reach = rad * mvClamp(SF.lookMul, 1, 4, 1.6) local lookT = mvClamp(SF.lookTime, 0.1, 3, 1.0)
     local myV = SF._myV or Vector3.new(0, 0, 0)     -- vận tốc MÌNH (mình bay tới nó cũng tính)
     local rep = Vector3.new(0, 0, 0) local n, near = 0, nil local now = tick() local seen = {}
@@ -2569,10 +2365,8 @@ end local function sfPlayers(pos, rad, rep0, near0) local rep, n, near = rep0, 0
                         local myDot = mvClamp(myV.X * dir.X + myV.Y * dir.Y + myV.Z * dir.Z, 0, 200) local boost = 1 + mvClamp(closing, 0, 200) / 60 + myDot / 240 local pv = p
                         if v and v.Magnitude > 0.1 then pv = p + v * 0.35 end local pdir = pv - pos if pdir.Magnitude > 0.01 then pdir = pdir.Unit
                             if (pdir.X * dir.X + pdir.Y * dir.Y + pdir.Z * dir.Z) < 0 then pdir = dir end else pdir = dir end rep = rep - pdir * (0.35 + w * w * 3) * boost
-                    end end end end
-    end local pn0 = n rep, n, near = sfPlayers(pos, rad, rep, near) SF.playerThreats = n n = pn0 + n
-    SF._seen = seen SF._rep = rep SF.movers = SF._mvCount or 0 SF._mvCount = nil
-    SF.threats, SF.nearest = n, near if n > 0 then SF._holdAt = now
+                    end end end end end local pn0 = n rep, n, near = sfPlayers(pos, rad, rep, near) SF.playerThreats = n n = pn0 + n
+    SF._seen = seen SF._rep = rep SF.movers = SF._mvCount or 0 SF._mvCount = nil SF.threats, SF.nearest = n, near if n > 0 then SF._holdAt = now
         SF._lastThreatAt = now                                     -- v4.20: nhớ vừa bị gí (để né tiếp)
         if rep.Magnitude > 0 then SF._lastRep = rep end            -- nhớ HƯỚNG đang né
     end return n, near, rep end
@@ -2585,14 +2379,12 @@ end function MV.Safe.ShieldHeight() local n = tonumber(SF.shieldH) if n and n > 
     local hh = 2 local r = MV.Root() if r then pcall(function() hh = tonumber(r.Size.Y) or 2 end) end
     return mvClamp(hh * 3 + 2, 4, 14, 8)                            -- người thường: 8 stud
 end function MV.Safe.BuildShield() MV.Safe.KillShield() local side, h = MV.Safe.ShieldHalf(), MV.Safe.ShieldHeight()
-    local thk = SF.shieldThk SF._shield = {} for i = 1, 4 do local long = (i <= 2)
-        local w = New("Part", { Name = "BC_Shield" .. i,
+    local thk = SF.shieldThk SF._shield = {} for i = 1, 4 do local long = (i <= 2) local w = New("Part", { Name = "BC_Shield" .. i,
             Size = long and Vector3.new(side * 2 + thk, h, thk) or Vector3.new(thk, h, side * 2 + thk), Transparency = SF.shieldT, Color = Color3.fromRGB(120, 225, 255),
             Material = Enum.Material.Glass, Anchored = true, CanCollide = false, CastShadow = false, }, workspace) SF._shield[i] = w
     end end function MV.Safe.UpdateShield(pos) if not (SF.on and SF.shield) then
         if SF._shield then MV.Safe.KillShield() end return end local side = MV.Safe.ShieldHalf() local wallH = MV.Safe.ShieldHeight()
-    local need = (SF._shield == nil) if not need then for i = 1, 4 do local w = SF._shield[i]
-            if not w or not w.Parent then need = true break end end
+    local need = (SF._shield == nil) if not need then for i = 1, 4 do local w = SF._shield[i] if not w or not w.Parent then need = true break end end
     end if need then pcall(MV.Safe.BuildShield) end if not SF._shield or not SF._shield[1] then return end
     local q = SF._shieldPos if q and math.abs(q.X - pos.X) < 0.05 and math.abs(q.Y - pos.Y) < 0.05 and math.abs(q.Z - pos.Z) < 0.05
        and math.abs((q.S or 0) - side) < 0.01 and math.abs((q.H or 0) - wallH) < 0.01 then return
@@ -2661,10 +2453,8 @@ end function MV.Safe._Frame(dt) pcall(MV.Safe.Step, dt) end function MV.Safe.Ste
     end end function MV.Safe.Set(on)
     if on == true and MV.fly then MV.SetFly(false) end -- không để hai BodyVelocity tranh lực
     SF.on = (on == true) if SF.on then if SF.noclip and SF._ncPrev == nil then
-            if MV._glassFlyActive == true and MV._glassFlyNcPrev ~= nil then SF._ncPrev = MV._glassFlyNcPrev
-            else SF._ncPrev = MV.noclip == true
-            end pcall(function() MV.SetNoclip(true) end)
-        end pcall(MV.Safe._EnsureBV) MV.flySpeed = mvClamp(SF.speed, 1, 2000, 60)
+            if MV._glassFlyActive == true and MV._glassFlyNcPrev ~= nil then SF._ncPrev = MV._glassFlyNcPrev else SF._ncPrev = MV.noclip == true
+            end pcall(function() MV.SetNoclip(true) end) end pcall(MV.Safe._EnsureBV) MV.flySpeed = mvClamp(SF.speed, 1, 2000, 60)
         SF._root = MV.Root() pcall(MV._Watchdog) SF._lastFrameAt = tick()
         pcall(MV.Safe.Bind) pcall(function() MV.Safe.UpdateShield(MV.Root() and MV.Root().Position or Vector3.new(0, 0, 0)) end)
         pcall(function() MV.Safe.SyncHud() end) else pcall(MV.Safe.Unbind) MV.Safe.Reset()
@@ -2673,10 +2463,8 @@ end function MV.Safe._Frame(dt) pcall(MV.Safe.Step, dt) end function MV.Safe.Ste
         MV.Safe.KillShield() SF._root = nil if SF._ncPrev ~= nil then local was = SF._ncPrev SF._ncPrev = nil
             local stillFlying = (MV._glassFlyActive == true) or (MV._playerFlyActive == true) if not stillFlying then
                 pcall(function() MV.SetNoclip(was) end) end end pcall(function() MV.Safe.SyncHud() end)
-    end return SF.on end function MV.Safe.SetNoclipAuto(b) SF.noclip = (b == true)
-    if SF.on then if SF.noclip then if SF._ncPrev == nil then
-                if MV._glassFlyActive == true and MV._glassFlyNcPrev ~= nil then SF._ncPrev = MV._glassFlyNcPrev
-                else SF._ncPrev = MV.noclip == true
+    end return SF.on end function MV.Safe.SetNoclipAuto(b) SF.noclip = (b == true) if SF.on then if SF.noclip then if SF._ncPrev == nil then
+                if MV._glassFlyActive == true and MV._glassFlyNcPrev ~= nil then SF._ncPrev = MV._glassFlyNcPrev else SF._ncPrev = MV.noclip == true
                 end end pcall(function() MV.SetNoclip(true) end)
         elseif SF._ncPrev ~= nil then local was = SF._ncPrev SF._ncPrev = nil pcall(function() MV.SetNoclip(was) end) end
     end return SF.noclip end function MV.Safe.SetShield(b)
@@ -2691,8 +2479,7 @@ function MV.Safe.SetCircle(b) SF.circle = (b == true) SF._center = nil return SF
 function MV.Safe.SetCircleR(n) SF.circleR = mvClamp(n, 3, 300, 20) SF._center = nil return SF.circleR
 end function MV.Safe.Recenter() SF._center = nil return true end
 function MV.Safe.SetLook(t)        -- 👁 nhìn trước (giây) để né vật đang bay tới
-    SF.lookTime = mvClamp(t, 0.1, 3, 1.0) return SF.lookTime end function MV.Safe.SetRadius(n)
-    SF.radius = mvClamp(n, 1, 300, 25) MV.Safe.Reset()
+    SF.lookTime = mvClamp(t, 0.1, 3, 1.0) return SF.lookTime end function MV.Safe.SetRadius(n) SF.radius = mvClamp(n, 1, 300, 25) MV.Safe.Reset()
     SF._shieldPos = nil                    -- đổi bán kính -> vẽ lại khiên theo cỡ mới
     if SF.on and SF.shield then local r = MV.Root() if r then pcall(MV.Safe.UpdateShield, r.Position) end end
     return SF.radius end function MV.Safe.SetShieldSize(n) SF.shieldSize = mvClamp(n, 0, 300, 0)
@@ -2787,8 +2574,7 @@ function MV.Safe.SetShowHud(b) SF.showHud = (b == true) if not SF.showHud then p
         Text = "💨 60", BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium, TextSize = 8, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 27,
     }, hud) do local dragging, startPos, startInput
         title.InputBegan:Connect(function(inp) if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
-                dragging = true startInput = inp.Position startPos = hud.Position end
-        end) trackConn(UserInputService.InputChanged:Connect(function(inp)
+                dragging = true startInput = inp.Position startPos = hud.Position end end) trackConn(UserInputService.InputChanged:Connect(function(inp)
             if dragging and (inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch) then local delta = inp.Position - startInput
                 hud.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y) end
         end)) trackConn(UserInputService.InputEnded:Connect(function(inp)
@@ -2798,8 +2584,7 @@ function MV.Safe.SetShowHud(b) SF.showHud = (b == true) if not SF.showHud then p
                 circTog.Text = SF.circle and "⭕ Vòng: BẬT" or "⭕ Vòng: TẮT" circTog.BackgroundColor3 = SF.circle and C.GREEN or C.SURFACE3
                 circTog.TextColor3 = D.BestText(circTog.BackgroundColor3) end if speedLbl then local thr = SF.threats or 0
                 speedLbl.Text = string.format("💨 %g · %s%d", SF.speed or 60, thr>0 and "⚠️" or "✅", thr) speedLbl.TextColor3 = thr>0 and C.YELLOW or C.MUTED
-            end end) end SF._hud = hud return hud
-end function MV.Safe.SyncHud() pcall(function()
+            end end) end SF._hud = hud return hud end function MV.Safe.SyncHud() pcall(function()
         local hud = MV.Safe._BuildHud() if hud then local should = (SF.on == true) and (SF.showHud ~= false) hud.Visible = should
             if should and SF._hudUpdate then SF._hudUpdate() end end if SF.on then local old = MV._hud if old then old.Visible = false end
         else pcall(function() MV.SyncHud() end) end end) end
@@ -2827,12 +2612,10 @@ end function MV._MakeEdge(cp) if not cp then return end local old = nil
             Material = Enum.Material.Glass, Color = Color3.fromRGB(116, 221, 255), Transparency = 0.42, Reflectance = 0.04, CastShadow = false, }, MV.CarpetHost())
         MV._carpet = cp end local hh = mvClamp(MV.carpetH, 0.1, 20, 0.5) local cy = tonumber(y)
     if cy == nil then cy = MV.carpetY if cy == nil then cy = (MV.FootY() or r.Position.Y - 3.0) - (MV.carpetGap or 0.2) - hh / 2 end
-    end MV.carpetY = cy pcall(function() cp.Size = Vector3.new(
-            mvClamp(MV.carpetW, 0.5, 100, 6), hh, mvClamp(MV.carpetL, 0.5, 100, 6) )
+    end MV.carpetY = cy pcall(function() cp.Size = Vector3.new( mvClamp(MV.carpetW, 0.5, 100, 6), hh, mvClamp(MV.carpetL, 0.5, 100, 6) )
         cp.CFrame = CFrame.new(r.Position.X, cy, r.Position.Z) cp.Anchored = true cp.CanCollide = true
         cp.CanTouch = false cp.Material = Enum.Material.Glass cp.Transparency = 0.42 cp.Color = Color3.fromRGB(116, 221, 255)
-        MV._MakeEdge(cp) end) return cp end function MV.SetCarpet(on)
-    on = (on == true) if not on then MV.carpet = false MV._StopCarpet()
+        MV._MakeEdge(cp) end) return cp end function MV.SetCarpet(on) on = (on == true) if not on then MV.carpet = false MV._StopCarpet()
         MV._carpetRetries = 0 pcall(function() if MV.SyncHud then MV.SyncHud() end end) return false end if not MV.Root() then
         return false, "chưa có nhân vật để tạo thảm" end MV.carpet = true MV._carpetRetries = 0
     MV.carpetY = nil local cp = MV.CreateCarpet() if not cp then MV.carpet = false
@@ -2899,15 +2682,13 @@ function MV.RemoveGlass(part) if not part or type(MV._placedGlasses) ~= "table" 
 function MV.SetAutoGlass(on) local want = (on == true) MV.autoGlass = want if not want then MV._autoGlassBound = false
         pcall(function() RunService:UnbindFromRenderStep("BC_AutoGlass") end) MV._GlassChanged() return false end
     if not MV._autoGlassBound then local ok = pcall(function() RunService:BindToRenderStep("BC_AutoGlass", Enum.RenderPriority.Camera.Value - 5, function()
-                pcall(function() local root = MV.Root() if root then MV._AutoGlassTick(root.Position) end end)
-            end) end) MV._autoGlassBound = ok end
+                pcall(function() local root = MV.Root() if root then MV._AutoGlassTick(root.Position) end end) end) end) MV._autoGlassBound = ok end
     local root = MV.Root() if root then pcall(function() MV._AutoGlassTick(root.Position) end) end MV._GlassChanged() return MV.autoGlass end
 function MV._AutoGlassTick(curPos) if not MV.autoGlass or not curPos then return false end
     local last = MV._lastGlassPos local w = mvClamp(MV.carpetW, 0.5, 100, 6)
     local l = mvClamp(MV.carpetL, 0.5, 100, 6) local step = mvClamp(math.min(w, l) * 0.65, 1, 100, 3)
     if last then local dx, dz = curPos.X - last.X, curPos.Z - last.Z if dx * dx + dz * dz < step * step then return false end
-    end local ok = MV.PlaceGlass(true) if ok then MV._lastGlassPos = curPos
-        MV._GlassChanged() return true end return false end
+    end local ok = MV.PlaceGlass(true) if ok then MV._lastGlassPos = curPos MV._GlassChanged() return true end return false end
 MV.glassFlySpeed = mvClamp(MV.glassFlySpeed, 1, 2000, 60) MV._glassFlyTarget = MV._glassFlyTarget or nil
 MV._glassFlyActive = MV._glassFlyActive == true MV._glassFlyIdx = MV._glassFlyIdx or nil
 MV._glassFlyBV = MV._glassFlyBV or nil MV._glassFlyBG = MV._glassFlyBG or nil
@@ -2926,8 +2707,7 @@ function MV.SetGlassFlySpeed(n) local v = tonumber(n)
     MV._glassFlyBV, MV._glassFlyBG = bv, bg local h = MV.Hum()
     if h then MV._glassFlyHum = h pcall(function() MV._glassFlyPlatformStandPrev = h.PlatformStand end)
         pcall(function() MV._glassFlyAutoRotatePrev = h.AutoRotate end) pcall(function() h.PlatformStand = true; h.AutoRotate = false end)
-    end return bv, bg end function MV.StopGlassFly()
-    MV._glassFlyActive = false MV._glassFlyTarget = nil
+    end return bv, bg end function MV.StopGlassFly() MV._glassFlyActive = false MV._glassFlyTarget = nil
     MV._glassFlyIdx = nil pcall(function() RunService:UnbindFromRenderStep("BC_GlassFly") end) pcall(function() if MV._glassFlyBV then MV._glassFlyBV:Destroy() end end)
     pcall(function() if MV._glassFlyBG then MV._glassFlyBG:Destroy() end end) MV._glassFlyBV, MV._glassFlyBG = nil, nil
     local h = MV._glassFlyHum local safeOn = MV.Safe and MV.Safe.on == true
@@ -2937,8 +2717,7 @@ function MV.SetGlassFlySpeed(n) local v = tonumber(n)
     if MV._glassFlyNcPrev ~= nil then local was = MV._glassFlyNcPrev MV._glassFlyNcPrev = nil local safeOwnsNoclip = safeOn and MV.Safe.noclip == true
         if not MV._playerFlyActive and not safeOwnsNoclip then pcall(function() MV.SetNoclip(was) end) end end
     return true end function MV._GlassFlyStep(dt) if not MV._glassFlyActive then return end local rec = MV._glassFlyTarget
-    local part = MV._GlassPart(rec) if not part or not part.Parent then MV.StopGlassFly() MV._GlassChanged()
-        return end local root = MV.Root()
+    local part = MV._GlassPart(rec) if not part or not part.Parent then MV.StopGlassFly() MV._GlassChanged() return end local root = MV.Root()
     if not root then return end -- respawn: giữ mục tiêu, Refresh/khung sau sẽ gắn lực vào root mới
     local topY = part.Position.Y + part.Size.Y / 2 local want = Vector3.new(part.Position.X, topY + 3.2, part.Position.Z)
     local pos = root.Position local dx, dy, dz = want.X - pos.X, want.Y - pos.Y, want.Z - pos.Z
@@ -2960,15 +2739,12 @@ function MV.NearestGlassIndex() local root = MV.Root() if not root then return n
     if MV.fly then pcall(function() MV.SetFly(false) end) end if MV._playerFlyActive then pcall(function() MV.StopPlayerFly() end) end
     if MV._objFlyActive then pcall(function() MV.StopObjectFly() end) end
     local safeOwnsNoclip = MV.Safe and MV.Safe.on == true and MV.Safe.noclip == true if MV._glassFlyNcPrev == nil then
-        if safeOwnsNoclip and MV.Safe._ncPrev ~= nil then MV._glassFlyNcPrev = MV.Safe._ncPrev
-        else MV._glassFlyNcPrev = MV.noclip == true
-        end end
-    MV._glassFlyTarget = rec MV._glassFlyIdx = n MV._glassFlyActive = true pcall(function() MV._EnsureSpeed() end)
+        if safeOwnsNoclip and MV.Safe._ncPrev ~= nil then MV._glassFlyNcPrev = MV.Safe._ncPrev else MV._glassFlyNcPrev = MV.noclip == true
+        end end MV._glassFlyTarget = rec MV._glassFlyIdx = n MV._glassFlyActive = true pcall(function() MV._EnsureSpeed() end)
     pcall(function() MV.SetNoclip(true) end)
     pcall(function() MV._EnsureGlassFlyBV() end) pcall(function() RunService:UnbindFromRenderStep("BC_GlassFly") end)
     local okBind = pcall(function() RunService:BindToRenderStep("BC_GlassFly", Enum.RenderPriority.Camera.Value - 1, function(dt) pcall(MV._GlassFlyStep, dt)
-        end) end) if not okBind then MV.StopGlassFly()
-        return false, "executor không bind được bay tới kính" end pcall(MV._Watchdog) return true, rec end
+        end) end) if not okBind then MV.StopGlassFly() return false, "executor không bind được bay tới kính" end pcall(MV._Watchdog) return true, rec end
 MV.playerFlySpeed = MV.playerFlySpeed or 0 MV._playerFlyTarget = MV._playerFlyTarget or nil
 MV._playerFlyActive = MV._playerFlyActive or false MV._playerFlyPos = MV._playerFlyPos or nil
 MV._playerFlyBV = MV._playerFlyBV or nil MV._playerFlyBG = MV._playerFlyBG or nil MV._playerFlyNcPrev = MV._playerFlyNcPrev or nil
@@ -2976,25 +2752,21 @@ function MV.SetPlayerFlySpeed(n) local v = tonumber(n) if v == nil then return f
         MV.playerFlySpeed = 0 return true, 0 end MV.playerFlySpeed = mvClamp(v, 1, 500, MV.playerFlySpeed or 0)
     return true, MV.playerFlySpeed end function MV.GetPlayerFlySpeed() local s = tonumber(MV.playerFlySpeed) or 0
     if s == 0 then local base = tonumber(MV._baseWS) or 16 local flySp = tonumber(MV.flySpeed) or 60 if MV._playerFlyActive or MV.fly then
-            return flySp else return base > 0 and base or 16 end
-    end return s end function MV._EnsurePlayerFlyBV() local r = MV.Root()
+            return flySp else return base > 0 and base or 16 end end return s end function MV._EnsurePlayerFlyBV() local r = MV.Root()
     if not r then return nil, nil end if MV._playerFlyBV and MV._playerFlyBV.Parent == r then return MV._playerFlyBV, MV._playerFlyBG end
     pcall(function() if MV._playerFlyBV then MV._playerFlyBV:Destroy() end end) pcall(function() if MV._playerFlyBG then MV._playerFlyBG:Destroy() end end) local bv = New("BodyVelocity", { Name = "BC_PlayerFlyVel", MaxForce = Vector3.new(1e9, 1e9, 1e9), Velocity = Vector3.new(0,0,0) }, r)
     local bg = New("BodyGyro", { Name = "BC_PlayerFlyGyro", MaxTorque = Vector3.new(1e9, 1e9, 1e9), P = 1e4, D = 50 }, r) MV._playerFlyBV, MV._playerFlyBG = bv, bg
     local h = MV.Hum() if h then pcall(function() h.PlatformStand = true end) pcall(function() h.AutoRotate = false end)
-    end return bv, bg end function MV.StopPlayerFly() MV._playerFlyActive = false
-    MV._playerFlyTarget = nil MV._playerFlyPos = nil
+    end return bv, bg end function MV.StopPlayerFly() MV._playerFlyActive = false MV._playerFlyTarget = nil MV._playerFlyPos = nil
     pcall(function() RunService:UnbindFromRenderStep("BC_PlayerFly") end) pcall(function() if MV._playerFlyBV then MV._playerFlyBV:Destroy() end end)
     pcall(function() if MV._playerFlyBG then MV._playerFlyBG:Destroy() end end) MV._playerFlyBV, MV._playerFlyBG = nil, nil if not MV.fly then
         local h = MV.Hum() if h then pcall(function() h.PlatformStand = false end) pcall(function() h.AutoRotate = true end)
         end end if MV._playerFlyNcPrev ~= nil then local was = MV._playerFlyNcPrev MV._playerFlyNcPrev = nil
         local stillFlying = (MV.Safe and MV.Safe.on == true) if not stillFlying then if was == false then pcall(function() MV.SetNoclip(false) end)
-            end end end return true end
-function MV._PlayerFlyStep(dt) if not MV._playerFlyActive then return end
+            end end end return true end function MV._PlayerFlyStep(dt) if not MV._playerFlyActive then return end
     local targetPlayer = MV._playerFlyTarget if not targetPlayer or not targetPlayer.Parent then MV.StopPlayerFly() return
     end local c, r = nil, nil pcall(function() local char = targetPlayer.Character
-        if char then r = char:FindFirstChild("HumanoidRootPart") c = char end end)
-    if not r then return end local myRoot = MV.Root()
+        if char then r = char:FindFirstChild("HumanoidRootPart") c = char end end) if not r then return end local myRoot = MV.Root()
     if not myRoot then MV.StopPlayerFly() return end
     local want = r.Position + Vector3.new(0, 3.5, 0) MV._playerFlyPos = want local pos = myRoot.Position
     local dx = want.X - pos.X local dy = want.Y - pos.Y local dz = want.Z - pos.Z local dist = math.sqrt(dx*dx + dy*dy + dz*dz)
@@ -3069,8 +2841,7 @@ function MV.FlyToObject(target, speed) if target == nil then return false, "chư
     MV._objFlyTarget = target MV._objFlyActive = true pcall(function() MV._EnsureSpeed() end) pcall(function() MV.SetNoclip(true) end)
     pcall(function() MV._EnsureObjFlyBV() end) pcall(function() RunService:UnbindFromRenderStep("BC_ObjFly") end)
     local okBind = pcall(function() RunService:BindToRenderStep("BC_ObjFly", Enum.RenderPriority.Camera.Value - 1, function(dt)
-            pcall(MV._ObjectFlyStep, dt) end) end) if not okBind then MV.StopObjectFly()
-        return false, "executor không bind được bay tới vật" end
+            pcall(MV._ObjectFlyStep, dt) end) end) if not okBind then MV.StopObjectFly() return false, "executor không bind được bay tới vật" end
     pcall(function() if S.ObjTrack and S.ObjTrack.OnFlyChange then S.ObjTrack.OnFlyChange() end end) return true, target end
 function MV.Nudge(dy) if MV.carpet then MV.carpetY = (MV.carpetY or MV.FootY() or 0) + dy return true, "thảm"
     elseif MV.fly then local r = MV.Root() if r then r.CFrame = CFrame.new(r.Position.X, r.Position.Y + dy, r.Position.Z) end return true, "bay"
@@ -3117,12 +2888,10 @@ S.MoveActionState = { fly     = function() return S.Move.fly     end,
     loc_solo = function() return S.Loc and S.Loc.solo end, spec_on  = function() return S.Spec and S.Spec.on   end,
     glow     = function() return S.Glow and S.Glow.on   end, freecam  = function() return S.Free and S.Free.on end, safefly  = function() return S.Move.Safe and S.Move.Safe.on end,
     objtrack = function() return S.ObjTrack and S.ObjTrack.on end,   -- v5.1: 🌳 định vị vật theo tên
-} function MV.Refresh()
-    MV.InvalidateCache()
+} function MV.Refresh() MV.InvalidateCache()
     MV._NcForgetLost()      -- v4.22: chỉ quên part đã mất (giữ giá trị gốc của part đang bật 🧱)
     if MV.speed then MV.ApplyChar() end -- không ép tốc độ mặc định nếu chỉ đang bay
-    if MV.noclip then MV._NcStep() end if MV.fly then MV._EnsureFly() MV._BindFly()
-    end if MV.sprint then MV._EnsureSpeed() MV._BindSpeed()
+    if MV.noclip then MV._NcStep() end if MV.fly then MV._EnsureFly() MV._BindFly() end if MV.sprint then MV._EnsureSpeed() MV._BindSpeed()
     end if MV.highJump then pcall(MV._HighJumpApplyPower) pcall(MV._HighJumpBind) end
     if MV.Safe and MV.Safe.on then pcall(MV.Safe.Step, 0.05) end     -- v4.23: 🛡 tự chữa lành sau respawn
     if MV._glassFlyActive then pcall(MV._EnsureGlassFlyBV) end       -- giữ mục tiêu qua respawn
@@ -3143,117 +2912,67 @@ S.MoveActionState = { fly     = function() return S.Move.fly     end,
 end trackConn(player.CharacterAdded:Connect(function() task.spawn(function() task.wait(0.3)
         pcall(MV.Refresh) end) end)) function S.GetJobId() local id = game.JobId
     if id == nil then return nil end id = tostring(id) if id == "" then return nil end return id
-end function S.CopyToClipboard(text) local did = false
-    pcall(function() if setclipboard then setclipboard(text) did = true
+end function S.CopyToClipboard(text) local did = false pcall(function() if setclipboard then setclipboard(text) did = true
         elseif toclipboard then toclipboard(text) did = true elseif set_clipboard then set_clipboard(text) did = true end end) return did end
-function S.FetchServers(cursor, customPlaceId)
-    local pId = tonumber(customPlaceId) or tonumber(game.PlaceId) or 0
+function S.FetchServers(cursor, customPlaceId) local pId = tonumber(customPlaceId) or tonumber(game.PlaceId) or 0
     local url = "https://games.roblox.com/v1/games/" .. tostring(pId) .. "/servers/Public?sortOrder=Asc&limit=100"
-    if cursor and cursor ~= "" then url = url .. "&cursor=" .. tostring(cursor) end
-    local raw = nil
-    local okG, resG = pcall(function() return game:HttpGet(url) end)
-    if okG and type(resG) == "string" and #resG > 0 then raw = resG end
-    if not raw or #raw == 0 then
-        local rq = (type(request) == "function" and request)
-            or (type(http_request) == "function" and http_request)
-            or (type(syn) == "table" and type(syn.request) == "function" and syn.request)
-            or S.CompatRequest
-        if type(rq) == "function" then
+    if cursor and cursor ~= "" then url = url .. "&cursor=" .. tostring(cursor) end local raw = nil
+    local okG, resG = pcall(function() return game:HttpGet(url) end) if okG and type(resG) == "string" and #resG > 0 then raw = resG end
+    if not raw or #raw == 0 then local rq = (type(request) == "function" and request)
+            or (type(http_request) == "function" and http_request) or (type(syn) == "table" and type(syn.request) == "function" and syn.request)
+            or S.CompatRequest if type(rq) == "function" then
             local okR, resR = pcall(rq, { Url = url, Method = "GET" })
-            if okR and type(resR) == "table" and type(resR.Body) == "string" and #resR.Body > 0 then raw = resR.Body end
-        end
-    end
-    if type(raw) ~= "string" or #raw == 0 then return {}, nil end
-    local okD, data = pcall(function() return HttpService:JSONDecode(raw) end)
-    if not okD or type(data) ~= "table" then return {}, nil end
-    return (type(data.data) == "table" and data.data or {}), data.nextPageCursor
-end
-function S.ParseServerCode(raw)
-    local s = tostring(raw or ""):gsub("^%s+", ""):gsub("%s+$", "")
+            if okR and type(resR) == "table" and type(resR.Body) == "string" and #resR.Body > 0 then raw = resR.Body end end
+    end if type(raw) ~= "string" or #raw == 0 then return {}, nil end
+    local okD, data = pcall(function() return HttpService:JSONDecode(raw) end) if not okD or type(data) ~= "table" then return {}, nil end
+    return (type(data.data) == "table" and data.data or {}), data.nextPageCursor end
+function S.ParseServerCode(raw) local s = tostring(raw or ""):gsub("^%s+", ""):gsub("%s+$", "")
     s = s:gsub('^"', ""):gsub('"$', ""):gsub("^'", ""):gsub("'$", "")
-    s = s:gsub("^Mã Server %(JobId%)%s*:%s*", ""):gsub("^Mã SV%s*:%s*", ""):gsub("^🌐 Mã server%s*:%s*", "")
-    if s == "" then return nil, nil end
-    local pId, jId = s:match("^(%d+)%s*[:/|,]%s*([%w%-]+)$")
-    if pId and jId and jId:find("-", 1, true) then
-        return jId, tonumber(pId)
-    end
+    s = s:gsub("^Mã Server %(JobId%)%s*:%s*", ""):gsub("^Mã SV%s*:%s*", ""):gsub("^🌐 Mã server%s*:%s*", "") if s == "" then return nil, nil end
+    local pId, jId = s:match("^(%d+)%s*[:/|,]%s*([%w%-]+)$") if pId and jId and jId:find("-", 1, true) then
+        return jId, tonumber(pId) end
     local placeHint = s:match("PlaceId%s*[:=]%s*(%d+)") or s:match("Place%s*[:=]%s*(%d+)")
-    local uuid = s:match("(%x%x%x%x%x%x%x%x%-%x%x%x%x%-%x%x%x%x%-%x%x%x%x%-%x%x%x%x%x%x%x%x%x%x%x%x)")
-    if uuid then
-        return uuid, tonumber(placeHint)
-    end
-    local token = s:match("^([%w]+%-[%w%-]+)")
-    if token and #token >= 8 then
-        return token, tonumber(placeHint)
-    end
+    local uuid = s:match("(%x%x%x%x%x%x%x%x%-%x%x%x%x%-%x%x%x%x%-%x%x%x%x%-%x%x%x%x%x%x%x%x%x%x%x%x)") if uuid then
+        return uuid, tonumber(placeHint) end
+    local token = s:match("^([%w]+%-[%w%-]+)") if token and #token >= 8 then
+        return token, tonumber(placeHint) end
     if placeHint and s:match("^PlaceId%s*[:=]%s*%d+$") then
-        return nil, tonumber(placeHint)
-    end
-    return nil, nil
-end
-function S.TeleportToServer(placeId, jobId)
-    pcall(ReleaseHubFocus)
-    local pId = tonumber(placeId) or tonumber(game.PlaceId) or 0
-    local jId = tostring(jobId or ""):gsub("^%s+", ""):gsub("%s+$", "")
-    S._intentionalTeleport = true
-    if jId ~= "" and pId > 0 then
-        local okT, errT = pcall(function() TeleportService:TeleportToPlaceInstance(pId, jId, player) end)
-        if not okT then
-            okT, errT = pcall(function() TeleportService:TeleportToPlaceInstance(pId, jId) end)
-        end
-        if not okT then
-            S._intentionalTeleport = false
-            return false, tostring(errT)
-        end
-        return true, nil
-    elseif pId > 0 then
-        local okT, errT = pcall(function() TeleportService:Teleport(pId, player) end)
-        if not okT then
-            okT, errT = pcall(function() TeleportService:Teleport(pId) end)
-        end
-        if not okT then
-            S._intentionalTeleport = false
-            return false, tostring(errT)
-        end
-        return true, nil
-    end
-    S._intentionalTeleport = false
-    return false, "Thiếu PlaceId hoặc JobId hợp lệ"
-end
-function S.ResetServer() local me = S.GetJobId() if me then S.TeleportToServer(game.PlaceId, me)
+        return nil, tonumber(placeHint) end
+    return nil, nil end
+function S.TeleportToServer(placeId, jobId) pcall(ReleaseHubFocus)
+    local pId = tonumber(placeId) or tonumber(game.PlaceId) or 0 local jId = tostring(jobId or ""):gsub("^%s+", ""):gsub("%s+$", "")
+    S._intentionalTeleport = true if jId ~= "" and pId > 0 then
+        local okT, errT = pcall(function() TeleportService:TeleportToPlaceInstance(pId, jId, player) end) if not okT then
+            okT, errT = pcall(function() TeleportService:TeleportToPlaceInstance(pId, jId) end) end
+        if not okT then S._intentionalTeleport = false
+            return false, tostring(errT) end
+        return true, nil elseif pId > 0 then
+        local okT, errT = pcall(function() TeleportService:Teleport(pId, player) end) if not okT then
+            okT, errT = pcall(function() TeleportService:Teleport(pId) end) end
+        if not okT then S._intentionalTeleport = false
+            return false, tostring(errT) end
+        return true, nil end
+    S._intentionalTeleport = false return false, "Thiếu PlaceId hoặc JobId hợp lệ"
+end function S.ResetServer() local me = S.GetJobId() if me then S.TeleportToServer(game.PlaceId, me)
         return "🔄 Đang vào lại ĐÚNG server này: " .. me .. " (giữ nguyên người chơi cùng server)..." end
     S.TeleportToServer(game.PlaceId, nil) return "🔄 Không đọc được mã server (Studio/server đơn) → đang nạp lại game..." end
-function S.JoinServer(jobIdOrQuery, customPlaceId)
-    local s = tostring(jobIdOrQuery or ""):gsub("^%s+", ""):gsub("%s+$", "")
-    local jId, pId = S.ParseServerCode(s)
-    pId = tonumber(customPlaceId) or pId
-    if jId and jId ~= "" then
-        local targetPlace = pId or tonumber(game.PlaceId)
+function S.JoinServer(jobIdOrQuery, customPlaceId) local s = tostring(jobIdOrQuery or ""):gsub("^%s+", ""):gsub("%s+$", "")
+    local jId, pId = S.ParseServerCode(s) pId = tonumber(customPlaceId) or pId
+    if jId and jId ~= "" then local targetPlace = pId or tonumber(game.PlaceId)
         local pi = _G.BananaCatHub_PlayerInfo
         if not pId and type(pi) == "table" and type(pi.last) == "table" and tostring(pi.last.serverJobId or "") == jId and tonumber(pi.last.placeId) then
-            targetPlace = tonumber(pi.last.placeId)
-        end
-        local okT, errT = S.TeleportToServer(targetPlace, jId)
-        if not okT then error(tostring(errT)) end
-        return "🚀 Đang vào server mã " .. tostring(jId) .. " (PlaceId: " .. tostring(targetPlace or game.PlaceId) .. ")!"
-    end
-    local pi = _G.BananaCatHub_PlayerInfo
-    if type(pi) == "table" and type(pi.JoinPlayerServer) == "function" and s ~= "" then
-        local okP, msgP = pi.JoinPlayerServer(s)
-        if not okP then error(tostring(msgP)) end
-        return tostring(msgP)
-    end
-    if pId and pId > 0 then
-        local okT, errT = S.TeleportToServer(pId, nil)
-        if not okT then error(tostring(errT)) end
-        return "🚀 Đang vào game PlaceId " .. tostring(pId) .. "!"
-    end
-    error("Mã server không hợp lệ: " .. tostring(s))
-end
-function S.HopServer() local me = tostring(S.GetJobId() or "") local cand, cursor = {}, "" for _ = 1, 3 do
+            targetPlace = tonumber(pi.last.placeId) end
+        local okT, errT = S.TeleportToServer(targetPlace, jId) if not okT then error(tostring(errT)) end
+        return "🚀 Đang vào server mã " .. tostring(jId) .. " (PlaceId: " .. tostring(targetPlace or game.PlaceId) .. ")!" end
+    local pi = _G.BananaCatHub_PlayerInfo if type(pi) == "table" and type(pi.JoinPlayerServer) == "function" and s ~= "" then
+        local okP, msgP = pi.JoinPlayerServer(s) if not okP then error(tostring(msgP)) end
+        return tostring(msgP) end
+    if pId and pId > 0 then local okT, errT = S.TeleportToServer(pId, nil)
+        if not okT then error(tostring(errT)) end return "🚀 Đang vào game PlaceId " .. tostring(pId) .. "!"
+    end error("Mã server không hợp lệ: " .. tostring(s))
+end function S.HopServer() local me = tostring(S.GetJobId() or "") local cand, cursor = {}, "" for _ = 1, 3 do
         local okF, list, nextCursor = pcall(function() return S.FetchServers(cursor) end)
-        if not okF or type(list) ~= "table" then list, nextCursor = {}, nil end
-        for _, sv in ipairs(list) do
+        if not okF or type(list) ~= "table" then list, nextCursor = {}, nil end for _, sv in ipairs(list) do
             local sid = (sv and sv.id) and tostring(sv.id) or nil local playing = tonumber(sv and sv.playing) or 0
             local maxp = tonumber(sv and sv.maxPlayers) or 0 if sid and sid ~= me and (maxp <= 0 or playing < maxp) then
                 cand[#cand + 1] = {id = sid, playing = playing, maxPlayers = maxp} end end
@@ -3284,8 +3003,7 @@ function S.HopEmptyServer() local me = tostring(S.GetJobId() or "") local cand, 
             local maxp = tonumber(sv and sv.maxPlayers) or 0 if sid and sid ~= me and (maxp <= 0 or playing < maxp) and playing <= 3 then
                 cand[#cand + 1] = {id = sid, playing = playing, maxPlayers = maxp} end end
         if #cand >= 5 then break end -- đủ 5 server vắng thì dừng sớm
-        if not nextCursor or nextCursor == "" then break end cursor = nextCursor task.wait(0.15) end
-    if #cand == 0 then return S.HopLowServer() end
+        if not nextCursor or nextCursor == "" then break end cursor = nextCursor task.wait(0.15) end if #cand == 0 then return S.HopLowServer() end
     table.sort(cand, function(a,b) return (a.playing or 0) < (b.playing or 0) end) local pick = cand[math.random(1, #cand)]
     S.JoinServer(pick.id) return "🔀 [SIÊU VẮNG ≤3] Đang nhảy sang server " .. pick.id .. " (" .. pick.playing .. "/" .. pick.maxPlayers .. " người) · tìm thấy " .. #cand .. " server vắng qua " .. pages .. " trang"
 end S.AntiBan = S.AntiBan or { on = (_G.BananaCatHub_AntiBan == true),
@@ -3293,8 +3011,7 @@ end S.AntiBan = S.AntiBan or { on = (_G.BananaCatHub_AntiBan == true),
 function S.AntiBanIsMsg(msg) local s = string.lower(tostring(msg or "")) if s == "" then return false end local keys = {
         "you have been banned", "you have been kicked", "you've been banned", "you've been kicked", "banned from this", "kicked from this", "exploit detected", "cheat detected", "cheats detected", "anti-cheat", "anticheat", "kicked by", "banned by",
         "you are banned", "account banned", "game banned", "server banned", "client kicked", }
-    for i = 1, #keys do if string.find(s, keys[i], 1, true) then return true end end return false end
-function S.AntiBanStatus() local a = S.AntiBan
+    for i = 1, #keys do if string.find(s, keys[i], 1, true) then return true end end return false end function S.AntiBanStatus() local a = S.AntiBan
     if not a.on then return "🔐 Anti Ban: TẮT" end local extra = (a.lastReason ~= "" and (" · lần cuối: " .. a.lastReason)) or ""
     return "🔐 Anti Ban: BẬT · đã hop " .. tostring(a.hops) .. " lần · chờ " .. tostring(a.cooldown) .. "s" .. extra end
 function S.AntiBanHop(reason) local a = S.AntiBan if not a or not a.on then return false, "off" end if a.busy then return false, "busy" end
@@ -3326,22 +3043,17 @@ function S.AntiBanArm() local a = S.AntiBan if a.armed then return end a.armed =
             pcall(function() msg = tostring(gs.ErrorMessage or "") end) if msg == "" then pcall(function() msg = tostring(gs:GetErrorMessage()) end) end
             if S.AntiBanIsMsg(msg) then S.AntiBanHop("gui_error") end end) end) pcall(function()
         antiConnect(TeleportService.TeleportInitFailed, function() if not a.on then return end task.delay(1.2, function()
-                S.AntiBan.busy = false S.AntiBanHop("teleport_fail") end) end)
-    end) pcall(function()
+                S.AntiBan.busy = false S.AntiBanHop("teleport_fail") end) end) end) pcall(function()
         antiConnect(game:GetService("LogService").MessageOut, function(msg) if a.on and S.AntiBanIsMsg(msg) then S.AntiBanHop("log") end end)
     end) local function watchHum(hum) if not hum then return end pcall(function()
             antiConnect(hum:GetPropertyChangedSignal("WalkSpeed"), function() if not a.on then return end
                 local m = S.Move local hot = m and (m.fly or m.noclip or m.sprint or m.infJump or m.highJump or (m.Safe and m.Safe.on))
                 if not hot then return end local now = tick() if now - (S.AntiBan.snapAt or 0) > 4 then S.AntiBan.snaps = 0 end
-                S.AntiBan.snapAt = now S.AntiBan.snaps = (S.AntiBan.snaps or 0) + 1
-                if S.AntiBan.snaps >= 3 then S.AntiBan.snaps = 0
-                    S.AntiBanHop("speed_reset") end
-            end) end) end
+                S.AntiBan.snapAt = now S.AntiBan.snaps = (S.AntiBan.snaps or 0) + 1 if S.AntiBan.snaps >= 3 then S.AntiBan.snaps = 0
+                    S.AntiBanHop("speed_reset") end end) end) end
     pcall(function() if player.Character then watchHum(player.Character:FindFirstChildOfClass("Humanoid")) end
-        antiConnect(player.CharacterAdded, function(ch) task.wait(0.25)
-            watchHum(ch:FindFirstChildOfClass("Humanoid")) end)
-    end) end if S.AntiBan.on then pcall(S.AntiBanArm) end
-S.ScriptHubList = { {icon="🛡", name="Infinite Yield", cat="Admin", ord=1,
+        antiConnect(player.CharacterAdded, function(ch) task.wait(0.25) watchHum(ch:FindFirstChildOfClass("Humanoid")) end)
+    end) end if S.AntiBan.on then pcall(S.AntiBanArm) end S.ScriptHubList = { {icon="🛡", name="Infinite Yield", cat="Admin", ord=1,
      desc="Admin commands: kill, speed, jump, noclip, teleport, bring, prefix tùy chỉnh...", code=[[loadstring(game:HttpGet("https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source"))()]],
      noPark=true}, {icon="🧰", name="Dex Explorer", cat="Explorer", ord=2,
      desc="Duyệt toàn bộ instance trong game, xem/sửa property, tìm object theo đường dẫn.", code=[[loadstring(game:HttpGet("https://raw.githubusercontent.com/infyiff/backup/main/dex.lua"))()]],
@@ -3524,196 +3236,130 @@ D.hubEmptyBtn = D.CardBtn(D.hubSrvPanel, "🌙 Vắng", -56, 50, C.ORANGE) D.hub
 function S.SyncServerPanel() pcall(function() if not D.hubJobLbl then return end local jid = S.GetJobId()
         if jid then D.hubJobLbl.Text = "🌐 Mã server: " .. jid D.hubJobLbl.TextColor3 = C.DARK else
             D.hubJobLbl.Text = "🌐 Không đọc được mã server (Studio/server đơn) — 🔄 Reset vẫn dùng được" D.hubJobLbl.TextColor3 = C.MUTED end end) end
-function S.DoHubJoinByInput(rawText)
-    local id = tostring(rawText or (D.hubJobIn and D.hubJobIn.Text) or "")
-    id = id:gsub("^%s+", ""):gsub("%s+$", "") id = id:gsub('^"', ""):gsub('"$', ""):gsub("^'", ""):gsub("'$", "")
-    if id == "" then
+function S.DoHubJoinByInput(rawText) local id = tostring(rawText or (D.hubJobIn and D.hubJobIn.Text) or "")
+    id = id:gsub("^%s+", ""):gsub("%s+$", "") id = id:gsub('^"', ""):gsub('"$', ""):gsub("^'", ""):gsub("'$", "") if id == "" then
         local pi = _G.BananaCatHub_PlayerInfo
         if type(pi) == "table" and type(pi.last) == "table" and type(pi.last.serverJobId) == "string" and pi.last.serverJobId ~= "" then
-            id = pi.last.serverJobId
-            pcall(function() if D.hubJobIn then D.hubJobIn.Text = id end end)
-        end
-    end
-    if id == "" then
-        local msg = "⚠️ Hãy DÁN mã server (JobId) hoặc tên người chơi vào ô 🎟 trước khi bấm 🚀 Vào"
-        D.Say(msg) if D.hubStatus then D.hubStatus.Text = msg end
-        ReleaseHubFocus()
-        return false, msg
-    end
-    D.Say("🚀 Đang vào server " .. id .. " ...", C.YELLOW)
-    if D.hubStatus then D.hubStatus.Text = "🚀 Đang xử lý vào server: " .. id .. " ..." end
-    ReleaseHubFocus()
-    local okJ, msgOrErr = pcall(function() return S.JoinServer(id) end)
-    if not okJ then
-        local failMsg = "⚠️ Không vào được server này: " .. tostring(msgOrErr)
-        D.Say(failMsg) if D.hubStatus then D.hubStatus.Text = failMsg end
-        return false, failMsg
-    end
-    local okMsg = tostring(msgOrErr or ("🚀 Đang vào server " .. id .. "!"))
-    D.Say(okMsg, C.GREEN) if D.hubStatus then D.hubStatus.Text = okMsg end
-    return true, okMsg
-end
-D.hubJobCopy.Activated:Connect(function() local jid = S.GetJobId()
+            id = pi.last.serverJobId pcall(function() if D.hubJobIn then D.hubJobIn.Text = id end end)
+        end end
+    if id == "" then local msg = "⚠️ Hãy DÁN mã server (JobId) hoặc tên người chơi vào ô 🎟 trước khi bấm 🚀 Vào"
+        D.Say(msg) if D.hubStatus then D.hubStatus.Text = msg end ReleaseHubFocus()
+        return false, msg end
+    D.Say("🚀 Đang vào server " .. id .. " ...", C.YELLOW) if D.hubStatus then D.hubStatus.Text = "🚀 Đang xử lý vào server: " .. id .. " ..." end
+    ReleaseHubFocus() local okJ, msgOrErr = pcall(function() return S.JoinServer(id) end)
+    if not okJ then local failMsg = "⚠️ Không vào được server này: " .. tostring(msgOrErr)
+        D.Say(failMsg) if D.hubStatus then D.hubStatus.Text = failMsg end return false, failMsg
+    end local okMsg = tostring(msgOrErr or ("🚀 Đang vào server " .. id .. "!"))
+    D.Say(okMsg, C.GREEN) if D.hubStatus then D.hubStatus.Text = okMsg end return true, okMsg
+end D.hubJobCopy.Activated:Connect(function() local jid = S.GetJobId()
     if not jid then D.Say("⚠️ Không có mã server để copy (đang ở Studio / server đơn)") return end
     local okCp = S.CopyToClipboard(jid) pcall(function() D.hubJobIn.Text = jid end)
     D.Say(okCp and ("📋 Đã copy mã server: " .. jid) or ("⚠️ Executor không cho copy — mã server là: " .. jid), okCp and C.GREEN or C.YELLOW) end)
 D.hubJoinBtn.Activated:Connect(function() S.DoHubJoinByInput(D.hubJobIn and D.hubJobIn.Text) end)
 D.hubJobIn.FocusLost:Connect(function(enter) if enter then S.DoHubJoinByInput(D.hubJobIn.Text) end end)
 D.hubHopBtn.Activated:Connect(function() ReleaseHubFocus()
-    local id = tostring(D.hubJobIn and D.hubJobIn.Text or ""):gsub("^%s+", ""):gsub("%s+$", "")
-    local myJid = tostring(S.GetJobId() or "")
-    if id ~= "" and id ~= myJid then
-        S.DoHubJoinByInput(id)
-        return
-    end
+    local id = tostring(D.hubJobIn and D.hubJobIn.Text or ""):gsub("^%s+", ""):gsub("%s+$", "") local myJid = tostring(S.GetJobId() or "")
+    if id ~= "" and id ~= myJid then S.DoHubJoinByInput(id)
+        return end
     D.Say("🔀 Đang đi lấy mã server...", C.YELLOW) D.hubStatus.Text = S.RunHubAction("hopserver") end)
 D.hubLowBtn.Activated:Connect(function() ReleaseHubFocus()
     D.Say("👥 Đang quét 800 server tìm server ÍT NGƯỜI nhất...", C.YELLOW) D.hubStatus.Text = S.RunHubAction("hoplow") end)
 D.hubEmptyBtn.Activated:Connect(function() ReleaseHubFocus()
     D.Say("🌙 Đang tìm server SIÊU VẮNG ≤3 người...", C.YELLOW) D.hubStatus.Text = S.RunHubAction("hopempty") end)
-function S.Rebuild() pcall(function() if S.RebuildHubList then S.RebuildHubList() end end) end
-do
+function S.Rebuild() pcall(function() if S.RebuildHubList then S.RebuildHubList() end end) end do
     local STUDS_PER_METER = 1 / 0.28 -- quy đổi xấp xỉ theo kích thước chuẩn Roblox
     local PALE_COLOR = Color3.fromRGB(224, 224, 224) local modeList = {
         {id = "cpu", title = "🧠 CPU", x = 8, y = 42}, {id = "range", title = "🌫 Giảm tầm nhìn", x = 140, y = 42},
-        {id = "quality", title = "🎨 Giảm lag nhẹ", x = 8, y = 68}, }
-    local Perf = { Modes = {cpu = false, range = false, quality = false},
-        ViewDistanceMeters = 30, Saved = setmetatable({}, {__mode = "k"}),
-        ScanToken = 0, Worker = nil,
-        Buttons = {}, Status = nil,
-        RangeAtmosphere = nil, }
-    S.Perf = Perf _G.BananaCatHub_Perf = Perf
-    function Perf.GetViewDistanceStuds() return Perf.ViewDistanceMeters * STUDS_PER_METER
-    end function Perf.SyncRangeFog()
-        local lighting = game:GetService("Lighting") local atmosphere = lighting:FindFirstChildOfClass("Atmosphere")
+        {id = "quality", title = "🎨 Giảm lag nhẹ", x = 8, y = 68}, } local Perf = { Modes = {cpu = false, range = false, quality = false},
+        ViewDistanceMeters = 30, Saved = setmetatable({}, {__mode = "k"}), ScanToken = 0, Worker = nil,
+        Buttons = {}, Status = nil, RangeAtmosphere = nil, }
+    S.Perf = Perf _G.BananaCatHub_Perf = Perf function Perf.GetViewDistanceStuds() return Perf.ViewDistanceMeters * STUDS_PER_METER
+    end function Perf.SyncRangeFog() local lighting = game:GetService("Lighting") local atmosphere = lighting:FindFirstChildOfClass("Atmosphere")
         if Perf.RangeAtmosphere and Perf.RangeAtmosphere ~= atmosphere then Perf.RestoreProperty(Perf.RangeAtmosphere, "Density")
-            Perf.RangeAtmosphere = nil end
-        local fogStart, fogEnd = nil, nil if Perf.Modes.range and atmosphere then
+            Perf.RangeAtmosphere = nil end local fogStart, fogEnd = nil, nil if Perf.Modes.range and atmosphere then
             local saved = Perf.Saved[atmosphere] local originalDensity = saved and saved.Density or atmosphere.Density
             local densityIncrease = math.clamp(40 / Perf.GetViewDistanceStuds(), 0.01, 0.7) Perf.RangeAtmosphere = atmosphere
             Perf.Write(atmosphere, "Density", math.clamp(originalDensity + densityIncrease, 0, 1)) elseif Perf.Modes.range then
             fogEnd = Perf.GetViewDistanceStuds() fogStart = fogEnd * 0.75
-        elseif Perf.RangeAtmosphere then Perf.RestoreProperty(Perf.RangeAtmosphere, "Density")
-            Perf.RangeAtmosphere = nil end
-        Perf.Write(lighting, "FogStart", fogStart) Perf.Write(lighting, "FogEnd", fogEnd)
-    end function Perf.HasActive()
-        for _, on in pairs(Perf.Modes) do if on then return true end
-        end return false
-    end function Perf.RestoreProperty(instance, property)
-        local saved = Perf.Saved[instance] local original = saved and saved[property]
+        elseif Perf.RangeAtmosphere then Perf.RestoreProperty(Perf.RangeAtmosphere, "Density") Perf.RangeAtmosphere = nil end
+        Perf.Write(lighting, "FogStart", fogStart) Perf.Write(lighting, "FogEnd", fogEnd) end function Perf.HasActive()
+        for _, on in pairs(Perf.Modes) do if on then return true end end return false
+    end function Perf.RestoreProperty(instance, property) local saved = Perf.Saved[instance] local original = saved and saved[property]
         if original == nil then return end saved[property] = nil
         pcall(function() instance[property] = original end) if next(saved) == nil then Perf.Saved[instance] = nil end
-    end function Perf.RestoreInstance(instance)
-        local saved = Perf.Saved[instance] if not saved then return end
+    end function Perf.RestoreInstance(instance) local saved = Perf.Saved[instance] if not saved then return end
         local properties = {} for property in pairs(saved) do properties[#properties + 1] = property end
         for _, property in ipairs(properties) do Perf.RestoreProperty(instance, property) end end
     function Perf.RestoreAll(yieldEvery, token) local instances = {}
         for instance in pairs(Perf.Saved) do instances[#instances + 1] = instance end for index, instance in ipairs(instances) do
             if token and token ~= Perf.ScanToken then return false end Perf.RestoreInstance(instance)
-            if yieldEvery and index % yieldEvery == 0 then task.wait() end end
-        return true end
-    function Perf.Write(instance, property, value) if value == nil then
-            Perf.RestoreProperty(instance, property) return
-        end local saved = Perf.Saved[instance]
-        if not saved then saved = {}; Perf.Saved[instance] = saved end if saved[property] == nil then
-            local ok, original = pcall(function() return instance[property] end) if not ok then return end
-            saved[property] = original end
+            if yieldEvery and index % yieldEvery == 0 then task.wait() end end return true end
+    function Perf.Write(instance, property, value) if value == nil then Perf.RestoreProperty(instance, property) return
+        end local saved = Perf.Saved[instance] if not saved then saved = {}; Perf.Saved[instance] = saved end if saved[property] == nil then
+            local ok, original = pcall(function() return instance[property] end) if not ok then return end saved[property] = original end
         pcall(function() instance[property] = value end) end
     function Perf.IsVisualEffect(instance) return instance:IsA("PostEffect") or instance:IsA("ParticleEmitter")
             or instance:IsA("Trail") or instance:IsA("Beam") or instance:IsA("Fire") or instance:IsA("Smoke")
-            or instance:IsA("Sparkles") or instance:IsA("Light") end
-    function Perf.ApplyInstance(instance) local character = player.Character
-        if character and (instance == character or instance:IsDescendantOf(character)) then Perf.RestoreInstance(instance)
-            return end
-        local desired = {} local saved = Perf.Saved[instance]
-        local isPart = instance:IsA("BasePart") if Perf.Modes.cpu and isPart then
-            desired.Material = Enum.Material.Plastic desired.Reflectance = 0
-            desired.CastShadow = false if instance:IsA("MeshPart") then
-                desired.RenderFidelity = Enum.RenderFidelity.Performance end
-        end if Perf.Modes.quality and isPart then
-            desired.Material = Enum.Material.Plastic if instance:IsA("MeshPart") then
-                desired.RenderFidelity = Enum.RenderFidelity.Performance end
+            or instance:IsA("Sparkles") or instance:IsA("Light") end function Perf.ApplyInstance(instance) local character = player.Character
+        if character and (instance == character or instance:IsDescendantOf(character)) then Perf.RestoreInstance(instance) return end
+        local desired = {} local saved = Perf.Saved[instance] local isPart = instance:IsA("BasePart") if Perf.Modes.cpu and isPart then
+            desired.Material = Enum.Material.Plastic desired.Reflectance = 0 desired.CastShadow = false if instance:IsA("MeshPart") then
+                desired.RenderFidelity = Enum.RenderFidelity.Performance end end if Perf.Modes.quality and isPart then
+            desired.Material = Enum.Material.Plastic if instance:IsA("MeshPart") then desired.RenderFidelity = Enum.RenderFidelity.Performance end
             local originalColor = saved and saved.Color or instance.Color desired.Color = originalColor:Lerp(PALE_COLOR, 0.22)
-        end if Perf.Modes.cpu and Perf.IsVisualEffect(instance) then desired.Enabled = false end
-        if saved then local restore = {}
+        end if Perf.Modes.cpu and Perf.IsVisualEffect(instance) then desired.Enabled = false end if saved then local restore = {}
             for property in pairs(saved) do if desired[property] == nil then restore[#restore + 1] = property end
             end for _, property in ipairs(restore) do Perf.RestoreProperty(instance, property) end
-        end for property, value in pairs(desired) do Perf.Write(instance, property, value) end
-    end function Perf.UpdateGlobals()
+        end for property, value in pairs(desired) do Perf.Write(instance, property, value) end end function Perf.UpdateGlobals()
         local shadows = nil if Perf.Modes.cpu then shadows = false end
-        local lighting = game:GetService("Lighting") Perf.Write(lighting, "GlobalShadows", shadows)
-        Perf.SyncRangeFog() local terrain = workspace.Terrain
+        local lighting = game:GetService("Lighting") Perf.Write(lighting, "GlobalShadows", shadows) Perf.SyncRangeFog() local terrain = workspace.Terrain
         local terrainDecoration, waveSize, waveSpeed = nil, nil, nil if Perf.Modes.cpu then terrainDecoration, waveSize, waveSpeed = false, 0, 0 end
         Perf.Write(terrain, "Decoration", terrainDecoration) Perf.Write(terrain, "WaterWaveSize", waveSize)
-        Perf.Write(terrain, "WaterWaveSpeed", waveSpeed) end
-    function Perf.SyncPanel() for _, item in ipairs(modeList) do
+        Perf.Write(terrain, "WaterWaveSpeed", waveSpeed) end function Perf.SyncPanel() for _, item in ipairs(modeList) do
             local button = Perf.Buttons[item.id] if button and button.Parent then
                 local on = Perf.Modes[item.id] == true button.Text = item.title .. ": " .. (on and "BẬT" or "TẮT")
-                D.SetBg(button, on and C.GREEN or C.SURFACE2) end
-        end end
-    S.SyncPerfPanel = Perf.SyncPanel function Perf.QueueScan()
-        Perf.ScanToken += 1
+                D.SetBg(button, on and C.GREEN or C.SURFACE2) end end end
+    S.SyncPerfPanel = Perf.SyncPanel function Perf.QueueScan() Perf.ScanToken = Perf.ScanToken + (1) 
         local token = Perf.ScanToken if Perf.Worker then pcall(task.cancel, Perf.Worker); Perf.Worker = nil end
         if not Perf.Modes.cpu and not Perf.Modes.quality then
             if Perf.Status and Perf.Status.Parent then Perf.Status.Text = "↩ Đang khôi phục cài đặt hình ảnh..." end Perf.Worker = task.spawn(function()
-                Perf.UpdateGlobals() Perf.RestoreAll(240, token)
-                if token ~= Perf.ScanToken then return end Perf.UpdateGlobals()
-                if token == Perf.ScanToken then Perf.Worker = nil
-                    if Perf.Status and Perf.Status.Parent then Perf.Status.Text = Perf.Modes.range
-                            and "✅ Giảm tầm nhìn đang bật; cảnh xa mờ đi, không xóa vật thể." or "✅ Đã khôi phục hình ảnh gốc."
-                    end end
-            end) return true
-        end if Perf.Status and Perf.Status.Parent then Perf.Status.Text = "⏳ Đang áp dụng chế độ đồ họa theo từng lô..." end
+                Perf.UpdateGlobals() Perf.RestoreAll(240, token) if token ~= Perf.ScanToken then return end Perf.UpdateGlobals()
+                if token == Perf.ScanToken then Perf.Worker = nil if Perf.Status and Perf.Status.Parent then Perf.Status.Text = Perf.Modes.range
+                            and "✅ Giảm tầm nhìn đang bật; cảnh xa mờ đi, không xóa vật thể." or "✅ Đã khôi phục hình ảnh gốc." end end
+            end) return true end if Perf.Status and Perf.Status.Parent then Perf.Status.Text = "⏳ Đang áp dụng chế độ đồ họa theo từng lô..." end
         Perf.Worker = task.spawn(function() Perf.UpdateGlobals()
             local roots = {workspace, game:GetService("Lighting")} local camera = workspace.CurrentCamera
-            if camera then roots[#roots + 1] = camera end local visited = setmetatable({}, {__mode = "k"})
-            local batchSize = 90 local processed = 0
-            for _, root in ipairs(roots) do local stack = {root}
-                while #stack > 0 do if token ~= Perf.ScanToken then return end
+            if camera then roots[#roots + 1] = camera end local visited = setmetatable({}, {__mode = "k"}) local batchSize = 90 local processed = 0
+            for _, root in ipairs(roots) do local stack = {root} while #stack > 0 do if token ~= Perf.ScanToken then return end
                     local parent = table.remove(stack) local ok, children = pcall(function() return parent:GetChildren() end)
-                    if ok and type(children) == "table" then for _, child in ipairs(children) do
-                            if token ~= Perf.ScanToken then return end if not visited[child] then
-                                visited[child] = true
-                                processed += 1
-                                pcall(Perf.ApplyInstance, child) stack[#stack + 1] = child
-                                if processed % batchSize == 0 then task.wait() end end
-                        end end
-                end end
+                    if ok and type(children) == "table" then for _, child in ipairs(children) do if token ~= Perf.ScanToken then return end if not visited[child] then
+                                visited[child] = true processed = processed + (1) 
+                                pcall(Perf.ApplyInstance, child) stack[#stack + 1] = child if processed % batchSize == 0 then task.wait() end end
+                        end end end end
             if token == Perf.ScanToken then Perf.Worker = nil
                 if Perf.Status and Perf.Status.Parent then local modeText = Perf.Modes.cpu and Perf.Modes.quality and "CPU + đồ họa nhẹ"
                         or (Perf.Modes.quality and "đồ họa nhẹ" or "CPU") Perf.Status.Text = string.format("✅ Đã áp dụng %s cho %d đối tượng.", modeText, processed)
-                end end
-        end) return true
-    end function Perf.Toggle(id)
-        if Perf.Modes[id] == nil then return end Perf.Modes[id] = not Perf.Modes[id]
+                end end end) return true
+    end function Perf.Toggle(id) if Perf.Modes[id] == nil then return end Perf.Modes[id] = not Perf.Modes[id]
         if id == "cpu" or id == "quality" then Perf.QueueScan() else Perf.UpdateGlobals()
             if Perf.Status and Perf.Status.Parent then Perf.Status.Text = Perf.Modes.range
-                    and ("🌫 Tầm nhìn đã giảm còn " .. tostring(Perf.ViewDistanceMeters) .. " m.") or "↩ Đã khôi phục tầm nhìn gốc."
-            end end
-        Perf.SyncPanel() local note
-        if id == "cpu" then note = "🧠 CPU: giảm tải hiệu ứng và quét theo lô."
+                    and ("🌫 Tầm nhìn đã giảm còn " .. tostring(Perf.ViewDistanceMeters) .. " m.") or "↩ Đã khôi phục tầm nhìn gốc." end end
+        Perf.SyncPanel() local note if id == "cpu" then note = "🧠 CPU: giảm tải hiệu ứng và quét theo lô."
         elseif id == "quality" then note = "🎨 Giảm chi tiết và làm màu nhạt hơn; giữ nguyên ánh sáng, bóng và hiệu ứng."
         else note = "🌫 Tầm nhìn tối đa " .. tostring(Perf.ViewDistanceMeters) .. " m (~"
                 .. tostring(math.floor(Perf.GetViewDistanceStuds() + 0.5)) .. " studs); cảnh xa mờ dần, không xóa vật thể." end
-        D.Say((Perf.Modes[id] and "✅ " or "↩ ") .. note, C.YELLOW) end
-    function Perf.ApplyViewDistance(text) local value = tonumber(text)
+        D.Say((Perf.Modes[id] and "✅ " or "↩ ") .. note, C.YELLOW) end function Perf.ApplyViewDistance(text) local value = tonumber(text)
         if not value or value ~= value or value == math.huge or value == -math.huge then
             if Perf.Status and Perf.Status.Parent then Perf.Status.Text = "⚠️ Nhập tầm nhìn từ 5 đến 1000 mét." end return
         end Perf.ViewDistanceMeters = math.clamp(math.floor(value + 0.5), 5, 1000)
         if Perf.DistanceBox and Perf.DistanceBox.Parent then Perf.DistanceBox.Text = tostring(Perf.ViewDistanceMeters)
-        end if Perf.Modes.range then Perf.SyncRangeFog() end
-        if Perf.Status and Perf.Status.Parent then Perf.Status.Text = string.format(
+        end if Perf.Modes.range then Perf.SyncRangeFog() end if Perf.Status and Perf.Status.Parent then Perf.Status.Text = string.format(
                 "🌫 Đã đặt %dm (~%d studs); %s.", Perf.ViewDistanceMeters, math.floor(Perf.GetViewDistanceStuds() + 0.5),
-                Perf.Modes.range and "đã áp dụng" or "bật Giảm tầm nhìn để áp dụng" )
-        end end
-    function Perf.Reset() for id in pairs(Perf.Modes) do Perf.Modes[id] = false end
-        Perf.QueueScan() Perf.SyncPanel()
-    end function Perf.Stop()
-        for id in pairs(Perf.Modes) do Perf.Modes[id] = false end
-        Perf.ScanToken += 1
-        if Perf.Worker then pcall(task.cancel, Perf.Worker); Perf.Worker = nil end Perf.RestoreAll()
-    end local panel = New("Frame", {
-        Name = "HubPerf_Panel", Size = UDim2.new(1, 0, 0, 184), LayoutOrder = -5,
+                Perf.Modes.range and "đã áp dụng" or "bật Giảm tầm nhìn để áp dụng" ) end end
+    function Perf.Reset() for id in pairs(Perf.Modes) do Perf.Modes[id] = false end Perf.QueueScan() Perf.SyncPanel()
+    end function Perf.Stop() for id in pairs(Perf.Modes) do Perf.Modes[id] = false end
+        Perf.ScanToken = Perf.ScanToken + (1) if Perf.Worker then pcall(task.cancel, Perf.Worker); Perf.Worker = nil end Perf.RestoreAll()
+    end local panel = New("Frame", { Name = "HubPerf_Panel", Size = UDim2.new(1, 0, 0, 184), LayoutOrder = -5,
         BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, BorderSizePixel = 0, ZIndex = 6, }, D.hubList)
     Corner(panel, UDim.new(0, 10)); Stroke(panel, C.HAIRLINE, 1) D.Shade(panel, Color3.fromRGB(255,255,255), Color3.fromRGB(188,192,205), 90)
     New("TextLabel", { Size = UDim2.new(1, -174, 0, 16), Position = UDim2.new(0, 8, 0, 4),
@@ -3722,12 +3368,9 @@ do
     Perf.FpsLabel = New("TextLabel", { Name = "HubPerfFPS", Size = UDim2.new(0, 60, 0, 18), Position = UDim2.new(1, -152, 0, 3),
         Text = "FPS: --", BackgroundTransparency = 1, TextColor3 = C.MUTED,
         Font = Enum.Font.GothamBold, TextSize = 8, TextXAlignment = Enum.TextXAlignment.Center, TextYAlignment = Enum.TextYAlignment.Center, ZIndex = 7,
-    }, panel) local fpsFrames, fpsElapsed = 0, 0
-    trackConn(RunService.RenderStepped:Connect(function(dt) local delta = tonumber(dt) or 0
-        if delta <= 0 then return end
-        fpsFrames += 1
-        fpsElapsed += delta
-        if fpsElapsed < 0.5 then return end local fps = math.floor(fpsFrames / fpsElapsed + 0.5)
+    }, panel) local fpsFrames, fpsElapsed = 0, 0 trackConn(RunService.RenderStepped:Connect(function(dt) local delta = tonumber(dt) or 0
+        if delta <= 0 then return end fpsFrames = fpsFrames + (1) 
+        fpsElapsed = fpsElapsed + (delta) if fpsElapsed < 0.5 then return end local fps = math.floor(fpsFrames / fpsElapsed + 0.5)
         fpsFrames, fpsElapsed = 0, 0 if not Perf.FpsLabel or not Perf.FpsLabel.Parent then return end
         local shown = math.clamp(fps, 0, 999) Perf.FpsLabel.Text = "FPS: " .. tostring(shown)
         Perf.FpsLabel.TextColor3 = (shown >= 50 and C.GREEN) or (shown >= 30 and C.YELLOW) or C.RED end))
@@ -3761,32 +3404,24 @@ do
         Text = "Đồ họa nhẹ giữ hiệu ứng ánh sáng; CPU và tầm nhìn bật riêng.",
         BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium,
         TextSize = 8, TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, ZIndex = 7, }, panel)
-    resetButton.Activated:Connect(function() ReleaseHubFocus()
-        Perf.Reset() D.Say("↩ Đang khôi phục CPU, đồ họa và tầm nhìn gốc.", C.YELLOW)
-    end) applyRangeButton.Activated:Connect(function()
-        ReleaseHubFocus() Perf.ApplyViewDistance(Perf.DistanceBox.Text)
-    end) trackConn(Perf.DistanceBox.FocusLost:Connect(function(enter)
-        if enter then Perf.ApplyViewDistance(Perf.DistanceBox.Text) end end))
-    local function watchRoot(root) if not root then return end
-        trackConn(root.DescendantAdded:Connect(function(instance)
+    resetButton.Activated:Connect(function() ReleaseHubFocus() Perf.Reset() D.Say("↩ Đang khôi phục CPU, đồ họa và tầm nhìn gốc.", C.YELLOW)
+    end) applyRangeButton.Activated:Connect(function() ReleaseHubFocus() Perf.ApplyViewDistance(Perf.DistanceBox.Text)
+    end) trackConn(Perf.DistanceBox.FocusLost:Connect(function(enter) if enter then Perf.ApplyViewDistance(Perf.DistanceBox.Text) end end))
+    local function watchRoot(root) if not root then return end trackConn(root.DescendantAdded:Connect(function(instance)
             if instance:IsA("Atmosphere") and Perf.Modes.range then task.defer(Perf.SyncRangeFog) end
             if not Perf.Modes.cpu and not Perf.Modes.quality then return end task.defer(function()
-                if not Perf.Modes.cpu and not Perf.Modes.quality then return end pcall(Perf.ApplyInstance, instance)
-            end) end))
+                if not Perf.Modes.cpu and not Perf.Modes.quality then return end pcall(Perf.ApplyInstance, instance) end) end))
         trackConn(root.DescendantRemoving:Connect(function(instance)
-            if instance == Perf.RangeAtmosphere and Perf.Modes.range then task.defer(Perf.SyncRangeFog) end end))
-    end watchRoot(workspace)
+            if instance == Perf.RangeAtmosphere and Perf.Modes.range then task.defer(Perf.SyncRangeFog) end end)) end watchRoot(workspace)
     watchRoot(game:GetService("Lighting")) trackConn(player.CharacterAdded:Connect(function(character)
-        task.defer(function() for _, instance in ipairs(character:GetDescendants()) do Perf.RestoreInstance(instance) end
-        end) end))
+        task.defer(function() for _, instance in ipairs(character:GetDescendants()) do Perf.RestoreInstance(instance) end end) end))
     Perf.SyncPanel() end
 S.HubPanelCat = { HubPerf_Panel = "Tiện ích", HubTune_Panel = "Di chuyển", HubFly_Panel = "Di chuyển", HubSpeed_Panel = "Di chuyển",
     HubHighJump_Panel = "Di chuyển", HubMove_Panel = "Di chuyển", HubSafe_Panel = "Di chuyển", HubGlow_Panel = "Tiện ích",
     HubFree_Panel = "Tiện ích", HubAntiBan_Panel = "Server", } function S.SyncHubPanels() local list = D.hubList
     if not list or not list.Parent then return end local cat = S.hubCat or "Tất cả"
     for _, c in ipairs(list:GetChildren()) do local want = S.HubPanelCat[c.Name] if want then c.Visible = (cat == "Tất cả") or (cat == want)
-        end end end function S.RebuildHubList() local list = D.hubList
-    if not list or not list.Parent then return end local stale = {}
+        end end end function S.RebuildHubList() local list = D.hubList if not list or not list.Parent then return end local stale = {}
     for _, c in ipairs(list:GetChildren()) do if c:IsA("Frame") and c.Name:sub(1, 8) == "HubCard_" then stale[#stale + 1] = c end
     end for _, c in ipairs(stale) do pcall(function() c:Destroy() end) end
     local q = tostring(S.hubSearch or ""):lower() local cat = S.hubCat or "Tất cả" local items = {} for _, it in ipairs(S.ScriptHubList) do
@@ -3813,8 +3448,7 @@ S.HubPanelCat = { HubPerf_Panel = "Tiện ích", HubTune_Panel = "Di chuyển", 
         local isAction = (it.action ~= nil) local runText if isAction then if it.action == "crosshair" then
                 runText = (S.crosshairOn and "🎯 TẮT") or "🎯 BẬT" elseif S.MoveActionState and S.MoveActionState[it.action] then
                 local on = false pcall(function() on = S.MoveActionState[it.action]() end) runText = tostring(it.icon) .. " " .. ((on and "TẮT") or "BẬT")
-            else runText = "⚡ Chạy" end else
-            runText = "▶ Chạy" end
+            else runText = "⚡ Chạy" end else runText = "▶ Chạy" end
         local runBtn = D.CardBtn(card, runText, -142, 64, isAction and C.SURFACE3 or C.GREEN) runBtn.Activated:Connect(function() ReleaseHubFocus()
             if it.code then local okR = RunCode(it.code, it.name, nil, 1, 0, it.noPark == true)
                 D.Say((okR and "▶ đã chạy '" or "⚠️ không chạy được '") .. it.name .. "'" .. (it.noPark and " · 🪟 GUI của nó ở NGOÀI màn hình game (đúng như tab 🛠)" or "")
@@ -3823,16 +3457,14 @@ S.HubPanelCat = { HubPerf_Panel = "Tiện ích", HubTune_Panel = "Di chuyển", 
                 D.Say(did and ("📋 đã copy loadstring của '" .. it.name .. "'") or "⚠️ executor này không hỗ trợ clipboard", did and C.GREEN or C.RED)
             end) local saveBtn = D.CardBtn(card, "💾", -50, 20, C.PURPLE) saveBtn.Activated:Connect(function() local nm = it.name
                 local cnt = 1 while true do local ex = false for _, s in ipairs(scripts) do if s.name == nm then ex = true break end end if not ex then break end
-                    cnt += 1 nm = it.name .. " (" .. cnt .. ")"
-                end table.insert(scripts, {name = nm, code = it.code, expanded = false})
+                    cnt = cnt + (1)  nm = it.name .. " (" .. cnt .. ")" end table.insert(scripts, {name = nm, code = it.code, expanded = false})
                 pcall(function() if RebuildScripts then RebuildScripts() end end) pcall(function() Store.saveSoon() end)
                 D.Say("💾 đã lưu '" .. nm .. "' sang tab 💾 Code Đã Lưu", C.GREEN) end) end
         local favBtn = D.CardBtn(card, S.hubFavs[it.name] and "⭐" or "☆", -26, 20, S.hubFavs[it.name] and C.YELLOW or C.SURFACE3)
         favBtn.Activated:Connect(function() if S.hubFavs[it.name] then S.hubFavs[it.name] = nil else S.hubFavs[it.name] = true end
             pcall(function() Store.saveSoon() end)   -- lưu yêu thích xuống đĩa
             S.RebuildHubList() D.Say(S.hubFavs[it.name] and ("⭐ đã ghim '" .. it.name .. "' lên đầu") or ("☆ đã bỏ ghim '" .. it.name .. "'"), C.MUTED) end)
-    end pcall(function() if S.SyncHubPanels then S.SyncHubPanels() end
-        local panelH = 0 for _, c in ipairs(list:GetChildren()) do
+    end pcall(function() if S.SyncHubPanels then S.SyncHubPanels() end local panelH = 0 for _, c in ipairs(list:GetChildren()) do
             if c:IsA("Frame") and c.Name:sub(1, 8) ~= "HubCard_" and c.Visible ~= false then panelH = panelH + ((c.Size and c.Size.Y.Offset) or 0) + 6 end end
         list.CanvasSize = UDim2.new(0, 0, 0, #items * 54 + 6 + panelH) end)
     if S.SyncFlyPanel then pcall(S.SyncFlyPanel) end          -- v4.36: Bay + xuyên tường độc lập
@@ -4030,8 +3662,7 @@ do local P = New("Frame", {
             TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7, }, P) end local function box(x, y, w, val)
         local b = New("TextBox", { Size = UDim2.new(0, w, 0, 18), Position = UDim2.new(0, x, 0, y), Text = tostring(val), ClearTextOnFocus = false,
             BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.1, TextColor3 = C.DARK, PlaceholderColor3 = C.GRAY, Font = Enum.Font.GothamMedium, TextSize = 9,
-            TextXAlignment = Enum.TextXAlignment.Center, BorderSizePixel = 0, ZIndex = 7, }, P) Corner(b, UDim.new(0, 5)) Stroke(b, C.BORDER, 1)
-        return b end
+            TextXAlignment = Enum.TextXAlignment.Center, BorderSizePixel = 0, ZIndex = 7, }, P) Corner(b, UDim.new(0, 5)) Stroke(b, C.BORDER, 1) return b end
     local function act(txt, x, y, w, color) local b = New("TextButton", { Size = UDim2.new(0, w, 0, 18), Position = UDim2.new(0, x, 0, y),
             Text = txt, BackgroundColor3 = color or C.SURFACE3, BackgroundTransparency = 0.08, TextColor3 = D.BestText(color or C.SURFACE3), Font = Enum.Font.GothamBold,
             TextSize = 8, BorderSizePixel = 0, ZIndex = 8, }, P) Corner(b, UDim.new(0, 5)) D.Tactile(b, 0.08)
@@ -4088,8 +3719,7 @@ do local P = New("Frame", {
     end) paintGlass() S.Move._glassBtns = { flyPlayer = flyPlayerBtn, stopPlayer = stopPlayerFlyBtn, speedPlayerBox = speedPlayerBox, paint = paintGlass }
     function S.RefreshMovePanel() pcall(function() st.Text = S.Move.Status() flyIn.Text = tostring(S.Move.flySpeed)
             wsIn.Text = (S.Move.speedMode == "x") and ("x" .. tostring(S.Move.speedMul)) or tostring(S.Move.walkSpeed) jpIn.Text = tostring(S.Move.jumpPower)
-            paintPass() if S.Move._glassBtns and S.Move._glassBtns.paint then pcall(S.Move._glassBtns.paint) end end) end end
-S.Loc = {
+            paintPass() if S.Move._glassBtns and S.Move._glassBtns.paint then pcall(S.Move._glassBtns.paint) end end) end end S.Loc = {
     on = false,             -- 👁️ định vị TẤT CẢ người chơi
     solo = false,           -- 🎯 chỉ định vị ĐÚNG 1 người (S.Loc.target)
     target = nil,
@@ -4105,8 +3735,7 @@ local function locTime(sec)                      -- số giây -> "mm:ss"
     local h = c:FindFirstChildOfClass("Humanoid") if r and h then return c, r, h end return nil end
 function S.Loc.IsFriend(p) local uid = p and p.UserId
     if uid == nil then return false end if LOC._friend[uid] == nil then local ok, res = pcall(function() return player:IsFriendsWith(uid) end)
-        LOC._friend[uid] = (ok and res == true) or false end return LOC._friend[uid] == true end
-function S.Loc.IsDown(h) if not h then return false end
+        LOC._friend[uid] = (ok and res == true) or false end return LOC._friend[uid] == true end function S.Loc.IsDown(h) if not h then return false end
     if h.PlatformStand == true then return true end if (tonumber(h.Health) or 1) <= 0 then return true end
     return false end function S.Loc.NoteDown(p, down) if p == nil then return end if down then
         if not LOC._downAt[p] then LOC._downAt[p] = tick() end else LOC._downAt[p] = nil end
@@ -4134,36 +3763,28 @@ end function S.Loc.TickOne(p) local it = LOC._items[p] if not it then return end
     if not c then LOC.Kill(p); return end local down, fr = LOC.IsDown(h), LOC.IsFriend(p)
     S.Loc.NoteDown(p, down) local col = down and (fr and LOCC.fdown or LOCC.down) or (fr and LOCC.friend or LOCC.normal)
     local r0 = LOC.Root() local dist = (r0 and r) and (r0.Position - r.Position).Magnitude or nil local far = (LOC.maxDist > 0 and dist ~= nil and dist > LOC.maxDist)
-    it.hl.FillColor = col.fill it.hl.OutlineColor = col.out it.lbl.TextColor3 = col.txt it.hl.Enabled = not far
-    it.bb.Enabled = not far local mid = {}
+    it.hl.FillColor = col.fill it.hl.OutlineColor = col.out it.lbl.TextColor3 = col.txt it.hl.Enabled = not far it.bb.Enabled = not far local mid = {}
     if down then mid[#mid + 1] = "☠️ Hạ gục ⏱ " .. locTime(LOC.DownSecs(p)) end if h then mid[#mid + 1] = string.format("❤️ %d/%d", locRound(h.Health or 0), locRound(h.MaxHealth or 100)) end mid[#mid + 1] = dist and string.format("📏 %dm", locRound(dist)) or "📏 --m"
     it.lbl.Text = p.Name .. (fr and "  💗 Bạn Bè" or "") .. "\n" .. table.concat(mid, " · ")   -- v4.34: Name vốn là chuỗi, khỏi tostring
 end function S.Loc.Tick() if S.PagePerf and S.PagePerf.IsMainVisible() then
-        local pt = D and D.playerTab if pt and not S.PagePerf.IsTabVisible(pt) then
-            return end
-    end for p, _ in pairs(LOC._items) do if not LOC.Wanted(p) then
-            LOC.Kill(p) else pcall(LOC.TickOne, p) end
+        local pt = D and D.playerTab if pt and not S.PagePerf.IsTabVisible(pt) then return end
+    end for p, _ in pairs(LOC._items) do if not LOC.Wanted(p) then LOC.Kill(p) else pcall(LOC.TickOne, p) end
     end if not (LOC.on or LOC.solo) then return end local ok, list = pcall(function() return Players:GetPlayers() end)
     if not ok or not list then return end for _, p in ipairs(list) do
-        if LOC.Wanted(p) and not LOC._items[p] and LOC.CharOf(p) then pcall(function() LOC.Make(p) end) end end
-end function S.Loc.OnPerfTick() end
+        if LOC.Wanted(p) and not LOC._items[p] and LOC.CharOf(p) then pcall(function() LOC.Make(p) end) end end end function S.Loc.OnPerfTick() end
 function S.Loc.Bind(on) if on and not LOC._bound then LOC._bound = true pcall(function()
             RunService:BindToRenderStep("BC_Loc", Enum.RenderPriority.Camera.Value - 2, function(dt) LOC._acc = (LOC._acc or 0) + (tonumber(dt) or 0.016)
-                local interval = 0.35 if S.PagePerf then
-                    if not S.PagePerf.IsMainVisible() then interval = 3.0
-                    else local pt = D and D.playerTab
-                        if pt and not S.PagePerf.IsTabVisible(pt) then interval = 1.5 end end
+                local interval = 0.35 if S.PagePerf then if not S.PagePerf.IsMainVisible() then interval = 3.0
+                    else local pt = D and D.playerTab if pt and not S.PagePerf.IsTabVisible(pt) then interval = 1.5 end end
                 end if LOC._acc < interval then return end LOC._acc = 0
                 pcall(function() LOC.Tick() end) LOC._listAcc = (LOC._listAcc or 0) + interval if LOC._listAcc >= 1.5 then LOC._listAcc = 0
-                    if not S.PagePerf or S.PagePerf.ShouldRunForPlayerTab() then if LOC.RefreshList then pcall(LOC.RefreshList) end
-                    end end end)
+                    if not S.PagePerf or S.PagePerf.ShouldRunForPlayerTab() then if LOC.RefreshList then pcall(LOC.RefreshList) end end end end)
         end) elseif (not on) and LOC._bound then LOC._bound = false pcall(function() RunService:UnbindFromRenderStep("BC_Loc") end)
     end end function S.Loc.Refresh() if not (LOC.on or LOC.solo) then LOC.Clear()
         LOC.Bind(false) return end for p, _ in pairs(LOC._items) do if not LOC.Wanted(p) then LOC.Kill(p) end end
     local ok, list = pcall(function() return Players:GetPlayers() end) if ok and list then
         for _, p in ipairs(list) do if LOC.Wanted(p) and not LOC._items[p] and LOC.CharOf(p) then pcall(function() LOC.Make(p) end) end end
-    end LOC.Bind(true) end function S.Loc.Set(on)
-    LOC.on = (on == true) LOC.Refresh() return LOC.on end function S.Loc.SetSolo(on)
+    end LOC.Bind(true) end function S.Loc.Set(on) LOC.on = (on == true) LOC.Refresh() return LOC.on end function S.Loc.SetSolo(on)
     LOC.solo = (on == true) if not LOC.solo then LOC.target = nil end LOC.Refresh() return LOC.solo
 end function S.Loc.SetTarget(p) LOC.target = (p ~= nil and p ~= player) and p or nil LOC.solo = (LOC.target ~= nil)
     LOC.Refresh() return LOC.target end function S.Loc.SetMaxDist(n) LOC.maxDist = math.max(0, tonumber(n) or 0)
@@ -4179,8 +3800,7 @@ end function S.Loc.Status() if not (LOC.on or LOC.solo) then return "📍 địn
     trackConn(Players.PlayerRemoving:Connect(function(p) LOC._friend[p.UserId] = nil LOC._downAt[p] = nil if LOC.target == p then LOC.target = nil end
         LOC.Kill(p) end)) end do
     local tab = AddTab("Người Chơi", "👥", 4)      -- 4 = ngay sau 📚 Script Hub (3), trước ➕ (7)
-    D.playerTab = tab function S.OpenPlayerTab() for i, tc in ipairs(tabContent) do if tc == D.playerTab then
-                SwitchTab(i) return true end end
+    D.playerTab = tab function S.OpenPlayerTab() for i, tc in ipairs(tabContent) do if tc == D.playerTab then SwitchTab(i) return true end end
         return false end New("TextLabel", { Name = "PlayerTitle", Size = UDim2.new(1, -16, 0, 18), Position = UDim2.new(0, 8, 0, 8),
         Text = "👥 NGƯỜI CHƠI — ĐỊNH VỊ & XEM NGƯỜI CHƠI", BackgroundTransparency = 1,
         TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
@@ -4200,8 +3820,7 @@ local function spRound(n) return math.floor((tonumber(n) or 0) + 0.5) end functi
     end if SP._oldType then _G.BananaCatHub_SpecCam = SP._oldType end pcall(function() cam.CameraType = Enum.CameraType.Scriptable end) end
 function S.Spec.CamOff() local cam = workspace.CurrentCamera pcall(function()
         if cam then if SP._oldType and SP._oldType ~= Enum.CameraType.Scriptable then cam.CameraType = SP._oldType else
-                cam.CameraType = Enum.CameraType.Custom end end end) pcall(function()
-        if not cam then return end local char = player and player.Character
+                cam.CameraType = Enum.CameraType.Custom end end end) pcall(function() if not cam then return end local char = player and player.Character
         local hum = char and char:FindFirstChildOfClass("Humanoid") local root = char and char:FindFirstChild("HumanoidRootPart")
         if hum then cam.CameraSubject = hum elseif SP._oldSubject then pcall(function() cam.CameraSubject = SP._oldSubject end)
         end if root then local pos = root.Position
@@ -4243,8 +3862,7 @@ end function S.Spec.Set(p)
         SP.lastMove, SP.lastJump, SP.lastFall = 0, 0, 0 S.Spec.Bind(false) S.Spec.CamOff() S.Spec.Sync()
         return false end SP.target, SP.on, SP._prev = p, true, nil SP.lastMove, SP.lastJump, SP.lastFall = 0, 0, 0
     SP.moving, SP.jumping, SP.falling, SP.speed = false, false, false, 0 S.Spec.Bind(true) if SP.follow then S.Spec.CamOn() end
-    S.Spec.Sync() return true end function S.Spec.Stop() return S.Spec.Set(nil) end
-function S.Spec.SetFollow(on) SP.follow = (on == true)
+    S.Spec.Sync() return true end function S.Spec.Stop() return S.Spec.Set(nil) end function S.Spec.SetFollow(on) SP.follow = (on == true)
     if SP.follow and SP.on then S.Spec.CamOn() else S.Spec.CamOff() end S.Spec.Sync() return SP.follow
 end function S.Spec.SetAuto(on) SP.auto = (on == true); S.Spec.Sync(); return SP.auto end
 function S.Spec.SetDist(n) SP.dist = mvClamp(n, 3, 200); S.Spec.Sync(); return SP.dist end function S.Spec.SetHeight(n) SP.height = mvClamp(n, -30, 60); S.Spec.Sync(); return SP.height end
@@ -4259,8 +3877,7 @@ do trackConn(Players.PlayerRemoving:Connect(function(p) if SP.target == p then S
                         cam.CameraType = Enum.CameraType.Custom end end) else
                 pcall(function() S.Spec.CamOn() end) end pcall(function() if S.Spec.RefreshList then S.Spec.RefreshList() end end) end)
     end)) pcall(function() trackConn(workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function() task.spawn(function() task.wait(0.1)
-                if SP.on and SP.follow then pcall(function() S.Spec.CamOn() end) end end)
-        end)) end) end do local g = New("ScreenGui", {
+                if SP.on and SP.follow then pcall(function() S.Spec.CamOn() end) end end) end)) end) end do local g = New("ScreenGui", {
         Name = "BC_SpecHud", ResetOnSpawn = false, ZIndexBehavior = Enum.ZIndexBehavior.Sibling, Enabled = false, }, gui) local F = New("Frame", {
         Name = "SpecBox", Size = UDim2.new(0, 250, 0, 92), Position = UDim2.new(0, 10, 0, 10), BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, BorderSizePixel = 0, ZIndex = 20,
     }, g) Corner(F, UDim.new(0, 10)) Stroke(F, C.ACCENT, 1.2)
@@ -4297,8 +3914,7 @@ do trackConn(Players.PlayerRemoving:Connect(function(p) if SP.target == p then S
         if u.who then u.who.Text = "👣 " .. nm end if u.info then u.info.Text = table.concat(lines, "   ") end if u.act then
             local txt = S.Spec.Acting(p) u.act.Text = txt u.act.TextColor3 = S.Loc.IsDown(h) and Color3.fromRGB(255, 100, 100) or C.GREEN end
         if u.title then u.title.Text = "👣 ĐANG XEM" .. (SP.follow and "" or " (KHÔNG bám)") .. (SP.auto and " · 🔄" or "") end end) end
-do local PH = 386 local P = New("Frame", { Name = "HubLoc_Panel",
-        Size = UDim2.new(1, -16, 0, PH), Position = UDim2.new(0, 8, 0, D.playerY or 46),
+do local PH = 386 local P = New("Frame", { Name = "HubLoc_Panel", Size = UDim2.new(1, -16, 0, PH), Position = UDim2.new(0, 8, 0, D.playerY or 46),
         LayoutOrder = 1, BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, BorderSizePixel = 0, ZIndex = 6,
     }, D.playerTab) D.playerY = (D.playerY or 46) + PH + 8
     Corner(P, UDim.new(0, 10)) Stroke(P, C.HAIRLINE, 1) D.Shade(P, Color3.fromRGB(255, 255, 255), Color3.fromRGB(188, 192, 205), 90)
@@ -4346,15 +3962,13 @@ do local PH = 386 local P = New("Frame", { Name = "HubLoc_Panel",
     New("TextLabel", { Size = UDim2.new(1, -16, 0, 48), Position = UDim2.new(0, 8, 0, 334),
         Text = "💡 Bấm TÊN = định vị lẻ người đó · 👣 Xem = gắn camera xem họ đang làm gì (chỉ đổi camera, nhân vật bạn đứng yên) · 🚀 Bay tới = bay xuyên tường bám theo mục tiêu. 🟢 thường · 💗 bạn bè · 🔴 bị hạ gục.",
         TextWrapped = true, BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium, TextSize = 8, TextXAlignment = Enum.TextXAlignment.Left,
-        TextYAlignment = Enum.TextYAlignment.Top, ZIndex = 7, }, P) local function paint()
-        allBtn.Text = LOC.on and "👁️ Tất Cả: BẬT" or "👁️ Tất Cả"
+        TextYAlignment = Enum.TextYAlignment.Top, ZIndex = 7, }, P) local function paint() allBtn.Text = LOC.on and "👁️ Tất Cả: BẬT" or "👁️ Tất Cả"
         allBtn.BackgroundColor3 = LOC.on and C.GREEN or C.GRAY allBtn.TextColor3 = D.BestText(allBtn.BackgroundColor3)
         soloBtn.Text = LOC.solo and ("🎯 " .. tostring(LOC.target and LOC.target.Name or "?")) or "🎯 Lẻ"
         soloBtn.BackgroundColor3 = LOC.solo and C.PURPLE or C.GRAY soloBtn.TextColor3 = D.BestText(soloBtn.BackgroundColor3) local mv = S.Move
         local sp = mv and mv.playerFlySpeed or 0 if tonumber(sp) == 0 then
             flySpeedIn.Text = "0" flySpeedIn.PlaceholderText = tostring(mv and mv.GetPlayerFlySpeed and mv.GetPlayerFlySpeed() or 16)
-        else flySpeedIn.Text = tostring(sp)
-        end local active = mv and mv._playerFlyActive
+        else flySpeedIn.Text = tostring(sp) end local active = mv and mv._playerFlyActive
         flyNearBtn.BackgroundColor3 = active and C.GREEN or C.ACCENT flyNearBtn.TextColor3 = D.BestText(flyNearBtn.BackgroundColor3)
         flyNearBtn.Text = active and ("🚀 " .. tostring(mv._playerFlyTarget and mv._playerFlyTarget.Name or "?")) or "🚀 Gần nhất"
         local specNm = (SP.on and SP.target) and tostring(SP.target.Name) or nil watchBtn.Text = specNm and ("👣 " .. specNm) or "👣 Bám theo"
@@ -4362,100 +3976,69 @@ do local PH = 386 local P = New("Frame", { Name = "HubLoc_Panel",
         followBtn.Text = SP.follow and "🎥 Bám: BẬT" or "🎥 Bám: TẮT" followBtn.BackgroundColor3 = SP.follow and C.GREEN or C.SURFACE3
         followBtn.TextColor3 = D.BestText(followBtn.BackgroundColor3) autoBtn.BackgroundColor3 = SP.auto and C.PURPLE or C.SURFACE3
         autoBtn.TextColor3 = D.BestText(autoBtn.BackgroundColor3) specDistIn.Text, specHiIn.Text = tostring(SP.dist), tostring(SP.height)
-    end local function buildRowText(p, nm, c, h, fr, down)
-        local sub = {} if fr then sub[#sub + 1] = "💗 Bạn Bè" end
+    end local function buildRowText(p, nm, c, h, fr, down) local sub = {} if fr then sub[#sub + 1] = "💗 Bạn Bè" end
         if down then sub[#sub + 1] = "☠️ " .. locTime(LOC.DownSecs(p)) end if c then
-            sub[#sub + 1] = (h and string.format("❤️%d", spRound(h.Health or 0)) or "❤️?") else
-            sub[#sub + 1] = "⏳ chờ NV" end
+            sub[#sub + 1] = (h and string.format("❤️%d", spRound(h.Health or 0)) or "❤️?") else sub[#sub + 1] = "⏳ chờ NV" end
         local prefix = ((LOC.target == p) and "🎯 " or "") .. ((SP.on and SP.target == p) and "👣 " or "")
         return prefix .. nm .. (#sub > 0 and ("  " .. table.concat(sub, "  ")) or "") end
     LOC.RefreshList = function(force) if not (list and list.Parent) then return end
         local term = tostring(searchIn.Text or ""):lower() local ok, players = pcall(function() return Players:GetPlayers() end)
-        if not ok or not players then return end local want = {}
-        local sig = term for _, p in ipairs(players) do
-            if p ~= player then local nm = tostring(p.Name)
-                if term == "" or nm:lower():find(term, 1, true) then want[#want + 1] = p
-                    local _, _, h0 = LOC.CharOf(p) sig = sig .. "|" .. nm
-                        .. (LOC.IsFriend(p) and "F" or "") .. (LOC.IsDown(h0) and "D" or "")
-                        .. (LOC.target == p and "T" or "") .. ((SP.on and SP.target == p) and "S" or "")
-                end end
-        end local cache = LOC._rows
-        if (force == true) or (sig ~= LOC._rowSig) or (cache == nil) then LOC._rowSig = sig
-            LOC._rows = {} cache = LOC._rows
-            for _, c in ipairs(list:GetChildren()) do if not c:IsA("UIListLayout") then pcall(function() c:Destroy() end) end
-            end local order = 0
-            for _, p in ipairs(want) do local nm = tostring(p.Name)
+        if not ok or not players then return end local want = {} local sig = term for _, p in ipairs(players) do
+            if p ~= player then local nm = tostring(p.Name) if term == "" or nm:lower():find(term, 1, true) then want[#want + 1] = p
+                    local _, _, h0 = LOC.CharOf(p) sig = sig .. "|" .. nm .. (LOC.IsFriend(p) and "F" or "") .. (LOC.IsDown(h0) and "D" or "")
+                        .. (LOC.target == p and "T" or "") .. ((SP.on and SP.target == p) and "S" or "") end end
+        end local cache = LOC._rows if (force == true) or (sig ~= LOC._rowSig) or (cache == nil) then LOC._rowSig = sig
+            LOC._rows = {} cache = LOC._rows for _, c in ipairs(list:GetChildren()) do if not c:IsA("UIListLayout") then pcall(function() c:Destroy() end) end
+            end local order = 0 for _, p in ipairs(want) do local nm = tostring(p.Name)
                 order = order + 1 local c, _, h = LOC.CharOf(p)
                 local fr, down = LOC.IsFriend(p), LOC.IsDown(h) local col = down and (fr and LOCC.fdown or LOCC.down) or (fr and LOCC.friend or LOCC.normal)
                 local isSpecThis = (SP.on and SP.target == p) local row = New("Frame", {
                     Name = "PlayerRow_" .. nm, Size = UDim2.new(1, 0, 0, 26), LayoutOrder = order,
                     BackgroundColor3 = isSpecThis and C.SURFACE3 or C.SURFACE2, BackgroundTransparency = isSpecThis and 0.08 or 0.25,
-                    BorderSizePixel = 0, ZIndex = 8, }, list)
-                Corner(row, UDim.new(0, 6)) local b = New("TextButton", {
+                    BorderSizePixel = 0, ZIndex = 8, }, list) Corner(row, UDim.new(0, 6)) local b = New("TextButton", {
                     Name = "PlayerNameBtn", Size = UDim2.new(1, -184, 1, 0), Position = UDim2.new(0, 6, 0, 0),
                     Text = buildRowText(p, nm, c, h, fr, down), BackgroundTransparency = 1, TextColor3 = col.txt, Font = Enum.Font.GothamBold, TextSize = 9,
-                    TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 9, }, row)
-                b.Activated:Connect(function() ReleaseHubFocus()
-                    if LOC.target == p then LOC.SetSolo(false)
-                        if S.Spec and S.Spec.on and S.Spec.target == p then pcall(function() S.Spec.Stop() end) end else
-                        LOC.SetTarget(p) if S.Spec and S.Spec.on then pcall(function() S.Spec.Set(p) end) end
-                    end paint()
-                    if LOC.RefreshList then LOC.RefreshList(true) end S.Rebuild()
-                end) local d = LOC.Dist(p)
+                    TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 9, }, row) b.Activated:Connect(function() ReleaseHubFocus()
+                    if LOC.target == p then LOC.SetSolo(false) if S.Spec and S.Spec.on and S.Spec.target == p then pcall(function() S.Spec.Stop() end) end else
+                        LOC.SetTarget(p) if S.Spec and S.Spec.on then pcall(function() S.Spec.Set(p) end) end end paint()
+                    if LOC.RefreshList then LOC.RefreshList(true) end S.Rebuild() end) local d = LOC.Dist(p)
                 local distLbl = New("TextLabel", { Size = UDim2.new(0, 50, 1, 0), Position = UDim2.new(1, -180, 0, 0),
                     Text = d and string.format("📏 %dm", locRound(d)) or "📏 --m",
                     BackgroundTransparency = 1, TextColor3 = col.txt, Font = Enum.Font.GothamMedium, TextSize = 8,
-                    TextXAlignment = Enum.TextXAlignment.Right, ZIndex = 9, }, row)
-                local specRowBtn = New("TextButton", { Name = "SpecRowBtn",
+                    TextXAlignment = Enum.TextXAlignment.Right, ZIndex = 9, }, row) local specRowBtn = New("TextButton", { Name = "SpecRowBtn",
                     Size = UDim2.new(0, 58, 0, 18), Position = UDim2.new(1, -126, 0, 4), Text = isSpecThis and "🚫 Thôi" or "👣 Xem",
                     BackgroundColor3 = isSpecThis and C.RED or C.PURPLE, TextColor3 = Color3.fromRGB(255, 255, 255),
                     Font = Enum.Font.GothamBold, TextSize = 8, BorderSizePixel = 0, ZIndex = 10, }, row)
                 Corner(specRowBtn, UDim.new(0, 5)) D.Shade(specRowBtn, Color3.fromRGB(255, 255, 255), Color3.fromRGB(182, 187, 201), 90) D.Tactile(specRowBtn, 0.08)
-                specRowBtn.Activated:Connect(function() ReleaseHubFocus()
-                    if SP.on and SP.target == p then S.Spec.Stop()
-                    else pcall(function() LOC.SetTarget(p) end)
-                        S.Spec.Set(p) end
+                specRowBtn.Activated:Connect(function() ReleaseHubFocus() if SP.on and SP.target == p then S.Spec.Stop()
+                    else pcall(function() LOC.SetTarget(p) end) S.Spec.Set(p) end
                     paint() if LOC.RefreshList then LOC.RefreshList(true) end
-                    pcall(S.Rebuild) if D.hubStatus then flash(D.hubStatus, S.Spec.Status(), 1.8, C.ACCENT) end
-                end) local mv = S.Move
+                    pcall(S.Rebuild) if D.hubStatus then flash(D.hubStatus, S.Spec.Status(), 1.8, C.ACCENT) end end) local mv = S.Move
                 local isFlyingToThis = mv and mv._playerFlyActive and mv._playerFlyTarget == p local flyBtn = New("TextButton", {
-                    Name = "FlyRowBtn", Size = UDim2.new(0, 58, 0, 18), Position = UDim2.new(1, -64, 0, 4),
-                    Text = isFlyingToThis and "⏹️ Dừng" or "🚀 Bay tới",
+                    Name = "FlyRowBtn", Size = UDim2.new(0, 58, 0, 18), Position = UDim2.new(1, -64, 0, 4), Text = isFlyingToThis and "⏹️ Dừng" or "🚀 Bay tới",
                     BackgroundColor3 = isFlyingToThis and C.RED or C.ACCENT, TextColor3 = Color3.fromRGB(255, 255, 255),
                     Font = Enum.Font.GothamBold, TextSize = 8, BorderSizePixel = 0, ZIndex = 10, }, row)
                 Corner(flyBtn, UDim.new(0, 5)) D.Shade(flyBtn, Color3.fromRGB(255, 255, 255), Color3.fromRGB(182, 187, 201), 90) D.Tactile(flyBtn, 0.08)
                 flyBtn.Activated:Connect(function() ReleaseHubFocus()
                     local mv2 = S.Move if not mv2 then return end local currentlyFlyingToThis = mv2._playerFlyActive and mv2._playerFlyTarget == p
-                    if currentlyFlyingToThis then pcall(function() mv2.StopPlayerFly() end)
-                    else pcall(function() mv2.FlyToPlayer(p) end)
-                    end if S.SyncMovePanel then pcall(S.SyncMovePanel) end
-                    if D.hubStatus then if mv2._playerFlyActive then
+                    if currentlyFlyingToThis then pcall(function() mv2.StopPlayerFly() end) else pcall(function() mv2.FlyToPlayer(p) end)
+                    end if S.SyncMovePanel then pcall(S.SyncMovePanel) end if D.hubStatus then if mv2._playerFlyActive then
                             flash(D.hubStatus, "🚀 Bay tới " .. tostring(p.Name) .. " " .. tostring(mv2.GetPlayerFlySpeed and mv2.GetPlayerFlySpeed() or mv2.playerFlySpeed or 0), 1.8, C.ACCENT)
-                        else flash(D.hubStatus, "⏹️ Đã dừng bay tới " .. tostring(p.Name), 1.2, C.GRAY)
-                        end end
+                        else flash(D.hubStatus, "⏹️ Đã dừng bay tới " .. tostring(p.Name), 1.2, C.GRAY) end end
                     if LOC.RefreshList then pcall(LOC.RefreshList, true) end S.Rebuild()
                 end) cache[p] = { dist = distLbl, fly = flyBtn, spec = specRowBtn, nameBtn = b, row = row }
-            end pcall(function() list.CanvasSize = UDim2.new(0, 0, 0, order * 30) end)
-        else local mv = S.Move
-            for _, p in ipairs(want) do local r = cache[p]
-                if r then local nm = tostring(p.Name)
-                    local c, _, h = LOC.CharOf(p) local fr, down = LOC.IsFriend(p), LOC.IsDown(h)
-                    local d2 = LOC.Dist(p)
+            end pcall(function() list.CanvasSize = UDim2.new(0, 0, 0, order * 30) end) else local mv = S.Move
+            for _, p in ipairs(want) do local r = cache[p] if r then local nm = tostring(p.Name)
+                    local c, _, h = LOC.CharOf(p) local fr, down = LOC.IsFriend(p), LOC.IsDown(h) local d2 = LOC.Dist(p)
                     if r.dist then r.dist.Text = d2 and string.format("📏 %dm", locRound(d2)) or "📏 --m" end
                     if r.nameBtn then r.nameBtn.Text = buildRowText(p, nm, c, h, fr, down) end if r.spec then
-                        local specOn = (SP.on and SP.target == p) r.spec.Text = specOn and "🚫 Thôi" or "👣 Xem"
-                        r.spec.BackgroundColor3 = specOn and C.RED or C.PURPLE end
+                        local specOn = (SP.on and SP.target == p) r.spec.Text = specOn and "🚫 Thôi" or "👣 Xem" r.spec.BackgroundColor3 = specOn and C.RED or C.PURPLE end
                     if r.fly then local flying = mv and mv._playerFlyActive and mv._playerFlyTarget == p
-                        r.fly.Text = flying and "⏹️ Dừng" or "🚀 Bay tới" r.fly.BackgroundColor3 = flying and C.RED or C.ACCENT
-                    end end
-            end end
-        paint() end
-    S.Spec.RefreshList = function() if LOC.RefreshList then LOC.RefreshList(true) end
-    end searchIn:GetPropertyChangedSignal("Text"):Connect(function()
-        if LOC.RefreshList then pcall(LOC.RefreshList, true) end end)
-    searchIn.FocusLost:Connect(function() ReleaseHubFocus()
-        if LOC.RefreshList then pcall(LOC.RefreshList, true) end end)
-    allBtn.Activated:Connect(function() ReleaseHubFocus() LOC.Set(not LOC.on) paint()
+                        r.fly.Text = flying and "⏹️ Dừng" or "🚀 Bay tới" r.fly.BackgroundColor3 = flying and C.RED or C.ACCENT end end
+            end end paint() end
+    S.Spec.RefreshList = function() if LOC.RefreshList then LOC.RefreshList(true) end end searchIn:GetPropertyChangedSignal("Text"):Connect(function()
+        if LOC.RefreshList then pcall(LOC.RefreshList, true) end end) searchIn.FocusLost:Connect(function() ReleaseHubFocus()
+        if LOC.RefreshList then pcall(LOC.RefreshList, true) end end) allBtn.Activated:Connect(function() ReleaseHubFocus() LOC.Set(not LOC.on) paint()
         if LOC.RefreshList then LOC.RefreshList(true) end S.Rebuild() if D.hubStatus then flash(D.hubStatus, "📍 " .. LOC.Status(), 1.8, C.ACCENT) end end)
     soloBtn.Activated:Connect(function() ReleaseHubFocus() if LOC.solo then LOC.SetSolo(false) else
             LOC.SetTarget(LOC.target or LOC.Nearest()) end paint() if LOC.RefreshList then LOC.RefreshList(true) end
@@ -4471,21 +4054,17 @@ do local PH = 386 local P = New("Frame", { Name = "HubLoc_Panel",
         else paint() if D.hubStatus then local sp = mv.GetPlayerFlySpeed and mv.GetPlayerFlySpeed() or mv.playerFlySpeed or 0
                 if (tonumber(mv.playerFlySpeed) or 0) == 0 then flash(D.hubStatus, string.format("🚀 Tốc độ bay tới người: auto (%g = tốc độ game)", sp), 1.8, C.ACCENT)
                 else flash(D.hubStatus, string.format("🚀 Tốc độ bay tới người: %g", sp), 1.5, C.GREEN) end end if S.SyncMovePanel then pcall(S.SyncMovePanel) end
-            S.Rebuild() end end) flySpeedIn.FocusLost:Connect(function(enter)
-        if not enter then return end ReleaseHubFocus()
+            S.Rebuild() end end) flySpeedIn.FocusLost:Connect(function(enter) if not enter then return end ReleaseHubFocus()
         local mv = S.Move if not mv then return end local n = tonumber(tostring(flySpeedIn.Text or ""):match("%-?%d+%.?%d*"))
-        if n == nil then return end local ok = mv.SetPlayerFlySpeed(n) if ok then paint()
-            S.Rebuild() end end) flyNearBtn.Activated:Connect(function()
+        if n == nil then return end local ok = mv.SetPlayerFlySpeed(n) if ok then paint() S.Rebuild() end end) flyNearBtn.Activated:Connect(function()
         ReleaseHubFocus() local mv = S.Move if not mv then return end local target = LOC.Nearest() if not target then
             if D.hubStatus then flash(D.hubStatus, "⚠️ Không có người chơi nào để bay tới", 1.5, C.RED) end return
         end pcall(function() mv.FlyToPlayer(target) end) paint() if LOC.RefreshList then pcall(LOC.RefreshList, true) end
         if S.SyncMovePanel then pcall(S.SyncMovePanel) end S.Rebuild() if D.hubStatus then flash(D.hubStatus, "🚀 Bay tới gần nhất: " .. tostring(target.Name), 1.8, C.ACCENT) end
-    end) flyStopBtn.Activated:Connect(function() ReleaseHubFocus() local mv = S.Move
-        if mv then pcall(function() mv.StopPlayerFly() end) end paint()
+    end) flyStopBtn.Activated:Connect(function() ReleaseHubFocus() local mv = S.Move if mv then pcall(function() mv.StopPlayerFly() end) end paint()
         if LOC.RefreshList then pcall(LOC.RefreshList, true) end if S.SyncMovePanel then pcall(S.SyncMovePanel) end
         S.Rebuild() if D.hubStatus then flash(D.hubStatus, "⏹️ Đã dừng bay tới người", 1.2, C.GRAY) end end)
-    watchBtn.Activated:Connect(function() ReleaseHubFocus() if SP.on then S.Spec.Stop()
-        else local p = SP.target or LOC.target or LOC.Nearest()
+    watchBtn.Activated:Connect(function() ReleaseHubFocus() if SP.on then S.Spec.Stop() else local p = SP.target or LOC.target or LOC.Nearest()
             if not p then if D.hubStatus then flash(D.hubStatus, "⚠️ chưa có ai để xem (server chỉ có mình bạn)", 2, C.RED) end else LOC.SetTarget(p)
                 S.Spec.Set(p) end end paint() if LOC.RefreshList then LOC.RefreshList(true) end pcall(S.Rebuild)
         if D.hubStatus then flash(D.hubStatus, S.Spec.Status(), 2, C.ACCENT) end end) followBtn.Activated:Connect(function() ReleaseHubFocus()
@@ -4499,10 +4078,8 @@ do local PH = 386 local P = New("Frame", { Name = "HubLoc_Panel",
     stopSpecBtn.Activated:Connect(function() ReleaseHubFocus() S.Spec.Stop() paint()
         if LOC.RefreshList then LOC.RefreshList(true) end pcall(S.Rebuild)
         if D.hubStatus then flash(D.hubStatus, "🚫 " .. S.Spec.Status(), 2, C.ACCENT) end end) if LOC.RefreshList then pcall(LOC.RefreshList, true) end
-    S.SyncLocPanel = function() paint()
-        distIn.Text = tostring(LOC.maxDist) local mv = S.Move
-        if mv then flySpeedIn.Text = tostring(mv.playerFlySpeed or 0) end if LOC.RefreshList then pcall(LOC.RefreshList, true) end
-    end end
+    S.SyncLocPanel = function() paint() distIn.Text = tostring(LOC.maxDist) local mv = S.Move
+        if mv then flySpeedIn.Text = tostring(mv.playerFlySpeed or 0) end if LOC.RefreshList then pcall(LOC.RefreshList, true) end end end
 S.Free = { on = false, speed = 50, _bound = false, _cf = nil, _wasAnchored = nil, _hrp = nil, _camType = nil, _camSub = nil, _yaw = 0, _pitch = 0,
     _mdx = 0, _mdy = 0, _step = nil, _mouse = nil, _pos = nil, _mouseBeh = nil, }
 local FR = S.Free function S.Free.Char() return player and player.Character or nil end function S.Free.HRP(ch) ch = ch or S.Free.Char()
@@ -4533,8 +4110,7 @@ end function S.Free.Look() local yaw = FR._yaw or 0 local pitch = FR._pitch or 0
     local look = S.Free.Look() local pos = FR._pos if not pos then return end
     local ch = S.Free.Char() local hum = ch and ch:FindFirstChildOfClass("Humanoid") local cf = CFrame.new(pos) * look local input = Vector3.zero
     pcall(function() input = MV._ReadFlyInput(cf, hum) end) local vel = MV.FlyVelocity(cf, input, FR.speed)
-    pos = pos + vel * dt FR._pos = pos cam.CFrame = CFrame.new(pos) * look end function S.Free.Bind(on)
-    if on and not FR._bound then FR._bound = true
+    pos = pos + vel * dt FR._pos = pos cam.CFrame = CFrame.new(pos) * look end function S.Free.Bind(on) if on and not FR._bound then FR._bound = true
         pcall(function() RunService:BindToRenderStep("BC_FreeCam", Enum.RenderPriority.Last.Value, function(dt) pcall(S.Free.Step, dt) end) end)
         if not FR._step then FR._step = RunService.Stepped:Connect(function() if FR.on then pcall(S.Free.HoldChar) end end)
         end elseif (not on) and FR._bound then FR._bound = false pcall(function() RunService:UnbindFromRenderStep("BC_FreeCam") end)
@@ -4543,8 +4119,7 @@ end function S.Free.Look() local yaw = FR._yaw or 0 local pitch = FR._pitch or 0
         if cam then local look = cam.CFrame.LookVector
             local y = look.Y if y > 1 then y = 1 elseif y < -1 then y = -1 end FR._yaw = math.atan2(-look.X, -look.Z)
             FR._pitch = math.asin(y) FR._mdx, FR._mdy = 0, 0 FR._pos = cam.CFrame.Position end
-        FR.on = true S.Free.HoldChar() S.Free.AimCam() S.Free.Bind(true) S.Free.Step(0)
-    else FR.on = false S.Free.Bind(false) S.Free.ReleaseChar()
+        FR.on = true S.Free.HoldChar() S.Free.AimCam() S.Free.Bind(true) S.Free.Step(0) else FR.on = false S.Free.Bind(false) S.Free.ReleaseChar()
         S.Free.RestoreCam() end if S.SyncFreePanel then pcall(S.SyncFreePanel) end return FR.on
 end function S.Free.Stop() return S.Free.Set(false) end function S.Free.SetSpeed(n)
     n = tonumber(n) if not n or n ~= n or n == math.huge or n == -math.huge then return false, FR.speed end
@@ -4553,8 +4128,7 @@ function S.Free.Status() if not FR.on then return "🎥 khán giả: đang TẮT
     return string.format("🎥 khán giả: BẬT · camera bay (WASD · Space/Shift) · nhân vật đứng yên · 💨 %g", FR.speed) end do
     trackConn(player.CharacterAdded:Connect(function() FR._hrp, FR._wasAnchored, FR._cf = nil, nil, nil
         if not FR.on then return end task.defer(function() if FR.on then S.Free.HoldChar() end end)
-    end)) end _G.BananaCatHub_Free = S.Free S.Glow = { on = false, width = 18, bright = 3,
-    color = Color3.fromRGB(120, 220, 255),
+    end)) end _G.BananaCatHub_Free = S.Free S.Glow = { on = false, width = 18, bright = 3, color = Color3.fromRGB(120, 220, 255),
     thru = true,          -- 👁 xuyên tường (mặc định BẬT — đúng ý "ánh sáng không bị trói")
     light = true,         -- 💡 đèn thật toả sáng quanh người
     _hl = nil, _pl = nil, _char = nil, _bound = false, _acc = 0, palIdx = 1, }
@@ -4582,12 +4156,10 @@ function S.Glow.Kill() pcall(function() if GL._hl then GL._hl:Destroy() end end)
         end pcall(function() GL._pl.Brightness = GL.bright GL._pl.Range = GL.width GL._pl.Color = GL.color
             GL._pl.Shadows = false                                     -- không bị vật cản chặn
             if GL._pl.Parent ~= hrp then GL._pl.Parent = hrp end end) elseif not GL.light then pcall(function() if GL._pl then GL._pl:Destroy() end end)
-        GL._pl = nil end end function S.Glow.Bind(on)
-    if on and not GL._bound then GL._bound = true
+        GL._pl = nil end end function S.Glow.Bind(on) if on and not GL._bound then GL._bound = true
         pcall(function() RunService:BindToRenderStep("BC_Glow", Enum.RenderPriority.Camera.Value - 5, function(dt) GL._acc = (GL._acc or 0) + (tonumber(dt) or 0.016)
                 local interval = 0.8 if S.PagePerf and not S.PagePerf.IsMainVisible() then interval = 2.0 end
-                if GL._acc < interval then return end GL._acc = 0 pcall(S.Glow.Apply)
-            end) end) elseif (not on) and GL._bound then GL._bound = false
+                if GL._acc < interval then return end GL._acc = 0 pcall(S.Glow.Apply) end) end) elseif (not on) and GL._bound then GL._bound = false
         pcall(function() RunService:UnbindFromRenderStep("BC_Glow") end) end end function S.Glow.Set(on) GL.on = (on == true)
     if GL.on then S.Glow.Bind(true); S.Glow.Apply() else S.Glow.Kill(); S.Glow.Bind(false) end return GL.on
 end function S.Glow.SetWidth(n)  GL.width  = mvClamp(n, 1, 200, GL.width);  S.Glow.Apply(); return GL.width  end
@@ -4602,8 +4174,7 @@ end function S.Glow.Status() if not GL.on then return "✨ phát sáng: đang T�
     local t = { string.format("📏 rộng %g", GL.width), string.format("☀ sáng %g", GL.bright), "🎨 " .. S.Glow.ColorName() }
     if GL.thru then t[#t + 1] = "👁 xuyên tường" end if GL.light then t[#t + 1] = "💡 đèn thật" end
     return "✨ phát sáng: BẬT · " .. table.concat(t, " · ") end do trackConn(player.CharacterAdded:Connect(function()
-        if GL.on then pcall(S.Glow.Apply) end end)) end do local PH = 132
-    local P = New("Frame", { Name = "HubGlow_Panel",
+        if GL.on then pcall(S.Glow.Apply) end end)) end do local PH = 132 local P = New("Frame", { Name = "HubGlow_Panel",
         Size = UDim2.new(1, 0, 0, PH), LayoutOrder = 1, BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, BorderSizePixel = 0, ZIndex = 6,
     }, D.hubList) Corner(P, UDim.new(0, 10)) Stroke(P, C.HAIRLINE, 1) D.Shade(P, Color3.fromRGB(255, 255, 255), Color3.fromRGB(188, 192, 205), 90)
     New("TextLabel", { Name = "GlowTitle",
@@ -4640,11 +4211,9 @@ end function S.Glow.Status() if not GL.on then return "✨ phát sáng: đang T�
     S.Glow.RefreshPanel = paint onBtn.Activated:Connect(function() ReleaseHubFocus()
         S.Glow.Set(not GL.on) paint() if D.hubStatus then flash(D.hubStatus, S.Glow.Status(), 2, C.ACCENT) end
         pcall(S.Rebuild)   -- đổi chữ thẻ ✨ trong danh sách
-    end) thruBtn.Activated:Connect(function() ReleaseHubFocus() S.Glow.SetThru(not GL.thru)
-        paint() if D.hubStatus then
+    end) thruBtn.Activated:Connect(function() ReleaseHubFocus() S.Glow.SetThru(not GL.thru) paint() if D.hubStatus then
             flash(D.hubStatus, GL.thru and "👁 xuyên tường: thấy mình sáng qua vật cản" or "👁 chỉ sáng khi không bị vật cản che", 2, C.ACCENT)
-        end end) litBtn.Activated:Connect(function() ReleaseHubFocus() S.Glow.SetLight(not GL.light)
-        paint() if D.hubStatus then
+        end end) litBtn.Activated:Connect(function() ReleaseHubFocus() S.Glow.SetLight(not GL.light) paint() if D.hubStatus then
             flash(D.hubStatus, GL.light and "💡 đèn thật: toả sáng quanh người, không bị vật cản chặn" or "💡 đã tắt đèn (chỉ còn nhuộm sáng nhân vật)", 2, C.ACCENT)
         end end) colBtn.Activated:Connect(function() ReleaseHubFocus() local nm = S.Glow.CycleColor()
         paint() if D.hubStatus then flash(D.hubStatus, "🎨 màu phát sáng: " .. nm, 1.8, C.ACCENT) end end) applyBtn.Activated:Connect(function()
@@ -4686,8 +4255,7 @@ do local PH = 108 local P = New("Frame", { Name = "HubFree_Panel", Size = UDim2.
         pcall(S.Rebuild) end) applyBtn.Activated:Connect(function() ReleaseHubFocus()
         local n = tonumber(tostring(spdIn.Text or ""):match("%-?%d+%.?%d*")) if n then S.Free.SetSpeed(n) end
         if not FR.on then S.Free.Set(true) end paint() if D.hubStatus then flash(D.hubStatus, S.Free.Status(), 2, C.ACCENT) end pcall(S.Rebuild)
-    end) paint() end do local PH = 200
-    local P = New("Frame", { Name = "HubSafe_Panel",
+    end) paint() end do local PH = 200 local P = New("Frame", { Name = "HubSafe_Panel",
         Size = UDim2.new(1, 0, 0, PH), LayoutOrder = 2, BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, BorderSizePixel = 0, ZIndex = 6,
     }, D.hubList) Corner(P, UDim.new(0, 10)) Stroke(P, C.HAIRLINE, 1) D.Shade(P, Color3.fromRGB(255, 255, 255), Color3.fromRGB(188, 192, 205), 90)
     New("TextLabel", { Name = "SafeTitle",
@@ -4771,10 +4339,8 @@ do local acc = 0 RunService:BindToRenderStep("BC_HubList", Enum.RenderPriority.C
             local hubVisible = open(D.hubTab) if playerVisible then
                 if S.Loc.RefreshList then S.Loc.RefreshList() end if S.GlassRefreshList then S.GlassRefreshList() end
                 if S.ObjTrack and S.ObjTrack.RefreshList then pcall(S.ObjTrack.RefreshList) end end
-            if hubVisible then if S.Loc.RefreshList and not playerVisible then
-                end end
-        end) end) end
-;(function() local PH = 354 local P = New("Frame", { Name = "HubGlass_Panel",
+            if hubVisible then if S.Loc.RefreshList and not playerVisible then end end
+        end) end) end ;(function() local PH = 354 local P = New("Frame", { Name = "HubGlass_Panel",
         Size = UDim2.new(1, -16, 0, PH), Position = UDim2.new(0, 8, 0, D.playerY or 46),
         LayoutOrder = 2, BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, BorderSizePixel = 0, ZIndex = 6,
     }, D.playerTab) D.playerY = (D.playerY or 46) + PH + 8
@@ -4856,8 +4422,7 @@ do local acc = 0 RunService:BindToRenderStep("BC_HubList", Enum.RenderPriority.C
         pcall(S.GlassRefreshList) end) flySpeedApply.Activated:Connect(function() ReleaseHubFocus()
         local ok, value = MV.SetGlassFlySpeed(numberFrom(flySpeedIn, MV.glassFlySpeed or 60)) if ok then flySpeedIn.Text = tostring(value)
             speedNote.Text = "tấm gần nhất từ 📚 Script Hub · " .. tostring(value) D.Say("🚀 tốc độ bay tới kính: " .. tostring(value), C.GREEN)
-        else D.Say("⚠️ " .. tostring(value), C.RED) end end)
-    pcall(S.GlassRefreshList) pcall(function()
+        else D.Say("⚠️ " .. tostring(value), C.RED) end end) pcall(S.GlassRefreshList) pcall(function()
         if D.playerTab then D.playerTab.CanvasSize = UDim2.new(0, 0, 0, (D.playerY or 600) + 16) end end) end)()
 D.hubChipBtns = {} for _, cname in ipairs({"Tất cả", "Admin", "Explorer", "Spy", "Tiện ích", "Server", "Di chuyển", "Định vị"}) do
     local w = (cname == "Tất cả" and 50) or (cname == "Explorer" and 58) or (cname == "Tiện ích" and 54) or (cname == "Server" and 48) or (cname == "Admin" and 46) or (cname == "Di chuyển" and 58) or (cname == "Định vị" and 50) or 38
@@ -4927,8 +4492,7 @@ function OT.PathOf(inst) if inst == nil then return "nil" end local parts, cur, 
         local okS, size = pcall(function() return part.Size end) if okS and size then add("Size", string.format("%.3f, %.3f, %.3f", size.X, size.Y, size.Z)) end
         local okC, cf = pcall(function() return part.CFrame end) if okC and cf then
             pcall(function() local rx, ry, rz = cf:ToOrientation() add("Rotation", string.format("P=%.1f° Y=%.1f° R=%.1f°", math.deg(rx), math.deg(ry), math.deg(rz)))
-            end) pcall(function() local look = cf.LookVector add("Look", string.format("%.3f, %.3f, %.3f", look.X, look.Y, look.Z))
-            end) end
+            end) pcall(function() local look = cf.LookVector add("Look", string.format("%.3f, %.3f, %.3f", look.X, look.Y, look.Z)) end) end
         local okM, mat = pcall(function() return part.Material end) if okM and mat then add("Material", tostring(mat):gsub("Enum.Material.", "")) end local okCol, col = pcall(function() return part.Color end)
         if okCol and col then add("Color", string.format("R=%d G=%d B=%d", math.floor(col.R * 255), math.floor(col.G * 255), math.floor(col.B * 255))) end
     end return rows end function OT.Select(inst) if inst == nil or inst.Parent == nil then
@@ -4956,17 +4520,15 @@ function OT.Norm(s) local t = tostring(s or "") if t == "" then return "" end lo
                         or k:find("\\", 1, true) ~= nil if hasPath then local full = k:gsub("[/\\]", ".")
                 if full:sub(1, 5) == "game." then full = full:sub(6) end   -- "game.Workspace.…" -> "workspace.…"
                 paths[#paths + 1] = full local last = full:match("([^%.]+)$") if last and #last > 0 then out[#out + 1] = last end else
-                out[#out + 1] = k end end end
-    OT.pathKeys = paths return out end function OT.NormCached(inst) local nm = inst.Name
+                out[#out + 1] = k end end end OT.pathKeys = paths return out end function OT.NormCached(inst) local nm = inst.Name
     if type(nm) ~= "string" then return "" end local c = OT._nc[inst] if c ~= nil and c.raw == nm then return c.norm end local norm = OT.Norm(nm)
     OT._nc[inst] = { raw = nm, norm = norm } return norm end function OT.MatchesNorm(n) if n == "" or #OT.keys == 0 then return false end
     local keys = OT.keys for i = 1, #keys do if n:find(keys[i], 1, true) then return true end end
     return false end function OT.SharedNameMatch(a, b) local na, nb = OT.NormCached(a), OT.NormCached(b)
     local shared = false for i = 1, #OT.keys do local key = OT.keys[i]
         local inPart, inModel = na:find(key, 1, true) ~= nil, nb:find(key, 1, true) ~= nil if inPart and not inModel then return false end
-        if inPart and inModel then shared = true end end return shared end
-function OT.ResolvePath(key) local segs = {}
-    for s in tostring(key or ""):gmatch("[^%.]+") do s = s:gsub("^%s+", ""):gsub("%s+$", "")
+        if inPart and inModel then shared = true end end return shared end function OT.ResolvePath(key) local segs = {}
+    for rawS in tostring(key or ""):gmatch("[^%.]+") do local s = rawS:gsub("^%s+", ""):gsub("%s+$", "")
         if #s > 0 then segs[#segs + 1] = s end end if #segs == 0 then return nil end local cur, i = game, 1
     if segs[1] == "workspace" then cur, i = workspace, 2 elseif segs[1] == "game" then i = 2 end while i <= #segs do if cur == nil then return nil end
         local found = nil local okK, kids = pcall(function() return cur:GetChildren() end)
@@ -4974,8 +4536,7 @@ function OT.ResolvePath(key) local segs = {}
         if found == nil then return nil end cur, i = found, i + 1 end return cur end
 function OT.RefreshPaths() OT._pathSet = {} OT._pathN = 0 local keys = OT.pathKeys or {}
     for i = 1, #keys do local ok, inst = pcall(OT.ResolvePath, keys[i]) if ok and inst ~= nil then OT._pathSet[inst] = true OT._pathN = OT._pathN + 1
-        end end end function OT.Candidate(inst) if OT._pathN > 0 and OT._pathSet[inst] then return true end
-    return OT.MatchesNorm(OT.NormCached(inst)) end
+        end end end function OT.Candidate(inst) if OT._pathN > 0 and OT._pathSet[inst] then return true end return OT.MatchesNorm(OT.NormCached(inst)) end
 OT.Hit = OT.Candidate   -- tương thích tên hàm cũ
 -- ============================================================================
 -- ============================================================================
@@ -4986,12 +4547,10 @@ function OT.EntryKey(raw) local t = tostring(raw or ""):gsub("^%s+", ""):gsub("%
 function OT.RebuildKeys() local keys, paths = {}, {} local function push(raw) raw = tostring(raw or "")
         if raw:gsub("%s", "") == "" then return end if OT.IsPathLike(raw) then local key = OT.EntryKey(raw) local ok, inst = pcall(OT.ResolvePath, key)
             if ok and inst ~= nil then          -- path còn trong game -> theo path
-                paths[#paths + 1] = key return end
-        end local k = OT.Norm(raw):gsub("^%s+", ""):gsub("%s+$", "") if #k > 0 then keys[#keys + 1] = k end end
+                paths[#paths + 1] = key return end end local k = OT.Norm(raw):gsub("^%s+", ""):gsub("%s+$", "") if #k > 0 then keys[#keys + 1] = k end end
     for i = 1, #OT.entries do push(OT.entries[i].raw) end
     for part in tostring(OT.query or ""):gmatch("[^,;]+") do push(part) end   -- gõ là thấy ngay (như cũ)
-    OT.keys, OT.pathKeys = keys, paths return #keys, #paths end
-function OT.AddEntry(raw) raw = tostring(raw or ""):gsub("^%s+", ""):gsub("%s+$", "")
+    OT.keys, OT.pathKeys = keys, paths return #keys, #paths end function OT.AddEntry(raw) raw = tostring(raw or ""):gsub("^%s+", ""):gsub("%s+$", "")
     if raw == "" then return false, "chưa nhập gì" end local key = OT.EntryKey(raw)
     for i = 1, #OT.entries do if OT.EntryKey(OT.entries[i].raw) == key then return false, "mục này đã có trong danh sách rồi" end end
     local kind = OT.IsPathLike(raw) and "path" or "name" if kind == "path" then local ok, inst = pcall(OT.ResolvePath, key)
@@ -5000,13 +4559,11 @@ function OT.AddEntry(raw) raw = tostring(raw or ""):gsub("^%s+", ""):gsub("%s+$"
     OT.on = true OT._fastUntil = tick() + 4  -- v5.6 FAST: vừa thêm mục là quét siêu tốc
     OT.Bind()
     pcall(OT.Rescan, true)          -- quét ngay: vừa ghim mục là thấy vật luôn (khỏi chờ 2s)
-    if OT.RefreshTags then pcall(OT.RefreshTags) end return true, kind end
-function OT.RemoveEntry(i) i = tonumber(i) or 0
+    if OT.RefreshTags then pcall(OT.RefreshTags) end return true, kind end function OT.RemoveEntry(i) i = tonumber(i) or 0
     if i < 1 or i > #OT.entries then return false, "mục không tồn tại" end local raw = OT.entries[i].raw table.remove(OT.entries, i) OT._tagSig = nil
     OT.RebuildKeys() if #OT.keys == 0 and #(OT.pathKeys or {}) == 0 then OT.Set(false) elseif OT.on then
         pcall(OT.Rescan, true) end if OT.RefreshTags then pcall(OT.RefreshTags) end return true, raw end
-function OT.ClearEntries() OT.entries = {} OT.query = "" OT._tagSig = nil
-    OT.RebuildKeys() if OT.RefreshTags then pcall(OT.RefreshTags) end end
+function OT.ClearEntries() OT.entries = {} OT.query = "" OT._tagSig = nil OT.RebuildKeys() if OT.RefreshTags then pcall(OT.RefreshTags) end end
 function OT.Matches(name) local n = OT.Norm(name) if n == "" or #OT.keys == 0 then return false end for i = 1, #OT.keys do
         if n:find(OT.keys[i], 1, true) then return true end end return false end
 function OT.PartOf(inst, depth) if inst == nil then return nil end depth = tonumber(depth) or 0 if depth > 4 then return nil end
@@ -5015,13 +4572,11 @@ function OT.PartOf(inst, depth) if inst == nil then return nil end depth = tonum
     local okW, found = pcall(function() return inst:FindFirstChildWhichIsA("BasePart", true) end)   -- true = tìm sâu (Model/Folder lồng nhau)
     if not okW then okW, found = pcall(function() return inst:FindFirstChildWhichIsA("BasePart") end) end if okW and found and found.Parent then return found end
     local okC, kids = pcall(function() return inst:GetChildren() end) if okC and type(kids) == "table" then
-        for i = 1, #kids do local p = OT.PartOf(kids[i], depth + 1) if p then return p end end
-    end return nil end
+        for i = 1, #kids do local p = OT.PartOf(kids[i], depth + 1) if p then return p end end end return nil end
 function OT.RefreshChars()   -- lấy nhân vật người chơi 1 lần cho cả lượt quét
     local out = {} if OT.skipPlayers then local okL, list = pcall(function() return Players:GetPlayers() end) if okL and type(list) == "table" then
             for i = 1, #list do local c = nil pcall(function() c = list[i].Character end) if c ~= nil then out[#out + 1] = c end
-            end end end OT._chars = out end
-function OT.Skip(inst) if inst == nil then return true end local chars = OT._chars if chars == nil then
+            end end end OT._chars = out end function OT.Skip(inst) if inst == nil then return true end local chars = OT._chars if chars == nil then
         OT.RefreshChars() chars = OT._chars end for i = 1, #chars do
         local okD, inside = pcall(function() return inst:IsDescendantOf(chars[i]) end) if okD and inside then return true end end return false end
 function OT.Gui() if OT._gui and OT._gui.Parent then return OT._gui end
@@ -5072,8 +4627,7 @@ function OT.TickOne(inst, myPos, pal) local it = OT.items[inst] if it == nil the
     it.dist = d or 0 local far = (OT.maxDist > 0 and d ~= nil and d > OT.maxDist)
     local anchor = it.adornee or inst if it.hl and it.hl.Parent ~= anchor then
         local okRe = pcall(function() it.hl.Parent = anchor end) if not okRe then pcall(function() it.hl:Destroy() end) it.hl = nil
-        end end if it.hl == nil then pcall(function()
-            it.hl = New("Highlight", { Name = "BC_OT_HL", Adornee = anchor,
+        end end if it.hl == nil then pcall(function() it.hl = New("Highlight", { Name = "BC_OT_HL", Adornee = anchor,
                 FillColor = pal.fill, FillTransparency = 0.7, OutlineColor = pal.out, OutlineTransparency = 0, DepthMode = OT.thru and Enum.HighlightDepthMode.AlwaysOnTop or Enum.HighlightDepthMode.Occluded,
             }, anchor) end) end if it.hl then
         pcall(function() it.hl.Adornee = anchor end) it.hl.Enabled = not far it.hl.FillColor = pal.fill it.hl.OutlineColor = pal.out
@@ -5088,13 +4642,11 @@ function OT.TickOne(inst, myPos, pal) local it = OT.items[inst] if it == nil the
             it.txtName, it.txtDist = inst.Name, dm it.txtXYZ = OT.showXYZ and otXYZ(part) or nil elseif OT.showXYZ then it.txtXYZ = otXYZ(part) end
         local txt = tostring(inst.Name) .. (d and ("  📏 " .. dm .. "m") or "  📏 --m") if OT.showXYZ and it.txtXYZ ~= nil and it.txtXYZ ~= "" then txt = txt .. "\n🧭 " .. it.txtXYZ end
         if it.txt ~= txt then it.txt = txt end if it.lbl.Text ~= it.txt then it.lbl.Text = it.txt end it.lbl.TextColor3 = pal.out end end
-function OT.Tick() local t0 = os.clock() local order = OT._order or {} local n = tonumber(OT._orderN) or 0
-    OT._tickUpdates = 0 if n > 0 then
+function OT.Tick() local t0 = os.clock() local order = OT._order or {} local n = tonumber(OT._orderN) or 0 OT._tickUpdates = 0 if n > 0 then
         local myRoot = S.Move and S.Move.Root and S.Move.Root() or nil local myPos = myRoot and myRoot.Position or nil local pal = OT.Pal()
         local quota = math.min(tonumber(OT.labelBudget) or 20, n) local guard = 0 while quota > 0 and guard < n * 2 do guard = guard + 1
             OT._tickIdx = (OT._tickIdx % n) + 1 local inst = order[OT._tickIdx] if inst == nil then elseif OT.items[inst] == nil then order[OT._tickIdx] = nil
-            else quota = quota - 1 OT._tickUpdates = OT._tickUpdates + 1 pcall(OT.TickOne, inst, myPos, pal)
-            end
+            else quota = quota - 1 OT._tickUpdates = OT._tickUpdates + 1 pcall(OT.TickOne, inst, myPos, pal) end
             if (os.clock() - t0) * 1000 > (OT.tickSliceMs or 1.5) then break end   -- nhả khung hình
         end end if OT._sel ~= nil then local okS, aliveS = pcall(function() return OT._sel.Parent ~= nil end)
         if not okS or not aliveS then OT._sel, OT._selPart = nil, nil OT._infoAt = os.clock()
@@ -5106,8 +4658,7 @@ function OT.Tick() local t0 = os.clock() local order = OT._order or {} local n =
 function OT.ScanBegin() OT.RefreshPaths() OT.RefreshChars() local root = S.Move and S.Move.Root and S.Move.Root() or nil
     OT._myPos = root and root.Position or nil
     OT._queue = { workspace }      -- ngăn xếp: cha LUÔN được xét trước con
-    OT._qN = 1 OT._hits = {} OT._scanned, OT._skipped = 0, 0 OT._passing = true
-    OT._passT0 = os.clock() OT._err = nil end
+    OT._qN = 1 OT._hits = {} OT._scanned, OT._skipped = 0, 0 OT._passing = true OT._passT0 = os.clock() OT._err = nil end
 function OT.ScanHit(inst) local okP, posOrBool = pcall(function() return inst:IsA("BasePart") end)
     if okP and posOrBool then local anc, guard, covered = inst.Parent, 0, false while anc and guard < 32 do guard = guard + 1
             if anc == workspace then break end local okM, isM = pcall(function() return anc:IsA("Model") end)
@@ -5123,30 +4674,25 @@ function OT.ScanHit(inst) local okP, posOrBool = pcall(function() return inst:Is
         OT._hits[#OT._hits + 1] = { inst = inst, part = part, dist = d } end end
 function OT.ScanSlice(budget, msCap, runToEnd) if not OT._passing then return true end
     budget = tonumber(budget) or tonumber(OT.scanBudget) or 180 msCap = tonumber(msCap) or tonumber(OT.scanSliceMs) or 1.2
-    local t0 = os.clock() local done = 0 while OT._qN > 0 do local inst = OT._queue[OT._qN]
-        OT._queue[OT._qN] = nil OT._qN = OT._qN - 1
+    local t0 = os.clock() local done = 0 while OT._qN > 0 do local inst = OT._queue[OT._qN] OT._queue[OT._qN] = nil OT._qN = OT._qN - 1
         local okK, kids = pcall(function() return inst:GetChildren() end)   -- đẩy con vào ngăn xếp
         if okK and type(kids) == "table" then for i = 1, #kids do OT._qN = OT._qN + 1 OT._queue[OT._qN] = kids[i]
             end end if inst ~= workspace then OT._scanned = OT._scanned + 1 if OT.Candidate(inst) and not OT.Skip(inst) then
                 OT.ScanHit(inst) end end done = done + 1 if not runToEnd and (done >= budget or (os.clock() - t0) * 1000 > msCap) then
             return false   -- hết ngân sách khung hình này, khung sau quét tiếp
-        end end OT.ScanFinish() return true
-end function OT.ScanFinish() OT._passing = false
+        end end OT.ScanFinish() return true end function OT.ScanFinish() OT._passing = false
     local hits = OT._hits or {} table.sort(hits, function(a, b) return a.dist < b.dist end)
     local maxN = math.max(1, tonumber(OT.maxItems) or 60) local keep, list = {}, {} local n = 0 for i = 1, #hits do
         local h = hits[i] local okV, alive = pcall(function() return h.inst.Parent ~= nil and h.part.Parent ~= nil end)
-        if okV and alive then n = n + 1 if n <= maxN then keep[h.inst] = true list[#list + 1] = h
-            end end end for inst in pairs(OT.items) do
+        if okV and alive then n = n + 1 if n <= maxN then keep[h.inst] = true list[#list + 1] = h end end end for inst in pairs(OT.items) do
         if not keep[inst] then OT.Kill(inst) end end OT._pending = {} for i = 1, #list do
-        local h = list[i] local it = OT.items[h.inst] if it == nil then OT._pending[#OT._pending + 1] = h else
-            it.part = h.part end end OT.list = list
+        local h = list[i] local it = OT.items[h.inst] if it == nil then OT._pending[#OT._pending + 1] = h else it.part = h.part end end OT.list = list
     OT._found = #hits OT._capped = (#hits > #list) OT._scanMs = otRound((os.clock() - (OT._passT0 or os.clock())) * 1000) OT._lastScan = os.clock()
     if OT.RefreshList then pcall(OT.RefreshList) end return #hits end function OT.DrainPending(quota) local pend = OT._pending
     if pend == nil or #pend == 0 then return 0 end quota = tonumber(quota) or tonumber(OT.makeBudget) or 8
     local made = 0 while quota > 0 and #pend > 0 do
         local h = table.remove(pend, 1) if h ~= nil then local okV, alive = pcall(function() return h.inst.Parent ~= nil and h.part.Parent ~= nil end)
-            if okV and alive and OT.items[h.inst] == nil then pcall(OT.Make, h.inst, h.part) made = made + 1 end
-        end quota = quota - 1 end return made end
+            if okV and alive and OT.items[h.inst] == nil then pcall(OT.Make, h.inst, h.part) made = made + 1 end end quota = quota - 1 end return made end
 function OT.Rescan(force) if not OT.on and not (force and (#OT.keys > 0 or #(OT.pathKeys or {}) > 0)) then return 0 end
     if not force and (os.clock() - (OT._lastScan or 0)) < OT.rescanEvery then return OT._found or 0 end pcall(OT.ScanBegin)
     if not OT._passing then return OT._found or 0 end
@@ -5154,58 +4700,40 @@ function OT.Rescan(force) if not OT.on and not (force and (#OT.keys > 0 or #(OT.
     if OT._passing then OT.ScanFinish() end
     OT.DrainPending(1e9)            -- tạo hết ngay cho hành động có chủ đích
     return OT._found or 0 end function OT.Step(dt) local step = tonumber(dt) or 0.016
-    local hasKeys = OT.on and (#OT.keys > 0 or #(OT.pathKeys or {}) > 0) local isPlayerTab = true
-    local isMenuOpen = true if S.PagePerf then
-        isMenuOpen = S.PagePerf.IsMainVisible() local pt = D and D.playerTab
-        if pt then isPlayerTab = S.PagePerf.IsTabVisible(pt)
-        end end
-    local isFast = OT._fastUntil and tick() < OT._fastUntil local tickInterval = OT.labelEvery or 0.12
+    local hasKeys = OT.on and (#OT.keys > 0 or #(OT.pathKeys or {}) > 0) local isPlayerTab = true local isMenuOpen = true if S.PagePerf then
+        isMenuOpen = S.PagePerf.IsMainVisible() local pt = D and D.playerTab if pt then isPlayerTab = S.PagePerf.IsTabVisible(pt)
+        end end local isFast = OT._fastUntil and tick() < OT._fastUntil local tickInterval = OT.labelEvery or 0.12
     if isFast then
         tickInterval = 0.06  -- siêu tốc: cập nhật nhãn mỗi 0.06s
-    elseif not hasKeys then tickInterval = tickInterval * 3
-    elseif not isMenuOpen then tickInterval = tickInterval * 2.5
-    elseif not isPlayerTab then tickInterval = tickInterval * 1.8
-    end OT._acc = (OT._acc or 0) + step
-    if OT._acc >= tickInterval then OT._acc = 0
-        pcall(OT.Tick) end
-    if hasKeys then local scanIdle = OT.scanIdle or 1.0
-        if isFast then
+    elseif not hasKeys then tickInterval = tickInterval * 3 elseif not isMenuOpen then tickInterval = tickInterval * 2.5
+    elseif not isPlayerTab then tickInterval = tickInterval * 1.8 end OT._acc = (OT._acc or 0) + step
+    if OT._acc >= tickInterval then OT._acc = 0 pcall(OT.Tick) end
+    if hasKeys then local scanIdle = OT.scanIdle or 1.0 if isFast then
             scanIdle = 0.3  -- v5.6 FAST: vừa gõ xong quét mỗi 0.3s để phát hiện tức thì
         elseif not isMenuOpen then
             scanIdle = scanIdle * 1.5  -- menu đóng: 1.0 -> 1.5s
         elseif not isPlayerTab then
             scanIdle = scanIdle * 1.2  -- tab khác: 1.0 -> 1.2s
-        end if OT._pending ~= nil and #OT._pending > 0 then
-            local drainQuota if isFast then
+        end if OT._pending ~= nil and #OT._pending > 0 then local drainQuota if isFast then
                 drainQuota = nil  -- nil = dùng makeBudget (15) - tạo nhanh nhất
-            else drainQuota = isMenuOpen and (isPlayerTab and nil or 5) or 2
-            end pcall(OT.DrainPending, drainQuota)
-        end if not OT._passing then
-            OT._scanAcc = (OT._scanAcc or 0) + step if OT._scanAcc >= scanIdle then
-                OT._scanAcc = 0 pcall(OT.ScanBegin)
-            end end
-        if OT._passing then pcall(OT.ScanSlice)
-        end else
-        if OT._pending ~= nil and #OT._pending > 0 then OT._scanAcc = (OT._scanAcc or 0) + step
-            if OT._scanAcc >= 0.5 then OT._scanAcc = 0
-                pcall(OT.DrainPending, 5) end
-        end end
-end function OT.OnPerfTick()
-end function OT.Bind() if OT._bound then return end
+            else drainQuota = isMenuOpen and (isPlayerTab and nil or 5) or 2 end pcall(OT.DrainPending, drainQuota)
+        end if not OT._passing then OT._scanAcc = (OT._scanAcc or 0) + step if OT._scanAcc >= scanIdle then
+                OT._scanAcc = 0 pcall(OT.ScanBegin) end end
+        if OT._passing then pcall(OT.ScanSlice) end else
+        if OT._pending ~= nil and #OT._pending > 0 then OT._scanAcc = (OT._scanAcc or 0) + step if OT._scanAcc >= 0.5 then OT._scanAcc = 0
+                pcall(OT.DrainPending, 5) end end end
+end function OT.OnPerfTick() end function OT.Bind() if OT._bound then return end
     OT._bound = true pcall(function() RunService:BindToRenderStep("BC_ObjTrack", Enum.RenderPriority.Camera.Value - 6, function(dt) pcall(OT.Step, dt)
         end) end) end function OT.Unbind() OT._bound = false
     pcall(function() RunService:UnbindFromRenderStep("BC_ObjTrack") end) end function OT.Set(on) on = on and true or false
     if on and #OT.keys == 0 then OT.on = false OT.Unbind() OT.Clear()
         pcall(function() if S.Move and S.Move.StopObjectFly then S.Move.StopObjectFly() end end) return false, "chưa nhập tên vật (ô 🔎 Tên vật)"
-    end OT.on = on if on then OT.Bind()
-        OT.Rescan(true) return true end OT.Clear() OT.Unbind()
+    end OT.on = on if on then OT.Bind() OT.Rescan(true) return true end OT.Clear() OT.Unbind()
     pcall(function() if S.Move and S.Move.StopObjectFly then S.Move.StopObjectFly() end end) if OT.RefreshList then pcall(OT.RefreshList) end
-    return false end function OT.Toggle() return OT.Set(not OT.on) end
-function OT.SetQuery(q) OT.query = tostring(q or "")
+    return false end function OT.Toggle() return OT.Set(not OT.on) end function OT.SetQuery(q) OT.query = tostring(q or "")
     OT.RebuildKeys()   -- gộp ô nhập đang gõ + các mục đã ghim
     OT._fastUntil = tick() + 4 S.Debounce("objtrack", 0.2, function() if #OT.keys == 0 and #(OT.pathKeys or {}) == 0 then
-            if OT.on then OT.Set(false) end OT.Clear() if OT.RefreshList then pcall(OT.RefreshList) end return
-        end OT.on = true
+            if OT.on then OT.Set(false) end OT.Clear() if OT.RefreshList then pcall(OT.RefreshList) end return end OT.on = true
         OT._fastUntil = tick() + 4  -- v5.6: vừa bật là quét siêu tốc
         OT.Bind() local n = OT.Rescan(true) if n == 0 then pcall(function()
                 if D.Say then D.Say("⚠️ không thấy vật nào khớp \"" .. tostring(OT.query) .. "\" — thử tên ngắn hơn (VD: cây)", C.RED) end end)
@@ -5219,8 +4747,7 @@ end function OT.ApplyStyle() local pal = OT.Pal()
         if it.bb then it.bb.AlwaysOnTop = OT.thru it.bb.Enabled = OT.showLabel end
         if it.lbl then it.lbl.TextColor3 = pal.out end if OT.showBox and it.box == nil and it.part then
             it.box = OT._MakeBox(it.part, pal) elseif it.box then it.box.Visible = OT.showBox it.box.Color3 = pal.fill
-        end end end function OT.Nearest() local best, bestH = nil, nil
-    for i = 1, #OT.list do local h = OT.list[i]
+        end end end function OT.Nearest() local best, bestH = nil, nil for i = 1, #OT.list do local h = OT.list[i]
         if h.part and h.part.Parent and h.inst.Parent then if best == nil or h.dist < best then best, bestH = h.dist, h end end end
     return bestH and bestH.inst or nil, bestH end
 function OT.Status() if #OT.keys == 0 and #(OT.pathKeys or {}) == 0 then return "🌳 Định vị vật: chưa nhập tên" end
@@ -5428,8 +4955,7 @@ function OT.OnFlyChange() if OT.RefreshList then pcall(OT.RefreshList) end end e
             if oldPI._vAvatarHeartbeat then pcall(function() oldPI._vAvatarHeartbeat:Disconnect() end) end
             if oldPI._sitJumpConn then pcall(function() oldPI._sitJumpConn:Disconnect() end) end
             if oldPI._sitWatchConn then pcall(function() oldPI._sitWatchConn:Disconnect() end) end end
-        RunService:UnbindFromRenderStep("BC_VirtualAvatarSync") RunService:UnbindFromRenderStep("BC_PlayerViewSpin")
-    end) local PI = {}
+        RunService:UnbindFromRenderStep("BC_VirtualAvatarSync") RunService:UnbindFromRenderStep("BC_PlayerViewSpin") end) local PI = {}
     PI.reqId = 0          -- mỗi lần tra cứu tăng số này; kết quả cũ (stale) bị bỏ qua
     PI.last = nil         -- bản ghi tra cứu gần nhất
     PI.productCache = {}  -- assetId -> { name, creator }
@@ -5443,8 +4969,7 @@ function OT.OnFlyChange() if OT.RefreshList then pcall(OT.RefreshList) end end e
     PI.localActive = false -- trạng thái bật Mặc LOCAL (trên nhân vật thật)
     PI.localId = nil
     PI._virtualAvatar = nil -- nhân vật ảo đặt độc lập ngoài map (tạo từ skin đã xoá/lọc)
-    PI._virtualAvatarId = nil PI._virtualAvatarRec = nil
-    PI._virtualAvatarCFrame = nil PI.SPIN_BIND = "BC_PlayerViewSpin"
+    PI._virtualAvatarId = nil PI._virtualAvatarRec = nil PI._virtualAvatarCFrame = nil PI.SPIN_BIND = "BC_PlayerViewSpin"
     pcall(function() RunService:UnbindFromRenderStep("BC_PlayerViewSpin") end) _G.BananaCatHub_PlayerInfo = PI
     local MarketplaceService = game:GetService("MarketplaceService")
     local PRESENCE = { [0] = "⚫ Offline", [1] = "🟢 Online (web/app)", [2] = "🎮 Đang trong game", [3] = "🛠 Đang trong Studio" }
@@ -5452,480 +4977,288 @@ function OT.OnFlyChange() if OT.RefreshList then pcall(OT.RefreshList) end end e
     local function clipText(s, n)  -- cắt theo ký tự UTF-8 (không cắt giữa dấu tiếng Việt)
         s = tostring(s or "") local okL, len = pcall(utf8.len, s)
         if okL and type(len) == "number" and len > n then local okO, cut = pcall(utf8.offset, s, n + 1)
-            if okO and cut then return s:sub(1, cut - 1) .. "…" end end
-        return s end
+            if okO and cut then return s:sub(1, cut - 1) .. "…" end end return s end
     local function jsonEncode(t) local ok, s = pcall(function() return HttpService:JSONEncode(t) end) if ok then return s end return nil end
-    function PI.Http(method, url, body)
-        local g = (type(getgenv) == "function" and select(2, pcall(getgenv))) or nil
-        local rq = (type(request) == "function" and request ~= S.CompatRequest and request)
-            or (type(http_request) == "function" and http_request ~= S.CompatRequest and http_request)
-            or (type(syn) == "table" and type(syn.request) == "function" and syn.request)
-            or (type(http) == "table" and type(http.request) == "function" and http.request ~= S.CompatRequest and http.request)
-            or (type(fluxus) == "table" and type(fluxus.request) == "function" and fluxus.request)
-            or (type(g) == "table" and (
-                (type(g.request) == "function" and g.request ~= S.CompatRequest and g.request)
-                or (type(g.http_request) == "function" and g.http_request ~= S.CompatRequest and g.http_request)
-            ))
-            or (type(request) == "function" and request)
-            or (type(http_request) == "function" and http_request)
-            or S.CompatRequest
-        local headers = nil
-        if body then headers = { ["Content-Type"] = "application/json", ["Accept"] = "application/json" } end
-        local mUp = tostring(method or "GET"):upper()
-        local ok, res = pcall(rq, { Url = url, Method = mUp, Headers = headers, Body = body })
-        if (not ok or type(res) ~= "table" or type(res.Body) ~= "string" or #res.Body == 0) then
-            if mUp == "GET" then
-                local okG, rawG = pcall(function() return game:HttpGet(url) end)
-                if okG and type(rawG) == "string" and #rawG > 0 then
-                    res = { StatusCode = 200, Success = true, Body = rawG }
-                    ok = true
-                end
-            elseif mUp == "POST" then
-                local okP, rawP = pcall(function() return game:HttpPost(url, tostring(body or ""), "application/json") end)
-                if okP and type(rawP) == "string" and #rawP > 0 then
-                    res = { StatusCode = 200, Success = true, Body = rawP }
-                    ok = true
-                end
-            end
-        end
+    function PI.Http(method, url, body) local g = (type(getgenv) == "function" and S.IsRealExecutorFn(getgenv) and select(2, pcall(getgenv))) or nil
+        local fenv = (type(getfenv) == "function" and select(2, pcall(getfenv, 0))) or nil local rq = (S.IsRealExecutorFn(request) and request)
+            or (S.IsRealExecutorFn(http_request) and http_request) or (type(syn) == "table" and S.IsRealExecutorFn(syn.request) and syn.request)
+            or (type(http) == "table" and S.IsRealExecutorFn(http.request) and http.request)
+            or (type(fluxus) == "table" and S.IsRealExecutorFn(fluxus.request) and fluxus.request) or (type(g) == "table" and (
+                (S.IsRealExecutorFn(g.request) and g.request) or (S.IsRealExecutorFn(g.http_request) and g.http_request)
+                or (type(g.http) == "table" and S.IsRealExecutorFn(g.http.request) and g.http.request) ))
+            or (type(fenv) == "table" and (
+                (S.IsRealExecutorFn(fenv.request) and fenv.request) or (S.IsRealExecutorFn(fenv.http_request) and fenv.http_request)
+            )) or (type(request) == "function" and request)
+            or (type(http_request) == "function" and http_request) or S.CompatRequest
+        local headers = nil if body then headers = { ["Content-Type"] = "application/json", ["Accept"] = "application/json" } end
+        local mUp = tostring(method or "GET"):upper() local ok, res = pcall(rq, { Url = url, Method = mUp, Headers = headers, Body = body })
+        if (not ok or type(res) ~= "table" or type(res.Body) ~= "string" or #res.Body == 0) then if mUp == "GET" then
+                local okG, rawG = pcall(function() return game:HttpGet(url, true) end) if not (okG and type(rawG) == "string" and #rawG > 0) then
+                    okG, rawG = pcall(function() return game:HttpGet(url) end) end
+                if okG and type(rawG) == "string" and #rawG > 0 then res = { StatusCode = 200, Success = true, Body = rawG }
+                    ok = true end
+            elseif mUp == "POST" then local okP, rawP = pcall(function() return game:HttpPost(url, tostring(body or ""), "application/json") end)
+                if okP and type(rawP) == "string" and #rawP > 0 then res = { StatusCode = 200, Success = true, Body = rawP }
+                    ok = true end
+            end end
         if not ok or type(res) ~= "table" then return nil, "lỗi mạng" end local code = tonumber(res.StatusCode) or 0
         if res.Success == false or code >= 400 then return nil, "HTTP " .. tostring(code) end
         if type(res.Body) ~= "string" or #res.Body == 0 then return nil, "phản hồi rỗng" end
         local okD, data = pcall(function() return HttpService:JSONDecode(res.Body) end)
-        if not okD or type(data) ~= "table" then return nil, "phản hồi không hợp lệ" end return data, nil
-    end function PI.ResolveUser(query)
-        local rawQ = trimStr(query)
-        local hadAt = (rawQ:sub(1, 1) == "@")
-        local q = rawQ:gsub("^@", "")
-        if q == "" then return nil, "chưa nhập tên hoặc UserId" end
-        if q:match("^%d+$") then
-            if #q > 15 then return nil, "UserId không hợp lệ (quá dài)" end
-            local id = tonumber(q) if not id or id <= 0 then return nil, "UserId không hợp lệ" end
-            return id, nil end
-        local ql = q:lower()
-        local okPlrs, plrs = pcall(function() return Players:GetPlayers() end)
-        if okPlrs and type(plrs) == "table" then
-            for _, plr in ipairs(plrs) do
-                if tostring(plr.Name or ""):lower() == ql and tonumber(plr.UserId) then
-                    return tonumber(plr.UserId), tostring(plr.Name)
-                end
-            end
-            if not hadAt then
-                for _, plr in ipairs(plrs) do
-                    if tostring(plr.DisplayName or ""):lower() == ql and tonumber(plr.UserId) then
-                        return tonumber(plr.UserId), tostring(plr.Name)
-                    end
-                end
-            end
-        end
-        local okFr, frList = pcall(function() return player:GetFriendsOnline(200) end)
-        if okFr and type(frList) == "table" then
-            for _, f in ipairs(frList) do
-                if type(f) == "table" and tostring(f.UserName or ""):lower() == ql and tonumber(f.VisitorId) then
-                    return tonumber(f.VisitorId), tostring(f.UserName)
-                end
-            end
-            if not hadAt then
-                for _, f in ipairs(frList) do
-                    if type(f) == "table" and tostring(f.DisplayName or ""):lower() == ql and tonumber(f.VisitorId) then
-                        return tonumber(f.VisitorId), tostring(f.UserName)
-                    end
-                end
-            end
-        end
-        if #q >= 3 and #q <= 20 and not q:find("[^%w_]") then
-            local data, err = PI.Http("POST", "https://users.roblox.com/v1/usernames/users",
-                jsonEncode({ usernames = { q }, excludeBannedUsers = false }))
+        if not okD or type(data) ~= "table" then return nil, "phản hồi không hợp lệ" end return data, nil end function PI.ResolveUser(query)
+        local rawQ = trimStr(query) local hadAt = (rawQ:sub(1, 1) == "@")
+        local q = rawQ:gsub("^@", "") if q == "" then return nil, "chưa nhập tên hoặc UserId" end
+        if q:match("^%d+$") then if #q > 15 then return nil, "UserId không hợp lệ (quá dài)" end
+            local id = tonumber(q) if not id or id <= 0 then return nil, "UserId không hợp lệ" end return id, nil end
+        local ql = q:lower() local okPlrs, plrs = pcall(function() return Players:GetPlayers() end)
+        if okPlrs and type(plrs) == "table" then for _, plr in ipairs(plrs) do
+                if tostring(plr.Name or ""):lower() == ql and tonumber(plr.UserId) then return tonumber(plr.UserId), tostring(plr.Name)
+                end end
+            if not hadAt then for _, plr in ipairs(plrs) do
+                    if tostring(plr.DisplayName or ""):lower() == ql and tonumber(plr.UserId) then return tonumber(plr.UserId), tostring(plr.Name)
+                    end end
+            end end
+        local okFr, frList = pcall(function() return player:GetFriendsOnline(200) end) if okFr and type(frList) == "table" then
+            for _, f in ipairs(frList) do if type(f) == "table" and tostring(f.UserName or ""):lower() == ql and tonumber(f.VisitorId) then
+                    return tonumber(f.VisitorId), tostring(f.UserName) end
+            end if not hadAt then
+                for _, f in ipairs(frList) do if type(f) == "table" and tostring(f.DisplayName or ""):lower() == ql and tonumber(f.VisitorId) then
+                        return tonumber(f.VisitorId), tostring(f.UserName) end
+                end end
+        end if #q >= 3 and #q <= 20 and not q:find("[^%w_]") then
+            local data, err = PI.Http("POST", "https://users.roblox.com/v1/usernames/users", jsonEncode({ usernames = { q }, excludeBannedUsers = false }))
             if type(data) == "table" and type(data.data) == "table" and type(data.data[1]) == "table" and tonumber(data.data[1].id) then
                 return tonumber(data.data[1].id), tostring(data.data[1].name or q) end
-            local okId, id = pcall(function() return Players:GetUserIdFromNameAsync(q) end)
-            if okId and tonumber(id) then return tonumber(id), q end
-            if okPlrs and type(plrs) == "table" then
-                for _, plr in ipairs(plrs) do
+            local okId, id = pcall(function() return Players:GetUserIdFromNameAsync(q) end) if okId and tonumber(id) then return tonumber(id), q end
+            if okPlrs and type(plrs) == "table" then for _, plr in ipairs(plrs) do
                     local pn, pd = tostring(plr.Name or ""):lower(), tostring(plr.DisplayName or ""):lower()
-                    if (pn:find(ql, 1, true) or pd:find(ql, 1, true)) and tonumber(plr.UserId) then
-                        return tonumber(plr.UserId), tostring(plr.Name)
-                    end
-                end
-            end
-            return nil, "không tìm thấy người chơi '" .. q .. "'" .. (err and (" (" .. err .. ")") or "")
-        end
-        if okPlrs and type(plrs) == "table" then
-            for _, plr in ipairs(plrs) do
-                local pn, pd = tostring(plr.Name or ""):lower(), tostring(plr.DisplayName or ""):lower()
-                if (pn:find(ql, 1, true) or pd:find(ql, 1, true)) and tonumber(plr.UserId) then
-                    return tonumber(plr.UserId), tostring(plr.Name)
-                end
-            end
-        end
-        return nil, "tên không hợp lệ (3–20 ký tự: chữ, số, _)" end
+                    if (pn:find(ql, 1, true) or pd:find(ql, 1, true)) and tonumber(plr.UserId) then return tonumber(plr.UserId), tostring(plr.Name)
+                    end end
+            end return nil, "không tìm thấy người chơi '" .. q .. "'" .. (err and (" (" .. err .. ")") or "")
+        end if okPlrs and type(plrs) == "table" then
+            for _, plr in ipairs(plrs) do local pn, pd = tostring(plr.Name or ""):lower(), tostring(plr.DisplayName or ""):lower()
+                if (pn:find(ql, 1, true) or pd:find(ql, 1, true)) and tonumber(plr.UserId) then return tonumber(plr.UserId), tostring(plr.Name)
+                end end
+        end return nil, "tên không hợp lệ (3–20 ký tự: chữ, số, _)" end
     function PI.FetchProfile(id) local data, err = PI.Http("GET", "https://users.roblox.com/v1/users/" .. tostring(id), nil)
         if type(data) ~= "table" or tonumber(data.id) == nil then if err == "HTTP 404" then return nil, "UserId " .. tostring(id) .. " không tồn tại" end
-            return nil, "không đọc được hồ sơ UserId " .. tostring(id) .. " (" .. tostring(err or "lỗi") .. ")" end
-        return data, nil end
-    function PI.GetFriendPresence(id)
-        id = tonumber(id)
-        if not id then return nil end
-        local okF, list = pcall(function() return player:GetFriendsOnline(200) end)
-        if okF and type(list) == "table" then
-            for _, f in ipairs(list) do
+            return nil, "không đọc được hồ sơ UserId " .. tostring(id) .. " (" .. tostring(err or "lỗi") .. ")" end return data, nil end
+    function PI.GetFriendPresence(id) id = tonumber(id)
+        if not id then return nil end local okF, list = pcall(function() return player:GetFriendsOnline(200) end)
+        if okF and type(list) == "table" then for _, f in ipairs(list) do
                 if type(f) == "table" and tonumber(f.VisitorId) == id then
-                    local hasGame = (tonumber(f.PlaceId) ~= nil) or (type(f.GameId) == "string" and f.GameId ~= "") or (tonumber(f.LocationType) == 4)
-                    return {
-                        userPresenceType = hasGame and 2 or (f.IsOnline and 1 or 0),
-                        lastLocation = tostring(f.LastLocation or ""),
-                        placeId = tonumber(f.PlaceId),
-                        rootPlaceId = tonumber(f.PlaceId),
-                        gameId = (type(f.GameId) == "string" and f.GameId ~= "") and f.GameId or nil,
-                    }
-                end
-            end
-        end
-        return nil
-    end
-    function PI.FetchPresence(id)
+                    local hasGame = (tonumber(f.PlaceId) ~= nil) or (type(f.GameId) == "string" and f.GameId ~= "") or (tonumber(f.LocationType) == 4) return {
+                        userPresenceType = hasGame and 2 or (f.IsOnline and 1 or 0), lastLocation = tostring(f.LastLocation or ""),
+                        placeId = tonumber(f.PlaceId), rootPlaceId = tonumber(f.PlaceId),
+                        gameId = (type(f.GameId) == "string" and f.GameId ~= "") and f.GameId or nil, }
+                end end
+        end return nil
+    end function PI.FetchPresence(id)
         local fPres = PI.GetFriendPresence(id)
         local data = PI.Http("POST", "https://presence.roblox.com/v1/presence/users", jsonEncode({ userIds = { id } }))
-        local p = type(data) == "table" and type(data.userPresences) == "table" and data.userPresences[1] or nil
-        if type(p) ~= "table" then p = fPres end
-        if type(p) == "table" and type(fPres) == "table" then
-            if (not p.gameId or p.gameId == "") and fPres.gameId then p.gameId = fPres.gameId end
+        local p = type(data) == "table" and type(data.userPresences) == "table" and data.userPresences[1] or nil if type(p) ~= "table" then p = fPres end
+        if type(p) == "table" and type(fPres) == "table" then if (not p.gameId or p.gameId == "") and fPres.gameId then p.gameId = fPres.gameId end
             if not p.placeId and fPres.placeId then p.placeId = fPres.placeId; p.rootPlaceId = p.rootPlaceId or fPres.rootPlaceId end
-            if (tonumber(p.userPresenceType) or 0) == 0 and (tonumber(fPres.userPresenceType) or 0) > 0 then
-                p.userPresenceType = fPres.userPresenceType
-                p.lastLocation = (p.lastLocation and p.lastLocation ~= "") and p.lastLocation or fPres.lastLocation
-            end
-        end
-        if PI.InThisServer(id, p) then
-            p = type(p) == "table" and p or {}
-            p.userPresenceType = 2
-            if tostring(game.JobId or "") ~= "" then p.gameId = tostring(game.JobId) end
-            if tonumber(game.PlaceId) then p.placeId = tonumber(game.PlaceId) end
-        end
-        return p
-    end
-    function PI.PresenceText(p) if type(p) ~= "table" then return "❔ không rõ" end
+            if (tonumber(p.userPresenceType) or 0) == 0 and (tonumber(fPres.userPresenceType) or 0) > 0 then p.userPresenceType = fPres.userPresenceType
+                p.lastLocation = (p.lastLocation and p.lastLocation ~= "") and p.lastLocation or fPres.lastLocation end
+        end if PI.InThisServer(id, p) then
+            p = type(p) == "table" and p or {} p.userPresenceType = 2
+            if tostring(game.JobId or "") ~= "" then p.gameId = tostring(game.JobId) end if tonumber(game.PlaceId) then p.placeId = tonumber(game.PlaceId) end
+        end return p
+    end function PI.PresenceText(p) if type(p) ~= "table" then return "❔ không rõ" end
         local t = tonumber(p.userPresenceType) or -1 local text = PRESENCE[t] or "❔ không rõ"
         if t == 2 and type(p.lastLocation) == "string" and p.lastLocation ~= "" then text = text .. ": " .. p.lastLocation end return text
-    end function PI.InThisServer(id, p)
-        id = tonumber(id)
-        if not id then return false end
-        local okP, inst = pcall(function() return Players:GetPlayerByUserId(id) end) if okP and inst then return true end
-        local okL, list = pcall(function() return Players:GetPlayers() end)
-        if okL and type(list) == "table" then
-            for _, plr in ipairs(list) do
-                if tonumber(plr.UserId) == id then return true end
-            end
-        end
+    end function PI.InThisServer(id, p) id = tonumber(id)
+        if not id then return false end local okP, inst = pcall(function() return Players:GetPlayerByUserId(id) end) if okP and inst then return true end
+        local okL, list = pcall(function() return Players:GetPlayers() end) if okL and type(list) == "table" then
+            for _, plr in ipairs(list) do if tonumber(plr.UserId) == id then return true end
+            end end
         if type(p) == "table" and p.gameId ~= nil and tostring(p.gameId) ~= "" and tostring(p.gameId) == tostring(game.JobId or "") then return true end return false
-    end
-    local function normalizeThumbKey(u)
-        if type(u) ~= "string" or u == "" then return nil end
-        local seg1 = u:match("rbxcdn%.com/([^/%?]+)")
-        if seg1 and seg1 ~= "" then
-            local hash = seg1:match("AvatarHeadshot%-([%w_%-]+)")
-            if hash and hash ~= "" then
-                hash = hash:gsub("%-[Pp][Nn][Gg]$", ""):gsub("%-[Ww][Ee][Bb][Pp]$", ""):gsub("%-[Jj][Pp][Ee]?[Gg]$", "")
-                return hash:lower()
-            end
-            seg1 = seg1:gsub("%-[Pp][Nn][Gg]$", ""):gsub("%-[Ww][Ee][Bb][Pp]$", ""):gsub("%-[Jj][Pp][Ee]?[Gg]$", "")
-            return seg1:lower()
-        end
-        return u:lower()
-    end
-    function PI.FetchTargetHeadshotKeys(id)
-        local keys = {}
-        local count = 0
-        local firstUrl = nil
-        local function addUrl(u)
-            if type(u) ~= "string" or u == "" then return end
-            if not firstUrl then firstUrl = u end
-            local k = normalizeThumbKey(u)
-            if k and k ~= "" and not keys[k] then
-                keys[k] = true
-                count = count + 1
-            end
-            local seg = u:match("rbxcdn%.com/([^/%?]+)")
-            if seg and seg ~= "" then
-                keys[seg:lower()] = true
-                local s2 = seg:gsub("%-[Pp][Nn][Gg]$", ""):gsub("%-[Ww][Ee][Bb][Pp]$", ""):lower()
-                if s2 ~= "" then keys[s2] = true end
-            end
-            local fullPath = u:match("rbxcdn%.com/([^%?]+)")
-            if fullPath and fullPath ~= "" then
-                keys[fullPath:lower()] = true
-            end
+    end local function normalizeThumbKey(u)
+        if type(u) ~= "string" or u == "" then return nil end local hex32 = u:match("(%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x)")
+        if hex32 and hex32 ~= "" then return hex32:lower()
+        end local seg1 = u:match("rbxcdn%.com/([^/%?]+)")
+        if seg1 and seg1 ~= "" then local hash = seg1:match("AvatarHeadshot%-([%w_%-]+)")
+            if hash and hash ~= "" then hash = hash:gsub("%-[Pp][Nn][Gg]$", ""):gsub("%-[Ww][Ee][Bb][Pp]$", ""):gsub("%-[Jj][Pp][Ee]?[Gg]$", "")
+                return hash:lower() end
+            seg1 = seg1:gsub("%-[Pp][Nn][Gg]$", ""):gsub("%-[Ww][Ee][Bb][Pp]$", ""):gsub("%-[Jj][Pp][Ee]?[Gg]$", "") return seg1:lower()
+        end return u:lower()
+    end function PI.FetchTargetHeadshotKeys(id)
+        local keys = {} local count = 0
+        local firstUrl = nil local function addUrl(u)
+            if type(u) ~= "string" or u == "" then return end if not firstUrl then firstUrl = u end
+            local k = normalizeThumbKey(u) if k and k ~= "" and not keys[k] then
+                keys[k] = true count = count + 1
+            end local seg = u:match("rbxcdn%.com/([^/%?]+)")
+            if seg and seg ~= "" then keys[seg:lower()] = true
+                local ah = seg:match("AvatarHeadshot%-([%w_%-]+)") if ah and ah ~= "" then
+                    ah = ah:gsub("%-[Pp][Nn][Gg]$", ""):gsub("%-[Ww][Ee][Bb][Pp]$", ""):gsub("%-[Jj][Pp][Ee]?[Gg]$", ""):lower() if ah ~= "" then keys[ah] = true end
+                end local s2 = seg:gsub("%-[Pp][Nn][Gg]$", ""):gsub("%-[Ww][Ee][Bb][Pp]$", ""):lower()
+                if s2 ~= "" then keys[s2] = true end end
+            local fullPath = u:match("rbxcdn%.com/([^%?]+)") if fullPath and fullPath ~= "" then
+                keys[fullPath:lower()] = true end
         end
         local data = PI.Http("GET", "https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=" .. tostring(id) .. "&size=150x150&format=Png&isCircular=false", nil)
         local e = type(data) == "table" and type(data.data) == "table" and data.data[1] or nil
-        if type(e) == "table" and type(e.imageUrl) == "string" and e.imageUrl ~= "" then
-            addUrl(e.imageUrl)
-        end
-        local bData = PI.Http("POST", "https://thumbnails.roblox.com/v1/batch", jsonEncode({
+        if type(e) == "table" and type(e.imageUrl) == "string" and e.imageUrl ~= "" then addUrl(e.imageUrl)
+        end local bData = PI.Http("POST", "https://thumbnails.roblox.com/v1/batch", jsonEncode({
             { requestId = "t_png:" .. tostring(id), targetId = tonumber(id), type = "AvatarHeadShot", size = "150x150", format = "Png", isCircular = false },
             { requestId = "t_webp:" .. tostring(id), targetId = tonumber(id), type = "AvatarHeadShot", size = "150x150", format = "Webp", isCircular = false },
-            { requestId = "t_def:" .. tostring(id), targetId = tonumber(id), type = "AvatarHeadShot", size = "150x150" },
-        }))
-        local hadPending = false
-        if type(bData) == "table" and type(bData.data) == "table" then
-            for _, be in ipairs(bData.data) do
-                if type(be) == "table" then
-                    if type(be.imageUrl) == "string" and be.imageUrl ~= "" then
-                        addUrl(be.imageUrl)
-                    elseif tostring(be.state or "") == "Pending" then
-                        hadPending = true
-                    end
-                end
-            end
-        end
-        if count == 0 and hadPending then
-            task.wait(0.35)
+            { requestId = "t_def:" .. tostring(id), targetId = tonumber(id), type = "AvatarHeadShot", size = "150x150" }, }))
+        local hadPending = false if type(bData) == "table" and type(bData.data) == "table" then
+            for _, be in ipairs(bData.data) do if type(be) == "table" then
+                    if type(be.imageUrl) == "string" and be.imageUrl ~= "" then addUrl(be.imageUrl)
+                    elseif tostring(be.state or "") == "Pending" then hadPending = true
+                    end end
+            end end
+        if count == 0 and hadPending then task.wait(0.35)
             local data2 = PI.Http("GET", "https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=" .. tostring(id) .. "&size=150x150&format=Png&isCircular=false", nil)
             local e2 = type(data2) == "table" and type(data2.data) == "table" and data2.data[1] or nil
-            if type(e2) == "table" and type(e2.imageUrl) == "string" and e2.imageUrl ~= "" then
-                addUrl(e2.imageUrl)
-            end
-        end
-        return keys, firstUrl, count
-    end
-    function PI.FetchHeadshotUrl(id)
-        local _, firstUrl = PI.FetchTargetHeadshotKeys(id)
-        return firstUrl
-    end
-    local function fetchServerPageWithRetry(scanPlaceId, cursor, sortOrder)
-        local order = tostring(sortOrder or "Desc")
+            if type(e2) == "table" and type(e2.imageUrl) == "string" and e2.imageUrl ~= "" then addUrl(e2.imageUrl)
+            end end
+        return keys, firstUrl, count end
+    function PI.FetchHeadshotUrl(id) local _, firstUrl = PI.FetchTargetHeadshotKeys(id)
+        return firstUrl end
+    local function fetchServerPageWithRetry(scanPlaceId, cursor, sortOrder) local order = tostring(sortOrder or "Desc")
         local qCur = (type(cursor) == "string" and cursor ~= "") and ("&cursor=" .. tostring(cursor)) or ""
         local url1 = "https://games.roblox.com/v1/games/" .. tostring(scanPlaceId) .. "/servers/Public?sortOrder=" .. order .. "&limit=100&excludeFullGames=false" .. qCur
         local url2 = "https://games.roblox.com/v1/games/" .. tostring(scanPlaceId) .. "/servers/Public?sortOrder=" .. order .. "&limit=100" .. qCur
-        for attempt = 1, 3 do
-            local sData, err1 = PI.Http("GET", url1, nil)
-            if type(sData) == "table" and type(sData.data) == "table" then
-                return sData.data, sData.nextPageCursor
-            end
-            local sData2, err2 = PI.Http("GET", url2, nil)
-            if type(sData2) == "table" and type(sData2.data) == "table" then
-                return sData2.data, sData2.nextPageCursor
-            end
-            local eStr = tostring(err1 or "") .. " " .. tostring(err2 or "")
-            if eStr:find("429") and attempt < 3 then
-                task.wait(0.45 * attempt)
-            else
-                break
-            end
-        end
-        if (not cursor or cursor == "") and type(S.FetchServers) == "function" then
-            local okS, fList, fCur = pcall(S.FetchServers, "", scanPlaceId)
-            if okS and type(fList) == "table" then return fList, fCur end
-        end
-        return nil, nil
-    end
-    function PI.FindPlayerServerByTokens(id, targetPlaceId, onProgress, maxPages)
-        id = tonumber(id)
-        if not id or id <= 0 then return nil, nil, nil end
-        if PI.InThisServer(id, nil) and tostring(game.JobId or "") ~= "" then
-            return tostring(game.JobId), tonumber(game.PlaceId), "same_server"
-        end
-        local fPres = PI.GetFriendPresence(id)
-        if type(fPres) == "table" and type(fPres.gameId) == "string" and fPres.gameId ~= "" then
-            return tostring(fPres.gameId), tonumber(fPres.placeId) or tonumber(targetPlaceId) or tonumber(game.PlaceId), "friend_online"
-        end
+        for attempt = 1, 3 do local sData, err1 = PI.Http("GET", url1, nil)
+            if type(sData) == "table" and type(sData.data) == "table" then return sData.data, sData.nextPageCursor
+            end local sData2, err2 = PI.Http("GET", url2, nil)
+            if type(sData2) == "table" and type(sData2.data) == "table" then return sData2.data, sData2.nextPageCursor
+            end local eStr = tostring(err1 or "") .. " " .. tostring(err2 or "")
+            if eStr:find("429") and attempt < 3 then task.wait(0.45 * attempt)
+            else break
+            end end
+        if (not cursor or cursor == "") and type(S.FetchServers) == "function" then local okS, fList, fCur = pcall(S.FetchServers, "", scanPlaceId)
+            if okS and type(fList) == "table" then return fList, fCur end end
+        return nil, nil end
+    function PI.FindPlayerServerByTokens(id, targetPlaceId, onProgress, maxPages) id = tonumber(id)
+        if not id or id <= 0 then return nil, nil, nil end if PI.InThisServer(id, nil) and tostring(game.JobId or "") ~= "" then
+            return tostring(game.JobId), tonumber(game.PlaceId), "same_server" end
+        local fPres = PI.GetFriendPresence(id) if type(fPres) == "table" and type(fPres.gameId) == "string" and fPres.gameId ~= "" then
+            return tostring(fPres.gameId), tonumber(fPres.placeId) or tonumber(targetPlaceId) or tonumber(game.PlaceId), "friend_online" end
         local okTp, _, _, tpPlaceId, tpJobId = pcall(function() return TeleportService:GetPlayerPlaceInstanceAsync(id) end)
         if okTp and type(tpJobId) == "string" and tpJobId ~= "" then
-            return tostring(tpJobId), tonumber(tpPlaceId) or tonumber(targetPlaceId) or tonumber(game.PlaceId), "teleport_service"
-        end
-        local pres = PI.FetchPresence(id)
-        if type(pres) == "table" and type(pres.gameId) == "string" and pres.gameId ~= "" then
+            return tostring(tpJobId), tonumber(tpPlaceId) or tonumber(targetPlaceId) or tonumber(game.PlaceId), "teleport_service" end
+        local pres = PI.FetchPresence(id) if type(pres) == "table" and type(pres.gameId) == "string" and pres.gameId ~= "" then
             local pId = tonumber(pres.placeId) or tonumber(pres.rootPlaceId) or tonumber(targetPlaceId) or tonumber(game.PlaceId)
-            return tostring(pres.gameId), pId, "presence"
-        end
-        local scanPlaceId = tonumber(targetPlaceId)
-            or (type(pres) == "table" and (tonumber(pres.placeId) or tonumber(pres.rootPlaceId)))
-            or tonumber(game.PlaceId)
-        if not scanPlaceId or scanPlaceId <= 0 then return nil, nil, nil end
-        local targetKeys = PI.FetchTargetHeadshotKeys(id)
-        local function matchesThumb(imgUrl)
-            if type(imgUrl) ~= "string" or imgUrl == "" then return false end
-            local k = normalizeThumbKey(imgUrl)
-            if k and targetKeys[k] then return true end
-            local seg = imgUrl:match("rbxcdn%.com/([^/%?]+)")
-            if seg and targetKeys[seg:lower()] then return true end
-            local fp = imgUrl:match("rbxcdn%.com/([^%?]+)")
-            if fp and targetKeys[fp:lower()] then return true end
-            return false
-        end
-        local function scanPlace(pId, pagesLimit)
-            local pages = tonumber(pagesLimit) or 14
-            local curDesc, curAsc = "", ""
-            local doneDesc, doneAsc = false, false
-            local seenSid = {}
-            local tokSeq = 0
-            local pageCount = 0
-            while pageCount < pages and (not doneDesc or not doneAsc) do
-                for _, mode in ipairs({ "Desc", "Asc" }) do
-                    if pageCount >= pages then break end
-                    if (mode == "Desc" and not doneDesc) or (mode == "Asc" and not doneAsc) then
-                        local cur = (mode == "Desc") and curDesc or curAsc
-                        local list, nextCur = fetchServerPageWithRetry(pId, cur, mode)
-                        if type(list) ~= "table" or #list == 0 then
-                            if mode == "Desc" then doneDesc = true else doneAsc = true end
-                        else
-                            pageCount = pageCount + 1
-                            if type(onProgress) == "function" then pcall(onProgress, pageCount, #list, mode) end
-                            local batch = {}
-                            local reqMap = {}
-                            for _, sv in ipairs(list) do
-                                local sid = type(sv) == "table" and sv.id and tostring(sv.id) or nil
-                                if sid and sid ~= "" and not seenSid[sid] then
-                                    seenSid[sid] = true
-                                    if type(sv.playerIds) == "table" then
-                                        for _, pid in ipairs(sv.playerIds) do
-                                            if tonumber(pid) == id then return sid, pId, "playerIds" end
-                                        end
-                                    end
-                                    if type(sv.playerTokens) == "table" then
-                                        for _, tok in ipairs(sv.playerTokens) do
-                                            if type(tok) == "string" and tok ~= "" then
-                                                if tok == tostring(id) or tok == ("token_" .. tostring(id)) then
-                                                    return sid, pId, "token_direct"
-                                                end
-                                                tokSeq = tokSeq + 1
-                                                local reqId = tostring(sid) .. ":" .. tostring(tokSeq)
-                                                reqMap[reqId] = sid
-                                                batch[#batch + 1] = {
-                                                    requestId = reqId,
-                                                    targetId = 0,
-                                                    token = tok,
-                                                    type = "AvatarHeadShot",
-                                                    size = "150x150",
-                                                    format = "Png",
-                                                    isCircular = false,
-                                                }
-                                            end
-                                        end
-                                    end
-                                end
-                            end
-                            if #batch > 0 then
-                                for startIdx = 1, #batch, 100 do
-                                    local chunk = {}
-                                    for k = startIdx, math.min(#batch, startIdx + 99) do
-                                        chunk[#chunk + 1] = batch[k]
-                                    end
-                                    local bRes, bErr = PI.Http("POST", "https://thumbnails.roblox.com/v1/batch", jsonEncode(chunk))
-                                    if (not bRes) and tostring(bErr or ""):find("429") then
-                                        task.wait(0.35)
-                                        bRes = PI.Http("POST", "https://thumbnails.roblox.com/v1/batch", jsonEncode(chunk))
-                                    end
-                                    local items = type(bRes) == "table" and type(bRes.data) == "table" and bRes.data or nil
-                                    if type(items) == "table" then
-                                        for idx, it in ipairs(items) do
-                                            if type(it) == "table" then
-                                                local rawReq = (type(it.requestId) == "string" and it.requestId ~= "" and it.requestId)
-                                                    or (chunk[idx] and chunk[idx].requestId) or nil
-                                                local rSid = (rawReq and reqMap[rawReq])
-                                                    or (type(rawReq) == "string" and rawReq:match("^([^:]+)")) or nil
-                                                if rSid and rSid ~= "" then
-                                                    if tonumber(it.targetId) == id then
-                                                        return rSid, pId, "batch_targetId"
-                                                    end
-                                                    if matchesThumb(it.imageUrl) then
-                                                        return rSid, pId, "batch_thumb"
-                                                    end
-                                                end
-                                            end
-                                        end
-                                    end
-                                end
-                            end
-                            if type(nextCur) == "string" and nextCur ~= "" then
-                                if mode == "Desc" then curDesc = nextCur else curAsc = nextCur end
-                            else
-                                if mode == "Desc" then doneDesc = true else doneAsc = true end
-                            end
-                        end
-                    end
-                end
-            end
-            return nil, pId, nil
-        end
-        local foundSid, foundPlace, foundSrc = scanPlace(scanPlaceId, tonumber(maxPages) or 14)
-        if foundSid and foundSid ~= "" then
-            return foundSid, foundPlace, foundSrc
-        end
-        local univId = (type(pres) == "table" and tonumber(pres.universeId)) or tonumber(game.GameId)
+            return tostring(pres.gameId), pId, "presence" end
+        local scanPlaceId = tonumber(targetPlaceId) or (type(pres) == "table" and (tonumber(pres.placeId) or tonumber(pres.rootPlaceId)))
+            or tonumber(game.PlaceId) if not scanPlaceId or scanPlaceId <= 0 then return nil, nil, nil end
+        local targetKeys = PI.FetchTargetHeadshotKeys(id) local function matchesThumb(imgUrl)
+            if type(imgUrl) ~= "string" or imgUrl == "" then return false end local k = normalizeThumbKey(imgUrl)
+            if k and targetKeys[k] then return true end local seg = imgUrl:match("rbxcdn%.com/([^/%?]+)")
+            if seg then if targetKeys[seg:lower()] then return true end
+                local ah = seg:match("AvatarHeadshot%-([%w_%-]+)") if ah then
+                    ah = ah:gsub("%-[Pp][Nn][Gg]$", ""):gsub("%-[Ww][Ee][Bb][Pp]$", ""):gsub("%-[Jj][Pp][Ee]?[Gg]$", ""):lower()
+                    if targetKeys[ah] then return true end end
+            end local fp = imgUrl:match("rbxcdn%.com/([^%?]+)")
+            if fp and targetKeys[fp:lower()] then return true end return false
+        end local function scanPlace(pId, pagesLimit)
+            local pages = tonumber(pagesLimit) or 16 local curDesc, curAsc = "", ""
+            local doneDesc, doneAsc = false, false local seenSid = {}
+            local tokSeq = 0 local pageCount = 0
+            while pageCount < pages and (not doneDesc or not doneAsc) do for _, mode in ipairs({ "Desc", "Asc" }) do
+                    if pageCount >= pages then break end if (mode == "Desc" and not doneDesc) or (mode == "Asc" and not doneAsc) then
+                        local cur = (mode == "Desc") and curDesc or curAsc local list, nextCur = fetchServerPageWithRetry(pId, cur, mode)
+                        if type(list) ~= "table" or #list == 0 then if mode == "Desc" then doneDesc = true else doneAsc = true end
+                        else pageCount = pageCount + 1
+                            if type(onProgress) == "function" then pcall(onProgress, pageCount, #list, mode) end local batch = {}
+                            local reqMap = {} for _, sv in ipairs(list) do
+                                local sid = type(sv) == "table" and sv.id and tostring(sv.id) or nil if sid and sid ~= "" and not seenSid[sid] then
+                                    seenSid[sid] = true if type(sv.playerIds) == "table" then
+                                        for _, pid in ipairs(sv.playerIds) do if tonumber(pid) == id then return sid, pId, "playerIds" end
+                                        end end
+                                    if type(sv.playerTokens) == "table" then for _, tok in ipairs(sv.playerTokens) do
+                                            if type(tok) == "string" and tok ~= "" then if tok == tostring(id) or tok == ("token_" .. tostring(id)) then
+                                                    return sid, pId, "token_direct" end
+                                                tokSeq = tokSeq + 1 local reqId = tostring(sid) .. ":" .. tostring(tokSeq)
+                                                reqMap[reqId] = sid batch[#batch + 1] = {
+                                                    requestId = reqId, targetId = 0,
+                                                    token = tok, type = "AvatarHeadShot",
+                                                    size = "150x150", format = "Png",
+                                                    isCircular = false, }
+                                            end end
+                                    end end
+                            end if #batch > 0 then
+                                local chunks = {} for startIdx = 1, #batch, 100 do
+                                    local chunk = {} for k = startIdx, math.min(#batch, startIdx + 99) do
+                                        chunk[#chunk + 1] = batch[k] end
+                                    chunks[#chunks + 1] = chunk end
+                                local foundSid, foundSrc = nil, nil for wStart = 1, #chunks, 6 do
+                                    if foundSid then break end local pending = 0
+                                    for cIdx = wStart, math.min(#chunks, wStart + 5) do local chunk = chunks[cIdx]
+                                        pending = pending + 1 task.spawn(function()
+                                            local bRes, bErr = PI.Http("POST", "https://thumbnails.roblox.com/v1/batch", jsonEncode(chunk))
+                                            if (not bRes) and tostring(bErr or ""):find("429") then task.wait(0.35)
+                                                bRes = PI.Http("POST", "https://thumbnails.roblox.com/v1/batch", jsonEncode(chunk)) end
+                                            local items = type(bRes) == "table" and type(bRes.data) == "table" and bRes.data or nil if not foundSid and type(items) == "table" then
+                                                for idx, it in ipairs(items) do if type(it) == "table" then
+                                                        local rawReq = (type(it.requestId) == "string" and it.requestId ~= "" and it.requestId) or (chunk[idx] and chunk[idx].requestId) or nil
+                                                        local rSid = (rawReq and reqMap[rawReq]) or (type(rawReq) == "string" and rawReq:match("^([^:]+)")) or nil
+                                                        if rSid and rSid ~= "" then if tonumber(it.targetId) == id then
+                                                                foundSid, foundSrc = rSid, "batch_targetId" break
+                                                            end if matchesThumb(it.imageUrl) then
+                                                                foundSid, foundSrc = rSid, "batch_thumb" break
+                                                            end end
+                                                    end end
+                                            end pending = pending - 1
+                                        end) end
+                                    local waitTicks = 0 while pending > 0 and not foundSid and waitTicks < 200 do
+                                        waitTicks = waitTicks + 1 task.wait(0.025)
+                                    end if foundSid then
+                                        return foundSid, pId, foundSrc or "batch_thumb" end
+                                end end
+                            if type(nextCur) == "string" and nextCur ~= "" then if mode == "Desc" then curDesc = nextCur else curAsc = nextCur end
+                            else if mode == "Desc" then doneDesc = true else doneAsc = true end
+                            end end
+                    end end
+            end return nil, pId, nil
+        end local foundSid, foundPlace, foundSrc = scanPlace(scanPlaceId, tonumber(maxPages) or 16)
+        if foundSid and foundSid ~= "" then return foundSid, foundPlace, foundSrc
+        end local univId = (type(pres) == "table" and tonumber(pres.universeId)) or tonumber(game.GameId)
         if univId and univId > 0 then
             local uData = PI.Http("GET", "https://develop.roblox.com/v1/universes/" .. tostring(univId) .. "/places?limit=25", nil)
-            local uPlaces = type(uData) == "table" and type(uData.data) == "table" and uData.data or nil
-            if type(uPlaces) == "table" then
-                for _, pl in ipairs(uPlaces) do
-                    local subPlaceId = type(pl) == "table" and tonumber(pl.id) or nil
-                    if subPlaceId and subPlaceId > 0 and subPlaceId ~= scanPlaceId then
-                        local sSid, sPl, sSrc = scanPlace(subPlaceId, 4)
-                        if sSid and sSid ~= "" then
-                            return sSid, sPl, sSrc
-                        end
-                    end
-                end
-            end
-        end
-        return nil, scanPlaceId, nil
-    end
-    function PI.ExtractServerInfo(id, p)
-        local inSrv = PI.InThisServer(id, p)
-        local jobId = (type(p) == "table" and type(p.gameId) == "string" and p.gameId ~= "" and tostring(p.gameId))
-            or (inSrv and tostring(game.JobId or "") ~= "" and tostring(game.JobId))
-            or nil
-        local placeId = (type(p) == "table" and (tonumber(p.placeId) or tonumber(p.rootPlaceId)))
-            or (inSrv and tonumber(game.PlaceId))
-            or nil
-        local code = (jobId and jobId ~= "" and tostring(jobId)) or ""
+            local uPlaces = type(uData) == "table" and type(uData.data) == "table" and uData.data or nil if type(uPlaces) == "table" then
+                for _, pl in ipairs(uPlaces) do local subPlaceId = type(pl) == "table" and tonumber(pl.id) or nil
+                    if subPlaceId and subPlaceId > 0 and subPlaceId ~= scanPlaceId then local sSid, sPl, sSrc = scanPlace(subPlaceId, 4)
+                        if sSid and sSid ~= "" then return sSid, sPl, sSrc
+                        end end
+                end end
+        end return nil, scanPlaceId, nil
+    end function PI.ExtractServerInfo(id, p)
+        local inSrv = PI.InThisServer(id, p) local jobId = (type(p) == "table" and type(p.gameId) == "string" and p.gameId ~= "" and tostring(p.gameId))
+            or (inSrv and tostring(game.JobId or "") ~= "" and tostring(game.JobId)) or nil
+        local placeId = (type(p) == "table" and (tonumber(p.placeId) or tonumber(p.rootPlaceId))) or (inSrv and tonumber(game.PlaceId))
+            or nil local code = (jobId and jobId ~= "" and tostring(jobId)) or ""
         local txt = jobId and (jobId .. (placeId and (" (Place: " .. tostring(placeId) .. ")") or ""))
             or (placeId and ("Place: " .. tostring(placeId) .. " (bấm 📋 Mã SV / 🚀 Vào SV để quét sâu)") or "Không tìm thấy trong SV công khai game này")
-        return jobId, placeId, code, txt
-    end
-    function PI.JoinPlayerServer(recOrQuery, onProgress)
-        local jobId, placeId, explicitPlaceId, targetName, targetId = nil, nil, nil, "", nil
-        if type(recOrQuery) == "table" then
-            targetName = tostring(recOrQuery.name or recOrQuery.id or "")
+        return jobId, placeId, code, txt end
+    function PI.JoinPlayerServer(recOrQuery, onProgress) local jobId, placeId, explicitPlaceId, targetName, targetId = nil, nil, nil, "", nil
+        if type(recOrQuery) == "table" then targetName = tostring(recOrQuery.name or recOrQuery.id or "")
             targetId = tonumber(recOrQuery.id)
             jobId = type(recOrQuery.serverJobId) == "string" and recOrQuery.serverJobId ~= "" and recOrQuery.serverJobId or nil
-            explicitPlaceId = tonumber(recOrQuery.placeId)
-            placeId = explicitPlaceId
-            if not jobId and targetId and PI.InThisServer(targetId, nil) and tostring(game.JobId or "") ~= "" then
-                jobId = tostring(game.JobId)
-                placeId = placeId or tonumber(game.PlaceId)
-            end
-            if not jobId and targetId then
-                local foundJ, foundP, foundSrc = PI.FindPlayerServerByTokens(targetId, placeId or game.PlaceId, onProgress, 20)
-                if foundJ and foundJ ~= "" then
-                    jobId = foundJ
-                    placeId = tonumber(foundP) or placeId or tonumber(game.PlaceId)
-                    recOrQuery.serverJobId = jobId
-                    recOrQuery.placeId = placeId
-                    recOrQuery.serverCode = jobId
-                    recOrQuery.serverSource = foundSrc
-                    recOrQuery.serverCodeText = jobId .. (placeId and (" (Place: " .. tostring(placeId) .. ")") or "")
-                    pcall(function() if D.hubJobIn then D.hubJobIn.Text = tostring(jobId) end end)
-                end
-            end
-        elseif type(recOrQuery) == "string" then
-            local s = trimStr(recOrQuery)
-            local parsedJob, parsedPlace = S.ParseServerCode(s)
-            if parsedJob and parsedJob ~= "" then
-                jobId = parsedJob
-                explicitPlaceId = parsedPlace
-                placeId = parsedPlace or tonumber(game.PlaceId)
+            explicitPlaceId = tonumber(recOrQuery.placeId) placeId = explicitPlaceId
+            if not jobId and targetId and PI.InThisServer(targetId, nil) and tostring(game.JobId or "") ~= "" then jobId = tostring(game.JobId)
+                placeId = placeId or tonumber(game.PlaceId) end
+            if not jobId and targetId then local foundJ, foundP, foundSrc = PI.FindPlayerServerByTokens(targetId, placeId or game.PlaceId, onProgress, 20)
+                if foundJ and foundJ ~= "" then jobId = foundJ
+                    placeId = tonumber(foundP) or placeId or tonumber(game.PlaceId) recOrQuery.serverJobId = jobId
+                    recOrQuery.placeId = placeId recOrQuery.serverCode = jobId
+                    recOrQuery.serverSource = foundSrc recOrQuery.serverCodeText = jobId .. (placeId and (" (Place: " .. tostring(placeId) .. ")") or "")
+                    pcall(function() if D.hubJobIn then D.hubJobIn.Text = tostring(jobId) end end) end
+            end elseif type(recOrQuery) == "string" then
+            local s = trimStr(recOrQuery) local parsedJob, parsedPlace = S.ParseServerCode(s)
+            if parsedJob and parsedJob ~= "" then jobId = parsedJob
+                explicitPlaceId = parsedPlace placeId = parsedPlace or tonumber(game.PlaceId)
             elseif parsedPlace and s:match("^PlaceId%s*[:=]%s*%d+$") then
-                explicitPlaceId = parsedPlace
-                placeId = parsedPlace
-            elseif s ~= "" then
-                local uid, uname = PI.ResolveUser(s)
-                if uid then
-                    targetId = uid
-                    targetName = tostring(uname or s)
-                    local pres = PI.FetchPresence(uid)
-                    local ej, ep = PI.ExtractServerInfo(uid, pres)
-                    jobId = ej
+                explicitPlaceId = parsedPlace placeId = parsedPlace
+            elseif s ~= "" then local uid, uname = PI.ResolveUser(s)
+                if uid then targetId = uid
+                    targetName = tostring(uname or s) local pres = PI.FetchPresence(uid)
+                    local ej, ep = PI.ExtractServerInfo(uid, pres) jobId = ej
                     explicitPlaceId = ep
                     placeId = ep
                     if not jobId or jobId == "" then
@@ -5964,7 +5297,7 @@ function OT.OnFlyChange() if OT.RefreshList then pcall(OT.RefreshList) end end e
         local e = type(data) == "table" and type(data.data) == "table" and data.data[1] or nil
         if type(e) == "table" and type(e.imageUrl) == "string" and e.imageUrl ~= "" then return e.imageUrl end return nil
     end local function stale(my) return PI.reqId ~= my end
-    function PI.Lookup(query, onProgress) PI.reqId = PI.reqId + 1
+    function PI.Lookup(query, onProgress, onQuickRender) PI.reqId = PI.reqId + 1
         local my = PI.reqId local id, nm = PI.ResolveUser(query)
         if stale(my) then return nil, nil end if not id then return nil, nm end
         local prof, perr = PI.FetchProfile(id) if stale(my) then return nil, nil end
@@ -5989,23 +5322,7 @@ function OT.OnFlyChange() if OT.RefreshList then pcall(OT.RefreshList) end end e
         if stale(my) then return nil, nil end
         local srvJobId, srvPlaceId, srvCode, srvCodeTxt = PI.ExtractServerInfo(id, pres)
         local srvSource = (srvJobId and srvJobId ~= "") and "presence" or nil
-        if not srvJobId or srvJobId == "" then
-            local foundJ, foundP, foundSrc = PI.FindPlayerServerByTokens(id, srvPlaceId or game.PlaceId, onProgress, 14)
-            if foundJ and foundJ ~= "" then
-                srvJobId = tostring(foundJ)
-                srvPlaceId = tonumber(foundP) or srvPlaceId or tonumber(game.PlaceId)
-                srvCode = tostring(srvJobId)
-                srvSource = foundSrc
-                srvCodeTxt = tostring(srvJobId) .. (srvPlaceId and (" (Place: " .. tostring(srvPlaceId) .. ")") or "")
-            end
-        end
-        if srvJobId and srvJobId ~= "" then
-            pcall(function() if D.hubJobIn then D.hubJobIn.Text = tostring(srvJobId) end end)
-        end
         local presTxt = PI.PresenceText(pres)
-        if srvSource and (type(pres) ~= "table" or (tonumber(pres.userPresenceType) or 0) < 2) then
-            presTxt = "🎮 Đang trong game"
-        end
         local rec = {
             id = tonumber(prof.id) or id, name = tostring(prof.name or nm or ""),
             displayName = tostring(prof.displayName or prof.name or ""), created = type(prof.created) == "string" and prof.created:sub(1, 10) or "—",
@@ -6013,7 +5330,37 @@ function OT.OnFlyChange() if OT.RefreshList then pcall(OT.RefreshList) end end e
             verified = prof.hasVerifiedBadge == true, presence = presTxt,
             inServer = PI.InThisServer(id, pres), serverJobId = srvJobId, placeId = srvPlaceId, serverCode = srvCode, serverCodeText = srvCodeTxt,
             serverSource = srvSource, desc = desc, descErr = derr, thumb = thumb, keep = {}, }
-        pcall(PI.ParseSkinItems, rec) PI.last = rec return rec, nil
+        pcall(PI.ParseSkinItems, rec) PI.last = rec
+        if not srvJobId or srvJobId == "" then
+            pcall(function() if D.hubJobIn then D.hubJobIn.Text = "" end end)
+            if type(onQuickRender) == "function" then
+                rec.serverCodeText = "⏳ Đang quét các server công khai tìm @" .. tostring(rec.name) .. "..."
+                pcall(onQuickRender, rec)
+            end
+            local foundJ, foundP, foundSrc = PI.FindPlayerServerByTokens(id, srvPlaceId or game.PlaceId, onProgress, 16)
+            if stale(my) then return nil, nil end
+            if foundJ and foundJ ~= "" then
+                srvJobId = tostring(foundJ)
+                srvPlaceId = tonumber(foundP) or srvPlaceId or tonumber(game.PlaceId)
+                srvCode = tostring(srvJobId)
+                srvSource = foundSrc
+                srvCodeTxt = tostring(srvJobId) .. (srvPlaceId and (" (Place: " .. tostring(srvPlaceId) .. ")") or "")
+                rec.serverJobId = srvJobId
+                rec.placeId = srvPlaceId
+                rec.serverCode = srvCode
+                rec.serverSource = srvSource
+                rec.serverCodeText = srvCodeTxt
+            else
+                rec.serverCodeText = srvPlaceId and ("Place: " .. tostring(srvPlaceId) .. " (Không thấy trong SV công khai)") or "Không tìm thấy trong SV công khai game này"
+            end
+        end
+        if srvJobId and srvJobId ~= "" then
+            pcall(function() if D.hubJobIn then D.hubJobIn.Text = tostring(srvJobId) end end)
+        end
+        if srvSource and (type(pres) ~= "table" or (tonumber(pres.userPresenceType) or 0) < 2) then
+            rec.presence = "🎮 Đang trong game"
+        end
+        PI.last = rec return rec, nil
     end
     -- ===== PHÂN LOẠI SKIN & BỘ LỌC XOÁ SKIN TẠO NHÂN VẬT ẢO =====
     do local ACC_TYPE_LABELS = {
@@ -7796,7 +7143,7 @@ function OT.OnFlyChange() if OT.RefreshList then pcall(OT.RefreshList) end end e
                                 bp.Anchored = false; bp.CanCollide = false; bp.CanTouch = false; bp.CanQuery = false; bp.Massless = true end
                         end clone.Parent = character
                     end) end
-                count += 1
+                count = count + (1) 
             end end
         if type(rec) == "table" then pcall(PI.ApplySkinFilterToModel, character, rec)
         end PI.CleanupVisuals(visuals)
@@ -8036,10 +7383,16 @@ function OT.OnFlyChange() if OT.RefreshList then pcall(OT.RefreshList) end end e
             setStatus((okJ and "✅ " or "⚠️ ") .. tostring(msgJ), okJ and C.GREEN or C.YELLOW)
             return
         end
+        PI.last = nil
+        clearRows()
+        setRow("serverCode", "Mã Server (JobId)", "⏳ Đang quét tìm đúng server của '" .. q .. "'...")
+        pcall(function() if D.hubJobIn then D.hubJobIn.Text = "" end end)
         setStatus("⏳ Đang tra cứu '" .. q .. "'...", C.YELLOW)
         task.spawn(function()
             local ok, rec, err = pcall(PI.Lookup, q, function(pg, cnt, mode)
                 setStatus(string.format("🔍 Đang quét server tìm '%s' (trang %s · %s · %s SV)...", tostring(q), tostring(pg), tostring(mode or "Desc"), tostring(cnt or 0)), C.YELLOW)
+            end, function(prelimRec)
+                pcall(render, prelimRec)
             end)
             if not ok then setStatus("⚠️ Lỗi không mong đợi: " .. tostring(rec), C.RED)
                 return end
@@ -8123,36 +7476,37 @@ function OT.OnFlyChange() if OT.RefreshList then pcall(OT.RefreshList) end end e
     vBtnOut.Activated:Connect(function() ReleaseHubFocus() PI.ViewerZoom(1.18) end)
     autoBtn.Activated:Connect(function() ReleaseHubFocus() PI.view.auto = not PI.view.auto refreshAutoBtn() end)
     resetBtn.Activated:Connect(function() ReleaseHubFocus() PI.ViewerReset() end)
-    copyProfBtn.Activated:Connect(function() ReleaseHubFocus() local rec = requireLast() if not rec then return end
+    copyProfBtn.Activated:Connect(function() ReleaseHubFocus() withTargetRec(function(rec)
         local url = "https://www.roblox.com/users/" .. tostring(rec.id) .. "/profile"
         local did = S.CopyToClipboard(url)
-        setStatus(did and ("📋 Đã copy: " .. url) or ("🔗 " .. url .. " (executor không có setclipboard)"), did and C.GREEN or C.YELLOW) end)
-    copyIdBtn.Activated:Connect(function() ReleaseHubFocus() local rec = requireLast() if not rec then return end
+        setStatus(did and ("📋 Đã copy: " .. url) or ("🔗 " .. url .. " (executor không có setclipboard)"), did and C.GREEN or C.YELLOW) end) end)
+    copyIdBtn.Activated:Connect(function() ReleaseHubFocus() withTargetRec(function(rec)
         local did = S.CopyToClipboard(tostring(rec.id))
-        setStatus(did and ("📋 Đã copy UserId " .. tostring(rec.id)) or ("UserId: " .. tostring(rec.id)), did and C.GREEN or C.YELLOW) end)
+        setStatus(did and ("📋 Đã copy UserId " .. tostring(rec.id)) or ("UserId: " .. tostring(rec.id)), did and C.GREEN or C.YELLOW) end) end)
     PI.copySrvCodeBtn.Activated:Connect(function() ReleaseHubFocus()
-        local rec = requireLast() if not rec then return end
-        local code = (rec.serverJobId and rec.serverJobId ~= "" and rec.serverJobId) or (rec.inServer and tostring(game.JobId or "")) or ""
-        if code == "" and rec.id then
-            setStatus("🔍 Đang quét tìm đúng Mã Server của @" .. tostring(rec.name or rec.id) .. "...", C.YELLOW)
-            local foundJ, foundP, foundSrc = PI.FindPlayerServerByTokens(rec.id, rec.placeId or game.PlaceId, function(pg, cnt, mode)
-                setStatus(string.format("🔍 Đang quét server tìm @%s (trang %s · %s)...", tostring(rec.name or rec.id), tostring(pg), tostring(mode or "Desc")), C.YELLOW)
-            end, 20)
-            if foundJ and foundJ ~= "" then
-                code = tostring(foundJ)
-                rec.serverJobId = code
-                rec.placeId = tonumber(foundP) or rec.placeId or tonumber(game.PlaceId)
-                rec.serverCode = code
-                rec.serverSource = foundSrc
-                rec.serverCodeText = code .. (rec.placeId and (" (Place: " .. tostring(rec.placeId) .. ")") or "")
-                setRow("serverCode", "Mã Server (JobId)", rec.serverCodeText)
-                if PI.RenderSkinClass then pcall(PI.RenderSkinClass, rec) end
+        withTargetRec(function(rec)
+            local code = (rec.serverJobId and rec.serverJobId ~= "" and rec.serverJobId) or (rec.inServer and tostring(game.JobId or "")) or ""
+            if code == "" and rec.id then
+                setStatus("🔍 Đang quét tìm đúng Mã Server của @" .. tostring(rec.name or rec.id) .. "...", C.YELLOW)
+                local foundJ, foundP, foundSrc = PI.FindPlayerServerByTokens(rec.id, rec.placeId or game.PlaceId, function(pg, cnt, mode)
+                    setStatus(string.format("🔍 Đang quét server tìm @%s (trang %s · %s)...", tostring(rec.name or rec.id), tostring(pg), tostring(mode or "Desc")), C.YELLOW)
+                end, 20)
+                if foundJ and foundJ ~= "" then
+                    code = tostring(foundJ)
+                    rec.serverJobId = code
+                    rec.placeId = tonumber(foundP) or rec.placeId or tonumber(game.PlaceId)
+                    rec.serverCode = code
+                    rec.serverSource = foundSrc
+                    rec.serverCodeText = code .. (rec.placeId and (" (Place: " .. tostring(rec.placeId) .. ")") or "")
+                    setRow("serverCode", "Mã Server (JobId)", rec.serverCodeText)
+                    if PI.RenderSkinClass then pcall(PI.RenderSkinClass, rec) end
+                end
             end
-        end
-        if code == "" then setStatus("⚠️ Không tìm thấy Mã Server của @" .. tostring(rec.name or rec.id) .. " (đang Offline, ở Server VIP/riêng tư, hoặc đang chơi game khác)", C.YELLOW) return end
-        local did = S.CopyToClipboard(tostring(code))
-        pcall(function() if D.hubJobIn then D.hubJobIn.Text = tostring(code) end end)
-        setStatus((did and "📋 Đã copy đúng Mã Server của @" .. tostring(rec.name or rec.id) .. ": " or "Mã Server: ") .. tostring(code) .. " (đã điền sẵn vào ô Hop ở Script Hub)", did and C.GREEN or C.YELLOW)
+            if code == "" then setStatus("⚠️ Không tìm thấy Mã Server của @" .. tostring(rec.name or rec.id) .. " (đang Offline, ở Server VIP/riêng tư, hoặc đang chơi game khác)", C.YELLOW) return end
+            local did = S.CopyToClipboard(tostring(code))
+            pcall(function() if D.hubJobIn then D.hubJobIn.Text = tostring(code) end end)
+            setStatus((did and "📋 Đã copy đúng Mã Server của @" .. tostring(rec.name or rec.id) .. ": " or "Mã Server: ") .. tostring(code) .. " (đã điền sẵn vào ô Hop ở Script Hub)", did and C.GREEN or C.YELLOW)
+        end)
     end)
     PI.joinSrvBtn.Activated:Connect(function() ReleaseHubFocus()
         local q = trimStr(queryIn.Text)
@@ -8522,21 +7876,21 @@ do
         local function uniqueName(base, used, fallback) local nm = tostring(base or "") if nm == "" then nm = fallback end if not used[nm] then
                 used[nm] = true return nm end local root, k = nm, 2
             repeat nm = root .. " (" .. k .. ")"
-                k += 1 until not used[nm]
+                k = k + (1)  until not used[nm]
             used[nm] = true return nm end local haveScripts, addedScripts = {}, 0 for _, s in ipairs(scripts) do haveScripts[tostring(s.name)] = true end
         for _, s in ipairs(data.scripts or {}) do if type(s) == "table" and type(s.code) == "string" and #s.code > 0 then
                 local nm = uniqueName(s.name, haveScripts, "Script " .. (#scripts + 1)) scripts[#scripts + 1] = { name = nm, code = S.SanitizeCode(s.code),
                     expanded = (s.expanded == true), }
-                addedScripts += 1 end end
+                addedScripts = addedScripts + (1)  end end
         local haveWaypoints, addedWaypoints = {}, 0 for _, w in ipairs(waypoints) do haveWaypoints[tostring(w.name)] = true end
         for _, w in ipairs(data.waypoints or {}) do if type(w) == "table" and Store.isFinite(w.x) and Store.isFinite(w.y) and Store.isFinite(w.z) then
                 local nm = uniqueName(w.name, haveWaypoints, "WP " .. (#waypoints + 1)) waypoints[#waypoints + 1] = { name = nm,
                     pos = Vector3.new(w.x, w.y, w.z), }
-                addedWaypoints += 1 end end
+                addedWaypoints = addedWaypoints + (1)  end end
         local haveFeatures, addedFeatures = {}, 0 for _, f in ipairs(featureTabs) do haveFeatures[tostring(f.name)] = true end
         for _, f in ipairs(data.features or {}) do if type(f) == "table" and type(f.code) == "string" and #f.code > 0 then
                 local nm = uniqueName(f.name, haveFeatures, "Tính Năng " .. (#featureTabs + 1)) local ic = tostring(f.icon or "⚙️")
-                CreateFeatureTab(nm, ic, S.SanitizeCode(f.code)) addedFeatures += 1
+                CreateFeatureTab(nm, ic, S.SanitizeCode(f.code)) addedFeatures = addedFeatures + (1) 
             end end if type(data.savedSkins) == "table" then
             Store.savedSkins = Store.savedSkins or {} for _, sk in ipairs(data.savedSkins) do
                 if type(sk) == "table" and (tonumber(sk.id) or (type(sk.name) == "string" and #sk.name > 0)) then Store.savedSkins[#Store.savedSkins + 1] = sk
