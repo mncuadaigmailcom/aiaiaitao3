@@ -21,15 +21,13 @@ end) if _G.BananaCatHub_Connections then for _, c in ipairs(_G.BananaCatHub_Conn
                 local hum = char and char:FindFirstChildOfClass("Humanoid") local root = char and char:FindFirstChild("HumanoidRootPart") if hum then cam.CameraSubject = hum end if root then
                     cam.CFrame = CFrame.new(root.Position + Vector3.new(0, 3.2, 12), root.Position + Vector3.new(0,1.5,0)) cam.Focus = CFrame.new(root.Position)
                 end end) end _G.BananaCatHub_SpecCam = nil end pcall(function() RunService:UnbindFromRenderStep("BC_Spec") end) end)
-for _, parent in ipairs({targetGui, playerGui, game:GetService("CoreGui")}) do pcall(function()
-        local old = parent:FindFirstChild("BananaCatHub_Crosshair") if old then old:Destroy() end end)
+for _, parent in ipairs({targetGui, playerGui, game:GetService("CoreGui")}) do pcall(function() local old = parent:FindFirstChild("BananaCatHub_Crosshair") if old then old:Destroy() end end)
     pcall(function()   -- v5.1: dọn định vị vật của lần chạy trước (tránh chồng Highlight)
         local old = parent:FindFirstChild("BC_ObjTrackESP") if old then old:Destroy() end end) pcall(function()
         local old = parent:FindFirstChild("BananaCatHub_AnaAimDot") if old then old:Destroy() end end) end
 pcall(function() for _, d in ipairs(workspace:GetDescendants()) do local n = d.Name if n == "BC_OT_HL" or n == "BC_OT_BB" or n == "BC_OT_BOX" then
             pcall(function() d:Destroy() end) end end end) local function trackConn(conn) local t = _G.BananaCatHub_Connections if #t > 300 then local alive, n = {}, 0
-        for i = 1, #t do local c = t[i] if c ~= nil and c.Connected ~= false then n = n + 1; alive[n] = c end end
-        for i = 1, #t do t[i] = alive[i] end   -- dồn lên đầu; phần tử thừa tự thành nil
+        for i = 1, #t do local c = t[i] if c ~= nil and c.Connected ~= false then n = n + 1; alive[n] = c end end for i = 1, #t do t[i] = alive[i] end   -- dồn lên đầu; phần tử thừa tự thành nil
     end table.insert(t, conn) return conn end pcall(function() RunService:UnbindFromRenderStep("Fly") end) pcall(function() RunService:UnbindFromRenderStep("Carpet") end)
 pcall(function() RunService:UnbindFromRenderStep("BC_Speed") end) pcall(function() RunService:UnbindFromRenderStep("BC_FreeCam") end)
 pcall(function() RunService:UnbindFromRenderStep("BC_Invis") end) pcall(function() RunService:UnbindFromRenderStep("BC_InvisNet") end)
@@ -41,8 +39,7 @@ pcall(function() RunService:UnbindFromRenderStep("BC_AnaAim") end)    -- v5.2: n
 local C = { WHITE  = Color3.fromRGB(255, 255, 255), DARK   = Color3.fromRGB(238, 241, 248),   -- chữ chính trên nền tối
     GRAY   = Color3.fromRGB(120, 128, 146),   -- nút tắt / chữ phụ
     GREEN  = Color3.fromRGB(64, 214, 152), BLUE   = Color3.fromRGB(79, 150, 240), RED    = Color3.fromRGB(230, 88, 88), YELLOW = Color3.fromRGB(250, 204, 102),
-    PURPLE = Color3.fromRGB(155, 128, 245), ORANGE = Color3.fromRGB(251, 146, 60), PINK   = Color3.fromRGB(226, 82, 158),
-    BG     = Color3.fromRGB(11, 12, 17),      -- nền cửa sổ chính (obsidian)
+    PURPLE = Color3.fromRGB(155, 128, 245), ORANGE = Color3.fromRGB(251, 146, 60), PINK   = Color3.fromRGB(226, 82, 158), BG     = Color3.fromRGB(11, 12, 17),      -- nền cửa sổ chính (obsidian)
     INK      = Color3.fromRGB(12, 10, 6),     -- chữ ĐẬM dùng trên nền vàng/cam/sáng
     SURFACE  = Color3.fromRGB(20, 22, 30),    -- thẻ, ô nhập liệu
     SURFACE2 = Color3.fromRGB(29, 32, 43),    -- panel, dòng hover, thanh tiêu đề
@@ -73,22 +70,19 @@ local C = { WHITE  = Color3.fromRGB(255, 255, 255), DARK   = Color3.fromRGB(238,
                 end end)) end end) pcall(function() if (cls == "TextButton" or cls == "TextLabel") and props and props.BackgroundColor3 ~= nil and props.TextColor3 ~= nil
            and (props.BackgroundTransparency or 0) < 0.5 then local bg = props.BackgroundColor3
             if typeof(bg) == "Color3" then local lum = 0.2126 * bg.R + 0.7152 * bg.G + 0.0722 * bg.B if lum > 0.6 and props.TextColor3 == Color3.fromRGB(255, 255, 255) then
-                    obj.TextColor3 = C.INK end end end end) return obj end local function Corner(p, r)
-    return New("UICorner", {CornerRadius = r or UDim.new(0, 10)}, p)   -- v4.5: bo 10px (trước 8px)
+                    obj.TextColor3 = C.INK end end end end) return obj end local function Corner(p, r) return New("UICorner", {CornerRadius = r or UDim.new(0, 10)}, p)   -- v4.5: bo 10px (trước 8px)
 end local function Stroke(p, c, t) return New("UIStroke", { Color = c or C.BORDER,                          -- v4.9: viền tách khối rõ hơn trên nền obsidian
         Thickness = t or 1, Transparency = 0.15,                            -- v4.9: nét viền "có mặt" hơn (trước 0.25)
         ApplyStrokeMode = Enum.ApplyStrokeMode.Border, }, p) end local flashBack = setmetatable({}, { __mode = "k" }) local function flash(btn, temp, secs, tempColor, back)
     if not btn then return end if flashBack[btn] == nil then flashBack[btn] = { back or btn.Text, btn.TextColor3 } end
     pcall(function() btn.Text = tostring(temp) if tempColor then btn.TextColor3 = tempColor end end) task.delay(secs or 1.6, function()
-        if not (btn and btn.Parent) then return end local old = flashBack[btn]
-        if not old then return end pcall(function() btn.Text = old[1]; btn.TextColor3 = old[2] end) flashBack[btn] = nil end) end
+        if not (btn and btn.Parent) then return end local old = flashBack[btn] if not old then return end pcall(function() btn.Text = old[1]; btn.TextColor3 = old[2] end) flashBack[btn] = nil end) end
 local function Tween(o, p, d, e) TweenService:Create(o, TweenInfo.new(d or 1.5, e or Enum.EasingStyle.Quart, Enum.EasingDirection.Out), p):Play()
 end local D = {} local S function D.Say(msg, color) if not D.hubStatus then return end
     pcall(function() D.hubStatus.Text = tostring(msg) D.hubStatus.TextColor3 = color or C.RED end) end function D.BestText(bg) if typeof(bg) ~= "Color3" then return C.WHITE end
     local lum = 0.2126 * bg.R + 0.7152 * bg.G + 0.0722 * bg.B return (lum > 0.6) and C.INK or C.WHITE end function D.Edge(bg) if typeof(bg) ~= "Color3" then return C.BORDER end
     return Color3.new( math.min(1, bg.R + 0.11), math.min(1, bg.G + 0.12), math.min(1, bg.B + 0.16)) end function D.Grad(obj) local g = obj:FindFirstChildOfClass("UIGradient")
-    if not g then g = New("UIGradient", {Color = ColorSequence.new(Color3.new(1,1,1), Color3.new(1,1,1))}, obj) end return g
-end function D.Paint(obj, c1, c2, rotation) pcall(function()
+    if not g then g = New("UIGradient", {Color = ColorSequence.new(Color3.new(1,1,1), Color3.new(1,1,1))}, obj) end return g end function D.Paint(obj, c1, c2, rotation) pcall(function()
         obj.BackgroundColor3 = Color3.new(1, 1, 1) local g = D.Grad(obj) g.Color = ColorSequence.new(c1, c2 or c1) g.Rotation = rotation or 90
     end) return obj end function D.Unpaint(obj) pcall(function() if not obj then return end local g = obj:FindFirstChildOfClass("UIGradient")
         if g then g.Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.new(1, 1, 1)) end end) return obj end function D.Paint3(obj, colors, rotation) pcall(function()
@@ -102,8 +96,7 @@ end function D.Paint(obj, c1, c2, rotation) pcall(function()
             NumberSequenceKeypoint.new(0.00, 1.00), NumberSequenceKeypoint.new(0.50, 0.05), NumberSequenceKeypoint.new(1.00, 1.00), })
     end) return line end function D.Shade(obj, k1, k2, rotation) pcall(function()
         local g = D.Grad(obj) local a = k1 or Color3.new(1.0, 1.0, 1.0) local b = k2 or Color3.new(0.82, 0.84, 0.90) local function mix(t)
-            return Color3.new(a.R + (b.R - a.R) * t, a.G + (b.G - a.G) * t, a.B + (b.B - a.B) * t) end g.Color = ColorSequence.new({
-            ColorSequenceKeypoint.new(0.00, a),        -- mép trên: hắt sáng
+            return Color3.new(a.R + (b.R - a.R) * t, a.G + (b.G - a.G) * t, a.B + (b.B - a.B) * t) end g.Color = ColorSequence.new({ ColorSequenceKeypoint.new(0.00, a),        -- mép trên: hắt sáng
             ColorSequenceKeypoint.new(0.10, mix(0.28)), ColorSequenceKeypoint.new(0.58, mix(0.62)), ColorSequenceKeypoint.new(1.00, b),        -- đáy: hút tối
         }) g.Rotation = rotation or 90 end) return obj end function D.PaintText(obj, c1, c2) pcall(function()
         obj.TextColor3 = Color3.new(1, 1, 1) local g = D.Grad(obj) g.Color = ColorSequence.new(c1, c2 or c1) g.Rotation = 0
@@ -121,14 +114,12 @@ function D.Glow(obj, color, pad, trans) local glow = nil pcall(function() if not
         end glow = New("Frame", { Name = "BC_Glow", Size = UDim2.new(1, pad * 2, 1, pad * 2),
             Position = posOf(), BackgroundColor3 = color or C.ACCENT, BackgroundTransparency = trans or 0.86, BorderSizePixel = 0,
             ZIndex = (obj.ZIndex or 1) - 1, }, obj.Parent) Corner(glow, UDim.new(1, 0)) trackConn(obj:GetPropertyChangedSignal("Position"):Connect(function()
-            pcall(function() glow.Position = posOf() end) end)) end) return glow end
-function D.SetBg(obj, color, trans) pcall(function() if not obj then return end obj.BackgroundColor3 = color
+            pcall(function() glow.Position = posOf() end) end)) end) return glow end function D.SetBg(obj, color, trans) pcall(function() if not obj then return end obj.BackgroundColor3 = color
         if trans ~= nil then obj.BackgroundTransparency = trans end if obj:IsA("TextButton") or obj:IsA("TextLabel") then
             obj.TextColor3 = D.BestText(color) end local st = obj:FindFirstChildOfClass("UIStroke") if st then st.Color = D.Edge(color) end
     end) return obj end function D.Breathe(obj, props, dur) pcall(function()
         local ti = TweenInfo.new(dur or 1.9, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true) TweenService:Create(obj, ti, props):Play()
-    end) end local function ReleaseHubFocus() pcall(function()
-        local tb = UserInputService:GetFocusedTextBox() if tb then tb:ReleaseFocus() end end) pcall(function() playerGui:ReleaseFocus() end)
+    end) end local function ReleaseHubFocus() pcall(function() local tb = UserInputService:GetFocusedTextBox() if tb then tb:ReleaseFocus() end end) pcall(function() playerGui:ReleaseFocus() end)
 end if targetGui:FindFirstChild("ExMenu") then targetGui.ExMenu:Destroy() end local gui = New("ScreenGui", { Name="ExMenu",
     IgnoreGuiInset=true, ResetOnSpawn=false, ZIndexBehavior=Enum.ZIndexBehavior.Sibling, }, targetGui)
 local togBtn = New("TextButton", { Size=UDim2.new(0,36,0,36), Position=UDim2.new(1,-48,1,-48), Text="", BackgroundColor3=Color3.fromRGB(0,0,0),
@@ -143,14 +134,12 @@ rainbowStroke.Parent = togBtn pcall(function() local grad = Instance.new("UIGrad
     task.spawn(function() while true do if not togBtn.Parent then break end for r=0,360,4 do if not togBtn.Parent then break end
                 pcall(function() grad.Rotation = r end) task.wait(0.03) end end end) end) D.Tactile(togBtn, 1) local main = New("Frame", { Size=UDim2.new(0,540,0,340),
     Position=UDim2.new(0.5,-270,0.5,-170), BackgroundColor3=C.BG, BackgroundTransparency=0,      -- v4.9: đục tuyệt đối để gradient 4 chặng lên đúng màu
-    BorderSizePixel=0, Visible=false, ClipsDescendants=false, ZIndex=2,
-}, gui) Corner(main, UDim.new(0,16)) Stroke(main, C.HAIRLINE, 1.2) D.Paint3(main, {C.SURFACE2, C.BG, C.BG, C.DEEP}, 90)
+    BorderSizePixel=0, Visible=false, ClipsDescendants=false, ZIndex=2, }, gui) Corner(main, UDim.new(0,16)) Stroke(main, C.HAIRLINE, 1.2) D.Paint3(main, {C.SURFACE2, C.BG, C.BG, C.DEEP}, 90)
 local Hit = {} function Hit.inObject(o, x, y) if not o then return false end local ok, res = pcall(function() if not o.Visible then return false end
         local p, s = o.AbsolutePosition, o.AbsoluteSize return x >= p.X and x <= p.X + s.X and y >= p.Y and y <= p.Y + s.Y
     end) return ok and res == true end function Hit.onHub(x, y) local ok, objs = pcall(function()
         return playerGui:GetGuiObjectsAtPosition(x, y) end) if ok and type(objs) == "table" then for _, o in ipairs(objs) do
-            if o == gui or o:IsDescendantOf(gui) then return true end end end local aimOverlayHit = false
-    pcall(function() local overlay = S.AnaUi and S.AnaUi.aimGui if not overlay then return end
+            if o == gui or o:IsDescendantOf(gui) then return true end end end local aimOverlayHit = false pcall(function() local overlay = S.AnaUi and S.AnaUi.aimGui if not overlay then return end
         local containers = {playerGui} if targetGui and targetGui ~= playerGui then containers[#containers + 1] = targetGui end
         for _, container in ipairs(containers) do local okAim, aimObjs = pcall(function() return container:GetGuiObjectsAtPosition(x, y) end)
             if okAim and type(aimObjs) == "table" then for _, o in ipairs(aimObjs) do if o:IsDescendantOf(overlay) then local dot = S.AnaUi and S.AnaUi.aimDot
@@ -201,15 +190,13 @@ SetupResizeHandle(CreateHandle("↙", UDim2.new(0, 2, 1, -18)), "BL") SetupResiz
 local tabs = {} local tabContent = {} local tabBar = New("ScrollingFrame", { Size=UDim2.new(0,56,1,-30),
     Position=UDim2.new(0,0,0,30), BackgroundColor3=C.SURFACE, BackgroundTransparency=0, BorderSizePixel=0,
     ZIndex=3, ScrollBarThickness=3, CanvasSize=UDim2.new(0,0,0,0), }, main) D.Paint3(tabBar, {C.SURFACE, C.BG, C.DEEP}, 90)
-New("Frame", { Name="TabRailDivider", Size=UDim2.new(0,1,1,-30), Position=UDim2.new(0,56,0,30),
-    BackgroundColor3=C.HAIRLINE, BackgroundTransparency=0.45, BorderSizePixel=0, ZIndex=4, }, main)
+New("Frame", { Name="TabRailDivider", Size=UDim2.new(0,1,1,-30), Position=UDim2.new(0,56,0,30), BackgroundColor3=C.HAIRLINE, BackgroundTransparency=0.45, BorderSizePixel=0, ZIndex=4, }, main)
 New("UIListLayout", { FillDirection=Enum.FillDirection.Vertical, SortOrder=Enum.SortOrder.LayoutOrder, Padding=UDim.new(0,4),
 }, tabBar) New("UIPadding", {PaddingTop=UDim.new(0,6), PaddingLeft=UDim.new(0,4)}, tabBar) local contentArea = New("Frame", {
     Size=UDim2.new(1,-56,1,-54),     -- v4.5: nhường 56px cho thanh icon + 24px cho header trang
     Position=UDim2.new(0,56,0,54), BackgroundTransparency=1, BorderSizePixel=0, ZIndex=3,
     ClipsDescendants=true, }, main) D.pageHeader = New("Frame", { Name="PageHeader", Size=UDim2.new(1,-56,0,24), Position=UDim2.new(0,56,0,30),
-    BackgroundColor3=C.SURFACE, BackgroundTransparency=0.2, BorderSizePixel=0, ZIndex=3, }, main)
-D.Paint3(D.pageHeader, {C.SURFACE2, C.SURFACE}, 90)   -- v4.9: dải chrome mảnh dưới thanh tiêu đề
+    BackgroundColor3=C.SURFACE, BackgroundTransparency=0.2, BorderSizePixel=0, ZIndex=3, }, main) D.Paint3(D.pageHeader, {C.SURFACE2, C.SURFACE}, 90)   -- v4.9: dải chrome mảnh dưới thanh tiêu đề
 D.pageTitle = New("TextLabel", { Name="PageTitle", Size=UDim2.new(1,-196,1,0), Position=UDim2.new(0,10,0,0),
     Text="💾 Code Đã Lưu", BackgroundTransparency=1, TextColor3=C.ACCENT,   -- v4.6.2: trang đầu tiên
     Font=Enum.Font.GothamBold, TextSize=11, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=5, }, D.pageHeader) D.pageChips = New("Frame", {
@@ -226,13 +213,10 @@ D.hdrSwitches = {} for i, sw in ipairs({
         Name="BC_SwKnob", Size=UDim2.new(0,8,0,8), Position=UDim2.new(0,2,0,2), BackgroundColor3=C.GRAY, BorderSizePixel=0, ZIndex=8,
     }, track) Corner(knob, UDim.new(1,0)) D.hdrSwitches[sw.key] = {btn=btn, icon=ic, track=track, knob=knob, onColor=sw.onColor, stroke=trackStroke}
     btn.Activated:Connect(function() local fn = (sw.key == "embed" and S.DoToggleEmbed)
-                or (sw.key == "guess" and S.DoToggleGuess) or (sw.key == "park"  and S.DoTogglePark) if type(fn) == "function" then
-            pcall(fn)   -- hàm gốc đã tự đổi nhãn nút, ghi đĩa và báo trạng thái
-        end D.SyncPageChips() pcall(function() if S.SyncEmbedToggles then S.SyncEmbedToggles() end end) end)
-    btn.MouseEnter:Connect(function() D.pageTitle.Text = sw.icon .. "  " .. sw.tip
+                or (sw.key == "guess" and S.DoToggleGuess) or (sw.key == "park"  and S.DoTogglePark) if type(fn) == "function" then pcall(fn)   -- hàm gốc đã tự đổi nhãn nút, ghi đĩa và báo trạng thái
+        end D.SyncPageChips() pcall(function() if S.SyncEmbedToggles then S.SyncEmbedToggles() end end) end) btn.MouseEnter:Connect(function() D.pageTitle.Text = sw.icon .. "  " .. sw.tip
         D.pageTitle.TextColor3 = C.DARK D.pageTitle.TextTransparency = 0.25 end) btn.MouseLeave:Connect(function() D.pageTitle.TextColor3 = C.ACCENT
-        local back = D.hoverName or D.activeName if back then D.pageTitle.Text = back end D.pageTitle.TextTransparency = D.hoverName and 0.4 or 0 end) end
-New("Frame", {   -- kẻ mảnh dưới header
+        local back = D.hoverName or D.activeName if back then D.pageTitle.Text = back end D.pageTitle.TextTransparency = D.hoverName and 0.4 or 0 end) end New("Frame", {   -- kẻ mảnh dưới header
     Name="PageHeaderRule", Size=UDim2.new(1,-56,0,1), Position=UDim2.new(0,56,0,53), BackgroundColor3=C.HAIRLINE, BackgroundTransparency=0.5, BorderSizePixel=0, ZIndex=4,
 }, main) local activeTab = nil local function SwitchTab(index) ReleaseHubFocus()   -- v4.4b: đổi tab mà để TextBox còn focus là game chặn input (không đi/không bắn)
     for _, t in ipairs(tabContent) do t.Visible = false end for _, b in ipairs(tabs) do b.BackgroundColor3 = C.SURFACE2 b.BackgroundTransparency = 1 b.TextColor3 = C.MUTED
@@ -241,12 +225,10 @@ New("Frame", {   -- kẻ mảnh dưới header
         tabContent[index].Visible = true local b = tabs[index] b.BackgroundColor3 = C.SURFACE2 b.BackgroundTransparency = 0.1
         b.TextColor3 = C.ACCENT D.Paint3(b, {C.SURFACE3, C.SURFACE2, C.SURFACE}, 90) local bar = b:FindFirstChild("BC_Bar") if not bar then
             bar = New("Frame", { Name = "BC_Bar", Size = UDim2.new(0, 3, 1, -12), Position = UDim2.new(0, 2, 0, 6),
-                BackgroundColor3 = C.ACCENT, BorderSizePixel = 0, ZIndex = 6, }, b) Corner(bar, UDim.new(1, 0))
-            D.Paint3(bar, {C.ACCENT3, C.ACCENT, C.ACCENT2}, 90)   -- v4.9: vạch như thanh kim loại đánh bóng
+                BackgroundColor3 = C.ACCENT, BorderSizePixel = 0, ZIndex = 6, }, b) Corner(bar, UDim.new(1, 0)) D.Paint3(bar, {C.ACCENT3, C.ACCENT, C.ACCENT2}, 90)   -- v4.9: vạch như thanh kim loại đánh bóng
         end bar.Visible = true activeTab = tabContent[index] pcall(function() if D.pageTitle then local ic = b:GetAttribute("BCTabIcon")
                 local nm = b:GetAttribute("BCTabName") D.activeName = (ic and (ic .. "  ") or "") .. tostring(nm or ("Trang " .. index))
-                if not D.hoverName then D.pageTitle.Text = D.activeName D.pageTitle.TextTransparency = 0 end end end) end
-    BcFit()   -- v4.4c: tab vừa hiện -> đo lại để GUI nằm vừa đúng ô của tab
+                if not D.hoverName then D.pageTitle.Text = D.activeName D.pageTitle.TextTransparency = 0 end end end) end BcFit()   -- v4.4c: tab vừa hiện -> đo lại để GUI nằm vừa đúng ô của tab
     pcall(function() if S.PagePerf and S.PagePerf.OnTabChanged then S.PagePerf.OnTabChanged() end end) end
 local function OpenFirstPage() local idx, best = 1, nil for i, b in ipairs(tabs) do local o = b and b.LayoutOrder
         if type(o) == "number" and (best == nil or o < best) then best = o; idx = i end end SwitchTab(idx) end
@@ -260,20 +242,17 @@ local function MakeTabButton(name, icon, order, onClick) local btn = New("TextBu
         BackgroundTransparency=1, TextColor3=C.MUTED, Font=Enum.Font.GothamBold, TextSize=12,
         BorderSizePixel=0, LayoutOrder=order, TextXAlignment=Enum.TextXAlignment.Center, ZIndex=4, }, tabBar) Corner(btn, UDim.new(0,6))            -- v4.5 Delta: bo 6px cho ô icon
     pcall(function() btn:SetAttribute("BCTabName", name)   -- header + hover đọc tên trang từ đây
-        btn:SetAttribute("BCTabIcon", icon) end)
-    pcall(function() trackConn(btn.MouseEnter:Connect(function() if btn.BackgroundTransparency > 0.5 then Tween(btn, {BackgroundTransparency = 0.62}, 0.16) end
+        btn:SetAttribute("BCTabIcon", icon) end) pcall(function() trackConn(btn.MouseEnter:Connect(function() if btn.BackgroundTransparency > 0.5 then Tween(btn, {BackgroundTransparency = 0.62}, 0.16) end
             pcall(function()   -- v4.5 Delta: rê vào icon nào thì header hiện TÊN trang đó (mờ nhẹ)
                 if D.pageTitle then D.hoverName = btn:GetAttribute("BCTabName")
                     local ic = btn:GetAttribute("BCTabIcon") D.pageTitle.Text = (ic and (ic .. "  ") or "") .. tostring(D.hoverName or "") D.pageTitle.TextTransparency = 0.4 end end) end))
-        trackConn(btn.MouseLeave:Connect(function() if btn.TextColor3 ~= C.ACCENT then Tween(btn, {BackgroundTransparency = 1}, 0.2) end
-            pcall(function()   -- rời chuột: header trả về tên trang ĐANG MỞ
+        trackConn(btn.MouseLeave:Connect(function() if btn.TextColor3 ~= C.ACCENT then Tween(btn, {BackgroundTransparency = 1}, 0.2) end pcall(function()   -- rời chuột: header trả về tên trang ĐANG MỞ
                 D.hoverName = nil if D.pageTitle and D.activeName then D.pageTitle.Text = D.activeName D.pageTitle.TextTransparency = 0 end end) end)) end)
     btn.Activated:Connect(function() for i, b in ipairs(tabs) do if b == btn then SwitchTab(i) if onClick then pcall(onClick) end break end end
     end) return btn end local function AddTab(name, icon, order, customContent) local sf if customContent then sf = customContent sf.Parent = contentArea sf.Visible = false
     else sf = MakeTabFrame() end local btn = MakeTabButton(name, icon, order)
     table.insert(tabs, btn) table.insert(tabContent, sf) tabBar.CanvasSize = UDim2.new(0, 0, 0, #tabs * 30 + 10) return sf, btn
-end local codeTab      = AddTab("Code", "💻", 2) local savedCodeTab = AddTab("Code Đã Lưu", "💾", 1)
-OpenFirstPage()   -- v4.6.2: mở trang ĐẦU TIÊN theo thứ tự rail (💾 Code Đã Lưu)
+end local codeTab      = AddTab("Code", "💻", 2) local savedCodeTab = AddTab("Code Đã Lưu", "💾", 1) OpenFirstPage()   -- v4.6.2: mở trang ĐẦU TIÊN theo thứ tự rail (💾 Code Đã Lưu)
 S = { dragMenu     = false, dragging     = false, dragStart    = nil, startPos     = nil, togDragging  = false, togDragStart = nil, togStartPos  = nil, togMoved     = false,
     embedEnabled = true,     -- tab 5 có nút 🧩 để tắt hoàn toàn việc nhúng
     embedGuessNew = false,   -- 🕵 nhận cả ScreenGui "lạ" mới xuất hiện (mạnh hơn nhưng dễ ăn GUI game)
@@ -285,16 +264,14 @@ S = { dragMenu     = false, dragging     = false, dragStart    = nil, startPos  
     return nil end function S.PagePerf.IsTabVisible(tab) if not tab then return false end
     local ok, vis = pcall(function() return tab.Visible == true end) return ok and vis == true end function S.PagePerf.ShouldRunForPlayerTab()
     if not S.PagePerf.IsMainVisible() then return false end local pt = D and D.playerTab
-    if not pt then return false end return S.PagePerf.IsTabVisible(pt) end function S.PagePerf.ShouldRunForSupportTab()
-    if not S.PagePerf.IsMainVisible() then return false end local st = nil
+    if not pt then return false end return S.PagePerf.IsTabVisible(pt) end function S.PagePerf.ShouldRunForSupportTab() if not S.PagePerf.IsMainVisible() then return false end local st = nil
     pcall(function() if S.AnaUi and S.AnaUi.supportTabIndex and tabContent and tabContent[S.AnaUi.supportTabIndex] then
             st = tabContent[S.AnaUi.supportTabIndex] end end) if not st then local ok, t = pcall(function() return supportTab end) if ok then st = t end end if not st then return false end
     return S.PagePerf.IsTabVisible(st) end function S.PagePerf.OnTabChanged() pcall(function()
         S.PagePerf.currentTab = S.PagePerf.GetActiveTabName() S.PagePerf.mainVisible = S.PagePerf.IsMainVisible() if S.Coord and S.Coord.RefreshBind then pcall(S.Coord.RefreshBind) end
         if S.SpeedMeter and S.SpeedMeter.OnTabChanged then pcall(S.SpeedMeter.OnTabChanged) end
         if S.ObjTrack and S.ObjTrack.OnPerfTick then pcall(S.ObjTrack.OnPerfTick) end if S.Loc and S.Loc.OnPerfTick then pcall(S.Loc.OnPerfTick) end
-    end) end function S.PagePerf.OnMainVisibilityChanged() pcall(function()
-        S.PagePerf.mainVisible = S.PagePerf.IsMainVisible() if S.Coord and S.Coord.RefreshBind then pcall(S.Coord.RefreshBind) end
+    end) end function S.PagePerf.OnMainVisibilityChanged() pcall(function() S.PagePerf.mainVisible = S.PagePerf.IsMainVisible() if S.Coord and S.Coord.RefreshBind then pcall(S.Coord.RefreshBind) end
         if S.SpeedMeter and S.SpeedMeter.OnTabChanged then pcall(S.SpeedMeter.OnTabChanged) end
         if S.ObjTrack and S.ObjTrack.OnPerfTick then pcall(S.ObjTrack.OnPerfTick) end if S.Loc and S.Loc.OnPerfTick then pcall(S.Loc.OnPerfTick) end end) end
 S.WRAP_MARK_OLD = "-- ===== AUTO-GENERATED SIZE WRAPPER" S.WRAP_MARK_NEW = "-- ===== AUTO-GENERATED FIT WRAPPER"
@@ -315,42 +292,40 @@ Store.lastError      = nil Store.lastSavedAt    = nil Store.saveCount      = 0 S
 Store.loadedFeatures = {}     -- dữ liệu thô đọc từ đĩa; TAB5 sẽ dựng thành tab thật
 Store.savedSkins     = {}     -- danh sách các skin đã bấm 💾 Lưu Skin
 Store.autoUseSkin    = nil    -- bản ghi skin đã bấm ⚡ Lưu Skin Dùng (tự động dùng khi mở script)
+Store.savedObjTracks = {}     -- danh sách các mục Định vị vật đã bấm 💾 Lưu (lưu được nhiều lần)
 Store.restoreFeatures = nil   -- TAB5 gán hàm dựng lại tab tính năng vào đây
 Store.restoreWaypoints = nil  -- TAB3 gán RebuildWaypoints vào đây (TAB2 cần mà chưa tồn tại)
 Store.restoreSkins   = nil    -- PI gán hàm cập nhật UI skin đã lưu vào đây
+Store.restoreObjTracks = nil  -- OT gán hàm cập nhật UI định vị vật đã lưu vào đây
 Store.statusLbl      = nil      -- tab "Code Đã Lưu" gán nhãn trạng thái vào đây
 Store.reloadBtn      = nil Store._scheduled     = false Store.refreshStatus  = nil      -- tab "Code Đã Lưu" gán hàm cập nhật nhãn vào đây
 function Store.canWrite() if type(writefile) ~= "function" or type(readfile) ~= "function" then return false end
-    if S.Shimmed("writefile") or S.Shimmed("readfile") then return false end return true end
-function Store.isFinite(n) return type(n) == "number" and n == n and n ~= math.huge and n ~= -math.huge end
+    if S.Shimmed("writefile") or S.Shimmed("readfile") then return false end return true end function Store.isFinite(n) return type(n) == "number" and n == n and n ~= math.huge and n ~= -math.huge end
 function Store.write(data) local okEnc, json = pcall(function() return HttpService:JSONEncode(data) end) if not okEnc then Store.mode = "memory"
         Store.lastError = "Không mã hoá được JSON: " .. tostring(json) _G.BananaCatHub_SavedData = data return false end if not Store.canWrite() then Store.mode = "memory"
         Store.lastError = "Executor không có writefile — chỉ giữ được trong phiên chơi này" _G.BananaCatHub_SavedData = data return false end
     local okW, errW = pcall(writefile, Store.SAVE_FILE, json) if not okW then
         Store.mode = "memory" Store.lastError = "Ghi file thất bại: " .. tostring(errW) _G.BananaCatHub_SavedData = data return false end Store.mode = "file" Store.lastError = nil
-    Store.saveCount = Store.saveCount + 1 pcall(function() Store.lastSavedAt = os.date("%H:%M:%S") end) _G.BananaCatHub_SavedData = data return true
-end function Store.read() if Store.canWrite() then
+    Store.saveCount = Store.saveCount + 1 pcall(function() Store.lastSavedAt = os.date("%H:%M:%S") end) _G.BananaCatHub_SavedData = data return true end function Store.read() if Store.canWrite() then
         local hasFile = true if type(isfile) == "function" then local okI, r = pcall(isfile, Store.SAVE_FILE) hasFile = (okI and r == true) end if hasFile then
             local okR, txt = pcall(readfile, Store.SAVE_FILE) if okR and type(txt) == "string" and #txt > 0 then local okD, data = pcall(function() return HttpService:JSONDecode(txt) end)
                 if okD and type(data) == "table" then Store.mode = "file" Store.lastError = nil return data end Store.lastError = "File lưu bị hỏng (JSON không đọc được) — đã bỏ qua" end end
     end if Store.lastError and Store.lastError:find("bị hỏng", 1, true) then Store.mode = "none" return nil end
-    if type(_G.BananaCatHub_SavedData) == "table" then Store.mode = "memory" return _G.BananaCatHub_SavedData end
-    Store.mode = "none" return nil end function Store.serialize() local sOut = {}
+    if type(_G.BananaCatHub_SavedData) == "table" then Store.mode = "memory" return _G.BananaCatHub_SavedData end Store.mode = "none" return nil end function Store.serialize() local sOut = {}
     for _, s in ipairs(scripts) do table.insert(sOut, { name     = tostring(s.name or ""), code     = tostring(s.code or ""),
             expanded = (s.expanded == true), }) end local wOut = {} for _, w in ipairs(waypoints) do
         local pos = w and w.pos if pos and Store.isFinite(pos.X) and Store.isFinite(pos.Y) and Store.isFinite(pos.Z) then
             table.insert(wOut, {name = tostring(w.name or ""), x = pos.X, y = pos.Y, z = pos.Z}) end end local fOut = {} for _, f in ipairs(featureTabs) do
         table.insert(fOut, { name = tostring(f.name or ""), icon = tostring(f.icon or "⚙️"), code = tostring(f.code or ""),
         }) end return { version   = Store.SAVE_VERSION, scripts   = sOut, waypoints = wOut, features  = fOut, savedSkins = type(Store.savedSkins) == "table" and Store.savedSkins or {},
-        autoUseSkin = type(Store.autoUseSkin) == "table" and Store.autoUseSkin or nil,
+        autoUseSkin = type(Store.autoUseSkin) == "table" and Store.autoUseSkin or nil, savedObjTracks = type(Store.savedObjTracks) == "table" and Store.savedObjTracks or {},
         settings  = { embedEnabled  = (S.embedEnabled == true), embedGuessNew = (S.embedGuessNew == true), parkCodeGuis  = (S.parkCodeGuis ~= false),   -- v4.4i
-            hubFavs = (function() local out = {}
-                if type(S.hubFavs) == "table" then for nm, v in pairs(S.hubFavs) do if v then out[#out + 1] = tostring(nm) end end end return out end)(), }, } end
+            hubFavs = (function() local out = {} if type(S.hubFavs) == "table" then for nm, v in pairs(S.hubFavs) do if v then out[#out + 1] = tostring(nm) end end end return out end)(), }, } end
 function Store.save() local ok = Store.write(Store.serialize()) if Store.refreshStatus then pcall(Store.refreshStatus) end return ok
 end function Store.saveSoon() if Store._scheduled then return end
     Store._scheduled = true task.delay(0.3, function() Store._scheduled = false Store.save() end) end function Store.load() local data = Store.read()
     if type(data) ~= "table" then Store.mode = Store.canWrite() and "empty" or "none"
-        Store.loadedScripts, Store.loadedWp = 0, 0 Store.loadedFeatures = {} Store.savedSkins = {} Store.autoUseSkin = nil
+        Store.loadedScripts, Store.loadedWp = 0, 0 Store.loadedFeatures = {} Store.savedSkins = {} Store.autoUseSkin = nil Store.savedObjTracks = {}
         return end local fileVer = tonumber(data.version) or 1 if fileVer > Store.SAVE_VERSION then
         Store.lastError = string.format( "File lưu là version %d, script này chỉ hiểu tới v%d — một số mục có thể không nạp",
             fileVer, Store.SAVE_VERSION) end if type(data.settings) == "table" then S.embedEnabled  = (data.settings.embedEnabled ~= false)
@@ -366,8 +341,9 @@ end function Store.saveSoon() if Store._scheduled then return end
                     code = S.SanitizeCode(f.code), }) end end end local skOut = {} if type(data.savedSkins) == "table" then for _, sk in ipairs(data.savedSkins) do
             if type(sk) == "table" and (tonumber(sk.id) or (type(sk.name) == "string" and #sk.name > 0)) then table.insert(skOut, sk) end end end Store.savedSkins = skOut
     if type(data.autoUseSkin) == "table" and (tonumber(data.autoUseSkin.id) or (type(data.autoUseSkin.name) == "string" and #data.autoUseSkin.name > 0)) then
-        Store.autoUseSkin = data.autoUseSkin else Store.autoUseSkin = nil end
-    scripts   = sOut waypoints = wOut Store.loadedFeatures = fOut Store.loadedScripts, Store.loadedWp = #sOut, #wOut end Store.load()
+        Store.autoUseSkin = data.autoUseSkin else Store.autoUseSkin = nil end local otOut = {} if type(data.savedObjTracks) == "table" then for _, ot in ipairs(data.savedObjTracks) do
+            if type(ot) == "table" and ((type(ot.query) == "string" and #ot.query > 0) or (type(ot.entries) == "table" and #ot.entries > 0) or (type(ot.title) == "string" and #ot.title > 0)) then
+                table.insert(otOut, ot) end end end Store.savedObjTracks = otOut scripts   = sOut waypoints = wOut Store.loadedFeatures = fOut Store.loadedScripts, Store.loadedWp = #sOut, #wOut end Store.load()
 S.compatAdded  = S.compatAdded or {}   -- tên các hàm đã bù (để báo lại cho người dùng)
 S.compatTried  = false S.vfs          = S.vfs or {}           -- ổ đĩa ảo trong RAM (khi executor không có readfile/writefile)
 S.clipboardTxt = S.clipboardTxt or "" S.queued       = S.queued or {}        -- queue_on_teleport: giữ lại, không tự chạy
@@ -380,13 +356,11 @@ _G.__BC_SHIMMED_MAP = type(rawget(_G, "__BC_SHIMMED_MAP")) == "table" and rawget
         local cur = rawget(_G, k) if cur ~= nil then local isLuaShim = isOldShim or (type(shimMap) == "table" and shimMap[cur] == true)
             if not isLuaShim and type(cur) == "function" and type(debug) == "table" and type(debug.info) == "function" then
                 local okD, src = pcall(debug.info, cur, "s") if okD and type(src) == "string" and src ~= "[C]" and src ~= "=[C]" then isLuaShim = true end
-            end if isLuaShim then rawset(_G, k, nil) end end end end) function S.IsRealExecutorFn(fn)
-    if type(fn) ~= "function" then return false end if fn == S.CompatRequest then return false end
+            end if isLuaShim then rawset(_G, k, nil) end end end end) function S.IsRealExecutorFn(fn) if type(fn) ~= "function" then return false end if fn == S.CompatRequest then return false end
     local shimMap = rawget(_G, "__BC_SHIMMED_MAP") if type(shimMap) == "table" and shimMap[fn] then return false end
     if type(S.shimmedFns) == "table" then for _, sf in pairs(S.shimmedFns) do if sf == fn then return false end end end return true end function S.HasGlobal(n)
     local ok, v = pcall(function() return rawget(_G, n) end) if ok and v ~= nil then
-        local shimMap = rawget(_G, "__BC_SHIMMED_MAP") if not (type(shimMap) == "table" and shimMap[v]) then return true end
-    end if type(getgenv) == "function" and S.IsRealExecutorFn(getgenv) then
+        local shimMap = rawget(_G, "__BC_SHIMMED_MAP") if not (type(shimMap) == "table" and shimMap[v]) then return true end end if type(getgenv) == "function" and S.IsRealExecutorFn(getgenv) then
         local okG, g = pcall(getgenv) if okG and type(g) == "table" and g ~= _G and g[n] ~= nil then return true end end if type(getfenv) == "function" then
         local okE, env = pcall(getfenv, 0) if okE and type(env) == "table" and env ~= _G and env[n] ~= nil then return true end end return false
 end function S.SetGlobal(n, v) if S.HasGlobal(n) then return false end          -- KHONG de ham that cua executor
@@ -406,8 +380,7 @@ function S.CompatRequest(opts) if type(opts) ~= "table" then opts = {Url = tostr
         if okPost and type(posted) == "string" and posted ~= "" then body, status, good = posted, 200, true end end if body == "" and method == "GET" then
         local okHttp, fetched = pcall(function() return game:HttpGet(url) end) if okHttp then body, status, good = tostring(fetched or ""), 200, true end
     end return {StatusCode = status, StatusMessage = "", Body = body, Success = good, Headers = {}} end function S.CompatDrawing() local D = {}
-    D.Fonts = {UI = 0, System = 0, Plex = 1, Monospace = 2} D.new = function(cls)
-        local o = {__class = tostring(cls or ""), Visible = false, ZIndex = 1, Transparency = 1} return setmetatable(o, {
+    D.Fonts = {UI = 0, System = 0, Plex = 1, Monospace = 2} D.new = function(cls) local o = {__class = tostring(cls or ""), Visible = false, ZIndex = 1, Transparency = 1} return setmetatable(o, {
             __index = function(t, k) if k == "Remove" or k == "Destroy" then return function(self) rawset(self, "Visible", false) end end
                 return rawget(t, k) end, __newindex = function(t, k, v) rawset(t, k, v) end, })
     end return D end function S.EnsureCompat() if S.compatTried then return S.compatAdded end S.compatTried = true pcall(function()
@@ -435,8 +408,7 @@ function S.CompatRequest(opts) if type(opts) ~= "table" then opts = {Url = tostr
     if #S.compatAdded > 0 then pcall(function() print("[taodepzai v5.0 NOIR] " .. S.CompatNote()) end) end return S.compatAdded end
 function S.CompatNote() local n = #S.compatAdded if n == 0 then return "" end local sample = {}
     for i = 1, math.min(4, n) do sample[#sample + 1] = S.compatAdded[i] end return "🩹 đã bù " .. n .. " hàm executor còn thiếu (" .. table.concat(sample, ", ")
-        .. (n > 4 and "…" or "") .. ")" end function S.NormalizeRunnable(c) S.lastNormalizeNote = nil
-    if type(c) ~= "string" then return "" end c = c:gsub("\239\187\191", ""):gsub("\226\128\139", "")
+        .. (n > 4 and "…" or "") .. ")" end function S.NormalizeRunnable(c) S.lastNormalizeNote = nil if type(c) ~= "string" then return "" end c = c:gsub("\239\187\191", ""):gsub("\226\128\139", "")
     c = c:gsub("\226\128\142", ""):gsub("\226\128\143", "") local t = c:match("^%s*(.-)%s*$") or "" local q = t:match('^["\'](.-)["\']$')      -- dán cả dấu nháy bao quanh link
     if q and q ~= "" then t = q end if t:match("^https?://") then if t:find('[%c"\\]') then S.lastNormalizeNote = "⚠️ link có ký tự lạ -> chạy nguyên văn" return c end
         S.lastNormalizeNote = "🔗 link trần -> tự bọc loadstring(game:HttpGet(...))()" return 'loadstring(game:HttpGet("' .. t .. '"))()'
@@ -448,8 +420,7 @@ function S.RunReportText() local r = S.lastRunReport if not r then return "" end
     local t = "✅ Đã chạy xong (" .. r.ok .. " lần)" if r.fail > 0 then t = t .. " · ⚠️ " .. r.fail .. " lần lỗi" end if r.guis and r.guis > 0 then
         local nm = (r.names and r.names[1]) and (" '" .. r.names[1] .. "'") or "" t = t .. " · 🧩 " .. r.guis .. " GUI đã vào tab 'GUI Ngoài'" .. nm .. " (bấm ↩ trả ra màn hình)"
     elseif r.parked then t = t .. " · " .. r.parked end if r.note then t = t .. " · " .. r.note end if r.compat and r.compat ~= "" then t = t .. " · " .. r.compat end return t end
-local function ExecOnce(code, name) if #name>0 then print("👤 Chạy bởi:", name) end
-    code = S.SanitizeCode(code)          -- v4.4b: cắt wrapper "tự dãn kích thước" độc hại của bản cũ
+local function ExecOnce(code, name) if #name>0 then print("👤 Chạy bởi:", name) end code = S.SanitizeCode(code)          -- v4.4b: cắt wrapper "tự dãn kích thước" độc hại của bản cũ
     code = S.NormalizeRunnable(code)     -- v4.7: link trần / thiếu () / BOM -> chạy được
     S.EnsureCompat()                     -- v4.7: bù hàm executor còn thiếu (không đè hàm thật)
     local ok, err = pcall(function() local fn, lerr = loadstring(code) if not fn then error(lerr) end fn() end) if ok then S.lastRunError = nil else
@@ -468,8 +439,7 @@ end local function RunCode(code, name, ind, times, delay, noPark) Cancel() Relea
                     if cancelled then break end task.wait(0.1); e = e + (0.1) end if cancelled then break end end local ok, err = ExecOnce(code, name)
             if ok then okC = okC + (1)  else failC = failC + (1) ; warn("❌ Lần",i,err) end if cap then S.EndRunCapture(cap, (#name>0 and name or "Script"))
                 S.lastParkedCount = cap.parked or 0    -- v4.7: để báo "GUI đang nằm ở đâu"
-                S.lastParkedNames = cap.names or {} cap = nil end end
-        if cap then S.EndRunCapture(cap, (#name>0 and name or "Script")) cap = nil end S.lastRunReport = { name   = name, ok     = okC,
+                S.lastParkedNames = cap.names or {} cap = nil end end if cap then S.EndRunCapture(cap, (#name>0 and name or "Script")) cap = nil end S.lastRunReport = { name   = name, ok     = okC,
             fail   = failC, err    = S.lastRunError, parked = (skipPark and S.lastParkNote or nil), guis   = S.lastParkedCount,
             names  = S.lastParkedNames, note   = S.lastNormalizeNote, compat = S.CompatNote(), }
         totalRuns = totalRuns + (okC+failC)  if ind then ind.BackgroundColor3=C.GREEN; if curIndicator==ind then curIndicator=nil end end
@@ -493,11 +463,9 @@ y = y + 32 Label(codeTab, "💻 Code (Lua)", y) y = y + 14 local codeIn = New("T
     Font=Enum.Font.Code, TextSize=11, BorderSizePixel=0, ClearTextOnFocus=false, MultiLine=true, TextWrapped=true, TextXAlignment=Enum.TextXAlignment.Left, TextYAlignment=Enum.TextYAlignment.Top,
     Active=true, Selectable=true, ZIndex=10, }, codeTab)
 Corner(codeIn, UDim.new(0,5)) Stroke(codeIn, Color3.fromRGB(100,120,200), 1.5) New("UIPadding", {PaddingLeft=UDim.new(0,6), PaddingTop=UDim.new(0,4)}, codeIn)
-y = y + 86 Label(codeTab, "🔁 Cài đặt lặp", y) y = y + 14 Label(codeTab, "Số lần lặp:", y)
-local repIn = New("TextBox", { Size=UDim2.new(0,55,0,24), Position=UDim2.new(0,8,0,y+12), Text="1",
+y = y + 86 Label(codeTab, "🔁 Cài đặt lặp", y) y = y + 14 Label(codeTab, "Số lần lặp:", y) local repIn = New("TextBox", { Size=UDim2.new(0,55,0,24), Position=UDim2.new(0,8,0,y+12), Text="1",
     PlaceholderColor3=Color3.fromRGB(122, 130, 148), BackgroundColor3=Color3.fromRGB(26, 29, 38), BackgroundTransparency=0, TextColor3=Color3.fromRGB(233, 237, 245), Font=Enum.Font.GothamMedium, TextSize=12, BorderSizePixel=0,
-    ClearTextOnFocus=false, Active=true, Selectable=true, ZIndex=10, }, codeTab)
-Corner(repIn, UDim.new(0,5)) Stroke(repIn, Color3.fromRGB(180,180,200), 1.2) Label(codeTab, "Thời gian chờ:", y+36)
+    ClearTextOnFocus=false, Active=true, Selectable=true, ZIndex=10, }, codeTab) Corner(repIn, UDim.new(0,5)) Stroke(repIn, Color3.fromRGB(180,180,200), 1.2) Label(codeTab, "Thời gian chờ:", y+36)
 local delIn = New("TextBox", { Size=UDim2.new(0,55,0,24), Position=UDim2.new(0,8,0,y+50), Text="0",
     PlaceholderColor3=Color3.fromRGB(122, 130, 148), BackgroundColor3=Color3.fromRGB(26, 29, 38), BackgroundTransparency=0, TextColor3=Color3.fromRGB(233, 237, 245), Font=Enum.Font.GothamMedium, TextSize=12, BorderSizePixel=0,
     ClearTextOnFocus=false, Active=true, Selectable=true, ZIndex=10, }, codeTab) Corner(delIn, UDim.new(0,5)) Stroke(delIn, Color3.fromRGB(180,180,200), 1.2)
@@ -518,8 +486,7 @@ y = y + 24 local saveBtn = Button(codeTab, "💾 Lưu Vào Danh Sách", 8, y, 31
 local statusLbl = Label(codeTab, "", y) statusLbl.TextColor3=Color3.fromRGB(255, 205, 64); statusLbl.TextSize=9; statusLbl.ZIndex=6 y = y + 14
 local countLbl = Label(codeTab, "🔄 Tổng số lần đã chạy: 0", y) countLbl.TextColor3=C.GREEN; countLbl.TextSize=9; countLbl.ZIndex=6
 codeTab.CanvasSize = UDim2.new(0, 0, 0, y + 30) stopBtn.Activated:Connect(function() Cancel(); statusLbl.Text="⏹️ Đã dừng" end)
-runBtn.Activated:Connect(function() local t=math.clamp(tonumber(repIn.Text)or 1,1,1000)
-    local d=math.max(tonumber(delIn.Text)or 0,0) if unitBtn.Text:find("Phút") then d=d*60 end
+runBtn.Activated:Connect(function() local t=math.clamp(tonumber(repIn.Text)or 1,1,1000) local d=math.max(tonumber(delIn.Text)or 0,0) if unitBtn.Text:find("Phút") then d=d*60 end
     local ok,err=RunCode(codeIn.Text,nameIn.Text,nil,t,d) if not ok then statusLbl.Text=err or "❌ Lỗi không xác định" else
         statusLbl.Text="⏳ Đang thực thi..." task.spawn(function() while runActive do if cancelled then statusLbl.Text="⏹️ Đã dừng"; return end task.wait(0.1) end if not cancelled then
                 local rep7 = S.RunReportText() statusLbl.Text = (rep7 ~= "") and rep7
@@ -536,14 +503,12 @@ local searchIn = New("TextBox", { Size=UDim2.new(1,-16,0,26), Position=UDim2.new
     PlaceholderText="🔍 Tìm kiếm script...", PlaceholderColor3=Color3.fromRGB(122, 130, 148), BackgroundColor3=Color3.fromRGB(26, 29, 38), BackgroundTransparency=0, TextColor3=Color3.fromRGB(233, 237, 245),
     Font=Enum.Font.GothamMedium, TextSize=12, BorderSizePixel=0, ClearTextOnFocus=false, Active=true, Selectable=true, ZIndex=10, TextXAlignment=Enum.TextXAlignment.Left,
 }, savedCodeTab) Corner(searchIn, UDim.new(0,5)) Stroke(searchIn, Color3.fromRGB(180,180,200), 1.2) New("UIPadding", {PaddingLeft=UDim.new(0,6)}, searchIn) sy = sy + 32
-Store.statusLbl = New("TextLabel", { Size=UDim2.new(1,-110,0,20), Position=UDim2.new(0,8,0,sy),
-    Text="💾 ...", BackgroundTransparency=1, TextColor3=C.GRAY, Font=Enum.Font.GothamMedium, TextSize=9,
+Store.statusLbl = New("TextLabel", { Size=UDim2.new(1,-110,0,20), Position=UDim2.new(0,8,0,sy), Text="💾 ...", BackgroundTransparency=1, TextColor3=C.GRAY, Font=Enum.Font.GothamMedium, TextSize=9,
     TextXAlignment=Enum.TextXAlignment.Left, TextYAlignment=Enum.TextYAlignment.Center, TextTruncate=Enum.TextTruncate.AtEnd, ZIndex=7,
 }, savedCodeTab) Store.reloadBtn = New("TextButton", { Size=UDim2.new(0,78,0,18), Position=UDim2.new(1,-86,0,sy),
     Text="🔄 Nạp lại", BackgroundColor3=C.BLUE, BackgroundTransparency=0.1, TextColor3=C.WHITE, Font=Enum.Font.GothamBold, TextSize=8, BorderSizePixel=0, ZIndex=8,
 }, savedCodeTab) Corner(Store.reloadBtn, UDim.new(0,5)) Stroke(Store.reloadBtn, Color3.fromRGB(0,90,170), 1)
-Store.refreshStatus = function() if not Store.statusLbl or not Store.statusLbl.Parent then return end
-    local ns, nw, nf = #scripts, #waypoints, #featureTabs if Store.lastError then
+Store.refreshStatus = function() if not Store.statusLbl or not Store.statusLbl.Parent then return end local ns, nw, nf = #scripts, #waypoints, #featureTabs if Store.lastError then
         Store.statusLbl.TextColor3=Color3.fromRGB(255, 160, 90) Store.statusLbl.Text = string.format("⚠️ %d script · %d WP · %d tab — %s", ns, nw, nf, Store.lastError)
     elseif Store.mode == "file" then Store.statusLbl.TextColor3=Color3.fromRGB(58, 214, 140)
         Store.statusLbl.Text = string.format("💾 %d script · %d WP · %d tab · %s%s", ns, nw, nf, Store.SAVE_FILE, Store.lastSavedAt and (" · lưu lúc " .. Store.lastSavedAt) or "")
@@ -551,9 +516,8 @@ Store.refreshStatus = function() if not Store.statusLbl or not Store.statusLbl.P
         Store.statusLbl.Text = string.format("⚠️ %d script · %d WP · %d tab — chỉ giữ trong phiên chơi này (executor thiếu writefile)", ns, nw, nf) elseif Store.mode == "empty" then
         Store.statusLbl.TextColor3 = C.GRAY Store.statusLbl.Text = string.format("💾 Chưa lưu gì · sẽ ghi vào %s khi bạn bấm Lưu", Store.SAVE_FILE)
     else Store.statusLbl.TextColor3 = C.GRAY Store.statusLbl.Text = "💾 Chưa lưu gì (executor thiếu writefile — chỉ giữ trong phiên chơi)" end end
-S.DoReload = function() Store.load() RebuildScripts() S.Rebuild()
-    if Store.restoreWaypoints then pcall(Store.restoreWaypoints) end if Store.restoreFeatures then pcall(Store.restoreFeatures) end
-    if Store.restoreSkins then pcall(Store.restoreSkins) end flash(Store.reloadBtn, "✅ Đã nạp", 1.4) end Store.reloadBtn.Activated:Connect(S.DoReload)
+S.DoReload = function() Store.load() RebuildScripts() S.Rebuild() if Store.restoreWaypoints then pcall(Store.restoreWaypoints) end if Store.restoreFeatures then pcall(Store.restoreFeatures) end
+    if Store.restoreSkins then pcall(Store.restoreSkins) end if Store.restoreObjTracks then pcall(Store.restoreObjTracks) end flash(Store.reloadBtn, "✅ Đã nạp", 1.4) end Store.reloadBtn.Activated:Connect(S.DoReload)
 sy = sy + 24 local scriptList = New("Frame", { Size=UDim2.new(1,-16,0,0), Position=UDim2.new(0,8,0,sy), BackgroundTransparency=1, BorderSizePixel=0, ZIndex=6, }, savedCodeTab)
 New("UIListLayout", {SortOrder=Enum.SortOrder.LayoutOrder, Padding=UDim.new(0,6)}, scriptList)
 RebuildScripts = function() for _,c in ipairs(scriptList:GetChildren()) do if not c:IsA("UIListLayout") then c:Destroy() end end local term=searchIn.Text:lower() local disp={}
@@ -563,8 +527,7 @@ RebuildScripts = function() for _,c in ipairs(scriptList:GetChildren()) do if no
         }, scriptList) end local totalHeight = 0 for _, d in ipairs(disp) do local isExpanded = d.expanded or false local rowH = isExpanded and 160 or 42
         local row = New("Frame", { Size=UDim2.new(1,0,0,rowH), BackgroundColor3=Color3.fromRGB(26, 29, 38),
             BackgroundTransparency=0.1, BorderSizePixel=0, ZIndex=6, ClipsDescendants=true, }, scriptList) Corner(row,UDim.new(0,6)); Stroke(row)
-        local arrowBtn = New("TextButton", { Size=UDim2.new(0,20,0,20), Position=UDim2.new(0,6,0,10),
-            Text=isExpanded and "▲" or "▼", BackgroundColor3=Color3.fromRGB(32, 36, 47), BackgroundTransparency=0,
+        local arrowBtn = New("TextButton", { Size=UDim2.new(0,20,0,20), Position=UDim2.new(0,6,0,10), Text=isExpanded and "▲" or "▼", BackgroundColor3=Color3.fromRGB(32, 36, 47), BackgroundTransparency=0,
             TextColor3=C.BLUE, Font=Enum.Font.GothamBold, TextSize=9, BorderSizePixel=0, ZIndex=8, }, row) Corner(arrowBtn, UDim.new(0,4))
         local nameLbl = New("TextLabel", { Size=UDim2.new(1,-150,0,40), Position=UDim2.new(0,32,0,0),
             Text=d.name, BackgroundTransparency=1, TextColor3=C.DARK, Font=Enum.Font.GothamBold, TextSize=10, TextXAlignment=Enum.TextXAlignment.Left,
@@ -579,19 +542,14 @@ RebuildScripts = function() for _,c in ipairs(scriptList:GetChildren()) do if no
             local codeLbl = New("TextBox", { Size=UDim2.new(1,-8,0,0), Position=UDim2.new(0,4,0,4),
                 AutomaticSize=Enum.AutomaticSize.Y, Text=d.code, TextColor3=Color3.fromRGB(226, 230, 240), BackgroundTransparency=1,
                 Font=Enum.Font.Code, TextSize=10, TextXAlignment=Enum.TextXAlignment.Left, TextYAlignment=Enum.TextYAlignment.Top, MultiLine=true, TextWrapped=true,
-                ClearTextOnFocus=false, TextEditable=false, Active=true, ZIndex=9, }, codeBoxFrame)
-            local copyBtn = New("TextButton", { Size=UDim2.new(0,98,0,20), Position=UDim2.new(0,6,0,128),
+                ClearTextOnFocus=false, TextEditable=false, Active=true, ZIndex=9, }, codeBoxFrame) local copyBtn = New("TextButton", { Size=UDim2.new(0,98,0,20), Position=UDim2.new(0,6,0,128),
                 Text="📋 Sao Chép Code", BackgroundColor3=C.BLUE, BackgroundTransparency=0.1, TextColor3=C.WHITE, Font=Enum.Font.GothamBold, TextSize=8, BorderSizePixel=0, ZIndex=8,
             }, row) Corner(copyBtn, UDim.new(0,5)) copyBtn.Activated:Connect(function() if S.CopyToClipboard(d.code) then
-                    flash(copyBtn, "✅ Đã Sao Chép!", 1.5) else codeLbl:CaptureFocus() codeLbl.SelectionStart = 1
-                    codeLbl.CursorPosition = #d.code + 1 flash(copyBtn, "⚠️ Đã Bôi Đen Code", 1.5) end end) end
-        arrowBtn.Activated:Connect(function() d.expanded = not d.expanded RebuildScripts() Store.saveSoon()
-        end) runScriptBtn.Activated:Connect(function() local prev = runScriptBtn.Text
+                    flash(copyBtn, "✅ Đã Sao Chép!", 1.5) else codeLbl:CaptureFocus() codeLbl.SelectionStart = 1 codeLbl.CursorPosition = #d.code + 1 flash(copyBtn, "⚠️ Đã Bôi Đen Code", 1.5) end end) end
+        arrowBtn.Activated:Connect(function() d.expanded = not d.expanded RebuildScripts() Store.saveSoon() end) runScriptBtn.Activated:Connect(function() local prev = runScriptBtn.Text
             local prevColor = runScriptBtn.TextColor3 RunCode(d.code, d.name, runScriptBtn, 1, 0) runScriptBtn.Text = "⏳ ..."
-            task.spawn(function() local waited = 0 while runActive and waited < 60 do task.wait(0.1); waited = waited + 0.1 end
-                task.wait(0.4)                       -- chờ chụp/đậu GUI xong hẳn
-                local rep = S.lastRunReport local txt = S.RunReportText() local bad = rep and rep.fail > 0 and rep.ok == 0 if bad then
-                    runScriptBtn.Text = "❌ lỗi" runScriptBtn.TextColor3 = C.RED
+            task.spawn(function() local waited = 0 while runActive and waited < 60 do task.wait(0.1); waited = waited + 0.1 end task.wait(0.4)                       -- chờ chụp/đậu GUI xong hẳn
+                local rep = S.lastRunReport local txt = S.RunReportText() local bad = rep and rep.fail > 0 and rep.ok == 0 if bad then runScriptBtn.Text = "❌ lỗi" runScriptBtn.TextColor3 = C.RED
                 elseif rep and (rep.guis or 0) > 0 then runScriptBtn.Text = "🧩 vào tab" elseif rep and rep.parked then runScriptBtn.Text = "🪟 ngoài MH" else
                     runScriptBtn.Text = "✅ xong" end pcall(function() if Store.statusLbl and Store.statusLbl.Parent then
                         Store.statusLbl.Text = "▶ '" .. tostring(d.name) .. "' · " .. (txt ~= "" and txt or "xong") Store.statusLbl.TextColor3 = bad and C.RED or C.GRAY end
@@ -609,13 +567,10 @@ local quickScripts = { {n="Dex Explorer", d="Mở Dex Explorer", c=[[loadstring(
         Size=UDim2.new(1,-16,0,22), Position=UDim2.new(0,8,0,posY), Text="", BackgroundColor3=s.cl, BackgroundTransparency=0.3, BorderSizePixel=0, ZIndex=6,
     }, supportTab) Corner(btn, UDim.new(0,5)) Stroke(btn, s.cl, 1.2) New("TextLabel", {
         Size=UDim2.new(1,-10,1,0), Position=UDim2.new(0,10,0,0), Text=s.n.." — "..s.d, BackgroundTransparency=1, TextColor3=C.WHITE, Font=Enum.Font.GothamBold, TextSize=8,
-        TextXAlignment=Enum.TextXAlignment.Left, TextYAlignment=Enum.TextYAlignment.Center, ZIndex=7, }, btn)
-    btn.Activated:Connect(function() RunCode(s.c, s.n, nil, 1, 0, true) end) posY = posY + 26 end
-posY = posY + 6 Label(supportTab, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", posY)
-posY = posY + 16 Label(supportTab, "🛠 Hỗ Trợ — Phân Tích Tọa Độ", posY) posY = posY + 18
+        TextXAlignment=Enum.TextXAlignment.Left, TextYAlignment=Enum.TextYAlignment.Center, ZIndex=7, }, btn) btn.Activated:Connect(function() RunCode(s.c, s.n, nil, 1, 0, true) end) posY = posY + 26 end
+posY = posY + 6 Label(supportTab, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", posY) posY = posY + 16 Label(supportTab, "🛠 Hỗ Trợ — Phân Tích Tọa Độ", posY) posY = posY + 18
 Label(supportTab, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", posY) posY = posY + 16 local analyzeObjectEnabled = false local highlightEnabled = true
-local objectAnalyzeBtn = Button(supportTab, "🎯 Phân Tích Vật Thể: TẮT", 8, posY, 260, 20, C.GRAY) local clearObjectBtn = Button(supportTab, "🧹 Xóa KQ", 274, posY, 76, 20, C.RED)
-posY = posY + 24
+local objectAnalyzeBtn = Button(supportTab, "🎯 Phân Tích Vật Thể: TẮT", 8, posY, 260, 20, C.GRAY) local clearObjectBtn = Button(supportTab, "🧹 Xóa KQ", 274, posY, 76, 20, C.RED) posY = posY + 24
 local highlightToggleBtn = Button(supportTab, "💜 Highlight Tím: BẬT", 8, posY, 260, 20, C.PURPLE) local removeHighlightBtn = Button(supportTab, "❌ Xóa Highlight", 274, posY, 76, 20, C.RED)
 posY = posY + 24 S.AnaUi = S.AnaUi or {} S.AnaUi.devLbl = Label(supportTab, "📱/🖥 Đang nhận diện thiết bị...", posY)
 S.AnaUi.devLbl.TextSize = 9 S.AnaUi.devLbl.TextColor3 = C.ACCENT posY = posY + 16 S.AnaUi.centerBtn = Button(supportTab, "⊕ Vật thể ở GIỮA màn hình", 8, posY, 180, 20, C.BLUE)
@@ -623,8 +578,7 @@ S.AnaUi.nearBtn   = Button(supportTab, "🧭 Vật thể GẦN nhất", 194, pos
 S.AnaUi.skipGuiBtn = Button(supportTab, "🛡 Phân tích xuyên HUD game: BẬT", 8, posY, 206, 18, C.GREEN) S.AnaUi.scanFbBtn  = Button(supportTab, "🧭 Quét dự phòng: BẬT", 220, posY, 130, 18, C.GREEN) posY = posY + 22
 S.AnaUi.centerAimBtn = Button(supportTab, "🔴 Ngắm tâm: TẮT", 8, posY, 170, 18, C.GRAY) S.AnaUi.aimButtonMoveEnabled = false
 S.AnaUi.aimMoveBtn = Button(supportTab, "🔒 Kéo nút: TẮT", 184, posY, 166, 18, C.GRAY) posY = posY + 22
-S.AnaUi.aimMoveBtn.Activated:Connect(function() local moveEnabled = not (S.AnaUi.aimButtonMoveEnabled == true)
-    S.AnaUi.aimButtonMoveEnabled = moveEnabled if not moveEnabled then
+S.AnaUi.aimMoveBtn.Activated:Connect(function() local moveEnabled = not (S.AnaUi.aimButtonMoveEnabled == true) S.AnaUi.aimButtonMoveEnabled = moveEnabled if not moveEnabled then
         S.AnaUi.aimButtonDragging = false S.AnaUi.aimButtonDragInput = nil S.AnaUi.aimButtonDragMoved = false S.AnaUi.aimButtonSuppressUntil = 0 end
     S.AnaUi.aimMoveBtn.Text = moveEnabled and "🔓 Kéo nút: BẬT" or "🔒 Kéo nút: TẮT" D.SetBg(S.AnaUi.aimMoveBtn, moveEnabled and C.ORANGE or C.GRAY)
     S.AnaSay(moveEnabled and "🔓 Đã mở khóa: kéo nút 🔎 để đổi vị trí" or "🔒 Đã khóa vị trí nút 🔎") end)
@@ -636,32 +590,23 @@ local objResultPanel = New("Frame", { Size=UDim2.new(1,-16,0,190), Position=UDim
 New("TextLabel", {   -- (objTitleLbl: bien local khong dung -> bo de tiet kiem slot local)
     Size=UDim2.new(1,-16,0,16), Position=UDim2.new(0,8,0,4), Text="🎯 VẬT THỂ ĐƯỢC CHỌN", BackgroundTransparency=1,
     TextColor3=Color3.fromRGB(180, 130, 255), Font=Enum.Font.GothamBold, TextSize=10, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7, }, objResultPanel)
-local objNameLbl = New("TextLabel", { Size=UDim2.new(1,-16,0,16), Position=UDim2.new(0,8,0,22),
-    Text="Name: ...", BackgroundTransparency=1, TextColor3=Color3.fromRGB(255, 255, 100),
+local objNameLbl = New("TextLabel", { Size=UDim2.new(1,-16,0,16), Position=UDim2.new(0,8,0,22), Text="Name: ...", BackgroundTransparency=1, TextColor3=Color3.fromRGB(255, 255, 100),
     Font=Enum.Font.Code, TextSize=10, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7, }, objResultPanel)
-local objClassLbl = New("TextLabel", { Size=UDim2.new(1,-16,0,16), Position=UDim2.new(0,8,0,38),
-    Text="Class: ...", BackgroundTransparency=1, TextColor3=Color3.fromRGB(200, 200, 255),
+local objClassLbl = New("TextLabel", { Size=UDim2.new(1,-16,0,16), Position=UDim2.new(0,8,0,38), Text="Class: ...", BackgroundTransparency=1, TextColor3=Color3.fromRGB(200, 200, 255),
     Font=Enum.Font.Code, TextSize=10, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7, }, objResultPanel)
-local objPosLbl = New("TextLabel", { Size=UDim2.new(1,-16,0,16), Position=UDim2.new(0,8,0,54),
-    Text="Position: ...", BackgroundTransparency=1, TextColor3=Color3.fromRGB(255, 180, 180),
+local objPosLbl = New("TextLabel", { Size=UDim2.new(1,-16,0,16), Position=UDim2.new(0,8,0,54), Text="Position: ...", BackgroundTransparency=1, TextColor3=Color3.fromRGB(255, 180, 180),
     Font=Enum.Font.Code, TextSize=10, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7, }, objResultPanel)
-local objSizeLbl = New("TextLabel", { Size=UDim2.new(1,-16,0,16), Position=UDim2.new(0,8,0,70),
-    Text="Size: ...", BackgroundTransparency=1, TextColor3=Color3.fromRGB(180, 255, 180),
+local objSizeLbl = New("TextLabel", { Size=UDim2.new(1,-16,0,16), Position=UDim2.new(0,8,0,70), Text="Size: ...", BackgroundTransparency=1, TextColor3=Color3.fromRGB(180, 255, 180),
     Font=Enum.Font.Code, TextSize=10, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7, }, objResultPanel)
-local objRotLbl = New("TextLabel", { Size=UDim2.new(1,-16,0,16), Position=UDim2.new(0,8,0,86),
-    Text="Rotation: ...", BackgroundTransparency=1, TextColor3=Color3.fromRGB(180, 220, 255),
+local objRotLbl = New("TextLabel", { Size=UDim2.new(1,-16,0,16), Position=UDim2.new(0,8,0,86), Text="Rotation: ...", BackgroundTransparency=1, TextColor3=Color3.fromRGB(180, 220, 255),
     Font=Enum.Font.Code, TextSize=10, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7, }, objResultPanel)
-local objLookLbl = New("TextLabel", { Size=UDim2.new(1,-16,0,16), Position=UDim2.new(0,8,0,102),
-    Text="Look: ...", BackgroundTransparency=1, TextColor3=Color3.fromRGB(220, 200, 255),
+local objLookLbl = New("TextLabel", { Size=UDim2.new(1,-16,0,16), Position=UDim2.new(0,8,0,102), Text="Look: ...", BackgroundTransparency=1, TextColor3=Color3.fromRGB(220, 200, 255),
     Font=Enum.Font.Code, TextSize=10, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7, }, objResultPanel)
-local objMatLbl = New("TextLabel", { Size=UDim2.new(1,-16,0,16), Position=UDim2.new(0,8,0,118),
-    Text="Material: ...", BackgroundTransparency=1, TextColor3=Color3.fromRGB(255, 220, 180),
+local objMatLbl = New("TextLabel", { Size=UDim2.new(1,-16,0,16), Position=UDim2.new(0,8,0,118), Text="Material: ...", BackgroundTransparency=1, TextColor3=Color3.fromRGB(255, 220, 180),
     Font=Enum.Font.Code, TextSize=10, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7, }, objResultPanel)
-local objColorLbl = New("TextLabel", { Size=UDim2.new(1,-16,0,16), Position=UDim2.new(0,8,0,134),
-    Text="Color: ...", BackgroundTransparency=1, TextColor3=Color3.fromRGB(255, 180, 220),
+local objColorLbl = New("TextLabel", { Size=UDim2.new(1,-16,0,16), Position=UDim2.new(0,8,0,134), Text="Color: ...", BackgroundTransparency=1, TextColor3=Color3.fromRGB(255, 180, 220),
     Font=Enum.Font.Code, TextSize=10, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7, }, objResultPanel)
-local objPathLbl = New("TextLabel", { Size=UDim2.new(1,-16,0,16), Position=UDim2.new(0,8,0,150),
-    Text="Path: ...", BackgroundTransparency=1, TextColor3=Color3.fromRGB(180, 255, 220),
+local objPathLbl = New("TextLabel", { Size=UDim2.new(1,-16,0,16), Position=UDim2.new(0,8,0,150), Text="Path: ...", BackgroundTransparency=1, TextColor3=Color3.fromRGB(180, 255, 220),
     Font=Enum.Font.Code, TextSize=9, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7, TextTruncate=Enum.TextTruncate.AtEnd, }, objResultPanel)
 local copyObjBtn = New("TextButton", { Size=UDim2.new(0,96,0,18), Position=UDim2.new(0,8,0,168),
     Text="📋 Copy Tọa Độ", BackgroundColor3=C.BLUE, BackgroundTransparency=0.1, TextColor3=C.WHITE, Font=Enum.Font.GothamBold, TextSize=8, BorderSizePixel=0, ZIndex=8,
@@ -670,8 +615,7 @@ local copyObjBtn = New("TextButton", { Size=UDim2.new(0,96,0,18), Position=UDim2
 }, objResultPanel) Corner(copyPathBtn, UDim.new(0,4)) posY = posY + 198
 Label(supportTab, "📍 Tọa Độ Hiện Tại (Real-time)", posY) posY = posY + 16 local coordDisplay = New("Frame", { Size=UDim2.new(1,-16,0,290),
     Position=UDim2.new(0,8,0,posY), BackgroundColor3=Color3.fromRGB(30, 35, 45), BackgroundTransparency=0, BorderSizePixel=0,
-    ZIndex=6, }, supportTab) Corner(coordDisplay, UDim.new(0,6)) Stroke(coordDisplay, C.BLUE, 1.5)
-local function CreateCoordRow(parent, yPos, labelText, labelColor, valueDefault) New("TextLabel", {
+    ZIndex=6, }, supportTab) Corner(coordDisplay, UDim.new(0,6)) Stroke(coordDisplay, C.BLUE, 1.5) local function CreateCoordRow(parent, yPos, labelText, labelColor, valueDefault) New("TextLabel", {
         Size=UDim2.new(0,90,0,16), Position=UDim2.new(0,8,0,yPos), Text=labelText, BackgroundTransparency=1, TextColor3=labelColor,
         Font=Enum.Font.GothamBold, TextSize=10, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7, }, parent) return New("TextLabel", {
         Size=UDim2.new(1,-100,0,16), Position=UDim2.new(0,100,0,yPos), Text=valueDefault or "...", BackgroundTransparency=1,
@@ -680,8 +624,7 @@ New("TextLabel", { Size=UDim2.new(1,-16,0,14), Position=UDim2.new(0,8,0,4), Text
     Font=Enum.Font.GothamBold, TextSize=9, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7, }, coordDisplay)
 local xValLbl = CreateCoordRow(coordDisplay, 20, "X:", Color3.fromRGB(255,100,100), "0.000") local yValLbl = CreateCoordRow(coordDisplay, 36, "Y:", Color3.fromRGB(100,255,100), "0.000")
 local zValLbl = CreateCoordRow(coordDisplay, 52, "Z:", Color3.fromRGB(100,150,255), "0.000") New("TextLabel", { Size=UDim2.new(1,-16,0,14), Position=UDim2.new(0,8,0,72),
-    Text="📦 SIZE", BackgroundTransparency=1, TextColor3=Color3.fromRGB(255, 200, 100),
-    Font=Enum.Font.GothamBold, TextSize=9, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7, }, coordDisplay)
+    Text="📦 SIZE", BackgroundTransparency=1, TextColor3=Color3.fromRGB(255, 200, 100), Font=Enum.Font.GothamBold, TextSize=9, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7, }, coordDisplay)
 local sizeXValLbl = CreateCoordRow(coordDisplay, 88, "Size X:", Color3.fromRGB(255,150,150), "0.000") local sizeYValLbl = CreateCoordRow(coordDisplay, 104, "Size Y:", Color3.fromRGB(150,255,150), "0.000")
 local sizeZValLbl = CreateCoordRow(coordDisplay, 120, "Size Z:", Color3.fromRGB(150,180,255), "0.000")
 New("TextLabel", { Size=UDim2.new(1,-16,0,14), Position=UDim2.new(0,8,0,140), Text="🧭 ROTATION", BackgroundTransparency=1, TextColor3=Color3.fromRGB(255, 200, 100),
@@ -690,19 +633,14 @@ local rotPValLbl = CreateCoordRow(coordDisplay, 156, "Pitch (X):", Color3.fromRG
 local rotRValLbl = CreateCoordRow(coordDisplay, 188, "Roll (Z):", Color3.fromRGB(150,180,255), "0.0°")
 New("TextLabel", { Size=UDim2.new(1,-16,0,14), Position=UDim2.new(0,8,0,206), Text="👁 LOOK / STATE / HP", BackgroundTransparency=1, TextColor3=Color3.fromRGB(255, 200, 100),
     Font=Enum.Font.GothamBold, TextSize=9, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7, }, coordDisplay)
-local lookValLbl = New("TextLabel", { Size=UDim2.new(1,-16,0,16), Position=UDim2.new(0,8,0,222),
-    Text="Look: ...", BackgroundTransparency=1, TextColor3=Color3.fromRGB(200,220,255),
+local lookValLbl = New("TextLabel", { Size=UDim2.new(1,-16,0,16), Position=UDim2.new(0,8,0,222), Text="Look: ...", BackgroundTransparency=1, TextColor3=Color3.fromRGB(200,220,255),
     Font=Enum.Font.Code, TextSize=10, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7, }, coordDisplay)
-local stateValLbl = New("TextLabel", { Size=UDim2.new(1,-16,0,16), Position=UDim2.new(0,8,0,240),
-    Text="State: ...", BackgroundTransparency=1, TextColor3=Color3.fromRGB(200,255,200),
+local stateValLbl = New("TextLabel", { Size=UDim2.new(1,-16,0,16), Position=UDim2.new(0,8,0,240), Text="State: ...", BackgroundTransparency=1, TextColor3=Color3.fromRGB(200,255,200),
     Font=Enum.Font.Code, TextSize=10, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7, }, coordDisplay)
 local hpValLbl = New("TextLabel", { Size=UDim2.new(1,-16,0,16), Position=UDim2.new(0,8,0,258), Text="HP: ...", BackgroundTransparency=1, TextColor3=Color3.fromRGB(255,200,200),
-    Font=Enum.Font.Code, TextSize=10, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7, }, coordDisplay)
-local placeLbl = New("TextLabel", { Size=UDim2.new(1,-16,0,14), Position=UDim2.new(0,8,0,274),
-    Text="Place: ...", BackgroundTransparency=1, TextColor3=Color3.fromRGB(150, 200, 255),
-    Font=Enum.Font.GothamMedium, TextSize=9, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7, }, coordDisplay)
-posY = posY + 298 local lastPos = Vector3.new() local lastSize = Vector3.new()
-local lastRot = Vector3.new() local lastLook = Vector3.new() local lastState = "" local lastHp = -1
+    Font=Enum.Font.Code, TextSize=10, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7, }, coordDisplay) local placeLbl = New("TextLabel", { Size=UDim2.new(1,-16,0,14), Position=UDim2.new(0,8,0,274),
+    Text="Place: ...", BackgroundTransparency=1, TextColor3=Color3.fromRGB(150, 200, 255), Font=Enum.Font.GothamMedium, TextSize=9, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7, }, coordDisplay)
+posY = posY + 298 local lastPos = Vector3.new() local lastSize = Vector3.new() local lastRot = Vector3.new() local lastLook = Vector3.new() local lastState = "" local lastHp = -1
 local function GetRootPart() if S.Move and S.Move.Root then local ok, r = pcall(S.Move.Root) if ok and r and r.Parent then return r end
     end local char = player.Character if not char then return nil end local humanoid = char:FindFirstChildOfClass("Humanoid")
     local rootPart = (humanoid and humanoid.RootPart) or char:FindFirstChild("HumanoidRootPart")
@@ -723,12 +661,10 @@ local function coordNA(all) coordLbls = coordLbls or {xValLbl, yValLbl, zValLbl,
     local ok2 = pcall(function() return supportTab and supportTab.Visible end) return ok1 and ok2 end function S.Coord.Bind(on)
     on = (on == true) if on and not S.Coord._bound then S.Coord._bound = true elseif (not on) and S.Coord._bound then
         S.Coord._bound = false if S.Coord._conn then pcall(function() S.Coord._conn:Disconnect() end) S.Coord._conn = nil end return end
-    if not S.Coord._bound then return end if S.Coord._conn then return end
-    S.Coord._conn = RunService.RenderStepped:Connect(function(stepDt) coordAcc = coordAcc + (tonumber(stepDt) or 0.016)
+    if not S.Coord._bound then return end if S.Coord._conn then return end S.Coord._conn = RunService.RenderStepped:Connect(function(stepDt) coordAcc = coordAcc + (tonumber(stepDt) or 0.016)
         if coordAcc < 0.15 then return end coordAcc = 0 -- v5.4 EXTREME+: 0.10->0.15 giảm thêm 33% raycast
         if not S.Coord.IsActive() then return end if S.PagePerf and not S.PagePerf.ShouldRunForSupportTab() then return end
-        if not (main and main.Visible) then return end if not (supportTab and supportTab.Visible) then return end
-    local char = player.Character if not char then coordNA(true) return end
+        if not (main and main.Visible) then return end if not (supportTab and supportTab.Visible) then return end local char = player.Character if not char then coordNA(true) return end
     local humanoid = char:FindFirstChildOfClass("Humanoid") local rootPart = GetRootPart() if not rootPart then coordNA()
         return end local groundPos = GetGroundPosition() local displayPos = groundPos or rootPart.CFrame.Position
     local cf = rootPart.CFrame local size = rootPart.Size local rx, ry, rz = cf:ToOrientation() local look = cf.LookVector
@@ -736,8 +672,7 @@ local function coordNA(all) coordLbls = coordLbls or {xValLbl, yValLbl, zValLbl,
         zValLbl.Text = string.format("%.3f", displayPos.Z) end if (size - lastSize).Magnitude > 0.001 then lastSize = size
         sizeXValLbl.Text = string.format("%.3f", size.X) sizeYValLbl.Text = string.format("%.3f", size.Y)
         sizeZValLbl.Text = string.format("%.3f", size.Z) end local newRot = Vector3.new(rx, ry, rz) if (newRot - lastRot).Magnitude > 0.001 then
-        lastRot = newRot rotPValLbl.Text = string.format("%.1f°", math.deg(rx))
-        rotYValLbl.Text = string.format("%.1f°", math.deg(ry)) rotRValLbl.Text = string.format("%.1f°", math.deg(rz)) end
+        lastRot = newRot rotPValLbl.Text = string.format("%.1f°", math.deg(rx)) rotYValLbl.Text = string.format("%.1f°", math.deg(ry)) rotRValLbl.Text = string.format("%.1f°", math.deg(rz)) end
     if (look - lastLook).Magnitude > 0.001 then lastLook = look lookValLbl.Text = string.format("Look: %.3f, %.3f, %.3f", look.X, look.Y, look.Z) end
     if humanoid then local state = humanoid:GetState() if state ~= lastState then lastState = state
             stateValLbl.Text = "State: "..tostring(state):gsub("Enum.HumanoidStateType.", "") end local hp = math.floor(humanoid.Health) if hp ~= lastHp then
@@ -771,8 +706,7 @@ function S.DeviceText() local touch, mouse = false, false
     elseif touch then return "📱 Điện thoại: GIỮ NGÓN " .. hold .. "s lên vật (chạm nhanh vẫn đi/bắn bình thường) · hoặc ⊕ Giữa màn hình"
     elseif mouse then return "🖥 Máy tính: CHUỘT PHẢI vào vật (chuột trái vẫn chơi bình thường) · hoặc ⊕ Giữa màn hình"
     end return "🎮 Chưa rõ thiết bị: dùng ⊕ Giữa màn hình hoặc 🧭 Gần nhất — nền tảng nào cũng chạy" end function S.RefreshDevLabel() pcall(function()
-        local l = S.AnaUi.devLbl if l and l.Parent then l.Text = S.DeviceText() end end) end
-function S.GuiBlockAt(x, y) local hard, soft = nil, nil local vpx, vpy = 1280, 720 pcall(function()
+        local l = S.AnaUi.devLbl if l and l.Parent then l.Text = S.DeviceText() end end) end function S.GuiBlockAt(x, y) local hard, soft = nil, nil local vpx, vpy = 1280, 720 pcall(function()
         local cam2 = S.AnaCam() if cam2 then vpx, vpy = cam2.ViewportSize.X, cam2.ViewportSize.Y end end) local bigArea = vpx * vpy * 0.36
     local conts = {} pcall(function() conts[#conts+1] = playerGui end) pcall(function() conts[#conts+1] = game:GetService("CoreGui") end)
     for _, cont in ipairs(conts) do local ok, objs = pcall(function() return cont:GetGuiObjectsAtPosition(x, y) end)
@@ -800,8 +734,7 @@ function S.PickByRayScan(ray, filterList) if not ray or not ray.Origin or not ra
         local okV, along, offset, radius = pcall(function() local rel = pt.Position - ray.Origin local t = rel:Dot(dir) if t <= 0.5 or t > maxD then return nil end
             local closest = ray.Origin + dir * t local lateral = (pt.Position - closest).Magnitude
             local half = math.max(pt.Size.X, pt.Size.Y, pt.Size.Z) / 2 if lateral > math.max(corridor, half + 2) then return nil end
-            return t, lateral, half end) if okV and along then local surfaceD = math.max(0, along - radius) if surfaceD < bestSurfaceD then
-                best, bestSurfaceD, bestOffset = pt, surfaceD, offset end end end
+            return t, lateral, half end) if okV and along then local surfaceD = math.max(0, along - radius) if surfaceD < bestSurfaceD then best, bestSurfaceD, bestOffset = pt, surfaceD, offset end end end
     if not best then return nil, "quét " .. #parts .. " vật nhưng không vật nào nằm trên tia trong " .. string.format("%.0f", maxD) .. " studs"
     end return best, string.format("quét xa dự phòng · %.0f studs · lệch tâm %.1f studs", bestSurfaceD, bestOffset) end function S.NearestParts(n) local char = player.Character
     local root = char and char:FindFirstChild("HumanoidRootPart") if not root then return nil, "chưa có nhân vật (đang ở lobby/menu?)" end
@@ -829,8 +762,7 @@ function S.FillObjPanel(inst, hitPos, hitNormal, hitMat, how, quiet) if not inst
 S.RefreshDevLabel()   -- v4.8: hiện đúng cách chọn vật của thiết bị đang dùng
 local function PickObjectAt(mousePos, isRightClick, ignoreHubGui) local x, y = mousePos.X, mousePos.Y S.AnaLast.ok = false S.AnaNote = nil
     S.AnaWhyScan = nil if not ignoreHubGui and Hit.onHub(x, y) then S.AnaSay("⏭️ Điểm chạm nằm trên menu của hub — bấm ra ngoài game rồi thử lại")
-        return end local hardGui, softGui = S.GuiBlockAt(x, y) if hardGui then
-        S.AnaSay("🚫 Điểm chạm là NÚT của game (" .. hardGui .. ") — dời ra chỗ khác để không hit xuyên nút") return end
+        return end local hardGui, softGui = S.GuiBlockAt(x, y) if hardGui then S.AnaSay("🚫 Điểm chạm là NÚT của game (" .. hardGui .. ") — dời ra chỗ khác để không hit xuyên nút") return end
     if softGui and not S.AnaCfg.skipGameGui then S.AnaSay("🚫 HUD của game (" .. softGui .. ") đang chặn — BẬT '🛡 Phân tích xuyên HUD game' là dùng được")
         return end if softGui then S.AnaNote = "🛡 phân tích xuyên HUD của game (" .. softGui .. ")" end
     local cam2 = S.AnaCam() if not cam2 then S.AnaSay("⚠️ Game chưa có camera (Workspace.CurrentCamera = nil) — vào lại game rồi thử") return
@@ -840,8 +772,7 @@ local function PickObjectAt(mousePos, isRightClick, ignoreHubGui) local x, y = m
     local result = workspace:Raycast(unitRay.Origin, unitRay.Direction * S.AnaCfg.maxDist, params) if result and result.Material == Enum.Material.Water then
         local pw = RaycastParams.new() pw.FilterType = Enum.RaycastFilterType.Exclude
         pw.FilterDescendantsInstances = filterList pw.IgnoreWater = true local rw = workspace:Raycast(unitRay.Origin, unitRay.Direction * S.AnaCfg.maxDist, pw)
-        if rw and rw.Instance then result = rw S.AnaNote = "🌊 đã xuyên qua mặt nước để lấy vật bên dưới" end end
-    local inst, hitPos, hitNormal, hitMat, how if result and result.Instance then
+        if rw and rw.Instance then result = rw S.AnaNote = "🌊 đã xuyên qua mặt nước để lấy vật bên dưới" end end local inst, hitPos, hitNormal, hitMat, how if result and result.Instance then
         inst, hitPos, hitNormal, hitMat = result.Instance, result.Position, result.Normal, result.Material how = "🎯 tia bắn trúng"
     elseif S.AnaCfg.scanFallback then local part, why2 = S.PickByRayScan(unitRay, filterList) if part then inst, hitPos, how = part, part.Position, "🧭 " .. tostring(why2)
             pcall(function() hitNormal = part.CFrame.LookVector end) pcall(function() hitMat = part.Material end) else S.AnaWhyScan = why2
@@ -850,13 +781,10 @@ local function PickObjectAt(mousePos, isRightClick, ignoreHubGui) local x, y = m
             .. (S.AnaWhyScan and (" (" .. S.AnaWhyScan .. ")") or " (tia đi vào khoảng không)") .. " — thử ⊕ Giữa màn hình, 🧭 Gần nhất, hoặc lại gần vật hơn")
         task.delay(1.0, function() if objNameLbl and objNameLbl.Parent and objNameLbl.Text == "⚠️ Không hit gì — giữ vật đang chọn" then objNameLbl.Text = prevName end end) end end
 function S.AnaAimEnsureDot() if S.AnaUi.aimGui and S.AnaUi.aimGui.Parent then return S.AnaUi.aimGui end
-    local aimGui = New("ScreenGui", { Name = "BananaCatHub_AnaAimDot", IgnoreGuiInset = true, ResetOnSpawn = false,
-        ZIndexBehavior = Enum.ZIndexBehavior.Global, DisplayOrder = 10000, }, targetGui)
-    S.AnaUi.aimGui = aimGui aimGui:SetAttribute("BCHub_External", true) local dot = New("Frame", { Name = "CenterAimDot",
-        AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0),
+    local aimGui = New("ScreenGui", { Name = "BananaCatHub_AnaAimDot", IgnoreGuiInset = true, ResetOnSpawn = false, ZIndexBehavior = Enum.ZIndexBehavior.Global, DisplayOrder = 10000, }, targetGui)
+    S.AnaUi.aimGui = aimGui aimGui:SetAttribute("BCHub_External", true) local dot = New("Frame", { Name = "CenterAimDot", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0),
         Size = UDim2.new(0, 8, 0, 8), BackgroundColor3 = Color3.fromRGB(255, 35, 35), BorderSizePixel = 0, Active = false, Selectable = false,
-        ZIndex = 10000, }, aimGui) Corner(dot, UDim.new(1, 0)) New("UIStroke", {
-        Color = Color3.fromRGB(8, 8, 8), Thickness = 1.5, Transparency = 0, ApplyStrokeMode = Enum.ApplyStrokeMode.Border, }, dot)
+        ZIndex = 10000, }, aimGui) Corner(dot, UDim.new(1, 0)) New("UIStroke", { Color = Color3.fromRGB(8, 8, 8), Thickness = 1.5, Transparency = 0, ApplyStrokeMode = Enum.ApplyStrokeMode.Border, }, dot)
     local actionBtn = New("TextButton", { Name = "CenterAimAnalyzeButton", AnchorPoint = Vector2.new(0.5, 0.5), Position = S.AnaUi.aimButtonPosition or UDim2.new(1, -28, 0.55, 0),
         Size = UDim2.new(0, 36, 0, 36), Text = "🔎", BackgroundColor3 = Color3.fromRGB(220, 55, 55),
         BackgroundTransparency = 0.08, TextColor3 = Color3.fromRGB(255, 255, 255), Font = Enum.Font.GothamBold, TextSize = 16,
@@ -866,22 +794,18 @@ function S.AnaAimEnsureDot() if S.AnaUi.aimGui and S.AnaUi.aimGui.Parent then re
     local viewport = cam and cam.ViewportSize if viewport and viewport.X > 0 and viewport.Y > 0 then local saved = actionBtn.Position local margin = 29
         local x = math.clamp(saved.X.Scale * viewport.X + saved.X.Offset, margin, math.max(margin, viewport.X - margin)) local y = math.clamp(saved.Y.Scale * viewport.Y + saved.Y.Offset, margin, math.max(margin, viewport.Y - margin))
         actionBtn.Position = UDim2.new(x / viewport.X, 0, y / viewport.Y, 0) S.AnaUi.aimButtonPosition = actionBtn.Position end
-    actionBtn.InputBegan:Connect(function(input) if type(S.AnaAimBeginButtonDrag) == "function" then pcall(S.AnaAimBeginButtonDrag, input) end
-    end) actionBtn.Activated:Connect(function()
+    actionBtn.InputBegan:Connect(function(input) if type(S.AnaAimBeginButtonDrag) == "function" then pcall(S.AnaAimBeginButtonDrag, input) end end) actionBtn.Activated:Connect(function()
         local dragged = S.AnaUi.aimButtonDragMoved == true local suppressUntil = S.AnaUi.aimButtonSuppressUntil or 0 S.AnaUi.aimButtonDragMoved = false
         if dragged or os.clock() < suppressUntil then return end if type(S.AnaAimAnalyzeOnce) == "function" then
             local ok = pcall(S.AnaAimAnalyzeOnce) if not ok then pcall(function() if S.AnaUi.supportTabIndex then SwitchTab(S.AnaUi.supportTabIndex) end
-                    if main then main.Visible = true end if togBtn then togBtn.Text = "✕" end S.AnaSay("⚠️ Không phân tích được điểm ngắm") end) end
-        end end) S.AnaUi.aimGui = aimGui S.AnaUi.aimDot = dot
+                    if main then main.Visible = true end if togBtn then togBtn.Text = "✕" end S.AnaSay("⚠️ Không phân tích được điểm ngắm") end) end end end) S.AnaUi.aimGui = aimGui S.AnaUi.aimDot = dot
     S.AnaUi.aimActionBtn = actionBtn return aimGui end function S.AnaAimStep() if not S.AnaUi.centerAimOn or not S.AnaUi.aimGui then return end
     local showOverlay = not (main and main.Visible) if S.AnaUi.aimGui.Enabled ~= showOverlay then S.AnaUi.aimGui.Enabled = showOverlay end
-    if not showOverlay then S.AnaUi.aimButtonDragging = false S.AnaUi.aimButtonDragInput = nil end end
-function S.AnaAimBeginButtonDrag(input) if not S.AnaUi.aimButtonMoveEnabled then return end
+    if not showOverlay then S.AnaUi.aimButtonDragging = false S.AnaUi.aimButtonDragInput = nil end end function S.AnaAimBeginButtonDrag(input) if not S.AnaUi.aimButtonMoveEnabled then return end
     local inputType = input.UserInputType if inputType ~= Enum.UserInputType.MouseButton1 and inputType ~= Enum.UserInputType.Touch then return end
     local btn = S.AnaUi.aimActionBtn if not btn then return end local inputPos = input.Position S.AnaUi.aimButtonDragging = true S.AnaUi.aimButtonDragInput = input
     S.AnaUi.aimButtonDragOrigin = Vector2.new(inputPos.X, inputPos.Y) S.AnaUi.aimButtonDragCenter = btn.AbsolutePosition + btn.AbsoluteSize / 2
-    S.AnaUi.aimButtonDragMoved = false S.AnaUi.aimButtonSuppressUntil = 0 end
-function S.AnaAimDragMove(input) if not S.AnaUi.aimButtonDragging or not S.AnaUi.aimButtonMoveEnabled then return end
+    S.AnaUi.aimButtonDragMoved = false S.AnaUi.aimButtonSuppressUntil = 0 end function S.AnaAimDragMove(input) if not S.AnaUi.aimButtonDragging or not S.AnaUi.aimButtonMoveEnabled then return end
     local dragInput = S.AnaUi.aimButtonDragInput if not dragInput then return end
     local inputType = dragInput.UserInputType local isPointerMove = (inputType == Enum.UserInputType.MouseButton1 and input.UserInputType == Enum.UserInputType.MouseMovement)
         or (inputType == Enum.UserInputType.Touch and input == dragInput) if not isPointerMove then return end local cam = S.AnaCam() local viewport = cam and cam.ViewportSize
@@ -898,16 +822,14 @@ function S.AnaAimEndButtonDrag(input) if not S.AnaUi.aimButtonDragging then retu
 trackConn(UserInputService.InputChanged:Connect(function(input) pcall(S.AnaAimDragMove, input)
 end)) trackConn(UserInputService.InputEnded:Connect(function(input) pcall(S.AnaAimEndButtonDrag, input) end))
 function S.AnaAimAnalyzeOnce() if not S.AnaUi.centerAimOn then return false end S.AnaLast.ok = false local cam = S.AnaCam() if not cam then
-        S.AnaSay("⚠️ Camera chưa sẵn sàng để phân tích điểm giữa màn hình") else
-        local viewport = cam.ViewportSize PickObjectAt(Vector2.new(viewport.X * 0.5, viewport.Y * 0.5), false, true) end
+        S.AnaSay("⚠️ Camera chưa sẵn sàng để phân tích điểm giữa màn hình") else local viewport = cam.ViewportSize PickObjectAt(Vector2.new(viewport.X * 0.5, viewport.Y * 0.5), false, true) end
     if S.AnaUi.supportTabIndex then SwitchTab(S.AnaUi.supportTabIndex) end if main then main.Visible = true end
     if S.AnaLast and S.AnaLast.ok then supportTab.CanvasPosition = Vector2.new(0, math.max(0, objResultPanel.Position.Y.Offset - 24))
     elseif S.AnaUi.whyLbl then supportTab.CanvasPosition = Vector2.new(0, math.max(0, S.AnaUi.whyLbl.Position.Y.Offset - 24))
     end if togBtn then togBtn.Text = "✕" end ReleaseHubFocus() return S.AnaLast and S.AnaLast.ok == true end
 function S.AnaAimSet(on) on = (on == true) if on == (S.AnaUi.centerAimOn == true) then return on end S.AnaUi.centerAimOn = on
     if on then local okDot = pcall(S.AnaAimEnsureDot) local okBind = false if okDot then okBind = pcall(function() RunService:UnbindFromRenderStep("BC_AnaAim")
-                RunService:BindToRenderStep("BC_AnaAim", Enum.RenderPriority.Camera.Value + 1, function() pcall(S.AnaAimStep) end) end) end
-        if not okDot or not okBind then S.AnaUi.centerAimOn = false
+                RunService:BindToRenderStep("BC_AnaAim", Enum.RenderPriority.Camera.Value + 1, function() pcall(S.AnaAimStep) end) end) end if not okDot or not okBind then S.AnaUi.centerAimOn = false
             pcall(function() RunService:UnbindFromRenderStep("BC_AnaAim") end) pcall(function() if S.AnaUi.aimGui then S.AnaUi.aimGui:Destroy() end end)
             S.AnaUi.aimGui, S.AnaUi.aimDot, S.AnaUi.aimActionBtn = nil, nil, nil S.AnaUi.aimButtonDragging, S.AnaUi.aimButtonDragInput = false, nil
             S.AnaUi.aimButtonDragOrigin, S.AnaUi.aimButtonDragCenter = nil, nil S.AnaUi.aimButtonDragMoved, S.AnaUi.aimButtonSuppressUntil = false, 0 else
@@ -934,10 +856,8 @@ S.AnaUi.centerAimBtn.Activated:Connect(function() local requested = not (S.AnaUi
         S.RefreshDevLabel() S.AnaSay("✅ Đã BẬT phân tích vật thể · " .. S.DeviceText()) else objectAnalyzeBtn.Text = "🎯 Phân Tích Vật: TẮT"
         D.SetBg(objectAnalyzeBtn, C.GRAY) RemoveCurrentHighlight() end end) highlightToggleBtn.Activated:Connect(function() highlightEnabled = not highlightEnabled
     if highlightEnabled then highlightToggleBtn.Text = "💜 Highlight Tím: BẬT" D.SetBg(highlightToggleBtn, C.PURPLE) else
-        highlightToggleBtn.Text = "💜 Highlight Tím: TẮT" D.SetBg(highlightToggleBtn, C.GRAY) RemoveCurrentHighlight() end end)
-removeHighlightBtn.Activated:Connect(function() RemoveCurrentHighlight() end)
-S.AnaUi.centerBtn.Activated:Connect(function() local vpx, vpy = 1280, 720 pcall(function() local cam2 = S.AnaCam()
-        if cam2 then vpx, vpy = cam2.ViewportSize.X, cam2.ViewportSize.Y end end)
+        highlightToggleBtn.Text = "💜 Highlight Tím: TẮT" D.SetBg(highlightToggleBtn, C.GRAY) RemoveCurrentHighlight() end end) removeHighlightBtn.Activated:Connect(function() RemoveCurrentHighlight() end)
+S.AnaUi.centerBtn.Activated:Connect(function() local vpx, vpy = 1280, 720 pcall(function() local cam2 = S.AnaCam() if cam2 then vpx, vpy = cam2.ViewportSize.X, cam2.ViewportSize.Y end end)
     S.AnaSay("⊕ Đang ẩn menu 0.35s để lấy vật ở GIỮA màn hình...") local prevEnabled = true pcall(function() prevEnabled = gui.Enabled end)
     pcall(function() gui.Enabled = false end)   -- ẩn menu để chính menu không che vật cần lấy
     task.wait(0.12) PickObjectAt(Vector2.new(vpx / 2, vpy / 2), true, true) task.wait(0.25) pcall(function() gui.Enabled = prevEnabled end)
@@ -945,20 +865,17 @@ end) S.AnaUi.nearBtn.Activated:Connect(function() local part, info, total = S.Ne
     if not part then S.AnaSay("⚠️ Không tìm được vật gần bạn: " .. tostring(info)) return end local hp = nil
     pcall(function() hp = part.Position end) S.FillObjPanel(part, hp, nil, nil, "🧭 vật gần bạn nhất (trong " .. tostring(total) .. " vật quét được)")
     pcall(function() local l = S.AnaUi.whyLbl if l and l.Parent then l.Text = "🔎 Quanh bạn 60 studs: " .. tostring(info) end end) end)
-S.AnaUi.skipGuiBtn.Activated:Connect(function() S.AnaCfg.skipGameGui = not S.AnaCfg.skipGameGui
-    local on = S.AnaCfg.skipGameGui S.AnaUi.skipGuiBtn.Text = on and "🛡 Phân tích xuyên HUD game: BẬT"
+S.AnaUi.skipGuiBtn.Activated:Connect(function() S.AnaCfg.skipGameGui = not S.AnaCfg.skipGameGui local on = S.AnaCfg.skipGameGui S.AnaUi.skipGuiBtn.Text = on and "🛡 Phân tích xuyên HUD game: BẬT"
                                  or "🛡 Xuyên HUD game: TẮT (như bản cũ)" D.SetBg(S.AnaUi.skipGuiBtn, on and C.GREEN or C.GRAY)
     S.AnaSay(on and "🛡 BẬT: bỏ qua HUD/nền bán trong suốt của game (khuyên dùng, nhất là 📱 mobile)" or "🛡 TẮT: quay lại kiểu cũ — HUD của game sẽ CHẶN phân tích ở điểm chạm")
 end) S.AnaUi.scanFbBtn.Activated:Connect(function() S.AnaCfg.scanFallback = not S.AnaCfg.scanFallback local on = S.AnaCfg.scanFallback
     S.AnaUi.scanFbBtn.Text = on and "🧭 Quét dự phòng: BẬT" or "🧭 Quét dự phòng: TẮT" D.SetBg(S.AnaUi.scanFbBtn, on and C.GREEN or C.GRAY)
     S.AnaSay(on and "🧭 BẬT: tia trượt sẽ tự quét vật gần tia — game đặt CanQuery=false vẫn phân tích được" or "🧭 TẮT: chỉ dùng tia raycast (nhanh hơn, nhưng game khó sẽ không ra kết quả)") end)
 clearObjectBtn.Activated:Connect(function() objResultPanel.Visible = false RemoveCurrentHighlight() end)
-copyObjBtn.Activated:Connect(function() local pos = objResultPanel:GetAttribute("LastHitPos") if pos and pos ~= "" then S.CopyToClipboard(pos)
-        flash(copyObjBtn, "✅ Đã Copy!", 1.2) end end)
+copyObjBtn.Activated:Connect(function() local pos = objResultPanel:GetAttribute("LastHitPos") if pos and pos ~= "" then S.CopyToClipboard(pos) flash(copyObjBtn, "✅ Đã Copy!", 1.2) end end)
 copyPathBtn.Activated:Connect(function() local path = objResultPanel:GetAttribute("LastPath") if path and path ~= "" then S.CopyToClipboard(path)
         flash(copyPathBtn, "✅ Đã Copy!", 1.2) end end) posY = posY + 6 local copyCoordBtn = Button(supportTab, "📋 Copy Tọa Độ Dưới Chân", 8, posY, 468, 26, C.BLUE) posY = posY + 32
-copyCoordBtn.Activated:Connect(function() local groundPos = GetGroundPosition()
-    local rootPart = GetRootPart() local finalPos = groundPos or (rootPart and rootPart.CFrame.Position)
+copyCoordBtn.Activated:Connect(function() local groundPos = GetGroundPosition() local rootPart = GetRootPart() local finalPos = groundPos or (rootPart and rootPart.CFrame.Position)
     if not finalPos then return end local text = string.format("%.3f, %.3f, %.3f", finalPos.X, finalPos.Y, finalPos.Z)
     S.CopyToClipboard(text) flash(copyCoordBtn, "✅ Đã Copy: " .. text, 2) end) Label(supportTab, "🚀 Teleport Tới Tọa Độ", posY) posY = posY + 14
 D.tpLblX = Label(supportTab, "X:", posY) D.tpLblX.Size = UDim2.new(0,14,0,14); D.tpLblX.Position = UDim2.new(0,8,0,posY)
@@ -989,17 +906,14 @@ SV.max    = tonumber(SV.max)  or 0        -- đỉnh cao nhất đo được tro
 SV.base   = tonumber(SV.base)             -- mặc định của game (studs/s) — nil = chưa dò được
 SV.src    = SV.src or "chưa dò" SV.ws     = tonumber(SV.ws) or 0          -- WalkSpeed hiện tại của Humanoid
 SV._bound = (SV._bound == true) local function num(v) v = tonumber(v) if v == nil or v ~= v then return nil end          -- NaN -> nil
-    return v end
-local function fmt(n) return string.format("%.1f", num(n) or 0) end local function say(msg) pcall(function() if D.hubStatus then D.hubStatus.Text = msg end end) end
+    return v end local function fmt(n) return string.format("%.1f", num(n) or 0) end local function say(msg) pcall(function() if D.hubStatus then D.hubStatus.Text = msg end end) end
 local function move() return S.Move end local function myHum() local m = move() if m and m.Hum then
         local ok, h = pcall(m.Hum) if ok and h then return h end end local ch = player.Character if not ch then return nil end
-    local ok, h = pcall(function() return ch:FindFirstChildOfClass("Humanoid") end) if ok and h then return h end
-    return ch:FindFirstChild("Humanoid") end local function myRoot() local m = move()
+    local ok, h = pcall(function() return ch:FindFirstChildOfClass("Humanoid") end) if ok and h then return h end return ch:FindFirstChild("Humanoid") end local function myRoot() local m = move()
     if m and m.Root then local ok, r = pcall(m.Root) if ok and r then return r end end local ch = player.Character
     return ch and ch:FindFirstChild("HumanoidRootPart") or nil end local function readWS(h) if not h then return nil end
     local ok, v = pcall(function() return h.WalkSpeed end) if ok then local n = num(v); if n then return n end end local m = move()
-    if m and m.comp then return num(m.comp(h, "WalkSpeed", nil)) end return nil end local function readPos(r)
-    if not r then return nil end local m = move() local x, y, z if m and m.comp then local p
+    if m and m.comp then return num(m.comp(h, "WalkSpeed", nil)) end return nil end local function readPos(r) if not r then return nil end local m = move() local x, y, z if m and m.comp then local p
         pcall(function() p = r.Position end) x, y, z = m.comp(p, "X", nil), m.comp(p, "Y", nil), m.comp(p, "Z", nil)
     else pcall(function() local p = r.Position; x, y, z = p.X, p.Y, p.Z end) end x, y, z = num(x), num(y), num(z)
     if x == nil or y == nil or z == nil then return nil end return x, y, z end function SV.Detect() local m = move() local h = myHum() local hws = readWS(h)
@@ -1007,8 +921,7 @@ local function move() return S.Move end local function myHum() local m = move() 
     local src if applying and baseWS then SV.base = baseWS src = "game (hub đã học khi 👟 bật)" elseif hws and hws > 0 then
         if (not applying) and SV._lastWS and math.abs(hws - SV._lastWS) > 0.01 then src = "game VỪA ĐỔI tốc độ → mặc định mới"
         else src = "game (WalkSpeed của nhân vật)" end SV.base = hws elseif baseWS then SV.base = baseWS src = "hub (đã học)" else SV.base = 16
-        src = "mặc định Roblox" end if hws and hws > 0 and not applying then SV._lastWS = hws end if hws then SV.ws = hws end
-    SV.src = src return SV.base, SV.src end function SV.Step(dt) dt = num(dt)
+        src = "mặc định Roblox" end if hws and hws > 0 and not applying then SV._lastWS = hws end if hws then SV.ws = hws end SV.src = src return SV.base, SV.src end function SV.Step(dt) dt = num(dt)
     if not dt or dt <= 0 then dt = 1 / 60 end if dt > 0.5 then dt = 0.5 end SV._stepAcc = (SV._stepAcc or 0) + dt
     local needSupport = true if S.PagePerf and S.PagePerf.ShouldRunForSupportTab then needSupport = S.PagePerf.ShouldRunForSupportTab() end
     local threshold = 0.05 if not needSupport then if S.PagePerf and not S.PagePerf.IsMainVisible() then threshold = 0.50 else threshold = 0.25 end end
@@ -1023,30 +936,24 @@ function SV.Sync() local base = num(SV.base) or 0 local ratio = (base > 0) and (
     if S.PagePerf and S.PagePerf.ShouldRunForSupportTab then isSupportVisible = S.PagePerf.ShouldRunForSupportTab() end if isSupportVisible then
         setText(SV.baseLbl, string.format("🎯 Mặc định game: %s studs/s · nguồn: %s", fmt(base), tostring(SV.src))) setText(SV.wsLbl, string.format("🚶 WalkSpeed hiện tại: %s%s", fmt(SV.ws),
             (ratio > 0) and string.format("  (×%.2f mặc định)", ratio) or "")) setText(SV.liveLbl, string.format("⚡ Tốc độ thật: %s studs/s", fmt(SV.live)))
-        setText(SV.maxLbl, string.format("🏁 Cao nhất: %s studs/s", fmt(SV.max))) if SV.btn then
-            setText(SV.btn, SV.on and "🎯 Định vị tốc độ: BẬT" or "🎯 Định vị tốc độ: TẮT") if SV._btnOn ~= SV.on then
+        setText(SV.maxLbl, string.format("🏁 Cao nhất: %s studs/s", fmt(SV.max))) if SV.btn then setText(SV.btn, SV.on and "🎯 Định vị tốc độ: BẬT" or "🎯 Định vị tốc độ: TẮT") if SV._btnOn ~= SV.on then
                 SV._btnOn = SV.on SV.btn.BackgroundColor3 = SV.on and C.GREEN or C.GRAY end end if SV.barFill and SV._barPct ~= pct then
-            SV._barPct = pct SV.barFill.Size = UDim2.new(pct, 0, 1, 0) end if SV.barBase and SV._barBase ~= bpct then
-            SV._barBase = bpct SV.barBase.Position = UDim2.new(bpct, -1, 0, 0) end end if SV.hud then
+            SV._barPct = pct SV.barFill.Size = UDim2.new(pct, 0, 1, 0) end if SV.barBase and SV._barBase ~= bpct then SV._barBase = bpct SV.barBase.Position = UDim2.new(bpct, -1, 0, 0) end end if SV.hud then
         if SV.hud.Visible ~= SV.on then SV.hud.Visible = SV.on end setText(SV.hudLbl, string.format("🎯 %s (mặc định game) · 🚶 %s\n⚡ %s · 🏁 %s studs/s",
             fmt(base), fmt(SV.ws), fmt(SV.live), fmt(SV.max))) end end function SV.OnTabChanged() if S.PagePerf and S.PagePerf.ShouldRunForSupportTab() then pcall(SV.Sync) end end
 function SV.Status() return string.format("🎯 %s · ⚡ %s · 🏁 %s", fmt(SV.base), fmt(SV.live), fmt(SV.max)) end
 function SV.Bind(on) if on and not SV._bound then SV._bound = true local ok = pcall(function()
             RunService:BindToRenderStep("BC_SpeedMeter", Enum.RenderPriority.Camera.Value - 6, function(dt) pcall(function() SV.Step(dt) end) end) end)
-        if not ok then SV._bound = false end elseif (not on) and SV._bound then SV._bound = false
-        pcall(function() RunService:UnbindFromRenderStep("BC_SpeedMeter") end) end return SV._bound end
-function SV.Set(on) SV.on = (on == true) if SV.on then SV._px, SV._n = nil, 0 SV.Detect() SV._lastWS = nil SV.Bind(true)
-        SV.Step(1 / 60)                 -- có số ngay, không phải đợi frame sau
-    else SV.Bind(false) SV._px, SV._n = nil, 0 end SV.Sync() return SV.on end function SV.Toggle() return SV.Set(not SV.on) end
-function SV.Reset()                     -- xoá đỉnh, vẫn đo tiếp
+        if not ok then SV._bound = false end elseif (not on) and SV._bound then SV._bound = false pcall(function() RunService:UnbindFromRenderStep("BC_SpeedMeter") end) end return SV._bound end
+function SV.Set(on) SV.on = (on == true) if SV.on then SV._px, SV._n = nil, 0 SV.Detect() SV._lastWS = nil SV.Bind(true) SV.Step(1 / 60)                 -- có số ngay, không phải đợi frame sau
+    else SV.Bind(false) SV._px, SV._n = nil, 0 end SV.Sync() return SV.on end function SV.Toggle() return SV.Set(not SV.on) end function SV.Reset()                     -- xoá đỉnh, vẫn đo tiếp
     SV.max, SV.live = 0, 0 SV._n = 0 SV.Sync() return SV.max end Label(supportTab, "🎯 Định vị tốc độ game (mặc định · hiện tại · cao nhất)", posY) posY = posY + 18
 SV.btn      = Button(supportTab, "🎯 Định vị tốc độ: TẮT", 8, posY, 300, 26, C.GRAY) SV.resetBtn = Button(supportTab, "🗑 Xoá đỉnh", 314, posY, 162, 26, C.RED)
 posY = posY + 30 SV.baseLbl = Label(supportTab, "🎯 Mặc định game: — studs/s", posY) SV.baseLbl.TextColor3 = C.ACCENT SV.baseLbl.TextSize = 9
 posY = posY + 16 SV.wsLbl = Label(supportTab, "🚶 WalkSpeed hiện tại: —", posY) SV.wsLbl.TextSize = 9
 posY = posY + 16 SV.liveLbl = Label(supportTab, "⚡ Tốc độ thật: 0.0 studs/s", posY) SV.liveLbl.TextColor3 = C.GREEN SV.liveLbl.TextSize = 9
 posY = posY + 16 SV.maxLbl = Label(supportTab, "🏁 Cao nhất: 0.0 studs/s", posY) SV.maxLbl.TextColor3 = C.ORANGE SV.maxLbl.TextSize = 9 posY = posY + 16
-local smBarBg = New("Frame", { Size=UDim2.new(1,-16,0,10), Position=UDim2.new(0,8,0,posY),
-    BackgroundColor3=Color3.fromRGB(24, 28, 38), BackgroundTransparency=0.15, BorderSizePixel=0, ZIndex=6,
+local smBarBg = New("Frame", { Size=UDim2.new(1,-16,0,10), Position=UDim2.new(0,8,0,posY), BackgroundColor3=Color3.fromRGB(24, 28, 38), BackgroundTransparency=0.15, BorderSizePixel=0, ZIndex=6,
 }, supportTab) Corner(smBarBg, UDim.new(0,5)); Stroke(smBarBg, C.BORDER, 1) SV.barFill = New("Frame", { Size=UDim2.new(0,0,1,0), Position=UDim2.new(0,0,0,0),
     BackgroundColor3=C.BLUE, BackgroundTransparency=0.15, BorderSizePixel=0, ZIndex=7, }, smBarBg) Corner(SV.barFill, UDim.new(0,5))
 SV.barBase = New("Frame", {                -- vạch xanh = tốc độ MẶC ĐỊNH của game (mốc so sánh)
@@ -1060,10 +967,8 @@ SV.hudLbl = New("TextLabel", { Size = UDim2.new(1,-12,1,0), Position = UDim2.new
     TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Center, ZIndex = 25, TextWrapped = true, }, SV.hud)
 SV.btn.Activated:Connect(function() local on = SV.Set(not SV.on) say(on and ("🎯 định vị tốc độ: BẬT · mặc định game " .. fmt(SV.base) .. " studs/s") or "🎯 định vị tốc độ: TẮT")
 end) SV.resetBtn.Activated:Connect(function() SV.Reset() say("🎯 đã xoá đỉnh · cao nhất = 0") end)
-SV.Detect() SV.Sync() end Label(supportTab, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", posY)
-posY = posY + 16 Label(supportTab, "💾 Waypoint Đã Lưu", posY) posY = posY + 14
-local wpNameIn = New("TextBox", { Size=UDim2.new(1,-130,0,24), Position=UDim2.new(0,8,0,posY), Text="",
-    PlaceholderText="Tên waypoint...", PlaceholderColor3=Color3.fromRGB(122, 130, 148),
+SV.Detect() SV.Sync() end Label(supportTab, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", posY) posY = posY + 16 Label(supportTab, "💾 Waypoint Đã Lưu", posY) posY = posY + 14
+local wpNameIn = New("TextBox", { Size=UDim2.new(1,-130,0,24), Position=UDim2.new(0,8,0,posY), Text="", PlaceholderText="Tên waypoint...", PlaceholderColor3=Color3.fromRGB(122, 130, 148),
     BackgroundColor3=Color3.fromRGB(26, 29, 38), BackgroundTransparency=0, TextColor3=Color3.fromRGB(233, 237, 245), Font=Enum.Font.GothamMedium, TextSize=11,
     BorderSizePixel=0, ClearTextOnFocus=false, Active=true, Selectable=true, ZIndex=10, }, supportTab)
 Corner(wpNameIn, UDim.new(0,4)); Stroke(wpNameIn, Color3.fromRGB(180,180,200), 1.2) New("UIPadding", {PaddingLeft=UDim.new(0,6)}, wpNameIn)
@@ -1074,21 +979,18 @@ saveWpBtn.Activated:Connect(function() local rootPart = GetRootPart() if not roo
     if #name == 0 then name = "WP "..(#waypoints+1) end table.insert(waypoints, {name = name, pos = rootPart.CFrame.Position})
     wpNameIn.Text = "" if RebuildWaypoints then RebuildWaypoints() end Store.saveSoon() end)
 RebuildWaypoints = function() for _, c in ipairs(wpListFrame:GetChildren()) do if not c:IsA("UIListLayout") then c:Destroy() end end
-    if #waypoints == 0 then New("TextLabel", { Size=UDim2.new(1,0,0,26), Text="📭 Chưa có waypoint nào.",
-            BackgroundTransparency=1, TextColor3=C.GRAY, Font=Enum.Font.GothamMedium, TextSize=10,
+    if #waypoints == 0 then New("TextLabel", { Size=UDim2.new(1,0,0,26), Text="📭 Chưa có waypoint nào.", BackgroundTransparency=1, TextColor3=C.GRAY, Font=Enum.Font.GothamMedium, TextSize=10,
             TextXAlignment=Enum.TextXAlignment.Center, ZIndex=7, }, wpListFrame) supportTab.CanvasSize = UDim2.new(0, 0, 0, posY + 40) return end
     local totalH = 0 for i, wp in ipairs(waypoints) do local row = New("Frame", { Size=UDim2.new(1,0,0,26),
             BackgroundColor3=Color3.fromRGB(26, 29, 38), BackgroundTransparency=0.1, BorderSizePixel=0, ZIndex=6,
         }, wpListFrame) Corner(row, UDim.new(0,5)); Stroke(row) New("TextLabel", { Size=UDim2.new(1,-100,1,0), Position=UDim2.new(0,8,0,0),
             Text=wp.name.." ("..string.format("%.0f, %.0f, %.0f", wp.pos.X, wp.pos.Y, wp.pos.Z)..")", BackgroundTransparency=1, TextColor3=C.DARK,
-            Font=Enum.Font.GothamBold, TextSize=8, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7, }, row)
-        local goBtn = New("TextButton", { Size=UDim2.new(0,44,0,18), Position=UDim2.new(1,-72,0,4),
+            Font=Enum.Font.GothamBold, TextSize=8, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7, }, row) local goBtn = New("TextButton", { Size=UDim2.new(0,44,0,18), Position=UDim2.new(1,-72,0,4),
             Text="🚀 Tới", BackgroundColor3=C.GREEN, BackgroundTransparency=0.1, TextColor3=C.WHITE, Font=Enum.Font.GothamBold, TextSize=8,
             BorderSizePixel=0, ZIndex=8, }, row) Corner(goBtn, UDim.new(0,4)) goBtn.Activated:Connect(function() local rootPart = GetRootPart()
             if not rootPart then return end rootPart.CFrame = CFrame.new(wp.pos) end) local delBtn = New("TextButton", { Size=UDim2.new(0,22,0,18), Position=UDim2.new(1,-25,0,4),
             Text="🗑", BackgroundColor3=C.RED, BackgroundTransparency=0.1, TextColor3=C.WHITE, Font=Enum.Font.GothamBold, TextSize=8,
-            BorderSizePixel=0, ZIndex=8, }, row) Corner(delBtn, UDim.new(0,4)) delBtn.Activated:Connect(function() table.remove(waypoints, i)
-            RebuildWaypoints() Store.saveSoon() end) totalH = totalH + 30 end
+            BorderSizePixel=0, ZIndex=8, }, row) Corner(delBtn, UDim.new(0,4)) delBtn.Activated:Connect(function() table.remove(waypoints, i) RebuildWaypoints() Store.saveSoon() end) totalH = totalH + 30 end
     wpListFrame.Size = UDim2.new(1,-16,0,totalH) supportTab.CanvasSize = UDim2.new(0, 0, 0, posY + totalH + 20) end
 RebuildWaypoints() Store.restoreWaypoints = RebuildWaypoints local function NormalizeCode(c) if type(c) ~= "string" then return "" end
     c = S.SanitizeCode(c)   -- v4.4b: cắt wrapper "SIZE WRAPPER" cũ (nó đè layout GUI của game)
@@ -1096,8 +998,7 @@ RebuildWaypoints() Store.restoreWaypoints = RebuildWaypoints local function Norm
     Backpack = true, DevConsoleUI = true, ScriptInvitationUI = true, FollowPromptUI = true, TouchControlsFrame = true, Main = true, ExMenu = true,
     Notifications = true, PauseMenu = true, InGame = true, CoreGui = true, }
 local function ScanNewGuis(beforeGuis, mine, allowGuess) local found, seen = {}, {} local function take(g) if not g or seen[g] then return end
-        seen[g] = true table.insert(found, g) end if mine then
-        for _, g in ipairs(mine) do if g:IsA("ScreenGui") or g:IsA("Folder") then take(g) end end end local function scan(container)
+        seen[g] = true table.insert(found, g) end if mine then for _, g in ipairs(mine) do if g:IsA("ScreenGui") or g:IsA("Folder") then take(g) end end end local function scan(container)
         if not container then return end for _, g in ipairs(container:GetChildren()) do if not beforeGuis[g] then beforeGuis[g] = true
                 if allowGuess and (g:IsA("ScreenGui") or g:IsA("Folder")) and not GAME_OWNED_GUI_NAMES[g.Name] then local hasGuiChild = false
                     for _, c in ipairs(g:GetChildren()) do if c:IsA("GuiObject") then hasGuiChild = true break end end if hasGuiChild then take(g) end end end end end scan(playerGui)
@@ -1107,8 +1008,7 @@ local function ScanNewGuis(beforeGuis, mine, allowGuess) local found, seen = {},
                 if obj.Position.X.Offset ~= 0 or obj.Position.Y.Offset ~= 0 then obj.Position = UDim2.new(0, 0, 0, 0) end end
         end end) if maxDepth <= 0 then return end for _, child in ipairs(obj:GetChildren()) do ForceStretchToParent(child, maxDepth - 1) end end
 function S.RegisterEmbed(host, gui, recs) local entry = {host = host, gui = gui, recs = recs or {}, conns = {}}
-    pcall(function() entry.conns[#entry.conns+1] = gui:GetPropertyChangedSignal("Enabled"):Connect(function()
-            pcall(function() host.Visible = gui.Enabled end) end) end) pcall(function()
+    pcall(function() entry.conns[#entry.conns+1] = gui:GetPropertyChangedSignal("Enabled"):Connect(function() pcall(function() host.Visible = gui.Enabled end) end) end) pcall(function()
         entry.conns[#entry.conns+1] = gui:GetPropertyChangedSignal("Parent"):Connect(function() pcall(function() host.Visible = (gui.Parent ~= nil) and gui.Enabled end) end)
     end) pcall(function() entry.conns[#entry.conns+1] = gui.Destroying:Connect(function() S.DropEmbed(entry, true) end) end) S.embeds[#S.embeds+1] = entry return entry end
 function S.FindEmbedByHost(host) for i, e in ipairs(S.embeds) do if e.host == host then return e, i end end return nil end function S.RemoveEmbedAt(i) local e = S.embeds[i]
@@ -1121,21 +1021,18 @@ end function S.DropEmbed(entry, keepQuiet) for i, e in ipairs(S.embeds) do if e 
     end pcall(function() if entry.host and entry.host.Parent then entry.host:Destroy() end end) end
 function S.PruneEmbeds() for i = #S.embeds, 1, -1 do local e = S.embeds[i] local hostAlive = e.host and e.host.Parent
         local guiAlive = e.gui and e.gui.Parent if not hostAlive or not guiAlive then if hostAlive then pcall(function() e.host:Destroy() end) end S.RemoveEmbedAt(i) end end end
-function S.MeasureHost(host) local hx, hy = host.AbsolutePosition.X, host.AbsolutePosition.Y
-    local minX, minY, maxX, maxY = math.huge, math.huge, -math.huge, -math.huge local n = 0
+function S.MeasureHost(host) local hx, hy = host.AbsolutePosition.X, host.AbsolutePosition.Y local minX, minY, maxX, maxY = math.huge, math.huge, -math.huge, -math.huge local n = 0
     for _, ch in ipairs(host:GetChildren()) do if ch:IsA("GuiObject") and ch.Visible ~= false then local p, sz = ch.AbsolutePosition, ch.AbsoluteSize if p and sz then
                 minX = math.min(minX, p.X); minY = math.min(minY, p.Y) maxX = math.max(maxX, p.X + sz.X); maxY = math.max(maxY, p.Y + sz.Y) n = n + 1 end end end
     if n == 0 or maxX <= minX or maxY <= minY then return nil end return { x = minX - hx, y = minY - hy, w = maxX - minX, h = maxY - minY } end
 function S.SnapSubtree(list, node, isTop) for _, c in ipairs(node:GetChildren()) do if c:IsA("GuiObject") then list[#list+1] = {
                 obj = c, top = isTop or nil, Position = c.Position, Size = c.Size, TextSize = ((c.TextSize and c.TextSize > 0) and not c.TextScaled) and c.TextSize or nil, }
             S.SnapSubtree(list, c, false) elseif c:IsA("UICorner") then list[#list+1] = { obj = c, CornerRadius = c.CornerRadius } elseif c:IsA("UIPadding") then list[#list+1] = { obj = c,
-                PadT = c.PaddingTop, PadB = c.PaddingBottom, PadL = c.PaddingLeft, PadR = c.PaddingRight }
-        elseif c:IsA("UIStroke") then list[#list+1] = { obj = c, Thick = c.Thickness } end end end
+                PadT = c.PaddingTop, PadB = c.PaddingBottom, PadL = c.PaddingLeft, PadR = c.PaddingRight } elseif c:IsA("UIStroke") then list[#list+1] = { obj = c, Thick = c.Thickness } end end end
 function S.RestoreSnap(entry) if not entry.snap then return end for _, rec in ipairs(entry.snap) do local o = rec.obj
         if o and o.Parent then pcall(function() if rec.Position then o.Position = rec.Position end if rec.Size then o.Size = rec.Size end
                 if rec.TextSize then o.TextSize = rec.TextSize end if rec.CornerRadius then o.CornerRadius = rec.CornerRadius end
-                if rec.PadT then o.PaddingTop, o.PaddingBottom = rec.PadT, rec.PadB o.PaddingLeft, o.PaddingRight = rec.PadL, rec.PadR end
-                if rec.Thick then o.Thickness = rec.Thick end end) end end end
+                if rec.PadT then o.PaddingTop, o.PaddingBottom = rec.PadT, rec.PadB o.PaddingLeft, o.PaddingRight = rec.PadL, rec.PadR end if rec.Thick then o.Thickness = rec.Thick end end) end end end
 function S.FitEmbedded(entry) local host, gui = entry.host, entry.gui if not host or not host.Parent then return end local function mulUDim(u, k)
         return UDim2.new(u.X.Scale, math.floor(u.X.Offset * k + 0.5), u.Y.Scale, math.floor(u.Y.Offset * k + 0.5)) end
     local function mulUDimShift(u, k, dx, dy) return UDim2.new(u.X.Scale, math.floor(u.X.Offset * k + 0.5) + dx,
@@ -1170,8 +1067,7 @@ function S.FeatureTabHost(nm) if type(nm) == "string" and #nm > 0 then for _, ft
                 local h = ft.frame and ft.frame:FindFirstChild("ScriptHost") if h then return h end end end
     end return activeTab and activeTab:FindFirstChild("ScriptHost") end function S.FitToTab(obj, nm) if not obj then return nil end
     local host = S.FeatureTabHost(nm) if host and obj.Parent ~= host then pcall(function() obj.Parent = host end) end pcall(function()
-        obj.Size = UDim2.new(1, 0, 1, 0) obj.Position = UDim2.new(0, 0, 0, 0) end) return obj end _G.BananaCatHubAPI = { Version = "5.0",
-    LegacyVersion = "4.61", -- giữ thông tin tương thích cho script cũ
+        obj.Size = UDim2.new(1, 0, 1, 0) obj.Position = UDim2.new(0, 0, 0, 0) end) return obj end _G.BananaCatHubAPI = { Version = "5.0", LegacyVersion = "4.61", -- giữ thông tin tương thích cho script cũ
     HubGui = gui,     -- v4.4e: sửa lỗi cũ — biến tên là `gui`, không phải `hubGui` (trước đây là nil)
     Main = main, TabArea = function(self, nm) return S.TabArea(nm) end, OnResize = function(self, fn) return S.OnResized(fn) end,      -- API:OnResize(f) -> {Disconnect=}
     FeatureTabHost = function(self, nm) return S.FeatureTabHost(nm) end, FitToTab = function(self, obj, nm) return S.FitToTab(obj, nm) end,
@@ -1179,8 +1075,7 @@ function S.FeatureTabHost(nm) if type(nm) == "string" and #nm > 0 then for _, ft
         local scr = guiOrFrame if scr and not scr:IsA("ScreenGui") then scr = scr:FindFirstAncestorOfClass("ScreenGui") end
         local host = S.FeatureTabHost(nm) if not scr or not host then return nil end return S.EmbedGui(scr, host) end,
     MakeTemplate = function(self, nm, icon) return S.FeatureTemplate(nm, icon) end, ReleaseFocus = function(self) pcall(ReleaseHubFocus) end, ExternalGui = function(self, props)
-        props = props or {} local g = Instance.new("ScreenGui")
-        g.Name = props.Name or ("BC_External_" .. tostring(math.random(10000, 99999))) g.IgnoreGuiInset = props.IgnoreGuiInset ~= false
+        props = props or {} local g = Instance.new("ScreenGui") g.Name = props.Name or ("BC_External_" .. tostring(math.random(10000, 99999))) g.IgnoreGuiInset = props.IgnoreGuiInset ~= false
         g.ResetOnSpawn = false g.ZIndexBehavior = Enum.ZIndexBehavior.Global g.DisplayOrder = tonumber(props.DisplayOrder) or 9000
         g:SetAttribute("BCHub_External", true) -- báo cho hub biết đừng nhúng GUI này
         g.Parent = targetGui or (player and player:WaitForChild("PlayerGui")) return g end, Crosshair = function(self, on)
@@ -1202,8 +1097,7 @@ local function bcHubMain() local ok, m = pcall(function() return API and API.Mai
     local m = bcHubMain() if m and m.AbsoluteSize.X > 300 then return Vector2.new(m.AbsoluteSize.X - 30, m.AbsoluteSize.Y - 72) end
     local vp = Vector2.new(1280, 720) pcall(function() vp = workspace.CurrentCamera.ViewportSize end)
     local w = math.max(320, math.min(vp.X * 0.55, vp.X - 60)) return Vector2.new(w, w * BC.DesignH / BC.DesignW) end local function bcFit()
-    pcall(function() local par = root.Parent if par and not par:IsA("ScreenGui") then root.Size = UDim2.new(1, 0, 1, 0)
-            root.Position = UDim2.new(0, 0, 0, 0) return end local a = bcArea()
+    pcall(function() local par = root.Parent if par and not par:IsA("ScreenGui") then root.Size = UDim2.new(1, 0, 1, 0) root.Position = UDim2.new(0, 0, 0, 0) return end local a = bcArea()
         root.Size = UDim2.new(0, math.floor(a.X), 0, math.floor(a.Y)) root.Position = UDim2.new(0.5, -math.floor(a.X / 2), 0.5, -math.floor(a.Y / 2)) end) end bcConn = nil bcFit()
 pcall(function() if API and API.OnResize then bcConn = API:OnResize(bcFit) end end) local bcHubFrame = bcHubMain()
 if bcHubFrame then pcall(function() bcHubFrame:GetPropertyChangedSignal("AbsoluteSize"):Connect(bcFit) end) end task.delay(0.25, bcFit)
@@ -1218,8 +1112,7 @@ panel.Name = "Panel" panel.Size = UDim2.new(1, -20, 1, -74) panel.Position = UDi
 panel.ScrollBarThickness = 4   -- v4.9: đồng bộ
 panel.AutomaticCanvasSize = Enum.AutomaticSize.Y panel.CanvasSize = UDim2.new(0, 0, 0, 0)
 panel.Parent = root local list = Instance.new("UIListLayout") list.Padding = UDim.new(0, 6) list.SortOrder = Enum.SortOrder.LayoutOrder
-list.Parent = panel local pad = Instance.new("UIPadding") pad.PaddingRight = UDim.new(0, 8) pad.Parent = panel
-local bcStatus = Instance.new("TextLabel") bcStatus.Name = "Status"
+list.Parent = panel local pad = Instance.new("UIPadding") pad.PaddingRight = UDim.new(0, 8) pad.Parent = panel local bcStatus = Instance.new("TextLabel") bcStatus.Name = "Status"
 bcStatus.Size = UDim2.new(1, -20, 0, 22) bcStatus.Position = UDim2.new(0, 10, 1, -30) bcStatus.BackgroundTransparency = 1 bcStatus.Text = "Tắt"
 bcStatus.TextColor3 = Color3.fromRGB(255, 214, 90) bcStatus.Font = Enum.Font.Gotham
 bcStatus.TextSize = 12 bcStatus.TextXAlignment = Enum.TextXAlignment.Left bcStatus.Parent = root local function bcButton(txt, color)
@@ -1244,8 +1137,7 @@ bcOn(bcCrossBtn, "MouseButton1Click", function() if not bcEnabled then bcToggle:
     bcToggle.Text = (bcEnabled and "⏹  Tắt " or BC.Icon .. "  Bật ") .. BC.Name bcStatus.Text = bcEnabled and "Đang chạy…" or "Tắt"
     if bcEnabled then if not extGui or not extGui.Parent then extGui = bcMakeExternalGui(BC.Name .. "_Ext", 9500) local ring = Instance.new("Frame")
             ring.Name = "BC_Ring" ring.Size = UDim2.new(0, 32, 0, 32) ring.Position = UDim2.new(0.5, -16, 0.5, -16) ring.BackgroundTransparency = 1
-            ring.BorderSizePixel = 0 ring.AnchorPoint = Vector2.new(0.5, 0.5) ring.Visible = false ring.Parent = extGui
-            local rc = Instance.new("UICorner"); rc.CornerRadius = UDim.new(1, 0); rc.Parent = ring
+            ring.BorderSizePixel = 0 ring.AnchorPoint = Vector2.new(0.5, 0.5) ring.Visible = false ring.Parent = extGui local rc = Instance.new("UICorner"); rc.CornerRadius = UDim.new(1, 0); rc.Parent = ring
             local rs = Instance.new("UIStroke"); rs.Thickness = 1.5; rs.Color = Color3.fromRGB(255,255,255); rs.Parent = ring
             local dot = Instance.new("Frame") dot.Name = "BC_Dot" dot.Size = UDim2.new(0, 3, 0, 3) dot.Position = UDim2.new(0.5, -2, 0.5, -2)
             dot.BackgroundColor3 = Color3.fromRGB(255,255,255) dot.BorderSizePixel = 0 dot.AnchorPoint = Vector2.new(0.5, 0.5) dot.Visible = false
@@ -1267,8 +1159,7 @@ end function S.ClearEmbedsUnder(containerFrame) if not containerFrame then retur
         end end for _, child in ipairs(containerFrame:GetChildren()) do if child.Name:sub(1, 9) == "Embedded_" then
             pcall(function() child:Destroy() end) end end return n end function S.EmbedGui(scr, containerFrame) if not S.embedEnabled then return nil end
     if not scr or not scr.Parent then return nil end if not containerFrame or not containerFrame.Parent then return nil end
-    if scr == gui or scr:IsDescendantOf(gui) then return nil end local isExt = false
-    pcall(function() isExt = (scr:GetAttribute("BCHub_External") == true) end) if isExt then return nil end
+    if scr == gui or scr:IsDescendantOf(gui) then return nil end local isExt = false pcall(function() isExt = (scr:GetAttribute("BCHub_External") == true) end) if isExt then return nil end
     local hostName = "Embedded_"..scr.Name for _, ex in ipairs(containerFrame:GetChildren()) do
         if ex.Name == hostName then local e = S.FindEmbedByHost(ex) if e then S.RestoreEmbed(e) else pcall(function() ex:Destroy() end) end end end
     local host = New("Frame", { Size = UDim2.new(1,0,1,0), Position = UDim2.new(0,0,0,0), BackgroundTransparency = 1,
@@ -1290,14 +1181,12 @@ function S._buildCrosshair() if S.crosshairGui and S.crosshairGui.Parent then re
         AnchorPoint = Vector2.new(0.5, 0.5), }, g) New("UICorner", {CornerRadius = UDim.new(1, 0)}, dot)
     local gap = S.crosshairSize/2 + 6 local lineLen = 10 local function line(name, w, h, x, y) local ln = New("Frame", {
             Name = name, Size = UDim2.new(0, w, 0, h), Position = UDim2.new(0.5, x, 0.5, y),
-            BackgroundColor3 = S.crosshairColor, BorderSizePixel = 0, AnchorPoint = Vector2.new(0.5, 0.5), BackgroundTransparency = 0.15, }, g) return ln
-    end line("Top",    2, lineLen, -1, -gap - lineLen/2)
+            BackgroundColor3 = S.crosshairColor, BorderSizePixel = 0, AnchorPoint = Vector2.new(0.5, 0.5), BackgroundTransparency = 0.15, }, g) return ln end line("Top",    2, lineLen, -1, -gap - lineLen/2)
     line("Bottom", 2, lineLen, -1,  gap + lineLen/2) line("Left",   lineLen, 2, -gap - lineLen/2, -1) line("Right",  lineLen, 2,  gap + lineLen/2, -1)
     S.crosshairGui = g return g end function S.SetCrosshair(on) S.crosshairOn = (on == true) if S.crosshairOn then S._buildCrosshair()
         if S.crosshairGui then S.crosshairGui.Enabled = true end else if S.crosshairGui then S.crosshairGui.Enabled = false end end
     for _, b in ipairs(S.crosshairBtns) do pcall(function() if b and b.Parent then b.Text = S.crosshairOn and "🎯 Tâm: BẬT" or "🎯 Tâm"
-                b.BackgroundColor3 = S.crosshairOn and Color3.fromRGB(180, 80, 220) or C.PURPLE end end) end end
-function S.ToggleCrosshair() S.SetCrosshair(not S.crosshairOn) return S.crosshairOn end
+                b.BackgroundColor3 = S.crosshairOn and Color3.fromRGB(180, 80, 220) or C.PURPLE end end) end end function S.ToggleCrosshair() S.SetCrosshair(not S.crosshairOn) return S.crosshairOn end
 function S.RegisterCrosshairBtn(btn) if not btn then return end table.insert(S.crosshairBtns, btn) pcall(function()
         btn.Text = S.crosshairOn and "🎯 Tâm: BẬT" or "🎯 Tâm" btn.BackgroundColor3 = S.crosshairOn and Color3.fromRGB(180, 80, 220) or C.PURPLE
     end) btn.Activated:Connect(function() S.ToggleCrosshair() end) end S.EMBED_TRY_DELAYS   = {0.6, 1.8, 4, 7, 10}  -- các mốc thử nhúng lại sau khi bấm ▶
@@ -1310,13 +1199,11 @@ S.SYSTEM_GUI_NAMES = { Topbar = true, TopbarContainer = true, PlayerList = true,
 } S.GENERIC_GUI_NAMES = { Main = true, InGame = true, Notifications = true } function S.IsEmbeddable(g, containerFrame, trust) if not g then return false, "không có GUI" end
     if not g.Parent then return false, "GUI chưa có Parent (script chưa gắn lên màn hình)" end if not (g:IsA("ScreenGui") or g:IsA("Folder")) then return false, "không phải ScreenGui/Folder" end
     if g == gui or g:IsDescendantOf(gui) then return false, "là GUI của chính hub" end if g.Name == "ExMenu" then return false, "trùng tên GUI của hub (ExMenu)" end
-    if S.SYSTEM_GUI_NAMES[g.Name] then return false, "là GUI của game/hệ thống (" .. tostring(g.Name) .. ")"
-    end if trust ~= "certain" and trust ~= "manual" and S.GENERIC_GUI_NAMES[g.Name] then
+    if S.SYSTEM_GUI_NAMES[g.Name] then return false, "là GUI của game/hệ thống (" .. tostring(g.Name) .. ")" end if trust ~= "certain" and trust ~= "manual" and S.GENERIC_GUI_NAMES[g.Name] then
         return false, "tên '" .. tostring(g.Name) .. "' hay là UI của game — bật 🕵 hoặc bấm 🔁 để ép nhúng" end local isExt = false
     pcall(function() isExt = (g:GetAttribute("BCHub_External") == true) end) if isExt then return false, "là overlay ngoài màn hình (BCHub_External)" end
     if containerFrame and g:IsDescendantOf(containerFrame) then return false, "đã nằm trong tab rồi" end for _, e in ipairs(S.embeds) do
-        if e.gui == g then return false, "đã được nhúng ở tab khác" end end local hasChild = false for _, c in ipairs(g:GetChildren()) do
-        if c:IsA("GuiObject") then hasChild = true break end end
+        if e.gui == g then return false, "đã được nhúng ở tab khác" end end local hasChild = false for _, c in ipairs(g:GetChildren()) do if c:IsA("GuiObject") then hasChild = true break end end
     if not hasChild then return false, "chưa có frame con (script còn đang dựng GUI)" end return true end function S.HookInstanceNew()
     if S.activeHook then pcall(S.activeHook) end   -- gỡ hook lần chạy trước, tránh chồng chain
     S.activeHook = nil local records = {} local st = { hooked = false, available = false, viaHookfunction = false, realNew = nil, ours = nil, origFromHook = nil,
@@ -1325,14 +1212,12 @@ S.SYSTEM_GUI_NAMES = { Topbar = true, TopbarContainer = true, PlayerList = true,
             pcall(function() if type(hookfunction) == "function" and st.origFromHook then hookfunction(Instance.new, st.origFromHook) end end)
         else pcall(function() if Instance.new == st.ours then Instance.new = st.realNew end end)
         end if S.activeHook == unhook then S.activeHook = nil end end local function recorder(cls, ...) local inst = st.realNew(cls, ...)
-        if st.probing then if cls == "ScreenGui" then st.probeSeen = true end return inst end
-        if st.hooked and cls == "ScreenGui" then local now = os.clock() records[#records + 1] = { inst      = inst,
+        if st.probing then if cls == "ScreenGui" then st.probeSeen = true end return inst end if st.hooked and cls == "ScreenGui" then local now = os.clock() records[#records + 1] = { inst      = inst,
                 certain   = (coroutine.running() == myCo), duringRun = (st.inRun == true) or (st.graceUntil ~= nil and now < st.graceUntil),
                 age       = now - st.t0, embedded  = false, via       = "hook", } end return inst end pcall(function() st.realNew = Instance.new
         st.ours = recorder Instance.new = st.ours st.hooked = (Instance.new == st.ours) end) if not st.hooked and type(hookfunction) == "function" then pcall(function()
             st.ours = recorder st.origFromHook = hookfunction(Instance.new, st.ours) if st.origFromHook then st.realNew = st.origFromHook end st.hooked = true
-            st.viaHookfunction = true end) end if st.hooked then pcall(function() st.probing, st.probeSeen = true, false
-            local probe = Instance.new("ScreenGui")   -- không gắn Parent, hủy ngay
+            st.viaHookfunction = true end) end if st.hooked then pcall(function() st.probing, st.probeSeen = true, false local probe = Instance.new("ScreenGui")   -- không gắn Parent, hủy ngay
             st.probing = false st.available = (st.probeSeen == true) if probe and probe.Destroy then pcall(function() probe:Destroy() end) end end)
         if not st.available then pcall(unhook) end end S.activeHook = unhook return unhook, records, st end function S.WatchNewGuis(records, st) local conns = {}
     local function already(g) for _, r in ipairs(records) do if r.inst == g then return true end end return false end
@@ -1346,11 +1231,9 @@ S.SYSTEM_GUI_NAMES = { Topbar = true, TopbarContainer = true, PlayerList = true,
         end end st.watchOn = true local function stopWatch() st.watchOn = false for _, c in ipairs(conns) do pcall(function() c:Disconnect() end) end end return stopWatch, conns end
 function S.EmbedRecorded(records, containerFrame, mode, verbose) if type(records) ~= "table" or #records == 0 then return 0, nil end
     if not containerFrame or not containerFrame.Parent then return 0, "tab đã bị đóng" end if not S.embedEnabled then return 0, "🧩 nhúng đang TẮT" end
-    mode = mode or "run" local order = {} for _, r in ipairs(records) do
-        if r and r.inst and not r.embedded then order[#order + 1] = r end end local function score(r) if r.certain then return 3 end
+    mode = mode or "run" local order = {} for _, r in ipairs(records) do if r and r.inst and not r.embedded then order[#order + 1] = r end end local function score(r) if r.certain then return 3 end
         if r.duringRun then return 2 end return 1 end table.sort(order, function(a, b) return score(a) > score(b) end)
-    local done, whyTop = 0, nil for _, r in ipairs(order) do local accept = false if mode == "all" then
-            accept = true elseif r.certain then accept = true elseif r.duringRun and mode ~= "strict" then
+    local done, whyTop = 0, nil for _, r in ipairs(order) do local accept = false if mode == "all" then accept = true elseif r.certain then accept = true elseif r.duringRun and mode ~= "strict" then
             accept = true elseif mode == "any" and (r.age or 0) <= S.EMBED_PROBABLE_AGE then accept = true end if accept then
             local trust if r.certain then trust = "certain" elseif r.duringRun or mode == "all" then trust = "manual" else trust = "guess" end
             local okE, why = S.IsEmbeddable(r.inst, containerFrame, trust) if okE then if S.EmbedGui(r.inst, containerFrame) then r.embedded = true r.why = nil done = done + (1)  else
@@ -1362,12 +1245,10 @@ function S.EmbedRecorded(records, containerFrame, mode, verbose) if type(records
     return nil end function S.DiagText(st, records) local hookTxt = "không rõ"
     if st then if st.available then hookTxt = st.viaHookfunction and "OK (qua hookfunction)" or "OK (ghi đè Instance.new)" elseif st.hooked then
             hookTxt = "cài được nhưng KHÔNG ăn (executor bỏ qua hook)" else hookTxt = "BỊ CHẶN (executor không cho sửa Instance.new)" end
-    end local n, certain, watch, scan = 0, 0, 0, 0 for _, r in ipairs(records or {}) do n = n + (1) 
-        if r.certain then certain = certain + (1)  end if r.via == "watch" then watch = watch + (1)  end
+    end local n, certain, watch, scan = 0, 0, 0, 0 for _, r in ipairs(records or {}) do n = n + (1) if r.certain then certain = certain + (1)  end if r.via == "watch" then watch = watch + (1)  end
         if r.via == "scan" then scan = scan + (1)  end end local lastWhy = nil for _, r in ipairs(records or {}) do if r.why then lastWhy = r.why end end
     return string.format("hook=%s · ghi nhận %d GUI (chắc chắn %d, watcher %d, quét %d) · nhúng=%s · lý do cuối: %s", hookTxt, n, certain, watch, scan, tostring(S.embedEnabled and "BẬT" or "TẮT"), tostring(lastWhy or "—")) end
-function S.RescueScan(ft, host) host = host or (ft and ft.frame and ft.frame:FindFirstChild("ScriptHost"))
-    if not host or not host.Parent then return 0 end if not S.embedEnabled then return 0 end
+function S.RescueScan(ft, host) host = host or (ft and ft.frame and ft.frame:FindFirstChild("ScriptHost")) if not host or not host.Parent then return 0 end if not S.embedEnabled then return 0 end
     local containers = {playerGui} if targetGui ~= playerGui then containers[#containers + 1] = targetGui end
     pcall(function() local cg = game:GetService("CoreGui") if cg then containers[#containers + 1] = cg end end) local seen, n = {}, 0
     for _, ctn in ipairs(containers) do pcall(function() for _, g in ipairs(ctn:GetChildren()) do if n < 3 and not seen[g] then seen[g] = true
@@ -1393,14 +1274,12 @@ function S.ParkHost(label) if not (S.parkList and S.parkList.Parent) then local 
         }, S.parkTab) Corner(backAll, UDim.new(0, 5)) backAll.Activated:Connect(function() local n = S.RemoveAllParked() pcall(function()
                 print("[taodepzai v5.0 NOIR] ↩ đã trả " .. n .. " GUI về màn hình game") end) end) S.parkList = New("Frame", {
             Name = "ParkList", Size = UDim2.new(1, -16, 1, -42), Position = UDim2.new(0, 8, 0, 38), BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = 5,
-        }, S.parkTab) New("UIListLayout", {Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder}, S.parkList) end
-    S.parkCount = S.parkCount + (1)  local box = New("Frame", {
+        }, S.parkTab) New("UIListLayout", {Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder}, S.parkList) end S.parkCount = S.parkCount + (1)  local box = New("Frame", {
         Name = "ParkBox_" .. tostring(label or "GUI"), Size = UDim2.new(1, 0, 0, 240), LayoutOrder = S.parkCount, BackgroundColor3 = C.BG, BackgroundTransparency = 0.35, BorderSizePixel = 0, ZIndex = 5,
     }, S.parkList) Corner(box, UDim.new(0, 8)) Stroke(box, nil, 1) local back = New("TextButton", { Size = UDim2.new(0, 92, 0, 18), Position = UDim2.new(1, -96, 0, 3),
         Text = "↩ Trả về game", BackgroundColor3 = C.GRAY, BackgroundTransparency = 0.2, TextColor3 = C.WHITE, Font = Enum.Font.GothamBold, TextSize = 8, BorderSizePixel = 0, ZIndex = 7,
     }, box) Corner(back, UDim.new(0, 5)) back.Activated:Connect(function() S.ClearEmbedsUnder(box)                    -- trả frame con về ScreenGui gốc + hủy host
-        pcall(function() box:Destroy() end) S.parkCount = math.max(0, S.parkCount - 1)
-        pcall(function() S.parkTab.CanvasSize = UDim2.new(0, 0, 0, S.parkCount * 246 + 10) end) pcall(function()
+        pcall(function() box:Destroy() end) S.parkCount = math.max(0, S.parkCount - 1) pcall(function() S.parkTab.CanvasSize = UDim2.new(0, 0, 0, S.parkCount * 246 + 10) end) pcall(function()
             if S.parkBtn then S.parkBtn.Text = S.parkCount > 0 and ("🧩 GUI Ngoài (" .. S.parkCount .. ")") or "🧩 GUI Ngoài" end end) end)
     local area = New("Frame", { Name = "ParkArea", Size = UDim2.new(1, -8, 1, -30), Position = UDim2.new(0, 4, 0, 26),
         BackgroundTransparency = 1, BorderSizePixel = 0, ClipsDescendants = true, ZIndex = 5, }, box)
@@ -1427,8 +1306,7 @@ function S.ShouldSkipPark(code, name) local hay = (tostring(code or "") .. "\n" 
     end) local function try() if cap.cancelled or cap.parked >= S.PARK_MAX or not S.embedEnabled then return 0 end
         local added = 0 for _, r in ipairs(recs) do if cap.parked >= S.PARK_MAX then break end if r and r.inst and not r.embedded then local trust if r.certain then trust = "certain"
                 elseif r.duringRun then trust = "manual" else trust = "guess" end if S.IsEmbeddable(r.inst, nil, trust) then
-                    local area, box = S.ParkHost(label) if area and S.EmbedGui(r.inst, area) then r.embedded = true cap.parked = cap.parked + (1) 
-                        cap.names[#cap.names + 1] = tostring(r.inst.Name) added = added + (1) 
+                    local area, box = S.ParkHost(label) if area and S.EmbedGui(r.inst, area) then r.embedded = true cap.parked = cap.parked + (1) cap.names[#cap.names + 1] = tostring(r.inst.Name) added = added + (1)
                         pcall(function() print(string.format("[taodepzai v5.0 NOIR] 🧩 đã đưa GUI '%s' vào tab 'GUI Ngoài' (script chạy ở tab Code)", tostring(r.inst.Name))) end) elseif box then
                         pcall(function() box:Destroy() end)   -- không nhúng được -> đừng để ô rỗng
                         S.parkCount = math.max(0, S.parkCount - 1) end end end end return added end local total = try() for _, d in ipairs(S.EMBED_TRY_DELAYS) do
@@ -1444,21 +1322,17 @@ function S.ShouldSkipPark(code, name) local hay = (tostring(code or "") .. "\n" 
         ft.records = nil              -- lần chạy mới -> bỏ danh sách GUI của lần chạy cũ
     end local embedCount, lateCandidate = 0, 0 local featureUnhook, records, lastWhy, hookState = nil, nil, nil, nil
     local ok, err = pcall(function() local fn, lerr = loadstring(code) if not fn then error("loadstring thất bại: "..tostring(lerr)) end
-        local beforeGuis = {} for _, g in ipairs(playerGui:GetChildren()) do beforeGuis[g] = true end
-        for _, g in ipairs(targetGui:GetChildren()) do beforeGuis[g] = true end pcall(function()
-            for _, g in ipairs(game:GetService("CoreGui"):GetChildren()) do beforeGuis[g] = true end end)
-        local unhook, recs, st = S.HookInstanceNew() local stopWatch = S.WatchNewGuis(recs, st)
+        local beforeGuis = {} for _, g in ipairs(playerGui:GetChildren()) do beforeGuis[g] = true end for _, g in ipairs(targetGui:GetChildren()) do beforeGuis[g] = true end pcall(function()
+            for _, g in ipairs(game:GetService("CoreGui"):GetChildren()) do beforeGuis[g] = true end end) local unhook, recs, st = S.HookInstanceNew() local stopWatch = S.WatchNewGuis(recs, st)
         st.stopWatch = stopWatch featureUnhook, records, hookState = unhook, recs, st if ft then ft.records = recs ft.hookState = st end
-        local fnOk, fnErr = pcall(fn) st.inRun = false st.graceUntil = os.clock() + 1.0
-        local hookWorks = (st.available == true) local useScan = (not hookWorks) or (S.embedGuessNew == true)
+        local fnOk, fnErr = pcall(fn) st.inRun = false st.graceUntil = os.clock() + 1.0 local hookWorks = (st.available == true) local useScan = (not hookWorks) or (S.embedGuessNew == true)
         local mode = (S.embedGuessNew == true) and "any" or "run" for i = 1, S.EMBED_CHILD_WAIT do if useScan then
                 local found = ScanNewGuis(beforeGuis, nil, true) for _, g in ipairs(found) do local now = os.clock() recs[#recs + 1] = {
                         inst = g, certain = false, duringRun = (st.inRun == true) or (now < (st.graceUntil or 0)), age = now - st.t0, embedded = false, via = "scan",
                     } end end local d, why = S.EmbedRecorded(recs, containerFrame, useScan and "any" or mode, true)
             embedCount = embedCount + (d)  if why then lastWhy = why end if embedCount > 0 then break end task.wait(0.2) end if embedCount > 0 then unhook()
             pcall(stopWatch) else task.delay(S.EMBED_HOOK_GRACE, function() pcall(unhook) pcall(stopWatch) end) end
-        if not fnOk then error(fnErr) end for _, dly in ipairs(S.EMBED_TRY_DELAYS) do task.delay(dly, function()
-                if ft and ft._runToken ~= runToken then return end if embedCount > 0 then return end
+        if not fnOk then error(fnErr) end for _, dly in ipairs(S.EMBED_TRY_DELAYS) do task.delay(dly, function() if ft and ft._runToken ~= runToken then return end if embedCount > 0 then return end
                 if not (containerFrame and containerFrame.Parent) then return end if not S.embedEnabled then return end
                 if useScan then local found = ScanNewGuis(beforeGuis, nil, true) for _, g in ipairs(found) do local now = os.clock() recs[#recs + 1] = {
                             inst = g, certain = false, duringRun = false, age = now - st.t0, embedded = false, via = "scan", } end end
@@ -1468,18 +1342,15 @@ function S.ShouldSkipPark(code, name) local hay = (tostring(code or "") .. "\n" 
                 end end) end if embedCount == 0 then local late = ScanNewGuis(beforeGuis, nil, true) local real = 0 for _, g in ipairs(late) do
                 if g.Parent and not g:IsDescendantOf(containerFrame) then real = real + (1)  end end
             if real > 0 then lateCandidate = real end end end) if embedCount > 0 then if featureUnhook then pcall(featureUnhook) end
-        pcall(function() if hookState and hookState.stopWatch then hookState.stopWatch() end end) end if ft then
-        ft.records   = records    -- giữ lại để MỞ tab / bấm 🔁 là nhúng tiếp được
-        ft.lastWhy   = lastWhy ft.indicator = indicator ft.hookState = hookState end
-    pcall(function() print("[taodepzai v5.0 NOIR] ▶ '" .. tostring(name) .. "' · " .. S.DiagText(hookState, records)
+        pcall(function() if hookState and hookState.stopWatch then hookState.stopWatch() end end) end if ft then ft.records   = records    -- giữ lại để MỞ tab / bấm 🔁 là nhúng tiếp được
+        ft.lastWhy   = lastWhy ft.indicator = indicator ft.hookState = hookState end pcall(function() print("[taodepzai v5.0 NOIR] ▶ '" .. tostring(name) .. "' · " .. S.DiagText(hookState, records)
             .. " · đã nhúng: " .. embedCount) end) if ok then if indicator then indicator.BackgroundColor3 = C.GREEN end if statusLabel then if embedCount > 0 then
                 statusLabel.Text = string.format( "✅ xong · %d GUI đã nhúng vào tab (bấm ✕ để trả về màn hình game)", embedCount)
             elseif not S.embedEnabled then statusLabel.Text = "✅ xong · 🧩 nhúng đang TẮT nên GUI nằm ngoài màn hình — BẬT lại rồi bấm ▶" elseif hookState and hookState.available ~= true then
                 statusLabel.Text = "⚠️ Executor CHẶN hook Instance.new — hub đã dùng chế độ quét dự phòng" .. (lateCandidate > 0 and (" (thấy " .. lateCandidate .. " GUI mới)") or " (không thấy GUI mới nào)")
                     .. " · bấm 🔁 'Cứu GUI' ở tab Tạo Tính Năng để ép nhúng · chi tiết ở console (F9)" elseif lateCandidate > 0 then
                 statusLabel.Text = string.format( "✅ xong · thấy %d GUI mới nhưng chưa nhúng được — MỞ lại tab này hoặc bấm 🔁 'Cứu GUI'%s", lateCandidate, (S.embedGuessNew == true) and "" or " · hoặc bật 🕵 'Đoán GUI trễ'")
-            else statusLabel.Text = "✅ xong · không thấy script tạo GUI nào (script có tạo ScreenGui không?)"
-                    .. (lastWhy and (" · lý do: " .. tostring(lastWhy)) or "") end end return true, nil, records
+            else statusLabel.Text = "✅ xong · không thấy script tạo GUI nào (script có tạo ScreenGui không?)" .. (lastWhy and (" · lý do: " .. tostring(lastWhy)) or "") end end return true, nil, records
     else if indicator then indicator.BackgroundColor3 = C.RED end if statusLabel then statusLabel.Text = "❌ Lỗi: "..tostring(err) end
         warn("[taodepzai v5.0 NOIR] Feature script error:", err) return false, err, records end end
 local function CreateFeatureTab(name, icon, codeContent) if not name or #name == 0 then name = "Tính Năng " .. (#featureTabs + 1) end if not icon or #icon == 0 then icon = "⚙️" end
@@ -1499,8 +1370,7 @@ local function CreateFeatureTab(name, icon, codeContent) if not name or #name ==
         Text="✏️ Sửa", BackgroundColor3=C.ORANGE, BackgroundTransparency=0.1, TextColor3=C.WHITE, Font=Enum.Font.GothamBold, TextSize=8, BorderSizePixel=0, ZIndex=21,
     }, toolbar) Corner(editFeatureBtn, UDim.new(0,5)) local crosshairBtn = New("TextButton", { Size=UDim2.new(0,58,0,20), Position=UDim2.new(0,212,0,5),
         Text="🎯 Tâm", BackgroundColor3=C.PURPLE, BackgroundTransparency=0.1, TextColor3=C.WHITE, Font=Enum.Font.GothamBold, TextSize=8, BorderSizePixel=0, ZIndex=21,
-    }, toolbar) Corner(crosshairBtn, UDim.new(0,5)) S.RegisterCrosshairBtn(crosshairBtn)
-    local closeFeatureBtn = New("TextButton", { Size=UDim2.new(0,32,0,20), Position=UDim2.new(1,-38,0,5),
+    }, toolbar) Corner(crosshairBtn, UDim.new(0,5)) S.RegisterCrosshairBtn(crosshairBtn) local closeFeatureBtn = New("TextButton", { Size=UDim2.new(0,32,0,20), Position=UDim2.new(1,-38,0,5),
         Text="✕", BackgroundColor3=C.RED, BackgroundTransparency=0.1, TextColor3=C.WHITE, Font=Enum.Font.GothamBold, TextSize=10, BorderSizePixel=0, ZIndex=21,
     }, toolbar) Corner(closeFeatureBtn, UDim.new(0,5)) local fStatus = New("TextLabel", { Size=UDim2.new(1,-44-274,0,20), Position=UDim2.new(0,274,0,5),
         Text="", BackgroundTransparency=1, TextColor3=Color3.fromRGB(255, 205, 64), Font=Enum.Font.GothamMedium, TextSize=8, TextXAlignment=Enum.TextXAlignment.Left,
@@ -1542,8 +1412,7 @@ Label(createFeatureTab, "🏷️ Tên Tính Năng:", cy) cy = cy + 14 local feat
     BackgroundColor3=Color3.fromRGB(26, 29, 38), BackgroundTransparency=0, TextColor3=Color3.fromRGB(233, 237, 245), Font=Enum.Font.GothamMedium, TextSize=12, BorderSizePixel=0, ClearTextOnFocus=false,
     Active=true, Selectable=true, ZIndex=10, TextXAlignment=Enum.TextXAlignment.Left, }, createFeatureTab)
 Corner(featureNameIn, UDim.new(0,5)) Stroke(featureNameIn, Color3.fromRGB(100,120,200), 1.5) New("UIPadding", {PaddingLeft=UDim.new(0,6)}, featureNameIn)
-cy = cy + 32 Label(createFeatureTab, "🎨 Icon (1 ký tự, tùy chọn):", cy) cy = cy + 14
-local featureIconIn = New("TextBox", { Size=UDim2.new(0,60,0,26), Position=UDim2.new(0,8,0,cy), Text="⚙️",
+cy = cy + 32 Label(createFeatureTab, "🎨 Icon (1 ký tự, tùy chọn):", cy) cy = cy + 14 local featureIconIn = New("TextBox", { Size=UDim2.new(0,60,0,26), Position=UDim2.new(0,8,0,cy), Text="⚙️",
     PlaceholderColor3=Color3.fromRGB(122, 130, 148), BackgroundColor3=Color3.fromRGB(26, 29, 38), BackgroundTransparency=0, TextColor3=Color3.fromRGB(233, 237, 245),
     Font=Enum.Font.GothamBold, TextSize=14, BorderSizePixel=0, ClearTextOnFocus=false, Active=true, Selectable=true, ZIndex=10,
 }, createFeatureTab) Corner(featureIconIn, UDim.new(0,5)) Stroke(featureIconIn, Color3.fromRGB(180,180,200), 1.2)
@@ -1552,8 +1421,7 @@ local featureCodeIn = New("TextBox", { Size=UDim2.new(1,-16,0,140), Position=UDi
     PlaceholderText="Dán script hoặc link raw (https://...) vào đây...\nScript có thể tạo ScreenGui riêng, GUI đó sẽ được nhúng vào tab.", PlaceholderColor3=Color3.fromRGB(122, 130, 148),
     BackgroundColor3=Color3.fromRGB(28, 31, 41), BackgroundTransparency=0, TextColor3=Color3.fromRGB(233, 237, 245), Font=Enum.Font.Code, TextSize=11, BorderSizePixel=0, ClearTextOnFocus=false, MultiLine=true, TextWrapped=true, TextXAlignment=Enum.TextXAlignment.Left, TextYAlignment=Enum.TextYAlignment.Top,
     Active=true, Selectable=true, ZIndex=10, }, createFeatureTab)
-Corner(featureCodeIn, UDim.new(0,5)) Stroke(featureCodeIn, Color3.fromRGB(100,120,200), 1.5) New("UIPadding", {PaddingLeft=UDim.new(0,6), PaddingTop=UDim.new(0,4)}, featureCodeIn)
-cy = cy + 146
+Corner(featureCodeIn, UDim.new(0,5)) Stroke(featureCodeIn, Color3.fromRGB(100,120,200), 1.5) New("UIPadding", {PaddingLeft=UDim.new(0,6), PaddingTop=UDim.new(0,4)}, featureCodeIn) cy = cy + 146
 local createTabBtn = Button(createFeatureTab, "➕ Tạo Tab Tính Năng", 8, cy, 160, 20, Color3.fromRGB(0,150,200)) local clearFormBtn = Button(createFeatureTab, "🧹 Xóa Form", 174, cy, 90, 20, C.ORANGE)
 cy = cy + 24
 local embedToggleBtn = Button(createFeatureTab, "🧩 Nhúng vào Tab: BẬT", 270, cy - 24, 114, 20, C.GREEN) local guessToggleBtn = Button(createFeatureTab, "🕵 Đoán GUI trễ: TẮT", 8, cy, 144, 20, C.GRAY)
@@ -1563,12 +1431,9 @@ local copyTemplateBtn = Button(createFeatureTab, "📋 Copy Code Mẫu Cho AI (m
 S.reembedBtn = Button(createFeatureTab, "🔁 Cứu GUI: nhúng lại GUI của tab ĐANG MỞ vào menu", 8, cy, 376, 20, C.BLUE) cy = cy + 24
 S.parkToggleBtn = Button(createFeatureTab, "🪟 GUI chạy ở tab 💻 Code → đưa vào menu: BẬT", 8, cy, 376, 20, C.GREEN) cy = cy + 24 S.SyncEmbedToggles = function()
     pcall(function() if D.SyncPageChips then D.SyncPageChips() end end)   -- v4.5: chip trên header trang
-    pcall(function() embedToggleBtn.Text = S.embedEnabled and "🧩 Nhúng vào Tab: BẬT" or "🧩 Nhúng vào Tab: TẮT"
-        D.SetBg(embedToggleBtn, S.embedEnabled and C.GREEN or C.GRAY)   -- v4.5
-        guessToggleBtn.Text = (S.embedGuessNew == true) and "🕵 Đoán GUI trễ: BẬT" or "🕵 Đoán GUI trễ: TẮT"
-        D.SetBg(guessToggleBtn, (S.embedGuessNew == true) and C.ORANGE or C.GRAY)   -- v4.5
-        if S.parkToggleBtn then local on = (S.parkCodeGuis ~= false)
-            S.parkToggleBtn.Text = on and "🪟 GUI chạy ở tab 💻 Code → đưa vào menu: BẬT" or "🪟 GUI chạy ở tab 💻 Code → để ngoài màn hình: TẮT"
+    pcall(function() embedToggleBtn.Text = S.embedEnabled and "🧩 Nhúng vào Tab: BẬT" or "🧩 Nhúng vào Tab: TẮT" D.SetBg(embedToggleBtn, S.embedEnabled and C.GREEN or C.GRAY)   -- v4.5
+        guessToggleBtn.Text = (S.embedGuessNew == true) and "🕵 Đoán GUI trễ: BẬT" or "🕵 Đoán GUI trễ: TẮT" D.SetBg(guessToggleBtn, (S.embedGuessNew == true) and C.ORANGE or C.GRAY)   -- v4.5
+        if S.parkToggleBtn then local on = (S.parkCodeGuis ~= false) S.parkToggleBtn.Text = on and "🪟 GUI chạy ở tab 💻 Code → đưa vào menu: BẬT" or "🪟 GUI chạy ở tab 💻 Code → để ngoài màn hình: TẮT"
             D.SetBg(S.parkToggleBtn, on and C.GREEN or C.GRAY) end end) end S.SyncEmbedToggles()
 local createStatus = Label(createFeatureTab, "", cy) createStatus.TextColor3=C.YELLOW; createStatus.TextSize=9; createStatus.ZIndex=6 cy = cy + 14
 S.DoToggleEmbed = function() S.embedEnabled = not S.embedEnabled if S.embedEnabled then embedToggleBtn.Text = "🧩 Nhúng vào Tab: BẬT"
@@ -1593,21 +1458,17 @@ end S.parkToggleBtn.Activated:Connect(S.DoTogglePark) grabSizeCodeBtn.Activated:
     if #currentCode == 0 then createStatus.Text = "⚠️ Ô code đang trống, không có gì để lấy!" return end
     local wrappedCode = [[
 local _FIT_WRAPPER = true local _bcRealNew = Instance.new local _bcMine = {} local _bcHookOn = true
-pcall(function() Instance.new = function(cls, ...) local inst = _bcRealNew(cls, ...) if _bcHookOn and cls == "ScreenGui" then _bcMine[#_bcMine + 1] = inst end
-        return inst end end)
+pcall(function() Instance.new = function(cls, ...) local inst = _bcRealNew(cls, ...) if _bcHookOn and cls == "ScreenGui" then _bcMine[#_bcMine + 1] = inst end return inst end end)
 ]] .. currentCode .. [[
 pcall(function() _bcHookOn = false; Instance.new = _bcRealNew end) task.delay(4, function() pcall(function() _bcHookOn = false; Instance.new = _bcRealNew end)
-end) task.defer(function() task.wait(0.4)
-    local hub = nil pcall(function() local hubGui = (gethui and gethui()) or game:GetService("Players").LocalPlayer:FindFirstChildOfClass("PlayerGui")
+end) task.defer(function() task.wait(0.4) local hub = nil pcall(function() local hubGui = (gethui and gethui()) or game:GetService("Players").LocalPlayer:FindFirstChildOfClass("PlayerGui")
         hub = hubGui and hubGui:FindFirstChild("ExMenu") and hubGui.ExMenu:FindFirstChildWhichIsA("Frame") if not hub then
             local pg = game:GetService("Players").LocalPlayer:FindFirstChildOfClass("PlayerGui") hub = pg and pg:FindFirstChild("ExMenu") and pg.ExMenu:FindFirstChildWhichIsA("Frame") end
     end) for _, g in ipairs(_bcMine) do pcall(function() if not g or not g.Parent then return end
             local root = g:FindFirstChildWhichIsA("Frame") or g:FindFirstChildWhichIsA("ScrollingFrame") or g:FindFirstChildWhichIsA("GuiObject") if not root then return end
             if root.Size and (root.Size.X.Scale ~= 0 or root.Size.Y.Scale ~= 0) then return end local us = root:FindFirstChild("BananaCatFitScale")
-            if not us then us = _bcRealNew("UIScale") us.Name = "BananaCatFitScale" us.Parent = root
-            end if hub then local function _bcSync() us.Scale = math.clamp(hub.AbsoluteSize.X / 540, 0.8, 1.6)
-                end _bcSync() hub:GetPropertyChangedSignal("AbsoluteSize"):Connect(function() pcall(_bcSync) end) end end) end
-end)
+            if not us then us = _bcRealNew("UIScale") us.Name = "BananaCatFitScale" us.Parent = root end if hub then local function _bcSync() us.Scale = math.clamp(hub.AbsoluteSize.X / 540, 0.8, 1.6)
+                end _bcSync() hub:GetPropertyChangedSignal("AbsoluteSize"):Connect(function() pcall(_bcSync) end) end end) end end)
 ]]
     local saveName = "AutoSize_"..os.date("%H%M%S") local bn = saveName local cnt = 1 while true do
         local ex = false for _, s in ipairs(scripts) do if s.name == saveName then ex = true; break end end if not ex then break end cnt = cnt + (1)  saveName = bn.." ("..cnt..")" end
@@ -1622,14 +1483,12 @@ end) S.DoFixMouse = function() local done = {} ReleaseHubFocus() done[#done+1] =
     local ft = S.FindActiveFeature() if not ft then createStatus.Text = "⚠️ Hãy MỞ tab tính năng cần cứu trước (bấm vào tab đó cho nó hiện ra) rồi hãy bấm 🔁." return
     end if not S.embedEnabled then createStatus.Text = "⚠️ 🧩 'Nhúng vào Tab' đang TẮT — BẬT lại rồi mới cứu GUI được." return end
     createStatus.Text = "⏳ Đang tìm GUI của '" .. ft.name .. "' để nhúng lại vào menu..." task.defer(function()
-        local n, why = S.ReembedFeature(ft, true) if n > 0 then createStatus.Text = string.format(
-                "✅ Đã nhúng lại %d GUI vào tab '%s'. Nếu lỡ nhúng nhầm GUI khác, mở tab đó bấm ✕ để trả về.", n, ft.name)
+        local n, why = S.ReembedFeature(ft, true) if n > 0 then createStatus.Text = string.format( "✅ Đã nhúng lại %d GUI vào tab '%s'. Nếu lỡ nhúng nhầm GUI khác, mở tab đó bấm ✕ để trả về.", n, ft.name)
             pcall(function() if ft.status and ft.status.Parent then ft.status.Text = string.format("✅ đã nhúng lại %d GUI vào tab (nút 🔁 Cứu GUI)", n) end
                 if ft.indicator and ft.indicator.Parent then ft.indicator.BackgroundColor3 = C.GREEN end end) else
             createStatus.Text = "⚠️ Chưa nhúng được: " .. tostring(why or "không rõ lý do") .. " · bấm ▶ Chạy Script lại rồi CHỜ 10 giây (hub tự thử lại 5 lần) · xem console (F9) để biết hook có bị executor chặn không."
         end print(string.format("[taodepzai v5.0 NOIR] 🔁 Cứu GUI tab '%s': %d GUI đã nhúng%s", tostring(ft.name), n, why and (" · lý do bỏ qua: " .. tostring(why)) or "")) end) end)
-copyTemplateBtn.Activated:Connect(function() ReleaseHubFocus()
-    local nm = (featureNameIn.Text or ""):gsub('[\r	"]', " "):gsub("^%s+", ""):gsub("%s+$", "") if #nm == 0 then nm = "Tính Năng Mới" end
+copyTemplateBtn.Activated:Connect(function() ReleaseHubFocus() local nm = (featureNameIn.Text or ""):gsub('[\r	"]', " "):gsub("^%s+", ""):gsub("%s+$", "") if #nm == 0 then nm = "Tính Năng Mới" end
     local ic = (featureIconIn.Text or ""):gsub('[\r	"]', " ") if #ic == 0 then ic = "⚙️" end
     local stamp pcall(function() stamp = os.date("sinh %H:%M %d/%m/%Y") end) local code = S.FeatureTemplate(nm, ic, stamp)
     local copied = S.CopyToClipboard(code) local inBox = false if #featureCodeIn.Text == 0 then featureCodeIn.Text = code
@@ -1649,8 +1508,7 @@ local function RebuildFeatureList() for _, c in ipairs(featureListFrame:GetChild
             BackgroundTransparency=1, TextColor3=C.GRAY, Font=Enum.Font.GothamMedium, TextSize=10, TextXAlignment=Enum.TextXAlignment.Center, TextYAlignment=Enum.TextYAlignment.Center, ZIndex=7,
         }, featureListFrame) createFeatureTab.CanvasSize = UDim2.new(0, 0, 0, cy + 50) return end local totalH = 0 for i, ft in ipairs(featureTabs) do
         local row = New("Frame", { Size=UDim2.new(1,0,0,28), BackgroundColor3=Color3.fromRGB(26, 29, 38),
-            BackgroundTransparency=0.1, BorderSizePixel=0, ZIndex=6, }, featureListFrame) Corner(row, UDim.new(0,5)); Stroke(row)
-        New("TextLabel", { Size=UDim2.new(1,-82,1,0), Position=UDim2.new(0,8,0,0),
+            BackgroundTransparency=0.1, BorderSizePixel=0, ZIndex=6, }, featureListFrame) Corner(row, UDim.new(0,5)); Stroke(row) New("TextLabel", { Size=UDim2.new(1,-82,1,0), Position=UDim2.new(0,8,0,0),
             Text=ft.icon.." "..ft.name, BackgroundTransparency=1, TextColor3=C.DARK, Font=Enum.Font.GothamBold, TextSize=9, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=7,
         }, row) local goBtn = New("TextButton", { Size=UDim2.new(0,44,0,18), Position=UDim2.new(1,-72,0,5),
             Text="➡ Mở", BackgroundColor3=C.BLUE, BackgroundTransparency=0.1, TextColor3=C.WHITE, Font=Enum.Font.GothamBold, TextSize=8, BorderSizePixel=0, ZIndex=8,
@@ -1662,26 +1520,22 @@ local function RebuildFeatureList() for _, c in ipairs(featureListFrame:GetChild
                 local hostFrame = ft.frame and ft.frame:FindFirstChild("ScriptHost") if hostFrame then S.ClearEmbedsUnder(hostFrame) end
                 ft.btn:Destroy() ft.frame:Destroy() table.remove(tabs, idx) table.remove(tabContent, idx)
                 table.remove(featureTabs, i) for j, t in ipairs(tabs) do t.LayoutOrder = j end for j, ft2 in ipairs(featureTabs) do
-                    for k, t in ipairs(tabs) do if t == ft2.btn then ft2.tabIdx = k; break end end end RebuildFeatureList()
-                Store.saveSoon()   -- ⭐ xóa cũng phải ghi xuống đĩa, nếu không tab sẽ "sống lại" khi rejoin
+                    for k, t in ipairs(tabs) do if t == ft2.btn then ft2.tabIdx = k; break end end end RebuildFeatureList() Store.saveSoon()   -- ⭐ xóa cũng phải ghi xuống đĩa, nếu không tab sẽ "sống lại" khi rejoin
             end end) totalH = totalH + 32 end featureListFrame.Size = UDim2.new(1,-16,0,totalH) createFeatureTab.CanvasSize = UDim2.new(0, 0, 0, cy + totalH + 30) end
 createTabBtn.Activated:Connect(function() local n = featureNameIn.Text local ic = featureIconIn.Text local c = featureCodeIn.Text
     if #n == 0 then createStatus.Text = "⚠️ Vui lòng nhập tên tính năng!" return end if #c == 0 then createStatus.Text = "⚠️ Vui lòng dán script!" return end
     for _, ft in ipairs(featureTabs) do if ft.name == n then createStatus.Text = "⚠️ Tên tính năng đã tồn tại!" return end end CreateFeatureTab(n, ic, c) RebuildFeatureList()
     Store.saveSoon()   -- ⭐ lưu ngay vào file để thoát game vào lại vẫn còn tab này
     createStatus.Text = "✅ Đã tạo tab: "..n.." (đã lưu)" featureNameIn.Text = "" featureIconIn.Text = "⚙️" featureCodeIn.Text = ""
-    SwitchTab(#tabs) end) clearFormBtn.Activated:Connect(function() featureNameIn.Text = ""
-    featureIconIn.Text = "⚙️" featureCodeIn.Text = "" createStatus.Text = "🧹 Đã xóa form" end)
+    SwitchTab(#tabs) end) clearFormBtn.Activated:Connect(function() featureNameIn.Text = "" featureIconIn.Text = "⚙️" featureCodeIn.Text = "" createStatus.Text = "🧹 Đã xóa form" end)
 RebuildFeatureList() pcall(function() createFeatureTab.CanvasSize = UDim2.new(0, 0, 0, cy + 40) end)
 Store.restoreFeatures = function() for i = #featureTabs, 1, -1 do local ft = featureTabs[i] for j, b in ipairs(tabs) do
             if b == ft.btn then table.remove(tabs, j) table.remove(tabContent, j) break end end if activeTab == ft.frame then OpenFirstPage() end   -- v4.6.2
         local hostFrame = ft.frame and ft.frame:FindFirstChild("ScriptHost") if hostFrame then S.ClearEmbedsUnder(hostFrame) end
         pcall(function() ft.btn:Destroy() end) pcall(function() ft.frame:Destroy() end) table.remove(featureTabs, i) end
-    for _, f in ipairs(Store.loadedFeatures) do CreateFeatureTab(f.name, f.icon, f.code) end
-    for j, t in ipairs(tabs) do t.LayoutOrder = j end tabBar.CanvasSize = UDim2.new(0, 0, 0, #tabs * 44 + 10)
+    for _, f in ipairs(Store.loadedFeatures) do CreateFeatureTab(f.name, f.icon, f.code) end for j, t in ipairs(tabs) do t.LayoutOrder = j end tabBar.CanvasSize = UDim2.new(0, 0, 0, #tabs * 44 + 10)
     RebuildFeatureList() if Store.refreshStatus then Store.refreshStatus() end end if #Store.loadedFeatures > 0 then Store.restoreFeatures()
-    createStatus.Text = string.format("💾 Đã khôi phục %d tab tính năng từ bộ nhớ", #Store.loadedFeatures) end
-S.Move = { fly = false, noclip = false, infJump = false, speed = false, carpet = false,
+    createStatus.Text = string.format("💾 Đã khôi phục %d tab tính năng từ bộ nhớ", #Store.loadedFeatures) end S.Move = { fly = false, noclip = false, infJump = false, speed = false, carpet = false,
     runMode = false,                         -- 🏃 chế độ "chạy trên thảm" (gộp thảm + tốc độ + HUD)
     sprint = false, sprintSpeed = 50,        -- v4.37: 💨 tốc độ theo camera (mặt đất, không xuyên tường)
     highJump = false, highJumpSpeed = 80,    -- v4.38: 🦘 nhảy cao (công tắc độc lập, chỉnh tốc độ)
@@ -1696,19 +1550,16 @@ S.Move = { fly = false, noclip = false, infJump = false, speed = false, carpet =
 } local MV = S.Move _G.BananaCatHub_MV = S.Move  -- v4.28: expose for legacy refs (HubLoc fly)
 function MV.comp(v, k, dft) if v == nil then return dft end local ok, val = pcall(function() return v[k] end) if ok and type(val) == "number" then return val end return dft end
 local function mvClamp(n, lo, hi, dft) n = tonumber(n) if n == nil or n ~= n then return dft end if n < lo then return lo end
-    if n > hi then return hi end return n end function MV.Char() return player.Character end
-MV._cachedChar = nil MV._cachedHum = nil MV._cachedRoot = nil MV._cacheAt = 0 function MV.Hum()
+    if n > hi then return hi end return n end function MV.Char() return player.Character end MV._cachedChar = nil MV._cachedHum = nil MV._cachedRoot = nil MV._cacheAt = 0 function MV.Hum()
     local now = os.clock() if MV._cachedChar == player.Character and MV._cachedHum and MV._cachedHum.Parent and (now - MV._cacheAt) < 1.0 then
         return MV._cachedHum end local c = player.Character local h = c and c:FindFirstChildOfClass("Humanoid") or nil MV._cachedChar = c MV._cachedHum = h MV._cacheAt = now if h then
         local ok, rp = pcall(function() return h.RootPart end) if ok and rp then MV._cachedRoot = rp end end return h end function MV.Root()
     local now = os.clock() if MV._cachedChar == player.Character and MV._cachedRoot and MV._cachedRoot.Parent and (now - MV._cacheAt) < 1.0 then
         return MV._cachedRoot end local c = player.Character local r = c and c:FindFirstChild("HumanoidRootPart") or nil
-    MV._cachedChar = c MV._cachedRoot = r MV._cacheAt = now return r end function MV.InvalidateCache()
-    MV._cachedChar, MV._cachedHum, MV._cachedRoot, MV._cacheAt = nil, nil, nil, 0 end
+    MV._cachedChar = c MV._cachedRoot = r MV._cacheAt = now return r end function MV.InvalidateCache() MV._cachedChar, MV._cachedHum, MV._cachedRoot, MV._cacheAt = nil, nil, nil, 0 end
 function MV._NcPart(p) if not (p and p.IsA and p:IsA("BasePart")) then return end MV._ncParts = MV._ncParts or {} if MV._origCC[p] == nil then
         MV._origCC[p] = MV._ncParts[p] and true or p.CanCollide end if p.CanCollide ~= false then pcall(function() p.CanCollide = false end) end
-    MV._ncParts[p] = true end function MV._NcScan() local c = MV.Char() if not c then return end
-    if MV._ncChar ~= c then                    -- đổi nhân vật (respawn) -> dọn kết nối cũ
+    MV._ncParts[p] = true end function MV._NcScan() local c = MV.Char() if not c then return end if MV._ncChar ~= c then                    -- đổi nhân vật (respawn) -> dọn kết nối cũ
         if MV._ncDesc then pcall(function() MV._ncDesc:Disconnect() end) end MV._ncChar = c MV._ncParts = {}                       -- nhân vật mới -> danh sách part mới
         MV._ncDesc = trackConn(c.DescendantAdded:Connect(MV._NcPart)) end for _, p in ipairs(c:GetDescendants()) do MV._NcPart(p) end end
 function MV._NcEnforce() if not MV.noclip then return end local c = MV.Char() local parts = MV._ncParts if not c or not parts then return end
@@ -1721,8 +1572,7 @@ function MV._NcEnforce() if not MV.noclip then return end local c = MV.Char() lo
     local okMD, md = pcall(function() return h.MoveDirection end) local mx = okMD and MV.comp(md, "X", 0) or 0 local mz = okMD and MV.comp(md, "Z", 0) or 0
     local want = math.sqrt(mx * mx + mz * mz)            -- 0..1: đang bấm hướng nào
     local px, pz = MV.comp(r.Position, "X", nil), MV.comp(r.Position, "Z", nil) if not (px and pz) then return end local moved = 0 if MV._passPX then
-        local dx, dz = px - MV._passPX, pz - MV._passPZ moved = math.sqrt(dx * dx + dz * dz) end
-    MV._passPX, MV._passPZ = px, pz local spd = mvClamp(tonumber(MV.WantSpeed()) or 16, 6, 120)
+        local dx, dz = px - MV._passPX, pz - MV._passPZ moved = math.sqrt(dx * dx + dz * dz) end MV._passPX, MV._passPZ = px, pz local spd = mvClamp(tonumber(MV.WantSpeed()) or 16, 6, 120)
     local ws = tonumber(MV.comp(h, "WalkSpeed", nil)) or spd local expect = math.min(spd, ws) * want * dt if want <= 0.1 then
         MV._passBlocked = 0                              -- không bấm gì -> không đẩy
     elseif moved < expect * (onCarpet and 0.12 or 0.35) then MV._passBlocked = (MV._passBlocked or 0) + dt    -- bị chặn -> đếm thời gian kẹt
@@ -1738,26 +1588,21 @@ function MV._NcEnforce() if not MV.noclip then return end local c = MV.Char() lo
         MV._NcEnforce()                               -- thắng game bật lại CanCollide
         MV._NcAssist()                                -- 🧲 bị chặn cứng -> tự đẩy xuyên
     end end function MV._NcBind(on) if on and not MV._ncBound then MV._ncBound = true
-        local ok = pcall(function() RunService:BindToRenderStep("BC_NoClip", Enum.RenderPriority.Last.Value, function() pcall(MV._NcStep) end)
-        end) if not ok then MV._ncBound = false end
+        local ok = pcall(function() RunService:BindToRenderStep("BC_NoClip", Enum.RenderPriority.Last.Value, function() pcall(MV._NcStep) end) end) if not ok then MV._ncBound = false end
     elseif (not on) and MV._ncBound then MV._ncBound = false pcall(function() RunService:UnbindFromRenderStep("BC_NoClip") end) end return MV._ncBound
 end function MV._NcForgetLost() for p in pairs(MV._origCC) do if not (p and p.Parent) then MV._origCC[p] = nil end
     end end function MV._NcRestore() for p, v in pairs(MV._origCC) do if p and p.Parent then pcall(function() p.CanCollide = v end) end MV._origCC[p] = nil end
     MV._origCC = {} MV._ncParts = {} end function MV.SetNoclip(on) on = (on == true) if on == MV.noclip then return MV.noclip end MV.noclip = on if on then
-        MV._ncLast = nil MV._ncParts = {} MV._passBlocked, MV._passPX, MV._passPZ, MV._passAt = 0, nil, nil, nil
-        if MV.ncPass == nil then MV.ncPass = true end   -- v4.22: 🧲 mặc định BẬT
+        MV._ncLast = nil MV._ncParts = {} MV._passBlocked, MV._passPX, MV._passPZ, MV._passAt = 0, nil, nil, nil if MV.ncPass == nil then MV.ncPass = true end   -- v4.22: 🧲 mặc định BẬT
         MV._NcScan()                                   -- quét ngay lần đầu cho chắc
         MV._ncConn = trackConn(RunService.Stepped:Connect(MV._NcStep)) MV._NcBind(true)                               -- v4.22: thêm lớp ghi cuối frame
-    else for _, c in ipairs({ MV._ncConn, MV._ncDesc }) do if c then pcall(function() c:Disconnect() end) end end
-        MV._ncConn, MV._ncDesc, MV._ncChar, MV._ncLast = nil, nil, nil, nil MV._NcBind(false)
+    else for _, c in ipairs({ MV._ncConn, MV._ncDesc }) do if c then pcall(function() c:Disconnect() end) end end MV._ncConn, MV._ncDesc, MV._ncChar, MV._ncLast = nil, nil, nil, nil MV._NcBind(false)
         MV._passBlocked, MV._passPX, MV._passPZ, MV._passAt = 0, nil, nil, nil MV._NcRestore() end MV._Watchdog()
     if MV.SyncFlyHud then MV.SyncFlyHud() end return MV.noclip end function MV._JumpGuard() local h = MV.Hum()
-    if not h then return end pcall(function() local jp = mvClamp(MV.jumpPower, 1, 500) if h.UseJumpPower ~= false then
-            if (tonumber(h.JumpPower) or 0) < 1 then h.JumpPower = jp end end
+    if not h then return end pcall(function() local jp = mvClamp(MV.jumpPower, 1, 500) if h.UseJumpPower ~= false then if (tonumber(h.JumpPower) or 0) < 1 then h.JumpPower = jp end end
         if (tonumber(h.JumpHeight) or 0) < 0.1 then local g = tonumber(workspace.Gravity) or 0 if g < 1 then g = 196.2 end
             h.JumpHeight = mvClamp((jp * jp) / (2 * g), 1, 500) end end) end function MV._JumpConfirm(y0) if not MV.infJump then return end local r2 = MV.Root() if not r2 then return end
-    local up = r2.Position.Y - y0 local v  = r2.AssemblyLinearVelocity local vy = MV.comp(v, "Y", 0)
-    if up < 0.4 and vy < 10 then        -- chưa nhúc nhích -> game đã bỏ qua lệnh nhảy
+    local up = r2.Position.Y - y0 local v  = r2.AssemblyLinearVelocity local vy = MV.comp(v, "Y", 0) if up < 0.4 and vy < 10 then        -- chưa nhúc nhích -> game đã bỏ qua lệnh nhảy
         pcall(function() r2.AssemblyLinearVelocity = Vector3.new( MV.comp(v, "X", 0), MV.WantJumpSpeed(), MV.comp(v, "Z", 0)) end)
     end end function MV._DoJump() if not MV.infJump then return false end local h, r = MV.Hum(), MV.Root() if not h or not r then return false end
     if h.Sit or h.PlatformStand then return false end      -- đang ngồi ghế/xe: không nhảy
@@ -1767,16 +1612,14 @@ end function MV._NcForgetLost() for p in pairs(MV._origCC) do if not (p and p.Pa
 function MV.SetInfJump(on) on = (on == true) if on == MV.infJump then return MV.infJump end MV.infJump = on
     if on then local h = MV.Hum() if h then MV._ijBaseJP, MV._ijBaseJH = h.JumpPower, h.JumpHeight end MV._JumpGuard()
         MV._ijConn  = trackConn(UserInputService.JumpRequest:Connect(function() pcall(MV._DoJump) end)) MV._ijConn2 = trackConn(UserInputService.InputBegan:Connect(function(i, gp)
-            if not MV.infJump then return end pcall(function() local tb = UserInputService:GetFocusedTextBox()
-                if tb and tb:IsDescendantOf(gui) then return end   -- đang gõ trong hub thì thôi
+            if not MV.infJump then return end pcall(function() local tb = UserInputService:GetFocusedTextBox() if tb and tb:IsDescendantOf(gui) then return end   -- đang gõ trong hub thì thôi
                 local k = i and i.KeyCode if k == Enum.KeyCode.Space or k == Enum.KeyCode.ButtonA then MV._DoJump() end end) end))
     else for _, c in ipairs({ MV._ijConn, MV._ijConn2 }) do if c then pcall(function() c:Disconnect() end) end end
         MV._ijConn, MV._ijConn2 = nil, nil local h = MV.Hum() if h then if MV._ijBaseJP ~= nil then pcall(function() h.JumpPower  = MV._ijBaseJP end) end
             if MV._ijBaseJH ~= nil then pcall(function() h.JumpHeight = MV._ijBaseJH end) end end MV._ijBaseJP, MV._ijBaseJH = nil, nil end
     MV._Watchdog() return MV.infJump end function MV.WantSpeed() if MV.speedMode == "x" then
         local base = tonumber(MV._baseWS) or 16 return mvClamp(base * mvClamp(MV.speedMul, 1, 20), 0, 500) end return mvClamp(MV.walkSpeed, 0, 500)
-end function MV.ApplyChar() local h = MV.Hum() if not h then return end if MV.speed then
-        local want = MV.WantSpeed() h.WalkSpeed = want MV.appliedWS = want if not MV.highJump then
+end function MV.ApplyChar() local h = MV.Hum() if not h then return end if MV.speed then local want = MV.WantSpeed() h.WalkSpeed = want MV.appliedWS = want if not MV.highJump then
             local jp = mvClamp(MV.jumpPower, 0, 500) if h.JumpPower ~= jp then h.JumpPower = jp end end else h.WalkSpeed  = MV._baseWS or 16
         if not MV.highJump then h.JumpPower  = MV._baseJP or 50 end MV.appliedWS = nil end end function MV.SpeedStep() local h = MV.Hum() if not h or not MV.speed then return end
     if MV.appliedWS ~= nil and math.abs((tonumber(h.WalkSpeed) or 0) - MV.appliedWS) > 0.01 then MV._baseWS = tonumber(h.WalkSpeed) or MV._baseWS
@@ -1784,10 +1627,8 @@ end function MV.ApplyChar() local h = MV.Hum() if not h then return end if MV.sp
     if on and not MV.speed and h then          -- chỉ nhớ mặc định ở lần BẬT đầu tiên
         MV._baseWS = h.WalkSpeed  or 16 MV._baseJP = h.JumpPower  or 50 end MV.speed = on MV.ApplyChar() MV._Watchdog() return MV.speed end
 function MV._NeedWatch() return (MV.fly or MV.noclip or MV.infJump or MV.speed or MV.runMode or MV.sprint or MV.highJump or (MV.Safe and MV.Safe.on)) == true end
-function MV._KeepAlive() if MV.speed or MV.runMode then pcall(MV.SpeedStep) end
-    if MV.sprint then pcall(MV._EnsureSpeed) if not MV._speedBound or (tick() - (MV._speedFrameAt or 0)) > 0.6 then
-            MV._speedBound = false pcall(MV._BindSpeed) pcall(MV._SpeedFrame) end
-    end if MV.infJump or MV.runMode then pcall(MV._JumpGuard) end if MV.highJump then pcall(MV._HighJumpApplyPower) end
+function MV._KeepAlive() if MV.speed or MV.runMode then pcall(MV.SpeedStep) end if MV.sprint then pcall(MV._EnsureSpeed) if not MV._speedBound or (tick() - (MV._speedFrameAt or 0)) > 0.6 then
+            MV._speedBound = false pcall(MV._BindSpeed) pcall(MV._SpeedFrame) end end if MV.infJump or MV.runMode then pcall(MV._JumpGuard) end if MV.highJump then pcall(MV._HighJumpApplyPower) end
     if MV.fly then pcall(MV._EnsureFly) if not MV._flyBound or (tick() - (MV._flyFrameAt or 0)) > 0.6 then MV._flyBound = false
             pcall(MV._BindFly) pcall(MV._FlyFrame) end end if MV.Safe and MV.Safe.on and (tick() - (MV.Safe._lastFrameAt or 0)) > 0.6 then
         MV.Safe._bound = false pcall(MV.Safe.Bind) pcall(MV.Safe.Step, 0.1) end end function MV._Watchdog() if not MV._NeedWatch() then MV._wdToken = nil local thread = MV._wd
@@ -1797,26 +1638,21 @@ function MV._KeepAlive() if MV.speed or MV.runMode then pcall(MV.SpeedStep) end
 do local FL = { x = 0, z = 0, y = 0, holds = {}, showHud = true, focused = true, conns = {} } MV.Flight = FL function MV.ClearFlyInput() FL.x, FL.z, FL.y = 0, 0, 0
     FL.holds, FL.joyInput, FL.dragInput = {}, nil, nil if FL.knob and FL.knob.Parent then FL.knob.Position = UDim2.new(0.5, -14, 0.5, -14) end
 end function MV.SetFlyVirtual(x, z, y) FL.x, FL.z, FL.y = mvClamp(x, -1, 1, 0), mvClamp(z, -1, 1, 0), mvClamp(y, -1, 1, 0) end
-function MV._RestoreFlyHum() local h = FL.hum if h and h.Parent then h.PlatformStand = FL.platformStand h.AutoRotate = FL.autoRotate
-    end FL.hum = nil end function MV._DestroyFlyParts()
+function MV._RestoreFlyHum() local h = FL.hum if h and h.Parent then h.PlatformStand = FL.platformStand h.AutoRotate = FL.autoRotate end FL.hum = nil end function MV._DestroyFlyParts()
     for _, key in ipairs({"_bv", "_bg", "_floor"}) do if MV[key] then MV[key]:Destroy(); MV[key] = nil end end end function MV._EnsureFly()
-    local r, h = MV.Root(), MV.Hum() if not MV.fly then return nil end if not r or not h or h.Health <= 0 then MV._DestroyFlyParts()
-        MV._RestoreFlyHum() MV.ClearFlyInput() FL.root = nil return nil
+    local r, h = MV.Root(), MV.Hum() if not MV.fly then return nil end if not r or not h or h.Health <= 0 then MV._DestroyFlyParts() MV._RestoreFlyHum() MV.ClearFlyInput() FL.root = nil return nil
     end if FL.root ~= r then MV._DestroyFlyParts() MV._RestoreFlyHum() MV.ClearFlyInput() FL.root = r end if FL.hum ~= h then MV._RestoreFlyHum()
-        FL.hum, FL.platformStand, FL.autoRotate = h, h.PlatformStand, h.AutoRotate end
-    if not MV._bv or MV._bv.Parent ~= r then if MV._bv then MV._bv:Destroy() end MV._bv = New("BodyVelocity", {
+        FL.hum, FL.platformStand, FL.autoRotate = h, h.PlatformStand, h.AutoRotate end if not MV._bv or MV._bv.Parent ~= r then if MV._bv then MV._bv:Destroy() end MV._bv = New("BodyVelocity", {
             Name = "BC_FlyVel", MaxForce = Vector3.new(1e9, 1e9, 1e9), Velocity = Vector3.zero, }, r) end if not MV._bg or MV._bg.Parent ~= r then
         if MV._bg then MV._bg:Destroy() end MV._bg = New("BodyGyro", { Name = "BC_FlyGyro", MaxTorque = Vector3.new(1e9, 1e9, 1e9), P = 1e4, D = 50, }, r)
-    end if h.PlatformStand ~= true then h.PlatformStand = true end if h.AutoRotate ~= false then h.AutoRotate = false end
-    if not MV._floor or not MV._floor.Parent then MV._floor = New("Part", {
+    end if h.PlatformStand ~= true then h.PlatformStand = true end if h.AutoRotate ~= false then h.AutoRotate = false end if not MV._floor or not MV._floor.Parent then MV._floor = New("Part", {
             Name = "BC_FlyFloor", Size = Vector3.new(6, 0.2, 6), Transparency = 0.7, Color = Color3.fromRGB(200, 230, 255), Material = Enum.Material.Glass,
             Anchored = true, CanCollide = false, CanTouch = false, CanQuery = false, }, workspace) end return r, h end
 function MV._ReadFlyInput(cf, h) if not FL.focused or UserInputService:GetFocusedTextBox() then return Vector3.zero end
     local x, z, y = FL.x, FL.z, FL.y local virtualDirection = FL.joyInput ~= nil or math.abs(x) + math.abs(z) > 0
     for _, v in pairs(FL.holds) do x = x + (v.X) ; y = y + (v.Y) ; z = z + (v.Z) if v.X ~= 0 or v.Z ~= 0 then virtualDirection = true end end
     local w = UserInputService:IsKeyDown(Enum.KeyCode.W) local s = UserInputService:IsKeyDown(Enum.KeyCode.S) local a = UserInputService:IsKeyDown(Enum.KeyCode.A)
-    local d = UserInputService:IsKeyDown(Enum.KeyCode.D) if w or s or a or d then
-        x, z = (d and 1 or 0) - (a and 1 or 0), (s and 1 or 0) - (w and 1 or 0) elseif not virtualDirection and h then
+    local d = UserInputService:IsKeyDown(Enum.KeyCode.D) if w or s or a or d then x, z = (d and 1 or 0) - (a and 1 or 0), (s and 1 or 0) - (w and 1 or 0) elseif not virtualDirection and h then
         local md = h.MoveDirection local right = Vector3.new(cf.RightVector.X, 0, cf.RightVector.Z)
         if right.Magnitude > 0.001 then right = right.Unit else right = Vector3.new(1, 0, 0) end local forward = Vector3.new(right.Z, 0, -right.X)
         x, z = md:Dot(right), -md:Dot(forward) end local up = UserInputService:IsKeyDown(Enum.KeyCode.Space)
@@ -1845,13 +1681,11 @@ function MV._StopFly() RunService:UnbindFromRenderStep("Fly") MV._flyBound = fal
 end function MV.SetFlyHud(on) FL.showHud = (on == true) if not FL.showHud then MV.ClearFlyInput() end
     MV.SyncHud() return FL.showHud end function MV._BuildFlyHud() if FL.hud and FL.hud.Parent then return FL.hud end
     for _, c in ipairs(FL.conns) do c:Disconnect() end FL.conns = {} MV.ClearFlyInput() local function connect(signal, callback)
-        local c = trackConn(signal:Connect(callback)) FL.conns[#FL.conns + 1] = c
-    end local hud = New("Frame", { Name = "BC_FlyHud", Size = UDim2.new(0, 246, 0, 152), Position = UDim2.new(0, 10, 1, -162),
+        local c = trackConn(signal:Connect(callback)) FL.conns[#FL.conns + 1] = c end local hud = New("Frame", { Name = "BC_FlyHud", Size = UDim2.new(0, 246, 0, 152), Position = UDim2.new(0, 10, 1, -162),
         BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.18, BorderSizePixel = 0, Visible = false, ZIndex = 25, }, gui) FL.hud = hud
     Corner(hud, UDim.new(0, 10)); Stroke(hud, C.HAIRLINE, 1) D.Shade(hud, Color3.fromRGB(255,255,255), Color3.fromRGB(188,192,205), 90)
     local title = New("TextLabel", { Name = "FlyHudTitle", Size = UDim2.new(1, -64, 0, 18), Position = UDim2.new(0, 8, 0, 2), Text = "🚀 Bay theo camera", Active = true, BackgroundTransparency = 1,
-        TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 9, ZIndex = 26, TextXAlignment = Enum.TextXAlignment.Left,
-    }, hud) local function button(name, text, x, y, w, h, color)
+        TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 9, ZIndex = 26, TextXAlignment = Enum.TextXAlignment.Left, }, hud) local function button(name, text, x, y, w, h, color)
         local b = New("TextButton", { Name = name, Text = text, Size = UDim2.new(0, w, 0, h), Position = UDim2.new(0, x, 0, y),
             BackgroundColor3 = color, TextColor3 = D.BestText(color), BackgroundTransparency = 0.15, Font = Enum.Font.GothamBold, TextSize = 9, BorderSizePixel = 0, ZIndex = 28,
         }, hud) Corner(b, UDim.new(0, 6)) return b end local hide = button("FlyHudHide", "👁", 190, 2, 22, 18, C.SURFACE3)
@@ -1874,16 +1708,14 @@ end function MV.SetFlyHud(on) FL.showHud = (on == true) if not FL.showHud then M
     hold("FlyDown", "⬇", 198, 68, 34, 38, Vector3.new(0, -1, 0), C.RED) local stopBtn = button("FlyHudStop", "⏹ Dừng", 168, 120, 68, 22, C.RED)
     connect(stopBtn.Activated, stop) FL.status = New("TextLabel", {
         Name = "FlyHudStatus", Size = UDim2.new(0, 154, 0, 30), Position = UDim2.new(0, 8, 0, 116), BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium, TextSize = 8, TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 26,
-    }, hud) connect(title.InputBegan, function(input)
-        if pointer(input) and not FL.dragInput then FL.dragInput, FL.dragStart, FL.dragPos = input, input.Position, hud.Position end end)
+    }, hud) connect(title.InputBegan, function(input) if pointer(input) and not FL.dragInput then FL.dragInput, FL.dragStart, FL.dragPos = input, input.Position, hud.Position end end)
     connect(UserInputService.InputChanged, function(input) if matches(FL.joyInput, input, true) then updateJoy(input.Position) end if matches(FL.dragInput, input, true) then
             local delta = input.Position - FL.dragStart hud.Position = UDim2.new(FL.dragPos.X.Scale, FL.dragPos.X.Offset + delta.X,
                 FL.dragPos.Y.Scale, FL.dragPos.Y.Offset + delta.Y) end end) connect(UserInputService.InputEnded, function(input)
         for held in pairs(FL.holds) do if matches(held, input, false) then FL.holds[held] = nil end end if matches(FL.joyInput, input, false) then
             FL.joyInput, FL.x, FL.z = nil, 0, 0 FL.knob.Position = UDim2.new(0.5, -11, 0.5, -11) end if matches(FL.dragInput, input, false) then FL.dragInput = nil end end)
     connect(UserInputService.WindowFocusReleased, function() FL.focused = false MV.ClearFlyInput() if MV._bv then MV._bv.Velocity = Vector3.zero end
-    end) connect(UserInputService.WindowFocused, function() FL.focused = true end) return hud end function MV.SyncFlyHud()
-    if MV.fly then MV._BuildFlyHud() end if FL.hud and FL.hud.Parent then
+    end) connect(UserInputService.WindowFocused, function() FL.focused = true end) return hud end function MV.SyncFlyHud() if MV.fly then MV._BuildFlyHud() end if FL.hud and FL.hud.Parent then
         FL.hud.Visible = MV.fly and FL.showHud FL.status.Text = string.format("💨 %g · 🧱 %s\nThả phím / cần: đứng lơ lửng", MV.flySpeed, MV.noclip and "BẬT" or "TẮT")
     end if S.SyncFlyPanel then S.SyncFlyPanel() end end end -- 🚀 BAY THEO CAMERA
 do local CS = { focused = true } MV.CamSpeed = CS function MV._DestroySpeedParts() if MV._sv then MV._sv:Destroy(); MV._sv = nil end end function MV._EnsureSpeed()
@@ -1895,8 +1727,7 @@ do local CS = { focused = true } MV.CamSpeed = CS function MV._DestroySpeedParts
         local mf = MV._sv.MaxForce if mf and (mf.Y ~= 0) then MV._sv.MaxForce = Vector3.new(1e9, 0, 1e9) end
     end return r, h end function MV._ReadSpeedInput(cf, h) if not CS.focused or UserInputService:GetFocusedTextBox() then return Vector3.zero end
     local x, z = 0, 0 local w = UserInputService:IsKeyDown(Enum.KeyCode.W) local s = UserInputService:IsKeyDown(Enum.KeyCode.S) local a = UserInputService:IsKeyDown(Enum.KeyCode.A)
-    local d = UserInputService:IsKeyDown(Enum.KeyCode.D) if w or s or a or d then
-        x, z = (d and 1 or 0) - (a and 1 or 0), (s and 1 or 0) - (w and 1 or 0) elseif h then local md = h.MoveDirection
+    local d = UserInputService:IsKeyDown(Enum.KeyCode.D) if w or s or a or d then x, z = (d and 1 or 0) - (a and 1 or 0), (s and 1 or 0) - (w and 1 or 0) elseif h then local md = h.MoveDirection
         local right = Vector3.new(cf.RightVector.X, 0, cf.RightVector.Z) if right.Magnitude > 0.001 then right = right.Unit else right = Vector3.new(1, 0, 0) end
         local forward = Vector3.new(right.Z, 0, -right.X) x, z = md:Dot(right), -md:Dot(forward) end return Vector3.new(x, 0, z)
 end function MV.SpeedVelocity(cf, input, speed) local look = Vector3.new(cf.LookVector.X, 0, cf.LookVector.Z)
@@ -1910,21 +1741,18 @@ end function MV.SpeedVelocity(cf, input, speed) local look = Vector3.new(cf.Look
     local cam = workspace.CurrentCamera if not cam then MV._sv.MaxForce = Vector3.new(0, 0, 0) MV._sv.Velocity = Vector3.zero return end
     local vel = MV.SpeedVelocity(cam.CFrame, MV._ReadSpeedInput(cam.CFrame, h), MV.sprintSpeed) if vel.Magnitude < 0.001 then MV._sv.MaxForce = Vector3.new(0, 0, 0)
         MV._sv.Velocity = Vector3.zero else MV._sv.MaxForce = Vector3.new(1e9, 0, 1e9) MV._sv.Velocity = Vector3.new(vel.X, 0, vel.Z)
-    end end function MV._SpeedFrame() local ok, err = pcall(MV._SpeedStep) if not ok then
-        CS.lastError = tostring(err) pcall(function() if MV._sv then MV._sv.Velocity = Vector3.zero end end)
+    end end function MV._SpeedFrame() local ok, err = pcall(MV._SpeedStep) if not ok then CS.lastError = tostring(err) pcall(function() if MV._sv then MV._sv.Velocity = Vector3.zero end end)
         if tick() - (CS.errorAt or -math.huge) > 2 then CS.errorAt = tick() warn("[taodepzai v5.0 NOIR] 💨 Tốc độ: " .. CS.lastError) end
     end end function MV._BindSpeed() if MV._speedBound or not MV.sprint then return end RunService:UnbindFromRenderStep("BC_Speed")
     RunService:BindToRenderStep("BC_Speed", Enum.RenderPriority.Camera.Value + 1, MV._SpeedFrame) MV._speedBound = true MV._speedFrameAt = tick() end
-function MV._StopSpeed() RunService:UnbindFromRenderStep("BC_Speed") MV._speedBound = false MV._DestroySpeedParts() CS.root = nil
-end function MV.SetSprint(on) on = (on == true) if on then
+function MV._StopSpeed() RunService:UnbindFromRenderStep("BC_Speed") MV._speedBound = false MV._DestroySpeedParts() CS.root = nil end function MV.SetSprint(on) on = (on == true) if on then
         local r, h = MV.Root(), MV.Hum() if not r or not h or h.Health <= 0 then return false, "chưa có nhân vật sống để chạy" end
         MV.sprint = true MV._EnsureSpeed() MV._BindSpeed() MV._SpeedFrame() else MV.sprint = false MV._StopSpeed() end MV._Watchdog()
     if S.SyncSpeedPanel then S.SyncSpeedPanel() end if S.SyncTunePanel then pcall(S.SyncTunePanel) end return MV.sprint end function MV.SetSprintSpeed(n)
     n = tonumber(n) if not n or n ~= n or n == math.huge or n == -math.huge then return false, "nhập tốc độ 1–2000" end
     MV.sprintSpeed = mvClamp(n, 1, 2000, 50) if S.SyncSpeedPanel then S.SyncSpeedPanel() end if S.SyncTunePanel then pcall(S.SyncTunePanel) end return true, MV.sprintSpeed end
 end -- 💨 TỐC ĐỘ THEO CAMERA
-do local HJ = { last = 0 } MV.HighJump = HJ
-function MV.WantJumpSpeed() if MV.highJump then return mvClamp(MV.highJumpSpeed, 1, 500, 80) end return mvClamp(MV.jumpPower, 1, 500, 50) end
+do local HJ = { last = 0 } MV.HighJump = HJ function MV.WantJumpSpeed() if MV.highJump then return mvClamp(MV.highJumpSpeed, 1, 500, 80) end return mvClamp(MV.jumpPower, 1, 500, 50) end
 function MV.HighJumpVelocity(current, speed) local vx = MV.comp(current, "X", 0) local vz = MV.comp(current, "Z", 0) return Vector3.new(vx, mvClamp(speed, 1, 500, 80), vz)
 end function MV._HighJumpApplyPower() if not MV.highJump then return end local h = MV.Hum() if not h then return end
     local jp = mvClamp(MV.highJumpSpeed, 1, 500, 80) pcall(function() if h.UseJumpPower ~= false then if (tonumber(h.JumpPower) or 0) ~= jp then h.JumpPower = jp end
@@ -1944,8 +1772,7 @@ function MV._HighJumpUnbind() for _, c in ipairs({ HJ.conn, HJ.conn2 }) do if c 
         if h then HJ.baseJP, HJ.baseJH = h.JumpPower, h.JumpHeight end MV.highJump = true MV._HighJumpApplyPower() MV._HighJumpBind() else MV.highJump = false
         MV._HighJumpUnbind() if h and not MV.infJump then if HJ.baseJP ~= nil then pcall(function() h.JumpPower = HJ.baseJP end) end
             if HJ.baseJH ~= nil then pcall(function() h.JumpHeight = HJ.baseJH end) end end HJ.baseJP, HJ.baseJH = nil, nil end
-    MV._Watchdog() if S.SyncHighJumpPanel then S.SyncHighJumpPanel() end if S.SyncTunePanel then pcall(S.SyncTunePanel) end return MV.highJump end
-function MV.SetHighJumpSpeed(n) n = tonumber(n)
+    MV._Watchdog() if S.SyncHighJumpPanel then S.SyncHighJumpPanel() end if S.SyncTunePanel then pcall(S.SyncTunePanel) end return MV.highJump end function MV.SetHighJumpSpeed(n) n = tonumber(n)
     if not n or n ~= n or n == math.huge or n == -math.huge then return false, "nhập tốc độ nhảy 1–500" end MV.highJumpSpeed = mvClamp(n, 1, 500, 80)
     if MV.highJump then pcall(MV._HighJumpApplyPower) end if S.SyncHighJumpPanel then S.SyncHighJumpPanel() end
     if S.SyncTunePanel then pcall(S.SyncTunePanel) end return true, MV.highJumpSpeed end end -- 🦘 NHẢY CAO
@@ -1982,8 +1809,7 @@ do MV.Safe = { on = false, auto = true,        -- ➡ tự bay (không bấm gì
     if not okC then return false end return (cls == "Part" or cls == "MeshPart" or cls == "WedgePart" or cls == "TrussPart"
             or cls == "CornerWedgePart" or cls == "UnionOperation" or cls == "NegateOperation" or cls == "IntersectOperation" or cls == "Ball" or cls == "Cylinder"
             or cls == "SpawnLocation" or cls == "Seat" or cls == "VehicleSeat" or cls == "Platform") end
-local function sfIgnore(d, char) local nm = tostring(d.Name or "") if nm:sub(1, 3) == "BC_" then return true end
-    if char and d:IsDescendantOf(char) then return true end local floor = MV._floor
+local function sfIgnore(d, char) local nm = tostring(d.Name or "") if nm:sub(1, 3) == "BC_" then return true end if char and d:IsDescendantOf(char) then return true end local floor = MV._floor
     if floor and floor.Parent and d:IsDescendantOf(floor) then return true end return false end local function sfOverlap(char)
     if SF._op and SF._opChar == char then return SF._op end local ok, op = pcall(function() return OverlapParams.new() end) if not ok or op == nil then return nil end
     pcall(function() op.MaxParts = 0 end)                                  -- 0 = không giới hạn
@@ -1994,8 +1820,7 @@ local function sfIgnore(d, char) local nm = tostring(d.Name or "") if nm:sub(1, 
     local op0 = sfOverlap(char0) local okL, list = pcall(function() return workspace:GetPartBoundsInRadius(pos, r0, op0) end)
     if not okL then okL, list = pcall(function() return workspace:GetPartBoundsInRadius(pos, r0) end) end if okL and type(list) == "table" then return list end SF._listAcc = (SF._listAcc or 0) + (dt or 0.15)
     if not SF._cache or SF._listAcc >= 2 then SF._listAcc = 0 local out = {} local ok2, desc = pcall(function() return workspace:GetDescendants() end)
-        if ok2 and type(desc) == "table" then for _, d in ipairs(desc) do if #out >= 600 then break end if sfIsPart(d) then out[#out + 1] = d end
-            end end SF._cache = out end return SF._cache or {}
+        if ok2 and type(desc) == "table" then for _, d in ipairs(desc) do if #out >= 600 then break end if sfIsPart(d) then out[#out + 1] = d end end end SF._cache = out end return SF._cache or {}
 end local function sfPlayers(pos, rad, rep0, near0) local rep, n, near = rep0, 0, near0 if not SF.avoidPlayers then return rep, n, near end
     local char = MV.Char() local ok, list = pcall(function() return Players:GetPlayers() end)
     if not ok or type(list) ~= "table" then return rep, n, near end for _, pl in ipairs(list) do if pl ~= player then local ch = pl.Character if ch and ch ~= char then
@@ -2009,13 +1834,11 @@ end local function sfPlayers(pos, rad, rep0, near0) local rep, n, near = rep0, 0
     local pchars = {} local pls = Players:GetPlayers() if type(pls) == "table" then for _, pl in ipairs(pls) do
             if pl ~= player then local ch2 = pl.Character if ch2 ~= nil and ch2 ~= char then pchars[ch2] = true end end end
     end local hasPChar = (next(pchars) ~= nil) local function inPChar(d) if not hasPChar then return false end
-        for ch2 in pairs(pchars) do if d:IsDescendantOf(ch2) then return true end end return false end
-    SF._mvCount = 0                       -- v4.20: đếm vật ĐANG CHẠY trong tầm (để soi trạng thái)
+        for ch2 in pairs(pchars) do if d:IsDescendantOf(ch2) then return true end end return false end SF._mvCount = 0                       -- v4.20: đếm vật ĐANG CHẠY trong tầm (để soi trạng thái)
     for _, d in ipairs(sfCandidates(pos, dt, reach)) do if sfIsPart(d) and not sfIgnore(d, char) and not inPChar(d) then
             local p = d.Position if p then local delta = p - pos local dist = delta.Magnitude
                 local rr = 0 local sz = d.Size if sz then local mx = math.max(sz.X, sz.Y, sz.Z) if type(mx) == "number" then rr = mx * 0.5 end
-                end if rr > rad * 0.75 then rr = rad * 0.75 end local surf = dist - rr if surf < 0 then surf = 0 end if surf <= reach and dist > 0.01 then
-                    local dir = delta / dist                 -- hướng TỚI vật
+                end if rr > rad * 0.75 then rr = rad * 0.75 end local surf = dist - rr if surf < 0 then surf = 0 end if surf <= reach and dist > 0.01 then local dir = delta / dist                 -- hướng TỚI vật
                     local moving, closing = false, 0 local v = d.AssemblyLinearVelocity if v and v.Magnitude then if v.Magnitude > 1.5 then moving = true end
                         closing = -(v.X * dir.X + v.Y * dir.Y + v.Z * dir.Z) end local old = SF._seen[d] if old then local dd = (p - old.p).Magnitude
                         local ddt = math.max(now - old.t, 0.02) if dd > 0.35 or (dd / ddt) > 1.5 then moving = true end
@@ -2034,13 +1857,11 @@ end local function sfPlayers(pos, rad, rep0, near0) local rep, n, near = rep0, 0
         SF._lastThreatAt = now                                     -- v4.20: nhớ vừa bị gí (để né tiếp)
         if rep.Magnitude > 0 then SF._lastRep = rep end            -- nhớ HƯỚNG đang né
     end return n, near, rep end function MV.Safe.KillShield() for i = 1, 4 do local w = SF._shield and SF._shield[i] if w then pcall(function() w:Destroy() end) end
-    end SF._shield, SF._shieldPos = nil, nil end function MV.Safe.ShieldHalf() local n = tonumber(SF.shieldSize)
-    if n and n > 0 then return mvClamp(n, 0.5, 300, 3) end          -- chỉnh tay
+    end SF._shield, SF._shieldPos = nil, nil end function MV.Safe.ShieldHalf() local n = tonumber(SF.shieldSize) if n and n > 0 then return mvClamp(n, 0.5, 300, 3) end          -- chỉnh tay
     local w = 2 local r = MV.Root() if r then pcall(function() w = math.max(tonumber(r.Size.X) or 2, tonumber(r.Size.Z) or 2) end) end
     return mvClamp(w * 0.5 + 1.6, 2, 8, 3)                          -- người thường: 2,6 stud (cạnh ~5,2)
 end function MV.Safe.ShieldHeight() local n = tonumber(SF.shieldH) if n and n > 0 then return mvClamp(n, 1, 100, 8) end
-    local hh = 2 local r = MV.Root() if r then pcall(function() hh = tonumber(r.Size.Y) or 2 end) end
-    return mvClamp(hh * 3 + 2, 4, 14, 8)                            -- người thường: 8 stud
+    local hh = 2 local r = MV.Root() if r then pcall(function() hh = tonumber(r.Size.Y) or 2 end) end return mvClamp(hh * 3 + 2, 4, 14, 8)                            -- người thường: 8 stud
 end function MV.Safe.BuildShield() MV.Safe.KillShield() local side, h = MV.Safe.ShieldHalf(), MV.Safe.ShieldHeight()
     local thk = SF.shieldThk SF._shield = {} for i = 1, 4 do local long = (i <= 2) local w = New("Part", { Name = "BC_Shield" .. i,
             Size = long and Vector3.new(side * 2 + thk, h, thk) or Vector3.new(thk, h, side * 2 + thk), Transparency = SF.shieldT, Color = Color3.fromRGB(120, 225, 255),
@@ -2062,8 +1883,7 @@ end function MV.Safe.BuildShield() MV.Safe.KillShield() local side, h = MV.Safe.
     if h then if SF._hum ~= h then SF._hum = h pcall(function() SF._platformStandPrev = h.PlatformStand end) pcall(function() SF._autoRotatePrev = h.AutoRotate end) end
         pcall(function() h.PlatformStand = true end) pcall(function() h.AutoRotate = false end) end return bv, bg end
 function MV.Safe._RestoreHum() local h = SF._hum if h and h.Parent then if SF._platformStandPrev ~= nil then
-            pcall(function() h.PlatformStand = SF._platformStandPrev end) end if SF._autoRotatePrev ~= nil then
-            pcall(function() h.AutoRotate = SF._autoRotatePrev end) end end SF._hum = nil
+            pcall(function() h.PlatformStand = SF._platformStandPrev end) end if SF._autoRotatePrev ~= nil then pcall(function() h.AutoRotate = SF._autoRotatePrev end) end end SF._hum = nil
     SF._platformStandPrev = nil SF._autoRotatePrev = nil end function MV.Safe.Repair() local r = MV.Root()
     if not r then return false end local bv, bg = MV.Safe._EnsureBV() if not bv or MV.Root() ~= r then return false
     end MV.flySpeed = mvClamp(SF.speed, 1, 2000, 60) return true end function MV.Safe.Bind()
@@ -2105,13 +1925,11 @@ end function MV.Safe._Frame(dt) pcall(MV.Safe.Step, dt) end function MV.Safe.Ste
     if on == true and MV.fly then MV.SetFly(false) end -- không để hai BodyVelocity tranh lực
     SF.on = (on == true) if SF.on then if SF.noclip and SF._ncPrev == nil then
             if MV._glassFlyActive == true and MV._glassFlyNcPrev ~= nil then SF._ncPrev = MV._glassFlyNcPrev else SF._ncPrev = MV.noclip == true
-            end pcall(function() MV.SetNoclip(true) end) end pcall(MV.Safe._EnsureBV) MV.flySpeed = mvClamp(SF.speed, 1, 2000, 60)
-        SF._root = MV.Root() pcall(MV._Watchdog) SF._lastFrameAt = tick()
+            end pcall(function() MV.SetNoclip(true) end) end pcall(MV.Safe._EnsureBV) MV.flySpeed = mvClamp(SF.speed, 1, 2000, 60) SF._root = MV.Root() pcall(MV._Watchdog) SF._lastFrameAt = tick()
         pcall(MV.Safe.Bind) pcall(function() MV.Safe.UpdateShield(MV.Root() and MV.Root().Position or Vector3.new(0, 0, 0)) end)
         pcall(function() MV.Safe.SyncHud() end) else pcall(MV.Safe.Unbind) MV.Safe.Reset()
         pcall(function() MV.Safe.ClearVirt() end) pcall(function() if SF._bv then SF._bv:Destroy() end end) pcall(function() if SF._bg then SF._bg:Destroy() end end)
-        SF._bv, SF._bg = nil, nil if not MV.fly then pcall(MV.Safe._RestoreHum) end
-        MV.Safe.KillShield() SF._root = nil if SF._ncPrev ~= nil then local was = SF._ncPrev SF._ncPrev = nil
+        SF._bv, SF._bg = nil, nil if not MV.fly then pcall(MV.Safe._RestoreHum) end MV.Safe.KillShield() SF._root = nil if SF._ncPrev ~= nil then local was = SF._ncPrev SF._ncPrev = nil
             local stillFlying = (MV._glassFlyActive == true) or (MV._playerFlyActive == true) if not stillFlying then
                 pcall(function() MV.SetNoclip(was) end) end end pcall(function() MV.Safe.SyncHud() end)
     end return SF.on end function MV.Safe.SetNoclipAuto(b) SF.noclip = (b == true) if SF.on then if SF.noclip then if SF._ncPrev == nil then
@@ -4145,6 +3963,87 @@ function OT.RebuildKeys() local keys, paths = {}, {} local function push(raw) ra
     OT.RebuildKeys() if #OT.keys == 0 and #(OT.pathKeys or {}) == 0 then OT.Set(false) elseif OT.on then
         pcall(OT.Rescan, true) end if OT.RefreshTags then pcall(OT.RefreshTags) end return true, raw end
 function OT.ClearEntries() OT.entries = {} OT.query = "" OT._tagSig = nil OT.RebuildKeys() if OT.RefreshTags then pcall(OT.RefreshTags) end end
+OT.savedList = (type(Store) == "table" and type(Store.savedObjTracks) == "table") and Store.savedObjTracks or {}
+function OT.SyncStore() if type(Store) == "table" then Store.savedObjTracks = OT.savedList pcall(Store.save) end end
+local function pushUniqueEntry(list, raw, kind) raw = tostring(raw or ""):gsub("^%s+", ""):gsub("%s+$", "") if raw == "" then return false end
+    local key = OT.EntryKey(raw) for i = 1, #list do if OT.EntryKey(list[i].raw) == key then return false end end
+    if not kind then kind = OT.IsPathLike(raw) and "path" or "name" if kind == "path" then local ok, inst = pcall(OT.ResolvePath, key) if not ok or inst == nil then kind = "name" end end end
+    list[#list + 1] = { raw = raw, kind = kind } return true end
+function OT.Save(rawOrTarget, autoLoad) local savedEntries, title, queryStr, savedPath, savedPos = {}, "", "", nil, nil
+    if type(rawOrTarget) == "table" and rawOrTarget.ClassName ~= nil then local inst = rawOrTarget local nm = tostring(inst.Name or ""):gsub("^%s+", ""):gsub("%s+$", "")
+        if nm == "" then return false, "vật không có tên hợp lệ" end savedPath = OT.PathOf(inst) local part = OT.PartOf(inst)
+        if part then pcall(function() local p = part.Position savedPos = { x = p.X, y = p.Y, z = p.Z } end) end
+        pushUniqueEntry(savedEntries, nm, "name") if savedPath and savedPath ~= "" and savedPath ~= "nil" then pushUniqueEntry(savedEntries, savedPath, "path") end
+        pushUniqueEntry(OT.entries, nm, "name") title = nm queryStr = nm
+    elseif type(rawOrTarget) == "table" then if type(rawOrTarget.entries) == "table" then for _, e in ipairs(rawOrTarget.entries) do
+                if type(e) == "table" and e.raw then pushUniqueEntry(savedEntries, e.raw, e.kind) elseif type(e) == "string" then pushUniqueEntry(savedEntries, e, nil) end end end
+        queryStr = tostring(rawOrTarget.query or ""):gsub("^%s+", ""):gsub("%s+$", "")
+        if #savedEntries == 0 and queryStr ~= "" then for part in queryStr:gmatch("[^,;]+") do pushUniqueEntry(savedEntries, part, nil) end end
+        for _, e in ipairs(savedEntries) do pushUniqueEntry(OT.entries, e.raw, e.kind) end
+        title = tostring(rawOrTarget.title or queryStr or "") if title == "" and #savedEntries > 0 then local t = {} for i = 1, #savedEntries do t[i] = savedEntries[i].raw end title = table.concat(t, ", ") end
+    else local raw = tostring(rawOrTarget or ""):gsub("^%s+", ""):gsub("%s+$", "")
+        if raw == "" and tostring(OT.query or ""):gsub("^%s+", ""):gsub("%s+$", "") ~= "" then raw = tostring(OT.query):gsub("^%s+", ""):gsub("%s+$", "") end
+        if raw ~= "" then for part in raw:gmatch("[^,;]+") do local p = part:gsub("^%s+", ""):gsub("%s+$", "")
+                if p ~= "" then pushUniqueEntry(savedEntries, p, nil) pushUniqueEntry(OT.entries, p, nil) end end
+            if #savedEntries == 0 then pushUniqueEntry(savedEntries, raw, nil) pushUniqueEntry(OT.entries, raw, nil) end
+            title = raw queryStr = raw
+        elseif #OT.entries > 0 then local t = {} for i = 1, #OT.entries do local e = OT.entries[i] pushUniqueEntry(savedEntries, e.raw, e.kind) t[#t + 1] = tostring(e.raw) end
+            title = table.concat(t, ", ") queryStr = title
+        elseif OT._sel ~= nil and OT._sel.Parent ~= nil then return OT.Save(OT._sel, autoLoad)
+        elseif #OT.savedList > 0 then local last = OT.savedList[#OT.savedList] if type(last) == "table" then
+                for _, e in ipairs(last.entries or {}) do if type(e) == "table" then pushUniqueEntry(savedEntries, e.raw, e.kind) end end
+                title = tostring(last.title or last.query or "Mục lưu") queryStr = tostring(last.query or title) end end end
+    if #savedEntries == 0 then return false, "chưa nhập tên vật hoặc ghim mục nào để lưu" end
+    local idx = #OT.savedList + 1 local stamp = "" pcall(function() stamp = os.date("%H:%M:%S") end)
+    local item = { id = math.floor((tonumber(tick()) or 0) * 1000) + idx, slot = idx, title = title, query = queryStr, entries = savedEntries,
+        path = savedPath, pos = savedPos, color = tonumber(OT.color) or 1, maxDist = tonumber(OT.maxDist) or 0, showBox = (OT.showBox == true),
+        thru = (OT.thru ~= false), showLabel = (OT.showLabel ~= false), showXYZ = (OT.showXYZ ~= false), skipPlayers = (OT.skipPlayers ~= false),
+        autoLoad = (autoLoad == true), savedAt = stamp }
+    OT.savedList[idx] = item OT._tagSig = nil OT._savedSig = nil OT.RebuildKeys() OT.on = true OT._fastUntil = tick() + 4 OT.Bind()
+    pcall(OT.Rescan, true) OT.SyncStore() if OT.RefreshTags then pcall(OT.RefreshTags) end
+    if OT.RefreshSavedUI then pcall(OT.RefreshSavedUI) end if OT.RefreshList then pcall(OT.RefreshList) end return true, item, idx end
+function OT.UseSaved(idx, appendMode) idx = tonumber(idx) or 0 local item = OT.savedList[idx]
+    if type(item) ~= "table" then return false, "mục lưu #" .. tostring(idx) .. " không tồn tại" end
+    if not appendMode then OT.entries = {} OT.query = "" if tonumber(item.color) then OT.color = tonumber(item.color) end
+        if tonumber(item.maxDist) then OT.maxDist = tonumber(item.maxDist) end if type(item.showBox) == "boolean" then OT.showBox = item.showBox end
+        if type(item.thru) == "boolean" then OT.thru = item.thru end if type(item.showLabel) == "boolean" then OT.showLabel = item.showLabel end
+        if type(item.showXYZ) == "boolean" then OT.showXYZ = item.showXYZ end if type(item.skipPlayers) == "boolean" then OT.skipPlayers = item.skipPlayers end
+        pcall(OT.ApplyStyle) end
+    if type(item.entries) == "table" and #item.entries > 0 then for _, e in ipairs(item.entries) do
+            if type(e) == "table" and e.raw then pushUniqueEntry(OT.entries, e.raw, e.kind) elseif type(e) == "string" then pushUniqueEntry(OT.entries, e, nil) end end
+    elseif type(item.query) == "string" and item.query ~= "" then for part in item.query:gmatch("[^,;]+") do pushUniqueEntry(OT.entries, part, nil) end end
+    OT._tagSig = nil OT.RebuildKeys() OT.on = true OT._fastUntil = tick() + 4 OT.Bind() pcall(OT.Rescan, true)
+    if OT.RefreshTags then pcall(OT.RefreshTags) end if OT.RefreshSavedUI then pcall(OT.RefreshSavedUI) end if OT.RefreshList then pcall(OT.RefreshList) end
+    return true, item end
+function OT.UseAllSaved(appendMode) if #OT.savedList == 0 then return false, "chưa có mục định vị vật nào được lưu" end
+    if not appendMode then OT.entries = {} OT.query = "" end
+    for i = 1, #OT.savedList do local item = OT.savedList[i] if type(item) == "table" then
+            if type(item.entries) == "table" and #item.entries > 0 then for _, e in ipairs(item.entries) do
+                    if type(e) == "table" and e.raw then pushUniqueEntry(OT.entries, e.raw, e.kind) elseif type(e) == "string" then pushUniqueEntry(OT.entries, e, nil) end end
+            elseif type(item.query) == "string" and item.query ~= "" then for part in item.query:gmatch("[^,;]+") do pushUniqueEntry(OT.entries, part, nil) end end end end
+    OT._tagSig = nil OT.RebuildKeys() OT.on = true OT._fastUntil = tick() + 4 OT.Bind() pcall(OT.Rescan, true)
+    if OT.RefreshTags then pcall(OT.RefreshTags) end if OT.RefreshSavedUI then pcall(OT.RefreshSavedUI) end if OT.RefreshList then pcall(OT.RefreshList) end
+    return true, #OT.savedList end
+function OT.ToggleAutoSaved(idx) idx = tonumber(idx) or 0 local item = OT.savedList[idx]
+    if type(item) ~= "table" then return false, "mục lưu không tồn tại" end item.autoLoad = not (item.autoLoad == true)
+    OT._savedSig = nil OT.SyncStore() if OT.RefreshSavedUI then pcall(OT.RefreshSavedUI) end return true, item.autoLoad, item end
+function OT.RemoveSaved(idx) idx = tonumber(idx) or 0 local item = OT.savedList[idx]
+    if type(item) ~= "table" then return false, "mục lưu không tồn tại" end table.remove(OT.savedList, idx)
+    for i = 1, #OT.savedList do if type(OT.savedList[i]) == "table" then OT.savedList[i].slot = i end end
+    OT._savedSig = nil OT.SyncStore() if OT.RefreshSavedUI then pcall(OT.RefreshSavedUI) end return true, item end
+function OT.ClearSaved() local n = #OT.savedList OT.savedList = {} OT._savedSig = nil OT.SyncStore()
+    if OT.RefreshSavedUI then pcall(OT.RefreshSavedUI) end return true, n end
+function OT.AutoRestoreSaved() local count = 0 for i = 1, #OT.savedList do local item = OT.savedList[i]
+        if type(item) == "table" and item.autoLoad == true then count = count + 1
+            if type(item.entries) == "table" and #item.entries > 0 then for _, e in ipairs(item.entries) do
+                    if type(e) == "table" and e.raw then pushUniqueEntry(OT.entries, e.raw, e.kind) elseif type(e) == "string" then pushUniqueEntry(OT.entries, e, nil) end end
+            elseif type(item.query) == "string" and item.query ~= "" then for part in item.query:gmatch("[^,;]+") do pushUniqueEntry(OT.entries, part, nil) end end end end
+    if count > 0 then OT._tagSig = nil OT.RebuildKeys() OT.on = true OT._fastUntil = tick() + 4 OT.Bind() pcall(OT.Rescan, true)
+        if OT.RefreshTags then pcall(OT.RefreshTags) end if OT.RefreshSavedUI then pcall(OT.RefreshSavedUI) end if OT.RefreshList then pcall(OT.RefreshList) end end
+    return count end
+if type(Store) == "table" then Store.restoreObjTracks = function()
+        OT.savedList = type(Store.savedObjTracks) == "table" and Store.savedObjTracks or {} OT._savedSig = nil
+        if OT.RefreshSavedUI then pcall(OT.RefreshSavedUI) end end end
 function OT.Matches(name) local n = OT.Norm(name) if n == "" or #OT.keys == 0 then return false end for i = 1, #OT.keys do
         if n:find(OT.keys[i], 1, true) then return true end end return false end
 function OT.PartOf(inst, depth) if inst == nil then return nil end depth = tonumber(depth) or 0 if depth > 4 then return nil end
@@ -4343,16 +4242,15 @@ function OT.Status() if #OT.keys == 0 and #(OT.pathKeys or {}) == 0 then return 
 function OT.OnFlyChange() if OT.RefreshList then pcall(OT.RefreshList) end end end
 (function() local OT = S.ObjTrack
     local function otRound(n) return math.floor((tonumber(n) or 0) + 0.5) end local function otAlive(inst) return inst ~= nil and inst.Parent ~= nil end
-    local P = New("Frame", { Name = "HubObjTrack_Panel", Size = UDim2.new(1, -16, 0, 452), Position = UDim2.new(0, 8, 0, D.playerY or 46),
+    local P = New("Frame", { Name = "HubObjTrack_Panel", Size = UDim2.new(1, -16, 0, 540), Position = UDim2.new(0, 8, 0, D.playerY or 46),
         LayoutOrder = 4, BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, BorderSizePixel = 0, ZIndex = 6,
-    }, D.playerTab) D.playerY = (D.playerY or 46) + 452 + 8
+    }, D.playerTab) D.playerY = (D.playerY or 46) + 540 + 8
     Corner(P, UDim.new(0, 10)) Stroke(P, C.HAIRLINE, 1) D.Shade(P, Color3.fromRGB(255, 255, 255), Color3.fromRGB(188, 192, 205), 90)
     New("TextLabel", { Size = UDim2.new(1, -16, 0, 14), Position = UDim2.new(0, 8, 0, 4),
-        Text = "🌳 ĐỊNH VỊ VẬT THEO TÊN (nhập tên là thấy MỌI vật khớp · bám theo vật đang di chuyển)", BackgroundTransparency = 1, TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 10,
+        Text = "🌳 ĐỊNH VỊ VẬT THEO TÊN (nhập tên là thấy MỌI vật khớp · 💾 Lưu lại nhiều lần · bám theo vật)", BackgroundTransparency = 1, TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 10,
         TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7, }, P)
     New("TextLabel", { Size = UDim2.new(1, -16, 0, 22), Position = UDim2.new(0, 8, 0, 20),
-        Text = "Gõ tên vật vào ô 🔎 (VD: cây, đá, rương). Nhiều tên thì cách nhau dấu phẩy. Giống tên không cần dấu: gõ " .. "\"cay\" vẫn khớp \"Cây\". Bấm Enter (hoặc ➕ Thêm mục) để GHIM lại thành 1 mục — ghim được "
-            .. "NHIỀU mục cùng lúc, mỗi mục có nút ✕ để xoá riêng. Vật mới xuất hiện hay bị xoá đều tự cập nhật.", TextWrapped = true, BackgroundTransparency = 1, TextColor3 = C.MUTED,
+        Text = "Gõ tên vật vào ô 🔎 (VD: cây, đá, rương). Nhiều tên thì cách nhau dấu phẩy. Bấm 💾 Lưu để lưu lại (có thể lưu NHIỀU LẦN liên tiếp). Bấm Enter (hoặc ➕ Thêm mục) để GHIM chạy nhiều mục cùng lúc.", TextWrapped = true, BackgroundTransparency = 1, TextColor3 = C.MUTED,
         Font = Enum.Font.GothamMedium, TextSize = 8, TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, ZIndex = 7, }, P)
     local function otAct(txt, x, y, w, color) local b = New("TextButton", {
             Size = UDim2.new(0, w, 0, 18), Position = UDim2.new(0, x, 0, y), Text = txt, BackgroundColor3 = color, TextColor3 = D.BestText(color),
@@ -4365,8 +4263,10 @@ function OT.OnFlyChange() if OT.RefreshList then pcall(OT.RefreshList) end end e
             Text = txt, PlaceholderText = ph or "", ClearTextOnFocus = false, BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.1, TextColor3 = C.DARK,
             PlaceholderColor3 = C.GRAY, Font = Enum.Font.GothamMedium, TextSize = 9, TextXAlignment = Enum.TextXAlignment.Left, BorderSizePixel = 0, ZIndex = 7,
         }, P) Corner(box, UDim.new(0, 5)) New("UIPadding", { PaddingLeft = UDim.new(0, 6) }, box) return box end
-    otLab("🔎 Tên vật:", 8, 46, 66) local queryIn = otInput(S.ObjTrack.query or "", 76, 46, 210, "VD: cây, đá, rương...")
-    local toggleBtn = otAct("🌳 Định vị: TẮT", 292, 46, 108, C.GREEN) local rescanBtn = otAct("🔄 Quét lại", 404, 46, 88, C.BLUE)
+    otLab("🔎 Tên vật:", 8, 46, 58) local queryIn = otInput(S.ObjTrack.query or "", 68, 46, 146, "VD: cây, đá, rương...")
+    local saveBtn = otAct("💾 Lưu", 218, 46, 50, C.BLUE) saveBtn.Name = "OTSaveBtn"
+    local saveAutoBtn = otAct("⚡ Lưu Tự Bật", 272, 46, 72, C.YELLOW) saveAutoBtn.Name = "OTSaveAutoBtn"
+    local toggleBtn = otAct("🌳 Định vị: TẮT", 348, 46, 86, C.GREEN) local rescanBtn = otAct("🔄 Quét lại", 438, 46, 66, C.BLUE)
     local boxBtn = otAct("🔲 Hộp: TẮT", 8, 70, 74, C.SURFACE3) local thruBtn = otAct("🕶 Xuyên tường: BẬT", 86, 70, 112, C.GREEN)
     local labelBtn = otAct("💬 Nhãn: BẬT", 202, 70, 82, C.GREEN) local colorBtn = otAct("🎨 " .. S.ObjTrack.Pal().name, 288, 70, 118, C.PURPLE)
     local clearBtn = otAct("🧹 Xoá hết", 410, 70, 82, C.RED)
@@ -4378,6 +4278,7 @@ function OT.OnFlyChange() if OT.RefreshList then pcall(OT.RefreshList) end end e
         Text = S.ObjTrack.Status(), BackgroundTransparency = 1, TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 9,
         TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7, }, P)
     local xyzBtn = otAct("🧭 Nhãn toạ độ: BẬT", 8, 138, 136, C.GREEN) local skipBtn = otAct("🚫 Bỏ qua người chơi: BẬT", 148, 138, 156, C.GREEN)
+    local savePinnedBtn = otAct("💾 Lưu các mục ghim", 308, 138, 110, C.BLUE) savePinnedBtn.Name = "OTSavePinned"
     S.ObjTrack.BuildTagsUI = function() local tagsY = 162 local addBtn = otAct("➕ Thêm mục", 8, tagsY, 96, C.ACCENT) addBtn.Name = "OTAdd"
         local tags = New("ScrollingFrame", { Name = "OTTags",
             Size = UDim2.new(1, -118, 0, 24), Position = UDim2.new(0, 108, 0, tagsY), BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.25, BorderSizePixel = 0,
@@ -4407,11 +4308,78 @@ function OT.OnFlyChange() if OT.RefreshList then pcall(OT.RefreshList) end end e
             if okA then queryIn.Text = "" S.ObjTrack.SetQuery("") D.Say("➕ đã thêm mục '" .. raw .. "' — đang chạy cùng " ..
                       tostring(#S.ObjTrack.entries) .. " mục", C.GREEN) else D.Say("⚠️ " .. tostring(kindOrWhy), C.RED) end
             pcall(S.ObjTrack.RefreshTags) pcall(S.ObjTrack.RefreshList) end) end S.ObjTrack.BuildTagsUI()
-    local list = New("ScrollingFrame", { Name = "ObjTrackList", Size = UDim2.new(1, -16, 0, 94), Position = UDim2.new(0, 8, 0, 194),
+    S.ObjTrack.BuildSavedUI = function() local savedY = 190
+        local savedCountLbl = New("TextLabel", { Name = "OTSavedCountLbl", Size = UDim2.new(1, -236, 0, 18), Position = UDim2.new(0, 8, 0, savedY),
+            Text = "💾 Đã lưu (0 lần — bấm 💾 Lưu để lưu nhiều lần):", BackgroundTransparency = 1, TextColor3 = C.ACCENT,
+            Font = Enum.Font.GothamBold, TextSize = 8, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7, }, P)
+        local useAllBtn = otAct("▶ Dùng hết", 282, savedY, 68, C.GREEN) useAllBtn.Name = "OTUseAllSavedBtn"
+        local appendAllBtn = otAct("➕ Ghim hết", 354, savedY, 68, C.ACCENT) appendAllBtn.Name = "OTAppendAllSavedBtn"
+        local clearSavedBtn = otAct("🗑 Xoá lưu", 426, savedY, 66, C.RED) clearSavedBtn.Name = "OTClearSavedBtn"
+        local savedListFrame = New("ScrollingFrame", { Name = "OTSavedList", Size = UDim2.new(1, -16, 0, 66), Position = UDim2.new(0, 8, 0, savedY + 20),
+            BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.2, BorderSizePixel = 0, ScrollBarThickness = 4,
+            CanvasSize = UDim2.new(0, 0, 0, 0), ZIndex = 7, }, P)
+        Corner(savedListFrame, UDim.new(0, 6)) New("UIListLayout", { Padding = UDim.new(0, 3), SortOrder = Enum.SortOrder.LayoutOrder }, savedListFrame)
+        New("UIPadding", { PaddingLeft = UDim.new(0, 4), PaddingRight = UDim.new(0, 4), PaddingTop = UDim.new(0, 3), PaddingBottom = UDim.new(0, 3) }, savedListFrame)
+        local function refreshSavedUI() if not (savedListFrame and savedListFrame.Parent) then return end
+            local sList = S.ObjTrack.savedList or {}
+            savedCountLbl.Text = string.format("💾 Đã lưu (%d lần — có thể lưu nhiều lần):", #sList)
+            local sigParts = {} for i = 1, #sList do local it = sList[i]
+                sigParts[i] = tostring(it.id or i) .. ":" .. tostring(it.title or it.query or "") .. ":" .. tostring(it.autoLoad == true) end
+            local sig = table.concat(sigParts, "|") if sig == S.ObjTrack._savedSig then return end S.ObjTrack._savedSig = sig
+            for _, ch in ipairs(savedListFrame:GetChildren()) do
+                if not ch:IsA("UIListLayout") and not ch:IsA("UIPadding") then pcall(function() ch:Destroy() end) end end
+            if #sList == 0 then New("TextLabel", { Name = "OTSavedEmpty", Size = UDim2.new(1, -8, 0, 22),
+                    Text = "Chưa có mục định vị vật nào được lưu — nhập tên vật rồi bấm 💾 Lưu (lưu được nhiều lần liên tiếp).",
+                    BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium, TextSize = 8, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 8, }, savedListFrame)
+                pcall(function() savedListFrame.CanvasSize = UDim2.new(0, 0, 0, 0) end) return end
+            for i = 1, #sList do local item = sList[i] local idx = i
+                local row = New("Frame", { Name = "OTSavedRow_" .. tostring(idx), Size = UDim2.new(1, 0, 0, 20), LayoutOrder = idx,
+                    BackgroundColor3 = C.SURFACE3, BackgroundTransparency = 0.15, BorderSizePixel = 0, ZIndex = 8, }, savedListFrame)
+                Corner(row, UDim.new(0, 4))
+                local eCount = (type(item.entries) == "table" and #item.entries) or 1
+                local subInfo = (item.savedAt and item.savedAt ~= "") and (" · " .. tostring(item.savedAt)) or ""
+                local lblTxt = string.format("#%d  🏷 %s  (%d mục%s)", idx, tostring(item.title or item.query or "Mục lưu"), eCount, subInfo)
+                New("TextLabel", { Name = "OTSavedLabel_" .. tostring(idx), Size = UDim2.new(1, -182, 1, 0), Position = UDim2.new(0, 6, 0, 0),
+                    Text = lblTxt, BackgroundTransparency = 1, TextColor3 = C.DARK, Font = Enum.Font.GothamBold, TextSize = 8,
+                    TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = 9, }, row)
+                local useBtn = New("TextButton", { Name = "OTSavedUse_" .. tostring(idx), Size = UDim2.new(0, 44, 0, 16), Position = UDim2.new(1, -176, 0, 2),
+                    Text = "▶ Dùng", BackgroundColor3 = C.GREEN, TextColor3 = D.BestText(C.GREEN), Font = Enum.Font.GothamBold, TextSize = 8, BorderSizePixel = 0, ZIndex = 9, }, row)
+                Corner(useBtn, UDim.new(0, 4)); D.Tactile(useBtn, 0.08)
+                local addSavedBtn = New("TextButton", { Name = "OTSavedAdd_" .. tostring(idx), Size = UDim2.new(0, 46, 0, 16), Position = UDim2.new(1, -128, 0, 2),
+                    Text = "➕ Ghim", BackgroundColor3 = C.ACCENT, TextColor3 = D.BestText(C.ACCENT), Font = Enum.Font.GothamBold, TextSize = 8, BorderSizePixel = 0, ZIndex = 9, }, row)
+                Corner(addSavedBtn, UDim.new(0, 4)); D.Tactile(addSavedBtn, 0.08)
+                local isAuto = (item.autoLoad == true)
+                local autoSavedBtn = New("TextButton", { Name = "OTSavedAuto_" .. tostring(idx), Size = UDim2.new(0, 52, 0, 16), Position = UDim2.new(1, -78, 0, 2),
+                    Text = isAuto and "⚡ Tự:BẬT" or "⚡ Tự bật", BackgroundColor3 = isAuto and C.GREEN or C.YELLOW, TextColor3 = D.BestText(isAuto and C.GREEN or C.YELLOW),
+                    Font = Enum.Font.GothamBold, TextSize = 8, BorderSizePixel = 0, ZIndex = 9, }, row)
+                Corner(autoSavedBtn, UDim.new(0, 4)); D.Tactile(autoSavedBtn, 0.08)
+                local delSavedBtn = New("TextButton", { Name = "OTSavedDel_" .. tostring(idx), Size = UDim2.new(0, 20, 0, 16), Position = UDim2.new(1, -22, 0, 2),
+                    Text = "✕", BackgroundColor3 = C.RED, TextColor3 = D.BestText(C.RED), Font = Enum.Font.GothamBold, TextSize = 8, BorderSizePixel = 0, ZIndex = 9, }, row)
+                Corner(delSavedBtn, UDim.new(0, 4)); D.Tactile(delSavedBtn, 0.08)
+                useBtn.Activated:Connect(function() ReleaseHubFocus() local okU, it = S.ObjTrack.UseSaved(idx, false)
+                    if okU then D.Say("▶ đang định vị mục lưu #" .. tostring(idx) .. ": '" .. tostring(it.title or it.query) .. "'", C.GREEN)
+                    else D.Say("⚠️ " .. tostring(it), C.RED) end end)
+                addSavedBtn.Activated:Connect(function() ReleaseHubFocus() local okU, it = S.ObjTrack.UseSaved(idx, true)
+                    if okU then D.Say("➕ đã ghim thêm mục lưu #" .. tostring(idx) .. " ('" .. tostring(it.title or it.query) .. "') — đang chạy " .. tostring(#S.ObjTrack.entries) .. " mục", C.GREEN)
+                    else D.Say("⚠️ " .. tostring(it), C.RED) end end)
+                autoSavedBtn.Activated:Connect(function() ReleaseHubFocus() local okT, nowAuto, it = S.ObjTrack.ToggleAutoSaved(idx)
+                    if okT then D.Say((nowAuto and "⚡ đã BẬT tự động định vị khi mở script cho #" or "⚡ đã TẮT tự động bật cho #") .. tostring(idx) .. " ('" .. tostring(it.title or it.query) .. "')", nowAuto and C.GREEN or C.YELLOW) end end)
+                delSavedBtn.Activated:Connect(function() ReleaseHubFocus() local okD, it = S.ObjTrack.RemoveSaved(idx)
+                    if okD then D.Say("🗑 đã xoá mục lưu #" .. tostring(idx) .. " ('" .. tostring(it.title or it.query) .. "')", C.YELLOW) end end)
+            end pcall(function() savedListFrame.CanvasSize = UDim2.new(0, 0, 0, #sList * 23 + 6) end) end
+        S.ObjTrack.RefreshSavedUI = refreshSavedUI
+        useAllBtn.Activated:Connect(function() ReleaseHubFocus() local okA, cnt = S.ObjTrack.UseAllSaved(false)
+            if okA then D.Say("▶ đang chạy tất cả " .. tostring(cnt) .. " mục đã lưu!", C.GREEN) else D.Say("⚠️ " .. tostring(cnt), C.RED) end end)
+        appendAllBtn.Activated:Connect(function() ReleaseHubFocus() local okA, cnt = S.ObjTrack.UseAllSaved(true)
+            if okA then D.Say("➕ đã ghim gộp tất cả " .. tostring(cnt) .. " mục đã lưu!", C.GREEN) else D.Say("⚠️ " .. tostring(cnt), C.RED) end end)
+        clearSavedBtn.Activated:Connect(function() ReleaseHubFocus() local okC, cnt = S.ObjTrack.ClearSaved()
+            if okC then D.Say("🗑 đã xoá toàn bộ " .. tostring(cnt) .. " mục định vị vật đã lưu", C.YELLOW) end end)
+        refreshSavedUI() end S.ObjTrack.BuildSavedUI()
+    local list = New("ScrollingFrame", { Name = "ObjTrackList", Size = UDim2.new(1, -16, 0, 94), Position = UDim2.new(0, 8, 0, 282),
         BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = 4, CanvasSize = UDim2.new(0, 0, 0, 0), ZIndex = 7,
     }, P) New("UIListLayout", { Padding = UDim.new(0, 3), SortOrder = Enum.SortOrder.LayoutOrder }, list)
     S.ObjTrack.BuildInfoUI = function() local info = New("Frame", {
-        Name = "OTInfo", Size = UDim2.new(1, -16, 0, 148), Position = UDim2.new(0, 8, 0, 296),
+        Name = "OTInfo", Size = UDim2.new(1, -16, 0, 148), Position = UDim2.new(0, 8, 0, 384),
         BackgroundColor3 = Color3.fromRGB(20, 25, 35), BackgroundTransparency = 0, BorderSizePixel = 0, ZIndex = 7, Visible = false,
     }, P) Corner(info, UDim.new(0, 6)) Stroke(info, C.BLUE, 1.5) New("TextLabel", { Size = UDim2.new(1, -16, 0, 16), Position = UDim2.new(0, 8, 0, 4),
         Text = "🎯 VẬT THỂ ĐƯỢC CHỌN (giống khung phân tích toạ độ — bấm 📊 ở danh sách)", TextColor3 = Color3.fromRGB(150, 210, 255), Font = Enum.Font.GothamBold, TextSize = 9,
@@ -4424,6 +4392,9 @@ function OT.OnFlyChange() if OT.RefreshList then pcall(OT.RefreshList) end end e
     Corner(copyPosBtn, UDim.new(0, 4)); D.Tactile(copyPosBtn, 0.08) local copyPathBtn = New("TextButton", {
         Size = UDim2.new(0, 96, 0, 16), Position = UDim2.new(0, 110, 0, 128), Text = "📋 Copy Path", BackgroundColor3 = C.PURPLE, TextColor3 = D.BestText(C.PURPLE),
         Font = Enum.Font.GothamBold, TextSize = 8, BorderSizePixel = 0, ZIndex = 9, }, info) Corner(copyPathBtn, UDim.new(0, 4)); D.Tactile(copyPathBtn, 0.08)
+    local saveSelBtn = New("TextButton", { Name = "OTSaveSelBtn", Size = UDim2.new(0, 96, 0, 16), Position = UDim2.new(0, 212, 0, 128),
+        Text = "💾 Lưu Vật Này", BackgroundColor3 = C.GREEN, TextColor3 = D.BestText(C.GREEN), Font = Enum.Font.GothamBold, TextSize = 8, BorderSizePixel = 0, ZIndex = 9, }, info)
+    Corner(saveSelBtn, UDim.new(0, 4)); D.Tactile(saveSelBtn, 0.08)
     local function refreshInfo() local sel, part = OT._sel, OT._selPart if sel == nil or not otAlive(sel) then OT._sel, OT._selPart = nil, nil
             info.Visible = false return end if part == nil or not otAlive(part) then
             part = OT.PartOf(sel) OT._selPart = part end local rows = OT.Info(sel, part)
@@ -4433,7 +4404,11 @@ function OT.OnFlyChange() if OT.RefreshList then pcall(OT.RefreshList) end end e
     copyPosBtn.Activated:Connect(function() ReleaseHubFocus()
         local did, txt = OT.CopyCoords() D.Say(did and ("📋 đã copy toạ độ: " .. tostring(txt)) or ("⚠️ " .. tostring(txt)),
               did and C.GREEN or C.RED) end) copyPathBtn.Activated:Connect(function() ReleaseHubFocus() local did, txt = OT.CopyPath()
-        D.Say(did and ("📋 đã copy path: " .. tostring(txt)) or ("⚠️ " .. tostring(txt)), did and C.GREEN or C.RED) end) end S.ObjTrack.BuildInfoUI()
+        D.Say(did and ("📋 đã copy path: " .. tostring(txt)) or ("⚠️ " .. tostring(txt)), did and C.GREEN or C.RED) end)
+    saveSelBtn.Activated:Connect(function() ReleaseHubFocus() if OT._sel == nil then D.Say("⚠️ chưa chọn vật nào", C.RED) return end
+        local okS, item, idx = S.ObjTrack.Save(OT._sel, false)
+        if okS then D.Say("💾 đã lưu vật #" .. tostring(idx) .. ": '" .. tostring(item.title) .. "' (tổng " .. tostring(#S.ObjTrack.savedList) .. " mục lưu)", C.GREEN)
+        else D.Say("⚠️ " .. tostring(item), C.RED) end end) end S.ObjTrack.BuildInfoUI()
     queryIn.Name, toggleBtn.Name, rescanBtn.Name = "OTQuery", "OTToggle", "OTRescan" statusLbl.Name, clearBtn.Name = "OTStatus", "OTClear"
     xyzBtn.Name, skipBtn.Name = "OTXyz", "OTSkip" local function paint() toggleBtn.Text = OT.on and "🌳 Định vị: BẬT" or "🌳 Định vị: TẮT"
         toggleBtn.BackgroundColor3 = OT.on and C.GREEN or C.SURFACE3 toggleBtn.TextColor3 = D.BestText(toggleBtn.BackgroundColor3)
@@ -4461,29 +4436,49 @@ function OT.OnFlyChange() if OT.RefreshList then pcall(OT.RefreshList) end end e
                 local inst = h.inst local row = New("Frame", { Name = "OTRow_" .. tostring(i), Size = UDim2.new(1, 0, 0, 24), LayoutOrder = i,
                     BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.18, BorderSizePixel = 0, ZIndex = 8, }, list)
                 Corner(row, UDim.new(0, 5)) Stroke(row, (S.Move and S.Move._objFlyTarget == inst) and C.ACCENT or C.BORDER, 1) New("TextLabel", { Name = "OTName",
-                    Size = UDim2.new(1, -196, 1, 0), Position = UDim2.new(0, 7, 0, 0), Text = string.format("#%d  %s  (%s, %dm)", i, tostring(inst.Name),
+                    Size = UDim2.new(1, -238, 1, 0), Position = UDim2.new(0, 7, 0, 0), Text = string.format("#%d  %s  (%s, %dm)", i, tostring(inst.Name),
                         tostring(inst.ClassName or "?"), otRound(h.dist)), BackgroundTransparency = 1, TextColor3 = C.DARK, Font = Enum.Font.GothamBold,
-                    TextSize = 8, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 9, }, row) local infoRow = New("TextButton", {
-                    Name = "OTInfoRow", Size = UDim2.new(0, 48, 0, 18), Position = UDim2.new(1, -190, 0, 3),
+                    TextSize = 8, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 9, }, row)
+                local saveRow = New("TextButton", { Name = "OTSaveRow", Size = UDim2.new(0, 42, 0, 18), Position = UDim2.new(1, -232, 0, 3),
+                    Text = "💾 Lưu", BackgroundColor3 = C.YELLOW, TextColor3 = D.BestText(C.YELLOW), Font = Enum.Font.GothamBold, TextSize = 8, BorderSizePixel = 0, ZIndex = 9, }, row)
+                Corner(saveRow, UDim.new(0, 4)); D.Tactile(saveRow, 0.08) saveRow.Activated:Connect(function() ReleaseHubFocus()
+                    local okS, item, idx = S.ObjTrack.Save(inst, false)
+                    if okS then D.Say("💾 đã lưu vật #" .. tostring(idx) .. ": '" .. tostring(item.title) .. "'", C.GREEN) else D.Say("⚠️ " .. tostring(item), C.RED) end end)
+                local infoRow = New("TextButton", {
+                    Name = "OTInfoRow", Size = UDim2.new(0, 46, 0, 18), Position = UDim2.new(1, -186, 0, 3),
                     Text = "📊 Xem", BackgroundColor3 = C.BLUE, TextColor3 = D.BestText(C.BLUE), Font = Enum.Font.GothamBold, TextSize = 8, BorderSizePixel = 0, ZIndex = 9,
                 }, row) Corner(infoRow, UDim.new(0, 4)); D.Tactile(infoRow, 0.08) infoRow.Activated:Connect(function() ReleaseHubFocus() S.ObjTrack.Select(inst)
                     D.Say("📊 đang xem '" .. tostring(inst.Name) .. "' — số liệu cập nhật theo vật", C.BLUE) pcall(S.ObjTrack.RefreshList)
-                end) local flyRow = New("TextButton", { Name = "OTFlyRow", Size = UDim2.new(0, 62, 0, 18), Position = UDim2.new(1, -138, 0, 3),
+                end) local flyRow = New("TextButton", { Name = "OTFlyRow", Size = UDim2.new(0, 58, 0, 18), Position = UDim2.new(1, -136, 0, 3),
                     Text = "🚀 Bay", BackgroundColor3 = C.ACCENT, TextColor3 = D.BestText(C.ACCENT), Font = Enum.Font.GothamBold, TextSize = 8, BorderSizePixel = 0, ZIndex = 9, }, row)
                 Corner(flyRow, UDim.new(0, 4)); D.Tactile(flyRow, 0.08) flyRow.Activated:Connect(function()
                     ReleaseHubFocus() local ok, res = S.Move.FlyToObject(inst)
                     if ok then D.Say("🚀 đang bay tới '" .. tostring(inst.Name) .. "' · bấm ⏹ Dừng bay để dừng", C.GREEN) else D.Say("⚠️ " .. tostring(res), C.RED)
                     end pcall(S.ObjTrack.RefreshList) end) local copyRow = New("TextButton", { Name = "OTCopyRow",
-                    Size = UDim2.new(0, 64, 0, 18), Position = UDim2.new(1, -70, 0, 3), Text = "📋 Tên", BackgroundColor3 = C.SURFACE3, TextColor3 = D.BestText(C.SURFACE3),
+                    Size = UDim2.new(0, 64, 0, 18), Position = UDim2.new(1, -74, 0, 3), Text = "📋 Tên", BackgroundColor3 = C.SURFACE3, TextColor3 = D.BestText(C.SURFACE3),
                     Font = Enum.Font.GothamBold, TextSize = 8, BorderSizePixel = 0, ZIndex = 9, }, row)
                 Corner(copyRow, UDim.new(0, 4)); D.Tactile(copyRow, 0.08) copyRow.Activated:Connect(function() ReleaseHubFocus()
                     local did = S.CopyToClipboard(tostring(inst.Name)) D.Say(did and ("📋 đã copy tên '" .. tostring(inst.Name) .. "'")
                               or "⚠️ executor không có setclipboard", did and C.GREEN or C.RED) end)
             end pcall(function() list.CanvasSize = UDim2.new(0, 0, 0, math.max(0, shown * 27)) end) end paint() end
     S.OpenObjectPanel = function() local ok = S.OpenPlayerTab and S.OpenPlayerTab() or false
-        if S.ObjTrack.RefreshTags then pcall(S.ObjTrack.RefreshTags) end pcall(S.ObjTrack.RefreshList) return ok end
+        if S.ObjTrack.RefreshTags then pcall(S.ObjTrack.RefreshTags) end if S.ObjTrack.RefreshSavedUI then pcall(S.ObjTrack.RefreshSavedUI) end pcall(S.ObjTrack.RefreshList) return ok end
     S.ObjTrack.Focus = function() if S.OpenObjectPanel then pcall(S.OpenObjectPanel) end
         pcall(function() if queryIn and queryIn.Parent then queryIn:CaptureFocus() end end) end
+    saveBtn.Activated:Connect(function() ReleaseHubFocus() local raw = tostring(queryIn.Text or "")
+        local okS, item, idx = S.ObjTrack.Save(raw, false)
+        if okS then queryIn.Text = "" S.ObjTrack.query = ""
+            D.Say("💾 đã lưu lần #" .. tostring(idx) .. ": '" .. tostring(item.title) .. "' (tổng " .. tostring(#S.ObjTrack.savedList) .. " mục đã lưu)", C.GREEN)
+        else D.Say("⚠️ " .. tostring(item), C.RED) end end)
+    saveAutoBtn.Activated:Connect(function() ReleaseHubFocus() local raw = tostring(queryIn.Text or "")
+        local okS, item, idx = S.ObjTrack.Save(raw, true)
+        if okS then queryIn.Text = "" S.ObjTrack.query = ""
+            D.Say("⚡ đã lưu & bật tự động lần #" .. tostring(idx) .. ": '" .. tostring(item.title) .. "' (tự bật khi chạy script)", C.GREEN)
+        else D.Say("⚠️ " .. tostring(item), C.RED) end end)
+    savePinnedBtn.Activated:Connect(function() ReleaseHubFocus()
+        local okS, item, idx = S.ObjTrack.Save("", false)
+        if okS then D.Say("💾 đã lưu nhóm mục đang ghim thành lần #" .. tostring(idx) .. ": '" .. tostring(item.title) .. "'", C.GREEN)
+        else D.Say("⚠️ " .. tostring(item), C.RED) end end)
     queryIn:GetPropertyChangedSignal("Text"):Connect(function() S.ObjTrack.SetQuery(queryIn.Text) end)
     queryIn.FocusLost:Connect(function(enterPressed) ReleaseHubFocus() if enterPressed then
             local raw = tostring(queryIn.Text or "") local okA, kindOrWhy = S.ObjTrack.AddEntry(raw) if okA then queryIn.Text = ""
@@ -4525,7 +4520,8 @@ function OT.OnFlyChange() if OT.RefreshList then pcall(OT.RefreshList) end end e
     skipBtn.Activated:Connect(function() ReleaseHubFocus() OT.skipPlayers = not OT.skipPlayers if OT.on then pcall(OT.Rescan, true) end
         D.Say(OT.skipPlayers and "🚫 bỏ qua nhân vật người chơi: BẬT" or "🚫 bỏ qua nhân vật người chơi: TẮT", C.YELLOW) pcall(S.ObjTrack.RefreshList)
     end) xyzBtn.Activated:Connect(function() ReleaseHubFocus() OT.showXYZ = not OT.showXYZ pcall(OT.Tick)
-        D.Say(OT.showXYZ and "🧭 hiện toạ độ X/Y/Z trên nhãn: BẬT" or "🧭 hiện toạ độ trên nhãn: TẮT", C.YELLOW) pcall(S.ObjTrack.RefreshList) end) paint()
+        D.Say(OT.showXYZ and "🧭 hiện toạ độ X/Y/Z trên nhãn: BẬT" or "🧭 hiện toạ độ trên nhãn: TẮT", C.YELLOW) pcall(S.ObjTrack.RefreshList) end)
+    _G.BananaCatHub_ObjTrack = S.ObjTrack pcall(S.ObjTrack.AutoRestoreSaved) paint()
     pcall(S.ObjTrack.RefreshList) pcall(function()
         if D.playerTab then D.playerTab.CanvasSize = UDim2.new(0, 0, 0, (D.playerY or 600) + 16) end end) end)() ;(function()
     pcall(function() local oldPI = _G.BananaCatHub_PlayerInfo
@@ -7898,6 +7894,10 @@ do
         end
         if type(data.autoUseSkin) == "table" and (tonumber(data.autoUseSkin.id) or (type(data.autoUseSkin.name) == "string" and #data.autoUseSkin.name > 0)) then
             Store.autoUseSkin = data.autoUseSkin end
+        if type(data.savedObjTracks) == "table" then
+            Store.savedObjTracks = Store.savedObjTracks or {} for _, ot in ipairs(data.savedObjTracks) do
+                if type(ot) == "table" and ((type(ot.query) == "string" and #ot.query > 0) or (type(ot.entries) == "table" and #ot.entries > 0) or (type(ot.title) == "string" and #ot.title > 0)) then
+                    Store.savedObjTracks[#Store.savedObjTracks + 1] = ot end end end
         if type(data.settings) == "table" then if type(data.settings.embedEnabled) == "boolean" then S.embedEnabled = data.settings.embedEnabled end
             if type(data.settings.embedGuessNew) == "boolean" then S.embedGuessNew = data.settings.embedGuessNew
             end if type(data.settings.parkCodeGuis) == "boolean" then S.parkCodeGuis = data.settings.parkCodeGuis end
@@ -7905,7 +7905,7 @@ do
                 for _, nm in ipairs(data.settings.hubFavs) do if tostring(nm) ~= "" then S.hubFavs[tostring(nm)] = true end end end end
         pcall(function() RebuildScripts() end) pcall(function() RebuildWaypoints() end)
         pcall(function() RebuildFeatureList() end) pcall(function() if S.SyncEmbedToggles then S.SyncEmbedToggles() end end)
-        pcall(function() if Store.restoreSkins then Store.restoreSkins() end end) if not S.embedEnabled then for _, ft in ipairs(featureTabs) do
+        pcall(function() if Store.restoreSkins then Store.restoreSkins() end end) pcall(function() if Store.restoreObjTracks then Store.restoreObjTracks() end end) if not S.embedEnabled then for _, ft in ipairs(featureTabs) do
                 local hostFrame = ft.frame and ft.frame:FindFirstChild("ScriptHost") if hostFrame then S.ClearEmbedsUnder(hostFrame) end
             end pcall(S.RemoveAllParked) pcall(S.PruneEmbeds) end
         refreshStorage() Store.saveSoon()
