@@ -3964,29 +3964,22 @@ function OT.RebuildKeys() local keys, paths = {}, {} local function push(raw) ra
         pcall(OT.Rescan, true) end if OT.RefreshTags then pcall(OT.RefreshTags) end return true, raw end
 function OT.ClearEntries() OT.entries = {} OT.query = "" OT._tagSig = nil OT.RebuildKeys() if OT.RefreshTags then pcall(OT.RefreshTags) end end
 OT.savedList = (type(Store) == "table" and type(Store.savedObjTracks) == "table") and Store.savedObjTracks or {}
+OT.viewMode = "server" -- "server" (vật định vị được trong server) | "saved" (những thứ mình đã lưu)
 function OT.SyncStore() if type(Store) == "table" then Store.savedObjTracks = OT.savedList pcall(Store.save) end end
 local function pushUniqueEntry(list, raw, kind) raw = tostring(raw or ""):gsub("^%s+", ""):gsub("%s+$", "") if raw == "" then return false end
     local key = OT.EntryKey(raw) for i = 1, #list do if OT.EntryKey(list[i].raw) == key then return false end end
     if not kind then kind = OT.IsPathLike(raw) and "path" or "name" if kind == "path" then local ok, inst = pcall(OT.ResolvePath, key) if not ok or inst == nil then kind = "name" end end end
     list[#list + 1] = { raw = raw, kind = kind } return true end
-function OT.Save(rawOrTarget, autoLoad) local savedEntries, title, queryStr, savedPath, savedPos = {}, "", "", nil, nil
+function OT.Save(rawOrTarget, autoLoad) local savedEntries, title, queryStr, savedPath = {}, "", "", nil
     if type(rawOrTarget) == "table" and rawOrTarget.ClassName ~= nil then local inst = rawOrTarget local nm = tostring(inst.Name or ""):gsub("^%s+", ""):gsub("%s+$", "")
-        if nm == "" then return false, "vật không có tên hợp lệ" end savedPath = OT.PathOf(inst) local part = OT.PartOf(inst)
-        if part then pcall(function() local p = part.Position savedPos = { x = p.X, y = p.Y, z = p.Z } end) end
+        if nm == "" then return false, "vật không có tên hợp lệ" end savedPath = OT.PathOf(inst)
         pushUniqueEntry(savedEntries, nm, "name") if savedPath and savedPath ~= "" and savedPath ~= "nil" then pushUniqueEntry(savedEntries, savedPath, "path") end
-        pushUniqueEntry(OT.entries, nm, "name") title = nm queryStr = nm
-    elseif type(rawOrTarget) == "table" then if type(rawOrTarget.entries) == "table" then for _, e in ipairs(rawOrTarget.entries) do
-                if type(e) == "table" and e.raw then pushUniqueEntry(savedEntries, e.raw, e.kind) elseif type(e) == "string" then pushUniqueEntry(savedEntries, e, nil) end end end
-        queryStr = tostring(rawOrTarget.query or ""):gsub("^%s+", ""):gsub("%s+$", "")
-        if #savedEntries == 0 and queryStr ~= "" then for part in queryStr:gmatch("[^,;]+") do pushUniqueEntry(savedEntries, part, nil) end end
-        for _, e in ipairs(savedEntries) do pushUniqueEntry(OT.entries, e.raw, e.kind) end
-        title = tostring(rawOrTarget.title or queryStr or "") if title == "" and #savedEntries > 0 then local t = {} for i = 1, #savedEntries do t[i] = savedEntries[i].raw end title = table.concat(t, ", ") end
+        pushUniqueEntry(OT.entries, nm, "name") title, queryStr = nm, nm
     else local raw = tostring(rawOrTarget or ""):gsub("^%s+", ""):gsub("%s+$", "")
         if raw == "" and tostring(OT.query or ""):gsub("^%s+", ""):gsub("%s+$", "") ~= "" then raw = tostring(OT.query):gsub("^%s+", ""):gsub("%s+$", "") end
         if raw ~= "" then for part in raw:gmatch("[^,;]+") do local p = part:gsub("^%s+", ""):gsub("%s+$", "")
                 if p ~= "" then pushUniqueEntry(savedEntries, p, nil) pushUniqueEntry(OT.entries, p, nil) end end
-            if #savedEntries == 0 then pushUniqueEntry(savedEntries, raw, nil) pushUniqueEntry(OT.entries, raw, nil) end
-            title = raw queryStr = raw
+            if #savedEntries == 0 then pushUniqueEntry(savedEntries, raw, nil) pushUniqueEntry(OT.entries, raw, nil) end title, queryStr = raw, raw
         elseif #OT.entries > 0 then local t = {} for i = 1, #OT.entries do local e = OT.entries[i] pushUniqueEntry(savedEntries, e.raw, e.kind) t[#t + 1] = tostring(e.raw) end
             title = table.concat(t, ", ") queryStr = title
         elseif OT._sel ~= nil and OT._sel.Parent ~= nil then return OT.Save(OT._sel, autoLoad)
@@ -3994,56 +3987,40 @@ function OT.Save(rawOrTarget, autoLoad) local savedEntries, title, queryStr, sav
                 for _, e in ipairs(last.entries or {}) do if type(e) == "table" then pushUniqueEntry(savedEntries, e.raw, e.kind) end end
                 title = tostring(last.title or last.query or "Mục lưu") queryStr = tostring(last.query or title) end end end
     if #savedEntries == 0 then return false, "chưa nhập tên vật hoặc ghim mục nào để lưu" end
-    local idx = #OT.savedList + 1 local stamp = "" pcall(function() stamp = os.date("%H:%M:%S") end)
-    local item = { id = math.floor((tonumber(tick()) or 0) * 1000) + idx, slot = idx, title = title, query = queryStr, entries = savedEntries,
-        path = savedPath, pos = savedPos, color = tonumber(OT.color) or 1, maxDist = tonumber(OT.maxDist) or 0, showBox = (OT.showBox == true),
-        thru = (OT.thru ~= false), showLabel = (OT.showLabel ~= false), showXYZ = (OT.showXYZ ~= false), skipPlayers = (OT.skipPlayers ~= false),
-        autoLoad = (autoLoad == true), savedAt = stamp }
-    OT.savedList[idx] = item OT._tagSig = nil OT._savedSig = nil OT.RebuildKeys() OT.on = true OT._fastUntil = tick() + 4 OT.Bind()
-    pcall(OT.Rescan, true) OT.SyncStore() if OT.RefreshTags then pcall(OT.RefreshTags) end
-    if OT.RefreshSavedUI then pcall(OT.RefreshSavedUI) end if OT.RefreshList then pcall(OT.RefreshList) end return true, item, idx end
+    local idx = #OT.savedList + 1 local item = { id = math.floor((tonumber(tick()) or 0) * 1000) + idx, slot = idx, title = title, query = queryStr,
+        entries = savedEntries, path = savedPath, color = tonumber(OT.color) or 1, maxDist = tonumber(OT.maxDist) or 0, autoLoad = (autoLoad == true) }
+    OT.savedList[idx] = item OT._tagSig = nil OT._rowSig = nil OT.RebuildKeys() OT.on = true OT._fastUntil = tick() + 4 OT.Bind()
+    pcall(OT.Rescan, true) OT.SyncStore() if OT.RefreshTags then pcall(OT.RefreshTags) end if OT.RefreshList then pcall(OT.RefreshList) end return true, item, idx end
 function OT.UseSaved(idx, appendMode) idx = tonumber(idx) or 0 local item = OT.savedList[idx]
     if type(item) ~= "table" then return false, "mục lưu #" .. tostring(idx) .. " không tồn tại" end
-    if not appendMode then OT.entries = {} OT.query = "" if tonumber(item.color) then OT.color = tonumber(item.color) end
-        if tonumber(item.maxDist) then OT.maxDist = tonumber(item.maxDist) end if type(item.showBox) == "boolean" then OT.showBox = item.showBox end
-        if type(item.thru) == "boolean" then OT.thru = item.thru end if type(item.showLabel) == "boolean" then OT.showLabel = item.showLabel end
-        if type(item.showXYZ) == "boolean" then OT.showXYZ = item.showXYZ end if type(item.skipPlayers) == "boolean" then OT.skipPlayers = item.skipPlayers end
-        pcall(OT.ApplyStyle) end
+    if not appendMode then OT.entries = {} OT.query = "" end
     if type(item.entries) == "table" and #item.entries > 0 then for _, e in ipairs(item.entries) do
             if type(e) == "table" and e.raw then pushUniqueEntry(OT.entries, e.raw, e.kind) elseif type(e) == "string" then pushUniqueEntry(OT.entries, e, nil) end end
     elseif type(item.query) == "string" and item.query ~= "" then for part in item.query:gmatch("[^,;]+") do pushUniqueEntry(OT.entries, part, nil) end end
-    OT._tagSig = nil OT.RebuildKeys() OT.on = true OT._fastUntil = tick() + 4 OT.Bind() pcall(OT.Rescan, true)
-    if OT.RefreshTags then pcall(OT.RefreshTags) end if OT.RefreshSavedUI then pcall(OT.RefreshSavedUI) end if OT.RefreshList then pcall(OT.RefreshList) end
-    return true, item end
+    OT._tagSig = nil OT._rowSig = nil OT.RebuildKeys() OT.on = true OT._fastUntil = tick() + 4 OT.Bind() pcall(OT.Rescan, true)
+    if OT.RefreshTags then pcall(OT.RefreshTags) end if OT.RefreshList then pcall(OT.RefreshList) end return true, item end
 function OT.UseAllSaved(appendMode) if #OT.savedList == 0 then return false, "chưa có mục định vị vật nào được lưu" end
     if not appendMode then OT.entries = {} OT.query = "" end
     for i = 1, #OT.savedList do local item = OT.savedList[i] if type(item) == "table" then
             if type(item.entries) == "table" and #item.entries > 0 then for _, e in ipairs(item.entries) do
                     if type(e) == "table" and e.raw then pushUniqueEntry(OT.entries, e.raw, e.kind) elseif type(e) == "string" then pushUniqueEntry(OT.entries, e, nil) end end
             elseif type(item.query) == "string" and item.query ~= "" then for part in item.query:gmatch("[^,;]+") do pushUniqueEntry(OT.entries, part, nil) end end end end
-    OT._tagSig = nil OT.RebuildKeys() OT.on = true OT._fastUntil = tick() + 4 OT.Bind() pcall(OT.Rescan, true)
-    if OT.RefreshTags then pcall(OT.RefreshTags) end if OT.RefreshSavedUI then pcall(OT.RefreshSavedUI) end if OT.RefreshList then pcall(OT.RefreshList) end
-    return true, #OT.savedList end
-function OT.ToggleAutoSaved(idx) idx = tonumber(idx) or 0 local item = OT.savedList[idx]
-    if type(item) ~= "table" then return false, "mục lưu không tồn tại" end item.autoLoad = not (item.autoLoad == true)
-    OT._savedSig = nil OT.SyncStore() if OT.RefreshSavedUI then pcall(OT.RefreshSavedUI) end return true, item.autoLoad, item end
+    OT._tagSig = nil OT._rowSig = nil OT.RebuildKeys() OT.on = true OT._fastUntil = tick() + 4 OT.Bind() pcall(OT.Rescan, true)
+    if OT.RefreshTags then pcall(OT.RefreshTags) end if OT.RefreshList then pcall(OT.RefreshList) end return true, #OT.savedList end
 function OT.RemoveSaved(idx) idx = tonumber(idx) or 0 local item = OT.savedList[idx]
     if type(item) ~= "table" then return false, "mục lưu không tồn tại" end table.remove(OT.savedList, idx)
     for i = 1, #OT.savedList do if type(OT.savedList[i]) == "table" then OT.savedList[i].slot = i end end
-    OT._savedSig = nil OT.SyncStore() if OT.RefreshSavedUI then pcall(OT.RefreshSavedUI) end return true, item end
-function OT.ClearSaved() local n = #OT.savedList OT.savedList = {} OT._savedSig = nil OT.SyncStore()
-    if OT.RefreshSavedUI then pcall(OT.RefreshSavedUI) end return true, n end
-function OT.AutoRestoreSaved() local count = 0 for i = 1, #OT.savedList do local item = OT.savedList[i]
-        if type(item) == "table" and item.autoLoad == true then count = count + 1
-            if type(item.entries) == "table" and #item.entries > 0 then for _, e in ipairs(item.entries) do
-                    if type(e) == "table" and e.raw then pushUniqueEntry(OT.entries, e.raw, e.kind) elseif type(e) == "string" then pushUniqueEntry(OT.entries, e, nil) end end
-            elseif type(item.query) == "string" and item.query ~= "" then for part in item.query:gmatch("[^,;]+") do pushUniqueEntry(OT.entries, part, nil) end end end end
-    if count > 0 then OT._tagSig = nil OT.RebuildKeys() OT.on = true OT._fastUntil = tick() + 4 OT.Bind() pcall(OT.Rescan, true)
-        if OT.RefreshTags then pcall(OT.RefreshTags) end if OT.RefreshSavedUI then pcall(OT.RefreshSavedUI) end if OT.RefreshList then pcall(OT.RefreshList) end end
-    return count end
+    if #OT.savedList == 0 and OT.viewMode == "saved" then OT.viewMode = "server" end
+    OT._rowSig = nil OT.SyncStore() if OT.RefreshList then pcall(OT.RefreshList) end return true, item end
+function OT.ToggleViewMode(targetMode)
+    if targetMode == "saved" or targetMode == "server" then OT.viewMode = targetMode
+    else OT.viewMode = (OT.viewMode == "saved") and "server" or "saved" end
+    if OT.viewMode == "server" and #OT.savedList > 0 and #OT.keys == 0 and #(OT.pathKeys or {}) == 0 then pcall(OT.UseAllSaved, true)
+    elseif OT.viewMode == "server" and OT.on then pcall(OT.Rescan, true) end
+    OT._rowSig = nil if OT.RefreshList then pcall(OT.RefreshList) end return OT.viewMode end
 if type(Store) == "table" then Store.restoreObjTracks = function()
-        OT.savedList = type(Store.savedObjTracks) == "table" and Store.savedObjTracks or {} OT._savedSig = nil
-        if OT.RefreshSavedUI then pcall(OT.RefreshSavedUI) end end end
+        OT.savedList = type(Store.savedObjTracks) == "table" and Store.savedObjTracks or {} OT._rowSig = nil
+        if OT.RefreshList then pcall(OT.RefreshList) end end end
 function OT.Matches(name) local n = OT.Norm(name) if n == "" or #OT.keys == 0 then return false end for i = 1, #OT.keys do
         if n:find(OT.keys[i], 1, true) then return true end end return false end
 function OT.PartOf(inst, depth) if inst == nil then return nil end depth = tonumber(depth) or 0 if depth > 4 then return nil end
@@ -4242,15 +4219,15 @@ function OT.Status() if #OT.keys == 0 and #(OT.pathKeys or {}) == 0 then return 
 function OT.OnFlyChange() if OT.RefreshList then pcall(OT.RefreshList) end end end
 (function() local OT = S.ObjTrack
     local function otRound(n) return math.floor((tonumber(n) or 0) + 0.5) end local function otAlive(inst) return inst ~= nil and inst.Parent ~= nil end
-    local P = New("Frame", { Name = "HubObjTrack_Panel", Size = UDim2.new(1, -16, 0, 540), Position = UDim2.new(0, 8, 0, D.playerY or 46),
+    local P = New("Frame", { Name = "HubObjTrack_Panel", Size = UDim2.new(1, -16, 0, 452), Position = UDim2.new(0, 8, 0, D.playerY or 46),
         LayoutOrder = 4, BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, BorderSizePixel = 0, ZIndex = 6,
-    }, D.playerTab) D.playerY = (D.playerY or 46) + 540 + 8
+    }, D.playerTab) D.playerY = (D.playerY or 46) + 452 + 8
     Corner(P, UDim.new(0, 10)) Stroke(P, C.HAIRLINE, 1) D.Shade(P, Color3.fromRGB(255, 255, 255), Color3.fromRGB(188, 192, 205), 90)
     New("TextLabel", { Size = UDim2.new(1, -16, 0, 14), Position = UDim2.new(0, 8, 0, 4),
-        Text = "🌳 ĐỊNH VỊ VẬT THEO TÊN (nhập tên là thấy MỌI vật khớp · 💾 Lưu lại nhiều lần · bám theo vật)", BackgroundTransparency = 1, TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 10,
+        Text = "🌳 ĐỊNH VỊ VẬT THEO TÊN (nhập tên là thấy MỌI vật khớp · 💾 Lưu nhiều lần · 🔄 Chuyển đổi)", BackgroundTransparency = 1, TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 10,
         TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7, }, P)
     New("TextLabel", { Size = UDim2.new(1, -16, 0, 22), Position = UDim2.new(0, 8, 0, 20),
-        Text = "Gõ tên vật vào ô 🔎 (VD: cây, đá, rương). Nhiều tên thì cách nhau dấu phẩy. Bấm 💾 Lưu để lưu lại (có thể lưu NHIỀU LẦN liên tiếp). Bấm Enter (hoặc ➕ Thêm mục) để GHIM chạy nhiều mục cùng lúc.", TextWrapped = true, BackgroundTransparency = 1, TextColor3 = C.MUTED,
+        Text = "Gõ tên vật vào ô 🔎 rồi bấm 💾 Lưu (lưu được nhiều lần). Khi đã lưu sẽ có nút 🔄 Chuyển đổi: bấm vào để xem danh sách đã lưu, bấm lần nữa để chuyển sang các vật phẩm định vị được trong server.", TextWrapped = true, BackgroundTransparency = 1, TextColor3 = C.MUTED,
         Font = Enum.Font.GothamMedium, TextSize = 8, TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, ZIndex = 7, }, P)
     local function otAct(txt, x, y, w, color) local b = New("TextButton", {
             Size = UDim2.new(0, w, 0, 18), Position = UDim2.new(0, x, 0, y), Text = txt, BackgroundColor3 = color, TextColor3 = D.BestText(color),
@@ -4263,10 +4240,9 @@ function OT.OnFlyChange() if OT.RefreshList then pcall(OT.RefreshList) end end e
             Text = txt, PlaceholderText = ph or "", ClearTextOnFocus = false, BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.1, TextColor3 = C.DARK,
             PlaceholderColor3 = C.GRAY, Font = Enum.Font.GothamMedium, TextSize = 9, TextXAlignment = Enum.TextXAlignment.Left, BorderSizePixel = 0, ZIndex = 7,
         }, P) Corner(box, UDim.new(0, 5)) New("UIPadding", { PaddingLeft = UDim.new(0, 6) }, box) return box end
-    otLab("🔎 Tên vật:", 8, 46, 58) local queryIn = otInput(S.ObjTrack.query or "", 68, 46, 146, "VD: cây, đá, rương...")
-    local saveBtn = otAct("💾 Lưu", 218, 46, 50, C.BLUE) saveBtn.Name = "OTSaveBtn"
-    local saveAutoBtn = otAct("⚡ Lưu Tự Bật", 272, 46, 72, C.YELLOW) saveAutoBtn.Name = "OTSaveAutoBtn"
-    local toggleBtn = otAct("🌳 Định vị: TẮT", 348, 46, 86, C.GREEN) local rescanBtn = otAct("🔄 Quét lại", 438, 46, 66, C.BLUE)
+    otLab("🔎 Tên vật:", 8, 46, 58) local queryIn = otInput(S.ObjTrack.query or "", 68, 46, 170, "VD: cây, đá, rương...")
+    local saveBtn = otAct("💾 Lưu", 242, 46, 54, C.BLUE) saveBtn.Name = "OTSaveBtn"
+    local toggleBtn = otAct("🌳 Định vị: TẮT", 300, 46, 102, C.GREEN) local rescanBtn = otAct("🔄 Quét lại", 406, 46, 86, C.BLUE)
     local boxBtn = otAct("🔲 Hộp: TẮT", 8, 70, 74, C.SURFACE3) local thruBtn = otAct("🕶 Xuyên tường: BẬT", 86, 70, 112, C.GREEN)
     local labelBtn = otAct("💬 Nhãn: BẬT", 202, 70, 82, C.GREEN) local colorBtn = otAct("🎨 " .. S.ObjTrack.Pal().name, 288, 70, 118, C.PURPLE)
     local clearBtn = otAct("🧹 Xoá hết", 410, 70, 82, C.RED)
@@ -4277,8 +4253,9 @@ function OT.OnFlyChange() if OT.RefreshList then pcall(OT.RefreshList) end end e
     local statusLbl = New("TextLabel", { Size = UDim2.new(1, -16, 0, 16), Position = UDim2.new(0, 8, 0, 118),
         Text = S.ObjTrack.Status(), BackgroundTransparency = 1, TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 9,
         TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7, }, P)
-    local xyzBtn = otAct("🧭 Nhãn toạ độ: BẬT", 8, 138, 136, C.GREEN) local skipBtn = otAct("🚫 Bỏ qua người chơi: BẬT", 148, 138, 156, C.GREEN)
-    local savePinnedBtn = otAct("💾 Lưu các mục ghim", 308, 138, 110, C.BLUE) savePinnedBtn.Name = "OTSavePinned"
+    local xyzBtn = otAct("🧭 Nhãn toạ độ: BẬT", 8, 138, 128, C.GREEN) local skipBtn = otAct("🚫 Bỏ qua người chơi: BẬT", 140, 138, 146, C.GREEN)
+    local switchModeBtn = otAct("🔄 Chuyển Đổi: Đã Lưu (0)", 290, 138, 202, C.YELLOW) switchModeBtn.Name = "OTSwitchBtn"
+    switchModeBtn.Visible = (#(S.ObjTrack.savedList or {}) > 0)
     S.ObjTrack.BuildTagsUI = function() local tagsY = 162 local addBtn = otAct("➕ Thêm mục", 8, tagsY, 96, C.ACCENT) addBtn.Name = "OTAdd"
         local tags = New("ScrollingFrame", { Name = "OTTags",
             Size = UDim2.new(1, -118, 0, 24), Position = UDim2.new(0, 108, 0, tagsY), BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.25, BorderSizePixel = 0,
@@ -4308,78 +4285,11 @@ function OT.OnFlyChange() if OT.RefreshList then pcall(OT.RefreshList) end end e
             if okA then queryIn.Text = "" S.ObjTrack.SetQuery("") D.Say("➕ đã thêm mục '" .. raw .. "' — đang chạy cùng " ..
                       tostring(#S.ObjTrack.entries) .. " mục", C.GREEN) else D.Say("⚠️ " .. tostring(kindOrWhy), C.RED) end
             pcall(S.ObjTrack.RefreshTags) pcall(S.ObjTrack.RefreshList) end) end S.ObjTrack.BuildTagsUI()
-    S.ObjTrack.BuildSavedUI = function() local savedY = 190
-        local savedCountLbl = New("TextLabel", { Name = "OTSavedCountLbl", Size = UDim2.new(1, -236, 0, 18), Position = UDim2.new(0, 8, 0, savedY),
-            Text = "💾 Đã lưu (0 lần — bấm 💾 Lưu để lưu nhiều lần):", BackgroundTransparency = 1, TextColor3 = C.ACCENT,
-            Font = Enum.Font.GothamBold, TextSize = 8, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7, }, P)
-        local useAllBtn = otAct("▶ Dùng hết", 282, savedY, 68, C.GREEN) useAllBtn.Name = "OTUseAllSavedBtn"
-        local appendAllBtn = otAct("➕ Ghim hết", 354, savedY, 68, C.ACCENT) appendAllBtn.Name = "OTAppendAllSavedBtn"
-        local clearSavedBtn = otAct("🗑 Xoá lưu", 426, savedY, 66, C.RED) clearSavedBtn.Name = "OTClearSavedBtn"
-        local savedListFrame = New("ScrollingFrame", { Name = "OTSavedList", Size = UDim2.new(1, -16, 0, 66), Position = UDim2.new(0, 8, 0, savedY + 20),
-            BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.2, BorderSizePixel = 0, ScrollBarThickness = 4,
-            CanvasSize = UDim2.new(0, 0, 0, 0), ZIndex = 7, }, P)
-        Corner(savedListFrame, UDim.new(0, 6)) New("UIListLayout", { Padding = UDim.new(0, 3), SortOrder = Enum.SortOrder.LayoutOrder }, savedListFrame)
-        New("UIPadding", { PaddingLeft = UDim.new(0, 4), PaddingRight = UDim.new(0, 4), PaddingTop = UDim.new(0, 3), PaddingBottom = UDim.new(0, 3) }, savedListFrame)
-        local function refreshSavedUI() if not (savedListFrame and savedListFrame.Parent) then return end
-            local sList = S.ObjTrack.savedList or {}
-            savedCountLbl.Text = string.format("💾 Đã lưu (%d lần — có thể lưu nhiều lần):", #sList)
-            local sigParts = {} for i = 1, #sList do local it = sList[i]
-                sigParts[i] = tostring(it.id or i) .. ":" .. tostring(it.title or it.query or "") .. ":" .. tostring(it.autoLoad == true) end
-            local sig = table.concat(sigParts, "|") if sig == S.ObjTrack._savedSig then return end S.ObjTrack._savedSig = sig
-            for _, ch in ipairs(savedListFrame:GetChildren()) do
-                if not ch:IsA("UIListLayout") and not ch:IsA("UIPadding") then pcall(function() ch:Destroy() end) end end
-            if #sList == 0 then New("TextLabel", { Name = "OTSavedEmpty", Size = UDim2.new(1, -8, 0, 22),
-                    Text = "Chưa có mục định vị vật nào được lưu — nhập tên vật rồi bấm 💾 Lưu (lưu được nhiều lần liên tiếp).",
-                    BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium, TextSize = 8, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 8, }, savedListFrame)
-                pcall(function() savedListFrame.CanvasSize = UDim2.new(0, 0, 0, 0) end) return end
-            for i = 1, #sList do local item = sList[i] local idx = i
-                local row = New("Frame", { Name = "OTSavedRow_" .. tostring(idx), Size = UDim2.new(1, 0, 0, 20), LayoutOrder = idx,
-                    BackgroundColor3 = C.SURFACE3, BackgroundTransparency = 0.15, BorderSizePixel = 0, ZIndex = 8, }, savedListFrame)
-                Corner(row, UDim.new(0, 4))
-                local eCount = (type(item.entries) == "table" and #item.entries) or 1
-                local subInfo = (item.savedAt and item.savedAt ~= "") and (" · " .. tostring(item.savedAt)) or ""
-                local lblTxt = string.format("#%d  🏷 %s  (%d mục%s)", idx, tostring(item.title or item.query or "Mục lưu"), eCount, subInfo)
-                New("TextLabel", { Name = "OTSavedLabel_" .. tostring(idx), Size = UDim2.new(1, -182, 1, 0), Position = UDim2.new(0, 6, 0, 0),
-                    Text = lblTxt, BackgroundTransparency = 1, TextColor3 = C.DARK, Font = Enum.Font.GothamBold, TextSize = 8,
-                    TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = 9, }, row)
-                local useBtn = New("TextButton", { Name = "OTSavedUse_" .. tostring(idx), Size = UDim2.new(0, 44, 0, 16), Position = UDim2.new(1, -176, 0, 2),
-                    Text = "▶ Dùng", BackgroundColor3 = C.GREEN, TextColor3 = D.BestText(C.GREEN), Font = Enum.Font.GothamBold, TextSize = 8, BorderSizePixel = 0, ZIndex = 9, }, row)
-                Corner(useBtn, UDim.new(0, 4)); D.Tactile(useBtn, 0.08)
-                local addSavedBtn = New("TextButton", { Name = "OTSavedAdd_" .. tostring(idx), Size = UDim2.new(0, 46, 0, 16), Position = UDim2.new(1, -128, 0, 2),
-                    Text = "➕ Ghim", BackgroundColor3 = C.ACCENT, TextColor3 = D.BestText(C.ACCENT), Font = Enum.Font.GothamBold, TextSize = 8, BorderSizePixel = 0, ZIndex = 9, }, row)
-                Corner(addSavedBtn, UDim.new(0, 4)); D.Tactile(addSavedBtn, 0.08)
-                local isAuto = (item.autoLoad == true)
-                local autoSavedBtn = New("TextButton", { Name = "OTSavedAuto_" .. tostring(idx), Size = UDim2.new(0, 52, 0, 16), Position = UDim2.new(1, -78, 0, 2),
-                    Text = isAuto and "⚡ Tự:BẬT" or "⚡ Tự bật", BackgroundColor3 = isAuto and C.GREEN or C.YELLOW, TextColor3 = D.BestText(isAuto and C.GREEN or C.YELLOW),
-                    Font = Enum.Font.GothamBold, TextSize = 8, BorderSizePixel = 0, ZIndex = 9, }, row)
-                Corner(autoSavedBtn, UDim.new(0, 4)); D.Tactile(autoSavedBtn, 0.08)
-                local delSavedBtn = New("TextButton", { Name = "OTSavedDel_" .. tostring(idx), Size = UDim2.new(0, 20, 0, 16), Position = UDim2.new(1, -22, 0, 2),
-                    Text = "✕", BackgroundColor3 = C.RED, TextColor3 = D.BestText(C.RED), Font = Enum.Font.GothamBold, TextSize = 8, BorderSizePixel = 0, ZIndex = 9, }, row)
-                Corner(delSavedBtn, UDim.new(0, 4)); D.Tactile(delSavedBtn, 0.08)
-                useBtn.Activated:Connect(function() ReleaseHubFocus() local okU, it = S.ObjTrack.UseSaved(idx, false)
-                    if okU then D.Say("▶ đang định vị mục lưu #" .. tostring(idx) .. ": '" .. tostring(it.title or it.query) .. "'", C.GREEN)
-                    else D.Say("⚠️ " .. tostring(it), C.RED) end end)
-                addSavedBtn.Activated:Connect(function() ReleaseHubFocus() local okU, it = S.ObjTrack.UseSaved(idx, true)
-                    if okU then D.Say("➕ đã ghim thêm mục lưu #" .. tostring(idx) .. " ('" .. tostring(it.title or it.query) .. "') — đang chạy " .. tostring(#S.ObjTrack.entries) .. " mục", C.GREEN)
-                    else D.Say("⚠️ " .. tostring(it), C.RED) end end)
-                autoSavedBtn.Activated:Connect(function() ReleaseHubFocus() local okT, nowAuto, it = S.ObjTrack.ToggleAutoSaved(idx)
-                    if okT then D.Say((nowAuto and "⚡ đã BẬT tự động định vị khi mở script cho #" or "⚡ đã TẮT tự động bật cho #") .. tostring(idx) .. " ('" .. tostring(it.title or it.query) .. "')", nowAuto and C.GREEN or C.YELLOW) end end)
-                delSavedBtn.Activated:Connect(function() ReleaseHubFocus() local okD, it = S.ObjTrack.RemoveSaved(idx)
-                    if okD then D.Say("🗑 đã xoá mục lưu #" .. tostring(idx) .. " ('" .. tostring(it.title or it.query) .. "')", C.YELLOW) end end)
-            end pcall(function() savedListFrame.CanvasSize = UDim2.new(0, 0, 0, #sList * 23 + 6) end) end
-        S.ObjTrack.RefreshSavedUI = refreshSavedUI
-        useAllBtn.Activated:Connect(function() ReleaseHubFocus() local okA, cnt = S.ObjTrack.UseAllSaved(false)
-            if okA then D.Say("▶ đang chạy tất cả " .. tostring(cnt) .. " mục đã lưu!", C.GREEN) else D.Say("⚠️ " .. tostring(cnt), C.RED) end end)
-        appendAllBtn.Activated:Connect(function() ReleaseHubFocus() local okA, cnt = S.ObjTrack.UseAllSaved(true)
-            if okA then D.Say("➕ đã ghim gộp tất cả " .. tostring(cnt) .. " mục đã lưu!", C.GREEN) else D.Say("⚠️ " .. tostring(cnt), C.RED) end end)
-        clearSavedBtn.Activated:Connect(function() ReleaseHubFocus() local okC, cnt = S.ObjTrack.ClearSaved()
-            if okC then D.Say("🗑 đã xoá toàn bộ " .. tostring(cnt) .. " mục định vị vật đã lưu", C.YELLOW) end end)
-        refreshSavedUI() end S.ObjTrack.BuildSavedUI()
-    local list = New("ScrollingFrame", { Name = "ObjTrackList", Size = UDim2.new(1, -16, 0, 94), Position = UDim2.new(0, 8, 0, 282),
+    local list = New("ScrollingFrame", { Name = "ObjTrackList", Size = UDim2.new(1, -16, 0, 94), Position = UDim2.new(0, 8, 0, 194),
         BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = 4, CanvasSize = UDim2.new(0, 0, 0, 0), ZIndex = 7,
     }, P) New("UIListLayout", { Padding = UDim.new(0, 3), SortOrder = Enum.SortOrder.LayoutOrder }, list)
     S.ObjTrack.BuildInfoUI = function() local info = New("Frame", {
-        Name = "OTInfo", Size = UDim2.new(1, -16, 0, 148), Position = UDim2.new(0, 8, 0, 384),
+        Name = "OTInfo", Size = UDim2.new(1, -16, 0, 148), Position = UDim2.new(0, 8, 0, 296),
         BackgroundColor3 = Color3.fromRGB(20, 25, 35), BackgroundTransparency = 0, BorderSizePixel = 0, ZIndex = 7, Visible = false,
     }, P) Corner(info, UDim.new(0, 6)) Stroke(info, C.BLUE, 1.5) New("TextLabel", { Size = UDim2.new(1, -16, 0, 16), Position = UDim2.new(0, 8, 0, 4),
         Text = "🎯 VẬT THỂ ĐƯỢC CHỌN (giống khung phân tích toạ độ — bấm 📊 ở danh sách)", TextColor3 = Color3.fromRGB(150, 210, 255), Font = Enum.Font.GothamBold, TextSize = 9,
@@ -4392,9 +4302,6 @@ function OT.OnFlyChange() if OT.RefreshList then pcall(OT.RefreshList) end end e
     Corner(copyPosBtn, UDim.new(0, 4)); D.Tactile(copyPosBtn, 0.08) local copyPathBtn = New("TextButton", {
         Size = UDim2.new(0, 96, 0, 16), Position = UDim2.new(0, 110, 0, 128), Text = "📋 Copy Path", BackgroundColor3 = C.PURPLE, TextColor3 = D.BestText(C.PURPLE),
         Font = Enum.Font.GothamBold, TextSize = 8, BorderSizePixel = 0, ZIndex = 9, }, info) Corner(copyPathBtn, UDim.new(0, 4)); D.Tactile(copyPathBtn, 0.08)
-    local saveSelBtn = New("TextButton", { Name = "OTSaveSelBtn", Size = UDim2.new(0, 96, 0, 16), Position = UDim2.new(0, 212, 0, 128),
-        Text = "💾 Lưu Vật Này", BackgroundColor3 = C.GREEN, TextColor3 = D.BestText(C.GREEN), Font = Enum.Font.GothamBold, TextSize = 8, BorderSizePixel = 0, ZIndex = 9, }, info)
-    Corner(saveSelBtn, UDim.new(0, 4)); D.Tactile(saveSelBtn, 0.08)
     local function refreshInfo() local sel, part = OT._sel, OT._selPart if sel == nil or not otAlive(sel) then OT._sel, OT._selPart = nil, nil
             info.Visible = false return end if part == nil or not otAlive(part) then
             part = OT.PartOf(sel) OT._selPart = part end local rows = OT.Info(sel, part)
@@ -4404,11 +4311,7 @@ function OT.OnFlyChange() if OT.RefreshList then pcall(OT.RefreshList) end end e
     copyPosBtn.Activated:Connect(function() ReleaseHubFocus()
         local did, txt = OT.CopyCoords() D.Say(did and ("📋 đã copy toạ độ: " .. tostring(txt)) or ("⚠️ " .. tostring(txt)),
               did and C.GREEN or C.RED) end) copyPathBtn.Activated:Connect(function() ReleaseHubFocus() local did, txt = OT.CopyPath()
-        D.Say(did and ("📋 đã copy path: " .. tostring(txt)) or ("⚠️ " .. tostring(txt)), did and C.GREEN or C.RED) end)
-    saveSelBtn.Activated:Connect(function() ReleaseHubFocus() if OT._sel == nil then D.Say("⚠️ chưa chọn vật nào", C.RED) return end
-        local okS, item, idx = S.ObjTrack.Save(OT._sel, false)
-        if okS then D.Say("💾 đã lưu vật #" .. tostring(idx) .. ": '" .. tostring(item.title) .. "' (tổng " .. tostring(#S.ObjTrack.savedList) .. " mục lưu)", C.GREEN)
-        else D.Say("⚠️ " .. tostring(item), C.RED) end end) end S.ObjTrack.BuildInfoUI()
+        D.Say(did and ("📋 đã copy path: " .. tostring(txt)) or ("⚠️ " .. tostring(txt)), did and C.GREEN or C.RED) end) end S.ObjTrack.BuildInfoUI()
     queryIn.Name, toggleBtn.Name, rescanBtn.Name = "OTQuery", "OTToggle", "OTRescan" statusLbl.Name, clearBtn.Name = "OTStatus", "OTClear"
     xyzBtn.Name, skipBtn.Name = "OTXyz", "OTSkip" local function paint() toggleBtn.Text = OT.on and "🌳 Định vị: BẬT" or "🌳 Định vị: TẮT"
         toggleBtn.BackgroundColor3 = OT.on and C.GREEN or C.SURFACE3 toggleBtn.TextColor3 = D.BestText(toggleBtn.BackgroundColor3)
@@ -4419,11 +4322,51 @@ function OT.OnFlyChange() if OT.RefreshList then pcall(OT.RefreshList) end end e
         colorBtn.Text = "🎨 " .. OT.Pal().name xyzBtn.Text = OT.showXYZ and "🧭 Nhãn toạ độ: BẬT" or "🧭 Nhãn toạ độ: TẮT"
         xyzBtn.BackgroundColor3 = OT.showXYZ and C.GREEN or C.SURFACE3 xyzBtn.TextColor3 = D.BestText(xyzBtn.BackgroundColor3)
         skipBtn.Text = OT.skipPlayers and "🚫 Bỏ qua người chơi: BẬT" or "🚫 Bỏ qua người chơi: TẮT" skipBtn.BackgroundColor3 = OT.skipPlayers and C.GREEN or C.SURFACE3
-        skipBtn.TextColor3 = D.BestText(skipBtn.BackgroundColor3) local flying = (S.Move and S.Move._objFlyActive == true)
+        skipBtn.TextColor3 = D.BestText(skipBtn.BackgroundColor3)
+        local sCnt = #(OT.savedList or {}) switchModeBtn.Visible = (sCnt > 0)
+        if OT.viewMode == "saved" then
+            switchModeBtn.Text = "🔄 Chuyển Sang: Vật Trong SV (" .. tostring(#OT.list) .. ")"
+            switchModeBtn.BackgroundColor3 = C.GREEN switchModeBtn.TextColor3 = D.BestText(C.GREEN)
+        else
+            switchModeBtn.Text = "🔄 Chuyển Đổi: Đã Lưu (" .. tostring(sCnt) .. ")"
+            switchModeBtn.BackgroundColor3 = C.YELLOW switchModeBtn.TextColor3 = D.BestText(C.YELLOW)
+        end
+        local flying = (S.Move and S.Move._objFlyActive == true)
         flyStop.BackgroundColor3 = flying and C.RED or C.SURFACE3 flyStop.TextColor3 = D.BestText(flyStop.BackgroundColor3)
         statusLbl.Text = OT.Status() statusLbl.TextColor3 = OT.on and C.GREEN or C.ACCENT end
     S.ObjTrack.RefreshList = function() if not (list and list.Parent) then return end
-        if not (D.playerTab and D.playerTab.Visible) then return end local shown = math.max(0, math.min(#OT.list, tonumber(OT.showRows) or 8))
+        paint() if not (D.playerTab and D.playerTab.Visible) then return end
+        if OT.viewMode == "saved" then
+            local sList = OT.savedList or {} local sigParts = { "SAVED" }
+            for i = 1, #sList do sigParts[#sigParts + 1] = tostring(sList[i].id or i) .. ":" .. tostring(sList[i].title or "") end
+            local sig = table.concat(sigParts, "#")
+            if sig ~= OT._rowSig then OT._rowSig = sig
+                for _, child in ipairs(list:GetChildren()) do if not child:IsA("UIListLayout") then pcall(function() child:Destroy() end) end end
+                for i = 1, #sList do local item = sList[i] local idx = i
+                    local row = New("Frame", { Name = "OTSavedRow_" .. tostring(idx), Size = UDim2.new(1, 0, 0, 24), LayoutOrder = idx,
+                        BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.18, BorderSizePixel = 0, ZIndex = 8, }, list)
+                    Corner(row, UDim.new(0, 5)) Stroke(row, C.ACCENT, 1)
+                    New("TextLabel", { Name = "OTSavedLabel_" .. tostring(idx), Size = UDim2.new(1, -184, 1, 0), Position = UDim2.new(0, 7, 0, 0),
+                        Text = string.format("💾 #%d  %s", idx, tostring(item.title or item.query or "Mục lưu")),
+                        BackgroundTransparency = 1, TextColor3 = C.DARK, Font = Enum.Font.GothamBold, TextSize = 8, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 9, }, row)
+                    local useBtn = New("TextButton", { Name = "OTSavedUse_" .. tostring(idx), Size = UDim2.new(0, 86, 0, 18), Position = UDim2.new(1, -178, 0, 3),
+                        Text = "🎯 Sang Vật SV", BackgroundColor3 = C.GREEN, TextColor3 = D.BestText(C.GREEN), Font = Enum.Font.GothamBold, TextSize = 8, BorderSizePixel = 0, ZIndex = 9, }, row)
+                    Corner(useBtn, UDim.new(0, 4)); D.Tactile(useBtn, 0.08) useBtn.Activated:Connect(function() ReleaseHubFocus()
+                        local okU, it = S.ObjTrack.UseSaved(idx, false) S.ObjTrack.ToggleViewMode("server")
+                        if okU then D.Say("🎯 đang định vị '" .. tostring(it.title or it.query) .. "' — đã chuyển sang danh sách vật trong server!", C.GREEN) end end)
+                    local addSavedBtn = New("TextButton", { Name = "OTSavedAdd_" .. tostring(idx), Size = UDim2.new(0, 52, 0, 18), Position = UDim2.new(1, -88, 0, 3),
+                        Text = "➕ Ghim", BackgroundColor3 = C.ACCENT, TextColor3 = D.BestText(C.ACCENT), Font = Enum.Font.GothamBold, TextSize = 8, BorderSizePixel = 0, ZIndex = 9, }, row)
+                    Corner(addSavedBtn, UDim.new(0, 4)); D.Tactile(addSavedBtn, 0.08) addSavedBtn.Activated:Connect(function() ReleaseHubFocus()
+                        local okU, it = S.ObjTrack.UseSaved(idx, true)
+                        if okU then D.Say("➕ đã ghim '" .. tostring(it.title or it.query) .. "' — bấm 🔄 Chuyển Sang: Vật Trong SV để xem!", C.GREEN) end end)
+                    local delSavedBtn = New("TextButton", { Name = "OTSavedDel_" .. tostring(idx), Size = UDim2.new(0, 26, 0, 18), Position = UDim2.new(1, -32, 0, 3),
+                        Text = "✕", BackgroundColor3 = C.RED, TextColor3 = D.BestText(C.RED), Font = Enum.Font.GothamBold, TextSize = 8, BorderSizePixel = 0, ZIndex = 9, }, row)
+                    Corner(delSavedBtn, UDim.new(0, 4)); D.Tactile(delSavedBtn, 0.08) delSavedBtn.Activated:Connect(function() ReleaseHubFocus()
+                        local okD, it = S.ObjTrack.RemoveSaved(idx) if okD then D.Say("🗑 đã xoá mục lưu #" .. tostring(idx), C.YELLOW) end end)
+                end pcall(function() list.CanvasSize = UDim2.new(0, 0, 0, math.max(0, #sList * 27)) end) end
+            return
+        end
+        local shown = math.max(0, math.min(#OT.list, tonumber(OT.showRows) or 8))
         local sigParts = {} for i = 1, shown do local h = OT.list[i] sigParts[i] = tostring(h.inst.Name) .. "|" .. tostring(h.inst)
         end local sig = table.concat(sigParts, "#")
         if #OT.list == 0 then sig = "EMPTY:" .. tostring(OT.query) .. ":" .. tostring(OT._scanned or 0) end if sig ~= OT._rowSig then
@@ -4436,49 +4379,40 @@ function OT.OnFlyChange() if OT.RefreshList then pcall(OT.RefreshList) end end e
                 local inst = h.inst local row = New("Frame", { Name = "OTRow_" .. tostring(i), Size = UDim2.new(1, 0, 0, 24), LayoutOrder = i,
                     BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.18, BorderSizePixel = 0, ZIndex = 8, }, list)
                 Corner(row, UDim.new(0, 5)) Stroke(row, (S.Move and S.Move._objFlyTarget == inst) and C.ACCENT or C.BORDER, 1) New("TextLabel", { Name = "OTName",
-                    Size = UDim2.new(1, -238, 1, 0), Position = UDim2.new(0, 7, 0, 0), Text = string.format("#%d  %s  (%s, %dm)", i, tostring(inst.Name),
+                    Size = UDim2.new(1, -196, 1, 0), Position = UDim2.new(0, 7, 0, 0), Text = string.format("#%d  %s  (%s, %dm)", i, tostring(inst.Name),
                         tostring(inst.ClassName or "?"), otRound(h.dist)), BackgroundTransparency = 1, TextColor3 = C.DARK, Font = Enum.Font.GothamBold,
-                    TextSize = 8, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 9, }, row)
-                local saveRow = New("TextButton", { Name = "OTSaveRow", Size = UDim2.new(0, 42, 0, 18), Position = UDim2.new(1, -232, 0, 3),
-                    Text = "💾 Lưu", BackgroundColor3 = C.YELLOW, TextColor3 = D.BestText(C.YELLOW), Font = Enum.Font.GothamBold, TextSize = 8, BorderSizePixel = 0, ZIndex = 9, }, row)
-                Corner(saveRow, UDim.new(0, 4)); D.Tactile(saveRow, 0.08) saveRow.Activated:Connect(function() ReleaseHubFocus()
-                    local okS, item, idx = S.ObjTrack.Save(inst, false)
-                    if okS then D.Say("💾 đã lưu vật #" .. tostring(idx) .. ": '" .. tostring(item.title) .. "'", C.GREEN) else D.Say("⚠️ " .. tostring(item), C.RED) end end)
-                local infoRow = New("TextButton", {
-                    Name = "OTInfoRow", Size = UDim2.new(0, 46, 0, 18), Position = UDim2.new(1, -186, 0, 3),
+                    TextSize = 8, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 9, }, row) local infoRow = New("TextButton", {
+                    Name = "OTInfoRow", Size = UDim2.new(0, 48, 0, 18), Position = UDim2.new(1, -190, 0, 3),
                     Text = "📊 Xem", BackgroundColor3 = C.BLUE, TextColor3 = D.BestText(C.BLUE), Font = Enum.Font.GothamBold, TextSize = 8, BorderSizePixel = 0, ZIndex = 9,
                 }, row) Corner(infoRow, UDim.new(0, 4)); D.Tactile(infoRow, 0.08) infoRow.Activated:Connect(function() ReleaseHubFocus() S.ObjTrack.Select(inst)
                     D.Say("📊 đang xem '" .. tostring(inst.Name) .. "' — số liệu cập nhật theo vật", C.BLUE) pcall(S.ObjTrack.RefreshList)
-                end) local flyRow = New("TextButton", { Name = "OTFlyRow", Size = UDim2.new(0, 58, 0, 18), Position = UDim2.new(1, -136, 0, 3),
+                end) local flyRow = New("TextButton", { Name = "OTFlyRow", Size = UDim2.new(0, 62, 0, 18), Position = UDim2.new(1, -138, 0, 3),
                     Text = "🚀 Bay", BackgroundColor3 = C.ACCENT, TextColor3 = D.BestText(C.ACCENT), Font = Enum.Font.GothamBold, TextSize = 8, BorderSizePixel = 0, ZIndex = 9, }, row)
                 Corner(flyRow, UDim.new(0, 4)); D.Tactile(flyRow, 0.08) flyRow.Activated:Connect(function()
                     ReleaseHubFocus() local ok, res = S.Move.FlyToObject(inst)
                     if ok then D.Say("🚀 đang bay tới '" .. tostring(inst.Name) .. "' · bấm ⏹ Dừng bay để dừng", C.GREEN) else D.Say("⚠️ " .. tostring(res), C.RED)
                     end pcall(S.ObjTrack.RefreshList) end) local copyRow = New("TextButton", { Name = "OTCopyRow",
-                    Size = UDim2.new(0, 64, 0, 18), Position = UDim2.new(1, -74, 0, 3), Text = "📋 Tên", BackgroundColor3 = C.SURFACE3, TextColor3 = D.BestText(C.SURFACE3),
+                    Size = UDim2.new(0, 64, 0, 18), Position = UDim2.new(1, -70, 0, 3), Text = "📋 Tên", BackgroundColor3 = C.SURFACE3, TextColor3 = D.BestText(C.SURFACE3),
                     Font = Enum.Font.GothamBold, TextSize = 8, BorderSizePixel = 0, ZIndex = 9, }, row)
                 Corner(copyRow, UDim.new(0, 4)); D.Tactile(copyRow, 0.08) copyRow.Activated:Connect(function() ReleaseHubFocus()
                     local did = S.CopyToClipboard(tostring(inst.Name)) D.Say(did and ("📋 đã copy tên '" .. tostring(inst.Name) .. "'")
                               or "⚠️ executor không có setclipboard", did and C.GREEN or C.RED) end)
-            end pcall(function() list.CanvasSize = UDim2.new(0, 0, 0, math.max(0, shown * 27)) end) end paint() end
+            end pcall(function() list.CanvasSize = UDim2.new(0, 0, 0, math.max(0, shown * 27)) end) end end
     S.OpenObjectPanel = function() local ok = S.OpenPlayerTab and S.OpenPlayerTab() or false
-        if S.ObjTrack.RefreshTags then pcall(S.ObjTrack.RefreshTags) end if S.ObjTrack.RefreshSavedUI then pcall(S.ObjTrack.RefreshSavedUI) end pcall(S.ObjTrack.RefreshList) return ok end
+        if S.ObjTrack.RefreshTags then pcall(S.ObjTrack.RefreshTags) end pcall(S.ObjTrack.RefreshList) return ok end
     S.ObjTrack.Focus = function() if S.OpenObjectPanel then pcall(S.OpenObjectPanel) end
         pcall(function() if queryIn and queryIn.Parent then queryIn:CaptureFocus() end end) end
     saveBtn.Activated:Connect(function() ReleaseHubFocus() local raw = tostring(queryIn.Text or "")
         local okS, item, idx = S.ObjTrack.Save(raw, false)
-        if okS then queryIn.Text = "" S.ObjTrack.query = ""
-            D.Say("💾 đã lưu lần #" .. tostring(idx) .. ": '" .. tostring(item.title) .. "' (tổng " .. tostring(#S.ObjTrack.savedList) .. " mục đã lưu)", C.GREEN)
+        if okS then queryIn.Text = "" S.ObjTrack.query = "" paint()
+            D.Say("💾 đã lưu lần #" .. tostring(idx) .. ": '" .. tostring(item.title) .. "' — bấm 🔄 Chuyển Đổi để xem mục đã lưu hoặc chuyển sang vật trong SV!", C.GREEN)
         else D.Say("⚠️ " .. tostring(item), C.RED) end end)
-    saveAutoBtn.Activated:Connect(function() ReleaseHubFocus() local raw = tostring(queryIn.Text or "")
-        local okS, item, idx = S.ObjTrack.Save(raw, true)
-        if okS then queryIn.Text = "" S.ObjTrack.query = ""
-            D.Say("⚡ đã lưu & bật tự động lần #" .. tostring(idx) .. ": '" .. tostring(item.title) .. "' (tự bật khi chạy script)", C.GREEN)
-        else D.Say("⚠️ " .. tostring(item), C.RED) end end)
-    savePinnedBtn.Activated:Connect(function() ReleaseHubFocus()
-        local okS, item, idx = S.ObjTrack.Save("", false)
-        if okS then D.Say("💾 đã lưu nhóm mục đang ghim thành lần #" .. tostring(idx) .. ": '" .. tostring(item.title) .. "'", C.GREEN)
-        else D.Say("⚠️ " .. tostring(item), C.RED) end end)
+    switchModeBtn.Activated:Connect(function() ReleaseHubFocus() local mode = S.ObjTrack.ToggleViewMode()
+        if mode == "saved" then
+            D.Say("🔄 đang hiển thị " .. tostring(#(S.ObjTrack.savedList or {})) .. " mục định vị vật đã lưu — bấm 🔄 lần nữa để chuyển sang vật phẩm trong server!", C.YELLOW)
+        else
+            D.Say("🔄 đã chuyển sang hiển thị " .. tostring(#(S.ObjTrack.list or {})) .. " vật phẩm định vị được trong server!", C.GREEN)
+        end end)
     queryIn:GetPropertyChangedSignal("Text"):Connect(function() S.ObjTrack.SetQuery(queryIn.Text) end)
     queryIn.FocusLost:Connect(function(enterPressed) ReleaseHubFocus() if enterPressed then
             local raw = tostring(queryIn.Text or "") local okA, kindOrWhy = S.ObjTrack.AddEntry(raw) if okA then queryIn.Text = ""
