@@ -275,7 +275,8 @@ S = { dragMenu     = false, dragging     = false, dragStart    = nil, startPos  
         if S.SpeedMeter and S.SpeedMeter.OnTabChanged then pcall(S.SpeedMeter.OnTabChanged) end
         if S.ObjTrack and S.ObjTrack.OnPerfTick then pcall(S.ObjTrack.OnPerfTick) end if S.Loc and S.Loc.OnPerfTick then pcall(S.Loc.OnPerfTick) end end) end
 S.WRAP_MARK_OLD = "-- ===== AUTO-GENERATED SIZE WRAPPER" S.WRAP_MARK_NEW = "-- ===== AUTO-GENERATED FIT WRAPPER"
-function S.SanitizeCode(c) if type(c) ~= "string" then return c end if not c:find(S.WRAP_MARK_OLD, 1, true) then return c end local out = (c:gsub(
+S.SIMPLESPY_CODE = [[loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/78n/SimpleSpy/main/SimpleSpyBeta.lua"))()]]
+function S.SanitizeCode(c) if type(c) ~= "string" then return c end if c:find("ex-serum/SimpleSpy/main/SimpleSpy.lua", 1, true) then c = S.SIMPLESPY_CODE end if not c:find(S.WRAP_MARK_OLD, 1, true) then return c end local out = (c:gsub(
         "pcall%s*%(%s*function%s*%(%)%s*_ForceStretch%s*%(%s*g%s*%)%s*end%s*%)", "")) return out end
 function S.Shimmed(n) local v = S.shimmedFns and S.shimmedFns[n] if v == nil then return false end return rawget(_G, n) == v end function D.SyncPageChips() pcall(function()
         if not D.hdrSwitches then return end local state = { embed = (S.embedEnabled == true), guess = (S.embedGuessNew == true),
@@ -423,11 +424,15 @@ function S.RunReportText() local r = S.lastRunReport if not r then return "" end
 local function ExecOnce(code, name) if #name>0 then print("👤 Chạy bởi:", name) end code = S.SanitizeCode(code)          -- v4.4b: cắt wrapper "tự dãn kích thước" độc hại của bản cũ
     code = S.NormalizeRunnable(code)     -- v4.7: link trần / thiếu () / BOM -> chạy được
     S.EnsureCompat()                     -- v4.7: bù hàm executor còn thiếu (không đè hàm thật)
-    local ok, err = pcall(function() local fn, lerr = loadstring(code) if not fn then error(lerr) end fn() end) if ok then S.lastRunError = nil else
+    local ok, err = pcall(function() local fn, lerr = loadstring(code) if not fn then error(lerr) end fn() end)
+    if not ok and tostring(err):find("HttpGetAsync", 1, true) and code:find("HttpGetAsync", 1, true) then
+        ok, err = pcall(function() local fn, lerr = loadstring((code:gsub(":HttpGetAsync%s*%(", ":HttpGet("))) if not fn then error(lerr) end fn() end) end
+    if ok then S.lastRunError = nil else
         S.lastRunError = tostring(err) pcall(function() warn("[taodepzai v5.0 NOIR] ❌ '" .. tostring(name) .. "' lỗi: " .. tostring(err)) end)
     end return ok, err end local function Cancel() pcall(function() if S.AbortRunCapture then S.AbortRunCapture() end end) cancelled=true runActive=false
     if curThread then pcall(task.cancel, curThread); curThread=nil end if curIndicator then curIndicator.BackgroundColor3=C.BLUE; curIndicator=nil end
 end local function RunCode(code, name, ind, times, delay, noPark) Cancel() ReleaseHubFocus()   -- v4.4b: nhả focus TextBox, nếu không game chặn hết input (không đi/không bắn)
+    if tostring(name or ""):lower():find("simplespy", 1, true) then code = S.SIMPLESPY_CODE end
     if #code==0 then return false, "⚠️ Vui lòng nhập code!" end cancelled=false
     if ind then curIndicator=ind; ind.BackgroundColor3=C.RED end local okC, failC = 0, 0 curThread=task.spawn(function() runActive=true
         S.lastParkedCount, S.lastParkedNames = 0, {}   -- v4.7: đếm GUI của RIÊNG lần chạy này
@@ -562,7 +567,7 @@ searchIn:GetPropertyChangedSignal("Text"):Connect(function() S.Debounce("savedSe
 local supportTab = AddTab("Hỗ Trợ", "🛠", 5)     -- v4.15: 4 -> 5 để nhường chỗ cho 👥 Người Chơi
 S.AnaUi = S.AnaUi or {} S.AnaUi.supportTabIndex = #tabContent local posY = 8 Label(supportTab, "⚡ Script Nhanh - Nhấn để chạy ngay", posY) posY = posY + 16
 local quickScripts = { {n="Dex Explorer", d="Mở Dex Explorer", c=[[loadstring(game:HttpGet("https://raw.githubusercontent.com/infyiff/backup/main/dex.lua"))()]], cl=Color3.fromRGB(72, 148, 248)},
-    {n="Infinite Yield", d="Admin Commands", c=[[loadstring(game:HttpGet("https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source"))()]], cl=C.PURPLE}, {n="SimpleSpy v3", d="Theo dõi RemoteEvent & RemoteFunction", c=[[loadstring(game:HttpGet("https://raw.githubusercontent.com/ex-serum/SimpleSpy/main/SimpleSpy.lua"))()]], cl=Color3.fromRGB(38, 194, 118)},
+    {n="Infinite Yield", d="Admin Commands", c=[[loadstring(game:HttpGet("https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source"))()]], cl=C.PURPLE}, {n="SimpleSpy v3", d="Theo dõi RemoteEvent & RemoteFunction", c=[[loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/78n/SimpleSpy/main/SimpleSpyBeta.lua"))()]], cl=Color3.fromRGB(38, 194, 118)},
 } for _, s in ipairs(quickScripts) do local btn = New("TextButton", {
         Size=UDim2.new(1,-16,0,22), Position=UDim2.new(0,8,0,posY), Text="", BackgroundColor3=s.cl, BackgroundTransparency=0.3, BorderSizePixel=0, ZIndex=6,
     }, supportTab) Corner(btn, UDim.new(0,5)) Stroke(btn, s.cl, 1.2) New("TextLabel", {
@@ -2481,7 +2486,7 @@ function S.AntiBanArm() local a = S.AntiBan if a.armed then return end a.armed =
      noPark=true}, {icon="🧰", name="Dex Explorer", cat="Explorer", ord=2,
      desc="Duyệt toàn bộ instance trong game, xem/sửa property, tìm object theo đường dẫn.", code=[[loadstring(game:HttpGet("https://raw.githubusercontent.com/infyiff/backup/main/dex.lua"))()]],
      noPark=true}, {icon="📡", name="SimpleSpy v3", cat="Spy", ord=3,
-     desc="Theo dõi RemoteEvent/RemoteFunction: tên, tham số, copy code để gọi lại y hệt.", code=[[loadstring(game:HttpGet("https://raw.githubusercontent.com/ex-serum/SimpleSpy/main/SimpleSpy.lua"))()]], noPark=true},
+     desc="Theo dõi RemoteEvent/RemoteFunction: tên, tham số, copy code để gọi lại y hệt.", code=[[loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/78n/SimpleSpy/main/SimpleSpyBeta.lua"))()]], noPark=true},
     {icon="🎯", name="Niêm tâm (Crosshair)", cat="Tiện ích", ord=4, action="crosshair", desc="Bật/tắt vòng tròn niêm tâm + 4 nét ngắn ở GIỮA màn hình game (ngoài menu)."},
     {icon="🧩", name="Trả GUI về màn hình", cat="Tiện ích", ord=5, action="unpark", desc="Hoàn tác MỌI GUI hub đang mượn vào menu: tab tính năng + tab 🧩 GUI Ngoài."},
     {icon="🖱", name="Sửa kẹt chuột", cat="Tiện ích", ord=6, action="fixmouse", desc="Nhả focus ô nhập, trả GUI về game, đặt lại MouseBehavior — hết cảnh không quay chuột/không bắn."},
