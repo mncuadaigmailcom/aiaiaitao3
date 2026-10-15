@@ -5187,8 +5187,9 @@ function S.CopyToClipboard(text) local did = false
 
 function S.FetchServers(cursor) local url = "https://games.roblox.com/v1/games/" .. tostring(game.PlaceId)
              .. "/servers/Public?sortOrder=Asc&limit=100" if cursor and cursor ~= "" then url = url .. "&cursor=" .. tostring(cursor) end
-    local raw = game:HttpGet(url) local data = HttpService:JSONDecode(raw)
-    if type(data) ~= "table" then return {}, nil end return (type(data.data) == "table" and data.data or {}), data.nextPageCursor end
+    -- BUG-002 fix: boc pcall HttpGet/JSON (giong ban script.js1.js) -> loi mang/JSON tra {}, nil thay vi nem loi
+    local okFetch, data = pcall(function() return HttpService:JSONDecode(game:HttpGet(url)) end)
+    if not okFetch or type(data) ~= "table" then return {}, nil end return (type(data.data) == "table" and data.data or {}), data.nextPageCursor end
 
 function S.ResetServer() local me = S.GetJobId()
     if me then TeleportService:TeleportToPlaceInstance(game.PlaceId, me, player)

@@ -1927,12 +1927,19 @@ serverHopBtn.Activated:Connect(function()
     local servers = {}
     local req = request or http_request or (syn and syn.request)
     if req then
-        local res = req({Url = string.format("https://games.roblox.com/v1/games/%d/servers/0?sortOrder=Desc&limit=100", game.PlaceId)})
-        local body = HttpService:JSONDecode(res.Body)
-        if body and body.data then
+        -- BUG-001 fix: boc pcall request/JSON, chiu duoc loi ket noi & du lieu hong -> van fallback Teleport o duoi
+        local okRes, body = pcall(function()
+            local res = req({Url = string.format("https://games.roblox.com/v1/games/%d/servers/0?sortOrder=Desc&limit=100", game.PlaceId)})
+            if type(res) ~= "table" or type(res.Body) ~= "string" then return nil end
+            return HttpService:JSONDecode(res.Body)
+        end)
+        if okRes and type(body) == "table" and type(body.data) == "table" then
             for _, s in ipairs(body.data) do
-                if type(s) == "table" and s.playing < s.maxPlayers and s.id ~= game.JobId then
-                    table.insert(servers, s.id)
+                if type(s) == "table" then
+                    local playing, maxPlayers = tonumber(s.playing), tonumber(s.maxPlayers)
+                    if playing and maxPlayers and playing < maxPlayers and s.id ~= game.JobId then
+                        table.insert(servers, s.id)
+                    end
                 end
             end
         end
