@@ -234,3 +234,65 @@ print("LUAU_UNIT_FLY_UPDOWN_OK")
             f.write(harness); path = f.name
         r = subprocess.run([exe, path], capture_output=True, text=True, timeout=60)
         self.assertIn("LUAU_UNIT_FLY_UPDOWN_OK", r.stdout, r.stdout + r.stderr)
+
+class TestServerJoinByCode(unittest.TestCase):
+    """Hoi quy BUG-005: nhap ma server nguoi choi o Script Hub hop khong duoc."""
+    def setUp(self): self.t = read("script.js1.js")
+
+    def test_locate_job_place_wired(self):
+        self.assertIn("function S.LocateJobPlace(jobId)", self.t)
+        self.assertIn("pId = S.LocateJobPlace(jId)", self.t)
+        # hop noi bo ghi cache Place hien tai -> khong cham, giu nguyen hanh vi
+        self.assertGreaterEqual(self.t.count("S._jobPlaceCache[pick.id] = tonumber(game.PlaceId) S.JoinServer(pick.id)"), 3)
+        # tinh nang cu con nguyen
+        for k in ["HubServer_JobInput", "function S.JoinServer", "function S.ParseServerCode", "TeleportToPlaceInstance"]:
+            self.assertIn(k, self.t)
+
+    def test_teleport_fail_not_silent(self):
+        self.assertIn("Không vào được server này (", self.t)
+        self.assertIn("Đã tự canh 25 lần", self.t)
+        self.assertIn("S.StartAutoJoinQueue", self.t)  # canh slot khi day van con
+
+    def test_luau_unit_join_chain_if_available(self):
+        exe = os.environ.get("LUAU") or ("/tmp/luau-build/luau-0.742/build/release/luau"
+              if Path("/tmp/luau-build/luau-0.742/build/release/luau").exists() else None)
+        if not exe: self.skipTest("khong co luau binary (dat LUAU=...)")
+        seg = self.t[self.t.index("function S.ParseServerCode"):self.t.index("function S.HopServer")]
+        seg = seg.replace("_G.BananaCatHub_PlayerInfo", "PISTUB")  # _G bi dong bang trong Luau CLI, chi thay o ban test
+        harness = r'''
+local TP, fetchCalls = nil, 0
+local S = {_jobPlaceCache={}, _jobMetaCache={}}
+game = {PlaceId=111, JobId="self-job"}
+player = {}
+GuiService = {ClearError=function() end}
+TeleportService = { TeleportToPlaceInstance=function(self,p,j,pl) TP={p,j} end,
+  Teleport=function(self,p,pl) TP={p,nil} end,
+  TeleportInitFailed={Connect=function(self,fn) return {Disconnect=function() end} end} }
+trackConn = function(c) return c end
+ReleaseHubFocus = function() end
+D = {Say=function() end}
+C = {YELLOW=1, RED=2}
+PISTUB = { GetUniversePlaces=function(a,b) return {111,222} end }
+''' + seg + r'''
+local U="123e4567-e89b-12d3-a456-426614174000"
+S.FetchServers = function(cur, p) fetchCalls = fetchCalls + 1
+  if p == 222 then return {{id=U}}, nil end return {{id="other-server"}}, nil end
+-- 1) chi co JobId, server o sub-place 222 -> phai tim ra Place 222 (truoc day mac dinh 111 nen that bai)
+TP=nil; local m1 = S.JoinServer(U); assert(TP and TP[1]==222 and TP[2]==U, "case1 "..tostring(TP and TP[1]))
+-- 2) da co cache -> khong quet tim Place nua (hop noi bo khong cham)
+local U2="223e4567-e89b-12d3-a456-426614174000"; S._jobPlaceCache[U2]=111; fetchCalls=0; TP=nil
+S.JoinServer(U2); assert(TP and TP[1]==111 and fetchCalls==0, "case2 cache")
+-- 3) ma kem san Place "222:U" -> dung ngay, khong tim
+TP=nil; S.JoinServer("222:"..U); assert(TP and TP[1]==222, "case3 explicit")
+-- 4) khong tim thay o dau -> giu hanh vi cu: vao bang Place hien tai
+local U3="323e4567-e89b-12d3-a456-426614174000"; TP=nil
+S.JoinServer(U3); assert(TP and TP[1]==111 and TP[2]==U3, "case4 fallback")
+-- 5) ma rac -> bao loi ro rang, khong teleport
+TP=nil; local okE = pcall(function() return S.JoinServer("!!!") end)
+assert(not okE and TP==nil, "case5 invalid")
+print("LUAU_UNIT_JOIN_CHAIN_OK")
+'''
+        with tempfile.NamedTemporaryFile("w", suffix=".luau", delete=False) as f:
+            f.write(harness); path = f.name
+        r = subprocess.run([exe, path], capture_output=True, text=True, timeout=60)
+        self.assertIn("LUAU_UNIT_JOIN_CHAIN_OK", r.stdout, r.stdout + r.stderr)

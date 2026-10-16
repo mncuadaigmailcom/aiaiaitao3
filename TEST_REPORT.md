@@ -125,3 +125,23 @@ chỉ 2 file** (`aiaiaitao3`, `script.js`), `script.js1.js` nguyên vẹn.
   unit Luau thật: giữ ⬆→Y=+1→vận tốc +50, giữ ⬇→−50, thả→0). Toàn suite: **15/15 OK**,
   parse Luau `script.js1.js` không lỗi cú pháp. Runtime trong game thật vẫn **BỊ CHẶN**
   (chưa có Roblox/executor trong sandbox) — cần chủ dự án bấm thử ⬆/⬇ trong game để xác nhận cuối.
+
+## 9. Bổ sung — Hop vào server người chơi bằng mã ở Script Hub (script.js1.js)
+
+- **BUG-005 (Trung bình):** nhập mã của người chơi mà người đó ở *sub-place khác*:
+  `S.JoinServer` mặc định dịch chuyển bằng PlaceId nơi mình đang đứng → Roblox trả
+  GameNotFound; handler `TeleportInitFailed` thử place khác xong **im lặng bỏ cuộc**
+  (kể cả khi hàng chờ canh slot chạy hết 25 lần). Người dùng chỉ thấy "không vào được".
+- **Sửa (không mất tính năng):**
+  1. Thêm `S.LocateJobPlace(jobId)`: khi mã chỉ có JobId và chưa biết Place, quét tối đa
+     6 Place của universe × 2 trang server công khai để tìm đúng Place của mã, có cache
+     `_jobPlaceCache`. Không tìm thấy → giữ hành vi cũ (vào bằng Place hiện tại).
+  2. Hop nội bộ (Hop/Ít/Vắng) ghi sẵn cache Place hiện tại → không bị chậm bởi bước tìm.
+  3. `TeleportInitFailed` hết phương án → báo rõ lý do + hướng xử lý; hàng chờ canh
+     25 lần không vào được → cũng báo rõ thay vì im lặng.
+- **Test:** thêm `TestServerJoinByCode` (3 test) gồm unit Luau thật cho chuỗi
+  JoinServer: (1) JobId ở sub-place 222 → teleport đúng (222, JobId); (2) có cache →
+  không quét, teleport ngay; (3) mã "Place:JobId" → dùng ngay; (4) không tìm thấy →
+  fallback Place hiện tại như cũ; (5) mã rác → lỗi rõ ràng, không teleport.
+  Toàn suite **18/18 OK**, parse Luau đạt. Dịch chuyển thật trong game vẫn cần chủ
+  dự án xác nhận trong Roblox (môi trường này không có game client).
