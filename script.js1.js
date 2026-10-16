@@ -2416,14 +2416,19 @@ function S.JoinServer(jobIdOrQuery, customPlaceId) local s = tostring(jobIdOrQue
     local pi = _G.BananaCatHub_PlayerInfo if type(pi) == "table" and type(pi.JoinPlayerServer) == "function" and s ~= "" then
         local okP, msgP = pi.JoinPlayerServer(s) if not okP then error(tostring(msgP)) end return tostring(msgP) end
     if pId and pId > 0 then local okT, errT = S.TeleportToServer(pId, nil) if not okT then error(tostring(errT)) end return "🚀 Đang vào game PlaceId " .. tostring(pId) .. "!"
-    end error("Mã server không hợp lệ: " .. tostring(s)) end function S.HopServer() local me = tostring(S.GetJobId() or "") local cand, cursor = {}, "" for _ = 1, 3 do
+    end error("Mã server không hợp lệ: " .. tostring(s)) end function S.TryJoinCandidates(cand) local tried, lastErr = {}, nil
+    for _ = 1, math.min(3, #cand) do local pool = {} for _, c in ipairs(cand) do if c and c.id and not tried[c.id] then pool[#pool + 1] = c end end
+        if #pool == 0 then break end local pick = pool[math.random(1, #pool)] tried[pick.id] = true S._jobPlaceCache[pick.id] = tonumber(game.PlaceId)
+        local okJ, errJ = pcall(function() return S.JoinServer(pick.id) end) if okJ then return pick, nil end lastErr = errJ end return nil, lastErr end
+function S.HopServer() local me = tostring(S.GetJobId() or "") local cand, cursor = {}, "" for _ = 1, 3 do
         local okF, list, nextCursor = pcall(function() return S.FetchServers(cursor) end)
         if not okF or type(list) ~= "table" then list, nextCursor = {}, nil end for _, sv in ipairs(list) do
             local sid = (sv and sv.id) and tostring(sv.id) or nil local playing = tonumber(sv and sv.playing) or 0
             local maxp = tonumber(sv and sv.maxPlayers) or 0 if sid and sid ~= me and (maxp <= 0 or playing < maxp) then
                 cand[#cand + 1] = {id = sid, playing = playing, maxPlayers = maxp} end end if #cand > 0 then break end                        -- có ứng viên rồi thì khỏi lật trang
         if not nextCursor or nextCursor == "" then break end cursor = nextCursor end if #cand == 0 then
-        return "⚠️ Không tìm thấy server nào còn chỗ trống (hoặc game này không cho xem danh sách server)" end local pick = cand[math.random(1, #cand)] S._jobPlaceCache[pick.id] = tonumber(game.PlaceId) S.JoinServer(pick.id)
+        return "⚠️ Không tìm thấy server nào còn chỗ trống (hoặc game này không cho xem danh sách server)" end local pick, jErr = S.TryJoinCandidates(cand)
+    if not pick then return "⚠️ Tìm thấy " .. #cand .. " server nhưng Roblox từ chối cả 3 lần thử gần nhất: " .. tostring(jErr) end
     return "🔀 Đang nhảy sang server " .. pick.id .. " (" .. pick.playing .. "/" .. pick.maxPlayers .. " người) · tìm được " .. #cand .. " server khác để chọn, đã bỏ qua server hiện tại" end
 function S.HopLowServer() local me = tostring(S.GetJobId() or "") local cand, cursor = {}, "" local pages = 0 local maxPages = 8 -- quét 800 server để tìm server vắng nhất
     for _ = 1, maxPages do pages = pages + 1 local ok, list, nextCursor = pcall(function() return S.FetchServers(cursor) end) if not ok then
@@ -2434,8 +2439,8 @@ function S.HopLowServer() local me = tostring(S.GetJobId() or "") local cand, cu
         task.wait(0.15) -- tránh spam api
     end if #cand == 0 then return "⚠️ Không tìm thấy server nào còn chỗ trống (đã quét "..pages.." trang)" end
     table.sort(cand, function(a,b) return (a.playing or 0) < (b.playing or 0) end) local minPlay = cand[1].playing
-    local best = {} for _, sv in ipairs(cand) do if sv.playing <= minPlay + 1 then best[#best+1] = sv else break end end local pick = best[math.random(1, #best)]
-    S._jobPlaceCache[pick.id] = tonumber(game.PlaceId) S.JoinServer(pick.id) return "🔀 [ÍT NGƯỜI] Đang nhảy sang server " .. pick.id .. " (" .. pick.playing .. "/" .. pick.maxPlayers .. " người) · đã quét " .. #cand .. " server qua " .. pages .. " trang, vắng nhất " .. minPlay .. " người" end
+    local best = {} for _, sv in ipairs(cand) do if sv.playing <= minPlay + 1 then best[#best+1] = sv else break end end local pick, jErr = S.TryJoinCandidates(best)
+    if not pick then return "⚠️ Đã quét " .. #cand .. " server nhưng Roblox từ chối cả 3 lần thử gần nhất: " .. tostring(jErr) end return "🔀 [ÍT NGƯỜI] Đang nhảy sang server " .. pick.id .. " (" .. pick.playing .. "/" .. pick.maxPlayers .. " người) · đã quét " .. #cand .. " server qua " .. pages .. " trang, vắng nhất " .. minPlay .. " người" end
 function S.HopEmptyServer() local me = tostring(S.GetJobId() or "") local cand, cursor = {}, "" local pages = 0
     local maxPages = 10 for _ = 1, maxPages do pages = pages + 1 local ok, list, nextCursor = pcall(function() return S.FetchServers(cursor) end)
         if not ok then task.wait(0.3) ok, list, nextCursor = pcall(function() return S.FetchServers(cursor) end) end
@@ -2444,8 +2449,9 @@ function S.HopEmptyServer() local me = tostring(S.GetJobId() or "") local cand, 
             local maxp = tonumber(sv and sv.maxPlayers) or 0 if sid and sid ~= me and (maxp <= 0 or playing < maxp) and playing <= 3 then
                 cand[#cand + 1] = {id = sid, playing = playing, maxPlayers = maxp} end end if #cand >= 5 then break end -- đủ 5 server vắng thì dừng sớm
         if not nextCursor or nextCursor == "" then break end cursor = nextCursor task.wait(0.15) end if #cand == 0 then return S.HopLowServer() end
-    table.sort(cand, function(a,b) return (a.playing or 0) < (b.playing or 0) end) local pick = cand[math.random(1, #cand)]
-    S._jobPlaceCache[pick.id] = tonumber(game.PlaceId) S.JoinServer(pick.id) return "🔀 [SIÊU VẮNG ≤3] Đang nhảy sang server " .. pick.id .. " (" .. pick.playing .. "/" .. pick.maxPlayers .. " người) · tìm thấy " .. #cand .. " server vắng qua " .. pages .. " trang"
+    table.sort(cand, function(a,b) return (a.playing or 0) < (b.playing or 0) end)
+    local pick, jErr = S.TryJoinCandidates(cand)
+    if not pick then return "⚠️ Tìm thấy " .. #cand .. " server vắng nhưng Roblox từ chối cả 3 lần thử gần nhất: " .. tostring(jErr) end return "🔀 [SIÊU VẮNG ≤3] Đang nhảy sang server " .. pick.id .. " (" .. pick.playing .. "/" .. pick.maxPlayers .. " người) · tìm thấy " .. #cand .. " server vắng qua " .. pages .. " trang"
 end S.AntiBan = S.AntiBan or { on = (_G.BananaCatHub_AntiBan == true),
     busy = false, lastHop = 0, cooldown = 10, hops = 0, lastReason = "", armed = false, snaps = 0, snapAt = 0, conns = {}, _unhookKick = nil, }
 function S.AntiBanIsMsg(msg) local s = string.lower(tostring(msg or "")) if s == "" then return false end local keys = {
@@ -2666,9 +2672,7 @@ end D.hubJobCopy.Activated:Connect(function() local jid = S.GetJobId()
 D.hubJoinBtn.Activated:Connect(function() S.DoHubJoinByInput(D.hubJobIn and D.hubJobIn.Text) end)
 D.hubJobIn.FocusLost:Connect(function(enter) if enter then S.DoHubJoinByInput(D.hubJobIn.Text) end end)
 D.hubHopBtn.Activated:Connect(function() ReleaseHubFocus()
-    local id = tostring(D.hubJobIn and D.hubJobIn.Text or ""):gsub("^%s+", ""):gsub("%s+$", "") local myJid = tostring(S.GetJobId() or "")
-    if id ~= "" and id ~= myJid then S.DoHubJoinByInput(id)
-        return end
+    -- BUG-006 fix: nut Hop LUON hop ngau nhien, khong con bi o 🎟 (hay con sot ma nguoi choi) cuop sang vao-theo-ma; vao theo ma dung nut 🚀 Vào
     D.Say("🔀 Đang đi lấy mã server...", C.YELLOW) D.hubStatus.Text = S.RunHubAction("hopserver") end)
 D.hubLowBtn.Activated:Connect(function() ReleaseHubFocus()
     D.Say("👥 Đang quét 800 server tìm server ÍT NGƯỜI nhất...", C.YELLOW) D.hubStatus.Text = S.RunHubAction("hoplow") end)

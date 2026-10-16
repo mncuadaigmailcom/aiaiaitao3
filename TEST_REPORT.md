@@ -145,3 +145,18 @@ chỉ 2 file** (`aiaiaitao3`, `script.js`), `script.js1.js` nguyên vẹn.
   fallback Place hiện tại như cũ; (5) mã rác → lỗi rõ ràng, không teleport.
   Toàn suite **18/18 OK**, parse Luau đạt. Dịch chuyển thật trong game vẫn cần chủ
   dự án xác nhận trong Roblox (môi trường này không có game client).
+
+## 10. Bổ sung — Tính năng Hop (script.js1.js)
+
+- **BUG-006a (Trung bình):** nút 🔀 Hop trong Script Hub bị ô 🎟 "cướp": ô này hay còn
+  sót mã của người chơi (script tự điền sau tra cứu/copy), bấm Hop lại thành *vào theo
+  mã đó* thay vì hop ngẫu nhiên → server kia đầy/người đã rời là tưởng Hop hỏng.
+  Sửa: nút Hop **luôn hop ngẫu nhiên**; vào theo mã vẫn còn nguyên ở nút 🚀 Vào + Enter.
+- **BUG-006b (Trung bình):** Hop thường/Ít/Vắng chỉ thử **đúng 1 server** được chọn;
+  server đó bị Roblox từ chối đồng bộ (vừa đầy/lỗi) là bỏ cuộc dù còn nhiều ứng viên.
+  Sửa: thêm `S.TryJoinCandidates` — thử tối đa 3 ứng viên khác nhau, ghi cache Place
+  hiện tại (kế thừa sửa BUG-005, không quét tìm Place, không làm chậm Hop).
+- **Test:** thêm `TestHop` (3 test) gồm unit Luau thật: Hop thường bỏ qua server lỗi
+  vào được server tốt; Hop ít người chọn đúng nhóm vắng nhất; Hop siêu vắng vào server
+  ≤3 người; danh sách rỗng → báo rõ không teleport. Toàn suite **21/21 OK**, parse đạt.
+  Hop thật trong game vẫn cần chủ dự án xác nhận trong Roblox.

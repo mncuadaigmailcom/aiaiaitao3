@@ -242,8 +242,9 @@ class TestServerJoinByCode(unittest.TestCase):
     def test_locate_job_place_wired(self):
         self.assertIn("function S.LocateJobPlace(jobId)", self.t)
         self.assertIn("pId = S.LocateJobPlace(jId)", self.t)
-        # hop noi bo ghi cache Place hien tai -> khong cham, giu nguyen hanh vi
-        self.assertGreaterEqual(self.t.count("S._jobPlaceCache[pick.id] = tonumber(game.PlaceId) S.JoinServer(pick.id)"), 3)
+        # hop noi bo ghi cache Place hien tai trong TryJoinCandidates -> khong cham, giu nguyen hanh vi
+        self.assertIn("S._jobPlaceCache[pick.id] = tonumber(game.PlaceId)", self.t)
+        self.assertIn("function S.TryJoinCandidates(cand)", self.t)
         # tinh nang cu con nguyen
         for k in ["HubServer_JobInput", "function S.JoinServer", "function S.ParseServerCode", "TeleportToPlaceInstance"]:
             self.assertIn(k, self.t)
@@ -296,3 +297,66 @@ print("LUAU_UNIT_JOIN_CHAIN_OK")
             f.write(harness); path = f.name
         r = subprocess.run([exe, path], capture_output=True, text=True, timeout=60)
         self.assertIn("LUAU_UNIT_JOIN_CHAIN_OK", r.stdout, r.stdout + r.stderr)
+
+class TestHop(unittest.TestCase):
+    """Hoi quy BUG-006: tinh nang Hop (ngau nhien / it nguoi / sieu vang)."""
+    def setUp(self): self.t = read("script.js1.js")
+
+    def test_hop_button_always_hops(self):
+        i = self.t.index("D.hubHopBtn.Activated")
+        handler = self.t[i:i + 500]
+        self.assertIn('S.RunHubAction("hopserver")', handler)
+        self.assertNotIn("DoHubJoinByInput", handler, "BUG-006a: nut Hop lai vao theo ma con sot trong o nhap")
+        # vao theo ma van con o nut Vao (khong mat tinh nang)
+        self.assertIn("S.DoHubJoinByInput(D.hubJobIn and D.hubJobIn.Text)", self.t)
+        for k in ["HubServer_HopBtn", "function S.HopServer", "function S.HopLowServer", "function S.HopEmptyServer", "function S.FetchServers"]:
+            self.assertIn(k, self.t)
+
+    def test_try_join_candidates(self):
+        self.assertIn("function S.TryJoinCandidates(cand)", self.t)
+        self.assertIn("math.min(3, #cand)", self.t)
+        self.assertGreaterEqual(self.t.count("S.TryJoinCandidates("), 4)  # 1 dinh nghia + 3 cho dung
+
+    def test_luau_unit_hop_if_available(self):
+        exe = os.environ.get("LUAU") or ("/tmp/luau-build/luau-0.742/build/release/luau"
+              if Path("/tmp/luau-build/luau-0.742/build/release/luau").exists() else None)
+        if not exe: self.skipTest("khong co luau binary (dat LUAU=...)")
+        seg = self.t[self.t.index("function S.GetJobId"):self.t.index("S.AntiBan = S.AntiBan or")]
+        seg = seg.replace("_G.BananaCatHub_PlayerInfo", "PISTUB")
+        harness = r'''
+local TP, TS = nil, nil
+local S = {}
+game = {PlaceId=111, JobId="selfjob-0000"}
+player = {}
+GuiService = {ClearError=function() end}
+HttpService = {JSONDecode=function() error("unused") end}
+TeleportService = { TeleportToPlaceInstance=function(self,p,j,pl) if j=="good-mid-01" then error("denied sync") end TP={p,j} end,
+  Teleport=function(self,p,pl) TP={p,nil} end,
+  TeleportInitFailed={Connect=function(self,fn) return {Disconnect=function() end} end} }
+trackConn = function(c) return c end
+ReleaseHubFocus = function() end
+D = {Say=function() end}
+C = {YELLOW=1, RED=2}
+PISTUB = {}
+task = {wait=function() end, delay=function() end, spawn=function(f) end}
+''' + seg + r'''
+-- FetchServers gia: trang 1 co server loi/het, trang 2 binh thuong
+S.FetchServers = function(cur, p)
+  if cur == "" then return {{id="selfjob-0000",playing=1,maxPlayers=10},{id="bad",playing=1,maxPlayers=10},
+    {id="good-mid-01",playing=2,maxPlayers=10},{id="good-low-01",playing=1,maxPlayers=10}}, "c2" end
+  return {{id="good-high-1",playing=9,maxPlayers=10}}, nil end
+-- 1) Hop thuong: phai bo qua server loi va vao duoc server tot (khong dung lai o lan thu 1)
+TP=nil; local m1 = S.HopServer(); assert(TP and TP[2]=="good-low-01", "hop: "..tostring(TP and TP[2]).." / "..tostring(m1))
+-- 2) Hop it nguoi: chon nhom vang nhat va van vao duoc du 1 ung vien loi
+TP=nil; local m2 = S.HopLowServer(); assert(TP and TP[2]=="good-low-01", "hoplow: "..tostring(TP and TP[2]))
+-- 3) Hop sieu vang: co server <=3 nguoi -> vao server do
+TP=nil; local m3 = S.HopEmptyServer(); assert(TP and TP[2]=="good-low-01", "hopempty: "..tostring(TP and TP[2]))
+-- 4) Khong co server nao -> bao ro, khong teleport
+S.FetchServers = function() return {}, nil end
+TP=nil; local m4 = S.HopServer(); assert(TP==nil and m4:find("Không tìm thấy"), "hop empty list")
+print("LUAU_UNIT_HOP_OK")
+'''
+        with tempfile.NamedTemporaryFile("w", suffix=".luau", delete=False) as f:
+            f.write(harness); path = f.name
+        r = subprocess.run([exe, path], capture_output=True, text=True, timeout=60)
+        self.assertIn("LUAU_UNIT_HOP_OK", r.stdout, r.stdout + r.stderr)
