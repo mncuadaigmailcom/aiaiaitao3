@@ -169,3 +169,68 @@ print("LUAU_UNIT_FETCHSERVERS_OK")
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+class TestVirtualButtonsAndSpy(unittest.TestCase):
+    """Hoi quy: nut ao bay len/xuong + SimpleSpy link moi (script.js1.js)."""
+    def setUp(self): self.t = read("script.js1.js")
+
+    def test_simplespy_new_link_only(self):
+        self.assertIn('loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/78n/SimpleSpy/main/SimpleSpyBeta.lua"))()', self.t)
+        self.assertNotIn("ex-serum/SimpleSpy", self.t)
+        self.assertIn("SimpleSpy", self.t)  # tinh nang con nguyen
+
+    def test_fly_hud_updown_preserved_and_token_holds(self):
+        self.assertIn('hold("FlyUp", "⬆"', self.t)
+        self.assertIn('hold("FlyDown", "⬇"', self.t)
+        # hold key theo button + token luu input (tha tay ngoai nut van xoa dung)
+        self.assertIn("FL.holds[b] = { input = input, X = axis.X, Y = axis.Y, Z = axis.Z }", self.t)
+        self.assertIn("matches(held.input, input, false)", self.t)
+        self.assertNotIn("FL.holds[input] = axis", self.t)
+
+    def test_safe_hud_updown_global_release(self):
+        self.assertIn('vBtn("⬆"', self.t); self.assertIn('vBtn("⬇"', self.t)
+        self.assertIn("SF._virtYInput, SF._virtYAt = inp, os.clock()", self.t)
+        self.assertIn("inp == SF._virtYInput", self.t)
+        # cham nhanh van nudge 2.5 (giu nguyen tinh nang), giu lau khong bi nay them
+        self.assertIn("(os.clock() - (SF._virtYAt or 0)) < 0.35", self.t)
+        self.assertIn("MV.Nudge(2.5)", self.t); self.assertIn("MV.Nudge(-2.5)", self.t)
+
+    def test_luau_unit_fly_updown_if_available(self):
+        """Chay that MV._ReadFlyInput + MV.FlyVelocity (trich tu script.js1.js) bang Luau:
+        giu ⬆ -> Y=+1 -> van toc +50; giu ⬇ -> -50; tha nut -> dung."""
+        exe = os.environ.get("LUAU") or ("/tmp/luau-build/luau-0.742/build/release/luau"
+              if Path("/tmp/luau-build/luau-0.742/build/release/luau").exists() else None)
+        if not exe: self.skipTest("khong co luau binary (dat LUAU=...)")
+        src = self.t
+        clamp = src[src.index("local function mvClamp"):src.index("function MV.Char")]
+        clamp = clamp[:clamp.rindex("end") + 3].replace("local function mvClamp", "function mvClamp", 1)
+        body = src[src.index("function MV._ReadFlyInput"):src.index("function MV._FlyStep")]
+        harness = r'''
+local VMT; local function V(x,y,z) local m=math.sqrt(x*x+y*y+z*z) return setmetatable({X=x,Y=y,Z=z,Magnitude=m},VMT) end
+VMT={__add=function(a,b) return V(a.X+b.X,a.Y+b.Y,a.Z+b.Z) end,__sub=function(a,b) return V(a.X-b.X,a.Y-b.Y,a.Z-b.Z) end,
+__mul=function(a,b) if type(a)=="number" then a,b=b,a end return V(a.X*b,a.Y*b,a.Z*b) end,
+__div=function(a,b) return V(a.X/b,a.Y/b,a.Z/b) end,
+__index=function(t,k) if k=="Unit" then local m=t.Magnitude if m>0 then return V(t.X/m,t.Y/m,t.Z/m) end return V(0,0,0) end end}
+Vector3={new=V, zero=V(0,0,0)}
+UserInputService={IsKeyDown=function() return false end, GetFocusedTextBox=function() return nil end}
+Enum={KeyCode={W=1,S=2,A=3,D=4,Space=5,LeftShift=6,LeftControl=7}}
+FL={x=0,z=0,y=0,holds={},focused=true,joyInput=nil}
+local MV={}
+''' + clamp + "\n" + body + r'''
+local cf={RightVector=Vector3.new(1,0,0), LookVector=Vector3.new(0,0,-1)}
+local btn, inp = {}, {}
+assert(MV._ReadFlyInput(cf,nil).Y==0, "idle")
+FL.holds[btn]={input=inp,X=0,Y=1,Z=0}
+assert(MV._ReadFlyInput(cf,nil).Y==1, "up hold")
+assert(MV.FlyVelocity(cf,MV._ReadFlyInput(cf,nil),50).Y==50, "up vel")
+FL.holds[btn]={input=inp,X=0,Y=-1,Z=0}
+assert(MV._ReadFlyInput(cf,nil).Y==-1, "down hold")
+assert(MV.FlyVelocity(cf,MV._ReadFlyInput(cf,nil),50).Y==-50, "down vel")
+FL.holds[btn]=nil
+assert(MV._ReadFlyInput(cf,nil).Y==0, "release")
+print("LUAU_UNIT_FLY_UPDOWN_OK")
+'''
+        with tempfile.NamedTemporaryFile("w", suffix=".luau", delete=False) as f:
+            f.write(harness); path = f.name
+        r = subprocess.run([exe, path], capture_output=True, text=True, timeout=60)
+        self.assertIn("LUAU_UNIT_FLY_UPDOWN_OK", r.stdout, r.stdout + r.stderr)

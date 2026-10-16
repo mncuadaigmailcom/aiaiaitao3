@@ -562,7 +562,7 @@ searchIn:GetPropertyChangedSignal("Text"):Connect(function() S.Debounce("savedSe
 local supportTab = AddTab("Hỗ Trợ", "🛠", 5)     -- v4.15: 4 -> 5 để nhường chỗ cho 👥 Người Chơi
 S.AnaUi = S.AnaUi or {} S.AnaUi.supportTabIndex = #tabContent local posY = 8 Label(supportTab, "⚡ Script Nhanh - Nhấn để chạy ngay", posY) posY = posY + 16
 local quickScripts = { {n="Dex Explorer", d="Mở Dex Explorer", c=[[loadstring(game:HttpGet("https://raw.githubusercontent.com/infyiff/backup/main/dex.lua"))()]], cl=Color3.fromRGB(72, 148, 248)},
-    {n="Infinite Yield", d="Admin Commands", c=[[loadstring(game:HttpGet("https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source"))()]], cl=C.PURPLE}, {n="SimpleSpy v3", d="Theo dõi RemoteEvent & RemoteFunction", c=[[loadstring(game:HttpGet("https://raw.githubusercontent.com/ex-serum/SimpleSpy/main/SimpleSpy.lua"))()]], cl=Color3.fromRGB(38, 194, 118)},
+    {n="Infinite Yield", d="Admin Commands", c=[[loadstring(game:HttpGet("https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source"))()]], cl=C.PURPLE}, {n="SimpleSpy v3", d="Theo dõi RemoteEvent & RemoteFunction", c=[[loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/78n/SimpleSpy/main/SimpleSpyBeta.lua"))()]], cl=Color3.fromRGB(38, 194, 118)},
 } for _, s in ipairs(quickScripts) do local btn = New("TextButton", {
         Size=UDim2.new(1,-16,0,22), Position=UDim2.new(0,8,0,posY), Text="", BackgroundColor3=s.cl, BackgroundTransparency=0.3, BorderSizePixel=0, ZIndex=6,
     }, supportTab) Corner(btn, UDim.new(0,5)) Stroke(btn, s.cl, 1.2) New("TextLabel", {
@@ -1702,7 +1702,7 @@ end function MV.SetFlyHud(on) FL.showHud = (on == true) if not FL.showHud then M
         FL.x, FL.z = delta.X / 32, delta.Y / 32 FL.knob.Position = UDim2.new(0.5, delta.X - 11, 0.5, delta.Y - 11) end connect(joy.InputBegan, function(input)
         if pointer(input) and MV.fly and FL.showHud and not FL.joyInput then FL.joyInput = input; updateJoy(input.Position) end
     end) local function hold(name, text, x, y, w, h, axis, color) local b = button(name, text, x, y, w, h, color or C.SURFACE3) connect(b.InputBegan, function(input)
-            if pointer(input) and MV.fly and FL.showHud then FL.holds[input] = axis end end) connect(b.InputEnded, function(input) FL.holds[input] = nil end) end
+            if pointer(input) and MV.fly and FL.showHud then FL.holds[b] = { input = input, X = axis.X, Y = axis.Y, Z = axis.Z } end end) connect(b.InputEnded, function(input) FL.holds[b] = nil end) end
     hold("FlyForward", "↑", 128, 24, 24, 24, Vector3.new(0, 0, -1)) hold("FlyBack", "↓", 128, 84, 24, 24, Vector3.new(0, 0, 1)) hold("FlyLeft", "←", 100, 54, 24, 24, Vector3.new(-1, 0, 0))
     hold("FlyRight", "→", 156, 54, 24, 24, Vector3.new(1, 0, 0)) hold("FlyUp", "⬆", 198, 24, 34, 38, Vector3.new(0, 1, 0), C.GREEN)
     hold("FlyDown", "⬇", 198, 68, 34, 38, Vector3.new(0, -1, 0), C.RED) local stopBtn = button("FlyHudStop", "⏹ Dừng", 168, 120, 68, 22, C.RED)
@@ -1712,7 +1712,7 @@ end function MV.SetFlyHud(on) FL.showHud = (on == true) if not FL.showHud then M
     connect(UserInputService.InputChanged, function(input) if matches(FL.joyInput, input, true) then updateJoy(input.Position) end if matches(FL.dragInput, input, true) then
             local delta = input.Position - FL.dragStart hud.Position = UDim2.new(FL.dragPos.X.Scale, FL.dragPos.X.Offset + delta.X,
                 FL.dragPos.Y.Scale, FL.dragPos.Y.Offset + delta.Y) end end) connect(UserInputService.InputEnded, function(input)
-        for held in pairs(FL.holds) do if matches(held, input, false) then FL.holds[held] = nil end end if matches(FL.joyInput, input, false) then
+        for btn, held in pairs(FL.holds) do if type(held) == "table" and matches(held.input, input, false) then FL.holds[btn] = nil end end if matches(FL.joyInput, input, false) then
             FL.joyInput, FL.x, FL.z = nil, 0, 0 FL.knob.Position = UDim2.new(0.5, -11, 0.5, -11) end if matches(FL.dragInput, input, false) then FL.dragInput = nil end end)
     connect(UserInputService.WindowFocusReleased, function() FL.focused = false MV.ClearFlyInput() if MV._bv then MV._bv.Velocity = Vector3.zero end
     end) connect(UserInputService.WindowFocused, function() FL.focused = true end) return hud end function MV.SyncFlyHud() if MV.fly then MV._BuildFlyHud() end if FL.hud and FL.hud.Parent then
@@ -2015,14 +2015,14 @@ function MV.Safe.SetShowHud(b) SF.showHud = (b == true) if not SF.showHud then p
             TextColor3 = D.BestText(color or C.SURFACE3), Font = Enum.Font.GothamBold, TextSize = 9, BorderSizePixel = 0, ZIndex = 27,
         }, hud) Corner(b, UDim.new(0, 6)) Stroke(b, C.BORDER, 1) local hold = false if cb then
             b.InputBegan:Connect(function(inp) if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
-                    hold = true pcall(cb, true) end end) b.InputEnded:Connect(function(inp)
-                if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then hold = false pcall(cb, false) end
+                    hold = true pcall(cb, true, inp) end end) b.InputEnded:Connect(function(inp)
+                if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then hold = false pcall(cb, false, inp) end
             end) b.Activated:Connect(function() pcall(cb, nil) end) end return b end
-    vBtn("⬆", 108, 22, 32, 30, Color3.fromRGB(0,150,0), function(isDown) if isDown == true then MV.Safe.SetVirt(SF._virtX, SF._virtZ, 1)
-        elseif isDown == false then MV.Safe.SetVirt(SF._virtX, SF._virtZ, 0) else pcall(function() MV.Nudge(2.5) end) end end)
-    vBtn("⬇", 108, 56, 32, 30, Color3.fromRGB(150,0,0), function(isDown) if isDown == true then MV.Safe.SetVirt(SF._virtX, SF._virtZ, -1)
-        elseif isDown == false then MV.Safe.SetVirt(SF._virtX, SF._virtZ, 0) else pcall(function() MV.Nudge(-2.5) end) end end)
-    vBtn("⏹ Dừng", 108, 92, 68, 22, C.RED, function() MV.Safe.Stop() end) vBtn("⭕ Tâm", 180, 92, 54, 22, C.PURPLE, function() MV.Safe.Recenter() end)
+    vBtn("⬆", 108, 22, 32, 30, Color3.fromRGB(0,150,0), function(isDown, inp) if isDown == true then SF._virtYInput, SF._virtYAt = inp, os.clock() MV.Safe.SetVirt(SF._virtX, SF._virtZ, 1)
+        elseif isDown == false then if SF._virtYInput == inp then SF._virtYInput = nil end MV.Safe.SetVirt(SF._virtX, SF._virtZ, 0) elseif (os.clock() - (SF._virtYAt or 0)) < 0.35 then pcall(function() MV.Nudge(2.5) end) end end)
+    vBtn("⬇", 108, 56, 32, 30, Color3.fromRGB(150,0,0), function(isDown, inp) if isDown == true then SF._virtYInput, SF._virtYAt = inp, os.clock() MV.Safe.SetVirt(SF._virtX, SF._virtZ, -1)
+        elseif isDown == false then if SF._virtYInput == inp then SF._virtYInput = nil end MV.Safe.SetVirt(SF._virtX, SF._virtZ, 0) elseif (os.clock() - (SF._virtYAt or 0)) < 0.35 then pcall(function() MV.Nudge(-2.5) end) end end)
+    trackConn(UserInputService.InputEnded:Connect(function(inp) if (inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch) and SF._virtYInput ~= nil and inp == SF._virtYInput then SF._virtYInput = nil MV.Safe.SetVirt(SF._virtX, SF._virtZ, 0) end end)) vBtn("⏹ Dừng", 108, 92, 68, 22, C.RED, function() MV.Safe.Stop() end) vBtn("⭕ Tâm", 180, 92, 54, 22, C.PURPLE, function() MV.Safe.Recenter() end)
     vBtn("↻", 144, 22, 30, 30, C.SURFACE3, function() SF._ang = (SF._ang or 0) + 0.6 end)
     local autoTog = vBtn("➡ Tự: BẬT", 8, 120, 74, 20, C.GREEN, function() MV.Safe.SetAuto(not SF.auto)
         D.Say(SF.auto and "➡ tự bay: BẬT" or "➡ tự bay: TẮT", C.ACCENT) pcall(function() if S.SyncSafePanel then S.SyncSafePanel() end end)
@@ -2481,7 +2481,7 @@ function S.AntiBanArm() local a = S.AntiBan if a.armed then return end a.armed =
      noPark=true}, {icon="🧰", name="Dex Explorer", cat="Explorer", ord=2,
      desc="Duyệt toàn bộ instance trong game, xem/sửa property, tìm object theo đường dẫn.", code=[[loadstring(game:HttpGet("https://raw.githubusercontent.com/infyiff/backup/main/dex.lua"))()]],
      noPark=true}, {icon="📡", name="SimpleSpy v3", cat="Spy", ord=3,
-     desc="Theo dõi RemoteEvent/RemoteFunction: tên, tham số, copy code để gọi lại y hệt.", code=[[loadstring(game:HttpGet("https://raw.githubusercontent.com/ex-serum/SimpleSpy/main/SimpleSpy.lua"))()]], noPark=true},
+     desc="Theo dõi RemoteEvent/RemoteFunction: tên, tham số, copy code để gọi lại y hệt.", code=[[loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/78n/SimpleSpy/main/SimpleSpyBeta.lua"))()]], noPark=true},
     {icon="🎯", name="Niêm tâm (Crosshair)", cat="Tiện ích", ord=4, action="crosshair", desc="Bật/tắt vòng tròn niêm tâm + 4 nét ngắn ở GIỮA màn hình game (ngoài menu)."},
     {icon="🧩", name="Trả GUI về màn hình", cat="Tiện ích", ord=5, action="unpark", desc="Hoàn tác MỌI GUI hub đang mượn vào menu: tab tính năng + tab 🧩 GUI Ngoài."},
     {icon="🖱", name="Sửa kẹt chuột", cat="Tiện ích", ord=6, action="fixmouse", desc="Nhả focus ô nhập, trả GUI về game, đặt lại MouseBehavior — hết cảnh không quay chuột/không bắn."},

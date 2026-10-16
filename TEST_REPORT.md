@@ -108,3 +108,20 @@ chỉ 2 file** (`aiaiaitao3`, `script.js`), `script.js1.js` nguyên vẹn.
   ESP, teleport, anti-ban, executor khác nhau). Muốn đóng mục này cần chạy script trong
   game với executor thực tế và đối chiếu từng tính năng theo checklist ở §3 — chưa làm
   được trong sandbox, nên **không tuyên bố các tính năng đó "đã kiểm chứng trong game"**.
+
+## 8. Bổ sung 16/10/2026 — Nút ảo ⬆/⬇ + SimpleSpy (script.js1.js)
+
+- **BUG-003 (Trung bình) — HUD 🚀 Fly:** trạng thái giữ nút ảo key theo `InputObject`;
+  thả tay ngoài nút/đa điểm dễ kẹt hoặc mất giữ ⬆/⬇. Sửa: key theo button + token
+  `{input, X, Y, Z}`, `UserInputService.InputEnded` toàn cục xoá theo input đã lưu.
+- **BUG-004 (Trung bình) — HUD 🛡 Safe:** ⬆/⬇ chỉ trông chờ `InputEnded` trên nút
+  (kẹt lên/xuống nếu thả ngoài nút) và `Activated` sau giữ lâu nảy thêm 2.5 studs.
+  Sửa: lưu `SF._virtYInput/_virtYAt`, reset qua InputEnded toàn cục, chỉ chạm nhanh
+  (<0.35s) mới Nudge 2.5 — giữ nguyên tính năng chạm, giữ lâu không nảy thêm.
+- **SimpleSpy:** thay `ex-serum/SimpleSpy` (HttpGet) bằng link chủ dự án yêu cầu
+  `loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/78n/SimpleSpy/main/SimpleSpyBeta.lua"))()`
+  ở cả 2 vị trí (quickScripts + Script Hub) — không mất tính năng nào.
+- **Test:** thêm 4 test (link SimpleSpy mới, token holds Fly, global-release Safe,
+  unit Luau thật: giữ ⬆→Y=+1→vận tốc +50, giữ ⬇→−50, thả→0). Toàn suite: **15/15 OK**,
+  parse Luau `script.js1.js` không lỗi cú pháp. Runtime trong game thật vẫn **BỊ CHẶN**
+  (chưa có Roblox/executor trong sandbox) — cần chủ dự án bấm thử ⬆/⬇ trong game để xác nhận cuối.
