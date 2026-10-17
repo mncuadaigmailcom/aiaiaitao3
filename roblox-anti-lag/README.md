@@ -34,7 +34,7 @@ cuối cùng `anti:Destroy()`.
 | 11 | Tối ưu tác vụ song song | `RunLimited`: giới hạn số việc chạy đồng thời (`maxConcurrent`), quá tải thì từ chối thay vì dồn việc | ✅ |
 | 12 | Phân bổ công việc | Ngân sách ms/frame + trần việc/frame + hàng đợi ưu tiên + gộp việc trùng key | ✅ |
 | 13 | Đo hiệu suất | `Sample/GetReport`: FPS trung bình, frame ms (avg + p95), RAM (Stats), ping, phân loại nút thắt `CPU/frame` / `RAM` / `NETWORK` / `OK` | ✅ |
-| 14 | Kiểm thử hồi quy | Bộ test Luau thật (`tests/run_tests.lua`, 12 nhóm kiểm tra) + test tĩnh hợp đồng an toàn (`tests/test_antilag.py`) | ✅ |
+| 14 | Kiểm thử hồi quy | Bộ test Luau thật (`tests/run_tests.lua`, 21 kiểm tra) + test tĩnh hợp đồng an toàn (`tests/test_antilag.py`) | ✅ |
 
 ## Hợp đồng an toàn (không thương lượng)
 
