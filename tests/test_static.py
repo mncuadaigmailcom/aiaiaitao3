@@ -444,6 +444,8 @@ class TestMenuCompleteness(unittest.TestCase):
     def test_hub_keeps_own_features(self):
         self.assertEqual(self.hub.count('name="'), 20, "Script Hub phai con dung 20 the")
         for name in MENU_FEATURES_HUB: self.assertIn(f'name="{name}"', self.hub, f"MAT the Script Hub: {name}")
+    def test_hub_cards_name_only_no_desc(self):
+        self.assertNotIn("desc=", self.hub)  # the chi con ten tinh nang, khong con dong gioi thieu
     def test_hub_no_duplicates_from_other_tabs(self):
         for name in MENU_MOVED_OUT: self.assertNotIn(f'name="{name}"', self.hub, f"TRUNG o Script Hub: {name}")
         self.assertIn('{"Tất cả", "Tiện ích", "Server", "Di chuyển"}', self.t)  # chip loc da bo nhom trung

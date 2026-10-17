@@ -197,3 +197,12 @@ chỉ 2 file** (`aiaiaitao3`, `script.js`), `script.js1.js` nguyên vẹn.
 - `TestMenuCompleteness` cập nhật theo mốc mới: khóa 20 thẻ của Script Hub, khẳng định 14 tên đã chuyển KHÔNG còn trong hub, tính năng gốc còn ở tab nhà + handler còn đủ.
 - Kết quả: 29/29 test ĐẠT; luau-analyze 0 SyntaxError; file 835.316 byte.
 - Giới hạn: không có Roblox/executor trong sandbox — kiểm chứng tĩnh + thực thi Luau thật cho logic trích xuất; cần chạy thử trong game để xác nhận giao diện.
+
+## 14. Tối ưu dung lượng: thẻ Script Hub chỉ còn tên tính năng + bỏ chữ thừa
+
+- Bỏ toàn bộ `desc=` (dòng giới thiệu dài) khỏi 20 thẻ Script Hub — thẻ chỉ còn icon + tên + nhóm + action; tìm kiếm vẫn khớp theo tên/nhóm, không mất tính năng.
+- Xóa toàn bộ comment trong code (lexer nhận biết chuỗi/chuỗi dài nên không đụng nội dung trong chuỗi, kể cả template `[==[...]==]`), bỏ thụt lề đầu dòng và khoảng trắng cuối dòng.
+- Kết quả: 835.316 → 784.516 byte sau mục 13 (tính trên file CRLF thực tế; bản LF tương đương giảm 50.789 byte so với trước đợt này).
+- Thêm mốc `test_hub_cards_name_only_no_desc` (hub không còn `desc=`).
+- Kiểm chứng: 30/30 test ĐẠT; luau-analyze 0 SyntaxError.
+- Giới hạn: không có Roblox/executor trong sandbox — kiểm chứng tĩnh + thực thi Luau thật; cần chạy thử trong game để xác nhận giao diện.
