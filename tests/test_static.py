@@ -360,3 +360,62 @@ print("LUAU_UNIT_HOP_OK")
             f.write(harness); path = f.name
         r = subprocess.run([exe, path], capture_output=True, text=True, timeout=60)
         self.assertIn("LUAU_UNIT_HOP_OK", r.stdout, r.stdout + r.stderr)
+
+class TestForeignServerJoin(unittest.TestCase):
+    """Hoi quy BUG-007: co ma cua nguoi choi o khu vuc/Place khac nhung hop khong vao duoc."""
+    def setUp(self): self.t = read("script.js1.js")
+
+    def test_fetchservers_order_param(self):
+        self.assertIn('function S.FetchServers(cursor, customPlaceId, order)', self.t)
+        self.assertIn('(order == "Desc" and "Desc" or "Asc")', self.t)
+        # caller cu (Hop) khong truyen order -> van Asc nhu cu, khong doi hanh vi
+        self.assertIn("return S.FetchServers(cursor) end", self.t)
+
+    def test_locate_scans_both_ends(self):
+        i = self.t.index("function S.LocateJobPlace")
+        seg = self.t[i:self.t.index("function S.JoinServer")]
+        self.assertIn('{ "Asc", "Desc" }', seg)
+        self.assertIn("S.FetchServers(cur, p, ord)", seg)
+        self.assertIn("for _ = 1, 3 do", seg)  # quet sau hon (truoc day 2 trang)
+
+    def test_luau_unit_locate_desc_if_available(self):
+        exe = os.environ.get("LUAU") or ("/tmp/luau-build/luau-0.742/build/release/luau"
+              if Path("/tmp/luau-build/luau-0.742/build/release/luau").exists() else None)
+        if not exe: self.skipTest("khong co luau binary (dat LUAU=...)")
+        seg = self.t[self.t.index("function S.ParseServerCode"):self.t.index("function S.HopServer")]
+        seg = seg.replace("_G.BananaCatHub_PlayerInfo", "PISTUB")
+        harness = r'''
+local TP, orders = nil, {}
+local S = {_jobPlaceCache={}, _jobMetaCache={}}
+game = {PlaceId=111, JobId="self-job"}
+player = {}
+GuiService = {ClearError=function() end}
+TeleportService = { TeleportToPlaceInstance=function(self,p,j,pl) TP={p,j} end,
+  Teleport=function(self,p,pl) TP={p,nil} end,
+  TeleportInitFailed={Connect=function(self,fn) return {Disconnect=function() end} end} }
+trackConn = function(c) return c end
+ReleaseHubFocus = function() end
+D = {Say=function() end}
+C = {YELLOW=1, RED=2}
+PISTUB = { GetUniversePlaces=function(a,b) return {111,222} end }
+task = {wait=function() end, delay=function() end, spawn=function(f) end}
+''' + seg + r'''
+local U="123e4567-e89b-12d3-a456-426614174000"
+-- server "nuoc ngoai": chi xuat hien o chieu Desc (dong nguoi) cua Place 222, Asc khong thay
+S.FetchServers = function(cur, p, ord)
+  orders[#orders+1] = tostring(p)..":"..tostring(ord or "Asc")
+  if p == 222 and ord == "Desc" then return {{id=U, playing=11, maxPlayers=12}}, nil end
+  return {{id="other-server", playing=1, maxPlayers=10}}, nil end
+TP=nil; S.JoinServer(U)
+assert(TP and TP[1]==222 and TP[2]==U, "desc locate: "..tostring(TP and TP[1]))
+local sawDesc=false; for _,o in ipairs(orders) do if o=="222:Desc" then sawDesc=true end end
+assert(sawDesc, "chua quet Desc")
+-- cache sau khi tim thay: lan sau vao thang, khong quet lai
+orders={}; TP=nil; S.JoinServer(U)
+assert(TP and TP[1]==222 and #orders==0, "cache locate")
+print("LUAU_UNIT_FOREIGN_JOIN_OK")
+'''
+        with tempfile.NamedTemporaryFile("w", suffix=".luau", delete=False) as f:
+            f.write(harness); path = f.name
+        r = subprocess.run([exe, path], capture_output=True, text=True, timeout=60)
+        self.assertIn("LUAU_UNIT_FOREIGN_JOIN_OK", r.stdout, r.stdout + r.stderr)

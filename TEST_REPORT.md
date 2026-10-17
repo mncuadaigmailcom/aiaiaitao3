@@ -160,3 +160,19 @@ chỉ 2 file** (`aiaiaitao3`, `script.js`), `script.js1.js` nguyên vẹn.
   vào được server tốt; Hop ít người chọn đúng nhóm vắng nhất; Hop siêu vắng vào server
   ≤3 người; danh sách rỗng → báo rõ không teleport. Toàn suite **21/21 OK**, parse đạt.
   Hop thật trong game vẫn cần chủ dự án xác nhận trong Roblox.
+
+## 11. Bổ sung — Có mã của người chơi ở khu vực/Place khác nhưng hop không vào được
+
+- **BUG-007 (Trung bình):** `S.LocateJobPlace` (tìm đúng Place của 1 JobId) chỉ quét
+  2 trang đầu chiều Asc (ít người) mỗi Place. Server của người chơi ở khu vực khác
+  thường đông và nằm sâu ở chiều Desc (đông người) → không tìm thấy Place → rơi về
+  Place hiện tại → Roblox từ chối (GameNotFound). 
+- **Sửa (không mất tính năng):** `S.FetchServers` thêm tham số chiều sắp xếp
+  (mặc định Asc, mọi caller cũ giữ nguyên hành vi); `LocateJobPlace` quét cả hai
+  đầu Asc + Desc, tối đa 3 trang mỗi chiều mỗi Place (tìm thấy là dừng, có cache
+  nên lần sau vào thẳng). 
+- **Test:** thêm `TestForeignServerJoin` (3 test) gồm unit Luau thật: server chỉ
+  xuất hiện ở Desc của Place 222 → JoinServer teleport đúng (222, JobId) và có
+  quét Desc; lần vào sau dùng cache không quét lại. Toàn suite **24/24 OK**.
+  Lưu ý giới hạn ngoài code: server VIP/riêng tư, server đã đầy, hoặc người chơi
+  đã rời game thì không mã nào vào được — script nay báo rõ các trường hợp này.

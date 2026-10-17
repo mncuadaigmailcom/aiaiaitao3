@@ -2330,8 +2330,8 @@ end trackConn(player.CharacterAdded:Connect(function() task.spawn(function() tas
     if id == nil then return nil end id = tostring(id) if id == "" then return nil end return id
 end function S.CopyToClipboard(text) local did = false pcall(function() if setclipboard then setclipboard(text) did = true
         elseif toclipboard then toclipboard(text) did = true elseif set_clipboard then set_clipboard(text) did = true end end) return did end
-function S.FetchServers(cursor, customPlaceId) local pId = tonumber(customPlaceId) or tonumber(game.PlaceId) or 0
-    local url = "https://games.roblox.com/v1/games/" .. tostring(pId) .. "/servers/Public?sortOrder=Asc&limit=100"
+function S.FetchServers(cursor, customPlaceId, order) local pId = tonumber(customPlaceId) or tonumber(game.PlaceId) or 0
+    local url = "https://games.roblox.com/v1/games/" .. tostring(pId) .. "/servers/Public?sortOrder=" .. (order == "Desc" and "Desc" or "Asc") .. "&limit=100"
     if cursor and cursor ~= "" then url = url .. "&cursor=" .. tostring(cursor) end local raw = nil
     local okG, resG = pcall(function() return game:HttpGet(url) end) if okG and type(resG) == "string" and #resG > 0 then raw = resG end
     if not raw or #raw == 0 then local rq = (type(request) == "function" and request)
@@ -2404,9 +2404,9 @@ function S.ResetServer() local me = S.GetJobId() if me then S.TeleportToServer(g
 function S.LocateJobPlace(jobId) local jId = tostring(jobId or "") if jId == "" then return nil end local cached = S._jobPlaceCache[jId] if cached then return cached end
     local pi = _G.BananaCatHub_PlayerInfo if type(pi) ~= "table" or type(pi.GetUniversePlaces) ~= "function" then return nil end local okP, places = pcall(pi.GetUniversePlaces, nil, tonumber(game.PlaceId))
     if not okP or type(places) ~= "table" then return nil end pcall(function() D.Say("🔍 Đang tìm đúng Place của mã server...", C.YELLOW) end)
-    for pi2, p in ipairs(places) do if pi2 > 6 then break end local cur = "" for _ = 1, 2 do local okF, list, nxt = pcall(function() return S.FetchServers(cur, p) end)
-            if not okF or type(list) ~= "table" then break end for _, sv in ipairs(list) do if type(sv) == "table" and sv.id and tostring(sv.id) == jId then S._jobPlaceCache[jId] = tonumber(p) return tonumber(p) end end
-            if type(nxt) ~= "string" or nxt == "" then break end cur = nxt end end return nil end
+    for pi2, p in ipairs(places) do if pi2 > 6 then break end for _, ord in ipairs({ "Asc", "Desc" }) do local cur = "" for _ = 1, 3 do local okF, list, nxt = pcall(function() return S.FetchServers(cur, p, ord) end)
+                if not okF or type(list) ~= "table" then break end for _, sv in ipairs(list) do if type(sv) == "table" and sv.id and tostring(sv.id) == jId then S._jobPlaceCache[jId] = tonumber(p) return tonumber(p) end end
+                if type(nxt) ~= "string" or nxt == "" then break end cur = nxt end end end return nil end
 function S.JoinServer(jobIdOrQuery, customPlaceId) local s = tostring(jobIdOrQuery or ""):gsub("^%s+", ""):gsub("%s+$", "")
     local jId, pId = S.ParseServerCode(s) pId = tonumber(customPlaceId) or pId if jId and jId ~= "" and not pId and not S._jobPlaceCache[jId] then pId = S.LocateJobPlace(jId) end if jId and jId ~= "" then local targetPlace = pId or S._jobPlaceCache[jId] or tonumber(game.PlaceId)
         local pi = _G.BananaCatHub_PlayerInfo
