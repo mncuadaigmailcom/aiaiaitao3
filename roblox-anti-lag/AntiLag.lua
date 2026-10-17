@@ -22,6 +22,10 @@
 
 local AntiLag = { _VERSION = "1.0.0" }
 
+-- Bat Instance cua Roblox TRUOC khi local Instance (class cua module, muc 1)
+-- che mat no — neu khong, RobloxInstance.new("ScreenGui") trong ShowToast se loi.
+local RobloxInstance = Instance
+
 --===========================================================================
 -- 0) MOI TRUONG & DONG HO
 --===========================================================================
@@ -75,6 +79,7 @@ local DEFAULTS = {
 	strongShedBelowPriority = 5, -- che do manh + frame cham: tam hoan viec uu tien thap
 	autoStrong = true,        -- tu bat che do manh khi do thay FPS thap keo dai
 	toastEnabled = true,      -- thong bao goc phai duoi khi da giam lag
+	toastOnStart = true,      -- hien thong bao ngay khi script khoi chay thanh cong
 	toastDurationSec = 30,    -- hien thong bao 30 giay roi tu bien mat
 }
 
@@ -547,7 +552,7 @@ function Instance:SetStrongMode(on)
 		for name in pairs(self._pools) do self:PoolDrain(name) end
 		pcall(function() collectgarbage("step", 200) end) -- no-op an toan neu khong co
 		if self._started then
-			self:ShowToast("Da giam lag: che do manh dang bat (siet ngan sach frame, hoan viec phu khi khung hinh cham).")
+			self:_showToastRetry("Che do manh dang bat: siet ngan sach frame, hoan viec phu khi khung hinh cham.", 3)
 		end
 	end
 	return self._strong
@@ -594,22 +599,23 @@ function Instance:ShowToast(text)
 		for idx, c in ipairs(RAINBOW) do
 			keypoints[#keypoints + 1] = ColorSequenceKeypoint.new((idx - 1) / (#RAINBOW - 1), c)
 		end
-		local screen = Instance.new("ScreenGui")
+		local screen = RobloxInstance.new("ScreenGui")
 		screen.Name = "AntiLagToast"
 		screen.ResetOnSpawn = false
 		screen.DisplayOrder = 999
-		local outer = Instance.new("Frame") -- lop ngoai: cau vong
+		local outer = RobloxInstance.new("Frame") -- lop ngoai: cau vong
 		outer.Name = "RainbowBorder"
+		outer.Active = false -- co dinh goc phai duoi: khong keo/di chuyen duoc
 		outer.AnchorPoint = Vector2.new(1, 1)
 		outer.Position = UDim2.new(1, -16, 1, -16)
 		outer.Size = UDim2.new(0, 300, 0, 72)
 		outer.BorderSizePixel = 0
 		outer.Parent = screen
-		local grad = Instance.new("UIGradient")
+		local grad = RobloxInstance.new("UIGradient")
 		grad.Color = ColorSequence.new(keypoints)
 		grad.Parent = outer
-		local cornerO = Instance.new("UICorner"); cornerO.CornerRadius = UDim.new(0, 10); cornerO.Parent = outer
-		local inner = Instance.new("Frame") -- lop trong: xam trong suot
+		local cornerO = RobloxInstance.new("UICorner"); cornerO.CornerRadius = UDim.new(0, 10); cornerO.Parent = outer
+		local inner = RobloxInstance.new("Frame") -- lop trong: xam trong suot
 		inner.Name = "Body"
 		inner.Position = UDim2.new(0, 3, 0, 3)
 		inner.Size = UDim2.new(1, -6, 1, -6)
@@ -617,8 +623,8 @@ function Instance:ShowToast(text)
 		inner.BackgroundTransparency = 0.35
 		inner.BorderSizePixel = 0
 		inner.Parent = outer
-		local cornerI = Instance.new("UICorner"); cornerI.CornerRadius = UDim.new(0, 8); cornerI.Parent = inner
-		local label = Instance.new("TextLabel")
+		local cornerI = RobloxInstance.new("UICorner"); cornerI.CornerRadius = UDim.new(0, 8); cornerI.Parent = inner
+		local label = RobloxInstance.new("TextLabel")
 		label.BackgroundTransparency = 1
 		label.Position = UDim2.new(0, 10, 0, 4)
 		label.Size = UDim2.new(1, -20, 1, -8)
@@ -632,12 +638,25 @@ function Instance:ShowToast(text)
 		screen.Parent = gui
 		return { gui = screen, gradient = grad }
 	end)
-	if not ok or not built then return false end
+	if not ok or not built then
+		self._log("[AntiLag] Khong tao duoc thong bao: " .. tostring(built))
+		return false
+	end
 	self._toast = built
 	-- Tu bien mat sau toastDurationSec (mac dinh 30 giay) qua scheduler cua script
 	self:Queue(function() self:HideToast() end,
 		{ key = "antilag:toast-hide", delay = self._cfg.toastDurationSec })
 	return true
+end
+
+-- Hien toast, neu PlayerGui chua san sang thi thu lai moi 1s (toi da so lan cho).
+function Instance:_showToastRetry(text, attempts)
+	if self:ShowToast(text) then return true end
+	if attempts and attempts > 0 and not self._destroyed then
+		self:Queue(function() self:_showToastRetry(text, attempts - 1) end,
+			{ key = "antilag:toast-retry", delay = 1 })
+	end
+	return false
 end
 
 function Instance:HideToast()
@@ -676,6 +695,9 @@ function Instance:Start()
 			end, { key = "antilag:cleanup", delay = self._strong and 15 or self._cfg.cleanupIntervalSec })
 		end
 		scheduleCleanup()
+		if self._cfg.toastOnStart then
+			self:_showToastRetry("Anti-Lag dang hoat dong: da toi uu lich tac vu, su kien, bo nho dem va gioi han viec nen moi khung hinh.", 10)
+		end
 		self._log("[AntiLag] Da kich hoat (Roblox). Do: FPS/frame/RAM/ping — khong sua do hoa/co che game.")
 	else
 		self._log("[AntiLag] Moi truong khong co RunService: chay che do thu cong (goi :Step()/:Sample(dt) bang tay).")

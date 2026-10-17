@@ -28,6 +28,25 @@ class TestLuauRuntime(unittest.TestCase):
         self.assertIn("ANTILAG_ALL_OK", r.stdout, r.stdout + r.stderr)
         self.assertNotIn("FAIL ", r.stdout)
 
+    def test_mock_roblox_toast(self):
+        """Ghep AntiLag.lua vao moi truong Roblox mo phong va chay that:
+        toast phai tao dung cau truc + tu bien mat sau 30 giay."""
+        if not os.path.exists(LUAU):
+            self.skipTest("chua build Luau CLI")
+        mock = read(os.path.join(ROOT, "tests", "mock_roblox_test.lua"))
+        src = read(SRC_PATH)
+        combined = mock.replace("--__LOAD_ANTILAG__ (test_antilag.py se ghep ma nguon AntiLag.lua vao dung vi tri nay)",
+                                "local AntiLag = (function()\n" + src + "\nend)()")
+        tmp = os.path.join(ROOT, "tests", "_mock_combined.lua")
+        with open(tmp, "w", encoding="utf-8") as f:
+            f.write(combined)
+        try:
+            r = subprocess.run([LUAU, tmp], capture_output=True, text=True, timeout=120)
+        finally:
+            os.remove(tmp)
+        self.assertIn("ANTILAG_MOCK_OK", r.stdout, r.stdout + r.stderr)
+        self.assertNotIn("FAIL ", r.stdout)
+
     def test_luau_syntax(self):
         if not os.path.exists(ANALYZE):
             self.skipTest("chua build Luau CLI")
@@ -88,8 +107,8 @@ class TestSafetyContract(unittest.TestCase):
         # Ngoai le theo yeu cau nguoi dung: chi duoc tao toast thong bao,
         # khong nut bam/menu tuong tac; toast phai o goc phai duoi, vien cau vong,
         # trong xam trong suot, tu an sau mac dinh 30 giay.
-        self.assertIn('Instance.new("ScreenGui")', self.src)
-        self.assertNotIn('Instance.new("TextButton")', self.code)
+        self.assertIn('RobloxInstance.new("ScreenGui")', self.src)
+        self.assertNotIn('RobloxInstance.new("TextButton")', self.code)
         self.assertIn("AnchorPoint = Vector2.new(1, 1)", self.src)
         self.assertIn("BackgroundTransparency = 0.35", self.src)
         self.assertIn("toastDurationSec = 30", self.src)

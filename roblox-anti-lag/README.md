@@ -24,7 +24,8 @@ cuối cùng `anti:Destroy()`.
   siết từ 2ms xuống 1ms/frame, trần việc/frame giảm, việc ưu tiên thấp bị
   tạm hoãn khi khung hình đang chậm (không xóa — khung hình tốt lại chạy),
   dọn cache/pool thường xuyên hơn và bước dọn bộ nhớ của chính VM nếu có.
-- **Thông báo**: ngay khi chế độ mạnh được bật, góc **phải dưới** màn hình
+- **Thông báo**: hiện **ngay khi script khởi chạy thành công** (và hiện lại,
+  làm mới 30 giây khi chế độ mạnh được bật), góc **phải dưới** màn hình
   hiện một hình chữ nhật: **viền ngoài cầu vồng chuyển động**, **bên trong
   xám trong suốt** (độ mờ 0.35), chữ "✅ ĐÃ GIẢM LAG". Thông báo hiện
   **30 giây** rồi tự biến mất và tự hủy GUI (không để rác). Đây là ngoại lệ
