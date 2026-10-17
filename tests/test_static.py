@@ -419,3 +419,26 @@ print("LUAU_UNIT_FOREIGN_JOIN_OK")
             f.write(harness); path = f.name
         r = subprocess.run([exe, path], capture_output=True, text=True, timeout=60)
         self.assertIn("LUAU_UNIT_FOREIGN_JOIN_OK", r.stdout, r.stdout + r.stderr)
+
+# Moc day du tinh nang hien thi trong menu taodepzai v5.0 NOIR (khong duoc mat sau khi cat code)
+MENU_FEATURES_HUB = ["Infinite Yield","Dex Explorer","SimpleSpy v3","Niêm tâm (Crosshair)","Trả GUI về màn hình",
+  "Sửa kẹt chuột","Nạp lại hub từ đĩa","Dọn host nhúng rác","Reset Server","Hop Server","Hop Server Ít Người",
+  "Hop Server Siêu Vắng (≤3)","Anti Ban","Lấy mã server (JobId)","Bay theo camera","Tốc độ theo camera",
+  "Thảm kính bám chân","Đặt tấm kính cố định","Quản lý kính đã đặt","Tự đặt kính theo đường đi","Xóa toàn bộ kính",
+  "Bay tới kính gần nhất","Dừng bay tới kính","Xuyên Tường","Nhảy Vô Hạn","Nhảy Cao","Khán giả","Phát Sáng",
+  "Bay An Toàn","Định Vị Người Chơi","Định Vị Vật Theo Tên","Bay Tới Vật Đang Định Vị","Tắt Định Vị Vật","Xem Người Chơi"]
+MENU_ACTIONS = ["crosshair","unpark","fixmouse","reload","prune","resetserver","hopserver","hoplow","hopempty",
+  "antiban","getjobid","fly","camspeed","carpet","placeglass","openglasspanel","autoglass","clearglass",
+  "flyglass","stopglassfly","noclip","infjump","highjump","freecam","glow","safefly","loc_all","objfind","objfly","objclear","spec_on"]
+MENU_PANELS = ["HubAntiBan_Panel","HubFly_Panel","HubFree_Panel","HubGlass_Panel","HubGlow_Panel","HubHighJump_Panel",
+  "HubLoc_Panel","HubMove_Panel","HubObjTrack_Panel","HubPerf_Panel","HubPlayerInfo_Panel","HubSafe_Panel",
+  "HubSkinClass_Panel","HubSpeed_Panel","HubTune_Panel","HubServerPanel"]
+
+class TestMenuCompleteness(unittest.TestCase):
+    def setUp(self): self.t = read("script.js1.js")
+    def test_all_menu_features_present(self):
+        for name in MENU_FEATURES_HUB: self.assertIn(name, self.t, f"MAT tinh nang menu: {name}")
+    def test_all_menu_actions_present(self):
+        for a in MENU_ACTIONS: self.assertIn(f'action="{a}"', self.t, f"MAT action menu: {a}")
+    def test_all_menu_panels_present(self):
+        for p in MENU_PANELS: self.assertIn(p, self.t, f"MAT panel menu: {p}")

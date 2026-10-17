@@ -176,3 +176,15 @@ chỉ 2 file** (`aiaiaitao3`, `script.js`), `script.js1.js` nguyên vẹn.
   quét Desc; lần vào sau dùng cache không quét lại. Toàn suite **24/24 OK**.
   Lưu ý giới hạn ngoài code: server VIP/riêng tư, server đã đầy, hoặc người chơi
   đã rời game thì không mã nào vào được — script nay báo rõ các trường hợp này.
+
+## 12. Bổ sung — Gọn code script.js1.js nhưng giữ đầy đủ tính năng menu
+
+- Mốc bảo toàn: thêm `TestMenuCompleteness` khóa 34 tính năng Script Hub (tên + action),
+  15 panel + HubServerPanel — cắt xong test này vẫn phải đạt.
+- Đã gỡ code chết (chứng minh không có chỗ nào gọi): `requireLast`, `glowRound`, `rule()`
+  (tab Thiết Lập), biến `_FIT_WRAPPER`, tiền tố biến thừa `local okSpin =`.
+- Nén thụt lề: chuyển mỗi 4 khoảng trắng đầu dòng thành tab (7.316 dòng) — chỉ áp dụng
+  ngoài chuỗi/comment, nội dung chuỗi dài/template giữ nguyên từng ký tự.
+- Kết quả: script.js1.js 902.055 → 838.983 byte (−63 KB, −7%) sau khi đã gồm mọi bản sửa
+  trước; toàn suite **27/27 OK**, parse Luau đạt. Phần còn lại đều là code chức năng đang
+  chạy — cắt thêm nữa sẽ mất tính năng, nên dừng ở mức an toàn này.
