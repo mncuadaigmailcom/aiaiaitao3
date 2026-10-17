@@ -188,3 +188,12 @@ chỉ 2 file** (`aiaiaitao3`, `script.js`), `script.js1.js` nguyên vẹn.
 - Kết quả: script.js1.js 902.055 → 838.983 byte (−63 KB, −7%) sau khi đã gồm mọi bản sửa
   trước; toàn suite **27/27 OK**, parse Luau đạt. Phần còn lại đều là code chức năng đang
   chạy — cắt thêm nữa sẽ mất tính năng, nên dừng ở mức an toàn này.
+
+## 13. Dọn trùng lặp tab Script Hub (yêu cầu: tính năng đã có ở tab khác thì không lặp lại trong Script Hub)
+
+- Gỡ 14/34 thẻ khỏi `S.ScriptHubList`: Infinite Yield/Dex Explorer/SimpleSpy v3 (đã có ở Hỗ Trợ ▸ ⚡ Script Nhanh), 6 thẻ kính Đặt/Quản lý/Tự đặt/Xóa/Bay tới/Dừng bay kính (đã có panel 🧱 ở Người Chơi), 5 thẻ Định Vị Người Chơi/Định Vị Vật/Bay Tới Vật/Tắt Định Vị Vật/Xem Người Chơi (đã có panel ở Người Chơi). Script Hub còn đúng 20 thẻ thuộc Server/Di chuyển/Tiện ích của chính nó.
+- Bỏ chip lọc Admin/Explorer/Spy/Định vị (nhóm không còn thẻ); sửa ghi chú tab Người Chơi và nhãn tốc độ bay tới kính (không còn ghi "từ Script Hub").
+- Không xóa backend: toàn bộ handler `RunHubAction` (loc_all/objfind/glass...), panel ở tab gốc và 3 link script nhanh vẫn nguyên vẹn — tính năng không mất, chỉ bỏ hiển thị trùng.
+- `TestMenuCompleteness` cập nhật theo mốc mới: khóa 20 thẻ của Script Hub, khẳng định 14 tên đã chuyển KHÔNG còn trong hub, tính năng gốc còn ở tab nhà + handler còn đủ.
+- Kết quả: 29/29 test ĐẠT; luau-analyze 0 SyntaxError; file 835.316 byte.
+- Giới hạn: không có Roblox/executor trong sandbox — kiểm chứng tĩnh + thực thi Luau thật cho logic trích xuất; cần chạy thử trong game để xác nhận giao diện.

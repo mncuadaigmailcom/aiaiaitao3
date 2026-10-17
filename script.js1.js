@@ -2491,12 +2491,7 @@ function S.AntiBanArm() local a = S.AntiBan if a.armed then return end a.armed =
 				S.AntiBan.snapAt = now S.AntiBan.snaps = (S.AntiBan.snaps or 0) + 1 if S.AntiBan.snaps >= 3 then S.AntiBan.snaps = 0 S.AntiBanHop("speed_reset") end end) end) end
 	pcall(function() if player.Character then watchHum(player.Character:FindFirstChildOfClass("Humanoid")) end
 		antiConnect(player.CharacterAdded, function(ch) task.wait(0.25) watchHum(ch:FindFirstChildOfClass("Humanoid")) end)
-	end) end if S.AntiBan.on then pcall(S.AntiBanArm) end S.ScriptHubList = { {icon="🛡", name="Infinite Yield", cat="Admin", ord=1,
-	 desc="Admin commands: kill, speed, jump, noclip, teleport, bring, prefix tùy chỉnh...", code=[[loadstring(game:HttpGet("https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source"))()]],
-	 noPark=true}, {icon="🧰", name="Dex Explorer", cat="Explorer", ord=2,
-	 desc="Duyệt toàn bộ instance trong game, xem/sửa property, tìm object theo đường dẫn.", code=[[loadstring(game:HttpGet("https://raw.githubusercontent.com/infyiff/backup/main/dex.lua"))()]],
-	 noPark=true}, {icon="📡", name="SimpleSpy v3", cat="Spy", ord=3,
-	 desc="Theo dõi RemoteEvent/RemoteFunction: tên, tham số, copy code để gọi lại y hệt.", code=[[loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/78n/SimpleSpy/main/SimpleSpyBeta.lua"))()]], noPark=true},
+	end) end if S.AntiBan.on then pcall(S.AntiBanArm) end S.ScriptHubList = {
 	{icon="🎯", name="Niêm tâm (Crosshair)", cat="Tiện ích", ord=4, action="crosshair", desc="Bật/tắt vòng tròn niêm tâm + 4 nét ngắn ở GIỮA màn hình game (ngoài menu)."},
 	{icon="🧩", name="Trả GUI về màn hình", cat="Tiện ích", ord=5, action="unpark", desc="Hoàn tác MỌI GUI hub đang mượn vào menu: tab tính năng + tab 🧩 GUI Ngoài."},
 	{icon="🖱", name="Sửa kẹt chuột", cat="Tiện ích", ord=6, action="fixmouse", desc="Nhả focus ô nhập, trả GUI về game, đặt lại MouseBehavior — hết cảnh không quay chuột/không bắn."},
@@ -2510,22 +2505,12 @@ function S.AntiBanArm() local a = S.AntiBan if a.armed then return end a.armed =
 	{icon="🚀", name="Bay theo camera", cat="Di chuyển", ord=12, action="fly", desc="Bay ĐIỀU KHIỂN TAY theo camera (khác 🛡 Bay An Toàn). Nhìn xuống 60° + tiến tới = xuống 60°. WASD/joystick; thả phím đứng lơ lửng. Space lên · Shift/Ctrl xuống. 🧱 xuyên tường bật/tắt riêng ở khung 🚀."},
 	{icon="💨", name="Tốc độ theo camera", cat="Di chuyển", ord=12.2, action="camspeed", desc="Chạy trên mặt đất 100% kiểu 🚀: WASD/joystick theo hướng camera. KHÔNG xuyên tường, nhảy bình thường, rơi theo trọng lực game, không nút ảo. Chỉnh tốc độ ở khung 💨."},
 	{icon="🪩", name="Thảm kính bám chân", cat="Di chuyển", ord=12.6, action="carpet", desc="Bật/tắt một thảm kính trong suốt bám dưới chân; tương thích chế độ thảm cũ, không ảnh hưởng các tấm kính cố định."},
-	{icon="🧱", name="Đặt tấm kính cố định", cat="Di chuyển", ord=12.7, action="placeglass", desc="Đặt thêm một tấm kính dưới chân tại vị trí hiện tại. Mỗi lần bấm tạo một tấm mới, không ghi đè tấm trước."},
-	{icon="📋", name="Quản lý kính đã đặt", cat="Di chuyển", ord=12.8, action="openglasspanel", desc="Mở tab 👥 Người Chơi để xem số lượng/danh sách, bay tới hoặc xóa riêng từng tấm kính."}, {icon="🔄", name="Tự đặt kính theo đường đi", cat="Di chuyển", ord=12.9, action="autoglass",
-	 desc="Tự thêm kính cố định khi di chuyển đủ xa; bấm lại để dừng. Danh sách và số lượng cập nhật trong menu."}, {icon="🧹", name="Xóa toàn bộ kính", cat="Di chuyển", ord=12.95, action="clearglass",
-	 desc="Xóa tất cả tấm kính cố định đã đặt, không tắt thảm kính bám chân."}, {icon="🚀", name="Bay tới kính gần nhất", cat="Di chuyển", ord=12.96, action="flyglass",
-	 desc="Bay xuyên vật cản tới tâm tấm kính cố định gần nhất; tốc độ chỉnh trong tab 👥 Người Chơi."}, {icon="⏹", name="Dừng bay tới kính", cat="Di chuyển", ord=12.97, action="stopglassfly",
-	 desc="Dừng ngay lực bay tới tấm kính và khôi phục trạng thái nhân vật trước khi bay."}, {icon="🧱", name="Xuyên Tường", cat="Di chuyển", ord=13, action="noclip",
+	{icon="🧱", name="Xuyên Tường", cat="Di chuyển", ord=13, action="noclip",
 	 desc="Đi xuyên mọi vật cản. Tắt đi trả lại ĐÚNG CanCollide gốc của từng part (không gán cứng như bản cũ)."}, {icon="🦘", name="Nhảy Vô Hạn", cat="Di chuyển", ord=14, action="infjump", desc="Nhảy mãi không chạm đất. Tự thử 3 cách nhảy (ChangeState · lệnh Jump · đẩy vận tốc) nên cả game cấm nhảy, để JumpPower=0 hay ăn mất phím Space vẫn nhảy được."},
 	{icon="🦘", name="Nhảy Cao", cat="Di chuyển", ord=14.2, action="highjump", desc="Công tắc độc lập kiểu 👤 Né người (🛡): BẬT/TẮT + chỉnh tốc độ nhảy. Space là nhảy cao, rơi theo trọng lực game. Không xuyên tường, không nút ảo. Không thay 🦘 Nhảy vô hạn."},
 			{icon="🎥", name="Khán giả", cat="Tiện ích", ord=21.5, action="freecam", desc="Camera BAY khắp nơi giống 🚀 (WASD · Space/Shift · nhìn chuột). Nhân vật MÌNH đứng yên tại chỗ. Tắt thì trả camera. Không FireServer. Không cướp 🚀💨🦘🛡✨🔐."},
 	{icon="✨", name="Phát Sáng", cat="Tiện ích", ord=22, action="glow", desc="CHÍNH BẠN phát sáng: nhuộm sáng cả nhân vật + đèn toả sáng thật quanh người. Chỉnh CHIỀU RỘNG + ĐỘ SÁNG + MÀU ở khung ✨ ngay đầu danh sách. 👁 xuyên tường (sáng xuyên vật cản) · 💡 đèn không bị vật cản chặn · bị game xoá hay respawn thì tự gắn lại."},
-	{icon="🛡", name="Bay An Toàn", cat="Di chuyển", ord=23, action="safefly", desc="Bật là TỰ BAY + TỰ NÉ NGƯỜI CHƠI và mọi vật có dấu hiệu chuyển động (kể cả vật bị script/tween kéo đi) trong bán kính bạn chỉnh: càng gần đẩy càng mạnh, quá gần thì vọt lên trên. 🔲 Có BỨC TƯỜNG TRONG SUỐT HÌNH VUÔNG bao quanh cho thấy vùng né · 🧱 tự bật Xuyên Tường để đẩy bạn QUA vật cản. Chỉnh 💨 tốc độ · 📏 khoảng cách né · 🌀 né gắt ở khung 🛡 ngay đầu danh sách."},
-	{icon="📍", name="Định Vị Người Chơi", cat="Định vị", ord=17, action="loc_all", desc="Xuyên tường thấy TẤT CẢ người chơi. Bấm lại để TẮT. Chọn từng người / khoảng cách: tab 👥 Người Chơi."}, {icon="🌳", name="Định Vị Vật Theo Tên", cat="Định vị", ord=18.5, action="objfind",
-	 desc="Nhập tên vật (VD: cây) để định vị MỌI vật khớp trong server, bám theo vật khi nó di chuyển. Bấm để mở ô nhập ở tab 👥 Người Chơi."}, {icon="🚀", name="Bay Tới Vật Đang Định Vị", cat="Định vị", ord=18.6, action="objfly",
-	 desc="Bay xuyên vật cản tới vật gần nhất trong danh sách 🌳 đang định vị; vật di chuyển thì bay theo, vật biến mất thì tự dừng."}, {icon="🧹", name="Tắt Định Vị Vật", cat="Định vị", ord=18.7, action="objclear",
-	 desc="Xoá toàn bộ định vị vật theo tên (không ảnh hưởng 📍 định vị người chơi và 👣 xem người chơi)."}, {icon="👣", name="Xem Người Chơi", cat="Định vị", ord=19, action="spec_on",
-	 desc="Bám camera theo người gần nhất. Bấm lại để TRẢ CAMERA. Danh sách chọn người: tab 👥."}, }
+	{icon="🛡", name="Bay An Toàn", cat="Di chuyển", ord=23, action="safefly", desc="Bật là TỰ BAY + TỰ NÉ NGƯỜI CHƠI và mọi vật có dấu hiệu chuyển động (kể cả vật bị script/tween kéo đi) trong bán kính bạn chỉnh: càng gần đẩy càng mạnh, quá gần thì vọt lên trên. 🔲 Có BỨC TƯỜNG TRONG SUỐT HÌNH VUÔNG bao quanh cho thấy vùng né · 🧱 tự bật Xuyên Tường để đẩy bạn QUA vật cản. Chỉnh 💨 tốc độ · 📏 khoảng cách né · 🌀 né gắt ở khung 🛡 ngay đầu danh sách."}, }
 S.hubFavs   = S.hubFavs or {} S.hubCat    = "Tất cả" S.hubSearch = "" function S.RunHubAction(id) if id == "crosshair" then
 		local okC = pcall(function() S.ToggleCrosshair() end) if not okC then return "⚠️ chưa bật được niêm tâm" end
 		S.Rebuild()                                        -- cập nhật nhãn nút
@@ -3218,7 +3203,7 @@ end function S.Loc.Status() if not (LOC.on or LOC.solo) then return "📍 địn
 		TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
 	}, tab) New("TextLabel", { Name = "PlayerNote",
 		Size = UDim2.new(1, -16, 0, 14), Position = UDim2.new(0, 8, 0, 26), Text = "📍 = thấy người khác xuyên tường · 👣 = bám camera theo 1 người để xem họ đang làm gì."
-			 .. "  🌳 = định vị MỌI vật theo tên (VD: cây) và bám theo vật đang di chuyển." .. "  (Các nút tắt/mở nhanh vẫn có thẻ trong 📚 Script Hub.)",
+			 .. "  🌳 = định vị MỌI vật theo tên (VD: cây) và bám theo vật đang di chuyển." .. "  🧱 = đặt/quản lý tấm kính cố định và bay tới từng tấm ở khung bên dưới.",
 		BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium, TextSize = 8, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
 	}, tab) D.playerY = 46 end S.Spec = {
 	on = false, target = nil,       -- 👣 đang xem ai
@@ -3783,7 +3768,7 @@ do local acc = 0 RunService:BindToRenderStep("BC_HubList", Enum.RenderPriority.C
 	local clearBtn = glassAct("🧹 Xóa tất cả", 182, 68, 82, C.RED) local stopBtn = glassAct("⏹ Dừng bay", 268, 68, 68, C.SURFACE3)
 	glassLab("🚀 Tốc độ bay:", 8, 92, 90) local flySpeedIn = glassInput(tostring(MV.glassFlySpeed or 60), 98, 92, 46)
 	local flySpeedApply = glassAct("✅ Đặt", 148, 92, 46, C.GREEN) local speedNote = New("TextLabel", {
-		Size = UDim2.new(1, -206, 0, 18), Position = UDim2.new(0, 200, 0, 92), Text = "tấm gần nhất từ 📚 Script Hub · 1–2000",
+		Size = UDim2.new(1, -206, 0, 18), Position = UDim2.new(0, 200, 0, 92), Text = "tấm gần nhất · 1–2000",
 		BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium, TextSize = 8, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7, }, P)
 	local countLbl = New("TextLabel", { Size = UDim2.new(1, -16, 0, 18), Position = UDim2.new(0, 8, 0, 120),
 		Text = "🧱 Đã đặt: 0 tấm · cố định", BackgroundTransparency = 1, TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 9,
@@ -3798,7 +3783,7 @@ do local acc = 0 RunService:BindToRenderStep("BC_HubList", Enum.RenderPriority.C
 		if ok and type(items) == "table" then return items end return {} end local function paintGlassButtons(items)
 		local auto = MV.autoGlass == true autoBtn.Text = auto and "🔄 Tự đặt: BẬT" or "🔄 Tự đặt: TẮT"
 		autoBtn.BackgroundColor3 = auto and C.GREEN or C.SURFACE3 autoBtn.TextColor3 = D.BestText(autoBtn.BackgroundColor3)
-		countLbl.Text = "🧱 Đã đặt: " .. tostring(#items) .. " tấm · cố định" speedNote.Text = "tấm gần nhất từ 📚 Script Hub · " .. tostring(MV.glassFlySpeed or 60) .. "" end
+		countLbl.Text = "🧱 Đã đặt: " .. tostring(#items) .. " tấm · cố định" speedNote.Text = "tấm gần nhất · " .. tostring(MV.glassFlySpeed or 60) .. "" end
 	S.GlassRefreshList = function() if not (list and list.Parent) then return end
 		local items = glassCount() for _, child in ipairs(list:GetChildren()) do
 			if not child:IsA("UIListLayout") then pcall(function() child:Destroy() end) end end for i, rec in ipairs(items) do local glassIndex = i
@@ -3833,11 +3818,11 @@ do local acc = 0 RunService:BindToRenderStep("BC_HubList", Enum.RenderPriority.C
 	stopBtn.Activated:Connect(function() ReleaseHubFocus() MV.StopGlassFly() D.Say("⏹ đã dừng bay tới kính", C.YELLOW)
 		pcall(S.GlassRefreshList) end) flySpeedApply.Activated:Connect(function() ReleaseHubFocus()
 		local ok, value = MV.SetGlassFlySpeed(numberFrom(flySpeedIn, MV.glassFlySpeed or 60)) if ok then flySpeedIn.Text = tostring(value)
-			speedNote.Text = "tấm gần nhất từ 📚 Script Hub · " .. tostring(value) D.Say("🚀 tốc độ bay tới kính: " .. tostring(value), C.GREEN)
+			speedNote.Text = "tấm gần nhất · " .. tostring(value) D.Say("🚀 tốc độ bay tới kính: " .. tostring(value), C.GREEN)
 		else D.Say("⚠️ " .. tostring(value), C.RED) end end) pcall(S.GlassRefreshList) pcall(function()
 		if D.playerTab then D.playerTab.CanvasSize = UDim2.new(0, 0, 0, (D.playerY or 600) + 16) end end) end)()
-D.hubChipBtns = {} for _, cname in ipairs({"Tất cả", "Admin", "Explorer", "Spy", "Tiện ích", "Server", "Di chuyển", "Định vị"}) do
-	local w = (cname == "Tất cả" and 50) or (cname == "Explorer" and 58) or (cname == "Tiện ích" and 54) or (cname == "Server" and 48) or (cname == "Admin" and 46) or (cname == "Di chuyển" and 58) or (cname == "Định vị" and 50) or 38
+D.hubChipBtns = {} for _, cname in ipairs({"Tất cả", "Tiện ích", "Server", "Di chuyển"}) do
+	local w = (cname == "Tất cả" and 50) or (cname == "Tiện ích" and 54) or (cname == "Server" and 48) or (cname == "Di chuyển" and 58) or 38
 	local chip = New("TextButton", { Size = UDim2.new(0, w, 0, 17), Text = cname,
 		BackgroundColor3 = (S.hubCat == cname) and C.ACCENT or C.SURFACE2, BackgroundTransparency = (S.hubCat == cname) and 0.08 or 1, TextColor3 = (S.hubCat == cname) and C.INK or C.MUTED,
 		Font = Enum.Font.GothamBold, TextSize = 8, BorderSizePixel = 0, ZIndex = 7, }, D.hubChips)
