@@ -195,6 +195,43 @@ do
 	check("Destroy don sach", a:Step() == 0 and ran == 0 and a:CacheGet("k") == nil and a:QueueSize() == 0)
 end
 
+-- 13) Che do manh: frame cham thi hoan viec uu tien thap, chay viec quan trong
+do
+	clock.t = 700
+	local a = newInst()
+	for _ = 1, 40 do a:Sample(1 / 20) end -- frame cham keo dai
+	a:SetStrongMode(true)
+	local ran = {}
+	a:Queue(function() ran[#ran + 1] = "low" end, { priority = 1 })
+	a:Queue(function() ran[#ran + 1] = "high" end, { priority = 9 })
+	a:Step()
+	check("che do manh cat tai viec phu", #ran == 1 and ran[1] == "high"
+		and a:GetReport().strongMode == true and a:GetReport().stats.shed >= 1)
+	-- Frame het cham thi viec phu lai duoc chay
+	for _ = 1, 60 do a:Sample(1 / 120) end
+	a:Step()
+	check("frame tot thi viec phu chay lai", #ran == 2 and ran[2] == "low")
+	a:Destroy()
+end
+
+-- 14) Tu dong bat che do manh khi FPS thap keo dai
+do
+	local a = newInst()
+	for _ = 1, 90 do a:Sample(1 / 20) end
+	a:_maybeAutoStrong()
+	check("tu dong bat manh khi FPS thap", a:IsStrongMode() == true)
+	a:Destroy()
+end
+
+-- 15) Thong bao: ngoai Roblox thi tra false an toan, khong loi; Hide/Destroy khong loi
+do
+	local a = newInst()
+	check("toast ngoai Roblox tra false", a:ShowToast("x") == false)
+	a:HideToast()
+	a:Destroy()
+	check("HideToast/Destroy an toan khi chua co toast", true)
+end
+
 print(("KET QUA: %d PASS, %d FAIL"):format(passed, failed))
 if failed > 0 then error("CO TEST THAT BAI") end
 print("ANTILAG_ALL_OK")

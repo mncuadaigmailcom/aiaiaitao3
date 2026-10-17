@@ -70,6 +70,12 @@ local DEFAULTS = {
 	errorWindowSec = 5,       -- loi giong nhau chi bao 1 lan / cua so (muc 9)
 	maxConcurrent = 4,        -- gioi han tac vu song song (muc 11)
 	historySize = 120,        -- so mau frame giu lai de tinh p95 (muc 13)
+	strongBudgetMs = 1,       -- che do manh: ngan sach frame chat hon (1ms)
+	strongMaxPerFrame = 24,   -- che do manh: tran viec/frame thap hon
+	strongShedBelowPriority = 5, -- che do manh + frame cham: tam hoan viec uu tien thap
+	autoStrong = true,        -- tu bat che do manh khi do thay FPS thap keo dai
+	toastEnabled = true,      -- thong bao goc phai duoi khi da giam lag
+	toastDurationSec = 30,    -- hien thong bao 30 giay roi tu bien mat
 }
 
 function AntiLag.new(opts)
@@ -87,11 +93,14 @@ function AntiLag.new(opts)
 	self._pingProvider = opts.pingProvider     -- tuy chon: ham tra ve giay (s)
 	self._destroyed = false
 	self._started = false
+	self._strong = false
+	self._strongAutoFired = false
+	self._toast = nil -- {gui, gradient} khi thong bao dang hien (chi Roblox)
 
 	-- Scheduler (muc 1, 3, 12)
 	self._queue = {}       -- danh sach viec cho: {fn, key, priority, due}
 	self._queuedByKey = {} -- key -> viec (gom trung, muc 8/12)
-	self._stats = { processed = 0, coalesced = 0, dropped = 0, errors = 0 }
+	self._stats = { processed = 0, coalesced = 0, dropped = 0, errors = 0, shed = 0 }
 
 	-- Su kien (muc 5)
 	self._conns = {}       -- key -> connection
@@ -182,14 +191,22 @@ end
 -- Trong Roblox duoc goi tu Heartbeat; ngoai Roblox (kiem thu) goi thu cong.
 function Instance:Step()
 	if self._destroyed then return 0 end
-	local budget = self._cfg.frameBudgetMs / 1000
+	local budget = (self._strong and self._cfg.strongBudgetMs or self._cfg.frameBudgetMs) / 1000
+	local maxPer = self._strong and self._cfg.strongMaxPerFrame or self._cfg.maxTasksPerFrame
 	local start = self._now()
 	local ran, i = 0, 1
 	-- Sap xep on dinh theo uu tien giam dan (viec moi giu nguyen thu tu khi bang diem)
 	table.sort(self._queue, function(a, b) return a.priority > b.priority end)
-	while i <= #self._queue and ran < self._cfg.maxTasksPerFrame do
+	while i <= #self._queue and ran < maxPer do
 		local job = self._queue[i]
-		if job.due <= self._now() then
+		local frameSlow = self._perf.emaDt and self._perf.emaDt > (1 / 30)
+		if self._strong and frameSlow and job.due <= self._now()
+			and job.priority < self._cfg.strongShedBelowPriority and job.key ~= "antilag:cleanup" then
+			-- Cat tai thich ung: frame dang cham thi tam hoan viec uu tien thap,
+			-- chi chay viec quan trong. Viec khong bi xoa, chi lui lai frame sau.
+			self._stats.shed += 1
+			i += 1
+		elseif job.due <= self._now() then
 			table.remove(self._queue, i)
 			if job.key then self._queuedByKey[job.key] = nil end
 			ran += 1
@@ -483,10 +500,11 @@ function Instance:GetReport()
 		memoryMB = p.memMB,
 		pingMs = p.pingSec and (p.pingSec * 1000) or nil,
 		bottleneck = p.bottleneck, -- "CPU/frame" | "RAM" | "NETWORK" | "OK" | "unknown"
+		strongMode = self._strong,
 		queue = #self._queue,
 		stats = {
 			processed = self._stats.processed, coalesced = self._stats.coalesced,
-			dropped = self._stats.dropped, errors = self._stats.errors,
+			dropped = self._stats.dropped, errors = self._stats.errors, shed = self._stats.shed,
 		},
 		capabilities = self._capabilities,
 	}
@@ -514,6 +532,122 @@ function AntiLag.Compare(before, after)
 end
 
 --===========================================================================
+-- 9b) CHE DO GIAM LAG MANH (nang cap): chat ngan sach + cat tai thich ung
+--===========================================================================
+-- Van tuan thu hop dong an toan: chi siet phan viec cua chinh script
+-- (it ms/frame hon, hoan viec phu khi frame cham, don cache/pool thuong xuyen,
+-- buoc GC cua chinh VM neu nen tang cho phep). Khong sua do hoa/co che game.
+
+function Instance:SetStrongMode(on)
+	on = (on == true)
+	if self._strong == on then return self._strong end
+	self._strong = on
+	if on then
+		self:CachePrune()
+		for name in pairs(self._pools) do self:PoolDrain(name) end
+		pcall(function() collectgarbage("step", 200) end) -- no-op an toan neu khong co
+		if self._started then
+			self:ShowToast("Da giam lag: che do manh dang bat (siet ngan sach frame, hoan viec phu khi khung hinh cham).")
+		end
+	end
+	return self._strong
+end
+
+function Instance:IsStrongMode()
+	return self._strong
+end
+
+-- Tu dong bat che do manh khi FPS thap keo dai (goi dinh ky tu Sample).
+function Instance:_maybeAutoStrong()
+	if not self._cfg.autoStrong or self._strongAutoFired or self._strong then return end
+	local p = self._perf
+	if p.emaDt and p.emaDt > (1 / 30) and p.frames >= 60 then
+		self._strongAutoFired = true
+		self:SetStrongMode(true)
+	end
+end
+
+--===========================================================================
+-- 9c) THONG BAO GOC PHAI DUOI (ngoai le GUI theo yeu cau nguoi dung)
+--===========================================================================
+-- Hinh chu nhat goc phai duoi: VIEN NGOAI cau vong chuyen dong, BEN TRONG
+-- xam trong suot, hien toastDurationSec giay (mac dinh 30) roi tu bien mat.
+-- Day CHI la thong bao 1 chieu (khong nut bam, khong menu, khong cai dat).
+
+-- Mau cau vong tao trong pcall cua ShowToast (chi Roblox moi co Color3).
+
+function Instance:ShowToast(text)
+	if not self._cfg.toastEnabled or self._destroyed then return false end
+	if not self._capabilities.roblox then return false end -- ngoai Roblox: khong co GUI
+	local players = getService("Players")
+	local player = players and players.LocalPlayer
+	local gui = player and player:FindFirstChildOfClass("PlayerGui")
+	if not gui then return false end
+	self:HideToast()
+	local ok, built = pcall(function()
+		local RAINBOW = {
+			Color3.fromRGB(255, 0, 0), Color3.fromRGB(255, 127, 0), Color3.fromRGB(255, 255, 0),
+			Color3.fromRGB(0, 200, 0), Color3.fromRGB(0, 120, 255), Color3.fromRGB(75, 0, 130),
+			Color3.fromRGB(180, 0, 255),
+		}
+		local keypoints = {}
+		for idx, c in ipairs(RAINBOW) do
+			keypoints[#keypoints + 1] = ColorSequenceKeypoint.new((idx - 1) / (#RAINBOW - 1), c)
+		end
+		local screen = Instance.new("ScreenGui")
+		screen.Name = "AntiLagToast"
+		screen.ResetOnSpawn = false
+		screen.DisplayOrder = 999
+		local outer = Instance.new("Frame") -- lop ngoai: cau vong
+		outer.Name = "RainbowBorder"
+		outer.AnchorPoint = Vector2.new(1, 1)
+		outer.Position = UDim2.new(1, -16, 1, -16)
+		outer.Size = UDim2.new(0, 300, 0, 72)
+		outer.BorderSizePixel = 0
+		outer.Parent = screen
+		local grad = Instance.new("UIGradient")
+		grad.Color = ColorSequence.new(keypoints)
+		grad.Parent = outer
+		local cornerO = Instance.new("UICorner"); cornerO.CornerRadius = UDim.new(0, 10); cornerO.Parent = outer
+		local inner = Instance.new("Frame") -- lop trong: xam trong suot
+		inner.Name = "Body"
+		inner.Position = UDim2.new(0, 3, 0, 3)
+		inner.Size = UDim2.new(1, -6, 1, -6)
+		inner.BackgroundColor3 = Color3.fromRGB(128, 128, 128)
+		inner.BackgroundTransparency = 0.35
+		inner.BorderSizePixel = 0
+		inner.Parent = outer
+		local cornerI = Instance.new("UICorner"); cornerI.CornerRadius = UDim.new(0, 8); cornerI.Parent = inner
+		local label = Instance.new("TextLabel")
+		label.BackgroundTransparency = 1
+		label.Position = UDim2.new(0, 10, 0, 4)
+		label.Size = UDim2.new(1, -20, 1, -8)
+		label.Font = Enum.Font.GothamBold
+		label.TextSize = 13
+		label.TextColor3 = Color3.fromRGB(255, 255, 255)
+		label.TextXAlignment = Enum.TextXAlignment.Left
+		label.TextWrapped = true
+		label.Text = "✅ ĐÃ GIẢM LAG\n" .. tostring(text or "")
+		label.Parent = inner
+		screen.Parent = gui
+		return { gui = screen, gradient = grad }
+	end)
+	if not ok or not built then return false end
+	self._toast = built
+	-- Tu bien mat sau toastDurationSec (mac dinh 30 giay) qua scheduler cua script
+	self:Queue(function() self:HideToast() end,
+		{ key = "antilag:toast-hide", delay = self._cfg.toastDurationSec })
+	return true
+end
+
+function Instance:HideToast()
+	if self._toast then
+		pcall(function() self._toast.gui:Destroy() end)
+		self._toast = nil
+	end
+end
+
+--===========================================================================
 -- 10) VONG DOI: Start / Stop / Destroy (yeu cau cach hoat dong muc 4)
 --===========================================================================
 
@@ -525,6 +659,11 @@ function Instance:Start()
 		self:Connect("heartbeat", runService.Heartbeat, function(dt)
 			self:Sample(dt)
 			self:Step()
+			if self._toast and self._toast.gradient then
+				local g = self._toast.gradient
+				g.Rotation = (g.Rotation + dt * 45) % 360 -- vien cau vong chuyen dong
+			end
+			if self._perf.frames % 30 == 0 then self:_maybeAutoStrong() end
 		end)
 		-- Don dinh ky cung qua scheduler de khong co vong lap rieng gay tai.
 		local function scheduleCleanup()
@@ -532,8 +671,9 @@ function Instance:Start()
 			self:Queue(function()
 				self:CachePrune()
 				for name in pairs(self._pools) do self:PoolDrain(name) end
+				if self._strong then pcall(function() collectgarbage("step", 200) end) end
 				scheduleCleanup()
-			end, { key = "antilag:cleanup", delay = self._cfg.cleanupIntervalSec })
+			end, { key = "antilag:cleanup", delay = self._strong and 15 or self._cfg.cleanupIntervalSec })
 		end
 		scheduleCleanup()
 		self._log("[AntiLag] Da kich hoat (Roblox). Do: FPS/frame/RAM/ping — khong sua do hoa/co che game.")
@@ -550,6 +690,7 @@ end
 
 function Instance:Destroy()
 	if self._destroyed then return end
+	self:HideToast()
 	self:Stop()
 	self._destroyed = true
 	self._queue, self._queuedByKey = {}, {}

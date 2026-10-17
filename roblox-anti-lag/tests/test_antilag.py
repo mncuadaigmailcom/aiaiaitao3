@@ -54,7 +54,7 @@ class TestSafetyContract(unittest.TestCase):
             "an/xoa vat the game": r"(workspace|Workspace)\s*[.:]",
             "sua nhan vat/co che choi": r"(WalkSpeed|JumpPower|JumpHeight|Health)\s*=",
             "can thiep mang server": r"(FireServer|InvokeServer|FireAllClients|InvokeClient)\s*\(",
-            "GUI/menu": r"(ScreenGui|TextButton|TextLabel|Frame)\b.*Instance\.new|Instance\.new\(\s*\"(ScreenGui|Frame|TextButton)",
+            "nut bam/menu tuong tac": r"Instance\.new\(\s*\"TextButton\"",
             "vong lap vo han": r"while\s+true\s+do",
         }
         for name, pat in forbidden.items():
@@ -84,8 +84,22 @@ class TestSafetyContract(unittest.TestCase):
         for item in required:
             self.assertIn(item, self.src, f"THIEU CO CHE BAT BUOC: {item}")
 
-    def test_no_gui_created(self):
-        self.assertNotIn("Instance.new", self.code.replace("Instance.__index", ""))
+    def test_only_toast_gui_allowed(self):
+        # Ngoai le theo yeu cau nguoi dung: chi duoc tao toast thong bao,
+        # khong nut bam/menu tuong tac; toast phai o goc phai duoi, vien cau vong,
+        # trong xam trong suot, tu an sau mac dinh 30 giay.
+        self.assertIn('Instance.new("ScreenGui")', self.src)
+        self.assertNotIn('Instance.new("TextButton")', self.code)
+        self.assertIn("AnchorPoint = Vector2.new(1, 1)", self.src)
+        self.assertIn("BackgroundTransparency = 0.35", self.src)
+        self.assertIn("toastDurationSec = 30", self.src)
+        self.assertIn("function Instance:ShowToast", self.src)
+        self.assertIn("function Instance:HideToast", self.src)
+
+    def test_strong_mode_present(self):
+        for item in ["function Instance:SetStrongMode", "function Instance:_maybeAutoStrong",
+                     "strongBudgetMs = 1", "shed"]:
+            self.assertIn(item, self.src, f"THIEU CHE DO MANH: {item}")
 
     def test_readme_covers_limitations(self):
         readme = read(README)

@@ -17,6 +17,23 @@ Nhúng vào script khác: `local anti = AntiLag.new({...}); anti:Start()`, dùng
 `anti:Queue / Connect / GetOrCompute / Acquire / Request / RunLimited...`,
 cuối cùng `anti:Destroy()`.
 
+## Chế độ giảm lag mạnh + thông báo (nâng cấp)
+
+- **Tự động**: khi đo thấy FPS thấp kéo dài (frame > 1/30s sau 60 frame),
+  script tự bật **chế độ mạnh** (`SetStrongMode(true)`): ngân sách việc nền
+  siết từ 2ms xuống 1ms/frame, trần việc/frame giảm, việc ưu tiên thấp bị
+  tạm hoãn khi khung hình đang chậm (không xóa — khung hình tốt lại chạy),
+  dọn cache/pool thường xuyên hơn và bước dọn bộ nhớ của chính VM nếu có.
+- **Thông báo**: ngay khi chế độ mạnh được bật, góc **phải dưới** màn hình
+  hiện một hình chữ nhật: **viền ngoài cầu vồng chuyển động**, **bên trong
+  xám trong suốt** (độ mờ 0.35), chữ "✅ ĐÃ GIẢM LAG". Thông báo hiện
+  **30 giây** rồi tự biến mất và tự hủy GUI (không để rác). Đây là ngoại lệ
+  GUI duy nhất theo yêu cầu của bạn — chỉ là thông báo 1 chiều, không nút
+  bấm, không menu, không cài đặt. Tắt bằng `toastEnabled = false`, đổi thời
+  gian bằng `toastDurationSec`.
+- Chế độ mạnh vẫn tuân thủ hợp đồng an toàn: chỉ siết phần việc của chính
+  script, **không** giảm đồ họa, không sửa cơ chế game.
+
 ## Đối chiếu 14 yêu cầu bắt buộc
 
 | # | Yêu cầu | Cách thực hiện trong `AntiLag.lua` | Trạng thái |
@@ -34,7 +51,7 @@ cuối cùng `anti:Destroy()`.
 | 11 | Tối ưu tác vụ song song | `RunLimited`: giới hạn số việc chạy đồng thời (`maxConcurrent`), quá tải thì từ chối thay vì dồn việc | ✅ |
 | 12 | Phân bổ công việc | Ngân sách ms/frame + trần việc/frame + hàng đợi ưu tiên + gộp việc trùng key | ✅ |
 | 13 | Đo hiệu suất | `Sample/GetReport`: FPS trung bình, frame ms (avg + p95), RAM (Stats), ping, phân loại nút thắt `CPU/frame` / `RAM` / `NETWORK` / `OK` | ✅ |
-| 14 | Kiểm thử hồi quy | Bộ test Luau thật (`tests/run_tests.lua`, 21 kiểm tra) + test tĩnh hợp đồng an toàn (`tests/test_antilag.py`) | ✅ |
+| 14 | Kiểm thử hồi quy | Bộ test Luau thật (`tests/run_tests.lua`, 26 kiểm tra) + test tĩnh hợp đồng an toàn (`tests/test_antilag.py`) | ✅ |
 
 ## Hợp đồng an toàn (không thương lượng)
 
