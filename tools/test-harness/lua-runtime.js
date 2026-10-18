@@ -169,7 +169,6 @@ class LuaRuntime {
       `parts = ${Number(world.parts ?? 220)}`,
       `emitters = ${Number(world.emitters ?? 24)}`,
       `emitterRate = ${Number(world.emitterRate ?? 80)}`,
-      `emitterCount = ${Number(world.emitterCount ?? -1)}`,
       `farDistance = ${Number(world.farDistance ?? 400)}`,
       `qualityLevel = ${Number(world.qualityLevel ?? 10)}`,
     ].join(', ');
@@ -318,7 +317,11 @@ class LuaRuntime {
     this.fps = this.frameTimeMs > 0 ? 1000 / this.frameTimeMs : 0;
     this.clock += deltaSeconds;
     this.frameCount += 1;
-    this._fireSignal('RunService', 'RenderStepped', deltaSeconds);
+    // RenderStepped receives the frame duration from the mock cost model,
+    // not the fixed 60 Hz clock-pump interval. This keeps Profile.Run's FPS
+    // samples consistent with computeCost(); Heartbeat still advances the
+    // deterministic scheduler clock at the fixed simulation step.
+    this._fireSignal('RunService', 'RenderStepped', this.lastFrameSeconds);
     this._fireSignal('RunService', 'Heartbeat', deltaSeconds);
     this._tick();
   }
@@ -352,7 +355,7 @@ class LuaRuntime {
     lua.lua_settop(L, base);
   }
 
-  /** Tiến đồng hồ ảo, chạy khung hình 60fps. Chống tái nhập. */
+  /** Bơm frame theo đồng hồ ảo; RenderStepped dùng delta từ mô hình chi phí. Chống tái nhập. */
   advance(seconds) {
     if (this.pumping) {
       this.clock += seconds;

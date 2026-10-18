@@ -125,9 +125,8 @@ for (const chunk of listRaw.split(';;;')) {
 md += `
 ## 5.5 Vì sao không có mục nào ở trạng thái C
 
-Ban đầu có 141 mục A và 0 mục B. Sau khi viết 123 test, **90 mục được nâng lên B** vì
-có test khai đúng id đó trong tên test và test đạt. ${A} mục A còn lại **chưa có test
-riêng khai rõ id**, nhưng không bị hạ xuống C vì:
+Hiện có **${B} mục B** vì có test khai đúng id đó trong tên test và test đạt. ${A} mục A
+còn lại **chưa có test riêng khai rõ id**, nhưng không bị hạ xuống C vì:
 
 1. Chúng vẫn có mã thật, có marker, và \`verify-catalog.js\` kiểm được điều đó.
 2. Nhiều mục được chạy **gián tiếp** qua test tích hợp \`pipeline\` (các bước trong

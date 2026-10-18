@@ -154,7 +154,7 @@ local CLASS_DEFAULTS = {
 	Part = { CastShadow = true, Transparency = 0, Visible = true, Anchored = false, CanCollide = true },
 	MeshPart = { CastShadow = true, Transparency = 0, Visible = true, Anchored = false, CanCollide = true },
 	UnionOperation = { CastShadow = true, Transparency = 0, Visible = true, Anchored = false, CanCollide = true },
-	ParticleEmitter = { Rate = 10, ParticleCount = 20, Enabled = true },
+	ParticleEmitter = { Rate = 10, Enabled = true },
 	Beam = { Enabled = true },
 	Trail = { Enabled = true },
 	Decal = { Transparency = 0 },
@@ -479,7 +479,6 @@ function Mock.BuildWorld(game, options)
 		host.Name = "FxHost" .. i
 		emitter.Parent = host
 		emitter.Rate = options.emitterRate or 80
-		emitter.ParticleCount = options.emitterCount or -1
 		emitter.Enabled = true
 	end
 

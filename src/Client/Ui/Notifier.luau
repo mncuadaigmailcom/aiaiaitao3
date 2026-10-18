@@ -9,7 +9,7 @@
 	Bảng trạng thái nhỏ, không có menu điều khiển:
 	  * cố định ở góc dưới bên phải, không nhận kéo / chọn / nút bấm;
 	  * nền xám bán trong suốt, viền cầu vồng;
-	  * hiển thị "Đang giảm lag" và tiến trình 1–100%;
+	  * hiển thị "đang giảm lag" và tiến trình 1–100%;
 	  * tự ẩn sau 30 giây, dọn connection và instance do mình tạo.
 
 	Phần trăm là hoạt ảnh thời lượng hiển thị, KHÔNG phải lời hứa về mức FPS.
@@ -34,7 +34,7 @@ Notifier.__index = Notifier
 Notifier.instance = nil
 Notifier.DEFAULTS = {
 	title = "TỐI ƯU HIỆU NĂNG",
-	status = "Đang giảm lag",
+	status = "đang giảm lag",
 	done = "Đã giảm lag xong",
 	failed = "Tối ưu gặp lỗi — xem Output",
 	durationSeconds = 30,

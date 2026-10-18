@@ -3,7 +3,7 @@
  * tests/suites/pipeline.test.js
  * ===== RALO.METHODS: LOOP-005, REC-003, MEAS-001, MEAS-003, MEAS-006,
  *                     MEAS-007, RESTORE-001, RESTORE-002, RESTORE-003,
- *                     CFG-001, QUERY-004, QUERY-006, EFFECTS-001, EFFECTS-002,
+ *                     CFG-001, QUERY-004, QUERY-006, EFFECTS-001,
  *                     GRAPHICS-001, GRAPHICS-003, START-003 =====
  *
  * KIỂM THỬ TÍCH HỢP: chạy toàn bộ luồng đo -> lập kế hoạch -> thực thi ->
@@ -33,12 +33,81 @@ module.exports = function pipelineSuite(suite) {
         .. "|" .. tostring(result.tally ~= nil)
         .. "|" .. tostring(result.comparison ~= nil)
         .. "|" .. tostring(result.plan ~= nil)
+        .. "|" .. tostring(result.selfCost ~= nil)
+        .. "|" .. tostring(type(result.selfCost.frameCostMs) == "number")
+        .. "|" .. tostring(type(result.tally.handlerDurationMs) == "number")
+        .. "|" .. tostring(result.selfCost.tasks)
+        .. "|" .. tostring(result.selfCost.connections)
+        .. "|" .. tostring(result.tally.failed)
+        .. "|" .. tostring(result.tally.applied)
     `)[0];
-    const [hasResult, hasTally, hasComparison, hasPlan] = out.split('|');
+    const [hasResult, hasTally, hasComparison, hasPlan, hasSelfCost, hasSchedulerCost, hasHandlerDuration,
+      tasks, connections, failedSteps, appliedSteps] = out.split('|');
     A.equal(hasResult, 'true', 'phải trả về bảng kết quả');
     A.equal(hasTally, 'true', 'phải có thống kê thực thi');
     A.equal(hasComparison, 'true', 'phải có bảng so sánh');
     A.equal(hasPlan, 'true', 'phải có kế hoạch');
+    A.equal(hasSelfCost, 'true', 'phải có chi phí riêng của script');
+    A.equal(hasSchedulerCost, 'true', 'chi phí Scheduler/frame phải là số đo được');
+    A.equal(hasHandlerDuration, 'true', 'thời gian handler phải được tổng hợp bằng os.clock');
+    A.equal(tasks, '0', 'không có GUI/GC opt-in thì không giữ tác vụ nền');
+    A.equal(connections, '0', 'không có tác vụ thì Scheduler phải ngắt Heartbeat');
+    A.equal(failedSteps, '0', 'runner phải gọi handler với đúng chữ ký (step, profile)');
+    A.greaterThan(Number(appliedSteps), 0, 'pipeline phải áp dụng được các bước an toàn');
+  });
+
+  suite.test('PERF-001: mô hình mock cho thấy tác động giảm Rate particle lên chi phí/FPS', (t, A) => {
+    const h = createRuntime({ emitters: 6, emitterRate: 200 });
+    const costBefore = h.rt.computeCost();
+    const out = h.eval(`
+      local Config = __RALO_REQ("Shared/Config")
+      Config.Apply({
+        measure = { baselineSeconds = 0.5, settleSeconds = 0, afterSeconds = 0.5, frameWindow = 60 },
+        gui = { enabled = false },
+      })
+      local Pipeline = __RALO_REQ("Client/Core/Pipeline")
+      local result = Pipeline.Run({ profile = Config.PROFILE, buildUi = false })
+      return tostring(result.tally.failed)
+        .. "|" .. tostring(result.tally.applied)
+        .. "|" .. tostring(result.comparison.valid)
+        .. "|" .. tostring(result.comparison.summary.improved)
+        .. "|" .. tostring(result.before.frameTimeMs.mean)
+        .. "|" .. tostring(result.after.frameTimeMs.mean)
+        .. "|" .. tostring(result.before.fps.mean)
+        .. "|" .. tostring(result.after.fps.mean)
+    `)[0];
+    const costAfter = h.rt.computeCost();
+    const [failed, applied, valid, improved, beforeFrameMs, afterFrameMs, beforeFps, afterFps]
+      = out.split('|');
+    A.equal(failed, '0', 'không được có handler lỗi khi chạy pipeline');
+    A.greaterThan(Number(applied), 0, 'pipeline phải áp dụng ít nhất một bước');
+    A.equal(valid, 'true', 'cả hai lần đo phải hợp lệ');
+    A.greaterThan(costBefore, costAfter, 'model phải ghi nhận chi phí thấp hơn sau khi hạ Rate');
+    A.lessThan(Number(afterFrameMs), Number(beforeFrameMs), 'frame time mock phải giảm sau tối ưu');
+    A.greaterThan(Number(afterFps), Number(beforeFps), 'FPS suy ra từ frame time mock phải tăng');
+    A.greaterThan(Number(improved), 0, 'bảng so sánh phải ghi nhận ít nhất một chỉ số cải thiện');
+
+    const light = createRuntime({ emitters: 6, emitterRate: 20 });
+    const lightCostBefore = light.rt.computeCost();
+    const lightOut = light.eval(`
+      local Config = __RALO_REQ("Shared/Config")
+      Config.Apply({
+        measure = { baselineSeconds = 0.5, settleSeconds = 0, afterSeconds = 0.5, frameWindow = 60 },
+        gui = { enabled = false },
+      })
+      local result = __RALO_REQ("Client/Core/Pipeline").Run({ profile = Config.PROFILE, buildUi = false })
+      return tostring(result.comparison.summary.verdict)
+        .. "|" .. tostring(result.comparison.summary.improved)
+        .. "|" .. tostring(result.comparison.summary.regressed)
+        .. "|" .. tostring(result.comparison.summary.unchanged)
+    `)[0];
+    const lightCostAfter = light.rt.computeCost();
+    const [lightVerdict, lightImproved, lightRegressed, lightUnchanged] = lightOut.split('|');
+    A.equal(lightCostAfter, lightCostBefore, 'Rate dưới trần thì model không được giả vờ giảm chi phí');
+    A.equal(lightVerdict, 'unchanged', 'không đổi hiệu năng phải báo unchanged, không báo regressed');
+    A.equal(lightImproved, '0', 'Rate dưới trần không ghi cải thiện');
+    A.equal(lightRegressed, '0', 'chỉ số trùng nhau không bị tính nhầm là suy giảm');
+    A.equal(lightUnchanged, '5', 'ghi riêng số chỉ số không đổi');
   });
 
   suite.test('MEAS-001: cả hai lần đo đều có mẫu thật (không phải số bịa)', (t, A) => {
@@ -75,14 +144,24 @@ module.exports = function pipelineSuite(suite) {
       local c1 = Profile.Compare(empty, full)
       local c2 = Profile.Compare(full, empty)
       local c3 = Profile.Compare(nil, full)
+      local c4 = Profile.Compare(full, full)
+      local Measure = __RALO_REQ("Client/Core/Measure")
+      local c5 = Measure.Compare(full, full)
       return tostring(c1.valid) .. "|" .. tostring(c2.valid) .. "|" .. tostring(c3.valid)
         .. "|" .. tostring(c1.reason ~= nil)
+        .. "|" .. tostring(c4.summary.verdict) .. "|" .. tostring(c4.summary.unchanged)
+        .. "|" .. tostring(c5.summary.verdict) .. "|" .. tostring(c5.summary.unchanged)
     `)[0];
-    const [v1, v2, v3, hasReason] = out.split('|');
+    const [v1, v2, v3, hasReason, profileVerdict, profileUnchanged, measureVerdict, measureUnchanged]
+      = out.split('|');
     A.equal(v1, 'false', 'thiếu mẫu TRƯỚC -> không kết luận');
     A.equal(v2, 'false', 'thiếu mẫu SAU -> không kết luận');
     A.equal(v3, 'false', 'dữ liệu nil -> không kết luận');
     A.equal(hasReason, 'true', 'phải nêu LÝ DO chứ không im lặng');
+    A.equal(profileVerdict, 'unchanged', 'số đo trùng nhau phải báo unchanged, không regressed');
+    A.equal(profileUnchanged, '5', 'các chỉ số bằng nhau phải được đếm riêng');
+    A.equal(measureVerdict, 'unchanged', 'Measure.Compare cũng phải nhận diện số đo trùng');
+    A.equal(measureUnchanged, '5', 'Measure.Compare phải đếm các chỉ số không đổi riêng');
   });
 
   suite.test('MEAS-006: mỗi lần đo ghi kèm ngữ cảnh thế giới để kiểm tra tương đương', (t, A) => {
@@ -134,43 +213,38 @@ module.exports = function pipelineSuite(suite) {
     A.greaterThan(Number(total), 0, 'kế hoạch vẫn phải LIỆT KÊ đủ các bước');
   });
 
-  suite.test('EFFECTS-001 / EFFECTS-002: hạt bị GIỚI HẠN chứ không bị xoá', (t, A) => {
-    const h = createRuntime({ emitters: 6, emitterRate: 200, emitterCount: -1 });
+  suite.test('EFFECTS-001: Rate hạt bị GIỚI HẠN nhưng emitter vẫn tồn tại và bật', (t, A) => {
+    const h = createRuntime({ emitters: 6, emitterRate: 200 });
     const out = h.eval(`
       local Config = __RALO_REQ("Shared/Config")
       local Effects = __RALO_REQ("Client/Optimizations/Effects")
       Config.ResetToDefaults()
       local workspace = game:GetService("Workspace")
-      local before = { rate = 0, count = 0, enabled = 0 }
+      local before = { rate = 0, enabled = 0 }
       for _, d in ipairs(workspace:GetDescendants()) do
         if d.ClassName == "ParticleEmitter" then
           before.rate = math.max(before.rate, d.Rate)
-          before.count = math.max(before.count, d.ParticleCount)
           if d.Enabled then before.enabled += 1 end
         end
       end
 
       local result = Effects.CapParticles(nil, Config.PROFILE)
 
-      local after = { rate = 0, count = 0, enabled = 0, total = 0 }
+      local after = { rate = 0, enabled = 0, total = 0 }
       for _, d in ipairs(workspace:GetDescendants()) do
         if d.ClassName == "ParticleEmitter" then
           after.total += 1
           after.rate = math.max(after.rate, d.Rate)
-          after.count = math.max(after.count, d.ParticleCount)
           if d.Enabled then after.enabled += 1 end
         end
       end
-      return before.rate .. "|" .. after.rate .. "|" .. before.count .. "|" .. after.count
+      return before.rate .. "|" .. after.rate
         .. "|" .. before.enabled .. "|" .. after.enabled .. "|" .. after.total
         .. "|" .. tostring(result.changes)
     `)[0];
-    const [rateBefore, rateAfter, countBefore, countAfter, enBefore, enAfter, total, changes]
-      = out.split('|');
+    const [rateBefore, rateAfter, enBefore, enAfter, total, changes] = out.split('|');
     A.equal(rateBefore, '200', 'thế giới test phải có emitter Rate cao');
-    A.lessThan(Number(rateAfter), Number(rateBefore), 'Rate phải bị hạ xuống');
-    A.lessThan(Number(rateAfter), 41, 'Rate phải về dưới trần nhẹ 40');
-    A.equal(countAfter, '120', 'ParticleCount -1 (vô hạn) phải về trần vừa phải 120');
+    A.equal(rateAfter, '40', 'Rate phải về trần nhẹ 40');
     A.equal(enBefore, enAfter, 'số emitter BẬT không được giảm — không xoá hiệu ứng');
     A.equal(total, '6', 'không emitter nào bị mất');
     A.greaterThan(Number(changes), 0, 'phải đếm được số thay đổi thật');
@@ -396,20 +470,26 @@ module.exports = function pipelineSuite(suite) {
       Config.Apply({
         measure = { baselineSeconds = 1.0, settleSeconds = 0, afterSeconds = 1.0, frameWindow = 60 },
         gui = { enabled = false },
+        memory = { gcEverySeconds = 15 },
       })
       local Bootstrap = __RALO_REQ("Client/Bootstrap")
+      local Memory = __RALO_REQ("Client/Optimizations/Memory")
       Bootstrap.__noAutoRun = true
       Bootstrap.Start({ buildUi = false })
       local during = __RALO_REQ("Client/Core/Scheduler").Stats().connections
         + __RALO_REQ("Client/Core/Registry").ConnectionCount()
+      local gcWasScheduled = Memory.gcHandle ~= nil
       Bootstrap.Shutdown()
       local after = __RALO_REQ("Client/Core/Scheduler").Stats().connections
         + __RALO_REQ("Client/Core/Registry").ConnectionCount()
       return during .. "|" .. after .. "|" .. tostring(Bootstrap.State().started)
+        .. "|" .. tostring(gcWasScheduled) .. "|" .. tostring(Memory.gcHandle == nil)
     `)[0];
-    const [during, after, started] = out.split('|');
-    A.greaterThan(Number(during), 0, 'trong lúc chạy phải có connection');
+    const [during, after, started, gcWasScheduled, gcStopped] = out.split('|');
+    A.greaterThan(Number(during), 0, 'trong lúc chạy phải có connection/tác vụ');
     A.equal(after, '0', 'sau Shutdown không được để lại connection nào');
     A.equal(started, 'false', 'trạng thái phải về chưa chạy');
+    A.equal(gcWasScheduled, 'true', 'GC định kỳ phải được quản lý như một tác vụ');
+    A.equal(gcStopped, 'true', 'Shutdown phải huỷ cả tác vụ GC nền');
   });
 };

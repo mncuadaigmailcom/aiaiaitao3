@@ -1,6 +1,6 @@
 --[[ ===== RALO.METHODS:BEGIN =====
 	Các phương pháp được TRIỂN KHAI TRONG TỆP NÀY (khớp với Shared/Methods.luau):
-	  EFFECTS-001, EFFECTS-002 
+	  EFFECTS-001
 	===== RALO.METHODS:END ===== --]]
 
 --[[
@@ -12,7 +12,7 @@
 	mất dấu vết đường đạn) và KHÔNG hoàn tác được.
 
 	Cách làm ở đây:
-	  * GIỚI HẠN Rate và ParticleCount về mức trần -> effect vẫn hiện, nhẹ hơn.
+	  * GIỚI HẠN Rate của emitter -> effect vẫn hiện, nhưng sinh ít hạt hơn.
 	  * Beam/Trail/Decal mặc định GIỮ NGUYÊN; chỉ tắt khi người dùng bật cờ.
 	  * Mọi giá trị cũ được ghi vào Restore để hoàn tác 100%.
 ]]
@@ -45,9 +45,8 @@ end
 
 function Effects.CapParticles(_step: any, profile: any)
 	local rateCap = profile.effects.particleRateCap or 40
-	local countCap = profile.effects.particleMaxCountCap or 120
 
-	local cappedRate, cappedCount, alreadyOk = 0, 0, 0
+	local cappedRate, alreadyOk = 0, 0
 
 	local stats = Opt_Scan.Descendants({
 		maxScan = profile.effects.maxInstancesScanned or 3000,
@@ -66,15 +65,6 @@ function Effects.CapParticles(_step: any, profile: any)
 				end
 			end
 
-			local count, okCount = Util_Safe.Get(instance, "ParticleCount")
-			-- ParticleCount = -1 nghĩa là "không giới hạn"; ta quy về mức trần.
-			if okCount and type(count) == "number" and (count < 0 or count > countCap) then
-				if change(instance, "ParticleCount", countCap, "effects.particles", countCap) then
-					cappedCount += 1
-					touched = true
-				end
-			end
-
 			if not touched then
 				alreadyOk += 1
 			end
@@ -87,9 +77,9 @@ function Effects.CapParticles(_step: any, profile: any)
 	end
 
 	return {
-		changes = cappedRate + cappedCount,
-		detail = ("giới hạn Rate cho %d emitter, ParticleCount cho %d emitter; %d emitter vốn đã nhẹ; đã quét %d (khớp %d%s)")
-			:format(cappedRate, cappedCount, alreadyOk, stats.scanned, stats.matched,
+		changes = cappedRate,
+		detail = ("giới hạn Rate cho %d emitter; %d emitter vốn đã nhẹ; đã quét %d (khớp %d%s)")
+			:format(cappedRate, alreadyOk, stats.scanned, stats.matched,
 				stats.truncated and ", có cắt bớt" or ""),
 	}
 end

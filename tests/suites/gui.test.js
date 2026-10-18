@@ -104,7 +104,7 @@ module.exports = function guiSuite(suite) {
     A.equal(yScale, '1', 'vị trí Y phải tương đối theo đáy');
     A.equal(yOffset, '-16', 'phải chừa lề dưới');
     A.equal(alpha, '0.42', 'nền xám phải bán trong suốt');
-    A.equal(status, 'Đang giảm lag', 'phải hiện đúng trạng thái đang giảm lag');
+    A.equal(status, 'đang giảm lag', 'phải hiện đúng trạng thái đang giảm lag');
     A.equal(percent, '1%', 'phần trăm đầu tiên phải là 1%');
   });
 

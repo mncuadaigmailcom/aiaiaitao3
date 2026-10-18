@@ -251,12 +251,15 @@ function Measure.Compare(before: any, after: any)
 	local function deltaRow(label, beforeValue, afterValue, formatter, betterWhenLower)
 		local diff = afterValue - beforeValue
 		local pct = beforeValue ~= 0 and (diff / beforeValue) * 100 or 0
+		local better = betterWhenLower and diff < 0 or (not betterWhenLower and diff > 0)
+		local worse = betterWhenLower and diff > 0 or (not betterWhenLower and diff < 0)
 		out.rows[#out.rows + 1] = {
 			label = label,
 			before = formatter(beforeValue),
 			after = formatter(afterValue),
 			delta = ("%+.1f%%"):format(pct),
-			better = betterWhenLower and diff < 0 or (not betterWhenLower and diff > 0),
+			better = better,
+			worse = worse,
 			rawBefore = beforeValue,
 			rawAfter = afterValue,
 			pct = pct,
@@ -277,14 +280,28 @@ function Measure.Compare(before: any, after: any)
 	end
 
 	out.summary = {}
-	local improved, regressed = 0, 0
+	local improved, regressed, unchanged = 0, 0, 0
 	for _, row in out.rows do
-		if row.better then improved += 1 else regressed += 1 end
+		if row.better then
+			improved += 1
+		elseif row.worse then
+			regressed += 1
+		else
+			unchanged += 1
+		end
 	end
 	out.summary.improved = improved
 	out.summary.regressed = regressed
-	out.summary.verdict = improved > regressed and "improved"
-		or (regressed > improved and "regressed" or "unchanged")
+	out.summary.unchanged = unchanged
+	if improved > 0 and regressed == 0 then
+		out.summary.verdict = "improved"
+	elseif regressed > 0 and improved == 0 then
+		out.summary.verdict = "regressed"
+	elseif improved > 0 and regressed > 0 then
+		out.summary.verdict = "mixed"
+	else
+		out.summary.verdict = "unchanged"
+	end
 
 	out.summary.baselineSamples = before.meta.samples
 	out.summary.afterSamples = after.meta.samples
@@ -301,8 +318,9 @@ function Measure.FormatComparison(comparison: any): { string }
 		rows[#rows + 1] = { row.label, row.before, row.after, row.delta }
 	end
 	local lines = Util_Log.FormatRows(rows)
-	table.insert(lines, 1, ("Kết luận: %s (cải thiện %d/%d chỉ số)")
-		:format(comparison.summary.verdict, comparison.summary.improved, #comparison.rows))
+	table.insert(lines, 1, ("Kết luận: %s (cải thiện %d, suy giảm %d, không đổi %d / %d chỉ số)")
+		:format(comparison.summary.verdict, comparison.summary.improved, comparison.summary.regressed,
+			comparison.summary.unchanged, #comparison.rows))
 	table.insert(lines, 2, ("Số mẫu: trước=%d (%.1fs) sau=%d (%.1fs)")
 		:format(comparison.summary.baselineSamples, comparison.summary.durationBefore,
 			comparison.summary.afterSamples, comparison.summary.durationAfter))

@@ -262,6 +262,7 @@ function Profile.Compare(before, after)
 			after = format:format(afterValue),
 			delta = ("%+.1f%%"):format(pct),
 			better = betterWhenLower and diff < 0 or (not betterWhenLower and diff > 0),
+			worse = betterWhenLower and diff > 0 or (not betterWhenLower and diff < 0),
 			pct = pct,
 		}
 	end
@@ -275,20 +276,33 @@ function Profile.Compare(before, after)
 		addRow("Luau heap (MB)", before.heapKb / 1024, after.heapKb / 1024, true, 2)
 	end
 
-	local improved, regressed = 0, 0
+	local improved, regressed, unchanged = 0, 0, 0
 	for _, row in out.rows do
 		if row.better then
 			improved += 1
-		else
+		elseif row.worse then
 			regressed += 1
+		else
+			unchanged += 1
 		end
+	end
+
+	local verdict
+	if improved > 0 and regressed == 0 then
+		verdict = "improved"
+	elseif regressed > 0 and improved == 0 then
+		verdict = "regressed"
+	elseif improved > 0 and regressed > 0 then
+		verdict = "mixed"
+	else
+		verdict = "unchanged"
 	end
 
 	out.summary = {
 		improved = improved,
 		regressed = regressed,
-		verdict = (improved > regressed and "improved")
-			or (regressed > improved and "regressed") or "unchanged",
+		unchanged = unchanged,
+		verdict = verdict,
 		baselineSamples = beforeSamples,
 		afterSamples = afterSamples,
 		durationBefore = before.meta.duration,
@@ -320,8 +334,9 @@ function Profile.FormatComparison(comparison)
 
 	local lines = {}
 	if comparison.valid then
-		lines[#lines + 1] = ("Kết luận: %s (cải thiện %d/%d chỉ số)")
-			:format(comparison.summary.verdict, comparison.summary.improved, #comparison.rows)
+		lines[#lines + 1] = ("Kết luận: %s (cải thiện %d, suy giảm %d, không đổi %d / %d chỉ số)")
+			:format(comparison.summary.verdict, comparison.summary.improved, comparison.summary.regressed,
+				comparison.summary.unchanged, #comparison.rows)
 	else
 		lines[#lines + 1] = "Không kết luận được: " .. tostring(comparison.reason)
 	end

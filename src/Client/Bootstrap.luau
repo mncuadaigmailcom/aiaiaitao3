@@ -101,9 +101,8 @@ function Bootstrap.Start(options)
 		Shared_Log.Info(SCOPE, ("hoàn tác lần chạy trước: %d property (lỗi %d)"):format(restored, failed))
 	end
 
-	-- START-001: đẩy việc nặng ra khỏi khung hình đầu tiên
-	Client_Scheduler.Start()
-
+	-- Scheduler tự khởi động khi tác vụ thật sự được đăng ký; không giữ
+	-- Heartbeat rỗng trong trường hợp không có GUI/GC nền.
 	local ok, result = Client_Guard.Run(SCOPE .. ":Pipeline", function()
 		return Client_Pipeline.Run({
 			profile = normalized,

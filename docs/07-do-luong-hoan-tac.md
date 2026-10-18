@@ -2,23 +2,22 @@
 
 ## 7.1 Khai báo trước khi đọc tiếp
 
-> **Dự án này KHÔNG công bố bất kỳ con số FPS / RAM / CPU nào.**
+> **Dự án này không công bố kết quả benchmark FPS/RAM/CPU đo sẵn hoặc lời hứa tăng FPS.**
 >
-> Lý do: môi trường phát triển không có GPU và không có thiết bị thật, nên không
-> thể đo. Một con số không đo được mà vẫn viết ra thì là bịa. Mọi con số dưới đây
-> là **chỗ trống để bạn điền** sau khi tự đo trong Roblox Studio.
+> Pipeline có thể lấy mẫu frame time/FPS và heap Luau khi chạy trong client; kiểm thử
+> ở đây dùng mock, không phải thiết bị thật. Vì vậy chưa có con số hiệu quả thực tế
+> nào được ghi trước. CPU/RAM toàn thiết bị vẫn cần xem bằng công cụ của Roblox/OS.
 
 ## 7.2 Hệ thống tự đo được gì
 
-| Chỉ số | Lấy từ | Có thật không | Nếu không lấy được |
-| ------ | ------ | ------------- | ------------------ |
-| Thời gian script mỗi bước | `os.clock()` quanh từng bước | Có | Không áp dụng |
-| Bộ nhớ Lua | `collectgarbage("count")` | Có | Không áp dụng |
-| Số connection / task / instance | `Registry.Stats()`, `Scheduler.Stats()`, `GuiPolicy.CountNodes()` | Có | Không áp dụng |
-| Số thuộc tính đã đổi / đã hoàn tác | `Restore.Count()`, `Restore.CountByStep()` | Có | Không áp dụng |
-| MicroProfiler | `debug.profilebegin/end` khi engine hỗ trợ | **Tuỳ engine** | `Measure.Run` đặt `available = false` kèm lý do, **không** bịa số |
-| FPS thật | Không có API nào trong LocalScript | **Không** | Bạn phải tự đọc từ `View → Stats` |
-| RAM của cả tiến trình game | Không có API | **Không** | Bạn phải tự đọc từ Task Manager / Developer Console |
+| Chỉ số | Lấy từ | Phạm vi / giới hạn |
+| ------ | ------ | ------------------ |
+| Frame time và FPS suy ra | Delta giữa các mẫu `RunService.RenderStepped` trong `Measure.Run` | Số đo của client đang chạy; 0 mẫu thì không kết luận |
+| Heap Luau | `collectgarbage("count")` trước/sau | Chỉ heap Luau nếu API cho phép, không phải RAM toàn tiến trình |
+| Thời lượng từng handler | `os.clock()` quanh handler trong `Runner.Execute` | Thời gian xử lý đo được của callback RALO; không phải % CPU toàn thiết bị |
+| Chi phí Scheduler | `Scheduler.lastFrameCostMs`, ngân sách và số lần vượt | Overhead của Scheduler RALO ở nhịp gần nhất, không phải tổng CPU game |
+| Connection / task / instance do RALO quản lý | `Registry.Stats()`, `Scheduler.Stats()`, `GuiPolicy.CountNodes()` | Bộ đếm nội bộ của công cụ |
+| RAM toàn tiến trình / CPU toàn thiết bị | Không có quyền đọc từ LocalScript | Đọc bằng Developer Console, MicroProfiler/Script Profiler hoặc Task Manager |
 
 `Measure.Compare()` trả về `valid = false` kèm `reason` khi có 0 mẫu — nó **từ chối**
 đưa ra kết luận thay vì trả về số 0 trông như thật.
@@ -56,8 +55,9 @@ Ghi lại:
 ### Bước 3 — Bật hệ thống, đo lại
 
 Đặt `enabled = true`, `mode = "light"`. Play. **Đứng đúng chỗ cũ**, cùng 60 giây.
-Chờ qua mốc 30 giây (khi GUI đã tự huỷ) rồi mới ghi số — đo trong lúc GUI đang chạy
-là đo cả chi phí của GUI.
+Mặc định pipeline đo cả overlay nhỏ (nếu bật); để cô lập chi phí tối ưu, đặt
+`gui.enabled = false` khi đo hoặc ghi chú rõ overlay đang bật. Không cần chờ panel
+ẩn nếu đo cùng điều kiện trước/sau.
 
 | Chỉ số | Lần 1 | Lần 2 | Lần 3 | Trung bình | Chênh so nền |
 | ------ | ----- | ----- | ----- | ---------- | ------------ |

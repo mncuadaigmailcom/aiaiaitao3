@@ -13,7 +13,7 @@ Kết quả thật, ngày 2026-10-18:
 | Lint tĩnh | `npm run lint` | ✓ Không có vi phạm (36 tệp .luau) |
 | Đối chiếu danh mục | `npm run catalog` | ✓ 190 phương pháp khớp mã nguồn thật |
 | Cú pháp | `npm run syntax` | ✓ 38 tệp, lỗi: 0 |
-| Test tự động | `npm run test` | ✓ đạt 123 / hỏng 0 / tổng 123 |
+| Test tự động | `npm run test` | ✓ đạt 124 / hỏng 0 / tổng 124 |
 
 ### 11 bộ test
 
@@ -24,7 +24,7 @@ Kết quả thật, ngày 2026-10-18:
 | `cull` | 10 | Tắt ở xa / bật lại khi gần, có trần, không xoá |
 | `guard` | 9 | Kiểm tra tồn tại, stale-guard, phân lập lỗi |
 | `gui` | 20 | Không menu/nút, cố định dưới-phải, 1–100%, viền cầu vồng hợp lệ, 30 giây, tự huỷ sạch |
-| `pipeline` | 18 | Tích hợp toàn luồng: đo, tối ưu đồ họa nhẹ, giữ ánh sáng/bóng, giới hạn hạt, hoàn tác, lỗi |
+| `pipeline` | 19 | Tích hợp toàn luồng: đo, tối ưu đồ họa nhẹ, giữ ánh sáng/bóng, giới hạn hạt, hoàn tác, lỗi |
 | `pool` | 8 | Tái sử dụng, không tạo mới khi còn trong pool |
 | `registry` | 8 | Ngắt connection, không rò rỉ |
 | `safety` | 10 | Không xoá nội dung, lớp được bảo vệ, không có API executor |
@@ -54,7 +54,7 @@ Danh sách này **chưa được thực hiện** — môi trường phát triể
 | 7 | Không đẩy/xê dịch GUI khác của game | So sánh trước/sau khi chạy | ☐ |
 | 8 | Không chồng lên GUI game ở góc phải dưới | Thử với game có GUI góc phải | ☐ |
 | 9 | Phần trăm bắt đầu ở 1%, tăng tới tối đa 100% | Quan sát trong 30 giây | ☐ |
-| 10 | Hiện "Đang giảm lag" → "Đã giảm lag xong" | Đọc dòng trạng thái | ☐ |
+| 10 | Hiện "đang giảm lag" → "Đã giảm lag xong" | Đọc dòng trạng thái | ☐ |
 | 11 | Không có menu/nút bấm; bảng không kéo được | Thử bấm/kéo, bảng không nhận điều khiển | ☐ |
 | 12 | **Restart không tạo bảng thứ hai** | `Ctrl+Shift+F5` hoặc Play lại 3 lần | ☐ |
 | 13 | Sau khi trượt xuống, bảng **biến mất hẳn** và không xuất hiện lại | Chờ 40 giây | ☐ |

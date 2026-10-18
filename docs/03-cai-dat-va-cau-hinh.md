@@ -40,7 +40,7 @@ Không cần tạo thêm bất kỳ Instance nào.
 
 1. LocalScript chạy → `Bootstrap` nạp `Pipeline` và lập kế hoạch theo cấu hình.
 2. Bảng trạng thái xuất hiện ngay ở góc dưới bên phải: nền xám trong suốt,
-   viền cầu vồng, **“Đang giảm lag”**, thanh và số **1% → 100%**. Không có nút/menu
+   viền cầu vồng, **“đang giảm lag”**, thanh và số **1% → 100%**. Không có nút/menu
    điều khiển và không thể kéo bảng.
 3. Hệ thống đo nền trong 5 giây rồi áp dụng kế hoạch; hoạt ảnh bảng cập nhật 10 lần/giây,
    độc lập với tác vụ. Phần trăm là hoạt ảnh thời lượng, không phải số FPS; nếu pipeline
@@ -57,10 +57,10 @@ Mở `src/Shared/Config.luau`. Bảng `Config.PROFILE.groups` có **8 nhóm** (c
 ```lua
 groups = {
 	graphics  = true,    -- chất lượng tối đa 8; giữ ánh sáng, bóng và địa hình
-	effects   = true,    -- giới hạn nhẹ Rate/ParticleCount (không xoá effect)
+	effects   = true,    -- giới hạn Rate hạt nhẹ (không xoá effect)
 	cull      = true,    -- có trong thư viện, không nằm trong plan mặc định
 	scan      = true,    -- quét thế giới có trần
-	memory    = true,    -- GC định kỳ
+	memory    = true,    -- quản lý resource; GC thủ công mặc định tắt
 	physics   = false,   -- MẶC ĐỊNH TẮT: có đánh đổi độ mượt vật lý
 	character = true,    -- giữ bóng và tỉ lệ avatar theo mặc định
 	net       = false,   -- MẶC ĐỊNH TẮT: cần remote của game
@@ -88,7 +88,7 @@ thống làm lúc chạy, xếp theo thứ tự ưu tiên:
 | 5 | `effects.particles` | Giới hạn nhẹ hạt — **không xoá** emitter | `effects` | Có |
 | 6 | `effects.optional` | Beam/Trail/Decal (mặc định giữ nguyên) | `effects` | Có |
 | 7 | `physics.throttling` | Bớt làm mượt nội suy vật lý (mặc định TẮT) | `physics` | Có |
-| 8 | `memory.gc` | Kích hoạt chu kỳ dọn bộ nhớ Luau | `memory` | Không |
+| 8 | `memory.gc` | GC bước nhỏ qua Scheduler (opt-in; mặc định tắt) | `memory` | Không |
 | 9 | `memory.orphanSweep` | Gom instance mồ côi (**lưu trữ, không xoá**) | `memory` | Không |
 
 Mỗi bước cần một service nhất định; thiếu service thì bước bị **skip** chứ không lỗi.

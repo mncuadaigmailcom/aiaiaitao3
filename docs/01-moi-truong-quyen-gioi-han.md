@@ -15,6 +15,7 @@
    thử làm vậy; chỉ tắt/bật hiển thị trên client.
 3. Không đọc được `RunService:IsServer() == true` state của server.
 4. Không có quyền `setrbxsetting` hay bất kỳ API đặc quyền nào.
+5. Không thể đóng ứng dụng/tab khác, đổi nhiệt độ phần cứng, sửa Wi-Fi, hay đo CPU/RAM toàn hệ điều hành; các thao tác này nằm ngoài quyền của LocalScript.
 
 ## 1.2 API được dùng và quyền cần có
 

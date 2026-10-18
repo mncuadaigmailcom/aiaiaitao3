@@ -26,7 +26,9 @@
 
 local Core_Env = __RALO_REQUIRE("Client/Core/Env")
 local Core_Measure = __RALO_REQUIRE("Client/Core/Measure")
+local Core_Memory = __RALO_REQUIRE("Client/Optimizations/Memory")
 local Core_Plan = __RALO_REQUIRE("Client/Core/Plan")
+local Core_Profile = __RALO_REQUIRE("Client/Core/Profile")
 local Core_Restore = __RALO_REQUIRE("Client/Core/Restore")
 local Core_Runner = __RALO_REQUIRE("Client/Core/Runner")
 local Shared_Config = __RALO_REQUIRE("Shared/Config")
@@ -156,8 +158,10 @@ function Pipeline.Run(options)
 		})
 
 		local tally = Core_Runner.Tally(plan)
-		Shared_Log.Info(SCOPE, ("thực thi xong: áp dụng %d, bỏ qua %d, lỗi %d, tổng %d thay đổi")
-			:format(tally.applied, tally.skipped, tally.failed, tally.changes))
+		Shared_Log.Info(SCOPE,
+			("thực thi xong: áp dụng %d, bỏ qua %d, lỗi %d, %d thay đổi; thời gian handler tổng %.3f ms (lớn nhất %.3f ms: %s)")
+				:format(tally.applied, tally.skipped, tally.failed, tally.changes,
+					tally.handlerDurationMs, tally.maxHandlerMs, tostring(tally.slowestStepId or "không có")))
 
 		-------------------------------------------------------- 5. settle
 		if measure.settleSeconds > 0 and not options.instant then
@@ -217,6 +221,12 @@ function Pipeline.Run(options)
 		progress:SetPhase(Shared_Types.PHASE_DONE, "hoàn tất")
 		onPhase(Shared_Types.PHASE_DONE, comparison)
 
+		local selfCost = Core_Profile.SelfCost()
+		Shared_Log.Info(SCOPE,
+			("chi phí Scheduler: %.3f ms/frame (ngân sách %.1f ms), %d quá hạn; %d tác vụ, %d kết nối")
+				:format(selfCost.frameCostMs, selfCost.frameBudgetMs, selfCost.overruns,
+					selfCost.tasks, selfCost.connections))
+
 		return {
 			version = Shared_Config.VERSION,
 			environment = Core_Env.mode,
@@ -228,6 +238,7 @@ function Pipeline.Run(options)
 			restoreEntries = Core_Restore.Count(),
 			logLines = lines,
 			safeRecords = #Shared_Safe.Records,
+			selfCost = selfCost,
 			verdict = verdict,
 			error = nil,
 		}
@@ -279,6 +290,7 @@ function Pipeline.Shutdown()
 	if notifier ~= nil then
 		notifier:Destroy()
 	end
+	Core_Memory.StopGcLoop()
 	return true
 end
 

@@ -21,11 +21,11 @@
 	    nền, không huỷ được, rò rỉ khi module bị nạp lại.
 
 	Cách xử lý:
-	  * MỘT kết nối RenderStepped + MỘT thread nền cho mọi tác vụ định kỳ.
-	  * Mỗi tác vụ khai báo: chu kỳ, ngân sách (budget), độ ưu tiên.
-	  * Mỗi khung hình, scheduler chạy lần lượt theo ưu tiên và DỪNG khi
-	    vượt ngân sách thời gian -> chính công cụ tối ưu không thể trở
-	    thành nguồn lag mới.
+	  * Dùng chung một kết nối RunService.Heartbeat cho mọi tác vụ định kỳ;
+	    không tạo thread/vòng lặp riêng cho từng module.
+	  * Mỗi tác vụ khai báo: chu kỳ, độ ưu tiên; Scheduler áp ngân sách chung.
+	  * Mỗi khung hình, Scheduler chạy theo ưu tiên và DỪNG khi vượt ngân sách
+	    thời gian để chính công cụ tối ưu không trở thành nguồn lag mới.
 	  * Huỷ tác vụ bằng handle, huỷ tất cả bằng Shutdown().
 ]]
 

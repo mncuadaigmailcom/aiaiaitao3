@@ -55,7 +55,10 @@ function Runner.Execute(plan: any, options: any)
 		end
 
 		if handler ~= nil then
-			local ok, payload = pcall(handler, step.module, step, plan.profile)
+			local startedAt = os.clock()
+			-- Plan handlers đều là hàm tĩnh (step, profile), không phải method của module.
+			local ok, payload = pcall(handler, step, plan.profile)
+			step.handlerDurationMs = math.max(0, (os.clock() - startedAt) * 1000)
 			if not ok then
 				step.status = Util_Types.STATUS_FAILED
 				step.detail = ("handler throw: %s"):format(tostring(payload))
@@ -75,9 +78,9 @@ function Runner.Execute(plan: any, options: any)
 						step.detail = "không có đối tượng nào cần thay đổi"
 					end
 				end
-				Util_Log.Info(SCOPE, ("%s [%s]: %d thay đổi — %s")
+				Util_Log.Info(SCOPE, ("%s [%s]: %d thay đổi — %s (%.3f ms thời gian handler)")
 					:format(step.status == Util_Types.STATUS_APPLIED and "ÁP DỤNG" or "BỎ QUA",
-						step.id, step.changes, step.detail))
+						step.id, step.changes, step.detail, step.handlerDurationMs or 0))
 			end
 		end
 
@@ -94,8 +97,17 @@ function Runner.Execute(plan: any, options: any)
 end
 
 function Runner.Tally(plan: any)
-	local tally = { applied = 0, skipped = 0, failed = 0, changes = 0, total = plan.total }
+	local tally = {
+		applied = 0, skipped = 0, failed = 0, changes = 0, total = plan.total,
+		handlerDurationMs = 0, maxHandlerMs = 0, slowestStepId = nil,
+	}
 	for _, step in plan.steps do
+		local stepDurationMs = tonumber(step.handlerDurationMs) or 0
+		tally.handlerDurationMs += stepDurationMs
+		if stepDurationMs > tally.maxHandlerMs then
+			tally.maxHandlerMs = stepDurationMs
+			tally.slowestStepId = step.id
+		end
 		if step.status == Util_Types.STATUS_APPLIED then
 			tally.applied += 1
 			tally.changes += step.changes or 0

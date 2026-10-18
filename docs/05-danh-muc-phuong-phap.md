@@ -26,15 +26,15 @@ mà lại trỏ vào một tệp nguồn.
 ```
 Tổng số phương pháp : 190
   A đã triển khai    : 51
-  B có test đạt      : 90
+  B có test đạt      : 89
   C chưa kiểm thử    : 0
   D đề xuất          : 38
-  E không áp dụng    : 11
-  triển khai thật    : 141 / 190
+  E không áp dụng    : 12
+  triển khai thật    : 140 / 190
 ```
 
-**Không kê cho đủ 160.** Thực tế có 190 mục, trong đó chỉ 141 mục có mã
-thật. 38 mục là đề xuất (D) và 11 mục không áp dụng được (E) — tất cả đều liệt kê
+**Không kê cho đủ 160.** Thực tế có 190 mục, trong đó chỉ 140 mục có mã
+thật. 38 mục là đề xuất (D) và 12 mục không áp dụng được (E) — tất cả đều liệt kê
 công khai ở 5.4, không trộn vào số đã triển khai.
 
 ## 5.3 Phân bổ theo 30 nhóm
@@ -50,7 +50,7 @@ công khai ở 5.4, không trộn vào số đã triển khai.
 | 7 | Giảm đồ hoạ mức nhẹ (đảo ngược được) | 5 | 0 | 3 | 1 | 1 |
 | 8 | Part và Model | 6 | 2 | 0 | 4 | 0 |
 | 9 | Va chạm và vật lý | 5 | 2 | 0 | 3 | 0 |
-| 10 | Hạt và ánh sáng | 8 | 1 | 3 | 4 | 0 |
+| 10 | Hạt và ánh sáng | 8 | 1 | 2 | 4 | 1 |
 | 11 | Âm thanh | 4 | 0 | 0 | 3 | 1 |
 | 12 | Giao diện (GUI) | 13 | 3 | 9 | 1 | 0 |
 | 13 | Tác vụ nền | 6 | 4 | 2 | 0 | 0 |
@@ -181,7 +181,7 @@ công khai ở 5.4, không trộn vào số đã triển khai.
 | FX-002 | Tắt Beam/Trail ở xa | A | `src/Client/Core/Cull.luau` | Beam/Trail vẫn được tính và render khi ở xa. |
 | FX-003 | Tắt đèn điểm ở xa | D | `src/(đề xuất).luau` | Đèn xa vẫn buộc engine tính ánh sáng. |
 | EFFECTS-001 | Giới hạn Rate của emitter | B | `src/Client/Optimizations/Effects.luau` | Emitter cấu hình Rate vài trăm sinh rất nhiều hạt mỗi giây. |
-| EFFECTS-002 | Giới hạn ParticleCount | B | `src/Client/Optimizations/Effects.luau` | Số hạt không trần có thể phình tới hàng nghìn, tốn cả CPU lẫn GPU. |
+| EFFECTS-002 | Giới hạn ParticleCount | E | `src/(không áp dụng ở client).luau` | Giới hạn Rate có thể giảm lượng hạt sinh ra; không thể đặt trần tổng hạt qua một property riêng. |
 | EFFECTS-003 | Giảm kích thước hạt | D | `src/(đề xuất).luau` | Hạt to chiếm nhiều pixel, tăng chi phí fill-rate. |
 | EFFECTS-004 | Giảm số emitter đồng thời | D | `src/(đề xuất).luau` | Nhiều emitter chạy cùng lúc cộng dồn chi phí. |
 | EFFECTS-005 | Tắt hiệu ứng khi menu đang ẩn | D | `src/(đề xuất).luau` | Cập nhật thứ không ai nhìn là lãng phí. |
@@ -416,9 +416,8 @@ công khai ở 5.4, không trộn vào số đã triển khai.
 
 ## 5.5 Vì sao không có mục nào ở trạng thái C
 
-Ban đầu có 141 mục A và 0 mục B. Sau khi viết 123 test, **90 mục được nâng lên B** vì
-có test khai đúng id đó trong tên test và test đạt. 51 mục A còn lại **chưa có test
-riêng khai rõ id**, nhưng không bị hạ xuống C vì:
+Hiện có **89 mục B** vì có test khai đúng id đó trong tên test và test đạt. 51 mục A
+còn lại **chưa có test riêng khai rõ id**, nhưng không bị hạ xuống C vì:
 
 1. Chúng vẫn có mã thật, có marker, và `verify-catalog.js` kiểm được điều đó.
 2. Nhiều mục được chạy **gián tiếp** qua test tích hợp `pipeline` (các bước trong

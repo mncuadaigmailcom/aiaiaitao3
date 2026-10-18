@@ -7,11 +7,12 @@
 	CorePackages/ServerStorage thay vì Destroy(). Người dùng vẫn hoàn tác được
 	bằng cách kéo chúng ra khỏi folder.
 
-	GC: dùng collectgarbage("step", n) theo chu kỳ — rẻ và không gây khựng
-	như collectgarbage("collect") toàn phần.
+	GC: dùng collectgarbage("step", n) theo chu kỳ qua Scheduler chung — rẻ,
+	không tạo thread riêng, và huỷ được khi hệ thống Shutdown.
 ]]
 
 local Core_Env = __RALO_REQUIRE("Client/Core/Env")
+local Core_Scheduler = __RALO_REQUIRE("Client/Core/Scheduler")
 local Util_Safe = __RALO_REQUIRE("Shared/Safe")
 local Util_Log = __RALO_REQUIRE("Shared/Log")
 
@@ -123,28 +124,30 @@ function Memory.StartGcLoop(_step: any, profile: any)
 
 	-- Nếu đã có vòng chạy sẵn thì không tạo vòng thứ hai.
 	if Memory.gcHandle ~= nil then
-		return { changes = 0, detail = "vòng GC đã chạy sẵn", restorable = false }
+		return { changes = 0, detail = "tác vụ GC đã chạy sẵn", restorable = false }
 	end
 
 	local stepKb = profile.memory.collectStepKb or 200
-	local runs = 0
-	local thread = Core_Env.task.spawn(function()
-		while Memory.gcHandle ~= nil do
-			Core_Env.task.wait(every)
-			if Memory.gcHandle == nil then break end
+	local handle = Core_Scheduler.Schedule({
+		name = "memory.gc",
+		interval = every,
+		priority = -40,
+		callback = function()
 			local ok, err = pcall(collectgarbage, "step", stepKb)
-			if ok then
-				runs += 1
-			else
+			if not ok then
 				Util_Log.Warn(SCOPE, "collectgarbage step lỗi:", tostring(err))
 			end
-		end
-	end)
+		end,
+	})
+	if handle == nil then
+		return { changes = 0, detail = "không đăng ký được tác vụ GC", restorable = false }
+	end
 
-	Memory.gcHandle = { thread = thread, runs = function() return runs end, every = every }
+	Memory.gcHandle = handle
 	return {
 		changes = 1,
-		detail = ("bật collectgarbage(\"step\", %d) mỗi %ds"):format(stepKb, every),
+		detail = ("bật collectgarbage(\"step\", %d) mỗi %ds qua Scheduler")
+			:format(stepKb, every),
 		restorable = false,
 	}
 end
@@ -152,11 +155,18 @@ end
 function Memory.StopGcLoop()
 	local handle = Memory.gcHandle
 	Memory.gcHandle = nil
-	if handle and handle.thread and Core_Env.task.cancel then
-		pcall(Core_Env.task.cancel, handle.thread)
-		Util_Log.Info(SCOPE, "đã tắt vòng GC")
+	if handle == nil then
+		return false
+	end
+
+	local ok, err = pcall(function()
+		handle:Cancel()
+	end)
+	if ok then
+		Util_Log.Info(SCOPE, "đã huỷ tác vụ GC định kỳ")
 		return true
 	end
+	Util_Log.Warn(SCOPE, "không huỷ được tác vụ GC:", tostring(err))
 	return false
 end
 

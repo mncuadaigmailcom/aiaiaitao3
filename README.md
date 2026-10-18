@@ -5,14 +5,14 @@ không dùng executor, không dùng `setrbxsetting`, không can thiệp anti-che
 
 > ## ⚠️ Đọc trước — mức độ đã kiểm chứng thật
 >
-> - **Đã kiểm chứng tự động (123 test)** trên máy ảo Lua 5.3 (fengari) + mock Roblox API.
+> - **Đã kiểm chứng tự động (124 test)** trên máy ảo Lua 5.3 (fengari) + mock Roblox API.
 >   Đây **KHÔNG phải Roblox Studio**. Nó chứng minh **logic** đúng, không chứng minh
 >   API Roblox hoạt động giống hệt mock.
 > - **Chưa chạy trong Roblox Studio**: môi trường phát triển không có Roblox Studio.
 >   Vì vậy **không có phương pháp nào đạt trạng thái B "trong game"**.
 >   Trạng thái **B** trong danh mục nghĩa là **"đã kiểm thử trong harness"**.
-> - **Không có con số FPS/RAM/CPU nào được công bố.** Môi trường này không có GPU,
->   không có thiết bị thật, nên mọi con số sẽ là bịa. Cách tự đo: xem
+> - **Chưa có benchmark FPS/RAM/CPU trên thiết bị thật.** Môi trường này không có GPU,
+>   nên số đo mock chỉ kiểm tra logic, không đại diện Roblox. Cách tự đo: xem
 >   [docs/07-do-luong-hoan-tac.md](docs/07-do-luong-hoan-tac.md).
 > - API Roblox **chưa được đối chiếu với tài liệu chính thức** trong quá trình làm việc.
 
@@ -50,7 +50,7 @@ rojo serve           # rồi bấm "Connect" trong plugin Rojo
 - **Cách A:** LocalScript `src/Client/Bootstrap.luau` tự chạy khi Play.
 - **Cách B:** LocalScript bạn vừa dán.
 
-Khi chạy, màn hình hiện một **bảng trạng thái cố định ở góc dưới phải** (không có menu/nút bấm, không kéo được): nền xám bán trong suốt, viền cầu vồng, dòng **“Đang giảm lag”** và phần trăm bắt đầu **1%**. Bảng tự trượt xuống, mờ dần và dọn sạch sau **30 giây**. Phần trăm là hoạt ảnh thời lượng hiển thị; nếu tối ưu xong sớm, trạng thái đổi thành hoàn tất và phần trăm chốt ở 100%.
+Khi chạy, màn hình hiện một **bảng trạng thái cố định ở góc dưới phải** (không có menu/nút bấm, không kéo được): nền xám bán trong suốt, viền cầu vồng, dòng **“đang giảm lag”** và phần trăm bắt đầu **1%**. Bảng tự trượt xuống, mờ dần và dọn sạch sau **30 giây**. Phần trăm là hoạt ảnh thời lượng hiển thị; nếu tối ưu xong sớm, trạng thái đổi thành hoàn tất và phần trăm chốt ở 100%.
 
 ---
 
@@ -73,10 +73,10 @@ Có **8 nhóm**, độc lập nhau. Đặt `false` để tắt hẳn nhóm đó.
 | Nhóm | Mặc định | Làm gì |
 | ---- | -------- | ------ |
 | `graphics` | **`true`** | Hạ chất lượng tối đa về **8/10** nếu mức hiện tại cao hơn; giữ chế độ tự động, địa hình và bóng |
-| `effects` | `true` | Giới hạn nhẹ mật độ hạt (`Rate` tối đa 40, `ParticleCount` tối đa 120), không xoá emitter |
+| `effects` | `true` | Giới hạn nhẹ `ParticleEmitter.Rate` (mặc định tối đa 40), không xoá emitter |
 | `cull` | `true` | Nhóm culling có trong thư viện; không được gọi trong kế hoạch mặc định |
 | `scan` | `true` | Quét thế giới có trần khi cần xử lý hạt |
-| `memory` | `true` | GC theo chu kỳ |
+| `memory` | `true` | Dọn tài nguyên riêng; GC thủ công mặc định tắt để tránh tác vụ nền |
 | `character` | `true` | Bước mặc định giữ nguyên bóng và tỉ lệ nhân vật |
 | `physics` | **`false`** | Throttle nội suy — **TẮT** vì có đánh đổi độ mượt |
 | `net` | **`false`** | **TẮT** vì cần remote của game |
@@ -103,9 +103,9 @@ Có **8 nhóm**, độc lập nhau. Đặt `false` để tắt hẳn nhóm đó.
 
 | Bảng | Khoá chính | Mặc định |
 | ---- | ---------- | -------- |
-| `effects` | `particleRateCap` / `particleMaxCountCap` / `effectDistance` / `maxInstancesScanned` | `40` / `120` / `250` / `3000` |
+| `effects` | `particleRateCap` / `maxInstancesScanned` | `40` / `3000` |
 | `character` | `disableShadows` / `disableAutoScaling` | `false` / `false` |
-| `memory` | `gcEverySeconds` / `collectStepKb` | `15` / `200` |
+| `memory` | `gcEverySeconds` / `collectStepKb` | `0` (tắt) / `200` |
 | `physics` | `enabled` / `interpolationThrottling` / `physicsSteppingMethod` | `false` / `"Disabled"` / `"Fixed"` |
 | `scheduler` | `frameBudgetMs` / `cullInterval` | `3.0` / `0.25` |
 | `gui` | `durationSeconds` / `backgroundAlpha` / `marginRight` / `marginBottom` / `updateInterval` | `30` / `0.42` / `16` / `16` / `0.1s` |
@@ -151,7 +151,7 @@ ghi — nó bỏ qua và log lại (`restore.respectStale = true`). Đó là ch�
 npm run lint      # 4 quy ước an toàn tĩnh (0 vi phạm)
 npm run catalog   # đối chiếu danh mục phương pháp với mã nguồn thật
 npm run syntax    # phân tích cú pháp toàn bộ .luau
-npm run test      # 123 test trên máy ảo Lua + mock Roblox
+npm run test      # 124 test trên máy ảo Lua + mock Roblox
 npm run check     # chạy cả bốn bước trên
 npm run build     # tạo dist/roblox-anti-lag-optimizer.luau
 ```
@@ -169,3 +169,6 @@ npm run build     # tạo dist/roblox-anti-lag-optimizer.luau
 4. Hệ thống **không bao giờ** xoá map, nhân vật, vật phẩm hay emitter; mật độ hạt
    chỉ bị giới hạn nhẹ và các thay đổi property đều có cơ chế hoàn tác.
 5. Hệ thống **không bao giờ** đổi tham số gameplay để lấy FPS.
+6. LocalScript không thể đóng ứng dụng/tab khác, làm mát thiết bị hay sửa Wi-Fi; hãy tự đóng app/tab không dùng, giữ khe tản nhiệt thoáng và dùng kết nối ổn định.
+7. Số đo trong script là FPS/frame time, heap Luau và overhead Scheduler của RALO;
+   không phải CPU/RAM toàn thiết bị. Dùng Developer Console/Task Manager để xem phần còn lại.

@@ -17,11 +17,13 @@ module.exports = function configSuite(suite) {
       local Config = __RALO_REQ("Shared/Config")
       return Config.Mode() .. "|" .. Config.DEFAULT_MODE
         .. "|" .. tostring(Config.PROFILE.physics.enabled)
+        .. "|" .. tostring(Config.PROFILE.memory.gcEverySeconds)
     `)[0];
-    const [mode, defaultMode, physics] = out.split('|');
+    const [mode, defaultMode, physics, gcEvery] = out.split('|');
     A.equal(mode, 'light', 'chế độ mặc định phải là light');
     A.equal(defaultMode, 'light', 'hằng mặc định phải là light');
     A.equal(physics, 'false', 'vật lý mặc định TẮT vì có đánh đổi cảm giác chơi');
+    A.equal(gcEvery, '0', 'GC thủ công mặc định tắt để tránh tác vụ nền không cần thiết');
   });
 
   suite.test('CFG-004: ResetToDefaults khôi phục đúng giá trị ban đầu', (t, A) => {

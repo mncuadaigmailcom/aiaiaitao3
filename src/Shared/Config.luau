@@ -52,10 +52,10 @@ Config.PROFILE = {
 	--------------------------------------------------------------------
 	groups = {
 		graphics  = true,    -- chất lượng tối đa 8; giữ ánh sáng, bóng và địa hình
-		effects   = true,    -- giới hạn nhẹ Rate/ParticleCount (không xoá effect)
+		effects   = true,    -- giới hạn Rate hạt nhẹ (không xoá effect)
 		cull      = true,    -- thư viện có culling; không gọi trong plan mặc định
 		scan      = true,    -- quét thế giới có trần
-		memory    = true,    -- GC định kỳ
+		memory    = true,    -- dọn resource; GC thủ công mặc định tắt
 		physics   = false,   -- MẶC ĐỊNH TẮT: có đánh đổi độ mượt vật lý
 		character = true,    -- giữ bóng và tỉ lệ avatar theo mặc định
 		net       = false,   -- MẶC ĐỊNH TẮT: cần remote của game
@@ -115,8 +115,6 @@ Config.PROFILE = {
 	--------------------------------------------------------------------
 	effects = {
 		particleRateCap     = 40,  -- giới hạn nhẹ mật độ hạt, không tắt emitter
-		particleMaxCountCap = 120, -- trần vừa phải, không xoá hiệu ứng
-		effectDistance      = 250, -- xa hơn N stud thì tắt emitter/beam/trail
 		maxInstancesScanned = 3000,-- trần quét, tránh treo máy yếu
 	},
 
@@ -132,7 +130,7 @@ Config.PROFILE = {
 	-- BỘ NHỚ / GC
 	--------------------------------------------------------------------
 	memory = {
-		gcEverySeconds = 15,       -- 0 = tắt
+		gcEverySeconds = 0,        -- 0 = tắt; GC thủ công là opt-in để tránh nền thừa
 		collectStepKb  = 200,      -- collectgarbage("step", n)
 	},
 

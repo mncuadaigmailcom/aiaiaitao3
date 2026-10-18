@@ -3,7 +3,7 @@
 	TỆP SINH TỰ ĐỘNG bởi tools/build.js — ĐỪNG SỬA TAY.
 	Nguồn: src/**.luau
 
-	36 module, sinh lúc 2026-10-18T05:30:25.260Z
+	36 module, sinh lúc 2026-10-18T06:04:07.375Z
 
 	CÁCH NẠP (Roblox Studio, game bạn SỞ HỮU):
 	  1. StarterPlayer -> StarterPlayerScripts -> Insert Object -> LocalScript
@@ -1356,12 +1356,15 @@ function Measure.Compare(before: any, after: any)
 	local function deltaRow(label, beforeValue, afterValue, formatter, betterWhenLower)
 		local diff = afterValue - beforeValue
 		local pct = beforeValue ~= 0 and (diff / beforeValue) * 100 or 0
+		local better = betterWhenLower and diff < 0 or (not betterWhenLower and diff > 0)
+		local worse = betterWhenLower and diff > 0 or (not betterWhenLower and diff < 0)
 		out.rows[#out.rows + 1] = {
 			label = label,
 			before = formatter(beforeValue),
 			after = formatter(afterValue),
 			delta = ("%+.1f%%"):format(pct),
-			better = betterWhenLower and diff < 0 or (not betterWhenLower and diff > 0),
+			better = better,
+			worse = worse,
 			rawBefore = beforeValue,
 			rawAfter = afterValue,
 			pct = pct,
@@ -1382,14 +1385,28 @@ function Measure.Compare(before: any, after: any)
 	end
 
 	out.summary = {}
-	local improved, regressed = 0, 0
+	local improved, regressed, unchanged = 0, 0, 0
 	for _, row in out.rows do
-		if row.better then improved += 1 else regressed += 1 end
+		if row.better then
+			improved += 1
+		elseif row.worse then
+			regressed += 1
+		else
+			unchanged += 1
+		end
 	end
 	out.summary.improved = improved
 	out.summary.regressed = regressed
-	out.summary.verdict = improved > regressed and "improved"
-		or (regressed > improved and "regressed" or "unchanged")
+	out.summary.unchanged = unchanged
+	if improved > 0 and regressed == 0 then
+		out.summary.verdict = "improved"
+	elseif regressed > 0 and improved == 0 then
+		out.summary.verdict = "regressed"
+	elseif improved > 0 and regressed > 0 then
+		out.summary.verdict = "mixed"
+	else
+		out.summary.verdict = "unchanged"
+	end
 
 	out.summary.baselineSamples = before.meta.samples
 	out.summary.afterSamples = after.meta.samples
@@ -1406,8 +1423,9 @@ function Measure.FormatComparison(comparison: any): { string }
 		rows[#rows + 1] = { row.label, row.before, row.after, row.delta }
 	end
 	local lines = Util_Log.FormatRows(rows)
-	table.insert(lines, 1, ("Kết luận: %s (cải thiện %d/%d chỉ số)")
-		:format(comparison.summary.verdict, comparison.summary.improved, #comparison.rows))
+	table.insert(lines, 1, ("Kết luận: %s (cải thiện %d, suy giảm %d, không đổi %d / %d chỉ số)")
+		:format(comparison.summary.verdict, comparison.summary.improved, comparison.summary.regressed,
+			comparison.summary.unchanged, #comparison.rows))
 	table.insert(lines, 2, ("Số mẫu: trước=%d (%.1fs) sau=%d (%.1fs)")
 		:format(comparison.summary.baselineSamples, comparison.summary.durationBefore,
 			comparison.summary.afterSamples, comparison.summary.durationAfter))
@@ -1821,7 +1839,9 @@ end,
 
 local Core_Env = __RALO_REQUIRE("Client/Core/Env")
 local Core_Measure = __RALO_REQUIRE("Client/Core/Measure")
+local Core_Memory = __RALO_REQUIRE("Client/Optimizations/Memory")
 local Core_Plan = __RALO_REQUIRE("Client/Core/Plan")
+local Core_Profile = __RALO_REQUIRE("Client/Core/Profile")
 local Core_Restore = __RALO_REQUIRE("Client/Core/Restore")
 local Core_Runner = __RALO_REQUIRE("Client/Core/Runner")
 local Shared_Config = __RALO_REQUIRE("Shared/Config")
@@ -1951,8 +1971,10 @@ function Pipeline.Run(options)
 		})
 
 		local tally = Core_Runner.Tally(plan)
-		Shared_Log.Info(SCOPE, ("thực thi xong: áp dụng %d, bỏ qua %d, lỗi %d, tổng %d thay đổi")
-			:format(tally.applied, tally.skipped, tally.failed, tally.changes))
+		Shared_Log.Info(SCOPE,
+			("thực thi xong: áp dụng %d, bỏ qua %d, lỗi %d, %d thay đổi; thời gian handler tổng %.3f ms (lớn nhất %.3f ms: %s)")
+				:format(tally.applied, tally.skipped, tally.failed, tally.changes,
+					tally.handlerDurationMs, tally.maxHandlerMs, tostring(tally.slowestStepId or "không có")))
 
 		-------------------------------------------------------- 5. settle
 		if measure.settleSeconds > 0 and not options.instant then
@@ -2012,6 +2034,12 @@ function Pipeline.Run(options)
 		progress:SetPhase(Shared_Types.PHASE_DONE, "hoàn tất")
 		onPhase(Shared_Types.PHASE_DONE, comparison)
 
+		local selfCost = Core_Profile.SelfCost()
+		Shared_Log.Info(SCOPE,
+			("chi phí Scheduler: %.3f ms/frame (ngân sách %.1f ms), %d quá hạn; %d tác vụ, %d kết nối")
+				:format(selfCost.frameCostMs, selfCost.frameBudgetMs, selfCost.overruns,
+					selfCost.tasks, selfCost.connections))
+
 		return {
 			version = Shared_Config.VERSION,
 			environment = Core_Env.mode,
@@ -2023,6 +2051,7 @@ function Pipeline.Run(options)
 			restoreEntries = Core_Restore.Count(),
 			logLines = lines,
 			safeRecords = #Shared_Safe.Records,
+			selfCost = selfCost,
 			verdict = verdict,
 			error = nil,
 		}
@@ -2074,6 +2103,7 @@ function Pipeline.Shutdown()
 	if notifier ~= nil then
 		notifier:Destroy()
 	end
+	Core_Memory.StopGcLoop()
 	return true
 end
 
@@ -2791,6 +2821,7 @@ function Profile.Compare(before, after)
 			after = format:format(afterValue),
 			delta = ("%+.1f%%"):format(pct),
 			better = betterWhenLower and diff < 0 or (not betterWhenLower and diff > 0),
+			worse = betterWhenLower and diff > 0 or (not betterWhenLower and diff < 0),
 			pct = pct,
 		}
 	end
@@ -2804,20 +2835,33 @@ function Profile.Compare(before, after)
 		addRow("Luau heap (MB)", before.heapKb / 1024, after.heapKb / 1024, true, 2)
 	end
 
-	local improved, regressed = 0, 0
+	local improved, regressed, unchanged = 0, 0, 0
 	for _, row in out.rows do
 		if row.better then
 			improved += 1
-		else
+		elseif row.worse then
 			regressed += 1
+		else
+			unchanged += 1
 		end
+	end
+
+	local verdict
+	if improved > 0 and regressed == 0 then
+		verdict = "improved"
+	elseif regressed > 0 and improved == 0 then
+		verdict = "regressed"
+	elseif improved > 0 and regressed > 0 then
+		verdict = "mixed"
+	else
+		verdict = "unchanged"
 	end
 
 	out.summary = {
 		improved = improved,
 		regressed = regressed,
-		verdict = (improved > regressed and "improved")
-			or (regressed > improved and "regressed") or "unchanged",
+		unchanged = unchanged,
+		verdict = verdict,
 		baselineSamples = beforeSamples,
 		afterSamples = afterSamples,
 		durationBefore = before.meta.duration,
@@ -2849,8 +2893,9 @@ function Profile.FormatComparison(comparison)
 
 	local lines = {}
 	if comparison.valid then
-		lines[#lines + 1] = ("Kết luận: %s (cải thiện %d/%d chỉ số)")
-			:format(comparison.summary.verdict, comparison.summary.improved, #comparison.rows)
+		lines[#lines + 1] = ("Kết luận: %s (cải thiện %d, suy giảm %d, không đổi %d / %d chỉ số)")
+			:format(comparison.summary.verdict, comparison.summary.improved, comparison.summary.regressed,
+				comparison.summary.unchanged, #comparison.rows)
 	else
 		lines[#lines + 1] = "Không kết luận được: " .. tostring(comparison.reason)
 	end
@@ -3362,7 +3407,10 @@ function Runner.Execute(plan: any, options: any)
 		end
 
 		if handler ~= nil then
-			local ok, payload = pcall(handler, step.module, step, plan.profile)
+			local startedAt = os.clock()
+			-- Plan handlers đều là hàm tĩnh (step, profile), không phải method của module.
+			local ok, payload = pcall(handler, step, plan.profile)
+			step.handlerDurationMs = math.max(0, (os.clock() - startedAt) * 1000)
 			if not ok then
 				step.status = Util_Types.STATUS_FAILED
 				step.detail = ("handler throw: %s"):format(tostring(payload))
@@ -3382,9 +3430,9 @@ function Runner.Execute(plan: any, options: any)
 						step.detail = "không có đối tượng nào cần thay đổi"
 					end
 				end
-				Util_Log.Info(SCOPE, ("%s [%s]: %d thay đổi — %s")
+				Util_Log.Info(SCOPE, ("%s [%s]: %d thay đổi — %s (%.3f ms thời gian handler)")
 					:format(step.status == Util_Types.STATUS_APPLIED and "ÁP DỤNG" or "BỎ QUA",
-						step.id, step.changes, step.detail))
+						step.id, step.changes, step.detail, step.handlerDurationMs or 0))
 			end
 		end
 
@@ -3401,8 +3449,17 @@ function Runner.Execute(plan: any, options: any)
 end
 
 function Runner.Tally(plan: any)
-	local tally = { applied = 0, skipped = 0, failed = 0, changes = 0, total = plan.total }
+	local tally = {
+		applied = 0, skipped = 0, failed = 0, changes = 0, total = plan.total,
+		handlerDurationMs = 0, maxHandlerMs = 0, slowestStepId = nil,
+	}
 	for _, step in plan.steps do
+		local stepDurationMs = tonumber(step.handlerDurationMs) or 0
+		tally.handlerDurationMs += stepDurationMs
+		if stepDurationMs > tally.maxHandlerMs then
+			tally.maxHandlerMs = stepDurationMs
+			tally.slowestStepId = step.id
+		end
 		if step.status == Util_Types.STATUS_APPLIED then
 			tally.applied += 1
 			tally.changes += step.changes or 0
@@ -3441,11 +3498,11 @@ end,
 	    nền, không huỷ được, rò rỉ khi module bị nạp lại.
 
 	Cách xử lý:
-	  * MỘT kết nối RenderStepped + MỘT thread nền cho mọi tác vụ định kỳ.
-	  * Mỗi tác vụ khai báo: chu kỳ, ngân sách (budget), độ ưu tiên.
-	  * Mỗi khung hình, scheduler chạy lần lượt theo ưu tiên và DỪNG khi
-	    vượt ngân sách thời gian -> chính công cụ tối ưu không thể trở
-	    thành nguồn lag mới.
+	  * Dùng chung một kết nối RunService.Heartbeat cho mọi tác vụ định kỳ;
+	    không tạo thread/vòng lặp riêng cho từng module.
+	  * Mỗi tác vụ khai báo: chu kỳ, độ ưu tiên; Scheduler áp ngân sách chung.
+	  * Mỗi khung hình, Scheduler chạy theo ưu tiên và DỪNG khi vượt ngân sách
+	    thời gian để chính công cụ tối ưu không trở thành nguồn lag mới.
 	  * Huỷ tác vụ bằng handle, huỷ tất cả bằng Shutdown().
 ]]
 
@@ -3937,7 +3994,7 @@ end,
 	["Client/Optimizations/Effects"] = function()
 --[[ ===== RALO.METHODS:BEGIN =====
 	Các phương pháp được TRIỂN KHAI TRONG TỆP NÀY (khớp với Shared/Methods.luau):
-	  EFFECTS-001, EFFECTS-002
+	  EFFECTS-001
 	===== RALO.METHODS:END ===== --]]
 
 --[[
@@ -3949,7 +4006,7 @@ end,
 	mất dấu vết đường đạn) và KHÔNG hoàn tác được.
 
 	Cách làm ở đây:
-	  * GIỚI HẠN Rate và ParticleCount về mức trần -> effect vẫn hiện, nhẹ hơn.
+	  * GIỚI HẠN Rate của emitter -> effect vẫn hiện, nhưng sinh ít hạt hơn.
 	  * Beam/Trail/Decal mặc định GIỮ NGUYÊN; chỉ tắt khi người dùng bật cờ.
 	  * Mọi giá trị cũ được ghi vào Restore để hoàn tác 100%.
 ]]
@@ -3982,9 +4039,8 @@ end
 
 function Effects.CapParticles(_step: any, profile: any)
 	local rateCap = profile.effects.particleRateCap or 40
-	local countCap = profile.effects.particleMaxCountCap or 120
 
-	local cappedRate, cappedCount, alreadyOk = 0, 0, 0
+	local cappedRate, alreadyOk = 0, 0
 
 	local stats = Opt_Scan.Descendants({
 		maxScan = profile.effects.maxInstancesScanned or 3000,
@@ -4003,15 +4059,6 @@ function Effects.CapParticles(_step: any, profile: any)
 				end
 			end
 
-			local count, okCount = Util_Safe.Get(instance, "ParticleCount")
-			-- ParticleCount = -1 nghĩa là "không giới hạn"; ta quy về mức trần.
-			if okCount and type(count) == "number" and (count < 0 or count > countCap) then
-				if change(instance, "ParticleCount", countCap, "effects.particles", countCap) then
-					cappedCount += 1
-					touched = true
-				end
-			end
-
 			if not touched then
 				alreadyOk += 1
 			end
@@ -4024,9 +4071,9 @@ function Effects.CapParticles(_step: any, profile: any)
 	end
 
 	return {
-		changes = cappedRate + cappedCount,
-		detail = ("giới hạn Rate cho %d emitter, ParticleCount cho %d emitter; %d emitter vốn đã nhẹ; đã quét %d (khớp %d%s)")
-			:format(cappedRate, cappedCount, alreadyOk, stats.scanned, stats.matched,
+		changes = cappedRate,
+		detail = ("giới hạn Rate cho %d emitter; %d emitter vốn đã nhẹ; đã quét %d (khớp %d%s)")
+			:format(cappedRate, alreadyOk, stats.scanned, stats.matched,
 				stats.truncated and ", có cắt bớt" or ""),
 	}
 end
@@ -4343,11 +4390,12 @@ end,
 	CorePackages/ServerStorage thay vì Destroy(). Người dùng vẫn hoàn tác được
 	bằng cách kéo chúng ra khỏi folder.
 
-	GC: dùng collectgarbage("step", n) theo chu kỳ — rẻ và không gây khựng
-	như collectgarbage("collect") toàn phần.
+	GC: dùng collectgarbage("step", n) theo chu kỳ qua Scheduler chung — rẻ,
+	không tạo thread riêng, và huỷ được khi hệ thống Shutdown.
 ]]
 
 local Core_Env = __RALO_REQUIRE("Client/Core/Env")
+local Core_Scheduler = __RALO_REQUIRE("Client/Core/Scheduler")
 local Util_Safe = __RALO_REQUIRE("Shared/Safe")
 local Util_Log = __RALO_REQUIRE("Shared/Log")
 
@@ -4459,28 +4507,30 @@ function Memory.StartGcLoop(_step: any, profile: any)
 
 	-- Nếu đã có vòng chạy sẵn thì không tạo vòng thứ hai.
 	if Memory.gcHandle ~= nil then
-		return { changes = 0, detail = "vòng GC đã chạy sẵn", restorable = false }
+		return { changes = 0, detail = "tác vụ GC đã chạy sẵn", restorable = false }
 	end
 
 	local stepKb = profile.memory.collectStepKb or 200
-	local runs = 0
-	local thread = Core_Env.task.spawn(function()
-		while Memory.gcHandle ~= nil do
-			Core_Env.task.wait(every)
-			if Memory.gcHandle == nil then break end
+	local handle = Core_Scheduler.Schedule({
+		name = "memory.gc",
+		interval = every,
+		priority = -40,
+		callback = function()
 			local ok, err = pcall(collectgarbage, "step", stepKb)
-			if ok then
-				runs += 1
-			else
+			if not ok then
 				Util_Log.Warn(SCOPE, "collectgarbage step lỗi:", tostring(err))
 			end
-		end
-	end)
+		end,
+	})
+	if handle == nil then
+		return { changes = 0, detail = "không đăng ký được tác vụ GC", restorable = false }
+	end
 
-	Memory.gcHandle = { thread = thread, runs = function() return runs end, every = every }
+	Memory.gcHandle = handle
 	return {
 		changes = 1,
-		detail = ("bật collectgarbage(\"step\", %d) mỗi %ds"):format(stepKb, every),
+		detail = ("bật collectgarbage(\"step\", %d) mỗi %ds qua Scheduler")
+			:format(stepKb, every),
 		restorable = false,
 	}
 end
@@ -4488,11 +4538,18 @@ end
 function Memory.StopGcLoop()
 	local handle = Memory.gcHandle
 	Memory.gcHandle = nil
-	if handle and handle.thread and Core_Env.task.cancel then
-		pcall(Core_Env.task.cancel, handle.thread)
-		Util_Log.Info(SCOPE, "đã tắt vòng GC")
+	if handle == nil then
+		return false
+	end
+
+	local ok, err = pcall(function()
+		handle:Cancel()
+	end)
+	if ok then
+		Util_Log.Info(SCOPE, "đã huỷ tác vụ GC định kỳ")
 		return true
 	end
+	Util_Log.Warn(SCOPE, "không huỷ được tác vụ GC:", tostring(err))
 	return false
 end
 
@@ -4870,7 +4927,7 @@ end,
 	Bảng trạng thái nhỏ, không có menu điều khiển:
 	  * cố định ở góc dưới bên phải, không nhận kéo / chọn / nút bấm;
 	  * nền xám bán trong suốt, viền cầu vồng;
-	  * hiển thị "Đang giảm lag" và tiến trình 1–100%;
+	  * hiển thị "đang giảm lag" và tiến trình 1–100%;
 	  * tự ẩn sau 30 giây, dọn connection và instance do mình tạo.
 
 	Phần trăm là hoạt ảnh thời lượng hiển thị, KHÔNG phải lời hứa về mức FPS.
@@ -4895,7 +4952,7 @@ Notifier.__index = Notifier
 Notifier.instance = nil
 Notifier.DEFAULTS = {
 	title = "TỐI ƯU HIỆU NĂNG",
-	status = "Đang giảm lag",
+	status = "đang giảm lag",
 	done = "Đã giảm lag xong",
 	failed = "Tối ưu gặp lỗi — xem Output",
 	durationSeconds = 30,
@@ -5673,10 +5730,10 @@ Config.PROFILE = {
 	--------------------------------------------------------------------
 	groups = {
 		graphics  = true,    -- chất lượng tối đa 8; giữ ánh sáng, bóng và địa hình
-		effects   = true,    -- giới hạn nhẹ Rate/ParticleCount (không xoá effect)
+		effects   = true,    -- giới hạn Rate hạt nhẹ (không xoá effect)
 		cull      = true,    -- thư viện có culling; không gọi trong plan mặc định
 		scan      = true,    -- quét thế giới có trần
-		memory    = true,    -- GC định kỳ
+		memory    = true,    -- dọn resource; GC thủ công mặc định tắt
 		physics   = false,   -- MẶC ĐỊNH TẮT: có đánh đổi độ mượt vật lý
 		character = true,    -- giữ bóng và tỉ lệ avatar theo mặc định
 		net       = false,   -- MẶC ĐỊNH TẮT: cần remote của game
@@ -5736,8 +5793,6 @@ Config.PROFILE = {
 	--------------------------------------------------------------------
 	effects = {
 		particleRateCap     = 40,  -- giới hạn nhẹ mật độ hạt, không tắt emitter
-		particleMaxCountCap = 120, -- trần vừa phải, không xoá hiệu ứng
-		effectDistance      = 250, -- xa hơn N stud thì tắt emitter/beam/trail
 		maxInstancesScanned = 3000,-- trần quét, tránh treo máy yếu
 	},
 
@@ -5753,7 +5808,7 @@ Config.PROFILE = {
 	-- BỘ NHỚ / GC
 	--------------------------------------------------------------------
 	memory = {
-		gcEverySeconds = 15,       -- 0 = tắt
+		gcEverySeconds = 0,        -- 0 = tắt; GC thủ công là opt-in để tránh nền thừa
 		collectStepKb  = 200,      -- collectgarbage("step", n)
 	},
 
@@ -6732,13 +6787,13 @@ Methods.List = {
 		id = "EFFECTS-002",
 		group = 10,
 		name = "Giới hạn ParticleCount",
-		mechanism = "ParticleCount = -1 (vô hạn) được quy về mức trần.",
-		cause = "Số hạt không trần có thể phình tới hàng nghìn, tốn cả CPU lẫn GPU.",
-		how = "`Effects.CapParticles()` đổi ParticleCount, ghi giá trị cũ.",
-		file = "Client/Optimizations/Effects",
-		cond = "Mặc định bật.",
-		risk = "Như EFFECTS-001.",
-		status = "B",
+		mechanism = "ParticleEmitter:Emit(count) nhận số lượng cho lần gọi; không có property ParticleCount để giới hạn emitter đang chạy.",
+		cause = "Giới hạn Rate có thể giảm lượng hạt sinh ra; không thể đặt trần tổng hạt qua một property riêng.",
+		how = "Không áp dụng: `ParticleCount` không phải property của ParticleEmitter trong Roblox API.",
+		file = "(không áp dụng ở client)",
+		cond = "Không có property được hỗ trợ để thực hiện cách này.",
+		risk = "Không áp dụng.",
+		status = "E",
 	},
 	{
 		id = "EFFECTS-003",
@@ -8817,7 +8872,6 @@ Safety.AllowedProperties = {
 	CastShadow = true,              -- bóng đổ: thuần thị giác
 	Enabled = true,                 -- ParticleEmitter/Beam/Trail/PointLight
 	Rate = true,                    -- mật độ hạt
-	ParticleCount = true,           -- trần số hạt
 	Brightness = true,              -- PointLight/SpotLight
 	Range = true,                   -- tầm sáng
 	GraphicsQualityMode = true,     -- Lighting
@@ -9091,9 +9145,8 @@ function Bootstrap.Start(options)
 		Shared_Log.Info(SCOPE, ("hoàn tác lần chạy trước: %d property (lỗi %d)"):format(restored, failed))
 	end
 
-	-- START-001: đẩy việc nặng ra khỏi khung hình đầu tiên
-	Client_Scheduler.Start()
-
+	-- Scheduler tự khởi động khi tác vụ thật sự được đăng ký; không giữ
+	-- Heartbeat rỗng trong trường hợp không có GUI/GC nền.
 	local ok, result = Client_Guard.Run(SCOPE .. ":Pipeline", function()
 		return Client_Pipeline.Run({
 			profile = normalized,

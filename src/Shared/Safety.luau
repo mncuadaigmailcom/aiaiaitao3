@@ -32,7 +32,6 @@ Safety.AllowedProperties = {
 	CastShadow = true,              -- bóng đổ: thuần thị giác
 	Enabled = true,                 -- ParticleEmitter/Beam/Trail/PointLight
 	Rate = true,                    -- mật độ hạt
-	ParticleCount = true,           -- trần số hạt
 	Brightness = true,              -- PointLight/SpotLight
 	Range = true,                   -- tầm sáng
 	GraphicsQualityMode = true,     -- Lighting
