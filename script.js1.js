@@ -17,6 +17,7 @@ local hum = char and char:FindFirstChildOfClass("Humanoid") local root = char an
 cam.CFrame = CFrame.new(root.Position + Vector3.new(0, 3.2, 12), root.Position + Vector3.new(0,1.5,0)) cam.Focus = CFrame.new(root.Position)
 end end) end _G.BananaCatHub_SpecCam = nil end pcall(function() RunService:UnbindFromRenderStep("BC_Spec") end) end)
 for _, parent in ipairs({targetGui, playerGui, game:GetService("CoreGui")}) do pcall(function() local old = parent:FindFirstChild("BananaCatHub_Crosshair") if old then old:Destroy() end end)
+pcall(function() local old = parent:FindFirstChild("BC_FlyHud") if old then old:Destroy() end end)
 pcall(function()
 local old = parent:FindFirstChild("BC_ObjTrackESP") if old then old:Destroy() end end) pcall(function()
 local old = parent:FindFirstChild("BananaCatHub_AnaAimDot") if old then old:Destroy() end end) end
@@ -1674,45 +1675,10 @@ else MV.fly = false MV._StopFly() end MV._Watchdog() MV.SyncHud() if S.SyncTuneP
 n = tonumber(n) if not n or n ~= n or n == math.huge or n == -math.huge then return false, "nhập tốc độ 1–2000" end MV.flySpeed = mvClamp(n, 1, 2000, 50)
 MV.SyncHud() if S.RefreshMovePanel then S.RefreshMovePanel() end if S.SyncTunePanel then pcall(S.SyncTunePanel) end return true, MV.flySpeed
 end function MV.SetFlyHud(on) FL.showHud = (on == true) if not FL.showHud then MV.ClearFlyInput() end
-MV.SyncHud() return FL.showHud end function MV._BuildFlyHud() if FL.hud and FL.hud.Parent then return FL.hud end
-for _, c in ipairs(FL.conns) do c:Disconnect() end FL.conns = {} MV.ClearFlyInput() local function connect(signal, callback)
-local c = trackConn(signal:Connect(callback)) FL.conns[#FL.conns + 1] = c end local hud = New("Frame", { Name = "BC_FlyHud", Size = UDim2.new(0, 246, 0, 152), Position = UDim2.new(0, 10, 1, -162),
-BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.18, BorderSizePixel = 0, Visible = false, ZIndex = 25, }, gui) FL.hud = hud
-Corner(hud, UDim.new(0, 10)); Stroke(hud, C.HAIRLINE, 1) D.Shade(hud, Color3.fromRGB(255,255,255), Color3.fromRGB(188,192,205), 90)
-local title = New("TextLabel", { Name = "FlyHudTitle", Size = UDim2.new(1, -64, 0, 18), Position = UDim2.new(0, 8, 0, 2), Text = "🚀 Bay theo camera", Active = true, BackgroundTransparency = 1,
-TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 9, ZIndex = 26, TextXAlignment = Enum.TextXAlignment.Left, }, hud) local function button(name, text, x, y, w, h, color)
-local b = New("TextButton", { Name = name, Text = text, Size = UDim2.new(0, w, 0, h), Position = UDim2.new(0, x, 0, y),
-BackgroundColor3 = color, TextColor3 = D.BestText(color), BackgroundTransparency = 0.15, Font = Enum.Font.GothamBold, TextSize = 9, BorderSizePixel = 0, ZIndex = 28,
-}, hud) Corner(b, UDim.new(0, 6)) return b end local hide = button("FlyHudHide", "👁", 190, 2, 22, 18, C.SURFACE3)
-local close = button("FlyHudClose", "✕", 216, 2, 22, 18, C.RED) connect(hide.Activated, function() MV.SetFlyHud(false) end)
-local function stop() MV.SetFly(false) S.Rebuild() D.Say("🚀 Bay: TẮT — công tắc xuyên tường giữ nguyên", C.YELLOW) end connect(close.Activated, stop) local joy = New("Frame", {
-Name = "FlyJoystick", Active = true, Size = UDim2.new(0, 88, 0, 88), Position = UDim2.new(0, 8, 0, 24), BackgroundColor3 = C.SURFACE2,
-BackgroundTransparency = 0.15, BorderSizePixel = 0, ZIndex = 26, }, hud)
-Corner(joy, UDim.new(1, 0)); Stroke(joy, C.BORDER, 1) FL.knob = New("Frame", { Name = "FlyKnob", Size = UDim2.new(0, 22, 0, 22), Position = UDim2.new(0.5, -11, 0.5, -11),
-BackgroundColor3 = C.ACCENT, BorderSizePixel = 0, ZIndex = 27, }, joy) Corner(FL.knob, UDim.new(1, 0)) local function pointer(input)
-return input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType.Touch end
-local function matches(held, input, moving) return held == input or (held and held.UserInputType == Enum.UserInputType.MouseButton1
-and input.UserInputType == (moving and Enum.UserInputType.MouseMovement or Enum.UserInputType.MouseButton1)) end local function updateJoy(pos)
-local delta = Vector2.new(pos.X, pos.Y) - (joy.AbsolutePosition + joy.AbsoluteSize * 0.5) if delta.Magnitude > 32 then delta = delta.Unit * 32 end
-FL.x, FL.z = delta.X / 32, delta.Y / 32 FL.knob.Position = UDim2.new(0.5, delta.X - 11, 0.5, delta.Y - 11) end connect(joy.InputBegan, function(input)
-if pointer(input) and MV.fly and FL.showHud and not FL.joyInput then FL.joyInput = input; updateJoy(input.Position) end
-end) local function hold(name, text, x, y, w, h, axis, color) local b = button(name, text, x, y, w, h, color or C.SURFACE3) connect(b.InputBegan, function(input)
-if pointer(input) and MV.fly and FL.showHud then FL.holds[b] = { input = input, X = axis.X, Y = axis.Y, Z = axis.Z } end end) connect(b.InputEnded, function(input) FL.holds[b] = nil end) end
-hold("FlyForward", "↑", 128, 24, 24, 24, Vector3.new(0, 0, -1)) hold("FlyBack", "↓", 128, 84, 24, 24, Vector3.new(0, 0, 1)) hold("FlyLeft", "←", 100, 54, 24, 24, Vector3.new(-1, 0, 0))
-hold("FlyRight", "→", 156, 54, 24, 24, Vector3.new(1, 0, 0)) hold("FlyUp", "⬆", 198, 24, 34, 38, Vector3.new(0, 1, 0), C.GREEN)
-hold("FlyDown", "⬇", 198, 68, 34, 38, Vector3.new(0, -1, 0), C.RED) local stopBtn = button("FlyHudStop", "⏹ Dừng", 168, 120, 68, 22, C.RED)
-connect(stopBtn.Activated, stop) FL.status = New("TextLabel", {
-Name = "FlyHudStatus", Size = UDim2.new(0, 154, 0, 30), Position = UDim2.new(0, 8, 0, 116), BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium, TextSize = 8, TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 26,
-}, hud) connect(title.InputBegan, function(input) if pointer(input) and not FL.dragInput then FL.dragInput, FL.dragStart, FL.dragPos = input, input.Position, hud.Position end end)
-connect(UserInputService.InputChanged, function(input) if matches(FL.joyInput, input, true) then updateJoy(input.Position) end if matches(FL.dragInput, input, true) then
-local delta = input.Position - FL.dragStart hud.Position = UDim2.new(FL.dragPos.X.Scale, FL.dragPos.X.Offset + delta.X,
-FL.dragPos.Y.Scale, FL.dragPos.Y.Offset + delta.Y) end end) connect(UserInputService.InputEnded, function(input)
-for btn, held in pairs(FL.holds) do if type(held) == "table" and matches(held.input, input, false) then FL.holds[btn] = nil end end if matches(FL.joyInput, input, false) then
-FL.joyInput, FL.x, FL.z = nil, 0, 0 FL.knob.Position = UDim2.new(0.5, -11, 0.5, -11) end if matches(FL.dragInput, input, false) then FL.dragInput = nil end end)
-connect(UserInputService.WindowFocusReleased, function() FL.focused = false MV.ClearFlyInput() if MV._bv then MV._bv.Velocity = Vector3.zero end
-end) connect(UserInputService.WindowFocused, function() FL.focused = true end) return hud end function MV.SyncFlyHud() if MV.fly then MV._BuildFlyHud() end if FL.hud and FL.hud.Parent then
-FL.hud.Visible = MV.fly and FL.showHud FL.status.Text = string.format("💨 %g · 🧱 %s\nThả phím / cần: đứng lơ lửng", MV.flySpeed, MV.noclip and "BẬT" or "TẮT")
-end if S.SyncFlyPanel then S.SyncFlyPanel() end end end
+MV.SyncHud() return FL.showHud end function MV.SyncFlyHud() if S.SyncFlyPanel then S.SyncFlyPanel() end end
+trackConn(UserInputService.WindowFocusReleased:Connect(function() FL.focused = false MV.ClearFlyInput() if MV._bv then MV._bv.Velocity = Vector3.zero end end))
+trackConn(UserInputService.WindowFocused:Connect(function() FL.focused = true end))
+end
 do local CS = { focused = true } MV.CamSpeed = CS function MV._DestroySpeedParts() if MV._sv then MV._sv:Destroy(); MV._sv = nil end end function MV._EnsureSpeed()
 if not MV.sprint then return nil end if MV.fly or MV._playerFlyActive or MV._glassFlyActive or MV._objFlyActive or (MV.Safe and MV.Safe.on) then
 MV._DestroySpeedParts() CS.root = nil return nil end
@@ -2524,7 +2490,7 @@ if not jid then return "⚠️ Không đọc được mã server (đang ở Stud
 pcall(function() if D.hubJobIn then D.hubJobIn.Text = jid end end) pcall(function() if S.SyncServerPanel then S.SyncServerPanel() end end) return (okCp and "🌐 Đã copy mã server: " or "🌐 Mã server (executor không cho copy, hãy chép tay): ") .. jid
 elseif id == "fly" then local wanted = not S.Move.fly local okF, on, err = pcall(S.Move.SetFly, wanted) if not okF then return "⚠️ lỗi bay: " .. tostring(on) end
 if wanted and not on then return "⚠️ " .. tostring(err) end S.Rebuild()
-return S.Move.fly and ("🚀 Bay theo camera: BẬT — WASD/joystick · thả phím đứng lơ lửng · tốc độ " .. tostring(S.Move.flySpeed)) or "🚀 Bay: TẮT — xuyên tường giữ nguyên theo công tắc 🧱"
+return S.Move.fly and ("🚀 Bay theo camera: BẬT — WASD/điều khiển game · thả phím đứng lơ lửng · tốc độ " .. tostring(S.Move.flySpeed)) or "🚀 Bay: TẮT — xuyên tường giữ nguyên theo công tắc 🧱"
 elseif id == "camspeed" then local wanted = not S.Move.sprint local okS, on, err = pcall(S.Move.SetSprint, wanted)
 if not okS then return "⚠️ lỗi tốc độ: " .. tostring(on) end if wanted and not on then return "⚠️ " .. tostring(err) end
 S.Rebuild() return S.Move.sprint and ("💨 Tốc độ theo camera: BẬT — WASD/joystick mặt đất · nhảy bình thường · rơi theo game · tốc độ " .. tostring(S.Move.sprintSpeed))
@@ -2955,31 +2921,31 @@ TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 10, TextXAlignmen
 local function button(name, text, x, y, w, color) local b = New("TextButton", {
 Name = name, Text = text, Size = UDim2.new(0, w, 0, 19), Position = UDim2.new(0, x, 0, y), BackgroundColor3 = color, TextColor3 = D.BestText(color), BorderSizePixel = 0,
 Font = Enum.Font.GothamBold, TextSize = 8, ZIndex = 8, }, P) Corner(b, UDim.new(0, 5)); D.Tactile(b, 0.08) return b
-end local onBtn = button("FlyToggle", "🚀 Bay: TẮT", 8, 24, 88, C.GRAY) local ncBtn = button("FlyNoclip", "🧱 Xuyên tường: TẮT", 100, 24, 134, C.GRAY)
-local hudBtn = button("FlyHudToggle", "📱 Nút ảo: BẬT", 238, 24, 104, C.GREEN) New("TextLabel", {
+end local onBtn = button("FlyToggle", "🚀 Bay: TẮT", 8, 24, 88, C.GRAY) local ncBtn = button("FlyNoclip", "🧱 Xuyên tường: TẮT", 100, 24, 242, C.GRAY)
+New("TextLabel", {
 Size = UDim2.new(0, 128, 0, 20), Position = UDim2.new(0, 8, 0, 50), Text = "💨 Tốc độ (1–2000)", BackgroundTransparency = 1, TextColor3 = C.MUTED,
 Font = Enum.Font.GothamMedium, TextSize = 9, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7, }, P)
 local speed = New("TextBox", { Name = "FlySpeed", Size = UDim2.new(0, 52, 0, 19), Position = UDim2.new(0, 136, 0, 50),
 Text = tostring(MV.flySpeed), ClearTextOnFocus = false, BackgroundColor3 = C.SURFACE2, TextColor3 = C.DARK, Font = Enum.Font.GothamMedium, TextSize = 9, BorderSizePixel = 0, ZIndex = 8,
 }, P) Corner(speed, UDim.new(0, 5)) local apply = button("FlySpeedApply", "✔ Áp dụng", 192, 50, 76, C.GREEN)
 local stop = button("FlyStop", "⏹ Dừng bay", 272, 50, 84, C.RED) New("TextLabel", {
-Size = UDim2.new(1, -16, 0, 46), Position = UDim2.new(0, 8, 0, 84), Text = "WASD / joystick: bay theo camera cả lên và xuống. Nhìn xuống 60° + tiến tới = bay xuống 60°. "
-.. "Space / ⬆: lên; Shift/Ctrl / ⬇: xuống. Thả điều khiển: đứng lơ lửng. " .. "🧱 là công tắc riêng, Bay không tự bật/tắt xuyên tường.",
+Size = UDim2.new(1, -16, 0, 46), Position = UDim2.new(0, 8, 0, 84), Text = "WASD / điều khiển di chuyển của game: bay theo camera cả lên và xuống. Nhìn xuống 60° + tiến tới = bay xuống 60°. "
+.. "Space: lên; Shift/Ctrl: xuống. Thả điều khiển: đứng lơ lửng. " .. "🧱 là công tắc riêng, Bay không tự bật/tắt xuyên tường.",
 BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium, TextSize = 9, TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, ZIndex = 7,
 }, P) local status = New("TextLabel", { Name = "FlyPanelStatus", Size = UDim2.new(1, -16, 0, 16), Position = UDim2.new(0, 8, 0, 134),
 Text = "", BackgroundTransparency = 1, TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium, TextSize = 9, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7,
 }, P) function S.SyncFlyPanel() local function paint(b, on, label) b.Text = label .. (on and "BẬT" or "TẮT")
 D.SetBg(b, on and C.GREEN or C.GRAY) end paint(onBtn, MV.fly, "🚀 Bay: ") paint(ncBtn, MV.noclip, "🧱 Xuyên tường: ")
-paint(hudBtn, MV.Flight.showHud, "📱 Nút ảo: ") if UserInputService:GetFocusedTextBox() ~= speed then speed.Text = tostring(MV.flySpeed) end status.Text = MV.fly and ("🚀 Đang bay theo camera · tốc độ " .. tostring(MV.flySpeed) .. " · thả phím để dừng tại chỗ")
+if UserInputService:GetFocusedTextBox() ~= speed then speed.Text = tostring(MV.flySpeed) end status.Text = MV.fly and ("🚀 Đang bay theo camera · tốc độ " .. tostring(MV.flySpeed) .. " · thả phím để dừng tại chỗ")
 or "🚀 Đã tắt bay · 🧱 xuyên tường " .. (MV.noclip and "BẬT" or "TẮT") end
 onBtn.Activated:Connect(function() ReleaseHubFocus(); D.Say(S.RunHubAction("fly"), C.YELLOW) end) ncBtn.Activated:Connect(function() ReleaseHubFocus(); D.Say(S.RunHubAction("noclip"), C.YELLOW) end)
-hudBtn.Activated:Connect(function() ReleaseHubFocus(); MV.SetFlyHud(not MV.Flight.showHud) end) local function applySpeed()
+local function applySpeed()
 local value = speed.Text ReleaseHubFocus()
 local ok, result = MV.SetFlySpeed(value) if ok then D.Say("💨 Tốc độ bay: " .. tostring(result), C.GREEN) else D.Say("⚠️ " .. tostring(result), C.YELLOW) end
 S.SyncFlyPanel() end apply.Activated:Connect(applySpeed) speed.FocusLost:Connect(function(enter) if enter then applySpeed() end end)
 stop.Activated:Connect(function() ReleaseHubFocus(); MV.SetFly(false); S.Rebuild()
 D.Say("🚀 Bay: TẮT — xuyên tường giữ nguyên theo công tắc 🧱", C.YELLOW) end)
-S.flyBtns = {on = onBtn, noclip = ncBtn, hud = hudBtn, speed = speed, apply = apply, stop = stop, panel = P} S.SyncFlyPanel() end
+S.flyBtns = {on = onBtn, noclip = ncBtn, speed = speed, apply = apply, stop = stop, panel = P} S.SyncFlyPanel() end
 do local P = New("Frame", {
 Name = "HubSpeed_Panel", Size = UDim2.new(1, 0, 0, 130), LayoutOrder = -2, BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, BorderSizePixel = 0, ZIndex = 6,
 }, D.hubList) Corner(P, UDim.new(0, 10)); Stroke(P, C.HAIRLINE, 1)
