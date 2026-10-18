@@ -15,6 +15,7 @@
 const fs = require('fs');
 const path = require('path');
 const { createRuntime, P, toArray } = require('../lib/runtime');
+const { renderBundle } = require('../../tools/build');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const SRC = path.join(ROOT, 'src');
@@ -80,6 +81,21 @@ function testedIds() {
 }
 
 module.exports = function catalogSuite(suite) {
+  suite.test('BUILD: bundle nạp module tĩnh, không gọi load/loadstring', (t, A) => {
+    const { bundle } = renderBundle(new Map([
+      ['Client/Bootstrap', 'return {}'],
+      ['Shared/Test', 'local bootstrap = __RALO_REQUIRE("Client/Bootstrap")\nreturn bootstrap'],
+    ]));
+    A.ok(bundle.includes('local __RALO_REQUIRE\nlocal __RALO_MODULES'),
+      'resolver phải được khai báo trước để các factory đóng trên nó');
+    A.ok(bundle.includes('["Client/Bootstrap"] = function()'),
+      'entry phải được đóng gói thành factory Luau tĩnh');
+    A.ok(bundle.includes('["Shared/Test"] = function()'),
+      'mọi module phải được đóng gói thành factory Luau tĩnh');
+    A.equal(bundle.includes('load('), false, 'bundle không được biên dịch chuỗi lúc chạy');
+    A.equal(bundle.includes('loadstring('), false, 'bundle không được gọi loadstring');
+  });
+
   suite.test('CATALOG: đọc được từ Lua và có đúng 30 nhóm', (t, A) => {
     const h = createRuntime();
     const counts = h.call(P.methods, 'CountByStatus');

@@ -313,7 +313,7 @@ Nhóm **J (AI/NPC)** phần lớn là đề xuất: chỉ `NPC-003` (kiểm tra 
 ```bash
 node tools/map-coverage.js     # sinh lại tệp này
 npm run catalog                # kiểm catalog khớp mã nguồn
-npm run test                   # 122 test
+npm run test                   # 123 test
 ```
 
 Nếu bạn thêm mã cho một mục đang là D, hãy đổi trạng thái trong

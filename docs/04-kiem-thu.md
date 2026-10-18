@@ -13,13 +13,13 @@ Kết quả thật, ngày 2026-10-18:
 | Lint tĩnh | `npm run lint` | ✓ Không có vi phạm (36 tệp .luau) |
 | Đối chiếu danh mục | `npm run catalog` | ✓ 190 phương pháp khớp mã nguồn thật |
 | Cú pháp | `npm run syntax` | ✓ 38 tệp, lỗi: 0 |
-| Test tự động | `npm run test` | ✓ đạt 122 / hỏng 0 / tổng 122 |
+| Test tự động | `npm run test` | ✓ đạt 123 / hỏng 0 / tổng 123 |
 
 ### 11 bộ test
 
 | Bộ | Số test | Kiểm chứng điều gì |
 | -- | ------- | ------------------ |
-| `catalog` | 7 | Danh mục khớp mã nguồn: mọi A/B/C có tệp thật + marker, mọi B có test khai id, D/E không trỏ vào tệp nguồn, id không trùng, đủ 10 trường |
+| `catalog` | 8 | Danh mục khớp mã nguồn: mọi A/B/C có tệp thật + marker, mọi B có test khai id, D/E không trỏ vào tệp nguồn, id không trùng, đủ 10 trường |
 | `config` | 13 | Cấu hình, `mode`, bật/tắt nhóm, phân loại thiết bị |
 | `cull` | 10 | Tắt ở xa / bật lại khi gần, có trần, không xoá |
 | `guard` | 9 | Kiểm tra tồn tại, stale-guard, phân lập lỗi |

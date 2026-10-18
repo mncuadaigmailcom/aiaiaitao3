@@ -5,7 +5,7 @@ không dùng executor, không dùng `setrbxsetting`, không can thiệp anti-che
 
 > ## ⚠️ Đọc trước — mức độ đã kiểm chứng thật
 >
-> - **Đã kiểm chứng tự động (122 test)** trên máy ảo Lua 5.3 (fengari) + mock Roblox API.
+> - **Đã kiểm chứng tự động (123 test)** trên máy ảo Lua 5.3 (fengari) + mock Roblox API.
 >   Đây **KHÔNG phải Roblox Studio**. Nó chứng minh **logic** đúng, không chứng minh
 >   API Roblox hoạt động giống hệt mock.
 > - **Chưa chạy trong Roblox Studio**: môi trường phát triển không có Roblox Studio.
@@ -151,7 +151,7 @@ ghi — nó bỏ qua và log lại (`restore.respectStale = true`). Đó là ch�
 npm run lint      # 4 quy ước an toàn tĩnh (0 vi phạm)
 npm run catalog   # đối chiếu danh mục phương pháp với mã nguồn thật
 npm run syntax    # phân tích cú pháp toàn bộ .luau
-npm run test      # 122 test trên máy ảo Lua + mock Roblox
+npm run test      # 123 test trên máy ảo Lua + mock Roblox
 npm run check     # chạy cả bốn bước trên
 npm run build     # tạo dist/roblox-anti-lag-optimizer.luau
 ```

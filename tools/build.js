@@ -5,10 +5,9 @@
  * Gộp toàn bộ src/**\/*.luau thành MỘT tệp Luau tự chứa trong dist/,
  * dán thẳng vào MỘT LocalScript trong Roblox Studio (game bạn sở hữu).
  *
- * Cơ chế: mỗi module được nhúng nguyên văn (KHÔNG sửa một ký tự nào của
- * logic) vào bảng __RALO_MODULES, và một __require tối giản ánh xạ
- * "Core/Env" -> module tương ứng. Module được nạp lười (lazy) và cache,
- * giống hệt semantics của require() trong Roblox.
+ * Cơ chế: mỗi module được nhúng nguyên văn vào một factory function tĩnh
+ * trong bảng __RALO_MODULES. Bộ nạp ánh xạ đường dẫn đến factory, thực thi
+ * lazy và cache kết quả — không cần load/loadstring lúc chạy trong Roblox.
  *
  * Đầu ra là Luau thật (giữ type annotation, +=, continue...). Bản chạy
  * kiểm thử trên Lua 5.3 do tools/test-harness tự bóc type khi nạp.
@@ -36,13 +35,10 @@ function walk(dir, base = '') {
   return out;
 }
 
-/** Escape để nhúng an toàn vào chuỗi Luau [[...]] */
-function embed(source) {
-  // Nếu mã nguồn chứa ]] thì không dùng long string được -> fallback escape.
-  if (source.includes(']]')) {
-    return JSON.stringify(source).replace(/^\uFEFF/, '');
-  }
-  return `[[\n${source.replace(/\n$/, '')}\n]]`;
+/** Gói mã module thành factory tĩnh; không biên dịch chuỗi lúc chạy. */
+function wrapModule(source) {
+  const body = source.replace(/[ \t]+$/gm, '').replace(/\n$/, '');
+  return `function()\n${body}\nend`;
 }
 
 /** Đọc toàn bộ module từ src/, trả về Map<key, source>. */
@@ -70,7 +66,7 @@ function renderBundle(moduleMap) {
   }
   const modules = keys
     .filter((k) => k !== ENTRY)
-    .map((key) => `\t[${JSON.stringify(key)}] = ${embed(moduleMap.get(key))},`)
+    .map((key) => `\t[${JSON.stringify(key)}] = ${wrapModule(moduleMap.get(key))},`)
     .join('\n');
   const initSource = moduleMap.get(ENTRY);
 
@@ -86,46 +82,41 @@ function renderBundle(moduleMap) {
 	  2. Trong Properties, đặt LocalScript đó RunContext = Legacy
 	  3. Dán TOÀN BỘ nội dung tệp này vào, rồi Play
 
-	KHÔNG dùng loadstring() và KHÔNG dùng executor:
-	  * loadstring bị TẮT mặc định và chỉ chạy được ở SERVER script,
-	    không chạy trong LocalScript (ServerScriptService.LoadStringEnabled
-	    mặc định = false, và thuộc tính này không script được).
-	  * Muốn loadstring(game:HttpGet(...))() chạy được thì bắt buộc phải có
-	    executor. Dự án này KHÔNG hỗ trợ và KHÔNG khuyến khích cách đó:
-	    nó nằm ngoài phạm vi "chỉ game bạn sở hữu, không executor".
-	  * Hệ thống là LocalScript: chỉ tối ưu được CLIENT của người chơi,
-	    và CHỈ trong game có chứa nó. Không có cách hợp lệ nào để "gắn vào
-	    game của người khác".
+	NẠP MODULE TĨNH — không gọi load/loadstring lúc chạy:
+	  * Mỗi module được đóng gói thành factory function Luau ngay trong tệp.
+	  * Không dùng executor, HTTP loader hay API ngoài Roblox.
+	  * Hệ thống là LocalScript: chỉ tối ưu CLIENT trong game của bạn;
+	    không thể "gắn vào game của người khác".
 ]]
 `;
 
   const bundle = `${banner}
+local __RALO_REQUIRE
 local __RALO_MODULES = {
 ${modules}
-	[${JSON.stringify(ENTRY)}] = ${embed(initSource)},
+	[${JSON.stringify(ENTRY)}] = ${wrapModule(initSource)},
 }
 
 local __RALO_CACHE = {}
+local __RALO_LOADING = {}
 
-local function __RALO_REQUIRE(key)
+__RALO_REQUIRE = function(key)
 	if type(key) ~= "string" then
 		error("__RALO_REQUIRE cần chuỗi đường dẫn, nhận " .. type(key), 2)
 	end
-	if __RALO_CACHE[key] ~= nil then
-		return __RALO_CACHE[key]
+	local cached = __RALO_CACHE[key]
+	if cached == __RALO_LOADING then
+		error("phát hiện require vòng lặp tại module '" .. key .. "'", 2)
 	end
-	local source = __RALO_MODULES[key]
-	if source == nil then
+	if cached ~= nil then
+		return cached
+	end
+	local factory = __RALO_MODULES[key]
+	if type(factory) ~= "function" then
 		error("không có module '" .. key .. "' trong bundle", 2)
 	end
-	-- Đánh dấu đang nạp để phát hiện require vòng lặp
-	__RALO_CACHE[key] = true
-	local chunk, compileError = load(source, "RALO:" .. key)
-	if chunk == nil then
-		__RALO_CACHE[key] = nil
-		error("lỗi biên dịch module '" .. key .. "': " .. tostring(compileError), 2)
-	end
-	local ok, result = pcall(chunk)
+	__RALO_CACHE[key] = __RALO_LOADING
+	local ok, result = pcall(factory)
 	if not ok then
 		__RALO_CACHE[key] = nil
 		error("lỗi khi chạy module '" .. key .. "': " .. tostring(result), 2)
@@ -138,7 +129,7 @@ local function __RALO_REQUIRE(key)
 	return result
 end
 
--- Cài __RALO_REQUIRE vào environment của chunk này (không làm bẩn _G của game).
+-- Factory đóng trên local __RALO_REQUIRE; expose trong environment để chẩn đoán/test.
 local __RALO_ENV = getfenv and getfenv(1) or _ENV
 __RALO_ENV.__RALO_REQUIRE = __RALO_REQUIRE
 

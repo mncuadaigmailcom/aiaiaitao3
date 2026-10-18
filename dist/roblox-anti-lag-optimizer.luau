@@ -3,85 +3,9188 @@
 	TỆP SINH TỰ ĐỘNG bởi tools/build.js — ĐỪNG SỬA TAY.
 	Nguồn: src/**.luau
 
-	36 module, sinh lúc 2026-10-18T05:17:47.886Z
+	36 module, sinh lúc 2026-10-18T05:30:25.260Z
 
 	CÁCH NẠP (Roblox Studio, game bạn SỞ HỮU):
 	  1. StarterPlayer -> StarterPlayerScripts -> Insert Object -> LocalScript
 	  2. Trong Properties, đặt LocalScript đó RunContext = Legacy
 	  3. Dán TOÀN BỘ nội dung tệp này vào, rồi Play
 
-	KHÔNG dùng loadstring() và KHÔNG dùng executor:
-	  * loadstring bị TẮT mặc định và chỉ chạy được ở SERVER script,
-	    không chạy trong LocalScript (ServerScriptService.LoadStringEnabled
-	    mặc định = false, và thuộc tính này không script được).
-	  * Muốn loadstring(game:HttpGet(...))() chạy được thì bắt buộc phải có
-	    executor. Dự án này KHÔNG hỗ trợ và KHÔNG khuyến khích cách đó:
-	    nó nằm ngoài phạm vi "chỉ game bạn sở hữu, không executor".
-	  * Hệ thống là LocalScript: chỉ tối ưu được CLIENT của người chơi,
-	    và CHỈ trong game có chứa nó. Không có cách hợp lệ nào để "gắn vào
-	    game của người khác".
+	NẠP MODULE TĨNH — không gọi load/loadstring lúc chạy:
+	  * Mỗi module được đóng gói thành factory function Luau ngay trong tệp.
+	  * Không dùng executor, HTTP loader hay API ngoài Roblox.
+	  * Hệ thống là LocalScript: chỉ tối ưu CLIENT trong game của bạn;
+	    không thể "gắn vào game của người khác".
 ]]
 
+local __RALO_REQUIRE
 local __RALO_MODULES = {
-	["Client/Core/Cpu"] = "--[[ ===== RALO.METHODS:BEGIN =====\n\tCác phương pháp được TRIỂN KHAI TRONG TỆP NÀY (khớp với Shared/Methods.luau):\n\t  ASSET-002, ASSET-004, CPU-004, CPU-005,\n\t  CPU-007, DATA-003, LOOP-007, START-002,\n\t  START-003, START-004 \n\t===== RALO.METHODS:END ===== --]]\n\n--[[\n\tClient/Core/Cpu.luau\n\t===== RALO.METHODS:CPU-004, CPU-005, CPU-007, DATA-003, ASSET-002, ASSET-004,\n\t                    QUERY-002, START-002, START-004 =====\n\n\tNhóm tối ưu CPU / tra cứu / khởi động. Tất cả đều là \"bớt việc phải làm\",\n\tkhông đụng đồ hoạ, không đụng gameplay.\n\n\tCPU-004  Hoán vị (hoist) biểu thức bất biến ra khỏi vòng lặp\n\tCPU-005  So sánh khoảng cách bằng bình phương, bỏ sqrt\n\tCPU-007  Gộp khoá chuỗi dùng lặp lại thành hằng (bớt cấp phát chuỗi)\n\tDATA-003 Dùng mảng + chỉ số thay cho pairs() khi cần duyệt có thứ tự\n\tASSET-002 Nạp module lười (lazy) — chỉ require khi thật sự dùng\n\tASSET-004 Thay chuỗi WaitForChild bằng Registry.Find có cache\n\tQUERY-002 Cache kết quả tra cứu đối tượng\n\tSTART-002 Nạp module lười lúc khởi động để bớt công việc đầu game\n\tSTART-004 Gộp việc khởi tạo, tránh chuỗi wait liên tiếp\n]]\n\nlocal Client_Env = __RALO_REQUIRE(\"Client/Core/Env\")\nlocal Shared_Log = __RALO_REQUIRE(\"Shared/Log\")\nlocal Client_Registry = __RALO_REQUIRE(\"Client/Core/Registry\")\n\nlocal SCOPE = \"Cpu\"\n\nlocal Cpu = {}\n\n-- CPU-007: khoá chuỗi dùng nhiều lần, định nghĩa MỘT lần ở đây\nCpu.Keys = {\n\tCastShadow = \"CastShadow\",\n\tEnabled = \"Enabled\",\n\tTransparency = \"Transparency\",\n\tParent = \"Parent\",\n\tCFrame = \"CFrame\",\n\tPosition = \"Position\",\n\tQualityLevel = \"QualityLevel\",\n}\n\nCpu.stats = {\n\tdistanceChecks = 0,\n\tsqrtAvoided = 0,\n\tlazyLoads = 0,\n\tcachedLookups = 0,\n}\n\n--[[\n\tCPU-005: khoảng cách BÌNH PHƯƠNG giữa hai Vector3.\n\tDùng khi chỉ cần SO SÁNH khoảng cách với một ngưỡng:\n\t\td2 > limit*limit   tương đương   d > limit\n\tmà không phải trả chi phí sqrt cho từng đối tượng mỗi lượt quét.\n]]\nfunction Cpu.DistanceSquared(a, b)\n\tCpu.stats.distanceChecks += 1\n\tCpu.stats.sqrtAvoided += 1\n\tif a == nil or b == nil then\n\t\treturn math.huge\n\tend\n\tlocal dx = a.X - b.X\n\tlocal dy = a.Y - b.Y\n\tlocal dz = a.Z - b.Z\n\treturn dx * dx + dy * dy + dz * dz\nend\n\n-- So sánh khoảng cách không cần sqrt. Trả về true nếu xa hơn limit.\nfunction Cpu.IsFartherThan(a, b, limit)\n\tlocal limitSquared = limit * limit\n\treturn Cpu.DistanceSquared(a, b) > limitSquared\nend\n\n--[[\n\tCPU-004: helper chứng minh việc hoist biểu thức bất biến.\n\t`expensive` chỉ được gọi MỘT lần dù `iterations` lớn đến đâu.\n\tDùng thật trong các vòng quét của dự án (ngưỡng, hệ số, danh sách lớp).\n]]\nfunction Cpu.HoistedLoop(iterations, expensive, body)\n\tlocal invariant = expensive()          -- gọi đúng một lần, ngoài vòng lặp\n\tlocal expensiveCalls = 1\n\tfor index = 1, math.max(0, math.floor(iterations or 0)) do\n\t\tbody(index, invariant)\n\tend\n\treturn invariant, expensiveCalls\nend\n\n--[[\n\tDATA-003: duyệt mảng bằng chỉ số số học.\n\tNhanh hơn pairs() và cho thứ tự xác định (quan trọng khi kết quả\n\tcần tái lập được giữa các lần chạy).\n\t`visitor` trả về true để DỪNG sớm (early exit).\n]]\nfunction Cpu.ForEachIndex(array, visitor)\n\tif type(array) ~= \"table\" then\n\t\treturn 0\n\tend\n\tlocal count = #array                     -- đọc độ dài MỘT lần (LOOP-007)\n\tlocal visited = 0\n\tfor index = 1, count do\n\t\tvisited += 1\n\t\tif visitor(array[index], index) == true then\n\t\t\tbreak\n\t\tend\n\tend\n\treturn visited\nend\n\n--[[\n\tASSET-002 / START-002: nạp module LƯỜI.\n\tTrả về một hàm; chỉ khi gọi thì require mới thật sự chạy.\n\tLợi ích: thời gian khởi động ngắn hơn, module không dùng thì không tốn.\n]]\nfunction Cpu.Lazy(path)\n\tlocal loaded\n\treturn function()\n\t\tif loaded == nil then\n\t\t\tCpu.stats.lazyLoads += 1\n\t\t\tloaded = __RALO_REQUIRE(path)\n\t\tend\n\t\treturn loaded\n\tend\nend\n\n--[[\n\tASSET-004 / QUERY-002: tra cứu đối tượng có cache.\n\tỦy quyền cho Registry.Find (cache tự vô hiệu khi đối tượng bị huỷ).\n]]\nfunction Cpu.Find(parent, name, className)\n\tCpu.stats.cachedLookups += 1\n\treturn Client_Registry.Find(parent, name, className)\nend\n\n--[[\n\tSTART-004: gộp nhiều bước khởi tạo, mỗi bước có pcall riêng,\n\tkhông wait giữa các bước (tránh chuỗi chờ nối tiếp lúc vào game).\n\tTrả về bảng kết quả theo tên bước.\n]]\nfunction Cpu.RunStartupSteps(steps)\n\tlocal results = {}\n\tfor _, step in steps do\n\t\tlocal name = step.name or \"step\"\n\t\tif step.enabled == false then\n\t\t\tresults[name] = \"disabled\"\n\t\telse\n\t\t\tlocal ok, err = pcall(step.run)\n\t\t\tresults[name] = ok and \"ok\" or (\"error: \" .. tostring(err))\n\t\t\tif not ok then\n\t\t\t\tShared_Log.Warn(SCOPE, (\"bước khởi tạo '%s' lỗi: %s\"):format(name, tostring(err)))\n\t\t\tend\n\t\tend\n\tend\n\treturn results\nend\n\n-- Chờ tới khi một đối tượng xuất hiện, nhưng CÓ TRẦN thời gian (START-004).\n-- Trả về instance hoặc nil khi hết thời gian chờ.\nfunction Cpu.Await(parent, name, timeoutSeconds)\n\tlocal deadline = Client_Env.now() + math.max(0, tonumber(timeoutSeconds) or 5)\n\twhile Client_Env.now() < deadline do\n\t\tlocal found = Client_Registry.Find(parent, name)\n\t\tif found ~= nil then\n\t\t\treturn found\n\t\tend\n\t\tClient_Env.Wait(0.1)\n\tend\n\tShared_Log.Warn(SCOPE, (\"chờ '%s' quá %ss -> bỏ qua\"):format(tostring(name), tostring(timeoutSeconds)))\n\treturn nil\nend\n\nfunction Cpu.Stats()\n\treturn {\n\t\tdistanceChecks = Cpu.stats.distanceChecks,\n\t\tsqrtAvoided = Cpu.stats.sqrtAvoided,\n\t\tlazyLoads = Cpu.stats.lazyLoads,\n\t\tcachedLookups = Cpu.stats.cachedLookups,\n\t}\nend\n\nfunction Cpu.Reset()\n\tCpu.stats = { distanceChecks = 0, sqrtAvoided = 0, lazyLoads = 0, cachedLookups = 0 }\nend\n\nreturn Cpu\n",
-	["Client/Core/Cull"] = "--[[ ===== RALO.METHODS:BEGIN =====\n\tCác phương pháp được TRIỂN KHAI TRONG TỆP NÀY (khớp với Shared/Methods.luau):\n\t  CULL-001, CULL-002, CULL-003, CULL-004,\n\t  DIST-001, DIST-002, DIST-003, DIST-004,\n\t  FPS-003, FX-001, FX-002, GRAPHICS-004,\n\t  PART-002, PART-004 \n\t===== RALO.METHODS:END ===== --]]\n\n--[[\n\tClient/Core/Cull.luau\n\t===== RALO.METHODS:CULL-001, CULL-002, CULL-003, CULL-004, DIST-001, DIST-002,\n\t                    DIST-003, DIST-004, PART-002, PART-004, FX-001, FX-002, FX-003 =====\n\n\tCulling theo khoảng cách camera: tắt bớt chi phí của đối tượng Ở XA\n\tvà TỰ KHÔI PHỤC khi chúng lại gần.\n\n\tNguyên nhân lag mà nó xử lý:\n\t  * Roblox vẫn trả chi phí cho bóng đổ (shadow map), hạt (particle),\n\t    Beam/Trail và cập nhật nội suy của những thứ người chơi không nhìn\n\t    thấy hoặc chỉ chiếm vài pixel trên màn hình.\n\t  * Đây là phần chi phí render lớn nhất mà LocalScript CÓ QUYỀN can thiệp.\n\n\tRanh giới an toàn (rất quan trọng):\n\t  * CHỈ xử lý instance nằm trong danh sách được đăng ký, hoặc mang tag\n\t    CollectionService do chủ game đánh dấu. KHÔNG tự ý quét cả game.\n\t  * KHÔNG đụng CanCollide, Transparency của đối tượng gameplay,\n\t    không xoá bất cứ thứ gì.\n\t  * Mọi thay đổi được ghi vào Restore để hoàn tác 100%.\n\t  * Đối tượng gần hơn ngưỡng LUÔN được khôi phục -> không làm biến mất\n\t    thứ người chơi cần quan sát.\n]]\n\nlocal Client_Env = __RALO_REQUIRE(\"Client/Core/Env\")\nlocal Shared_Log = __RALO_REQUIRE(\"Shared/Log\")\nlocal Client_Guard = __RALO_REQUIRE(\"Client/Core/Guard\")\nlocal Client_Restore = __RALO_REQUIRE(\"Client/Core/Restore\")\nlocal Client_Scheduler = __RALO_REQUIRE(\"Client/Core/Scheduler\")\n\nlocal SCOPE = \"Cull\"\n\nlocal Cull = {}\n\nCull.targets = {}            -- id -> { instance, kinds, restored }\nCull.rules = {\n\tshadowDistance = 300,      -- xa hơn N stud thì tắt CastShadow\n\teffectDistance = 250,      -- xa hơn N stud thì tắt emitter/beam/trail\n\tupdateInterval = 0.25,     -- giây giữa hai lần quét (không phải mỗi frame)\n\tmaxTargets = 400,          -- trần số đối tượng theo dõi\n}\nCull.handle = nil\nCull.lastRun = { culled = 0, restored = 0, scanned = 0, at = 0 }\n\nlocal nextId = 0\n\n--[[\n\tĐăng ký một đối tượng vào danh sách culling.\n\tkinds = { \"shadow\", \"effects\" } (mặc định cả hai)\n]]\nfunction Cull.Add(instance, kinds)\n\tif not Client_Guard.Alive(instance) then\n\t\treturn nil\n\tend\n\tlocal count = 0\n\tfor _ in pairs(Cull.targets) do\n\t\tcount += 1\n\tend\n\tif count >= Cull.rules.maxTargets then\n\t\tShared_Log.Warn(SCOPE, (\"đã đạt trần %d đối tượng theo dõi, bỏ qua\"):format(Cull.rules.maxTargets))\n\t\treturn nil\n\tend\n\n\tnextId += 1\n\tCull.targets[nextId] = {\n\t\tinstance = instance,\n\t\tkinds = kinds or { shadow = true, effects = true },\n\t\tshadowOff = false,\n\t\teffectsOff = {},\n\t}\n\treturn nextId\nend\n\nfunction Cull.Remove(id)\n\tif Cull.targets[id] ~= nil then\n\t\tCull.RestoreTarget(Cull.targets[id])\n\t\tCull.targets[id] = nil\n\t\treturn true\n\tend\n\treturn false\nend\n\nlocal function cameraPosition()\n\tlocal workspace = Client_Env.GetService(\"Workspace\")\n\tif workspace == nil then\n\t\treturn nil\n\tend\n\tlocal ok, camera = Client_Guard.Run(SCOPE, function()\n\t\treturn workspace.CurrentCamera\n\tend)\n\tif not ok or camera == nil then\n\t\treturn nil\n\tend\n\tlocal okCf, cf = Client_Guard.Run(SCOPE, function()\n\t\treturn camera.CFrame\n\tend)\n\tif not okCf or cf == nil then\n\t\treturn nil\n\tend\n\treturn cf.Position\nend\n\n-- Khoảng cách BÌNH PHƯƠNG: tránh sqrt mỗi đối tượng (CPU-005)\nlocal function distanceSquared(a, b)\n\tif a == nil or b == nil then\n\t\treturn math.huge\n\tend\n\tlocal dx = a.X - b.X\n\tlocal dy = a.Y - b.Y\n\tlocal dz = a.Z - b.Z\n\treturn dx * dx + dy * dy + dz * dz\nend\n\nlocal function positionOf(instance)\n\tlocal ok, cf = Client_Guard.Run(SCOPE, function()\n\t\treturn instance.CFrame\n\tend)\n\tif not ok or cf == nil then\n\t\treturn nil\n\tend\n\treturn cf.Position\nend\n\n-- Khôi phục một đối tượng về trạng thái trước khi bị cull.\nfunction Cull.RestoreTarget(target)\n\tif target == nil then\n\t\treturn false\n\tend\n\tlocal changed = 0\n\n\tif target.shadowOff then\n\t\tlocal status = Client_Guard.Change(target.instance, \"CastShadow\", true, {\n\t\t\tscope = SCOPE,\n\t\t\texpect = false,   -- chỉ khôi phục nếu GIÁ TRỊ VẪN do ta đặt\n\t\t})\n\t\tif status == \"applied\" then\n\t\t\tchanged += 1\n\t\tend\n\t\ttarget.shadowOff = false\n\tend\n\n\tfor child, wasEnabled in pairs(target.effectsOff) do\n\t\tlocal status = Client_Guard.Change(child, \"Enabled\", wasEnabled, {\n\t\t\tscope = SCOPE,\n\t\t\texpect = false,\n\t\t})\n\t\tif status == \"applied\" then\n\t\t\tchanged += 1\n\t\tend\n\t\ttarget.effectsOff[child] = nil\n\tend\n\n\tClient_Restore.Forget(target.instance)\n\treturn changed > 0\nend\n\nlocal effectClasses = { ParticleEmitter = true, Beam = true, Trail = true }\n\n--[[\n\tMột lượt quét. Trả về bảng thống kê { culled, restored, scanned }.\n\t`camPos` cho phép test truyền vị trí camera giả lập.\n]]\nfunction Cull.Scan(camPos)\n\tlocal origin = camPos or cameraPosition()\n\tlocal stats = { culled = 0, restored = 0, scanned = 0, skipped = 0 }\n\tif origin == nil then\n\t\tstats.note = \"không có CurrentCamera\"\n\t\tCull.lastRun = stats\n\t\treturn stats\n\tend\n\n\tlocal shadowLimit = Cull.rules.shadowDistance * Cull.rules.shadowDistance\n\tlocal effectLimit = Cull.rules.effectDistance * Cull.rules.effectDistance\n\n\tfor id, target in pairs(Cull.targets) do\n\t\tif not Client_Guard.Alive(target.instance) then\n\t\t\tCull.targets[id] = nil\n\t\t\tstats.skipped += 1\n\t\telse\n\t\t\tstats.scanned += 1\n\t\t\tlocal pos = positionOf(target.instance)\n\t\t\tlocal d2 = distanceSquared(pos, origin)\n\n\t\t\t---------------- bóng đổ\n\t\t\tif target.kinds.shadow then\n\t\t\t\tif d2 > shadowLimit then\n\t\t\t\t\tif not target.shadowOff then\n\t\t\t\t\t\tlocal okBefore, before = Client_Guard.Run(SCOPE, function()\n\t\t\t\t\t\t\treturn target.instance.CastShadow\n\t\t\t\t\t\tend)\n\t\t\t\t\t\tif before and before == true then\n\t\t\t\t\t\t\tClient_Restore.Record(target.instance, \"CastShadow\", true, \"cull.shadow\", false)\n\t\t\t\t\t\t\tlocal status = Client_Guard.Change(target.instance, \"CastShadow\", false, {\n\t\t\t\t\t\t\t\tscope = SCOPE, expect = true,\n\t\t\t\t\t\t\t})\n\t\t\t\t\t\t\tif status == \"applied\" then\n\t\t\t\t\t\t\t\ttarget.shadowOff = true\n\t\t\t\t\t\t\t\tstats.culled += 1\n\t\t\t\t\t\t\tend\n\t\t\t\t\t\tend\n\t\t\t\t\tend\n\t\t\t\telseif target.shadowOff then\n\t\t\t\t\tCull.RestoreTarget(target)\n\t\t\t\t\tstats.restored += 1\n\t\t\t\tend\n\t\t\tend\n\n\t\t\t---------------- hiệu ứng con\n\t\t\tif target.kinds.effects then\n\t\t\t\tlocal ok, children = Client_Guard.Run(SCOPE, function()\n\t\t\t\t\treturn target.instance:GetChildren()\n\t\t\t\tend)\n\t\t\t\tif ok and children ~= nil then\n\t\t\t\t\tfor _, child in children do\n\t\t\t\t\t\tif effectClasses[child.ClassName] then\n\t\t\t\t\t\t\tlocal okRead, enabled = Client_Guard.Run(SCOPE, function()\n\t\t\t\t\t\t\t\treturn child.Enabled\n\t\t\t\t\t\t\tend)\n\t\t\t\t\t\t\tif d2 > effectLimit then\n\t\t\t\t\t\t\t\tif okRead and enabled == true and target.effectsOff[child] == nil then\n\t\t\t\t\t\t\t\t\tClient_Restore.Record(child, \"Enabled\", true, \"cull.effects\", false)\n\t\t\t\t\t\t\t\t\tlocal status = Client_Guard.Change(child, \"Enabled\", false, {\n\t\t\t\t\t\t\t\t\t\tscope = SCOPE, expect = true,\n\t\t\t\t\t\t\t\t\t})\n\t\t\t\t\t\t\t\t\tif status == \"applied\" then\n\t\t\t\t\t\t\t\t\t\ttarget.effectsOff[child] = true\n\t\t\t\t\t\t\t\t\t\tstats.culled += 1\n\t\t\t\t\t\t\t\t\tend\n\t\t\t\t\t\t\t\tend\n\t\t\t\t\t\t\telseif target.effectsOff[child] ~= nil then\n\t\t\t\t\t\t\t\tlocal status = Client_Guard.Change(child, \"Enabled\", true, {\n\t\t\t\t\t\t\t\t\tscope = SCOPE, expect = false,\n\t\t\t\t\t\t\t\t})\n\t\t\t\t\t\t\t\tif status == \"applied\" then\n\t\t\t\t\t\t\t\t\tstats.restored += 1\n\t\t\t\t\t\t\t\tend\n\t\t\t\t\t\t\t\ttarget.effectsOff[child] = nil\n\t\t\t\t\t\t\tend\n\t\t\t\t\t\tend\n\t\t\t\t\tend\n\t\t\t\tend\n\t\t\tend\n\t\tend\n\tend\n\n\tstats.at = Client_Env.now()\n\tCull.lastRun = stats\n\treturn stats\nend\n\n-- Bật culling định kỳ qua Scheduler (không mở vòng lặp riêng).\nfunction Cull.Start()\n\tif Cull.handle ~= nil then\n\t\treturn Cull.handle\n\tend\n\tCull.handle = Client_Scheduler.Schedule({\n\t\tname = \"cull.scan\",\n\t\tinterval = Cull.rules.updateInterval,\n\t\tpriority = -10,          -- ưu tiên thấp: nhường việc quan trọng hơn\n\t\tcallback = function()\n\t\t\tCull.Scan()\n\t\tend,\n\t})\n\treturn Cull.handle\nend\n\nfunction Cull.Stop()\n\tif Cull.handle ~= nil then\n\t\tCull.handle:Cancel()\n\t\tCull.handle = nil\n\tend\n\t-- Khôi phục toàn bộ trước khi dừng\n\tfor _, target in pairs(Cull.targets) do\n\t\tCull.RestoreTarget(target)\n\tend\n\treturn true\nend\n\nfunction Cull.TargetCount()\n\tlocal n = 0\n\tfor _ in pairs(Cull.targets) do\n\t\tn += 1\n\tend\n\treturn n\nend\n\nfunction Cull.Stats()\n\treturn {\n\t\ttargets = Cull.TargetCount(),\n\t\tlastRun = Cull.lastRun,\n\t\trules = Cull.rules,\n\t\trunning = Cull.handle ~= nil,\n\t}\nend\n\nfunction Cull.Reset()\n\tCull.Stop()\n\ttable.clear(Cull.targets)\n\tnextId = 0\n\tCull.lastRun = { culled = 0, restored = 0, scanned = 0, at = 0 }\nend\n\nreturn Cull\n",
-	["Client/Core/Devices"] = "--[[ ===== RALO.METHODS:BEGIN =====\n\tCác phương pháp được TRIỂN KHAI TRONG TỆP NÀY (khớp với Shared/Methods.luau):\n\t  CFG-001, CFG-002, CFG-005, LOWEND-001,\n\t  LOWEND-002, LOWEND-003, LOWEND-004 \n\t===== RALO.METHODS:END ===== --]]\n\n--[[\n\tClient/Core/Devices.luau\n\t===== RALO.METHODS:LOWEND-001, LOWEND-002, LOWEND-003, LOWEND-004,\n\t                    CFG-001, CFG-002 =====\n\n\tPhân hạng thiết bị và chọn mức tối ưu phù hợp.\n\n\tLý do: cùng một mức giảm đồ hoạ có thể \"không đủ\" trên điện thoại cũ\n\tnhưng lại \"thừa và làm xấu hình\" trên PC. Nên mặc định phải là\n\tNHẸ, và chỉ nâng dần khi thiết bị thật sự yếu.\n\n\tLOWEND-001  Nhận diện nền tảng (PC / mobile / console) qua UserInputService\n\tLOWEND-002  Chọn bậc chất lượng theo nền tảng + FPS đo được\n\tLOWEND-003  Giảm mật độ hạt mạnh hơn trên mobile\n\tLOWEND-004  Rút gọn GUI (bỏ hoạt ảnh không cần thiết) trên máy yếu\n\tCFG-001     Bật/tắt theo nhóm\n\tCFG-002     Bật/tắt từng phương pháp riêng lẻ\n\n\tGIỚI HẠI TRUNG THỰC: UserInputService không cho biết cấu hình CPU/GPU.\n\tNên \"hạng thiết bị\" ở đây là ƯỚC LƯỢNG từ nền tảng + FPS đo được,\n\tkhông phải thông số phần cứng. Điều này được nêu rõ trong báo cáo.\n]]\n\nlocal Client_Env = __RALO_REQUIRE(\"Client/Core/Env\")\nlocal Shared_Log = __RALO_REQUIRE(\"Shared/Log\")\n\nlocal SCOPE = \"Devices\"\n\nlocal Devices = {}\n\n-- Bậc chất lượng: 1 = nhẹ nhất (giảm nhiều nhất), 3 = giữ gần nguyên bản\nDevices.TIERS = {\n\t[1] = { name = \"low\",    qualityLevel = 3, particleScale = 0.40, animateGui = false },\n\t[2] = { name = \"medium\", qualityLevel = 5, particleScale = 0.70, animateGui = true },\n\t[3] = { name = \"high\",   qualityLevel = 7, particleScale = 1.00, animateGui = true },\n}\n\nDevices.detected = nil\nDevices.tier = 3             -- MẶC ĐỊNH là bậc cao nhất = can thiệp ít nhất\n\n-- LOWEND-001: nhận diện nền tảng. Không throw nếu service không có.\nfunction Devices.DetectPlatform()\n\tif Devices.detected ~= nil then\n\t\treturn Devices.detected\n\tend\n\n\tlocal info = { platform = \"unknown\", touch = false, gamepad = false, keyboardMouse = false }\n\n\tlocal userInput = Client_Env.GetService(\"UserInputService\")\n\tif userInput ~= nil then\n\t\tlocal okTouch, touch = pcall(function()\n\t\t\treturn userInput.TouchEnabled\n\t\tend)\n\t\tif okTouch then\n\t\t\tinfo.touch = touch == true\n\t\tend\n\t\tlocal okPad, pad = pcall(function()\n\t\t\treturn userInput.GamepadEnabled\n\t\tend)\n\t\tif okPad then\n\t\t\tinfo.gamepad = pad == true\n\t\tend\n\t\tlocal okKm, km = pcall(function()\n\t\t\treturn userInput.KeyboardEnabled and userInput.MouseEnabled\n\t\tend)\n\t\tif okKm then\n\t\t\tinfo.keyboardMouse = (km == true)\n\t\tend\n\tend\n\n\t-- UserInputService không có trên server; ở đó giữ \"unknown\"\n\tif info.touch then\n\t\tinfo.platform = \"mobile\"\n\telseif info.gamepad then\n\t\tinfo.platform = \"console\"\n\telseif info.keyboardMouse then\n\t\tinfo.platform = \"pc\"\n\tend\n\n\tDevices.detected = info\n\tShared_Log.Info(SCOPE, (\"nền tảng: %s (touch=%s, gamepad=%s, kb+mouse=%s)\")\n\t\t:format(info.platform, tostring(info.touch), tostring(info.gamepad), tostring(info.keyboardMouse)))\n\treturn info\nend\n\n--[[\n\tLOWEND-002: chọn bậc chất lượng.\n\tmeasuredFps: FPS trung bình ĐO ĐƯỢC (nếu có). Không có thì chỉ dựa nền tảng.\n\n\tQUAN TRỌNG: hàm này KHÔNG tự quyết định khi người dùng đã đặt tier\n\tthủ công trong Config (autoTier = false).\n]]\nfunction Devices.ChooseTier(measuredFps, options)\n\toptions = options or {}\n\tlocal platform = Devices.DetectPlatform().platform\n\n\tlocal tier = 3\n\tif platform == \"mobile\" then\n\t\ttier = 1\n\telseif platform == \"console\" then\n\t\ttier = 2\n\tend\n\n\t-- Chỉ hạ bậc theo FPS khi có số đo THẬT và được phép tự động\n\tif options.autoTier ~= false and type(measuredFps) == \"number\" and measuredFps > 0 then\n\t\tif measuredFps < 30 then\n\t\t\ttier = 1\n\t\telseif measuredFps < 45 and tier > 2 then\n\t\t\ttier = 2\n\t\tend\n\tend\n\n\tif Devices.TIERS[tier] == nil then\n\t\ttier = 3\n\tend\n\tDevices.tier = tier\n\treturn tier, Devices.TIERS[tier]\nend\n\nfunction Devices.CurrentTier()\n\treturn Devices.tier, Devices.TIERS[Devices.tier]\nend\n\n-- LOWEND-003: hệ số giới hạn hạt theo bậc thiết bị.\nfunction Devices.ParticleScale()\n\tlocal _, tier = Devices.CurrentTier()\n\treturn tier.particleScale\nend\n\n-- LOWEND-004: có nên chạy hoạt ảnh GUI không.\nfunction Devices.ShouldAnimateGui()\n\tlocal _, tier = Devices.CurrentTier()\n\treturn tier.animateGui\nend\n\n--[[\n\tCFG-001 / CFG-002: kiểm tra một phương pháp có được phép chạy không.\n\tprofile.groups[groupKey] = false  -> tắt cả nhóm\n\tprofile.methods[methodId] = false -> tắt riêng phương pháp đó\n\tMặc định: BẬT (trừ những gì Config khai báo tắt sẵn).\n]]\nfunction Devices.IsEnabled(profile, groupKey, methodId)\n\tif type(profile) ~= \"table\" then\n\t\treturn true\n\tend\n\tif profile.enabled == false then\n\t\treturn false\n\tend\n\tif groupKey ~= nil and type(profile.groups) == \"table\" and profile.groups[groupKey] == false then\n\t\treturn false\n\tend\n\tif methodId ~= nil and type(profile.methods) == \"table\" and profile.methods[methodId] == false then\n\t\treturn false\n\tend\n\treturn true\nend\n\n-- Liệt kê những gì đang tắt — dùng cho báo cáo và GUI (CFG-005)\nfunction Devices.DisabledList(profile)\n\tlocal out = { groups = {}, methods = {} }\n\tif type(profile) ~= \"table\" then\n\t\treturn out\n\tend\n\tif type(profile.groups) == \"table\" then\n\t\tfor key, value in pairs(profile.groups) do\n\t\t\tif value == false then\n\t\t\t\tout.groups[#out.groups + 1] = key\n\t\t\tend\n\t\tend\n\tend\n\tif type(profile.methods) == \"table\" then\n\t\tfor key, value in pairs(profile.methods) do\n\t\t\tif value == false then\n\t\t\t\tout.methods[#out.methods + 1] = key\n\t\t\tend\n\t\tend\n\tend\n\ttable.sort(out.groups)\n\ttable.sort(out.methods)\n\treturn out\nend\n\nfunction Devices.Reset()\n\tDevices.detected = nil\n\tDevices.tier = 3\nend\n\nreturn Devices\n",
-	["Client/Core/Env"] = "--[[ ===== RALO.METHODS:BEGIN =====\n\tCác phương pháp được TRIỂN KHAI TRONG TỆP NÀY (khớp với Shared/Methods.luau):\n\t  CPU-002 \n\t===== RALO.METHODS:END ===== --]]\n\n--[[\n\tCore/Env.luau\n\tLớp thích ứng runtime. Toàn bộ dự án KHÔNG gọi thẳng `game`, `Instance`,\n\t`task`, `os.clock` mà luôn đi qua Env. Nhờ vậy:\n\n\t  * Trong Roblox: Env trỏ tới API Luau thật.\n\t  * Trong harness (fengari + mock): Env trỏ tới mock Roblox.\n\t  * Trong test: Env.now() và Env.task.delay là thời gian ẢO -> test\n\t    được logic auto-hide 30 giây mà không phải chờ 30 giây thật.\n\n\tEnv KHÔNG giả lập bất kỳ kết quả hiệu năng nào. Nó chỉ cung cấp\n\t\"đồng hồ\" và \"cổng vào thế giới game\". Số đo luôn đến từ thế giới thật\n\t(roblox) hoặc từ mô hình thế giới khai báo rõ ràng (harness).\n]]\n\nlocal Env = {}\n\nEnv.mode = \"unknown\"        -- \"roblox\" | \"harness\"\nEnv.game = nil              -- DataModel (hoặc mock)\nEnv.Root = nil              -- nơi chứa source tree (dùng cho __require gốc)\n\n-- Đồng hồ: hàm trả về giây (float). Mặc định là os.clock() — có thật trong Luau.\nEnv.now = os.clock\n\n-- Bộ lập lịch: mặc định là `task` thật của Luau.\nEnv.task = task\n\n--[[\n\tKhởi động: tự nhận diện runtime.\n\toptions = { game = <DataModel>, task = <bảng giống task>, now = <hàm>, mode = \"roblox\"|\"harness\" }\n]]\nfunction Env.Init(options)\n\toptions = options or {}\n\n\tEnv.mode = options.mode\n\tif Env.mode == nil then\n\t\t-- Tự nhận diện: có DataModel + RunService thật thì là Roblox.\n\t\tlocal ok, runService = pcall(function()\n\t\t\treturn game:GetService(\"RunService\")\n\t\tend)\n\t\tEnv.mode = (ok and runService ~= nil) and \"roblox\" or \"unknown\"\n\tend\n\n\tEnv.game = options.game\n\tif Env.game == nil then\n\t\tlocal ok, g = pcall(function() return game end)\n\t\tif ok then Env.game = g end\n\tend\n\n\tif options.now then Env.now = options.now end\n\tif options.task then Env.task = options.task end\n\n\treturn Env.mode, Env.game ~= nil\nend\n\n--[[\n\tTrả về bảng toàn cục của runtime hiện tại.\n\n\tDự án chạy trong Roblox Studio bình thường (không executor), nên đây\n\tchỉ là `_G`. Tách ra thành hàm để RequireShim có một chỗ duy nhất cần\n\tthay đổi nếu môi trường nạp bundle khác đi.\n]]\nfunction Env.GlobalEnv(): any\n\treturn _G\nend\n\n-- Đặt biến toàn cục (RequireShim dùng để cài __RALO_REQUIRE khi nạp bundle).\nfunction Env.SetGlobal(name: string, value: any)\n\tlocal g = Env.GlobalEnv()\n\tg[name] = value\nend\n\nfunction Env.GetService(name: string): any\n\tif Env.game == nil then return nil end\n\tlocal ok, service = pcall(function()\n\t\treturn Env.game:GetService(name)\n\tend)\n\tif ok then return service end\n\treturn nil\nend\n\n-- Chờ n giây theo đồng hồ của runtime (task.wait thật trong Roblox).\nfunction Env.Wait(seconds: number)\n\tif Env.task and Env.task.wait then\n\t\treturn Env.task.wait(seconds)\n\tend\n\t-- Fallback (không bao giờ xảy ra trong Roblox): xoay vòng theo os.clock\n\tlocal target = Env.now() + seconds\n\twhile Env.now() < target do end\nend\n\n-- Trì hoãn có thể huỷ; trả về handle { cancel = function() end }\nfunction Env.Delay(seconds: number, callback: () -> ())\n\tif Env.task and Env.task.delay then\n\t\tlocal thread = Env.task.delay(seconds, callback)\n\t\treturn {\n\t\t\tcancel = function()\n\t\t\t\tif Env.task.cancel and thread then\n\t\t\t\t\tpcall(Env.task.cancel, thread)\n\t\t\t\tend\n\t\t\tend,\n\t\t\tthread = thread,\n\t\t}\n\tend\n\treturn { cancel = function() end }\nend\n\nreturn Env\n",
-	["Client/Core/Guard"] = "--[[ ===== RALO.METHODS:BEGIN =====\n\tCác phương pháp được TRIỂN KHAI TRONG TỆP NÀY (khớp với Shared/Methods.luau):\n\t  CFG-003, CPU-008, REC-001, REC-002,\n\t  REC-004 \n\t===== RALO.METHODS:END ===== --]]\n\n--[[\n\tClient/Core/Guard.luau\n\t===== RALO.METHODS:REC-001, REC-003, REC-004, CFG-003, CPU-008 =====\n\n\tLớp bảo vệ: mọi tác vụ tối ưu đều đi qua đây.\n\n\tNguyên nhân lag / hỏng hệ thống mà nó xử lý:\n\t  * Một property bị khoá (client không ghi được) làm throw -> nếu không\n\t    pcall thì TOÀN BỘ pipeline chết giữa chừng, người dùng mất luôn\n\t    khả năng khôi phục.\n\t  * Ghi giá trị mà không kiểm tra đối tượng còn sống -> lỗi tham chiếu\n\t    tới instance đã Destroy.\n\t  * Khôi phục đè lên thay đổi mới của game/người dùng.\n\n\tCách xử lý:\n\t  * Run(): pcall + ghi log + đếm lỗi, không bao giờ throw ra ngoài.\n\t  * Alive(): kiểm tra instance còn tồn tại trước khi thao tác.\n\t  * Change(): chỉ ghi khi giá trị hiện tại VẪN là giá trị ta đã đặt\n\t    (chống ghi đè thay đổi của người khác).\n]]\n\nlocal Shared_Log = __RALO_REQUIRE(\"Shared/Log\")\n\nlocal SCOPE = \"Guard\"\n\nlocal Guard = {}\n\nGuard.stats = { calls = 0, failures = 0, skippedNil = 0, blockedStale = 0 }\nGuard.errors = {}\nGuard.maxErrorLog = 60\n\nlocal function recordError(scope, message)\n\tGuard.stats.failures += 1\n\ttable.insert(Guard.errors, { scope = scope, message = message, time = os.clock() })\n\tif #Guard.errors > Guard.maxErrorLog then\n\t\ttable.remove(Guard.errors, 1)\n\tend\n\tShared_Log.Warn(scope, message)\nend\n\n--[[\n\tChạy một hàm trong vùng bảo vệ.\n\tTrả về: ok, result\n\tKhông bao giờ throw ra ngoài.\n]]\nfunction Guard.Run(scope, fn, ...)\n\tGuard.stats.calls += 1\n\tif type(fn) ~= \"function\" then\n\t\trecordError(scope, \"Guard.Run cần một function\")\n\t\treturn false, nil\n\tend\n\tlocal results = { pcall(fn, ...) }\n\tlocal ok = table.remove(results, 1)\n\tif not ok then\n\t\t-- Trả thông điệp lỗi về cho người gọi (không vứt bỏ): người gọi\n\t\t-- cần biết VÌ SAO thất bại để đưa vào báo cáo, không chỉ biết \"hỏng\".\n\t\tlocal message = tostring(results[1])\n\t\trecordError(scope, message)\n\t\treturn false, message\n\tend\n\treturn true, results[1]\nend\n\n--[[\n\tInstance còn dùng được không?\n\n\tCách kiểm tra: thử ĐỌC một property. Nếu instance đã bị Destroy thì\n\tRoblox ném lỗi khi truy cập, và pcall bắt được.\n\n\tLƯU Ý: KHÔNG dùng `Parent ~= nil` làm tiêu chí \"còn sống\". Lý do:\n\t  * instance vừa tạo chưa gắn parent vẫn ghi property được bình thường;\n\t  * Pool.Release và Cull cố tình đặt Parent = nil nhưng đối tượng vẫn sống;\n\tnên nếu coi \"không có parent\" là \"đã chết\" thì hai module đó sẽ từ chối\n\tmọi thao tác hợp lệ. Đây là lỗi đã được test guard.test.js phát hiện.\n]]\nfunction Guard.Alive(instance)\n\tif instance == nil then\n\t\tGuard.stats.skippedNil += 1\n\t\treturn false\n\tend\n\tlocal ok = pcall(function()\n\t\treturn instance.ClassName\n\tend)\n\treturn ok\nend\n\n--[[\n\tInstance còn NẰM TRONG CÂY không (Parent ~= nil)?\n\n\tĐây là câu hỏi KHÁC với Alive():\n\t  * Alive()  = \"còn thao tác được không\" (chưa bị Destroy)\n\t  * InTree() = \"còn gắn trong cây instance không\"\n\tRegistry cần InTree() để quyết định cache tra cứu còn giá trị không:\n\tmột instance đã bị gỡ khỏi cây thì FindFirstChild sẽ không còn trả về nó,\n\tnên cache phải bị vô hiệu dù bản thân instance vẫn chưa bị Destroy.\n]]\nfunction Guard.InTree(instance)\n\tif not Guard.Alive(instance) then\n\t\treturn false\n\tend\n\tlocal ok, parent = pcall(function()\n\t\treturn instance.Parent\n\tend)\n\treturn ok and parent ~= nil\nend\n\n--[[\n\tChỉ ghi property khi giá trị hiện tại vẫn đúng như kỳ vọng.\n\tĐây là chốt chống \"khôi phục đè lên thay đổi mới của game/người dùng\".\n\n\topts = { scope, expect = <giá trị phải đang có> }\n\tTrả về: \"applied\" | \"unchanged\" | \"stale\" | \"failed\"\n]]\nfunction Guard.Change(instance, property, newValue, opts)\n\topts = opts or {}\n\tlocal scope = opts.scope or SCOPE\n\tif not Guard.Alive(instance) then\n\t\tGuard.stats.skippedNil += 1\n\t\treturn \"failed\", \"instance không còn tồn tại\"\n\tend\n\n\tlocal okRead, current = pcall(function()\n\t\treturn instance[property]\n\tend)\n\tif not okRead then\n\t\trecordError(scope, (\"không đọc được %s.%s\"):format(tostring(instance), property))\n\t\treturn \"failed\", \"không đọc được property\"\n\tend\n\n\tif opts.expect ~= nil and current ~= opts.expect then\n\t\t-- Giá trị đã bị ai đó đổi -> KHÔNG ghi đè.\n\t\tGuard.stats.blockedStale += 1\n\t\treturn \"stale\", (\"giá trị hiện tại là %s, khác giá trị script đã đặt (%s)\")\n\t\t\t:format(tostring(current), tostring(opts.expect))\n\tend\n\n\tif current == newValue then\n\t\treturn \"unchanged\", \"giá trị đã đúng sẵn\"\n\tend\n\n\tlocal okWrite, err = pcall(function()\n\t\tinstance[property] = newValue\n\tend)\n\tif not okWrite then\n\t\trecordError(scope, (\"không ghi được %s.%s: %s\")\n\t\t\t:format(tostring(instance), property, tostring(err)))\n\t\treturn \"failed\", tostring(err)\n\tend\n\n\t-- Xác nhận đã ăn (một số property bị engine ghi đè ngay)\n\tlocal okVerify, after = pcall(function()\n\t\treturn instance[property]\n\tend)\n\tif okVerify and after ~= newValue then\n\t\trecordError(scope, (\"ghi %s.%s = %s nhưng đọc lại %s\")\n\t\t\t:format(tostring(instance), property, tostring(newValue), tostring(after)))\n\t\treturn \"failed\", \"ghi không có tác dụng\"\n\tend\n\n\treturn \"applied\", \"ok\"\nend\n\n--[[\n\tKiểm tra bảng cấu hình: sai kiểu thì báo rõ và dùng giá trị mặc định,\n\tthay vì để giá trị sai lan xuống từng module (CFG-003).\n\tTrả về: bảng đã chuẩn hoá, danh sách cảnh báo.\n]]\nfunction Guard.NormalizeConfig(profile, defaults)\n\tlocal warnings = {}\n\tlocal out = {}\n\n\t-- Kiểm tra MỘT cặp giá trị: sai kiểu thì báo và dùng mặc định.\n\tlocal function checkValue(path, value, defaultValue)\n\t\tif value == nil then\n\t\t\treturn defaultValue, nil\n\t\tend\n\t\t-- `nil` trong Luau không phân biệt được với \"không có\"; số nguyên và\n\t\t-- số thực đều là \"number\" nên so bằng type() là đủ.\n\t\tif type(value) ~= type(defaultValue) then\n\t\t\tlocal warning = (\"%s: kỳ vọng %s, nhận %s -> dùng mặc định %s\")\n\t\t\t\t:format(path, type(defaultValue), type(value), tostring(defaultValue))\n\t\t\treturn defaultValue, warning\n\t\tend\n\t\treturn value, nil\n\tend\n\n\t-- Duyệt defaults. Khoá cấp cao có thể là BẢNG (một section) hoặc\n\t-- VÔ HƯỚNG (ví dụ `enabled = true`, `mode = \"light\"`). Phải xử lý cả hai:\n\t-- giả định mọi thứ là bảng sẽ sập ngay trên Config.PROFILE thật.\n\t-- Helper đọc khoá mà KHÔNG biến `false` thành `nil`.\n\t-- (`profile[k] or nil` là bẫy: enabled = false sẽ bị coi là \"thiếu\"\n\t--  và rơi về mặc định true, làm hỏng công tắc tắt tổng.)\n\tlocal function readKey(source, key)\n\t\tif type(source) ~= \"table\" then\n\t\t\treturn nil\n\t\tend\n\t\treturn source[key]\n\tend\n\n\tfor key, defaultValue in pairs(defaults) do\n\t\tlocal given = readKey(profile, key)\n\n\t\tif type(defaultValue) == \"table\" then\n\t\t\tout[key] = {}\n\t\t\tfor subKey, subDefault in pairs(defaultValue) do\n\t\t\t\tlocal subGiven = readKey(given, subKey)\n\t\t\t\tlocal normalized, warning = checkValue(\n\t\t\t\t\t(\"%s.%s\"):format(key, subKey), subGiven, subDefault)\n\t\t\t\tout[key][subKey] = normalized\n\t\t\t\tif warning ~= nil then\n\t\t\t\t\twarnings[#warnings + 1] = warning\n\t\t\t\tend\n\t\t\tend\n\t\t\t-- Giữ khoá người dùng tự thêm trong section\n\t\t\tif type(given) == \"table\" then\n\t\t\t\tfor subKey, subValue in pairs(given) do\n\t\t\t\t\tif out[key][subKey] == nil then\n\t\t\t\t\t\tout[key][subKey] = subValue\n\t\t\t\t\tend\n\t\t\t\tend\n\t\t\tend\n\t\telse\n\t\t\tlocal normalized, warning = checkValue(tostring(key), given, defaultValue)\n\t\t\tout[key] = normalized\n\t\t\tif warning ~= nil then\n\t\t\t\twarnings[#warnings + 1] = warning\n\t\t\tend\n\t\tend\n\tend\n\n\t-- Giữ lại section không có trong defaults (người dùng tự thêm)\n\tif type(profile) == \"table\" then\n\t\tfor key, values in pairs(profile) do\n\t\t\tif out[key] == nil then\n\t\t\t\tout[key] = values\n\t\t\tend\n\t\tend\n\tend\n\n\tfor _, warning in ipairs(warnings) do\n\t\tShared_Log.Warn(SCOPE, warning)\n\tend\n\treturn out, warnings\nend\n\nfunction Guard.Stats()\n\treturn {\n\t\tcalls = Guard.stats.calls,\n\t\tfailures = Guard.stats.failures,\n\t\tskippedNil = Guard.stats.skippedNil,\n\t\tblockedStale = Guard.stats.blockedStale,\n\t\tloggedErrors = #Guard.errors,\n\t}\nend\n\nfunction Guard.Reset()\n\ttable.clear(Guard.stats)\n\tGuard.stats = { calls = 0, failures = 0, skippedNil = 0, blockedStale = 0 }\n\ttable.clear(Guard.errors)\nend\n\nreturn Guard\n",
-	["Client/Core/Measure"] = "--[[\n\tCore/Measure.luau\n\tLẤY MẪU HIỆU NĂNG THẬT. Không có con số nào trong tệp này được sinh ra\n\ttừ không khí:\n\n\t  * frame time  = delta thật giữa hai lần RenderStepped (hoặc Heartbeat).\n\t  * fps         = 1 / frame time, suy ra từ số đo, không phải giá trị gán.\n\t  * gcHeapKb    = collectgarbage(\"count\") — heap Luau do runtime báo cáo.\n\t  * fpsCrossCheck = Stats.Workspace.FramesPerSecond (nếu runtime cho đọc);\n\t                    chỉ dùng để ĐỐI CHIẾU, và được ghi rõ trong meta.\n\n\tNếu runtime không có RenderStepped, Run() trả về meta.source = \"none\"\n\tvà samples = 0 — tuyệt đối không bịa số.\n]]\n\nlocal Core_Env = __RALO_REQUIRE(\"Client/Core/Env\")\nlocal Core_Perf = __RALO_REQUIRE(\"Client/Core/Perf\")\nlocal Util_Log = __RALO_REQUIRE(\"Shared/Log\")\n\nlocal SCOPE = \"Measure\"\n\nlocal Measure = {}\n\nMeasure.live = nil          -- Perf buffer đang nhận mẫu (để UI đọc tức thời)\nMeasure.last = nil          -- bảng kết quả lần đo gần nhất\n\n--[[\n\tĐọc chỉ số tức thời một lần. Luôn an toàn, không throw.\n]]\nfunction Measure.Instant()\n\tlocal runService = Core_Env.GetService(\"RunService\")\n\n\tlocal frameTimeMs, frameOk = 0, false\n\tif runService ~= nil then\n\t\tlocal ok, value = pcall(function() return runService:GetRenderStepTime() end)\n\t\tif ok and type(value) == \"number\" and value == value then\n\t\t\tframeTimeMs = value * 1000\n\t\t\tframeOk = true\n\t\tend\n\tend\n\n\tlocal gcKb, gcOk = 0, false\n\tif collectgarbage ~= nil then\n\t\tlocal ok2, value2 = pcall(collectgarbage, \"count\")\n\t\tif ok2 and type(value2) == \"number\" then\n\t\t\tgcKb = value2\n\t\t\tgcOk = true\n\t\tend\n\tend\n\n\tlocal statsFps, statsOk = Measure.ReadStatsFps()\n\n\treturn {\n\t\tframeTimeMs = frameTimeMs,\n\t\tframeTimeAvailable = frameOk,\n\t\tfps = frameOk and frameTimeMs > 0 and (1000 / frameTimeMs) or 0,\n\t\tgcHeapKb = gcKb,\n\t\tgcAvailable = gcOk,\n\t\tstatsFps = statsFps,\n\t\tstatsAvailable = statsOk,\n\t\ttime = Core_Env.now(),\n\t}\nend\n\n--[[\n\tĐọc FPS do engine báo cáo, nếu có. Roblox khóa service `Stats` ở nhiều\n\tngữ cảnh nên hàm này luôn pcall và trả về nil khi không đọc được.\n]]\nfunction Measure.ReadStatsFps(): (number?, boolean)\n\tlocal stats = Core_Env.GetService(\"Stats\")\n\tif stats == nil then return nil, false end\n\tlocal ok, workspaceStats = pcall(function() return stats.Workspace end)\n\tif not ok or workspaceStats == nil then return nil, false end\n\tlocal ok2, fps = pcall(function() return workspaceStats.FramesPerSecond end)\n\tif not ok2 or type(fps) ~= \"number\" then return nil, false end\n\treturn fps, true\nend\n\n--[[\n\tĐếm \"đối tượng đang được render\" — chỉ số ngữ cảnh, KHÔNG phải chỉ số\n\tchất lượng. Dùng để giải thích vì sao kết quả giữa hai lần đo khác nhau.\n]]\nfunction Measure.WorldStats()\n\tlocal game = Core_Env.game\n\tif game == nil then return { scanned = 0, note = \"no DataModel\" } end\n\n\tlocal scanned, parts, shadowCasters, emitters, characters = 0, 0, 0, 0, 0\n\tlocal ok, err = pcall(function()\n\t\t-- Gán ra biến local trước khi lặp: vừa dễ đọc, vừa tránh một khác biệt\n\t\t-- của máy ảo Lua khi method được phân giải qua __index ngay trong\n\t\t-- biểu thức for-in (harness fengari báo lỗi ở dạng viết inline).\n\t\tlocal descendants = game:GetDescendants()\n\t\tscanned = #descendants\n\t\tfor _, instance in descendants do\n\t\t\tlocal className = instance.ClassName\n\t\t\tif className == \"Part\" or className == \"MeshPart\" or className == \"UnionOperation\" then\n\t\t\t\tparts += 1\n\t\t\t\tlocal okCast, cast = pcall(function() return instance.CastShadow end)\n\t\t\t\tif okCast and cast then shadowCasters += 1 end\n\t\t\telseif className == \"ParticleEmitter\" then\n\t\t\t\temitters += 1\n\t\t\telseif className == \"Model\" then\n\t\t\t\tlocal okHum = pcall(function() return instance:FindFirstChildOfClass(\"Humanoid\") end)\n\t\t\t\tif okHum then characters += 1 end\n\t\t\tend\n\t\tend\n\tend)\n\n\tif not ok then\n\t\tUtil_Log.Warn(SCOPE, \"không quét được thế giới:\", tostring(err))\n\t\treturn { scanned = scanned, note = \"partial\", error = tostring(err) }\n\tend\n\n\treturn {\n\t\tscanned = scanned,\n\t\tparts = parts,\n\t\tshadowCasters = shadowCasters,\n\t\tparticleEmitters = emitters,\n\t\tcharacters = characters,\n\t}\nend\n\n--[[\n\tĐo trong `durationSeconds` giây.\n\toptions = {\n\t\tlabel       = \"baseline\" | \"after\",\n\t\twindow      = kích thước ring buffer (mặc định 180),\n\t\tonSample    = function(instant, index) — hook cho UI\n\t}\n]]\nfunction Measure.Run(durationSeconds: number, options: any)\n\toptions = options or {}\n\tlocal duration = math.max(0.1, durationSeconds or 1.0)\n\tlocal runService = Core_Env.GetService(\"RunService\")\n\n\tlocal perf = Core_Perf.New(options.window or 180)\n\tMeasure.live = perf\n\n\tlocal startedAt = Core_Env.now()\n\tlocal meta = {\n\t\tlabel = options.label or \"sample\",\n\t\tduration = duration,\n\t\tsource = \"none\",\n\t\tsamples = 0,\n\t\tstatsCrossCheck = nil,\n\t\tnote = nil,\n\t}\n\n\tlocal connection = nil\n\tif runService ~= nil and runService.RenderStepped ~= nil then\n\t\tmeta.source = \"RenderStepped\"\n\t\tconnection = runService.RenderStepped:Connect(function(deltaTime: number)\n\t\t\tif deltaTime ~= nil and deltaTime > 0 then\n\t\t\t\tperf:Push(deltaTime * 1000)\n\t\t\t\tmeta.samples += 1\n\t\t\t\tif options.onSample then\n\t\t\t\t\toptions.onSample(Measure.Instant(), meta.samples)\n\t\t\t\tend\n\t\t\tend\n\t\tend)\n\telseif runService ~= nil and runService.Heartbeat ~= nil then\n\t\tmeta.source = \"Heartbeat (fallback)\"\n\t\tconnection = runService.Heartbeat:Connect(function(deltaTime: number)\n\t\t\tif deltaTime ~= nil and deltaTime > 0 then\n\t\t\t\tperf:Push(deltaTime * 1000)\n\t\t\t\tmeta.samples += 1\n\t\t\tend\n\t\tend)\n\telse\n\t\tmeta.note = \"runtime không có RenderStepped/Heartbeat -> không có số đo khung hình\"\n\t\tUtil_Log.Warn(SCOPE, meta.note)\n\tend\n\n\t-- Chờ đủ thời lượng bằng đồng hồ của runtime (task.wait thật trong Roblox)\n\tCore_Env.Wait(duration)\n\n\tif connection ~= nil then\n\t\tconnection:Disconnect()\n\tend\n\n\tlocal endedAt = Core_Env.now()\n\tmeta.elapsed = endedAt - startedAt\n\n\tlocal summary = perf:Summarize(\"ms\")\n\tlocal gcKb, gcOk = 0, false\n\tif collectgarbage ~= nil then\n\t\tlocal ok, value = pcall(collectgarbage, \"count\")\n\t\tif ok and type(value) == \"number\" then gcKb, gcOk = value, true end\n\tend\n\n\tlocal statsFps, statsOk = Measure.ReadStatsFps()\n\tif statsOk then\n\t\tmeta.statsCrossCheck = statsFps\n\tend\n\tif meta.source ~= \"none\" and meta.samples == 0 then\n\t\tmeta.note = \"có kết nối signal nhưng không nhận được mẫu nào\"\n\tend\n\n\tlocal result = {\n\t\tmeta = meta,\n\t\tframe = summary,\n\t\tfps = {\n\t\t\tmean = summary.fps_mean or 0,\n\t\t\tp1   = summary.fps_p1 or 0,\n\t\t\tp5   = summary.fps_p5 or 0,\n\t\t\tp50  = summary.fps_p50 or 0,\n\t\t\tmin  = summary.fps_min or 0,\n\t\t},\n\t\tframeTimeMs = {\n\t\t\tmean = summary.mean,\n\t\t\tp95  = summary.p95,\n\t\t\tmax  = summary.max,\n\t\t},\n\t\tgcHeapKb = gcKb,\n\t\tgcAvailable = gcOk,\n\t\tstatsFps = statsFps,\n\t\tstatsAvailable = statsOk,\n\t\tworld = Measure.WorldStats(),\n\t\ttime = endedAt,\n\t}\n\n\tMeasure.last = result\n\tUtil_Log.Info(SCOPE, (\"đo '%s' xong: %d mẫu trong %.2fs (nguồn: %s)\")\n\t\t:format(meta.label, meta.samples, meta.elapsed, meta.source))\n\treturn result\nend\n\n--[[\n\tSo sánh hai lần đo. CHỈ tính toán từ số liệu thật đã truyền vào.\n\tNếu một bên không có mẫu, trả về valid = false và nêu lý do — không suy diễn.\n]]\nfunction Measure.Compare(before: any, after: any)\n\tlocal out = {\n\t\tvalid = true,\n\t\treason = nil,\n\t\trows = {},\n\t}\n\n\tif before == nil or after == nil then\n\t\tout.valid = false\n\t\tout.reason = \"thiếu dữ liệu before/after\"\n\t\treturn out\n\tend\n\tif (before.meta and before.meta.samples or 0) == 0\n\t\tor (after.meta and after.meta.samples or 0) == 0 then\n\t\tout.valid = false\n\t\tout.reason = \"một trong hai lần đo có 0 mẫu khung hình -> không kết luận được\"\n\t\treturn out\n\tend\n\n\tlocal function deltaRow(label, beforeValue, afterValue, formatter, betterWhenLower)\n\t\tlocal diff = afterValue - beforeValue\n\t\tlocal pct = beforeValue ~= 0 and (diff / beforeValue) * 100 or 0\n\t\tout.rows[#out.rows + 1] = {\n\t\t\tlabel = label,\n\t\t\tbefore = formatter(beforeValue),\n\t\t\tafter = formatter(afterValue),\n\t\t\tdelta = (\"%+.1f%%\"):format(pct),\n\t\t\tbetter = betterWhenLower and diff < 0 or (not betterWhenLower and diff > 0),\n\t\t\trawBefore = beforeValue,\n\t\t\trawAfter = afterValue,\n\t\t\tpct = pct,\n\t\t}\n\tend\n\n\tlocal function f1(v: number) return (\"%.1f\"):format(v) end\n\tlocal function f0(v: number) return (\"%.0f\"):format(v) end\n\n\tdeltaRow(\"FPS trung bình\", before.fps.mean, after.fps.mean, f1, false)\n\tdeltaRow(\"FPS p1 (tệ nhất)\", before.fps.p1, after.fps.p1, f1, false)\n\tdeltaRow(\"FPS p5\", before.fps.p5, after.fps.p5, f1, false)\n\tdeltaRow(\"Frame time TB (ms)\", before.frameTimeMs.mean, after.frameTimeMs.mean, f1, true)\n\tdeltaRow(\"Frame time p95 (ms)\", before.frameTimeMs.p95, after.frameTimeMs.p95, f1, true)\n\n\tif before.gcAvailable and after.gcAvailable then\n\t\tdeltaRow(\"Luau heap (MB)\", before.gcHeapKb / 1024, after.gcHeapKb / 1024, f1, true)\n\tend\n\n\tout.summary = {}\n\tlocal improved, regressed = 0, 0\n\tfor _, row in out.rows do\n\t\tif row.better then improved += 1 else regressed += 1 end\n\tend\n\tout.summary.improved = improved\n\tout.summary.regressed = regressed\n\tout.summary.verdict = improved > regressed and \"improved\"\n\t\tor (regressed > improved and \"regressed\" or \"unchanged\")\n\n\tout.summary.baselineSamples = before.meta.samples\n\tout.summary.afterSamples = after.meta.samples\n\tout.summary.durationBefore = before.meta.duration\n\tout.summary.durationAfter = after.meta.duration\n\n\treturn out\nend\n\n-- Bản in ra Output (dùng khi không có UI hoặc muốn log đầy đủ).\nfunction Measure.FormatComparison(comparison: any): { string }\n\tlocal rows = { { \"Chỉ số\", \"Trước\", \"Sau\", \"Thay đổi\" } }\n\tfor _, row in comparison.rows do\n\t\trows[#rows + 1] = { row.label, row.before, row.after, row.delta }\n\tend\n\tlocal lines = Util_Log.FormatRows(rows)\n\ttable.insert(lines, 1, (\"Kết luận: %s (cải thiện %d/%d chỉ số)\")\n\t\t:format(comparison.summary.verdict, comparison.summary.improved, #comparison.rows))\n\ttable.insert(lines, 2, (\"Số mẫu: trước=%d (%.1fs) sau=%d (%.1fs)\")\n\t\t:format(comparison.summary.baselineSamples, comparison.summary.durationBefore,\n\t\t\tcomparison.summary.afterSamples, comparison.summary.durationAfter))\n\treturn lines\nend\n\nreturn Measure\n",
-	["Client/Core/Net"] = "--[[ ===== RALO.METHODS:BEGIN =====\n\tCác phương pháp được TRIỂN KHAI TRONG TỆP NÀY (khớp với Shared/Methods.luau):\n\t  NET-001, NET-002, NET-003, NET-007 \n\t===== RALO.METHODS:END ===== --]]\n\n--[[\n\tClient/Core/Net.luau\n\t===== RALO.METHODS:NET-001, NET-002, NET-003 =====\n\n\tTiết chế lưu lượng mạng PHÍA CLIENT.\n\n\tSỰ THẬT KỸ THUẬT (nêu rõ để không nói quá):\n\t  * Một LocalScript KHÔNG thể tự throttle băng thông của chính nó,\n\t    không thể giảm tần suất replicate của server, và không thể đổi\n\t    NetworkOwner (SetNetworkOwner là API phía server).\n\t  * Cái LocalScript LÀM ĐƯỢC và tệp này làm thật:\n\t      - gộp nhiều thông điệp thành một (batching),\n\t      - chặn gửi trùng/thưa trong cửa sổ thời gian (throttling),\n\t      - chỉ gửi dữ liệu khác lần trước (delta).\n\t    Cả ba đều giảm số lần FireServer, tức giảm thật số gói tin\n\t    mà client này sinh ra.\n\n\tKhông có RemoteEvent \"trang trí\": Net chỉ hoạt động khi người dùng\n\tthật sự truyền remote của game vào. Nếu không truyền, nó báo rõ\n\t\"không có remote để tối ưu\" và trả về 0 thay đổi.\n]]\n\nlocal Client_Env = __RALO_REQUIRE(\"Client/Core/Env\")\nlocal Shared_Log = __RALO_REQUIRE(\"Shared/Log\")\nlocal Client_Scheduler = __RALO_REQUIRE(\"Client/Core/Scheduler\")\n\nlocal SCOPE = \"Net\"\n\nlocal Net = {}\n\nNet.channels = {}          -- name -> { remote, minInterval, queue, lastSent, lastPayload }\nNet.handle = nil\nNet.stats = { queued = 0, sent = 0, suppressed = 0, batched = 0, noRemote = 0 }\n\n--[[\n\tĐăng ký một kênh gửi.\n\tspec = {\n\t\tremote      = RemoteEvent của game,\n\t\tminInterval = giây tối thiểu giữa hai lần gửi (mặc định 0.25),\n\t\tbatch       = true -> gộp nhiều payload thành một mảng\n\t}\n]]\nfunction Net.Register(name, spec)\n\tif type(name) ~= \"string\" or type(spec) ~= \"table\" then\n\t\tShared_Log.Warn(SCOPE, \"Register cần tên chuỗi và spec bảng\")\n\t\treturn nil\n\tend\n\tif spec.remote == nil then\n\t\tShared_Log.Warn(SCOPE, (\"kênh '%s' không có remote -> sẽ không gửi gì\"):format(name))\n\tend\n\n\tNet.channels[name] = {\n\t\tremote = spec.remote,\n\t\tminInterval = math.max(0, tonumber(spec.minInterval) or 0.25),\n\t\tbatch = spec.batch == true,\n\t\tqueue = {},\n\t\tlastSent = -math.huge,\n\t\tlastPayload = nil,\n\t}\n\treturn Net.channels[name]\nend\n\n-- So sánh nông hai payload: dùng để bỏ qua dữ liệu giống hệt lần trước.\nlocal function shallowEqual(a, b)\n\tif a == b then\n\t\treturn true\n\tend\n\tif type(a) ~= \"table\" or type(b) ~= \"table\" then\n\t\treturn false\n\tend\n\tfor key, value in pairs(a) do\n\t\tif b[key] ~= value then\n\t\t\treturn false\n\t\tend\n\tend\n\tfor key in pairs(b) do\n\t\tif a[key] == nil then\n\t\t\treturn false\n\t\tend\n\tend\n\treturn true\nend\n\n--[[\n\tĐưa dữ liệu vào hàng đợi. KHÔNG gửi ngay.\n\tTrả về: \"queued\" | \"suppressed-duplicate\" | \"no-channel\"\n]]\nfunction Net.Send(name, payload)\n\tlocal channel = Net.channels[name]\n\tif channel == nil then\n\t\tNet.stats.noRemote += 1\n\t\treturn \"no-channel\"\n\tend\n\n\t-- NET-003: bỏ qua nếu giống hệt lần gửi trước\n\tif shallowEqual(channel.lastPayload, payload) then\n\t\tNet.stats.suppressed += 1\n\t\treturn \"suppressed-duplicate\"\n\tend\n\n\ttable.insert(channel.queue, payload)\n\tNet.stats.queued += 1\n\tNet.Start()\n\treturn \"queued\"\nend\n\n-- Một lượt xả hàng đợi. `nowSeconds` cho phép test bơm thời gian ảo.\nfunction Net.Flush(nowSeconds)\n\tlocal now = nowSeconds or Client_Env.now()\n\tlocal sent = 0\n\n\tfor name, channel in pairs(Net.channels) do\n\t\tif #channel.queue > 0 then\n\t\t\tif channel.remote == nil then\n\t\t\t\t-- Không có remote: bỏ hàng đợi để không phình bộ nhớ, và báo rõ\n\t\t\t\tNet.stats.noRemote += #channel.queue\n\t\t\t\ttable.clear(channel.queue)\n\t\t\telseif now - channel.lastSent >= channel.minInterval then\n\t\t\t\tlocal payload\n\t\t\t\tif channel.batch and #channel.queue > 1 then\n\t\t\t\t\tpayload = { channel.queue }          -- NET-002: một gói cho nhiều thông điệp\n\t\t\t\t\tNet.stats.batched += #channel.queue - 1\n\t\t\t\t\ttable.clear(channel.queue)\n\t\t\t\telse\n\t\t\t\t\tpayload = table.remove(channel.queue, 1)\n\t\t\t\tend\n\n\t\t\t\tlocal ok, err = pcall(function()\n\t\t\t\t\tchannel.remote:FireServer(payload)\n\t\t\t\tend)\n\t\t\t\tif ok then\n\t\t\t\t\tchannel.lastSent = now\n\t\t\t\t\tchannel.lastPayload = payload\n\t\t\t\t\tNet.stats.sent += 1\n\t\t\t\t\tsent += 1\n\t\t\t\telse\n\t\t\t\t\tShared_Log.Warn(SCOPE, (\"gửi kênh '%s' lỗi: %s\"):format(name, tostring(err)))\n\t\t\t\tend\n\t\t\tend\n\t\tend\n\tend\n\n\treturn sent\nend\n\n-- Bật bộ xả định kỳ qua Scheduler (không mở vòng lặp riêng).\nfunction Net.Start()\n\tif Net.handle ~= nil then\n\t\treturn Net.handle\n\tend\n\tNet.handle = Client_Scheduler.Schedule({\n\t\tname = \"net.flush\",\n\t\tinterval = 0.25,\n\t\tpriority = -20,               -- ưu tiên thấp, không tranh khung hình\n\t\tcallback = function()\n\t\t\tNet.Flush()\n\t\tend,\n\t})\n\treturn Net.handle\nend\n\nfunction Net.Stop()\n\tif Net.handle ~= nil then\n\t\tNet.handle:Cancel()\n\t\tNet.handle = nil\n\tend\n\tfor _, channel in pairs(Net.channels) do\n\t\ttable.clear(channel.queue)\n\tend\n\treturn true\nend\n\nfunction Net.QueueDepth(name)\n\tlocal channel = Net.channels[name]\n\treturn channel ~= nil and #channel.queue or 0\nend\n\nfunction Net.Stats()\n\treturn {\n\t\tchannels = (function()\n\t\t\tlocal n = 0\n\t\t\tfor _ in pairs(Net.channels) do\n\t\t\t\tn += 1\n\t\t\tend\n\t\t\treturn n\n\t\tend)(),\n\t\tqueued = Net.stats.queued,\n\t\tsent = Net.stats.sent,\n\t\tsuppressedDuplicates = Net.stats.suppressed,\n\t\tbatched = Net.stats.batched,\n\t\tdroppedNoRemote = Net.stats.noRemote,\n\t\t-- Tỷ lệ nén: số thông điệp bị chặn/gộp so với tổng số đưa vào\n\t\tsavingRate = Net.stats.queued > 0\n\t\t\tand ((Net.stats.suppressed + Net.stats.batched) / Net.stats.queued) or 0,\n\t}\nend\n\nfunction Net.Reset()\n\tNet.Stop()\n\ttable.clear(Net.channels)\n\tNet.stats = { queued = 0, sent = 0, suppressed = 0, batched = 0, noRemote = 0 }\nend\n\nreturn Net\n",
-	["Client/Core/Perf"] = "--[[ ===== RALO.METHODS:BEGIN =====\n\tCác phương pháp được TRIỂN KHAI TRONG TỆP NÀY (khớp với Shared/Methods.luau):\n\t  CPU-006, HEAVY-001, MEAS-002, RAM-001 \n\t===== RALO.METHODS:END ===== --]]\n\n--[[\n\tCore/Perf.luau\n\tToán học thống kê cho dữ liệu khung hình. THUẦN LOGIC — không có API\n\tRoblox nào ở đây, nên có thể unit test chính xác bằng số liệu dựng sẵn.\n\n\tBộ đệm vòng (ring buffer) kích thước cố định -> không phình bộ nhớ\n\tkhi đo lâu, và p1/p5/p95 tính trên đúng số mẫu đang giữ.\n]]\n\nlocal Perf = {}\nPerf.__index = Perf\n\nfunction Perf.New(capacity: number)\n\tlocal self = setmetatable({}, Perf)\n\tself.capacity = math.max(8, math.floor(capacity or 180))\n\tself.values = table.create(self.capacity, 0)\n\tself.head = 0        -- số mẫu đã ghi (tăng mãi, lấy modulo)\n\tself.sum = 0\n\tself.min = math.huge\n\tself.max = -math.huge\n\treturn self\nend\n\nfunction Perf.Push(self, value: number)\n\tif type(value) ~= \"number\" or value ~= value then\n\t\treturn self                 -- bỏ qua NaN / sai kiểu, không làm hỏng thống kê\n\tend\n\tlocal slot = (self.head % self.capacity) + 1\n\tlocal previous = self.values[slot]\n\n\tif self.head >= self.capacity then\n\t\tself.sum -= previous        -- trừ mẫu sắp bị ghi đè\n\tend\n\n\tself.values[slot] = value\n\tself.head += 1\n\tself.sum += value\n\tif value < self.min then self.min = value end\n\tif value > self.max then self.max = value end\n\treturn self\nend\n\nfunction Perf.Count(self): number\n\treturn math.min(self.head, self.capacity)\nend\n\nfunction Perf.Mean(self): number\n\tlocal n = Perf.Count(self)\n\tif n == 0 then return 0 end\n\treturn self.sum / n\nend\n\n-- Độ lệch chuẩn mẫu (n-1). Trả 0 nếu ít hơn 2 mẫu.\nfunction Perf.StdDev(self): number\n\tlocal n = Perf.Count(self)\n\tif n < 2 then return 0 end\n\tlocal mean = Perf.Mean(self)\n\tlocal acc = 0\n\tfor i = 1, n do\n\t\tlocal d = self.values[i] - mean\n\t\tacc += d * d\n\tend\n\treturn math.sqrt(acc / (n - 1))\nend\n\n--[[\n\tPercentile theo nội suy tuyến tính (cùng định nghĩa numpy.percentile mặc định).\n\tp nằm trong 0..100.\n]]\nfunction Perf.Percentile(self, p: number): number\n\tlocal n = Perf.Count(self)\n\tif n == 0 then return 0 end\n\n\t-- Sao ra mảng đã sắp xếp (chỉ n phần tử đang có hiệu lực)\n\tlocal sorted = table.create(n)\n\tfor i = 1, n do\n\t\tsorted[i] = self.values[i]\n\tend\n\ttable.sort(sorted)\n\n\tlocal rank = (math.clamp(p, 0, 100) / 100) * (n - 1)\n\tlocal lower = math.floor(rank)\n\tlocal frac = rank - lower\n\tlocal a = sorted[lower + 1]\n\tlocal b = sorted[math.min(lower + 2, n)]\n\treturn a + (b - a) * frac\nend\n\n--[[\n\tTóm tắt: trả về bảng chỉ số. unit = \"ms\" (frame time) hoặc \"fps\".\n\tKhi input là frame time (ms), fps được suy ra từ percentile frame time:\n\t\tfps_pX = 1000 / frameTime_p(100-X)\n\t(p1 fps lấy từ p99 frame time — đúng ý nghĩa \"khung hình tệ nhất\").\n]]\nfunction Perf.Summarize(self, unit: string): { [string]: number }\n\tlocal n = Perf.Count(self)\n\tlocal summary = {\n\t\tunit = unit,\n\t\tsamples = n,\n\t\tmean = 0, min = 0, max = 0, stddev = 0,\n\t\tp1 = 0, p5 = 0, p50 = 0, p95 = 0, p99 = 0,\n\t}\n\tif n == 0 then\n\t\treturn summary\n\tend\n\n\tsummary.mean = Perf.Mean(self)\n\tif n > 0 then summary.min = self.min end\n\tif n > 0 then summary.max = self.max end\n\tsummary.stddev = Perf.StdDev(self)\n\tsummary.p1  = Perf.Percentile(self, 1)\n\tsummary.p5  = Perf.Percentile(self, 5)\n\tsummary.p50 = Perf.Percentile(self, 50)\n\tsummary.p95 = Perf.Percentile(self, 95)\n\tsummary.p99 = Perf.Percentile(self, 99)\n\n\tif unit == \"ms\" then\n\t\tlocal function toFps(ms: number): number\n\t\t\tif ms <= 0 then return 0 end\n\t\t\treturn 1000 / ms\n\t\tend\n\t\tsummary.fps_mean = toFps(summary.mean)\n\t\tsummary.fps_p1   = toFps(summary.p99)   -- khung hình tệ nhất\n\t\tsummary.fps_p5   = toFps(summary.p95)\n\t\tsummary.fps_p50  = toFps(summary.p50)\n\t\tsummary.fps_min  = toFps(summary.max)\n\t\tsummary.fps_max  = toFps(summary.min)\n\tend\n\n\treturn summary\nend\n\n-- Trung bình trượt của N mẫu cuối — dùng cho chỉ số FPS tức thời trên menu.\nfunction Perf.RecentMean(self, count: number): number\n\tlocal n = Perf.Count(self)\n\tlocal take = math.min(math.max(1, math.floor(count or 30)), n)\n\tif take == 0 then return 0 end\n\tlocal acc = 0\n\tfor i = 0, take - 1 do\n\t\tlocal slot = ((self.head - 1 - i) % self.capacity) + 1\n\t\tacc += self.values[slot]\n\tend\n\treturn acc / take\nend\n\nfunction Perf.Reset(self)\n\tself.head = 0\n\tself.sum = 0\n\tself.min = math.huge\n\tself.max = -math.huge\n\ttable.clear(self.values)\n\tfor i = 1, self.capacity do\n\t\tself.values[i] = 0\n\tend\n\treturn self\nend\n\nreturn Perf\n",
-	["Client/Core/Pipeline"] = "--[[ ===== RALO.METHODS:BEGIN =====\n\tCác phương pháp được TRIỂN KHAI TRONG TỆP NÀY (khớp với Shared/Methods.luau):\n\t  CFG-001, LOOP-005, MEAS-001, MEAS-003, MEAS-007, REC-003 \n\t===== RALO.METHODS:END ===== --]]\n\n--[[\n\tClient/Core/Pipeline.luau\n\t===== RALO.METHODS:CFG-001, LOOP-005, MEAS-001, MEAS-003, MEAS-007, REC-003 =====\n\n\tDàn nhạc của toàn bộ chương trình:\n\n\t1. lập kế hoạch theo cấu hình  (Plan.Build)\n\t2. dựng bảng trạng thái tối giản (Ui/Notifier), tạo bộ đếm nội bộ (Ui/Progress)\n\t3. ĐO TRƯỚC                    (Measure.Run baselineSeconds)\n\t4. thực thi từng bước          (Runner.Execute)\n\t5. nghỉ settle\n\t6. ĐO SAU                      (Measure.Run afterSeconds)\n\t7. so sánh, in kết quả Output + cập nhật trạng thái GUI\n\n\tHAI NGUYÊN TẮC KHÔNG ĐƯỢC VI PHẠM:\n\t  * Không bước nào sinh số liệu giả. Nếu không đo được (0 mẫu),\n\t    pipeline nói rõ \"không kết luận được\" thay vì in ra con số.\n\t  * Thất bại KHÔNG được trình bày như thành công. Nếu có bước lỗi,\n\t    GUI chuyển sang trạng thái lỗi thật và Output ghi rõ lỗi.\n]]\n\nlocal Core_Env = __RALO_REQUIRE(\"Client/Core/Env\")\nlocal Core_Measure = __RALO_REQUIRE(\"Client/Core/Measure\")\nlocal Core_Plan = __RALO_REQUIRE(\"Client/Core/Plan\")\nlocal Core_Restore = __RALO_REQUIRE(\"Client/Core/Restore\")\nlocal Core_Runner = __RALO_REQUIRE(\"Client/Core/Runner\")\nlocal Shared_Config = __RALO_REQUIRE(\"Shared/Config\")\nlocal Shared_Log = __RALO_REQUIRE(\"Shared/Log\")\nlocal Shared_Safe = __RALO_REQUIRE(\"Shared/Safe\")\nlocal Shared_Types = __RALO_REQUIRE(\"Shared/Types\")\nlocal Ui_Notifier = __RALO_REQUIRE(\"Client/Ui/Notifier\")\nlocal Ui_Progress = __RALO_REQUIRE(\"Client/Ui/Progress\")\n\nlocal SCOPE = \"Pipeline\"\n\nlocal Pipeline = {}\n\nPipeline.lastResult = nil\n\n--[[\n\tTìm nơi treo GUI.\n\tLocalScript -> Players.LocalPlayer.PlayerGui (đây là đường ĐÚNG duy nhất\n\tcho LocalScript; CoreGui không ghi được từ LocalScript thường).\n]]\nfunction Pipeline.GetGuiParent()\n\tlocal players = Core_Env.GetService(\"Players\")\n\tif players ~= nil then\n\t\tlocal ok, player = pcall(function()\n\t\t\treturn players.LocalPlayer\n\t\tend)\n\t\tif ok and player ~= nil then\n\t\t\tlocal okGui, playerGui = pcall(function()\n\t\t\t\treturn player:FindFirstChildOfClass(\"PlayerGui\")\n\t\t\tend)\n\t\t\tif okGui and playerGui ~= nil then\n\t\t\t\treturn playerGui\n\t\t\tend\n\t\tend\n\tend\n\t-- Không có PlayerGui (ví dụ chạy trong harness) -> trả về game để test\n\treturn Core_Env.game\nend\n\n-- Dựng bảng kết quả đo từ chỉ số tức thời (dùng khi options.instant = true)\nlocal function instantSnapshot(label)\n\tlocal instant = Core_Measure.Instant()\n\tlocal value = instant.frameTimeMs\n\treturn {\n\t\tmeta = {\n\t\t\tlabel = label,\n\t\t\tsamples = instant.frameTimeAvailable and 1 or 0,\n\t\t\tduration = 0,\n\t\t\tsource = \"instant\",\n\t\t\tnote = \"chỉ số tức thời một lần đọc, KHÔNG phải phân bố khung hình\",\n\t\t},\n\t\tframe = { mean = value, p95 = value, max = value },\n\t\tfps = {\n\t\t\tmean = instant.fps, p1 = instant.fps, p5 = instant.fps, p50 = instant.fps, min = instant.fps,\n\t\t},\n\t\tframeTimeMs = { mean = value, p95 = value, max = value },\n\t\tgcHeapKb = instant.gcHeapKb,\n\t\tgcAvailable = instant.gcAvailable,\n\t\tstatsFps = instant.statsFps,\n\t\tstatsAvailable = instant.statsAvailable,\n\t\tworld = Core_Measure.WorldStats(),\n\t\ttime = instant.time,\n\t}\nend\n\n--[[\n\toptions = {\n\t\tprofile = bảng cấu hình (mặc định Shared_Config.PROFILE)\n\t\tbuildUi = true/false (mặc định true)\n\t\tonPhase = function(phase, payload)\n\t\tinstant = true -> bỏ qua lấy mẫu khung hình, chỉ đọc chỉ số tức thời\n\t}\n\tTrả về bảng kết quả. KHÔNG throw: lỗi được bắt và ghi vào result.error.\n]]\nfunction Pipeline.Run(options)\n\toptions = options or {}\n\tlocal profile = options.profile or Shared_Config.PROFILE\n\tlocal buildUi = options.buildUi\n\tif buildUi == nil then\n\t\tbuildUi = true\n\tend\n\tlocal onPhase = options.onPhase or function() end\n\tlocal measure = profile.measure or Shared_Config.PROFILE.measure\n\tlocal progress = nil\n\n\tlocal ok, result = pcall(function()\n\t\tonPhase(Shared_Types.PHASE_IDLE, nil)\n\n\t\t------------------------------------------------------ 1. kế hoạch\n\t\tlocal plan = Core_Plan.Build(profile)\n\t\tfor _, line in ipairs(Core_Plan.Describe(plan)) do\n\t\t\tShared_Log.Info(SCOPE, line)\n\t\tend\n\n\t\t----------------------------------------------------------- 2. GUI\n\t\tprogress = Ui_Progress.New(plan.total)\n\t\tlocal notifier = nil\n\t\tif buildUi then\n\t\t\tnotifier = Ui_Notifier.Build({\n\t\t\t\tparent = Pipeline.GetGuiParent(),\n\t\t\t\tprofile = profile,\n\t\t\t})\n\t\tend\n\n\t\t------------------------------------------------------ 3. đo TRƯỚC\n\t\tonPhase(Shared_Types.PHASE_BASELINE, nil)\n\t\tlocal before\n\t\tif options.instant then\n\t\t\tbefore = instantSnapshot(\"baseline\")\n\t\telse\n\t\t\tShared_Log.Info(SCOPE, (\"đang đo nền %.1f giây — đừng làm gì để số đo sạch\")\n\t\t\t\t:format(measure.baselineSeconds))\n\t\t\tbefore = Core_Measure.Run(measure.baselineSeconds, {\n\t\t\t\tlabel = \"baseline\",\n\t\t\t\twindow = measure.frameWindow,\n\t\t\t})\n\t\tend\n\n\t\t------------------------------------------------------- 4. thực thi\n\t\tprogress:SetPhase(Shared_Types.PHASE_OPTIMIZING, \"đang tối ưu\")\n\t\tonPhase(Shared_Types.PHASE_OPTIMIZING, plan)\n\n\t\tCore_Runner.Execute(plan, {\n\t\t\tonStep = function(step, index)\n\t\t\t\tprogress:Mark(index, step.status, step.name .. \": \" .. tostring(step.detail or \"\"))\n\t\t\tend,\n\t\t})\n\n\t\tlocal tally = Core_Runner.Tally(plan)\n\t\tShared_Log.Info(SCOPE, (\"thực thi xong: áp dụng %d, bỏ qua %d, lỗi %d, tổng %d thay đổi\")\n\t\t\t:format(tally.applied, tally.skipped, tally.failed, tally.changes))\n\n\t\t-------------------------------------------------------- 5. settle\n\t\tif measure.settleSeconds > 0 and not options.instant then\n\t\t\tprogress:SetPhase(Shared_Types.PHASE_SETTLE, \"đang chờ FPS ổn định\")\n\t\t\tCore_Env.Wait(measure.settleSeconds)\n\t\tend\n\n\t\t----------------------------------------------------- 6. đo SAU\n\t\tlocal after\n\t\tif options.instant then\n\t\t\tafter = instantSnapshot(\"after\")\n\t\telse\n\t\t\tprogress:SetPhase(Shared_Types.PHASE_REMEASURE, \"đang đo lại\")\n\t\t\tShared_Log.Info(SCOPE, (\"đang đo sau tối ưu %.1f giây\"):format(measure.afterSeconds))\n\t\t\tafter = Core_Measure.Run(measure.afterSeconds, {\n\t\t\t\tlabel = \"after\",\n\t\t\t\twindow = measure.frameWindow,\n\t\t\t})\n\t\tend\n\n\t\t----------------------------------------------------- 7. so sánh\n\t\tprogress:SetPhase(Shared_Types.PHASE_COMPARE, \"đang so sánh\")\n\t\tlocal comparison = Core_Measure.Compare(before, after)\n\n\t\tlocal lines\n\t\tif comparison.valid then\n\t\t\tlines = Core_Measure.FormatComparison(comparison)\n\t\telse\n\t\t\tlines = {\n\t\t\t\t\"Không kết luận được: \" .. tostring(comparison.reason),\n\t\t\t\t(\"mẫu trước=%d, mẫu sau=%d\")\n\t\t\t\t\t:format(before.meta.samples or 0, after.meta.samples or 0),\n\t\t\t\t\"Chạy lại ở nơi có cảnh nặng hơn, hoặc tăng baselineSeconds/afterSeconds.\",\n\t\t\t}\n\t\tend\n\n\t\t-- In ra Output: bản ghi đầy đủ, kể cả khi GUI đã ẩn\n\t\tShared_Log.Info(SCOPE, \"=== KẾT QUẢ ĐO TRƯỚC / SAU ===\")\n\t\tfor _, line in ipairs(lines) do\n\t\t\tShared_Log.Info(SCOPE, line)\n\t\tend\n\t\tShared_Log.Info(SCOPE, (\"nguồn số liệu: trước=%s, sau=%s\")\n\t\t\t:format(tostring(before.meta.source), tostring(after.meta.source)))\n\n\t\t-- THẤT BẠI KHÔNG ĐƯỢC TRÌNH BÀY NHƯ THÀNH CÔNG\n\t\tlocal verdict\n\t\tif tally.failed > 0 then\n\t\t\tverdict = \"error\"\n\t\t\tlines[#lines + 1] = (\"CÓ %d BƯỚC LỖI — xem Output để biết chi tiết\"):format(tally.failed)\n\t\telseif comparison.valid then\n\t\t\tverdict = comparison.summary.verdict\n\t\tend\n\n\t\tif notifier ~= nil then\n\t\t\tnotifier:SetResults(lines, verdict)\n\t\tend\n\t\tprogress:SetPhase(Shared_Types.PHASE_DONE, \"hoàn tất\")\n\t\tonPhase(Shared_Types.PHASE_DONE, comparison)\n\n\t\treturn {\n\t\t\tversion = Shared_Config.VERSION,\n\t\t\tenvironment = Core_Env.mode,\n\t\t\tbefore = before,\n\t\t\tafter = after,\n\t\t\tcomparison = comparison,\n\t\t\tplan = plan,\n\t\t\ttally = tally,\n\t\t\trestoreEntries = Core_Restore.Count(),\n\t\t\tlogLines = lines,\n\t\t\tsafeRecords = #Shared_Safe.Records,\n\t\t\tverdict = verdict,\n\t\t\terror = nil,\n\t\t}\n\tend)\n\n\tif progress ~= nil then\n\t\tlocal cleanupOk, cleanupError = pcall(function()\n\t\t\tprogress:Destroy()\n\t\tend)\n\t\tif not cleanupOk then\n\t\t\tShared_Log.Warn(SCOPE, \"không dọn được tiến trình nội bộ: \" .. tostring(cleanupError))\n\t\tend\n\tend\n\n\tif not ok then\n\t\t-- Lỗi thật: ghi log, báo GUI bằng trạng thái LỖI, và trả về error\n\t\tShared_Log.Error(SCOPE, \"pipeline lỗi: \" .. tostring(result))\n\t\tlocal notifier = nil\n\t\tlocal okNotifier, built = pcall(function()\n\t\t\treturn Ui_Notifier.Get()\n\t\tend)\n\t\tif okNotifier then\n\t\t\tnotifier = built\n\t\tend\n\t\tif notifier ~= nil then\n\t\t\tpcall(function()\n\t\t\t\tnotifier:SetResults({ \"Tối ưu thất bại.\", tostring(result) }, \"error\")\n\t\t\tend)\n\t\tend\n\t\tPipeline.lastResult = { verdict = \"error\", error = tostring(result) }\n\t\treturn Pipeline.lastResult\n\tend\n\n\tPipeline.lastResult = result\n\treturn result\nend\n\n--[[\n\tHoàn tác mọi thay đổi mà hệ thống đã thực hiện.\n\tTrả về: số property đã khôi phục, số lần thất bại.\n]]\nfunction Pipeline.Restore()\n\treturn Core_Restore.All()\nend\n\n-- Dừng hẳn hệ thống: ngắt kết nối, huỷ GUI, giải phóng bộ lập lịch.\nfunction Pipeline.Shutdown()\n\tlocal notifier = Ui_Notifier.Get()\n\tif notifier ~= nil then\n\t\tnotifier:Destroy()\n\tend\n\treturn true\nend\n\nreturn Pipeline\n",
-	["Client/Core/Plan"] = "--[[ ===== RALO.METHODS:BEGIN =====\n\tCác phương pháp được TRIỂN KHAI TRONG TỆP NÀY (khớp với Shared/Methods.luau):\n\t  CFG-001, CFG-002, LOOP-005, REC-004 \n\t===== RALO.METHODS:END ===== --]]\n\n--[[\n\tClient/Core/Plan.luau\n\t===== RALO.METHODS:CFG-001, CFG-002, LOOP-005, REC-004 =====\n\n\tLập KẾ HOẠCH tối ưu: quyết định bước nào chạy, bước nào bỏ qua và VÌ SAO.\n\n\tNguyên tắc: bước không khả thi KHÔNG biến mất khỏi kế hoạch. Nó vẫn\n\txuất hiện với available = false kèm lý do, để người dùng biết chính xác\n\tcái gì chưa được làm và tại sao. Đây là một phần của cơ chế chống\n\t\"báo cáo khống\".\n\n\tKiểm tra khả dụng dùng Client_Env.GetService (API thật của Roblox),\n\tkhông dùng bất kỳ cơ chế probe executor nào.\n]]\n\nlocal Core_Env = __RALO_REQUIRE(\"Client/Core/Env\")\nlocal Core_Devices = __RALO_REQUIRE(\"Client/Core/Devices\")\nlocal Shared_Config = __RALO_REQUIRE(\"Shared/Config\")\nlocal Shared_Types = __RALO_REQUIRE(\"Shared/Types\")\nlocal Opt_Effects = __RALO_REQUIRE(\"Client/Optimizations/Effects\")\nlocal Opt_Graphics = __RALO_REQUIRE(\"Client/Optimizations/Graphics\")\nlocal Opt_Memory = __RALO_REQUIRE(\"Client/Optimizations/Memory\")\nlocal Opt_Physics = __RALO_REQUIRE(\"Client/Optimizations/Physics\")\n\nlocal Plan = {}\n\n--[[\n\tDANH MỤC BƯỚC, sắp theo THỨ TỰ ƯU TIÊN của Part 5:\n\t  1. bỏ việc thừa            2. giảm việc trong vòng lặp\n\t  3. gộp kết nối sự kiện     4. dọn dẹp\n\t  5. giới hạn cập nhật       6. tra cứu/quản lý\n\t  7. tự quản lý đối tượng tạm 8. đo lường\n\t  9. CHỈ CUỐI CÙNG mới tới thay đổi đồ hoạ nhẹ, đảo ngược được\n\n\t`group` khớp với khóa trong Config.PROFILE.groups.\n\t`restorable` = true nghĩa là bước này ghi nhật ký vào Restore.\n]]\nPlan.CATALOG = {\n\t{\n\t\tid = \"graphics.quality\",\n\t\tname = \"Giảm nhẹ chất lượng hình ảnh (mức tối đa 8)\",\n\t\tgroup = \"graphics\",\n\t\tmodule = Opt_Graphics,\n\t\thandler = \"ApplyQualityLevel\",\n\t\trestorable = true,\n\t},\n\t{\n\t\tid = \"graphics.terrain\",\n\t\tname = \"Đặt chi tiết địa hình theo cấu hình (mặc định giữ)\",\n\t\tgroup = \"graphics\",\n\t\tmodule = Opt_Graphics,\n\t\thandler = \"ApplyTerrain\",\n\t\trestorable = true,\n\t},\n\t{\n\t\tid = \"graphics.shadows\",\n\t\tname = \"Giữ nguyên bóng đổ (culling xa mặc định tắt)\",\n\t\tgroup = \"graphics\",\n\t\tmodule = Opt_Graphics,\n\t\thandler = \"ApplyShadowBudget\",\n\t\trestorable = true,\n\t},\n\t{\n\t\tid = \"graphics.character\",\n\t\tname = \"Giữ nguyên bóng và tỉ lệ nhân vật\",\n\t\tgroup = \"character\",\n\t\tmodule = Opt_Graphics,\n\t\thandler = \"ApplyCharacter\",\n\t\trestorable = true,\n\t},\n\t{\n\t\tid = \"effects.particles\",\n\t\tname = \"Giới hạn hạt (particle) — không xoá effect\",\n\t\tgroup = \"effects\",\n\t\tmodule = Opt_Effects,\n\t\thandler = \"CapParticles\",\n\t\trestorable = true,\n\t},\n\t{\n\t\tid = \"effects.optional\",\n\t\tname = \"Beam/Trail/Decal (tuỳ chọn, mặc định giữ nguyên)\",\n\t\tgroup = \"effects\",\n\t\tmodule = Opt_Effects,\n\t\thandler = \"ApplyOptionalEffects\",\n\t\trestorable = true,\n\t},\n\t{\n\t\tid = \"physics.throttling\",\n\t\tname = \"Bớt làm mượt nội suy vật lý (mặc định TẮT)\",\n\t\tgroup = \"physics\",\n\t\tmodule = Opt_Physics,\n\t\thandler = \"ApplyThrottling\",\n\t\trestorable = true,\n\t},\n\t{\n\t\tid = \"memory.gc\",\n\t\tname = \"Kích hoạt chu kỳ dọn bộ nhớ Luau\",\n\t\tgroup = \"memory\",\n\t\tmodule = Opt_Memory,\n\t\thandler = \"StartGcLoop\",\n\t\trestorable = false,\n\t},\n\t{\n\t\tid = \"memory.orphanSweep\",\n\t\tname = \"Gom instance mồ côi (lưu trữ, không xoá)\",\n\t\tgroup = \"memory\",\n\t\tmodule = Opt_Memory,\n\t\thandler = \"SweepOrphans\",\n\t\trestorable = false,\n\t},\n}\n\n-- Dịch tên service mà mỗi bước cần. Không có service -> bước bị skip.\nlocal REQUIRED_SERVICE = {\n\t[\"graphics.quality\"] = \"Lighting\",\n\t[\"graphics.terrain\"] = \"Workspace\",\n\t[\"graphics.shadows\"] = \"Workspace\",\n\t[\"graphics.character\"] = \"Players\",\n}\n\n--[[\n\tXây dựng kế hoạch. KHÔNG thực thi gì ở đây.\n\tprofile: bảng cấu hình (mặc định Shared_Config.PROFILE)\n]]\nfunction Plan.Build(profile)\n\tprofile = profile or Shared_Config.PROFILE\n\n\tlocal mode = Shared_Config.Mode()\n\tlocal steps = {}\n\n\tfor index, entry in ipairs(Plan.CATALOG) do\n\t\tlocal available, reason = true, nil\n\n\t\t-- 1) công tắc tổng\n\t\tif profile.enabled == false or mode == \"off\" then\n\t\t\tavailable, reason = false, \"hệ thống đang tắt (enabled = false hoặc mode = 'off')\"\n\n\t\t-- 2) công tắc theo NHÓM (CFG-001)\n\t\telseif not Core_Devices.IsEnabled(profile, entry.group, entry.id) then\n\t\t\tavailable, reason = false, (\"tắt trong config (groups.%s = false)\"):format(tostring(entry.group))\n\n\t\t-- 3) điều kiện vật lý của từng bước\n\t\telse\n\t\t\tlocal service = REQUIRED_SERVICE[entry.id]\n\t\t\tif service ~= nil and Core_Env.GetService(service) == nil then\n\t\t\t\tavailable, reason = false, (\"không truy cập được service %s\"):format(service)\n\t\t\telseif entry.id == \"physics.throttling\" and not profile.physics.enabled then\n\t\t\t\tavailable, reason = false,\n\t\t\t\t\t\"tắt trong config (physics.enabled = false) — có đánh đổi cảm giác chơi\"\n\t\t\telseif entry.module[entry.handler] == nil then\n\t\t\t\t-- Chốt an toàn: handler không tồn tại thì KHÔNG được báo \"đã làm\"\n\t\t\t\tavailable, reason = false, (\"module thiếu handler %s\"):format(tostring(entry.handler))\n\t\t\tend\n\t\tend\n\n\t\tsteps[#steps + 1] = {\n\t\t\tindex = index,\n\t\t\tid = entry.id,\n\t\t\tname = entry.name,\n\t\t\tgroup = entry.group,\n\t\t\tmodule = entry.module,\n\t\t\thandler = entry.handler,\n\t\t\tavailable = available,\n\t\t\treason = reason,\n\t\t\tstatus = Shared_Types.STATUS_PENDING,\n\t\t\tdetail = reason,\n\t\t\tchanges = 0,\n\t\t\trestorable = entry.restorable == true,\n\t\t}\n\tend\n\n\treturn {\n\t\tsteps = steps,\n\t\ttotal = #steps,\n\t\tprofile = profile,\n\t\tmode = mode,\n\t\tenvironment = Core_Env.mode,\n\t}\nend\n\nfunction Plan.GetById(plan, id)\n\tfor _, step in ipairs(plan.steps) do\n\t\tif step.id == id then\n\t\t\treturn step\n\t\tend\n\tend\n\treturn nil\nend\n\nfunction Plan.CountAvailable(plan)\n\tlocal n = 0\n\tfor _, step in ipairs(plan.steps) do\n\t\tif step.available then\n\t\t\tn += 1\n\t\tend\n\tend\n\treturn n\nend\n\n-- Tóm tắt kế hoạch thành các dòng chữ, dùng cho Output và GUI.\nfunction Plan.Describe(plan)\n\tlocal lines = {\n\t\t(\"kế hoạch: %d bước, %d bước khả dụng (chế độ: %s)\")\n\t\t\t:format(plan.total, Plan.CountAvailable(plan), tostring(plan.mode)),\n\t}\n\tfor _, step in ipairs(plan.steps) do\n\t\tlines[#lines + 1] = (\"  %2d. %-42s %s\")\n\t\t\t:format(step.index, step.name, step.available and \"sẵn sàng\" or (\"BỎ QUA: \" .. tostring(step.reason)))\n\tend\n\treturn lines\nend\n\nreturn Plan\n",
-	["Client/Core/Pool"] = "--[[ ===== RALO.METHODS:BEGIN =====\n\tCác phương pháp được TRIỂN KHAI TRONG TỆP NÀY (khớp với Shared/Methods.luau):\n\t  DATA-001, POOL-001, POOL-003, POOL-004,\n\t  POOL-005, RAM-002 \n\t===== RALO.METHODS:END ===== --]]\n\n--[[\n\tClient/Core/Pool.luau\n\t===== RALO.METHODS:POOL-001, POOL-003, POOL-004, CPU-006, RAM-002, RAM-004 =====\n\n\tObject pooling: tái sử dụng đối tượng thay vì tạo mới rồi huỷ.\n\n\tNguyên nhân lag mà nó xử lý:\n\t  * `Instance.new()` là thao tác ĐẮT (cấp phát phía engine + nhân bản\n\t    template). Làm việc đó mỗi lần bắn đạn/mỗi hiệu ứng gây khựng hình.\n\t  * Tạo bảng Lua mới trong vòng lặp mỗi khung hình -> ép GC chạy\n\t    thường xuyên hơn.\n\t  * `Destroy()` liên tục cũng đắt không kém việc tạo mới.\n\n\tCách xử lý:\n\t  * Acquire(): lấy từ pool nếu có, chỉ tạo mới khi pool rỗng.\n\t  * Release(): trả về pool (Parent = nil, reset property) thay vì Destroy.\n\t  * Có TRẦN dung lượng: pool không được phình thành nguồn rò rỉ mới.\n\t  * Pool bảng Lua riêng cho các bảng tạm (RAM-002).\n]]\n\nlocal Shared_Log = __RALO_REQUIRE(\"Shared/Log\")\nlocal Client_Guard = __RALO_REQUIRE(\"Client/Core/Guard\")\nlocal Client_Registry = __RALO_REQUIRE(\"Client/Core/Registry\")\n\nlocal SCOPE = \"Pool\"\n\nlocal Pool = {}\n\nPool.pools = {}          -- key -> { free = {}, cap, created, className, factory, reset }\nPool.tablePool = {}      -- danh sách bảng tái sử dụng\nPool.tablePoolCap = 64\nPool.stats = { acquired = 0, reused = 0, created = 0, released = 0, capped = 0 }\n\n--[[\n\tĐịnh nghĩa một pool.\n\tspec = {\n\t\tclassName = \"Part\",\n\t\tcapacity  = 32,             -- trần số đối tượng giữ lại\n\t\tfactory   = function() -> instance   (tùy chọn, tự tạo nếu thiếu)\n\t\tprepare   = function(instance) -> () (reset trước khi cất)\n\t\tsetup     = function(instance) -> () (khởi tạo khi tạo mới)\n\t}\n]]\nfunction Pool.Define(key, spec)\n\tif type(key) ~= \"string\" or type(spec) ~= \"table\" then\n\t\tShared_Log.Warn(SCOPE, \"Define cần key chuỗi và spec bảng\")\n\t\treturn nil\n\tend\n\tPool.pools[key] = {\n\t\tfree = {},\n\t\tcap = math.max(1, math.floor(spec.capacity or 32)),\n\t\tcreated = 0,\n\t\tclassName = spec.className,\n\t\tfactory = spec.factory,\n\t\tprepare = spec.prepare,\n\t\tsetup = spec.setup,\n\t}\n\treturn Pool.pools[key]\nend\n\nlocal function createInstance(pool)\n\tif pool.factory ~= nil then\n\t\tlocal ok, instance = Client_Guard.Run(SCOPE .. \":factory\", pool.factory)\n\t\tif ok and instance ~= nil then\n\t\t\treturn instance\n\t\tend\n\t\treturn nil\n\tend\n\tif pool.className == nil then\n\t\treturn nil\n\tend\n\tlocal ok, instance = Client_Guard.Run(SCOPE .. \":new\", function()\n\t\treturn Instance.new(pool.className)\n\tend)\n\tif not ok then\n\t\treturn nil\n\tend\n\tif pool.setup ~= nil then\n\t\tClient_Guard.Run(SCOPE .. \":setup\", pool.setup, instance)\n\tend\n\treturn instance\nend\n\n--[[\n\tLấy một đối tượng từ pool.\n\tTrả về: instance hoặc nil (kèm lý do).\n]]\nfunction Pool.Acquire(key)\n\tlocal pool = Pool.pools[key]\n\tif pool == nil then\n\t\treturn nil, \"pool chưa được định nghĩa: \" .. tostring(key)\n\tend\n\n\tPool.stats.acquired += 1\n\n\tlocal instance = table.remove(pool.free)\n\tif instance ~= nil then\n\t\t-- Kiểm tra đối tượng trong pool còn sống (có thể đã bị game huỷ)\n\t\tif Client_Guard.Alive(instance) then\n\t\t\tPool.stats.reused += 1\n\t\t\treturn instance, \"reused\"\n\t\tend\n\t\tpool.created -= 1\n\tend\n\n\tlocal created = createInstance(pool)\n\tif created == nil then\n\t\treturn nil, \"không tạo được instance cho pool \" .. tostring(key)\n\tend\n\tpool.created += 1\n\tPool.stats.created += 1\n\tClient_Registry.Own(created, \"pool:\" .. key)\n\treturn created, \"created\"\nend\n\n--[[\n\tTrả đối tượng về pool. Parent được đặt nil để nó không còn được render.\n\tNếu pool đã đầy thì huỷ thật (tránh rò rỉ).\n]]\nfunction Pool.Release(key, instance)\n\tlocal pool = Pool.pools[key]\n\tif pool == nil or instance == nil then\n\t\treturn false\n\tend\n\tif not Client_Guard.Alive(instance) then\n\t\treturn false\n\tend\n\n\tif pool.prepare ~= nil then\n\t\tClient_Guard.Run(SCOPE .. \":prepare\", pool.prepare, instance)\n\tend\n\n\tif #pool.free >= pool.cap then\n\t\tPool.stats.capped += 1\n\t\tClient_Guard.Run(SCOPE .. \":destroy\", function()\n\t\t\tinstance:Destroy()\n\t\tend)\n\t\tpool.created -= 1\n\t\treturn false\n\tend\n\n\tClient_Guard.Run(SCOPE .. \":detach\", function()\n\t\tinstance.Parent = nil\n\tend)\n\ttable.insert(pool.free, instance)\n\tPool.stats.released += 1\n\treturn true\nend\n\n-- Pool bảng Lua: tránh cấp phát bảng mới trong vòng lặp nóng.\nfunction Pool.AcquireTable()\n\tlocal t = table.remove(Pool.tablePool)\n\tif t ~= nil then\n\t\treturn t\n\tend\n\treturn {}\nend\n\nfunction Pool.ReleaseTable(t)\n\tif type(t) ~= \"table\" then\n\t\treturn false\n\tend\n\tif table.clear ~= nil then\n\t\ttable.clear(t)\n\telse\n\t\tfor k in pairs(t) do\n\t\t\tt[k] = nil\n\t\tend\n\tend\n\tif #Pool.tablePool >= Pool.tablePoolCap then\n\t\treturn false\n\tend\n\ttable.insert(Pool.tablePool, t)\n\treturn true\nend\n\nfunction Pool.FreeCount(key)\n\tlocal pool = Pool.pools[key]\n\treturn pool ~= nil and #pool.free or 0\nend\n\nfunction Pool.Stats()\n\tlocal pools = {}\n\tfor key, pool in pairs(Pool.pools) do\n\t\tpools[key] = { free = #pool.free, created = pool.created, cap = pool.cap }\n\tend\n\treturn {\n\t\tpools = pools,\n\t\tacquired = Pool.stats.acquired,\n\t\treused = Pool.stats.reused,\n\t\tcreated = Pool.stats.created,\n\t\treleased = Pool.stats.released,\n\t\tcappedOut = Pool.stats.capped,\n\t\ttablePoolSize = #Pool.tablePool,\n\t}\nend\n\nfunction Pool.Shutdown()\n\tfor key, pool in pairs(Pool.pools) do\n\t\tfor _, instance in pool.free do\n\t\t\tClient_Guard.Run(SCOPE .. \":shutdown\", function()\n\t\t\t\tinstance:Destroy()\n\t\t\tend)\n\t\t\t_ = key\n\t\tend\n\t\ttable.clear(pool.free)\n\t\tpool.created = 0\n\tend\n\ttable.clear(Pool.tablePool)\n\tPool.stats = { acquired = 0, reused = 0, created = 0, released = 0, capped = 0 }\n\treturn true\nend\n\nfunction Pool.Reset()\n\tPool.Shutdown()\n\ttable.clear(Pool.pools)\nend\n\nreturn Pool\n",
-	["Client/Core/Profile"] = "--[[ ===== RALO.METHODS:BEGIN =====\n\tCác phương pháp được TRIỂN KHAI TRONG TỆP NÀY (khớp với Shared/Methods.luau):\n\t  HEAVY-002, HEAVY-003, HEAVY-004, MEAS-001,\n\t  MEAS-003, MEAS-005, MEAS-006, MEAS-007,\n\t  SAFE-006 \n\t===== RALO.METHODS:END ===== --]]\n\n--[[\n\tClient/Core/Profile.luau\n\t===== RALO.METHODS:MEAS-001, MEAS-002, MEAS-003, MEAS-004, MEAS-005,\n\t                    HEAVY-001, HEAVY-002, HEAVY-003, HEAVY-004, RES-004 =====\n\n\tĐo lường. Đây là phần quyết định tính TRUNG THỰC của cả dự án:\n\tmọi con số báo cáo đều phải sinh ra từ đây, không có con số nào\n\tđược viết sẵn trong mã.\n\n\tNguồn số liệu thật:\n\t  * frame time = delta thật giữa hai lần RenderStepped\n\t  * Luau heap  = collectgarbage(\"count\")  (KB)\n\t  * chi phí của CHÍNH công cụ tối ưu = thời gian Scheduler.Tick tiêu tốn\n\t  * số connection / instance / pool = đếm từ Registry & Pool\n\n\tNếu không lấy được một chỉ số, hàm trả về `available = false`\n\tvà pipeline ghi rõ \"chưa có số liệu\" — KHÔNG suy ra số gần đúng.\n]]\n\nlocal Client_Env = __RALO_REQUIRE(\"Client/Core/Env\")\nlocal Client_Perf = __RALO_REQUIRE(\"Client/Core/Perf\")\nlocal Shared_Log = __RALO_REQUIRE(\"Shared/Log\")\nlocal Client_Scheduler = __RALO_REQUIRE(\"Client/Core/Scheduler\")\nlocal Client_Registry = __RALO_REQUIRE(\"Client/Core/Registry\")\nlocal Shared_Safe = __RALO_REQUIRE(\"Shared/Safe\")\n\nlocal SCOPE = \"Profile\"\n\nlocal Profile = {}\n\nProfile.live = nil           -- Perf buffer đang nhận mẫu (cho chỉ số tức thời)\nProfile.last = nil\nProfile.longFrames = 0       -- số khung hình vượt ngưỡng\nProfile.longFrameThresholdMs = 33.3   -- dưới 30 FPS\nProfile.worstFrameMs = 0\n\n--[[\n\tĐọc chỉ số tức thời MỘT lần. Không throw, không bịa.\n]]\nfunction Profile.Instant()\n\tlocal runService = Client_Env.GetService(\"RunService\")\n\n\tlocal frameTimeMs, frameOk = 0, false\n\tif runService ~= nil then\n\t\t-- Shared_Safe.Call trả về (ok, result) và không bao giờ throw.\n\t\tlocal ok, value = Shared_Safe.Call(runService, \"GetRenderStepTime\")\n\t\tif ok and type(value) == \"number\" and value == value then\n\t\t\tframeTimeMs = value * 1000\n\t\t\tframeOk = true\n\t\tend\n\tend\n\n\tlocal heapKb, heapOk = 0, false\n\tif collectgarbage ~= nil then\n\t\tlocal ok2, value2 = pcall(collectgarbage, \"count\")\n\t\tif ok2 and type(value2) == \"number\" then\n\t\t\theapKb, heapOk = value2, true\n\t\tend\n\tend\n\n\treturn {\n\t\tframeTimeMs = frameTimeMs,\n\t\tframeTimeAvailable = frameOk,\n\t\tfps = (frameOk and frameTimeMs > 0) and (1000 / frameTimeMs) or nil,\n\t\theapKb = heapKb,\n\t\theapAvailable = heapOk,\n\t\tscheduler = Client_Scheduler.Stats(),\n\t\tregistry = Client_Registry.Stats(),\n\t\ttime = Client_Env.now(),\n\t}\nend\n\n--[[\n\tĐếm đối tượng trong Workspace để làm NGỮ CẢNH cho kết quả đo.\n\tĐây không phải chỉ số chất lượng, mà để biết hai lần đo có tương đương.\n]]\nfunction Profile.WorldCensus(workspace)\n\tlocal target = workspace or Client_Env.GetService(\"Workspace\")\n\tlocal census = {\n\t\tscanned = 0, parts = 0, shadowCasters = 0, emitters = 0,\n\t\tmodels = 0, available = target ~= nil,\n\t}\n\tif target == nil then\n\t\treturn census\n\tend\n\n\tlocal ok, descendants = pcall(function()\n\t\treturn target:GetDescendants()\n\tend)\n\tif not ok then\n\t\tcensus.note = \"GetDescendants thất bại\"\n\t\treturn census\n\tend\n\n\tcensus.scanned = #descendants\n\tfor _, instance in descendants do\n\t\tlocal className = instance.ClassName\n\t\tif className == \"Part\" or className == \"MeshPart\" or className == \"UnionOperation\" then\n\t\t\tcensus.parts += 1\n\t\t\tlocal okCast, cast = pcall(function()\n\t\t\t\treturn instance.CastShadow\n\t\t\tend)\n\t\t\tif okCast and cast == true then\n\t\t\t\tcensus.shadowCasters += 1\n\t\t\tend\n\t\telseif className == \"ParticleEmitter\" then\n\t\t\tcensus.emitters += 1\n\t\telseif className == \"Model\" then\n\t\t\tcensus.models += 1\n\t\tend\n\tend\n\treturn census\nend\n\n--[[\n\tĐo trong `durationSeconds`.\n\toptions = { label, window, onSample }\n]]\nfunction Profile.Run(durationSeconds, options)\n\toptions = options or {}\n\tlocal duration = math.max(0.1, tonumber(durationSeconds) or 1.0)\n\tlocal runService = Client_Env.GetService(\"RunService\")\n\n\tlocal perf = Client_Perf.New(options.window or 180)\n\tProfile.live = perf\n\n\tlocal meta = {\n\t\tlabel = options.label or \"sample\",\n\t\tduration = duration,\n\t\tsource = \"none\",\n\t\tsamples = 0,\n\t\tnote = nil,\n\t}\n\n\tlocal startedAt = Client_Env.now()\n\tlocal connection\n\tif runService ~= nil and runService.RenderStepped ~= nil then\n\t\tmeta.source = \"RenderStepped\"\n\t\tlocal ok, conn = pcall(function()\n\t\t\treturn runService.RenderStepped:Connect(function(deltaTime)\n\t\t\t\tif deltaTime ~= nil and deltaTime > 0 then\n\t\t\t\t\tlocal ms = deltaTime * 1000\n\t\t\t\t\tperf:Push(ms)\n\t\t\t\t\tmeta.samples += 1\n\t\t\t\t\tif ms > Profile.longFrameThresholdMs then\n\t\t\t\t\t\tProfile.longFrames += 1\n\t\t\t\t\tend\n\t\t\t\t\tif ms > Profile.worstFrameMs then\n\t\t\t\t\t\tProfile.worstFrameMs = ms\n\t\t\t\t\tend\n\t\t\t\t\tif options.onSample then\n\t\t\t\t\t\toptions.onSample(ms, meta.samples)\n\t\t\t\t\tend\n\t\t\t\tend\n\t\t\tend)\n\t\tend)\n\t\tif ok then\n\t\t\tconnection = conn\n\t\telse\n\t\t\tmeta.note = \"không kết nối được RenderStepped\"\n\t\tend\n\telseif runService ~= nil and runService.Heartbeat ~= nil then\n\t\tmeta.source = \"Heartbeat (fallback, không phải thời gian render)\"\n\t\tlocal ok, conn = pcall(function()\n\t\t\treturn runService.Heartbeat:Connect(function(deltaTime)\n\t\t\t\tif deltaTime ~= nil and deltaTime > 0 then\n\t\t\t\t\tperf:Push(deltaTime * 1000)\n\t\t\t\t\tmeta.samples += 1\n\t\t\t\tend\n\t\t\tend)\n\t\tend)\n\t\tif ok then\n\t\t\tconnection = conn\n\t\tend\n\telse\n\t\tmeta.note = \"runtime không có RenderStepped/Heartbeat -> không có số đo khung hình\"\n\t\tShared_Log.Warn(SCOPE, meta.note)\n\tend\n\n\tClient_Env.Wait(duration)\n\n\tif connection ~= nil then\n\t\tpcall(function()\n\t\t\tconnection:Disconnect()\n\t\tend)\n\tend\n\n\tmeta.elapsed = Client_Env.now() - startedAt\n\tif meta.source ~= \"none\" and meta.samples == 0 then\n\t\tmeta.note = \"có kết nối nhưng không nhận được mẫu nào\"\n\tend\n\n\tlocal summary = perf:Summarize(\"ms\")\n\tlocal heapKb, heapOk = 0, false\n\tif collectgarbage ~= nil then\n\t\tlocal ok, value = pcall(collectgarbage, \"count\")\n\t\tif ok and type(value) == \"number\" then\n\t\t\theapKb, heapOk = value, true\n\t\tend\n\tend\n\n\tlocal result = {\n\t\tmeta = meta,\n\t\tframe = summary,\n\t\tfps = {\n\t\t\tmean = summary.fps_mean or 0,\n\t\t\tp1 = summary.fps_p1 or 0,\n\t\t\tp5 = summary.fps_p5 or 0,\n\t\t\tp50 = summary.fps_p50 or 0,\n\t\t},\n\t\tframeTimeMs = { mean = summary.mean, p95 = summary.p95, max = summary.max },\n\t\theapKb = heapKb,\n\t\theapAvailable = heapOk,\n\t\tscheduler = Client_Scheduler.Stats(),\n\t\tregistry = Client_Registry.Stats(),\n\t\tcensus = Profile.WorldCensus(),\n\t\ttime = Client_Env.now(),\n\t}\n\n\tProfile.last = result\n\tShared_Log.Info(SCOPE, (\"đo '%s': %d mẫu / %.2fs (nguồn %s)\")\n\t\t:format(meta.label, meta.samples, meta.elapsed, meta.source))\n\treturn result\nend\n\n--[[\n\tSo sánh hai lần đo. Chỉ tính từ số liệu thật đã truyền vào.\n\tThiếu mẫu -> valid = false, nêu lý do, KHÔNG kết luận.\n]]\nfunction Profile.Compare(before, after)\n\tlocal out = { valid = true, reason = nil, rows = {}, summary = {} }\n\n\tif before == nil or after == nil then\n\t\tout.valid = false\n\t\tout.reason = \"thiếu dữ liệu before/after\"\n\t\treturn out\n\tend\n\tlocal beforeSamples = before.meta and before.meta.samples or 0\n\tlocal afterSamples = after.meta and after.meta.samples or 0\n\tif beforeSamples == 0 or afterSamples == 0 then\n\t\tout.valid = false\n\t\tout.reason = (\"một trong hai lần đo có 0 mẫu (trước=%d, sau=%d) -> không kết luận được\")\n\t\t\t:format(beforeSamples, afterSamples)\n\t\treturn out\n\tend\n\n\tlocal function addRow(label, beforeValue, afterValue, betterWhenLower, decimals)\n\t\tdecimals = decimals or 1\n\t\tlocal diff = afterValue - beforeValue\n\t\tlocal pct = beforeValue ~= 0 and (diff / beforeValue) * 100 or 0\n\t\tlocal format = \"%.\" .. decimals .. \"f\"\n\t\tout.rows[#out.rows + 1] = {\n\t\t\tlabel = label,\n\t\t\tbefore = format:format(beforeValue),\n\t\t\tafter = format:format(afterValue),\n\t\t\tdelta = (\"%+.1f%%\"):format(pct),\n\t\t\tbetter = betterWhenLower and diff < 0 or (not betterWhenLower and diff > 0),\n\t\t\tpct = pct,\n\t\t}\n\tend\n\n\taddRow(\"FPS trung bình\", before.fps.mean, after.fps.mean, false)\n\taddRow(\"FPS p1 (khung tệ nhất)\", before.fps.p1, after.fps.p1, false)\n\taddRow(\"FPS p5\", before.fps.p5, after.fps.p5, false)\n\taddRow(\"Frame time TB (ms)\", before.frameTimeMs.mean, after.frameTimeMs.mean, true)\n\taddRow(\"Frame time p95 (ms)\", before.frameTimeMs.p95, after.frameTimeMs.p95, true)\n\tif before.heapAvailable and after.heapAvailable then\n\t\taddRow(\"Luau heap (MB)\", before.heapKb / 1024, after.heapKb / 1024, true, 2)\n\tend\n\n\tlocal improved, regressed = 0, 0\n\tfor _, row in out.rows do\n\t\tif row.better then\n\t\t\timproved += 1\n\t\telse\n\t\t\tregressed += 1\n\t\tend\n\tend\n\n\tout.summary = {\n\t\timproved = improved,\n\t\tregressed = regressed,\n\t\tverdict = (improved > regressed and \"improved\")\n\t\t\tor (regressed > improved and \"regressed\") or \"unchanged\",\n\t\tbaselineSamples = beforeSamples,\n\t\tafterSamples = afterSamples,\n\t\tdurationBefore = before.meta.duration,\n\t\tdurationAfter = after.meta.duration,\n\t\tsourceBefore = before.meta.source,\n\t\tsourceAfter = after.meta.source,\n\t\tcensusBefore = before.census,\n\t\tcensusAfter = after.census,\n\t}\n\treturn out\nend\n\n-- Định dạng thành các dòng để in ra Output / hiện lên GUI.\nfunction Profile.FormatComparison(comparison)\n\tlocal rows = { { \"Chỉ số\", \"Trước\", \"Sau\", \"Thay đổi\" } }\n\tfor _, row in comparison.rows do\n\t\trows[#rows + 1] = { row.label, row.before, row.after, row.delta }\n\tend\n\n\tlocal widths = { 0, 0, 0, 0 }\n\tfor _, row in rows do\n\t\tfor i = 1, 4 do\n\t\t\tlocal length = #tostring(row[i] or \"\")\n\t\t\tif length > widths[i] then\n\t\t\t\twidths[i] = length\n\t\t\tend\n\t\tend\n\tend\n\n\tlocal lines = {}\n\tif comparison.valid then\n\t\tlines[#lines + 1] = (\"Kết luận: %s (cải thiện %d/%d chỉ số)\")\n\t\t\t:format(comparison.summary.verdict, comparison.summary.improved, #comparison.rows)\n\telse\n\t\tlines[#lines + 1] = \"Không kết luận được: \" .. tostring(comparison.reason)\n\tend\n\n\tfor _, row in rows do\n\t\tlocal line = \"\"\n\t\tfor i = 1, 4 do\n\t\t\tlocal cell = tostring(row[i] or \"\")\n\t\t\tline ..= cell .. string.rep(\" \", widths[i] - #cell + 2)\n\t\tend\n\t\tlines[#lines + 1] = line\n\tend\n\n\tif comparison.valid then\n\t\tlines[#lines + 1] = (\"Số mẫu: trước=%d (%.1fs, %s) · sau=%d (%.1fs, %s)\")\n\t\t\t:format(comparison.summary.baselineSamples, comparison.summary.durationBefore,\n\t\t\t\ttostring(comparison.summary.sourceBefore),\n\t\t\t\tcomparison.summary.afterSamples, comparison.summary.durationAfter,\n\t\t\t\ttostring(comparison.summary.sourceAfter))\n\tend\n\treturn lines\nend\n\n--[[\n\tChi phí do CHÍNH hệ thống tối ưu tạo ra (RES-004).\n\tĐây là chỉ số bắt buộc phải có: một công cụ chống lag mà tự gây lag\n\tthì vô nghĩa.\n]]\nfunction Profile.SelfCost()\n\tlocal scheduler = Client_Scheduler.Stats()\n\treturn {\n\t\tframeCostMs = scheduler.lastFrameCostMs,\n\t\tframeBudgetMs = scheduler.frameBudgetMs,\n\t\toverruns = scheduler.overruns,\n\t\ttasks = scheduler.tasks,\n\t\texecutions = scheduler.executions,\n\t\tconnections = scheduler.connections + Client_Registry.ConnectionCount(),\n\t\tlongFrames = Profile.longFrames,\n\t\tlongFrameThresholdMs = Profile.longFrameThresholdMs,\n\t\tworstFrameMs = Profile.worstFrameMs,\n\t}\nend\n\nfunction Profile.Reset()\n\tProfile.longFrames = 0\n\tProfile.worstFrameMs = 0\n\tProfile.last = nil\n\tProfile.live = nil\nend\n\nreturn Profile\n",
-	["Client/Core/Registry"] = "--[[ ===== RALO.METHODS:BEGIN =====\n\tCác phương pháp được TRIỂN KHAI TRONG TỆP NÀY (khớp với Shared/Methods.luau):\n\t  ASSET-003, EVT-002, EVT-006, LEAK-001,\n\t  LEAK-002, LEAK-003, LEAK-005, QUERY-002,\n\t  RES-002, RES-003, SAFE-007 \n\t===== RALO.METHODS:END ===== --]]\n\n--[[\n\tClient/Core/Registry.luau\n\t===== RALO.METHODS:LEAK-001, LEAK-002, LEAK-003, LEAK-005, RES-003, CPU-002 =====\n\n\tSổ đăng ký TRUNG TÂM cho mọi thứ hệ thống tạo ra hoặc kết nối tới.\n\n\tNguyên nhân lag mà nó xử lý:\n\t  * Connection không Disconnect -> callback vẫn chạy sau khi đối tượng\n\t    đã bị huỷ => rò rỉ CPU tăng dần theo thời gian chơi.\n\t  * Instance do script tạo ra không ai giữ tham chiếu -> không dọn được.\n\t  * `FindFirstChild` lặp lại nhiều lần cho cùng một đối tượng -> tra cứu\n\t    cây instance tốn chi phí một cách vô ích.\n\n\tCách xử lý:\n\t  * Mọi Connect đi qua Registry.Connect -> có handle, có DisconnectAll().\n\t  * Mọi Instance tạo ra đi qua Registry.Own -> có Release/ReleaseAll().\n\t  * Cache FindFirstChild theo (parent, name) và TỰ HUỶ cache khi đối\n\t    tượng bị huỷ (nghe AncestryChanged) -> cache không bao giờ trỏ vào\n\t    instance đã chết.\n]]\n\nlocal Shared_Log = __RALO_REQUIRE(\"Shared/Log\")\nlocal Client_Guard = __RALO_REQUIRE(\"Client/Core/Guard\")\n\nlocal SCOPE = \"Registry\"\n\nlocal Registry = {}\n\nRegistry.connections = {}     -- id -> { connection, signalName, owner, alive }\nRegistry.owned = {}           -- id -> { instance, className, owner }\nRegistry.cache = {}           -- key -> instance\nRegistry.watchers = {}        -- id -> connection theo dõi AncestryChanged\nRegistry.autoDisconnect = true\n\nlocal nextId = 0\nlocal function newId()\n\tnextId += 1\n\treturn nextId\nend\n\n--[[\n\tKết nối có quản lý.\n\tTrả về handle { Disconnect = fn, Connected = bool, id }\n\tNếu signal hoặc handler sai -> trả về nil và ghi log, không throw.\n]]\nfunction Registry.Connect(signal, handler, owner)\n\tif signal == nil or type(handler) ~= \"function\" then\n\t\tShared_Log.Warn(SCOPE, \"Connect cần signal và handler function\")\n\t\treturn nil\n\tend\n\n\tlocal connection\n\tlocal ok, result = Client_Guard.Run(SCOPE .. \":Connect\", function()\n\t\treturn signal:Connect(handler)\n\tend)\n\tif not ok or result == nil then\n\t\treturn nil\n\tend\n\tconnection = result\n\n\tlocal id = newId()\n\tlocal handle = { id = id, Connected = true, owner = owner or \"anon\" }\n\n\tfunction handle:Disconnect()\n\t\tlocal entry = Registry.connections[self.id]\n\t\tif entry == nil then\n\t\t\treturn false\n\t\tend\n\t\tlocal okDisconnect = Client_Guard.Run(SCOPE .. \":Disconnect\", function()\n\t\t\tentry.connection:Disconnect()\n\t\tend)\n\t\tRegistry.connections[self.id] = nil\n\t\tself.Connected = false\n\t\treturn okDisconnect\n\tend\n\thandle.Disconnect_ = handle.Disconnect\n\n\tRegistry.connections[id] = {\n\t\tconnection = connection,\n\t\thandle = handle,\n\t\towner = handle.owner,\n\t}\n\treturn handle\nend\n\n--[[\n\tKết nối MỘT LẦN rồi tự ngắt (LEAK-003).\n\tDùng cho các tín hiệu chỉ cần phản ứng lần đầu.\n]]\nfunction Registry.ConnectOnce(signal, handler, owner)\n\tlocal handle\n\thandle = Registry.Connect(signal, function(...)\n\t\tif handle ~= nil then\n\t\t\thandle:Disconnect()\n\t\tend\n\t\treturn handler(...)\n\tend, owner)\n\treturn handle\nend\n\n--[[\n\tTheo dõi một instance: khi nó rời khỏi cây (bị Destroy) thì tự ngắt\n\tmọi connection và xoá cache liên quan (LEAK-002).\n]]\nfunction Registry.Watch(instance, owner)\n\tif not Client_Guard.Alive(instance) then\n\t\treturn nil\n\tend\n\tlocal ok, signal = Client_Guard.Run(SCOPE .. \":Watch\", function()\n\t\treturn instance:GetPropertyChangedSignal(\"Parent\")\n\tend)\n\tif not ok or signal == nil then\n\t\treturn nil\n\tend\n\n\tlocal id = newId()\n\tlocal conn = Registry.Connect(signal, function()\n\t\t-- Parent đổi -> kiểm tra còn trong cây không\n\t\tif not Client_Guard.InTree(instance) then\n\t\t\tRegistry.DropInstance(instance)\n\t\t\tlocal entry = Registry.watchers[id]\n\t\t\tif entry ~= nil and entry.handle ~= nil then\n\t\t\t\tentry.handle:Disconnect()\n\t\t\tend\n\t\t\tRegistry.watchers[id] = nil\n\t\tend\n\tend, owner or \"watch\")\n\n\tRegistry.watchers[id] = { handle = conn, instance = instance }\n\treturn id\nend\n\n-- Đăng ký instance do hệ thống tạo ra.\nfunction Registry.Own(instance, owner)\n\tif not Client_Guard.Alive(instance) then\n\t\treturn nil\n\tend\n\tlocal id = newId()\n\tRegistry.owned[id] = {\n\t\tinstance = instance,\n\t\tclassName = instance.ClassName,\n\t\towner = owner or \"anon\",\n\t}\n\treturn id\nend\n\nfunction Registry.Release(id)\n\tlocal entry = Registry.owned[id]\n\tif entry == nil then\n\t\treturn false\n\tend\n\tRegistry.owned[id] = nil\n\t-- CHỈ huỷ thứ hệ thống tạo ra, không đụng instance của game\n\tlocal ok = Client_Guard.Run(SCOPE .. \":Release\", function()\n\t\tentry.instance:Destroy()\n\tend)\n\treturn ok\nend\n\n-- Xoá cache/handle trỏ tới một instance đã chết.\nfunction Registry.DropInstance(instance)\n\tfor key, cached in pairs(Registry.cache) do\n\t\tif cached == instance then\n\t\t\tRegistry.cache[key] = nil\n\t\tend\n\tend\nend\n\n--[[\n\tFindFirstChild CÓ CACHE và tự vô hiệu khi đối tượng bị huỷ.\n\tTrả về: instance hoặc nil.\n]]\nfunction Registry.Find(parent, name, className)\n\tif parent == nil or name == nil then\n\t\treturn nil\n\tend\n\tlocal key = tostring(parent) .. \"/\" .. tostring(name) .. \"/\" .. tostring(className or \"\")\n\tlocal cached = Registry.cache[key]\n\tif cached ~= nil then\n\t\t-- Dùng InTree chứ không phải Alive: instance bị gỡ khỏi cây thì\n\t\t-- FindFirstChild không còn trả về nó, nên cache phải vô hiệu.\n\t\tif Client_Guard.InTree(cached) then\n\t\t\treturn cached\n\t\tend\n\t\tRegistry.cache[key] = nil\n\tend\n\n\tlocal ok, found = Client_Guard.Run(SCOPE .. \":Find\", function()\n\t\tif className ~= nil then\n\t\t\treturn parent:FindFirstChildOfClass(className)\n\t\tend\n\t\treturn parent:FindFirstChild(name)\n\tend)\n\tif ok and found ~= nil then\n\t\tRegistry.cache[key] = found\n\t\treturn found\n\tend\n\treturn nil\nend\n\nfunction Registry.ConnectionCount()\n\tlocal n = 0\n\tfor _ in pairs(Registry.connections) do\n\t\tn += 1\n\tend\n\treturn n\nend\n\nfunction Registry.OwnedCount()\n\tlocal n = 0\n\tfor _ in pairs(Registry.owned) do\n\t\tn += 1\n\tend\n\treturn n\nend\n\nfunction Registry.CacheCount()\n\tlocal n = 0\n\tfor _ in pairs(Registry.cache) do\n\t\tn += 1\n\tend\n\treturn n\nend\n\nfunction Registry.Stats()\n\treturn {\n\t\tconnections = Registry.ConnectionCount(),\n\t\towned = Registry.OwnedCount(),\n\t\tcacheEntries = Registry.CacheCount(),\n\t\twatchers = (function()\n\t\t\tlocal n = 0\n\t\t\tfor _ in pairs(Registry.watchers) do\n\t\t\t\tn += 1\n\t\t\tend\n\t\t\treturn n\n\t\tend)(),\n\t}\nend\n\n-- Ngắt MỌI connection, huỷ MỌI instance do hệ thống tạo, xoá cache.\nfunction Registry.Shutdown()\n\tlocal disconnected = 0\n\tfor id, entry in pairs(Registry.connections) do\n\t\tif entry.handle ~= nil then\n\t\t\tentry.handle:Disconnect()\n\t\t\tdisconnected += 1\n\t\tend\n\t\tRegistry.connections[id] = nil\n\tend\n\n\tlocal released = 0\n\tfor id, entry in pairs(Registry.owned) do\n\t\tif Registry.Release(id) then\n\t\t\treleased += 1\n\t\tend\n\tend\n\n\tfor id, entry in pairs(Registry.watchers) do\n\t\tif entry.handle ~= nil then\n\t\t\tentry.handle:Disconnect()\n\t\tend\n\t\tRegistry.watchers[id] = nil\n\tend\n\n\ttable.clear(Registry.cache)\n\tShared_Log.Info(SCOPE, (\"đã ngắt %d connection, huỷ %d instance do hệ thống tạo\")\n\t\t:format(disconnected, released))\n\treturn disconnected, released\nend\n\nfunction Registry.Reset()\n\tRegistry.Shutdown()\n\tnextId = 0\nend\n\nreturn Registry\n",
-	["Client/Core/Restore"] = "--[[ ===== RALO.METHODS:BEGIN =====\n\tCác phương pháp được TRIỂN KHAI TRONG TỆP NÀY (khớp với Shared/Methods.luau):\n\t  RESTORE-001, RESTORE-002, RESTORE-003, RESTORE-004,\n\t  SAFE-005 \n\t===== RALO.METHODS:END ===== --]]\n\n--[[\n\tCore/Restore.luau\n\tNhật ký \"trước khi đổi\" để có thể HOÀN TÁC từng property.\n\tMỗi lần Safe.Set thành công với restore = true, ta ghi lại giá trị cũ.\n\n\tĐây là lý do script KHÔNG xoá instance: mọi thứ đều đảo ngược được.\n]]\n\nlocal Client_Guard = __RALO_REQUIRE(\"Client/Core/Guard\")\n\nlocal Restore = {}\n\nRestore.entries = {}     -- { { instance, property, oldValue, stepId } }\n\n--[[\n\tGhi lại giá trị cũ TRƯỚC khi đổi.\n\tnewValue (tuỳ chọn) là giá trị script SẼ đặt — cần để khi hoàn tác,\n\tGuard.Change có thể kiểm tra \"giá trị hiện tại vẫn là cái ta đã đặt chứ?\"\n\tvà từ chối ghi đè nếu game/người dùng đã đổi nó (REC-002).\n]]\nfunction Restore.Record(instance, property, oldValue, stepId, newValue)\n\tRestore.entries[#Restore.entries + 1] = {\n\t\tinstance = instance,\n\t\tproperty = property,\n\t\toldValue = oldValue,\n\t\tstepId = stepId,\n\t\tnewValue = newValue,\n\t}\n\treturn #Restore.entries\nend\n\nfunction Restore.Count(): number\n\treturn #Restore.entries\nend\n\nfunction Restore.CountByStep(stepId: string): number\n\tlocal n = 0\n\tfor _, entry in Restore.entries do\n\t\tif entry.stepId == stepId then n += 1 end\n\tend\n\treturn n\nend\n\n--[[\n\tQuên mọi bản ghi của một instance (RESTORE-004).\n\n\tDùng khi instance đã bị huỷ: giữ tham chiếu tới nó vừa rò rỉ bộ nhớ\n\tvừa gây lỗi khi hoàn tác. Cull gọi hàm này mỗi lần khôi phục xong.\n\tTrả về số bản ghi đã xoá.\n]]\nfunction Restore.Forget(instance)\n\tif instance == nil then\n\t\treturn 0\n\tend\n\tlocal removed = 0\n\tfor i = #Restore.entries, 1, -1 do\n\t\tif Restore.entries[i].instance == instance then\n\t\t\ttable.remove(Restore.entries, i)\n\t\t\tremoved += 1\n\t\tend\n\tend\n\treturn removed\nend\n\n--[[\n\tHoàn tác theo thứ tự NGƯỢC (cái đổi sau thì khôi phục trước).\n\n\tsetter: hàm ghi property, dạng (instance, property, value, opts) -> boolean.\n\tNẾU KHÔNG TRUYỀN thì mặc định dùng Guard.Change — đây là đường an toàn\n\tnhất vì Guard.Change có stale-guard (không ghi đè thay đổi mới của game).\n\tTrước đây hàm này BẮT BUỘC có setter, nên Pipeline.Restore() gọi\n\tRestore.All() không tham số sẽ sập. Đã sửa.\n\n\tTrả về: số property khôi phục thành công, số lần thất bại.\n]]\nfunction Restore.All(setter)\n\tlocal write = setter\n\tif write == nil then\n\t\twrite = function(instance, property, value, opts)\n\t\t\tlocal status = Client_Guard.Change(instance, property, value, opts)\n\t\t\treturn status == \"applied\" or status == \"unchanged\"\n\t\tend\n\tend\n\n\tlocal restored, failed = 0, 0\n\tfor i = #Restore.entries, 1, -1 do\n\t\tlocal entry = Restore.entries[i]\n\t\tlocal ok = write(entry.instance, entry.property, entry.oldValue, {\n\t\t\tscope = \"Restore:\" .. tostring(entry.stepId),\n\t\t\t-- expect = giá trị script đã đặt; nếu game đã đổi thì Guard trả\n\t\t\t-- \"stale\" và KHÔNG ghi đè (REC-002).\n\t\t\texpect = entry.newValue,\n\t\t})\n\t\tif ok then\n\t\t\trestored += 1\n\t\t\ttable.remove(Restore.entries, i)\n\t\telse\n\t\t\tfailed += 1\n\t\tend\n\tend\n\treturn restored, failed\nend\n\nfunction Restore.Reset()\n\ttable.clear(Restore.entries)\nend\n\nreturn Restore\n",
-	["Client/Core/Runner"] = "--[[ ===== RALO.METHODS:BEGIN =====\n\tCác phương pháp được TRIỂN KHAI TRONG TỆP NÀY (khớp với Shared/Methods.luau):\n\t  REC-003 \n\t===== RALO.METHODS:END ===== --]]\n\n--[[\n\tCore/Runner.luau\n\tThực thi kế hoạch. Mỗi bước:\n\t  1. báo trạng thái RUNNING cho UI,\n\t  2. gọi handler thật,\n\t  3. đọc KẾT QUẢ TRẢ VỀ của handler (không đoán),\n\t  4. ghi applied / skipped / failed + detail.\n\n\tSai sót ở một bước KHÔNG làm sập cả pipeline: pcall bao quanh, bước đó\n\tđánh dấu failed và các bước sau vẫn chạy.\n]]\n\nlocal Util_Types = __RALO_REQUIRE(\"Shared/Types\")\nlocal Util_Log = __RALO_REQUIRE(\"Shared/Log\")\n\nlocal SCOPE = \"Runner\"\n\nlocal Runner = {}\n\n--[[\n\toptions = {\n\t\tonStep  = function(step, index, total)  -- hook tiến trình cho UI\n\t\tonLog   = function(level, stepId, message)\n\t\tdelayBetween = số giây nghỉ giữa các bước (mặc định 0)\n\t\twait    = function(seconds)\n\t}\n]]\nfunction Runner.Execute(plan: any, options: any)\n\toptions = options or {}\n\tlocal onStep = options.onStep or function() end\n\tlocal results = {}\n\n\tfor index, step in plan.steps do\n\t\tstep.status = Util_Types.STATUS_RUNNING\n\t\tonStep(step, index, plan.total)\n\n\t\tlocal handler = nil\n\t\tif not step.available then\n\t\t\tstep.status = Util_Types.STATUS_SKIPPED\n\t\t\tstep.detail = step.reason or \"không khả dụng\"\n\t\t\tUtil_Log.Info(SCOPE, (\"BỎ QUA [%s]: %s\"):format(step.id, tostring(step.detail)))\n\t\telse\n\t\t\thandler = step.module and step.module[step.handler]\n\t\t\tif type(handler) ~= \"function\" then\n\t\t\t\tstep.status = Util_Types.STATUS_FAILED\n\t\t\t\tstep.detail = (\"thiếu handler %s\"):format(tostring(step.handler))\n\t\t\t\tUtil_Log.Error(SCOPE, (\"LỖI [%s]: %s\"):format(step.id, step.detail))\n\t\t\t\thandler = nil\n\t\t\tend\n\t\tend\n\n\t\tif handler ~= nil then\n\t\t\tlocal ok, payload = pcall(handler, step.module, step, plan.profile)\n\t\t\tif not ok then\n\t\t\t\tstep.status = Util_Types.STATUS_FAILED\n\t\t\t\tstep.detail = (\"handler throw: %s\"):format(tostring(payload))\n\t\t\t\tUtil_Log.Error(SCOPE, (\"LỖI [%s]: %s\"):format(step.id, step.detail))\n\t\t\telse\n\t\t\t\tpayload = payload or {}\n\t\t\t\tstep.changes = payload.changes or 0\n\t\t\t\tstep.detail = payload.detail or \"\"\n\t\t\t\tstep.restored = payload.restoredValues or 0\n\t\t\t\tstep.restorable = payload.restorable ~= false and step.restorable\n\n\t\t\t\tif step.changes > 0 then\n\t\t\t\t\tstep.status = Util_Types.STATUS_APPLIED\n\t\t\t\telse\n\t\t\t\t\tstep.status = Util_Types.STATUS_SKIPPED\n\t\t\t\t\tif step.detail == \"\" then\n\t\t\t\t\t\tstep.detail = \"không có đối tượng nào cần thay đổi\"\n\t\t\t\t\tend\n\t\t\t\tend\n\t\t\t\tUtil_Log.Info(SCOPE, (\"%s [%s]: %d thay đổi — %s\")\n\t\t\t\t\t:format(step.status == Util_Types.STATUS_APPLIED and \"ÁP DỤNG\" or \"BỎ QUA\",\n\t\t\t\t\t\tstep.id, step.changes, step.detail))\n\t\t\tend\n\t\tend\n\n\t\tresults[step.id] = step\n\t\tonStep(step, index, plan.total)\n\n\t\tif options.delayBetween and options.delayBetween > 0 and index < plan.total then\n\t\t\t(options.wait or function() end)(options.delayBetween)\n\t\tend\n\tend\n\n\tplan.results = results\n\treturn results\nend\n\nfunction Runner.Tally(plan: any)\n\tlocal tally = { applied = 0, skipped = 0, failed = 0, changes = 0, total = plan.total }\n\tfor _, step in plan.steps do\n\t\tif step.status == Util_Types.STATUS_APPLIED then\n\t\t\ttally.applied += 1\n\t\t\ttally.changes += step.changes or 0\n\t\telseif step.status == Util_Types.STATUS_FAILED then\n\t\t\ttally.failed += 1\n\t\telse\n\t\t\ttally.skipped += 1\n\t\tend\n\tend\n\treturn tally\nend\n\nreturn Runner\n",
-	["Client/Core/Scheduler"] = "--[[ ===== RALO.METHODS:BEGIN =====\n\tCác phương pháp được TRIỂN KHAI TRONG TỆP NÀY (khớp với Shared/Methods.luau):\n\t  BG-001, BG-002, BG-003, BG-004,\n\t  BG-005, BG-006, CPU-001, CPU-009,\n\t  EVT-001, FPS-001, FPS-004, HEAVY-005,\n\t  LEAK-004, LOOP-001, LOOP-002, LOOP-003,\n\t  LOOP-004, LOOP-006, LOOP-008, RAM-004,\n\t  RES-001, RES-006, START-001 \n\t===== RALO.METHODS:END ===== --]]\n\n--[[\n\tClient/Core/Scheduler.luau\n\t===== RALO.METHODS:LOOP-001, LOOP-004, BG-001, BG-003, BG-004, EVT-001, CPU-009 =====\n\n\tMột bộ lập lịch DUY NHẤT cho toàn hệ thống.\n\n\tLý do tồn tại (nguyên nhân lag mà nó xử lý):\n\t  * Mỗi module tự mở `RunService.RenderStepped:Connect(...)` => N kết nối,\n\t    N lần gọi lại mỗi khung hình, không ai biết tổng chi phí là bao nhiêu.\n\t  * Mỗi module tự viết `while true do task.wait(1) ... end` => vô số thread\n\t    nền, không huỷ được, rò rỉ khi module bị nạp lại.\n\n\tCách xử lý:\n\t  * MỘT kết nối RenderStepped + MỘT thread nền cho mọi tác vụ định kỳ.\n\t  * Mỗi tác vụ khai báo: chu kỳ, ngân sách (budget), độ ưu tiên.\n\t  * Mỗi khung hình, scheduler chạy lần lượt theo ưu tiên và DỪNG khi\n\t    vượt ngân sách thời gian -> chính công cụ tối ưu không thể trở\n\t    thành nguồn lag mới.\n\t  * Huỷ tác vụ bằng handle, huỷ tất cả bằng Shutdown().\n]]\n\nlocal Client_Env = __RALO_REQUIRE(\"Client/Core/Env\")\nlocal Shared_Log = __RALO_REQUIRE(\"Shared/Log\")\n\nlocal SCOPE = \"Scheduler\"\n\nlocal Scheduler = {}\n\nScheduler.tasks = {}          -- handle -> task\nScheduler.order = {}          -- danh sách handle theo thứ tự ưu tiên\nScheduler.frameConnection = nil\nScheduler.loopThread = nil\nScheduler.running = false\nScheduler.frameBudgetMs = 3.0 -- ngân sách mỗi khung hình cho RALO\nScheduler.lastFrameCostMs = 0\nScheduler.overruns = 0        -- số khung hình vượt ngân sách\nScheduler.executions = 0\nScheduler.errors = 0          -- số lần callback ném lỗi (không được nuốt im lặng)\nScheduler.lastError = nil\n\n--[[\n\tĐồng hồ dùng cho KIỂM TRA NGÂN SÁCH. Mặc định nil -> dùng Client_Env.now().\n\n\tLý do tách ra: trong Roblox, os.clock() là thời gian CPU THẬT nên đo\n\tđược chi phí thật. Trong harness kiểm thử, os.clock được thay bằng đồng\n\thồ ẢO (để test được logic 30 giây mà không chờ thật), nên nó không phản\n\tánh chi phí CPU. Test cần bơm được một đồng hồ giả để kiểm chứng LOGIC\n\tcắt ngân sách; mã chạy thật vẫn dùng Client_Env.now().\n]]\nScheduler.clockForBudget = nil\n\nlocal function budgetNow()\n\tif Scheduler.clockForBudget ~= nil then\n\t\treturn Scheduler.clockForBudget()\n\tend\n\treturn Client_Env.now()\nend\n\nlocal nextHandle = 0\n\nlocal function reindex()\n\ttable.clear(Scheduler.order)\n\tfor handle, task in pairs(Scheduler.tasks) do\n\t\tScheduler.order[#Scheduler.order + 1] = handle\n\t\t_ = task\n\tend\n\t-- Ưu tiên cao chạy trước; cùng ưu tiên thì theo chu kỳ ngắn trước\n\ttable.sort(Scheduler.order, function(a, b)\n\t\tlocal ta, tb = Scheduler.tasks[a], Scheduler.tasks[b]\n\t\tif ta.priority ~= tb.priority then\n\t\t\treturn ta.priority > tb.priority\n\t\tend\n\t\treturn ta.interval < tb.interval\n\tend)\nend\n\n--[[\n\tBG-006: đồng bộ connection với số task.\n\tKhông còn task nào thì NGẮT kết nối Heartbeat — một connection chạy\n\tkhông vẫn tốn một lời gọi mỗi khung hình. Có task mới thì nối lại.\n]]\nlocal function syncConnection()\n\tlocal taskCount = Scheduler.TaskCount()\n\tif taskCount == 0 then\n\t\tif Scheduler.frameConnection ~= nil then\n\t\t\tpcall(function()\n\t\t\t\tScheduler.frameConnection:Disconnect()\n\t\t\tend)\n\t\t\tScheduler.frameConnection = nil\n\t\tend\n\t\tScheduler.running = false\n\t\treturn\n\tend\n\tif Scheduler.frameConnection == nil then\n\t\tScheduler.running = false          -- buộc Start() nối lại\n\t\tScheduler.Start()\n\tend\nend\n\n--[[\n\tĐăng ký tác vụ định kỳ.\n\tspec = {\n\t\tname      = \"tên để log\",\n\t\tinterval  = giây giữa hai lần chạy (0 = mỗi khung hình),\n\t\tpriority  = số càng lớn càng chạy trước (mặc định 0),\n\t\tcallback  = function(dt, now) -> ()\n\t\tmaxCalls  = giới hạn số lần chạy (nil = vô hạn)\n\t}\n\tTrả về handle { cancel = function() end, name, calls }\n]]\nfunction Scheduler.Schedule(spec)\n\tif type(spec) ~= \"table\" or type(spec.callback) ~= \"function\" then\n\t\tShared_Log.Warn(SCOPE, \"Schedule cần spec.callback là function\")\n\t\treturn nil\n\tend\n\n\tnextHandle += 1\n\tlocal handle = {\n\t\tid = nextHandle,\n\t\tname = spec.name or (\"task#\" .. nextHandle),\n\t\tcalls = 0,\n\t\tcancelled = false,\n\t}\n\tfunction handle:Cancel()\n\t\tif self.cancelled then\n\t\t\treturn false\n\t\tend\n\t\tself.cancelled = true\n\t\tScheduler.tasks[self.id] = nil\n\t\treindex()\n\t\tsyncConnection()\n\t\treturn true\n\tend\n\t-- Thống nhất interface với handle của Registry: cả hai đều có\n\t-- :Cancel() và :Disconnect(). Nếu không, code dọn dẹp gọi\n\t-- handle:Disconnect() trên handle Scheduler sẽ gọi vào nil và\n\t-- (nếu bọc pcall) IM LẶNG bỏ qua -> task rò rỉ vĩnh viễn.\n\t-- Đây là lỗi thật đã được gui.test.js phát hiện.\n\thandle.cancel = handle.Cancel\n\thandle.Disconnect = handle.Cancel\n\thandle.disconnect = handle.Cancel\n\n\tScheduler.tasks[handle.id] = {\n\t\thandle = handle,\n\t\tinterval = math.max(0, tonumber(spec.interval) or 0),\n\t\tpriority = tonumber(spec.priority) or 0,\n\t\tcallback = spec.callback,\n\t\tmaxCalls = spec.maxCalls,\n\t\tnextDue = 0,\n\t}\n\treindex()\n\tsyncConnection()\n\treturn handle\nend\n\n-- Tác vụ chạy đúng một lần vào khung hình kế tiếp.\nfunction Scheduler.Defer(name, callback)\n\tlocal handle\n\thandle = Scheduler.Schedule({\n\t\tname = name,\n\t\tinterval = 0,\n\t\tpriority = 100,\n\t\tmaxCalls = 1,\n\t\tcallback = function()\n\t\t\tcallback()\n\t\t\tif handle then\n\t\t\t\thandle:Cancel()\n\t\t\tend\n\t\tend,\n\t})\n\treturn handle\nend\n\nfunction Scheduler.Start()\n\tif Scheduler.running then\n\t\treturn true\n\tend\n\tlocal runService = Client_Env.GetService(\"RunService\")\n\tif runService == nil or runService.Heartbeat == nil then\n\t\tShared_Log.Warn(SCOPE, \"không có RunService.Heartbeat -> scheduler không chạy\")\n\t\treturn false\n\tend\n\n\tScheduler.running = true\n\n\t-- MỘT kết nối duy nhất cho toàn hệ thống (EVT-001, LOOP-001)\n\tScheduler.frameConnection = runService.Heartbeat:Connect(function(deltaTime)\n\t\tScheduler.Tick(deltaTime or 0)\n\tend)\n\n\treturn true\nend\n\n--[[\n\tMột nhịp của scheduler. `nowSeconds` cho phép test bơm thời gian ảo.\n\tTrả về số tác vụ đã chạy trong nhịp này.\n]]\nfunction Scheduler.Tick(deltaTime, nowSeconds)\n\tlocal now = nowSeconds or Client_Env.now()\n\tlocal startedAt = budgetNow()\n\tlocal executed = 0\n\n\t-- Sao chép thứ tự để callback có quyền Cancel ngay trong lúc lặp\n\tlocal orderSnapshot = {}\n\tfor index, handleId in Scheduler.order do\n\t\torderSnapshot[index] = handleId\n\tend\n\n\tfor _, handleId in orderSnapshot do\n\t\tlocal task = Scheduler.tasks[handleId]\n\t\tif task ~= nil and not task.handle.cancelled then\n\t\t\tif now >= task.nextDue then\n\t\t\t\tlocal ok, err = pcall(task.callback, deltaTime, now)\n\t\t\t\tif not ok then\n\t\t\t\t\t-- Lỗi được ĐẾM và GHI LOG, không bao giờ bị nuốt im lặng\n\t\t\t\t\tScheduler.errors += 1\n\t\t\t\t\tScheduler.lastError = (\"%s: %s\"):format(task.handle.name, tostring(err))\n\t\t\t\t\tShared_Log.Warn(SCOPE, (\"tác vụ '%s' lỗi: %s\"):format(task.handle.name, tostring(err)))\n\t\t\t\tend\n\t\t\t\ttask.handle.calls += 1\n\t\t\t\texecuted += 1\n\t\t\t\ttask.nextDue = now + task.interval\n\n\t\t\t\tif task.maxCalls ~= nil and task.handle.calls >= task.maxCalls then\n\t\t\t\t\ttask.handle:Cancel()\n\t\t\t\tend\n\t\t\tend\n\t\tend\n\n\t\t-- Vượt ngân sách thì dừng, phần còn lại chờ khung hình sau (CPU-009)\n\t\tlocal elapsedMs = (budgetNow() - startedAt) * 1000\n\t\tif elapsedMs > Scheduler.frameBudgetMs then\n\t\t\tScheduler.overruns += 1\n\t\t\tbreak\n\t\tend\n\tend\n\n\tScheduler.lastFrameCostMs = (budgetNow() - startedAt) * 1000\n\tScheduler.executions += executed\n\treturn executed\nend\n\nfunction Scheduler.TaskCount()\n\tlocal n = 0\n\tfor _ in pairs(Scheduler.tasks) do\n\t\tn += 1\n\tend\n\treturn n\nend\n\nfunction Scheduler.Stats()\n\treturn {\n\t\ttasks = Scheduler.TaskCount(),\n\t\texecutions = Scheduler.executions,\n\t\toverruns = Scheduler.overruns,\n\t\terrors = Scheduler.errors,\n\t\tlastError = Scheduler.lastError,\n\t\tlastFrameCostMs = Scheduler.lastFrameCostMs,\n\t\tframeBudgetMs = Scheduler.frameBudgetMs,\n\t\tconnections = Scheduler.frameConnection ~= nil and 1 or 0,\n\t}\nend\n\n-- Huỷ toàn bộ: ngắt kết nối, xoá tác vụ. Dùng khi tắt hệ thống.\nfunction Scheduler.Shutdown()\n\tif Scheduler.frameConnection ~= nil then\n\t\tpcall(function()\n\t\t\tScheduler.frameConnection:Disconnect()\n\t\tend)\n\t\tScheduler.frameConnection = nil\n\tend\n\ttable.clear(Scheduler.tasks)\n\ttable.clear(Scheduler.order)\n\tScheduler.running = false\n\tScheduler.loopThread = nil\n\tShared_Log.Info(SCOPE, \"đã tắt scheduler và ngắt kết nối khung hình\")\n\treturn true\nend\n\n-- Chỉ dành cho test\nfunction Scheduler.Reset()\n\tScheduler.Shutdown()\n\tScheduler.executions = 0\n\tScheduler.overruns = 0\n\tScheduler.errors = 0\n\tScheduler.lastError = nil\n\tScheduler.lastFrameCostMs = 0\n\tScheduler.clockForBudget = nil\n\tnextHandle = 0\nend\n\nreturn Scheduler\n",
-	["Client/Core/Spatial"] = "--[[ ===== RALO.METHODS:BEGIN =====\n\tCác phương pháp được TRIỂN KHAI TRONG TỆP NÀY (khớp với Shared/Methods.luau):\n\t  DATA-002, NPC-003, QUERY-003 \n\t===== RALO.METHODS:END ===== --]]\n\n--[[\n\tClient/Core/Spatial.luau\n\t===== RALO.METHODS:DATA-002, QUERY-003, QUERY-004, CPU-005, NPC-003 =====\n\n\tTruy vấn không gian: tìm đối tượng gần mà không quét cả thế giới.\n\n\tNguyên nhân lag mà nó xử lý:\n\t  * `Workspace:GetDescendants()` trả về HÀNG CHỤC NGHÌN instance.\n\t    Gọi nó mỗi khung hình để tìm \"part gần nhất\" là một trong những\n\t    nguồn lag script phổ biến nhất trong Roblox.\n\t  * Quét O(n) cho mỗi truy vấn, trong khi phần lớn truy vấn chỉ quan\n\t    tâm một vùng nhỏ quanh người chơi.\n\n\tCách xử lý: lưới băm không gian (spatial hash).\n\t  * Chia thế giới thành các ô vuông cạnh `cellSize`.\n\t  * Mỗi đối tượng nằm trong đúng một ô -> truy vấn lân cận chỉ duyệt\n\t    các ô quanh điểm hỏi, tức O(số đối tượng trong vùng) thay vì O(n).\n\n\tGIỚI HẠI: lưới chỉ hữu ích khi vị trí đối tượng ít thay đổi hoặc ta\n\tcập nhật lưới theo chu kỳ (không phải mỗi khung hình). Với đối tượng\n\tdi chuyển nhanh, nên dùng API vật lý của engine thay vì lưới này.\n]]\n\nlocal Shared_Log = __RALO_REQUIRE(\"Shared/Log\")\nlocal Client_Guard = __RALO_REQUIRE(\"Client/Core/Guard\")\n\nlocal SCOPE = \"Spatial\"\n\nlocal Spatial = {}\nSpatial.__index = Spatial\n\nfunction Spatial.New(cellSize)\n\tlocal self = setmetatable({}, Spatial)\n\tself.cellSize = math.max(1, tonumber(cellSize) or 64)\n\tself.cells = {}            -- key \"x,y,z\" -> { instance = true, ... }\n\tself.entries = {}          -- instance -> { key, position }\n\tself.stats = { inserts = 0, queries = 0, candidatesExamined = 0, rebuilds = 0 }\n\treturn self\nend\n\nlocal function cellKey(self, position)\n\tlocal size = self.cellSize\n\treturn (\"%d,%d,%d\"):format(\n\t\tmath.floor(position.X / size),\n\t\tmath.floor(position.Y / size),\n\t\tmath.floor(position.Z / size)\n\t)\nend\n\nfunction Spatial:Insert(instance, position)\n\tif instance == nil or position == nil then\n\t\treturn false\n\tend\n\t-- Nếu đã có thì bỏ vị trí cũ trước (tránh trùng lặp khi đối tượng di chuyển)\n\tself:Remove(instance)\n\n\tlocal key = cellKey(self, position)\n\tif self.cells[key] == nil then\n\t\tself.cells[key] = {}\n\tend\n\tself.cells[key][instance] = true\n\tself.entries[instance] = { key = key, position = position }\n\tself.stats.inserts += 1\n\treturn true\nend\n\nfunction Spatial:Remove(instance)\n\tlocal entry = self.entries[instance]\n\tif entry == nil then\n\t\treturn false\n\tend\n\tlocal bucket = self.cells[entry.key]\n\tif bucket ~= nil then\n\t\tbucket[instance] = nil\n\t\tif next(bucket) == nil then\n\t\t\tself.cells[entry.key] = nil\n\t\tend\n\tend\n\tself.entries[instance] = nil\n\treturn true\nend\n\n--[[\n\tTìm ứng viên trong bán kính `radius` quanh `origin`.\n\tCHỈ trả về ỨNG VIÊN (theo ô lưới) — người gọi vẫn phải tự kiểm tra\n\tkhoảng cách thật nếu cần chính xác. Đây là điểm quan trọng:\n\tlưới băm là bộ LỌC, không phải kết quả cuối.\n]]\nfunction Spatial:QueryRadius(origin, radius)\n\tself.stats.queries += 1\n\tif origin == nil then\n\t\treturn {}\n\tend\n\tlocal r = math.max(0, tonumber(radius) or 0)\n\tlocal size = self.cellSize\n\tlocal reach = math.ceil(r / size)\n\n\tlocal found = {}\n\tlocal cx = math.floor(origin.X / size)\n\tlocal cy = math.floor(origin.Y / size)\n\tlocal cz = math.floor(origin.Z / size)\n\n\tfor dx = -reach, reach do\n\t\tfor dy = -reach, reach do\n\t\t\tfor dz = -reach, reach do\n\t\t\t\tlocal bucket = self.cells[(\"%d,%d,%d\"):format(cx + dx, cy + dy, cz + dz)]\n\t\t\t\tif bucket ~= nil then\n\t\t\t\t\tfor instance, entry in pairs(bucket) do\n\t\t\t\t\t\tfound[#found + 1] = instance\n\t\t\t\t\t\tself.stats.candidatesExamined += 1\n\t\t\t\t\t\t_ = entry\n\t\t\t\t\tend\n\t\t\t\tend\n\t\t\tend\n\t\tend\n\tend\n\treturn found\nend\n\n--[[\n\tTìm ỨNG VIÊN gần nhất, lọc tiếp bằng khoảng cách bình phương (CPU-005).\n\tTrả về: instance, khoảng cách (hoặc nil).\n]]\nfunction Spatial:Nearest(origin, radius)\n\tlocal candidates = self:QueryRadius(origin, radius)\n\tlocal limitSquared = (radius or 0) * (radius or 0)\n\tlocal best, bestDistanceSquared = nil, math.huge\n\n\tfor _, instance in candidates do\n\t\tlocal entry = self.entries[instance]\n\t\tif entry ~= nil then\n\t\t\tlocal p = entry.position\n\t\t\tlocal dx = p.X - origin.X\n\t\t\tlocal dy = p.Y - origin.Y\n\t\t\tlocal dz = p.Z - origin.Z\n\t\t\tlocal d2 = dx * dx + dy * dy + dz * dz\n\t\t\tif d2 <= limitSquared and d2 < bestDistanceSquared then\n\t\t\t\tbest = instance\n\t\t\t\tbestDistanceSquared = d2\n\t\t\tend\n\t\tend\n\tend\n\n\tif best == nil then\n\t\treturn nil, nil\n\tend\n\treturn best, math.sqrt(bestDistanceSquared)\nend\n\nfunction Spatial:Count()\n\tlocal n = 0\n\tfor _ in pairs(self.entries) do\n\t\tn += 1\n\tend\n\treturn n\nend\n\nfunction Spatial:CellCount()\n\tlocal n = 0\n\tfor _ in pairs(self.cells) do\n\t\tn += 1\n\tend\n\treturn n\nend\n\n--[[\n\tDựng lưới từ một danh sách instance có CFrame.\n\tCó TRẦN số đối tượng để việc dựng lưới không tự gây khựng hình.\n]]\nfunction Spatial:Rebuild(instances, maxEntries)\n\tself.stats.rebuilds += 1\n\ttable.clear(self.cells)\n\ttable.clear(self.entries)\n\n\tlocal limit = math.max(1, math.floor(maxEntries or 500))\n\tlocal inserted = 0\n\tfor _, instance in instances do\n\t\tif inserted >= limit then\n\t\t\tShared_Log.Info(SCOPE, (\"chỉ lập lưới cho %d/%d đối tượng (trần)\")\n\t\t\t\t:format(limit, #instances))\n\t\t\tbreak\n\t\tend\n\t\tlocal ok, position = Client_Guard.Run(SCOPE, function()\n\t\t\treturn instance.CFrame\n\t\tend)\n\t\tif ok and position ~= nil then\n\t\t\tself:Insert(instance, position.Position or position)\n\t\t\tinserted += 1\n\t\tend\n\tend\n\treturn inserted\nend\n\nfunction Spatial:Stats()\n\treturn {\n\t\tcellSize = self.cellSize,\n\t\tentries = self:Count(),\n\t\tcells = self:CellCount(),\n\t\tinserts = self.stats.inserts,\n\t\tqueries = self.stats.queries,\n\t\tcandidatesExamined = self.stats.candidatesExamined,\n\t\trebuilds = self.stats.rebuilds,\n\t}\nend\n\nreturn Spatial\n",
-	["Client/Optimizations/Effects"] = "--[[ ===== RALO.METHODS:BEGIN =====\n\tCác phương pháp được TRIỂN KHAI TRONG TỆP NÀY (khớp với Shared/Methods.luau):\n\t  EFFECTS-001, EFFECTS-002 \n\t===== RALO.METHODS:END ===== --]]\n\n--[[\n\tOptimizations/Effects.luau\n\tGIẢM CHI PHÍ EFFECT — không xoá effect.\n\n\tSai lầm phổ biến của mấy script \"anti lag\" là `Destroy()` sạch\n\tParticleEmitter/Beam/Trail. Cách đó phá gameplay (mất hiệu ứng kỹ năng,\n\tmất dấu vết đường đạn) và KHÔNG hoàn tác được.\n\n\tCách làm ở đây:\n\t  * GIỚI HẠN Rate và ParticleCount về mức trần -> effect vẫn hiện, nhẹ hơn.\n\t  * Beam/Trail/Decal mặc định GIỮ NGUYÊN; chỉ tắt khi người dùng bật cờ.\n\t  * Mọi giá trị cũ được ghi vào Restore để hoàn tác 100%.\n]]\n\nlocal Util_Safe = __RALO_REQUIRE(\"Shared/Safe\")\nlocal Util_Log = __RALO_REQUIRE(\"Shared/Log\")\nlocal Core_Restore = __RALO_REQUIRE(\"Client/Core/Restore\")\nlocal Opt_Scan = __RALO_REQUIRE(\"Client/Optimizations/Scan\")\n\nlocal SCOPE = \"Effects\"\n\nlocal Effects = {}\n\nlocal function change(instance: any, property: string, newValue: any, stepId: string, expect: any)\n\tlocal oldValue, readOk = Util_Safe.Get(instance, property)\n\tif not readOk then\n\t\treturn false\n\tend\n\tif oldValue == newValue then\n\t\treturn false\n\tend\n\tlocal ok = Util_Safe.Set(instance, property, newValue, { scope = SCOPE .. \":\" .. stepId, expect = expect })\n\tif ok then\n\t\t-- Truyền newValue để khi hoàn tác, Guard.Change biết giá trị script\n\t\t-- đã đặt và TỪ CHỐI ghi đè nếu game đã đổi nó sau đó (REC-002).\n\t\tCore_Restore.Record(instance, property, oldValue, stepId, newValue)\n\tend\n\treturn ok\nend\n\nfunction Effects.CapParticles(_step: any, profile: any)\n\tlocal rateCap = profile.effects.particleRateCap or 40\n\tlocal countCap = profile.effects.particleMaxCountCap or 120\n\n\tlocal cappedRate, cappedCount, alreadyOk = 0, 0, 0\n\n\tlocal stats = Opt_Scan.Descendants({\n\t\tmaxScan = profile.effects.maxInstancesScanned or 3000,\n\t\tyieldEvery = 400,\n\t\tfilter = function(instance)\n\t\t\treturn instance.ClassName == \"ParticleEmitter\"\n\t\tend,\n\t\tonFound = function(instance)\n\t\t\tlocal touched = false\n\n\t\t\tlocal rate, okRate = Util_Safe.Get(instance, \"Rate\")\n\t\t\tif okRate and type(rate) == \"number\" and rate > rateCap then\n\t\t\t\tif change(instance, \"Rate\", rateCap, \"effects.particles\", rateCap) then\n\t\t\t\t\tcappedRate += 1\n\t\t\t\t\ttouched = true\n\t\t\t\tend\n\t\t\tend\n\n\t\t\tlocal count, okCount = Util_Safe.Get(instance, \"ParticleCount\")\n\t\t\t-- ParticleCount = -1 nghĩa là \"không giới hạn\"; ta quy về mức trần.\n\t\t\tif okCount and type(count) == \"number\" and (count < 0 or count > countCap) then\n\t\t\t\tif change(instance, \"ParticleCount\", countCap, \"effects.particles\", countCap) then\n\t\t\t\t\tcappedCount += 1\n\t\t\t\t\ttouched = true\n\t\t\t\tend\n\t\t\tend\n\n\t\t\tif not touched then\n\t\t\t\talreadyOk += 1\n\t\t\tend\n\t\t\treturn touched\n\t\tend,\n\t})\n\n\tif stats.error then\n\t\treturn { changes = 0, detail = \"lỗi khi quét: \" .. stats.error, restorable = false }\n\tend\n\n\treturn {\n\t\tchanges = cappedRate + cappedCount,\n\t\tdetail = (\"giới hạn Rate cho %d emitter, ParticleCount cho %d emitter; %d emitter vốn đã nhẹ; đã quét %d (khớp %d%s)\")\n\t\t\t:format(cappedRate, cappedCount, alreadyOk, stats.scanned, stats.matched,\n\t\t\t\tstats.truncated and \", có cắt bớt\" or \"\"),\n\t}\nend\n\nfunction Effects.ApplyOptionalEffects(_step: any, profile: any)\n\tlocal doBeams = profile.effects.disableBeams == true\n\tlocal doTrails = profile.effects.disableTrails == true\n\tlocal doDecals = profile.effects.dimDecals == true\n\n\tif not doBeams and not doTrails and not doDecals then\n\t\treturn {\n\t\t\tchanges = 0,\n\t\t\tdetail = \"giữ nguyên Beam/Trail/Decal theo cấu hình mặc định (ưu tiên giữ tính năng)\",\n\t\t}\n\tend\n\n\tlocal beams, trails, decals = 0, 0, 0\n\tlocal stats = Opt_Scan.Descendants({\n\t\tmaxScan = profile.effects.maxInstancesScanned or 3000,\n\t\tyieldEvery = 400,\n\t\tfilter = function(instance)\n\t\t\tlocal cls = instance.ClassName\n\t\t\treturn (doBeams and cls == \"Beam\")\n\t\t\t\tor (doTrails and cls == \"Trail\")\n\t\t\t\tor (doDecals and (cls == \"Decal\" or cls == \"Texture\"))\n\t\tend,\n\t\tonFound = function(instance)\n\t\t\tlocal cls = instance.ClassName\n\t\t\tif cls == \"Beam\" then\n\t\t\t\tif change(instance, \"Enabled\", false, \"effects.optional\", false) then\n\t\t\t\t\tbeams += 1\n\t\t\t\t\treturn true\n\t\t\t\tend\n\t\t\telseif cls == \"Trail\" then\n\t\t\t\tif change(instance, \"Enabled\", false, \"effects.optional\", false) then\n\t\t\t\t\ttrails += 1\n\t\t\t\t\treturn true\n\t\t\t\tend\n\t\t\telse\n\t\t\t\tif change(instance, \"Transparency\", 1, \"effects.optional\", 1) then\n\t\t\t\t\tdecals += 1\n\t\t\t\t\treturn true\n\t\t\t\tend\n\t\t\tend\n\t\t\treturn false\n\t\tend,\n\t})\n\n\treturn {\n\t\tchanges = beams + trails + decals,\n\t\tdetail = (\"tắt %d Beam, %d Trail, làm mờ %d Decal (đã quét %d)\")\n\t\t\t:format(beams, trails, decals, stats.scanned),\n\t}\nend\n\nreturn Effects\n",
-	["Client/Optimizations/Graphics"] = "--[[ ===== RALO.METHODS:BEGIN =====\n\tCác phương pháp được TRIỂN KHAI TRONG TỆP NÀY (khớp với Shared/Methods.luau):\n\t  GRAPHICS-001, GRAPHICS-002, GRAPHICS-003 \n\t===== RALO.METHODS:END ===== --]]\n\n--[[\n\tOptimizations/Graphics.luau\n\tGiảm tải RENDER phía client. Tất cả đều là property client-writable\n\ttrong Roblox Luau và đều được hoàn tác được (trừ QualityLevel vốn là\n\tcài đặt phiên, vẫn khôi phục được bằng cách ghi lại giá trị cũ).\n\n\tKHÔNG có thao tác nào ở đây đụng vào gameplay: không tắt va chạm vật thể\n\tchơi được, không xoá model, không tắt âm thanh gameplay.\n]]\n\nlocal Core_Env = __RALO_REQUIRE(\"Client/Core/Env\")\nlocal Util_Safe = __RALO_REQUIRE(\"Shared/Safe\")\nlocal Util_Log = __RALO_REQUIRE(\"Shared/Log\")\nlocal Core_Restore = __RALO_REQUIRE(\"Client/Core/Restore\")\nlocal Opt_Scan = __RALO_REQUIRE(\"Client/Optimizations/Scan\")\n\nlocal SCOPE = \"Graphics\"\n\nlocal Graphics = {}\n\n-- Ghi lại giá trị cũ rồi mới đổi; chỉ đếm khi đổi thật sự thành công.\nlocal function change(instance: any, property: string, newValue: any, stepId: string, expect: any)\n\tlocal oldValue, readOk = Util_Safe.Get(instance, property)\n\tif not readOk then\n\t\treturn false\n\tend\n\tif oldValue == newValue then\n\t\treturn false                       -- đã ở sẵn trạng thái mong muốn\n\tend\n\tlocal ok = Util_Safe.Set(instance, property, newValue, {\n\t\tscope = SCOPE .. \":\" .. stepId,\n\t\texpect = expect,\n\t})\n\tif ok then\n\t\tCore_Restore.Record(instance, property, oldValue, stepId, newValue)\n\tend\n\treturn ok\nend\n\nfunction Graphics.ApplyQualityLevel(_step: any, profile: any)\n\tlocal lighting = Core_Env.GetService(\"Lighting\")\n\tif lighting == nil then\n\t\treturn { changes = 0, detail = \"không truy cập được Lighting\", restorable = false }\n\tend\n\n\tlocal target = math.clamp(math.floor(profile.graphics.qualityLevel or 8), 1, 10)\n\tlocal currentQuality, qualityReadable = Util_Safe.Get(lighting, \"QualityLevel\")\n\t-- Không bao giờ nâng đồ họa của máy yếu lên cao hơn mức người dùng đang dùng.\n\tif qualityReadable and type(currentQuality) == \"number\" then\n\t\ttarget = math.min(target, currentQuality)\n\tend\n\n\tlocal changed = 0\n\tif change(lighting, \"QualityLevel\", target, \"graphics.quality\", target) then\n\t\tchanged += 1\n\tend\n\t-- Chỉ khóa chế độ tự động nếu chủ game chủ động bật tuỳ chọn này.\n\tif profile.graphics.lockQualityMode == true\n\t\tand change(lighting, \"GraphicsQualityMode\", false, \"graphics.quality\", false) then\n\t\tchanged += 1\n\tend\n\t-- Technology: chỉ đổi khi người dùng chỉ định rõ (mặc định GIỮ NGUYÊN).\n\tlocal tech = profile.graphics.technology\n\tif tech ~= nil and change(lighting, \"Technology\", tech, \"graphics.quality\", tech) then\n\t\tchanged += 1\n\tend\n\n\tlocal current = Util_Safe.Get(lighting, \"QualityLevel\")\n\tlocal modeNote = profile.graphics.lockQualityMode == true\n\t\tand \"GraphicsQualityMode=false (đã bật tùy chọn khóa)\"\n\t\tor \"GraphicsQualityMode giữ nguyên\"\n\treturn {\n\t\tchanges = changed,\n\t\tdetail = (\"QualityLevel -> %s (đang là %s), %s\")\n\t\t\t:format(tostring(target), tostring(current), modeNote),\n\t}\nend\n\nfunction Graphics.ApplyTerrain(_step: any, profile: any)\n\tif profile.graphics.applyTerrainDecoration ~= true then\n\t\treturn { changes = 0, detail = \"mặc định giữ nguyên Terrain.Decoration\" }\n\tend\n\n\tlocal workspace = Core_Env.GetService(\"Workspace\")\n\tif workspace == nil then\n\t\treturn { changes = 0, detail = \"không truy cập được Workspace\", restorable = false }\n\tend\n\tlocal terrain, ok = Util_Safe.Get(workspace, \"Terrain\")\n\tif not ok or terrain == nil then\n\t\treturn { changes = 0, detail = \"không có Terrain\", restorable = false }\n\tend\n\n\tlocal target = profile.graphics.terrainDecoration == true\n\tlocal changed = 0\n\tif change(terrain, \"Decoration\", target, \"graphics.terrain\", target) then\n\t\tchanged += 1\n\tend\n\treturn {\n\t\tchanges = changed,\n\t\tdetail = (\"Terrain.Decoration -> %s (chi tiết cỏ/đá nhỏ; địa hình vẫn giữ nguyên)\")\n\t\t\t:format(tostring(target)),\n\t}\nend\n\n--[[\n\tGiảm tầm bóng đổ và tắt CastShadow cho part ở XA camera.\n\tPart gần vẫn giữ bóng -> hình ảnh tổng thể gần như không đổi.\n]]\nfunction Graphics.ApplyShadowBudget(step: any, profile: any)\n\tlocal lighting = Core_Env.GetService(\"Lighting\")\n\tlocal workspace = Core_Env.GetService(\"Workspace\")\n\tif lighting == nil or workspace == nil then\n\t\treturn { changes = 0, detail = \"thiếu Lighting/Workspace\", restorable = false }\n\tend\n\n\tlocal changed = 0\n\tlocal distance = profile.graphics.shadowDistance or 0\n\n\t-- Ghi chú: ta KHÔNG đổi ShadowSoftness / ShadowColor / Ambient — những thứ\n\t-- đó làm thay đổi rõ rệt tông màu của game, trái với yêu cầu \"giảm nhẹ nhàng\".\n\t_ = lighting -- lighting được lấy để đảm bảo service tồn tại trước khi quét\n\n\tif distance <= 0 then\n\t\treturn { changes = changed, detail = \"shadowDistance = 0 nên giữ nguyên mọi CastShadow\" }\n\tend\n\n\tlocal camera, camOk = Util_Safe.Get(workspace, \"CurrentCamera\")\n\tif not camOk or camera == nil then\n\t\treturn { changes = changed, detail = \"không có CurrentCamera -> không đo được khoảng cách\" }\n\tend\n\tlocal camPos, posOk = Util_Safe.Get(camera, \"CFrame\")\n\tif not posOk or camPos == nil then\n\t\treturn { changes = changed, detail = \"không đọc được CFrame camera\" }\n\tend\n\n\tlocal isRenderable = { Part = true, MeshPart = true, UnionOperation = true }\n\tlocal stats = Opt_Scan.Descendants({\n\t\tmaxScan = profile.graphics.maxShadowTargets or profile.effects.maxInstancesScanned or 3000,\n\t\tyieldEvery = 400,\n\t\troot = workspace,\n\t\tfilter = function(instance)\n\t\t\treturn isRenderable[instance.ClassName] == true\n\t\tend,\n\t\tonFound = function(instance)\n\t\t\tlocal casting, okCast = Util_Safe.Get(instance, \"CastShadow\")\n\t\t\tif not okCast or casting ~= true then\n\t\t\t\treturn false\n\t\t\tend\n\t\t\tlocal cf, okCf = Util_Safe.Get(instance, \"CFrame\")\n\t\t\tif not okCf or cf == nil then\n\t\t\t\treturn false\n\t\t\tend\n\t\t\tlocal dist = (cf.Position - camPos.Position).Magnitude\n\t\t\tif dist < distance then\n\t\t\t\treturn false\n\t\t\tend\n\t\t\treturn change(instance, \"CastShadow\", false, step.id, false)\n\t\tend,\n\t})\n\n\tif stats.error then\n\t\treturn { changes = changed, detail = \"lỗi khi quét: \" .. stats.error, restorable = false }\n\tend\n\n\tchanged += stats.changed\n\treturn {\n\t\tchanges = changed,\n\t\tdetail = (\"tắt CastShadow cho %d part xa hơn %d stud (đã quét %d, khớp %d%s)\")\n\t\t\t:format(stats.changed, distance, stats.scanned, stats.matched,\n\t\t\t\tstats.truncated and \", có cắt bớt\" or \"\"),\n\t}\nend\n\nfunction Graphics.ApplyCharacter(_step: any, profile: any)\n\tlocal players = Core_Env.GetService(\"Players\")\n\tif players == nil then\n\t\treturn { changes = 0, detail = \"không truy cập được Players\", restorable = false }\n\tend\n\tlocal player, ok = Util_Safe.Get(players, \"LocalPlayer\")\n\tif not ok or player == nil then\n\t\treturn { changes = 0, detail = \"không có LocalPlayer\", restorable = false }\n\tend\n\tlocal character = player.Character\n\tif character == nil then\n\t\treturn { changes = 0, detail = \"nhân vật chưa spawn\" }\n\tend\n\n\tlocal changed = 0\n\tlocal notes = {}\n\n\tif profile.character.disableShadows then\n\t\tlocal descendants, dOk = pcall(function() return character:GetDescendants() end)\n\t\tif dOk then\n\t\t\tfor _, instance in descendants do\n\t\t\t\tlocal cls = instance.ClassName\n\t\t\t\tif cls == \"Part\" or cls == \"MeshPart\" or cls == \"Accessory\" then\n\t\t\t\t\tif change(instance, \"CastShadow\", false, \"graphics.character\", false) then\n\t\t\t\t\t\tchanged += 1\n\t\t\t\t\tend\n\t\t\t\tend\n\t\t\tend\n\t\t\tnotes[#notes + 1] = \"tắt bóng nhân vật\"\n\t\tend\n\tend\n\n\tif profile.character.disableAutoScaling then\n\t\tlocal humanoid = character:FindFirstChildOfClass(\"Humanoid\")\n\t\tif humanoid ~= nil then\n\t\t\tif change(humanoid, \"AutomaticScalingEnabled\", false, \"graphics.character\", false) then\n\t\t\t\tchanged += 1\n\t\t\t\tnotes[#notes + 1] = \"tắt auto-scaling\"\n\t\t\tend\n\t\tend\n\tend\n\n\tif #notes == 0 then\n\t\treturn { changes = 0, detail = \"không có gì để đổi trên nhân vật\" }\n\tend\n\treturn {\n\t\tchanges = changed,\n\t\tdetail = table.concat(notes, \", \") .. \" (nhân vật và animation giữ nguyên)\",\n\t}\nend\n\n--[[\n\tGHI CHÚ VỀ GIỚI HẠN FPS (FPS-005, trạng thái E trong danh mục):\n\n\tPhiên bản trước của dự án có hàm Graphics.ApplyFpsCap dùng\n\t`setrbxsetting(\"Render\", \"FrameRateMax\", ...)`. Hàm đó ĐÃ BỊ XOÁ vì:\n\n\t  * `setrbxsetting` là API của executor, không tồn tại trong Roblox\n\t    Studio hay client chính thức. Dùng nó nghĩa là dự án nhắm tới\n\t    môi trường exploit — trái với phạm vi đã thống nhất (Studio +\n\t    game do bạn sở hữu, không executor).\n\t  * Không có API công khai nào cho phép LocalScript đổi FrameRateMax.\n\n\tNếu bạn muốn giới hạn FPS, hãy tự chỉnh trong\n\tSettings -> Rendering của client Roblox. Script không làm thay được,\n\tvà dự án không giả vờ làm được.\n]]\n\nreturn Graphics\n",
-	["Client/Optimizations/Memory"] = "--[[\n\tOptimizations/Memory.luau\n\tDọn bộ nhớ Luau và gom instance \"mồ côi\".\n\n\tNguyên tắc KHÔNG XOÁ: instance mồ côi (không còn parent, không phải\n\tcon của DataModel) được CHUYỂN về một folder lưu trữ trong\n\tCorePackages/ServerStorage thay vì Destroy(). Người dùng vẫn hoàn tác được\n\tbằng cách kéo chúng ra khỏi folder.\n\n\tGC: dùng collectgarbage(\"step\", n) theo chu kỳ — rẻ và không gây khựng\n\tnhư collectgarbage(\"collect\") toàn phần.\n]]\n\nlocal Core_Env = __RALO_REQUIRE(\"Client/Core/Env\")\nlocal Util_Safe = __RALO_REQUIRE(\"Shared/Safe\")\nlocal Util_Log = __RALO_REQUIRE(\"Shared/Log\")\n\nlocal SCOPE = \"Memory\"\n\nlocal Memory = {}\n\nMemory.gcHandle = nil\nMemory.archiveFolder = nil\nMemory.archived = 0\n\nlocal function ensureArchiveFolder()\n\tif Memory.archiveFolder ~= nil then\n\t\treturn Memory.archiveFolder\n\tend\n\tlocal game = Core_Env.game\n\tif game == nil then\n\t\treturn nil\n\tend\n\tlocal holder, ok = Util_Safe.Get(game, \"CorePackages\")\n\tif not ok or holder == nil then\n\t\tholder = Util_Safe.Get(game, \"ServerStorage\")\n\tend\n\tif holder == nil then\n\t\treturn nil\n\tend\n\n\tlocal folder = holder:FindFirstChild(\"RALO_Archive\")\n\tif folder == nil then\n\t\tlocal okNew, created = pcall(function()\n\t\t\tlocal instance = Instance.new(\"Folder\")\n\t\t\tinstance.Name = \"RALO_Archive\"\n\t\t\tinstance.Parent = holder\n\t\t\treturn instance\n\t\tend)\n\t\tif not okNew then\n\t\t\tUtil_Log.Warn(SCOPE, \"không tạo được folder lưu trữ:\", tostring(created))\n\t\t\treturn nil\n\t\tend\n\t\tfolder = created\n\tend\n\tMemory.archiveFolder = folder\n\treturn folder\nend\n\n--[[\n\tGom instance mồ côi. \"Mồ côi\" = instance có Parent == nil nhưng vẫn còn\n\ttham chiếu sống (thường do script tạo ra rồi bỏ quên). Ta chỉ xử lý\n\tnhững gì tìm được qua GetDescendants của các service chứa chúng,\n\tnên mặc định bước này chỉ báo cáo và hầu như không đổi gì —\n\tđúng bản chất, không phóng đại.\n]]\nfunction Memory.SweepOrphans(_step: any, profile: any)\n\tif not profile.memory.archiveOrphans then\n\t\treturn { changes = 0, detail = \"archiveOrphans = false\", restorable = false }\n\tend\n\n\tlocal folder = ensureArchiveFolder()\n\tif folder == nil then\n\t\treturn {\n\t\t\tchanges = 0,\n\t\t\tdetail = \"không tạo được folder lưu trữ -> bỏ qua (không xoá gì cả)\",\n\t\t\trestorable = false,\n\t\t}\n\tend\n\n\t-- Chỉ quét những container \"rác\" kinh điển: workspace.Debris,\n\t-- ReplicatedStorage/ServerStorage rỗng, và các instance tên trùng mẫu tạm.\n\tlocal game = Core_Env.game\n\tlocal moved = 0\n\tif game ~= nil then\n\t\tlocal workspace = Core_Env.GetService(\"Workspace\")\n\t\tlocal debris = workspace and workspace:FindFirstChild(\"Debris\")\n\t\tif debris ~= nil then\n\t\t\tlocal ok, children = pcall(function() return debris:GetChildren() end)\n\t\t\tif ok then\n\t\t\t\tfor _, child in children do\n\t\t\t\t\tlocal okMove = pcall(function() child.Parent = folder end)\n\t\t\t\t\tif okMove then\n\t\t\t\t\t\tmoved += 1\n\t\t\t\t\tend\n\t\t\t\tend\n\t\t\tend\n\t\tend\n\tend\n\n\tMemory.archived += moved\n\treturn {\n\t\tchanges = moved,\n\t\tdetail = moved > 0\n\t\t\tand (\"chuyển %d instance từ workspace.Debris vào CorePackages/RALO_Archive (không xoá)\")\n\t\t\t\t:format(moved)\n\t\t\tor \"không tìm thấy instance mồ côi trong các container rác — không có gì để dọn\",\n\t\trestorable = false,\n\t}\nend\n\n--[[\n\tBật vòng dọn GC theo chu kỳ. Trả về handle để StopGcLoop huỷ được.\n]]\nfunction Memory.StartGcLoop(_step: any, profile: any)\n\tlocal every = profile.memory.gcEverySeconds or 0\n\tif every <= 0 then\n\t\treturn { changes = 0, detail = \"gcEverySeconds = 0 nên không bật\", restorable = false }\n\tend\n\tif collectgarbage == nil then\n\t\treturn { changes = 0, detail = \"runtime không có collectgarbage\", restorable = false }\n\tend\n\n\t-- Nếu đã có vòng chạy sẵn thì không tạo vòng thứ hai.\n\tif Memory.gcHandle ~= nil then\n\t\treturn { changes = 0, detail = \"vòng GC đã chạy sẵn\", restorable = false }\n\tend\n\n\tlocal stepKb = profile.memory.collectStepKb or 200\n\tlocal runs = 0\n\tlocal thread = Core_Env.task.spawn(function()\n\t\twhile Memory.gcHandle ~= nil do\n\t\t\tCore_Env.task.wait(every)\n\t\t\tif Memory.gcHandle == nil then break end\n\t\t\tlocal ok, err = pcall(collectgarbage, \"step\", stepKb)\n\t\t\tif ok then\n\t\t\t\truns += 1\n\t\t\telse\n\t\t\t\tUtil_Log.Warn(SCOPE, \"collectgarbage step lỗi:\", tostring(err))\n\t\t\tend\n\t\tend\n\tend)\n\n\tMemory.gcHandle = { thread = thread, runs = function() return runs end, every = every }\n\treturn {\n\t\tchanges = 1,\n\t\tdetail = (\"bật collectgarbage(\\\"step\\\", %d) mỗi %ds\"):format(stepKb, every),\n\t\trestorable = false,\n\t}\nend\n\nfunction Memory.StopGcLoop()\n\tlocal handle = Memory.gcHandle\n\tMemory.gcHandle = nil\n\tif handle and handle.thread and Core_Env.task.cancel then\n\t\tpcall(Core_Env.task.cancel, handle.thread)\n\t\tUtil_Log.Info(SCOPE, \"đã tắt vòng GC\")\n\t\treturn true\n\tend\n\treturn false\nend\n\nreturn Memory\n",
-	["Client/Optimizations/Physics"] = "--[[ ===== RALO.METHODS:BEGIN =====\n\tCác phương pháp được TRIỂN KHAI TRONG TỆP NÀY (khớp với Shared/Methods.luau):\n\t  PHYSICS-001, PHYSICS-002 \n\t===== RALO.METHODS:END ===== --]]\n\n--[[\n\tOptimizations/Physics.luau\n\tGiảm chi phí vật lý phía client.\n\n\tLƯU Ý TRUNG THỰC: khác với các bước đồ hoạ, nhóm này CÓ đánh đổi cảm giác\n\tchơi — tắt làm mượt nội suy (InterpolationThrottling) giúp tiết kiệm CPU\n\tđáng kể trên máy yếu nhưng chuyển động vật thể từ xa sẽ \"giật\" hơn.\n\tVì vậy `physics.enabled` MẶC ĐỊNH = false và bước này bị SKIP.\n\n\tNgoài ra, `workspace.PhysicsSteppingMethod` / `InterpolationThrottling`\n\tthường bị khoá ghi ở client thường (chỉ server/Studio ghi được). Script\n\tkhông lách khoá: ghi không được thì báo \"unsupported\" chứ không giả vờ.\n]]\n\nlocal Core_Env = __RALO_REQUIRE(\"Client/Core/Env\")\nlocal Util_Safe = __RALO_REQUIRE(\"Shared/Safe\")\nlocal Core_Restore = __RALO_REQUIRE(\"Client/Core/Restore\")\n\nlocal Physics = {}\n\nfunction Physics.ApplyThrottling(step: any, profile: any)\n\tif not profile.physics.enabled then\n\t\treturn { changes = 0, detail = \"physics.enabled = false (mặc định, vì có đánh đổi)\", restorable = false }\n\tend\n\n\tlocal workspace = Core_Env.GetService(\"Workspace\")\n\tif workspace == nil then\n\t\treturn { changes = 0, detail = \"không truy cập được Workspace\", restorable = false }\n\tend\n\n\tlocal changed = 0\n\tlocal notes = {}\n\tlocal blocked = {}\n\n\tlocal throttle = profile.physics.interpolationThrottling\n\tif throttle ~= nil then\n\t\tlocal oldValue, readOk = Util_Safe.Get(workspace, \"InterpolationThrottling\")\n\t\tif not readOk then\n\t\t\tblocked[#blocked + 1] = \"InterpolationThrottling (không đọc được)\"\n\t\telseif oldValue == throttle then\n\t\t\tnotes[#notes + 1] = \"InterpolationThrottling đã ở mức mong muốn\"\n\t\telse\n\t\t\tlocal ok = Util_Safe.Set(workspace, \"InterpolationThrottling\", throttle, {\n\t\t\t\tscope = \"Physics:\" .. step.id, expect = throttle,\n\t\t\t})\n\t\t\tif ok then\n\t\t\t\tCore_Restore.Record(workspace, \"InterpolationThrottling\", oldValue, step.id, throttle)\n\t\t\t\tchanged += 1\n\t\t\t\tnotes[#notes + 1] = \"InterpolationThrottling = \" .. tostring(throttle)\n\t\t\telse\n\t\t\t\tblocked[#blocked + 1] = \"InterpolationThrottling (client không được ghi)\"\n\t\t\tend\n\t\tend\n\tend\n\n\tlocal stepping = profile.physics.physicsSteppingMethod\n\tif stepping ~= nil then\n\t\tlocal oldValue, readOk = Util_Safe.Get(workspace, \"PhysicsSteppingMethod\")\n\t\tif not readOk then\n\t\t\tblocked[#blocked + 1] = \"PhysicsSteppingMethod (không đọc được)\"\n\t\telseif oldValue == stepping then\n\t\t\tnotes[#notes + 1] = \"PhysicsSteppingMethod đã ở mức mong muốn\"\n\t\telse\n\t\t\tlocal ok = Util_Safe.Set(workspace, \"PhysicsSteppingMethod\", stepping, {\n\t\t\t\tscope = \"Physics:\" .. step.id, expect = stepping,\n\t\t\t})\n\t\t\tif ok then\n\t\t\t\tCore_Restore.Record(workspace, \"PhysicsSteppingMethod\", oldValue, step.id, stepping)\n\t\t\t\tchanged += 1\n\t\t\t\tnotes[#notes + 1] = \"PhysicsSteppingMethod = \" .. tostring(stepping)\n\t\t\telse\n\t\t\t\tblocked[#blocked + 1] = \"PhysicsSteppingMethod (client không được ghi)\"\n\t\t\tend\n\t\tend\n\tend\n\n\tlocal detail = #notes > 0 and table.concat(notes, \"; \") or \"không đổi được gì\"\n\tif #blocked > 0 then\n\t\tdetail ..= \" | bị chặn: \" .. table.concat(blocked, \", \")\n\tend\n\n\treturn { changes = changed, detail = detail }\nend\n\nreturn Physics\n",
-	["Client/Optimizations/Scan"] = "--[[ ===== RALO.METHODS:BEGIN =====\n\tCác phương pháp được TRIỂN KHAI TRONG TỆP NÀY (khớp với Shared/Methods.luau):\n\t  QUERY-004, QUERY-006 \n\t===== RALO.METHODS:END ===== --]]\n\n--[[\n\tOptimizations/Scan.luau\n\tQuét thế giới một cách AN TOÀN và có TRẦN (cap).\n\n\tTại sao cần: game có thể có hàng chục nghìn instance. Quét toàn bộ trong\n\tmột frame sẽ gây khựng hình — tức là chính script tạo ra lag. Nên:\n\t  * có giới hạn số instance quét (maxScan),\n\t  * chia nhỏ theo lô và nhường frame giữa các lô (yieldEvery),\n\t  * đếm chính xác những gì đã thực sự đổi.\n]]\n\nlocal Core_Env = __RALO_REQUIRE(\"Client/Core/Env\")\nlocal Util_Log = __RALO_REQUIRE(\"Shared/Log\")\n\nlocal SCOPE = \"Scan\"\n\nlocal Scan = {}\n\nScan.lastStats = nil\n\n--[[\n\toptions = {\n\t\tfilter   = function(instance) -> boolean\n\t\tonFound  = function(instance) -> boolean  (trả về true nếu đã thay đổi)\n\t\tmaxScan  = số instance tối đa sẽ xét (mặc định 3000)\n\t\tyieldEvery = nhường frame sau mỗi N instance (0 = không nhường)\n\t\troot     = instance gốc (mặc định DataModel)\n\t}\n]]\nfunction Scan.Descendants(options: any)\n\toptions = options or {}\n\tlocal maxScan = options.maxScan or 3000\n\tlocal yieldEvery = options.yieldEvery or 0\n\tlocal root = options.root or Core_Env.game\n\n\tlocal stats = { scanned = 0, matched = 0, changed = 0, truncated = false, error = nil }\n\tScan.lastStats = stats\n\n\tif root == nil then\n\t\tstats.error = \"không có root để quét\"\n\t\tUtil_Log.Warn(SCOPE, stats.error)\n\t\treturn stats\n\tend\n\n\tlocal ok, descendants = pcall(function()\n\t\treturn root:GetDescendants()\n\tend)\n\tif not ok then\n\t\tstats.error = \"GetDescendants thất bại: \" .. tostring(descendants)\n\t\tUtil_Log.Warn(SCOPE, stats.error)\n\t\treturn stats\n\tend\n\n\tlocal total = #descendants\n\tstats.totalDescendants = total\n\tstats.scanned = math.min(total, maxScan)\n\tstats.truncated = total > maxScan\n\n\tfor i = 1, stats.scanned do\n\t\tlocal instance = descendants[i]\n\t\tlocal match = true\n\t\tif options.filter then\n\t\t\tlocal filterOk, filterResult = pcall(options.filter, instance)\n\t\t\tmatch = filterOk and filterResult == true\n\t\tend\n\t\tif match then\n\t\t\tstats.matched += 1\n\t\t\tif options.onFound then\n\t\t\t\tlocal changeOk, didChange = pcall(options.onFound, instance)\n\t\t\t\tif changeOk and didChange then\n\t\t\t\t\tstats.changed += 1\n\t\t\t\tend\n\t\t\tend\n\t\tend\n\t\tif yieldEvery > 0 and i % yieldEvery == 0 and Core_Env.task and Core_Env.task.wait then\n\t\t\tCore_Env.task.wait()\n\t\tend\n\tend\n\n\tif stats.truncated then\n\t\tUtil_Log.Info(SCOPE, (\"chỉ quét %d/%d instance (trần maxScan) để tránh khựng hình\")\n\t\t\t:format(maxScan, total))\n\tend\n\treturn stats\nend\n\nreturn Scan\n",
-	["Client/Ui/GuiPolicy"] = "--[[ ===== RALO.METHODS:BEGIN =====\n\tCác phương pháp được TRIỂN KHAI TRONG TỆP NÀY (khớp với Shared/Methods.luau):\n\t  FPS-002, GUI-001, GUI-002, GUI-004,\n\t  GUI-005, GUI-006, GUI-009, GUI-011 \n\t===== RALO.METHODS:END ===== --]]\n\n--[[\n\tClient/Ui/GuiPolicy.luau\n\t===== RALO.METHODS:GUI-001, GUI-002, GUI-004, GUI-005, GUI-006, GUI-007,\n\t                    GUI-010, GUI-011 =====\n\n\tCác QUY TẮC bắt buộc cho GUI của chính hệ thống tối ưu.\n\n\tLý do tệp này tồn tại: một công cụ chống lag mà GUI của nó gây lag\n\tthì phản tác dụng. Những lỗi kinh điển:\n\t  * ResetOnSpawn = true -> mỗi lần hồi sinh GUI bị dựng lại,\n\t    nối chồng connection (GUI-001).\n\t  * Tạo ScreenGui mới mỗi lần chạy -> nhiều lớp GUI chồng nhau (GUI-002).\n\t  * Ghi property GUI mỗi khung hình -> layout tính lại liên tục (GUI-004).\n\t  * Vẫn chạy tween/hoạt ảnh khi GUI đã ẩn -> tốn vô ích (GUI-006).\n\t  * Quên Destroy -> instance mồ côi tích tụ (GUI-011).\n\n\tTất cả quy tắc ở đây đều có test tương ứng trong tests/.\n]]\n\nlocal Shared_Log = __RALO_REQUIRE(\"Shared/Log\")\nlocal Client_Guard = __RALO_REQUIRE(\"Client/Core/Guard\")\n\nlocal SCOPE = \"GuiPolicy\"\n\nlocal GuiPolicy = {}\n\nGuiPolicy.GUI_NAME = \"RALO_OptimizerNotifier\"\nGuiPolicy.stats = { created = 0, reused = 0, blockedDuplicates = 0, destroyed = 0 }\n\n--[[\n\tGUI-002 / GUI-001: lấy ScreenGui DUY NHẤT.\n\tNếu đã tồn tại (do lần chạy trước) thì TÁI SỬ DỤNG, không tạo bản thứ hai.\n\tparent: nơi treo GUI (PlayerGui khi chạy LocalScript).\n]]\nfunction GuiPolicy.AcquireScreenGui(parent)\n\tif parent == nil then\n\t\tShared_Log.Warn(SCOPE, \"không có parent (PlayerGui) -> không tạo GUI\")\n\t\treturn nil\n\tend\n\n\tlocal ok, existing = Client_Guard.Run(SCOPE .. \":Find\", function()\n\t\treturn parent:FindFirstChild(GuiPolicy.GUI_NAME)\n\tend)\n\tif ok and existing ~= nil then\n\t\tGuiPolicy.stats.reused += 1\n\t\tShared_Log.Info(SCOPE, \"tái sử dụng ScreenGui đã có — không tạo bản trùng\")\n\t\treturn existing, true\n\tend\n\n\tlocal okNew, created = Client_Guard.Run(SCOPE .. \":New\", function()\n\t\tlocal gui = Instance.new(\"ScreenGui\")\n\t\tgui.Name = GuiPolicy.GUI_NAME\n\t\tgui.ResetOnSpawn = false          -- GUI-001: KHÔNG dựng lại khi hồi sinh\n\t\tgui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling\n\t\tgui.DisplayOrder = 50\n\t\tgui.IgnoreGuiInset = true\n\t\tgui.Enabled = true\n\t\tgui.Parent = parent\n\t\treturn gui\n\tend)\n\n\tif not okNew or created == nil then\n\t\tShared_Log.Warn(SCOPE, \"không tạo được ScreenGui\")\n\t\treturn nil, false\n\tend\n\n\tGuiPolicy.stats.created += 1\n\treturn created, false\nend\n\n--[[\n\tGUI-011: xoá GUI. CHỈ xoá đúng instance do hệ thống tạo\n\t(kiểm tra bằng Name), không đụng GUI của game.\n]]\nfunction GuiPolicy.DestroyScreenGui(gui)\n\tif gui == nil then\n\t\treturn false\n\tend\n\tlocal ok, name = Client_Guard.Run(SCOPE .. \":CheckName\", function()\n\t\treturn gui.Name\n\tend)\n\tif not ok or name ~= GuiPolicy.GUI_NAME then\n\t\tShared_Log.Warn(SCOPE, \"từ chối xoá GUI không thuộc hệ thống: \" .. tostring(name))\n\t\treturn false\n\tend\n\tlocal okDestroy = Client_Guard.Run(SCOPE .. \":Destroy\", function()\n\t\tgui:Destroy()\n\tend)\n\tif okDestroy then\n\t\tGuiPolicy.stats.destroyed += 1\n\tend\n\treturn okDestroy\nend\n\n--[[\n\tGUI-004: ghi property CHỈ KHI giá trị thật sự khác.\n\tTránh việc ghi lại cùng một giá trị mỗi khung hình khiến engine\n\tphải đánh dấu bẩn (dirty) và tính lại layout một cách vô ích.\n\tTrả về true nếu có ghi.\n]]\nfunction GuiPolicy.SetIfChanged(instance, property, value)\n\tif instance == nil then\n\t\treturn false\n\tend\n\tlocal ok, current = Client_Guard.Run(SCOPE, function()\n\t\treturn instance[property]\n\tend)\n\tif not ok then\n\t\treturn false\n\tend\n\tif current == value then\n\t\treturn false\n\tend\n\tlocal status = Client_Guard.Change(instance, property, value, { scope = SCOPE })\n\treturn status == \"applied\"\nend\n\n--[[\n\tGUI-006 / GUI-010: có nên chạy hoạt ảnh không?\n\tKhi GUI đã ẩn thì KHÔNG chạy tween / không cập nhật gradient.\n]]\nfunction GuiPolicy.ShouldAnimate(gui, allowAnimation)\n\tif allowAnimation == false then\n\t\treturn false\n\tend\n\tif gui == nil then\n\t\treturn false\n\tend\n\tlocal ok, enabled = Client_Guard.Run(SCOPE, function()\n\t\treturn gui.Enabled\n\tend)\n\tif not ok then\n\t\treturn false\n\tend\n\treturn enabled == true\nend\n\n-- GUI-005: đếm số instance trong cây GUI — dùng để giữ cây nhỏ.\nfunction GuiPolicy.CountNodes(root)\n\tif root == nil then\n\t\treturn 0\n\tend\n\tlocal ok, descendants = Client_Guard.Run(SCOPE, function()\n\t\treturn root:GetDescendants()\n\tend)\n\tif not ok or descendants == nil then\n\t\treturn 0\n\tend\n\treturn #descendants + 1\nend\n\nfunction GuiPolicy.Stats()\n\treturn {\n\t\tcreated = GuiPolicy.stats.created,\n\t\treused = GuiPolicy.stats.reused,\n\t\tblockedDuplicates = GuiPolicy.stats.blockedDuplicates,\n\t\tdestroyed = GuiPolicy.stats.destroyed,\n\t\tguiName = GuiPolicy.GUI_NAME,\n\t}\nend\n\nfunction GuiPolicy.Reset()\n\tGuiPolicy.stats = { created = 0, reused = 0, blockedDuplicates = 0, destroyed = 0 }\nend\n\nreturn GuiPolicy\n",
-	["Client/Ui/Notifier"] = "--[[ ===== RALO.METHODS:BEGIN =====\n\tCác phương pháp được TRIỂN KHAI TRONG TỆP NÀY (khớp với Shared/Methods.luau):\n\t  GUI-001, GUI-002, GUI-003, GUI-004, GUI-005, GUI-006, GUI-007, GUI-010,\n\t  GUI-011, GUI-012, GUI-013\n\t===== RALO.METHODS:END ===== --]]\n\n--[[\n\tClient/Ui/Notifier.luau\n\tBảng trạng thái nhỏ, không có menu điều khiển:\n\t  * cố định ở góc dưới bên phải, không nhận kéo / chọn / nút bấm;\n\t  * nền xám bán trong suốt, viền cầu vồng;\n\t  * hiển thị \"Đang giảm lag\" và tiến trình 1–100%;\n\t  * tự ẩn sau 30 giây, dọn connection và instance do mình tạo.\n\n\tPhần trăm là hoạt ảnh thời lượng hiển thị, KHÔNG phải lời hứa về mức FPS.\n\tNếu pipeline hoàn tất sớm, bảng chuyển sang trạng thái hoàn tất và phần trăm\n\tđược chốt ở 100%. Nếu có lỗi, trạng thái lỗi được giữ nguyên (không báo thành công).\n]]\n\nlocal Client_Env = __RALO_REQUIRE(\"Client/Core/Env\")\nlocal Client_Guard = __RALO_REQUIRE(\"Client/Core/Guard\")\nlocal Client_Registry = __RALO_REQUIRE(\"Client/Core/Registry\")\nlocal Client_Scheduler = __RALO_REQUIRE(\"Client/Core/Scheduler\")\nlocal Shared_Log = __RALO_REQUIRE(\"Shared/Log\")\nlocal Ui_GuiPolicy = __RALO_REQUIRE(\"Client/Ui/GuiPolicy\")\nlocal Ui_Theme = __RALO_REQUIRE(\"Client/Ui/Theme\")\nlocal Ui_Widget = __RALO_REQUIRE(\"Client/Ui/Widget\")\n\nlocal SCOPE = \"Notifier\"\n\nlocal Notifier = {}\nNotifier.__index = Notifier\n\nNotifier.instance = nil\nNotifier.DEFAULTS = {\n\ttitle = \"TỐI ƯU HIỆU NĂNG\",\n\tstatus = \"Đang giảm lag\",\n\tdone = \"Đã giảm lag xong\",\n\tfailed = \"Tối ưu gặp lỗi — xem Output\",\n\tdurationSeconds = 30,\n\tfadeSeconds = 0.45,\n\tslideOffset = 70,\n\twidth = 288,\n\tmarginRight = 16,\n\tmarginBottom = 16,\n\tbackgroundAlpha = 0.42,\n\tcornerRadius = 10,\n\tborderWidth = 2,\n\trainbowSpeed = 0.35,\t-- vòng/giây; chỉ cập nhật 10 lần/giây\n\tupdateInterval = 0.1,\n}\n\nfunction Notifier.Get()\n\treturn Notifier.instance\nend\n\n-- Kẹp phần trăm vào 0..100. Không để giá trị bất thường tràn khỏi thanh.\nfunction Notifier.ClampPercent(value)\n\tlocal n = tonumber(value)\n\tif n == nil or n ~= n then\n\t\treturn 0\n\tend\n\tif n < 0 then\n\t\treturn 0\n\tend\n\tif n > 100 then\n\t\treturn 100\n\tend\n\treturn math.floor(n + 0.5)\nend\n\n-- Dựng bảng trạng thái. `options.parent` là PlayerGui.\nfunction Notifier.Build(options)\n\toptions = options or {}\n\n\tif Notifier.instance ~= nil then\n\t\tShared_Log.Info(SCOPE, \"bảng đã tồn tại — dùng lại, không tạo bản trùng\")\n\t\treturn Notifier.instance\n\tend\n\n\tlocal profile = options.profile or {}\n\tlocal guiProfile = profile.gui or {}\n\n\tlocal self = setmetatable({}, Notifier)\n\tself.settings = {\n\t\ttitle = Notifier.DEFAULTS.title,\n\t\tstatus = Notifier.DEFAULTS.status,\n\t\tdone = Notifier.DEFAULTS.done,\n\t\tfailed = Notifier.DEFAULTS.failed,\n\t\tdurationSeconds = math.max(0, tonumber(guiProfile.durationSeconds)\n\t\t\tor Notifier.DEFAULTS.durationSeconds),\n\t\tfadeSeconds = math.max(0.05, tonumber(guiProfile.fadeSeconds) or Notifier.DEFAULTS.fadeSeconds),\n\t\tslideOffset = math.max(0, tonumber(guiProfile.slideOffset) or Notifier.DEFAULTS.slideOffset),\n\t\twidth = math.max(180, tonumber(guiProfile.width) or Notifier.DEFAULTS.width),\n\t\tmarginRight = math.max(0, tonumber(guiProfile.marginRight) or Notifier.DEFAULTS.marginRight),\n\t\tmarginBottom = math.max(0, tonumber(guiProfile.marginBottom) or Notifier.DEFAULTS.marginBottom),\n\t\tbackgroundAlpha = math.clamp(tonumber(guiProfile.backgroundAlpha)\n\t\t\tor Notifier.DEFAULTS.backgroundAlpha, 0, 1),\n\t\tcornerRadius = math.max(0, tonumber(guiProfile.cornerRadius) or Notifier.DEFAULTS.cornerRadius),\n\t\tborderWidth = math.max(1, tonumber(guiProfile.borderWidth) or Notifier.DEFAULTS.borderWidth),\n\t\trainbowSpeed = math.max(0, tonumber(guiProfile.rainbowSpeed) or Notifier.DEFAULTS.rainbowSpeed),\n\t\tupdateInterval = math.max(0.05, tonumber(guiProfile.updateInterval)\n\t\t\tor Notifier.DEFAULTS.updateInterval),\n\t\tenabled = guiProfile.enabled ~= false,\n\t}\n\n\tself.percent = 1\n\tself.elapsed = 0\n\tself.startedAt = Client_Env.now()\n\tself.statusText = self.settings.status\n\tself.hiding = false\n\tself.hidden = false\n\tself.finished = false\n\tself.verdict = nil\n\tself.handles = {}\n\n\tif not self.settings.enabled then\n\t\tShared_Log.Info(SCOPE, \"gui.enabled = false -> không dựng bảng\")\n\t\treturn nil\n\tend\n\n\tlocal screenGui, reused = Ui_GuiPolicy.AcquireScreenGui(options.parent)\n\tif screenGui == nil then\n\t\tShared_Log.Warn(SCOPE, \"không có PlayerGui -> bỏ qua bảng; pipeline vẫn chạy\")\n\t\treturn nil\n\tend\n\tself.screenGui = screenGui\n\tself.reused = reused\n\n\tself.frame = self:_BuildFrame(screenGui)\n\tif self.frame == nil then\n\t\tif not reused then\n\t\t\tUi_GuiPolicy.DestroyScreenGui(screenGui)\n\t\tend\n\t\treturn nil\n\tend\n\n\tNotifier.instance = self\n\tself:_Wire()\n\tself:_Render()\n\n\tShared_Log.Info(SCOPE, (\"bảng trạng thái đã dựng (%s), %d node, tự ẩn sau %ds\")\n\t\t:format(reused and \"dùng lại ScreenGui\" or \"ScreenGui mới\",\n\t\t\tUi_GuiPolicy.CountNodes(screenGui), self.settings.durationSeconds))\n\treturn self\nend\n\n-- Chỉ có nhãn trạng thái, thanh tiến trình và phần trăm; không tạo menu/nút bấm.\nfunction Notifier:_BuildFrame(screenGui)\n\tlocal s = self.settings\n\n\tlocal frame = Ui_Widget.New(\"Frame\", {\n\t\tName = \"RALO_Panel\",\n\t\tAnchorPoint = Ui_Theme.AnchorPoint,\n\t\tPosition = UDim2.new(1, -s.marginRight, 1, -s.marginBottom),\n\t\tSize = UDim2.new(0, s.width, 0, 96),\n\t\tBackgroundColor3 = Ui_Theme.Background,\n\t\tBackgroundTransparency = s.backgroundAlpha,\n\t\tBorderSizePixel = 0,\n\t\tActive = false,\t\t-- GUI-010: không nhận thao tác kéo\n\t\tSelectable = false,\n\t\tZIndex = 2,\n\t}, screenGui)\n\tif frame == nil then\n\t\treturn nil\n\tend\n\tself.frame = frame\n\tUi_Widget.Corners(frame, UDim.new(0, s.cornerRadius))\n\n\tlocal stroke = Ui_Widget.Stroke(frame, Color3.fromRGB(255, 80, 80), s.borderWidth, 0)\n\tself.stroke = stroke\n\tself.gradient = Ui_Widget.New(\"UIGradient\", {\n\t\tRotation = 0,\n\t\tColor = Ui_Theme.RainbowSequence(0),\n\t}, stroke)\n\n\tUi_Widget.Padding(frame, 10)\n\tUi_Widget.List(frame, 4)\n\n\tself.titleLabel = Ui_Widget.Text(frame, {\n\t\tName = \"Title\",\n\t\tText = s.title,\n\t\tFont = Ui_Theme.FontBold,\n\t\tTextSize = 14,\n\t\tTextColor3 = Ui_Theme.TextPrimary,\n\t\tSize = UDim2.new(1, 0, 0, 18),\n\t\tLayoutOrder = 1,\n\t})\n\n\tself.statusLabel = Ui_Widget.Text(frame, {\n\t\tName = \"Status\",\n\t\tText = s.status,\n\t\tFont = Ui_Theme.Font,\n\t\tTextSize = 12,\n\t\tTextColor3 = Ui_Theme.TextSecondary,\n\t\tSize = UDim2.new(1, 0, 0, 14),\n\t\tLayoutOrder = 2,\n\t})\n\n\tself.track = Ui_Widget.New(\"Frame\", {\n\t\tName = \"ProgressTrack\",\n\t\tBackgroundColor3 = Ui_Theme.Track,\n\t\tBackgroundTransparency = 0.2,\n\t\tBorderSizePixel = 0,\n\t\tSize = UDim2.new(1, 0, 0, 8),\n\t\tLayoutOrder = 3,\n\t}, frame)\n\tUi_Widget.Corners(self.track, UDim.new(1, 0))\n\n\tself.fill = Ui_Widget.New(\"Frame\", {\n\t\tName = \"ProgressFill\",\n\t\tBackgroundColor3 = Ui_Theme.ProgressFill,\n\t\tBorderSizePixel = 0,\n\t\tSize = UDim2.new(0.01, 0, 1, 0),\n\t\tZIndex = 3,\n\t}, self.track)\n\tUi_Widget.Corners(self.fill, UDim.new(1, 0))\n\n\tself.percentLabel = Ui_Widget.Text(frame, {\n\t\tName = \"Percent\",\n\t\tText = \"1%\",\n\t\tFont = Ui_Theme.FontBold,\n\t\tTextSize = 13,\n\t\tTextColor3 = Ui_Theme.TextPrimary,\n\t\tSize = UDim2.new(1, 0, 0, 14),\n\t\tLayoutOrder = 4,\n\t})\n\n\treturn frame\nend\n\nfunction Notifier:_Wire()\n\tself.tweenService = Client_Env.GetService(\"TweenService\")\n\n\t-- Không chạy một callback mỗi frame: 10 lần/giây là đủ cho thanh và viền,\n\t-- đồng hồ vẫn dựa trên thời gian thực nên thời lượng không bị kéo dài.\n\tlocal handle = Client_Scheduler.Schedule({\n\t\tname = \"notifier.animate\",\n\t\tinterval = self.settings.updateInterval,\n\t\tpriority = -30,\n\t\tcallback = function(deltaTime, now)\n\t\t\tself:_Tick(deltaTime, now)\n\t\tend,\n\t})\n\tif handle ~= nil then\n\t\tself.handles[#self.handles + 1] = handle\n\tend\nend\n\n-- Đồng hồ hiển thị và viền cầu vồng; callback chạy tối đa 10 lần/giây.\nfunction Notifier:_Tick(_deltaTime, now)\n\tif self.hidden or self.hiding then\n\t\treturn\n\tend\n\tif not Ui_GuiPolicy.ShouldAnimate(self.screenGui, true) then\n\t\treturn\n\tend\n\n\tlocal currentTime = tonumber(now) or Client_Env.now()\n\tself.elapsed = math.max(self.elapsed, currentTime - self.startedAt)\n\n\tif not self.finished and self.verdict ~= \"error\" then\n\t\tif self.settings.durationSeconds > 0 then\n\t\t\tlocal timedPercent = (self.elapsed / self.settings.durationSeconds) * 100\n\t\t\tself.percent = math.max(1, Notifier.ClampPercent(timedPercent))\n\t\telse\n\t\t\tself.percent = 100\n\t\tend\n\tend\n\n\tself.hue = (self.elapsed * self.settings.rainbowSpeed) % 1\n\tif self.gradient ~= nil then\n\t\tUi_GuiPolicy.SetIfChanged(self.gradient, \"Color\", Ui_Theme.RainbowSequence(self.hue))\n\tend\n\tself:_Render()\n\n\tif self.settings.durationSeconds > 0 and self.elapsed >= self.settings.durationSeconds then\n\t\tself:Hide()\n\tend\nend\n\nfunction Notifier:_Render()\n\tif self.frame == nil then\n\t\treturn\n\tend\n\n\tlocal percent = math.max(1, Notifier.ClampPercent(self.percent))\n\tif self.statusLabel ~= nil then\n\t\tUi_GuiPolicy.SetIfChanged(self.statusLabel, \"Text\", self.statusText or self.settings.status)\n\t\tlocal color = Ui_Theme.TextSecondary\n\t\tif self.verdict == \"error\" then\n\t\t\tcolor = Ui_Theme.TextError\n\t\telseif self.finished then\n\t\t\tcolor = Ui_Theme.TextSuccess\n\t\tend\n\t\tUi_GuiPolicy.SetIfChanged(self.statusLabel, \"TextColor3\", color)\n\tend\n\tif self.percentLabel ~= nil then\n\t\tUi_GuiPolicy.SetIfChanged(self.percentLabel, \"Text\", (\"%d%%\"):format(percent))\n\tend\n\tif self.fill ~= nil then\n\t\tUi_GuiPolicy.SetIfChanged(self.fill, \"Size\", UDim2.new(percent / 100, 0, 1, 0))\n\tend\nend\n\n-- Kết quả chi tiết được ghi trong Output; trên bảng chỉ đổi trạng thái, không có menu.\nfunction Notifier:SetResults(lines, verdict)\n\tif self.frame == nil then\n\t\treturn false\n\tend\n\n\tself.verdict = verdict\n\tself.finished = verdict ~= \"error\"\n\tself.resultLines = lines\n\tif verdict == \"error\" then\n\t\tself.statusText = self.settings.failed\n\telse\n\t\tself.statusText = self.settings.done\n\t\tself.percent = 100\n\tend\n\tself:_Render()\n\treturn true\nend\n\n-- Trượt xuống và mờ dần; nếu TweenService lỗi thì dọn ngay.\nfunction Notifier:Hide()\n\tif self.hiding or self.hidden then\n\t\treturn false\n\tend\n\tself.hiding = true\n\n\tlocal settings = self.settings\n\tlocal done = false\n\tlocal function finish()\n\t\tif done then\n\t\t\treturn\n\t\tend\n\t\tdone = true\n\t\tself:_Cleanup()\n\tend\n\n\tif self.tweenService ~= nil and self.frame ~= nil then\n\t\tlocal ok, tween = Client_Guard.Run(SCOPE .. \":Tween\", function()\n\t\t\treturn self.tweenService:Create(self.frame,\n\t\t\t\tTweenInfo.new(settings.fadeSeconds, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),\n\t\t\t\t{\n\t\t\t\t\tPosition = UDim2.new(1, -settings.marginRight,\n\t\t\t\t\t\t1, -settings.marginBottom + settings.slideOffset),\n\t\t\t\t\tBackgroundTransparency = 1,\n\t\t\t\t})\n\t\tend)\n\t\tif ok and tween ~= nil then\n\t\t\tlocal completed = Client_Registry.Connect(tween.Completed, function()\n\t\t\t\tfinish()\n\t\t\tend, \"notifier.tween\")\n\t\t\tif completed ~= nil then\n\t\t\t\tself.handles[#self.handles + 1] = completed\n\t\t\tend\n\n\t\t\tClient_Guard.Run(SCOPE .. \":Fade\", function()\n\t\t\t\tfor _, label in { self.titleLabel, self.statusLabel, self.percentLabel } do\n\t\t\t\t\tif label ~= nil then\n\t\t\t\t\t\tself.tweenService:Create(label,\n\t\t\t\t\t\t\tTweenInfo.new(settings.fadeSeconds),\n\t\t\t\t\t\t\t{ TextTransparency = 1 }):Play()\n\t\t\t\t\tend\n\t\t\t\tend\n\t\t\t\tif self.track ~= nil then\n\t\t\t\t\tself.tweenService:Create(self.track,\n\t\t\t\t\t\tTweenInfo.new(settings.fadeSeconds),\n\t\t\t\t\t\t{ BackgroundTransparency = 1 }):Play()\n\t\t\t\tend\n\t\t\t\tif self.fill ~= nil then\n\t\t\t\t\tself.tweenService:Create(self.fill,\n\t\t\t\t\t\tTweenInfo.new(settings.fadeSeconds),\n\t\t\t\t\t\t{ BackgroundTransparency = 1 }):Play()\n\t\t\t\tend\n\t\t\t\tif self.stroke ~= nil then\n\t\t\t\t\tself.tweenService:Create(self.stroke,\n\t\t\t\t\t\tTweenInfo.new(settings.fadeSeconds),\n\t\t\t\t\t\t{ Transparency = 1 }):Play()\n\t\t\t\tend\n\t\t\tend)\n\t\t\tClient_Guard.Run(SCOPE .. \":Play\", function()\n\t\t\t\ttween:Play()\n\t\t\tend)\n\t\t\treturn true\n\t\tend\n\tend\n\n\tfinish()\n\treturn true\nend\n\n-- Dọn chỉ những connection/instance bảng đã tạo.\nfunction Notifier:_Cleanup()\n\tself.hidden = true\n\tfor _, handle in ipairs(self.handles) do\n\t\tClient_Guard.Run(SCOPE .. \":Disconnect\", function()\n\t\t\thandle:Disconnect()\n\t\tend)\n\tend\n\ttable.clear(self.handles)\n\n\tif self.screenGui ~= nil and not self.reused then\n\t\tUi_GuiPolicy.DestroyScreenGui(self.screenGui)\n\telseif self.frame ~= nil then\n\t\tClient_Guard.Run(SCOPE .. \":RemoveFrame\", function()\n\t\t\tself.frame:Destroy()\n\t\tend)\n\tend\n\n\tself.frame = nil\n\tself.screenGui = nil\n\tNotifier.instance = nil\n\tShared_Log.Info(SCOPE, \"bảng đã ẩn và dọn sạch connection / instance\")\n\treturn true\nend\n\nfunction Notifier:Destroy()\n\tif self.hiding or self.hidden then\n\t\treturn true\n\tend\n\tself.hiding = true\n\treturn self:_Cleanup()\nend\n\nfunction Notifier:State()\n\treturn {\n\t\tpercent = Notifier.ClampPercent(self.percent),\n\t\telapsed = self.elapsed,\n\t\thidden = self.hidden,\n\t\thiding = self.hiding,\n\t\tfinished = self.finished,\n\t\tverdict = self.verdict,\n\t\tstatus = self.statusText,\n\t\tconnections = #self.handles,\n\t\tnodes = self.screenGui ~= nil and Ui_GuiPolicy.CountNodes(self.screenGui) or 0,\n\t\treused = self.reused == true,\n\t}\nend\n\nfunction Notifier.Reset()\n\tlocal current = Notifier.instance\n\tif current ~= nil then\n\t\tcurrent:Destroy()\n\tend\n\tNotifier.instance = nil\nend\n\nreturn Notifier\n",
-	["Client/Ui/Progress"] = "--[[\n\tUi/Progress.luau\n\tMô hình tiến trình nội bộ của Pipeline, tách khỏi bảng trạng thái để unit test.\n\tNó theo dõi pha, bước đã chạy và số liệu trạng thái, nhưng không điều khiển UI.\n\tNotifier dùng đồng hồ thời lượng riêng để vẽ 1–100% và tự ẩn sau 30 giây.\n]]\n\nlocal Util_Types = __RALO_REQUIRE(\"Shared/Types\")\n\nlocal Progress = {}\nProgress.__index = Progress\n\nlocal VALID = {\n\t[Util_Types.STATUS_PENDING] = true,\n\t[Util_Types.STATUS_RUNNING] = true,\n\t[Util_Types.STATUS_APPLIED] = true,\n\t[Util_Types.STATUS_SKIPPED] = true,\n\t[Util_Types.STATUS_FAILED] = true,\n}\n\nfunction Progress.New(total: number)\n\tlocal self = setmetatable({}, Progress)\n\tself.total = math.max(0, math.floor(total or 0))\n\tself.current = 0\n\tself.statuses = table.create(self.total, Util_Types.STATUS_PENDING)\n\tfor i = 1, self.total do\n\t\tself.statuses[i] = Util_Types.STATUS_PENDING\n\tend\n\tself.phase = Util_Types.PHASE_IDLE\n\tself.message = \"\"\n\tself.pinned = false\n\tself.Changed = Instance.new(\"BindableEvent\")\n\treturn self\nend\n\nfunction Progress.Emit(self)\n\tself.Changed:Fire({\n\t\tcurrent = self.current,\n\t\ttotal = self.total,\n\t\tfraction = self.total > 0 and (self.current / self.total) or 0,\n\t\tpercent = self.total > 0 and math.floor((self.current / self.total) * 100 + 0.5) or 0,\n\t\tstatuses = self.statuses,\n\t\tphase = self.phase,\n\t\tmessage = self.message,\n\t\tpinned = self.pinned,\n\t\tcounts = Progress.Counts(self),\n\t})\nend\n\nfunction Progress.SetPhase(self, phase: string, message: string?)\n\tself.phase = phase\n\tself.message = message or self.message\n\tProgress.Emit(self)\nend\n\nfunction Progress.SetMessage(self, message: string)\n\tself.message = message\n\tProgress.Emit(self)\nend\n\nfunction Progress.SetPinned(self, pinned: boolean)\n\tself.pinned = pinned == true\n\tProgress.Emit(self)\nend\n\nfunction Progress.Mark(self, index: number, status: string, message: string?)\n\tif index < 1 or index > self.total then\n\t\treturn\n\tend\n\tif not VALID[status] then\n\t\treturn\n\tend\n\tself.statuses[index] = status\n\tif status ~= Util_Types.STATUS_RUNNING and status ~= Util_Types.STATUS_PENDING then\n\t\tself.current += 1\n\tend\n\tif message then\n\t\tself.message = message\n\tend\n\tProgress.Emit(self)\nend\n\nfunction Progress.Counts(self)\n\tlocal counts = {\n\t\tpending = 0, running = 0, applied = 0, skipped = 0, failed = 0,\n\t}\n\tfor _, status in self.statuses do\n\t\tif counts[status] ~= nil then\n\t\t\tcounts[status] += 1\n\t\tend\n\tend\n\treturn counts\nend\n\nfunction Progress.Fraction(self): number\n\tif self.total <= 0 then return 0 end\n\treturn self.current / self.total\nend\n\nfunction Progress.Destroy(self)\n\tif self.Changed then\n\t\tself.Changed:Destroy()\n\t\tself.Changed = nil\n\tend\nend\n\nreturn Progress\n",
-	["Client/Ui/Theme"] = "--[[\n\tUi/Theme.luau\n\tBảng màu và hằng số giao diện.\n\n\tYêu cầu giao diện:\n\t  * viền cầu vồng, tạo ColorSequence hợp lệ cho UIGradient;\n\t  * nền xám đậm bán trong suốt;\n\t  * cố định ở góc dưới bên phải.\n]]\n\nlocal Util_Hsv = __RALO_REQUIRE(\"Shared/Hsv\")\n\nlocal Theme = {}\n\nTheme.Background = Color3.fromRGB(46, 46, 51)\nTheme.BackgroundAlpha = 0.42\nTheme.PanelBackground = Color3.fromRGB(24, 24, 28)\nTheme.PanelAlpha = 0.45\nTheme.TextPrimary = Color3.fromRGB(240, 240, 245)\nTheme.TextSecondary = Color3.fromRGB(190, 192, 202)\nTheme.TextSuccess = Color3.fromRGB(126, 231, 135)\nTheme.TextWarning = Color3.fromRGB(255, 208, 110)\nTheme.TextError = Color3.fromRGB(255, 122, 122)\nTheme.Track = Color3.fromRGB(60, 60, 68)\nTheme.ProgressFill = Color3.fromRGB(126, 231, 135)\n\nTheme.CornerRadius = UDim.new(0, 10)\nTheme.Font = Enum.Font.GothamMedium\nTheme.FontBold = Enum.Font.GothamBold\n\nTheme.AnchorPoint = Vector2.new(1, 1)\nTheme.Position = UDim2.new(1, -16, 1, -16)\n\nTheme.RainbowStops = 8\nTheme.RainbowSaturation = 0.85\nTheme.RainbowValue = 1.0\n\nfunction Theme.RainbowColors(hueOffset: number): { Color3 }\n\tlocal colors = {}\n\tlocal stops = Util_Hsv.RainbowStops(Theme.RainbowStops)\n\tfor index, base in stops do\n\t\tlocal hue = (base + hueOffset) % 1\n\t\tlocal r, g, b = Util_Hsv.ToRgb(hue, Theme.RainbowSaturation, Theme.RainbowValue)\n\t\tcolors[index] = Color3.new(r, g, b)\n\tend\n\treturn colors\nend\n\n-- Roblox UIGradient nhận ColorSequenceKeypoint, không bảng Color3 thuần.\nfunction Theme.RainbowSequence(hueOffset: number): ColorSequence\n\tlocal colors = Theme.RainbowColors(hueOffset)\n\tlocal keypoints = {}\n\tlocal lastIndex = #colors\n\tfor index, color in ipairs(colors) do\n\t\tlocal time = (index - 1) / math.max(1, lastIndex - 1)\n\t\tkeypoints[index] = ColorSequenceKeypoint.new(time, color)\n\tend\n\treturn ColorSequence.new(keypoints)\nend\n\nfunction Theme.StatusColor(status: string): Color3\n\tif status == \"applied\" then return Theme.TextSuccess end\n\tif status == \"failed\" then return Theme.TextError end\n\tif status == \"running\" then return Theme.TextWarning end\n\tif status == \"skipped\" then return Theme.TextSecondary end\n\treturn Theme.TextSecondary\nend\n\nfunction Theme.StatusIcon(status: string): string\n\tif status == \"applied\" then return \"✔\" end\n\tif status == \"failed\" then return \"✖\" end\n\tif status == \"running\" then return \"…\" end\n\tif status == \"skipped\" then return \"–\" end\n\treturn \"○\"\nend\n\nreturn Theme\n",
-	["Client/Ui/Widget"] = "--[[\n\tUi/Widget.luau\n\tLớp dựng giao diện mỏng. Mọi Instance đều đi qua Widget.New để:\n\t  * gán property theo bảng khai báo (dễ đọc, dễ sửa),\n\t  * gắn sẵn UICorner/UIListLayout khi cần,\n\t  * pcall toàn bộ -> UI lỗi không bao giờ làm sập pipeline tối ưu.\n]]\n\nlocal Util_Safe = __RALO_REQUIRE(\"Shared/Safe\")\nlocal Util_Log = __RALO_REQUIRE(\"Shared/Log\")\nlocal Ui_Theme = __RALO_REQUIRE(\"Client/Ui/Theme\")\n\nlocal SCOPE = \"Widget\"\n\nlocal Widget = {}\n\nfunction Widget.New(className: string, props: any, parent: any): any\n\tlocal ok, instance = pcall(function()\n\t\treturn Instance.new(className)\n\tend)\n\tif not ok then\n\t\tUtil_Log.Error(SCOPE, \"không tạo được\", className, tostring(instance))\n\t\treturn nil\n\tend\n\n\tif type(props) == \"table\" then\n\t\tfor key, value in props do\n\t\t\tinstance[key] = value\n\t\tend\n\tend\n\tif parent ~= nil then\n\t\tinstance.Parent = parent\n\tend\n\treturn instance\nend\n\nfunction Widget.Corners(parent: any, radius: UDim?): any\n\treturn Widget.New(\"UICorner\", { CornerRadius = radius or Ui_Theme.CornerRadius }, parent)\nend\n\nfunction Widget.Stroke(parent: any, color: Color3, thickness: number, transparency: number): any\n\treturn Widget.New(\"UIStroke\", {\n\t\tColor = color,\n\t\tThickness = thickness or 1,\n\t\tTransparency = transparency or 0.55,\n\t\tApplyStrokeMode = Enum.ApplyStrokeMode.Border,\n\t}, parent)\nend\n\nfunction Widget.List(parent: any, padding: number, alignment: any): any\n\treturn Widget.New(\"UIListLayout\", {\n\t\tPadding = UDim.new(0, padding or 4),\n\t\tSortOrder = Enum.SortOrder.LayoutOrder,\n\t\tHorizontalAlignment = Enum.HorizontalAlignment.Center,\n\t\tVerticalAlignment = alignment or Enum.VerticalAlignment.Top,\n\t}, parent)\nend\n\nfunction Widget.Padding(parent: any, all: number): any\n\treturn Widget.New(\"UIPadding\", {\n\t\tPaddingTop = UDim.new(0, all),\n\t\tPaddingBottom = UDim.new(0, all),\n\t\tPaddingLeft = UDim.new(0, all),\n\t\tPaddingRight = UDim.new(0, all),\n\t}, parent)\nend\n\nfunction Widget.Text(parent: any, props: any): any\n\tlocal defaults = {\n\t\tBackgroundTransparency = 1,\n\t\tFont = Ui_Theme.Font,\n\t\tTextColor3 = Ui_Theme.TextPrimary,\n\t\tTextSize = 13,\n\t\tTextXAlignment = Enum.TextXAlignment.Left,\n\t\tTextYAlignment = Enum.TextYAlignment.Center,\n\t\tTextWrapped = false,\n\t\tRichText = true,\n\t}\n\tif type(props) == \"table\" then\n\t\tfor key, value in props do\n\t\t\tdefaults[key] = value\n\t\tend\n\tend\n\treturn Widget.New(\"TextLabel\", defaults, parent)\nend\n\nfunction Widget.Button(parent: any, props: any): any\n\tlocal defaults = {\n\t\tBackgroundColor3 = Ui_Theme.PanelBackground,\n\t\tBackgroundTransparency = 0.35,\n\t\tAutoButtonColor = true,\n\t\tFont = Ui_Theme.FontBold,\n\t\tTextColor3 = Ui_Theme.TextPrimary,\n\t\tTextSize = 14,\n\t}\n\tif type(props) == \"table\" then\n\t\tfor key, value in props do\n\t\t\tdefaults[key] = value\n\t\tend\n\tend\n\tlocal button = Widget.New(\"TextButton\", defaults, parent)\n\tif button then\n\t\tWidget.Corners(button, UDim.new(0, 8))\n\tend\n\treturn button\nend\n\n--[[\n\tGhi property an toàn, dùng cho các cập nhật động (kích thước, transparency...)\n\tnơi ta không muốn một property bị khoá làm hỏng cả khung.\n]]\nfunction Widget.Set(instance: any, key: string, value: any): boolean\n\tlocal ok = Util_Safe.Set(instance, key, value, { scope = SCOPE })\n\treturn ok\nend\n\nreturn Widget\n",
-	["Shared/Config"] = "--[[ ===== RALO.METHODS:BEGIN =====\n\tCác phương pháp được TRIỂN KHAI TRONG TỆP NÀY (khớp với Shared/Methods.luau):\n\t  CFG-001, CFG-002, CFG-004, CFG-006, MEAS-004, RES-004 \n\t===== RALO.METHODS:END ===== --]]\n\n--[[\n\tShared/Config.luau\n\t===== RALO.METHODS:CFG-001, CFG-002, CFG-004, MEAS-004, RES-004 =====\n\n\tKHO CẤU HÌNH TRUNG TÂM. Mọi module đọc thông số từ đây, không module\n\tnào giữ hằng số riêng. Người dùng chỉ cần sửa bảng PROFILE.\n\n\tBa nguyên tắc thiết kế (không ngoại lệ):\n\t  1. GIỮ NGUYÊN GAMEPLAY — không có tuỳ chọn nào tắt gameplay, tắt âm\n\t     thanh gameplay, xoá nhân vật/vật phẩm, hay đổi thông số gameplay\n\t     để đổi lấy FPS.\n\t  2. ĐỒ HOẠ GIẢM NHẸ — mặc định là mức \"light\": chỉ hạ chất lượng ở mức\n\t     vừa phải, giới hạn hạt chứ không xoá hiệu ứng. KHÔNG BAO GIỜ tự\n\t     chuyển về mức đồ hoạ thấp nhất.\n\t  3. MỌI THAY ĐỔI ĐỀU ĐẢO NGƯỢC ĐƯỢC — mỗi mục đồ hoạ đều có cặp\n\t     \"áp dụng / khôi phục\" thông qua Client/Core/Restore.\n\n\tMôi trường đích: Roblox Studio + Rojo, game do chính bạn sở hữu.\n\tDự án KHÔNG dùng executor, không dùng setrbxsetting, không đụng\n\tbất kỳ cơ chế bảo vệ nào.\n]]\n\nlocal Config = {}\n\nConfig.VERSION = \"2.0.0\"\nConfig.NAME = \"Roblox Anti-Lag Optimizer\"\n\n-- Bậc tối ưu: \"light\" (mặc định) | \"balanced\" | \"off\"\nConfig.DEFAULT_MODE = \"light\"\n\n--[[\n\tPROFILE — toàn bộ thông số có thể chỉnh.\n\tCấu trúc được Guard.NormalizeConfig() kiểm tra kiểu trước khi dùng.\n]]\nConfig.PROFILE = {\n\t--------------------------------------------------------------------\n\t-- CÔNG TẮC TỔNG (CFG-001)\n\t--------------------------------------------------------------------\n\tenabled = true,          -- false = hệ thống không làm gì cả\n\n\t-- Chế độ tối ưu. \"light\" là MẶC ĐỊNH theo yêu cầu thiết kế.\n\tmode = \"light\",\n\n\t--------------------------------------------------------------------\n\t-- CÔNG TẮC THEO NHÓM (CFG-001) — độc lập với nhau\n\t-- Đặt false để TẮT hẳn nhóm đó.\n\t--------------------------------------------------------------------\n\tgroups = {\n\t\tgraphics  = true,    -- chất lượng tối đa 8; giữ ánh sáng, bóng và địa hình\n\t\teffects   = true,    -- giới hạn nhẹ Rate/ParticleCount (không xoá effect)\n\t\tcull      = true,    -- thư viện có culling; không gọi trong plan mặc định\n\t\tscan      = true,    -- quét thế giới có trần\n\t\tmemory    = true,    -- GC định kỳ\n\t\tphysics   = false,   -- MẶC ĐỊNH TẮT: có đánh đổi độ mượt vật lý\n\t\tcharacter = true,    -- giữ bóng và tỉ lệ avatar theo mặc định\n\t\tnet       = false,   -- MẶC ĐỊNH TẮT: cần remote của game\n\t},\n\n\t--------------------------------------------------------------------\n\t-- CÔNG TẮC THEO TỪNG PHƯƠNG PHÁP (CFG-002)\n\t-- Chỉ cần liệt kê những gì muốn TẮT. Id lấy từ Shared/Methods.luau.\n\t--------------------------------------------------------------------\n\tmethods = {\n\t\t-- ví dụ: [\"GRAPHICS-003\"] = false,  -- giữ Terrain.Decoration\n\t},\n\n\t--------------------------------------------------------------------\n\t-- ĐO HIỆU NĂNG (Part 9)\n\t--------------------------------------------------------------------\n\tmeasure = {\n\t\tbaselineSeconds = 5.0,     -- thời lượng lấy mẫu TRƯỚC khi tối ưu\n\t\tsettleSeconds   = 1.0,     -- nghỉ sau khi tối ưu để FPS ổn định\n\t\tafterSeconds    = 5.0,     -- thời lượng lấy mẫu SAU khi tối ưu\n\t\tframeWindow     = 180,     -- ~3 giây @60fps cho chỉ số tức thời\n\t\tlongFrameMs     = 33.3,    -- ngưỡng \"khung hình dài\" (dưới 30 FPS)\n\t},\n\n\t--------------------------------------------------------------------\n\t-- BẢNG TRẠNG THÁI (Part 6 & 7)\n\t--------------------------------------------------------------------\n\tgui = {\n\t\tenabled         = true,\n\t\tdurationSeconds = 30,      -- thời gian hiện bảng trạng thái (~30 giây)\n\t\tfadeSeconds     = 0.45,    -- thời gian trượt xuống + mờ dần\n\t\tslideOffset     = 70,      -- px trượt xuống khi ẩn\n\t\twidth           = 288,     -- px\n\t\tmarginRight     = 16,      -- px, cách mép phải (lề an toàn)\n\t\tmarginBottom    = 16,      -- px, cách mép dưới (lề an toàn)\n\t\tbackgroundAlpha = 0.42,    -- nền xám bán trong suốt, vẫn đọc rõ chữ\n\t\tcornerRadius    = 10,      -- bo góc nhẹ cho bảng chữ nhật\n\t\tborderWidth     = 2,       -- viền cầu vồng\n\t\trainbowSpeed    = 0.35,    -- vòng/giây của dải cầu vồng\n\t\tupdateInterval  = 0.1,     -- cập nhật giao diện 10 lần/giây, tránh việc thừa\n\t},\n\n\t--------------------------------------------------------------------\n\t-- ĐỒ HOẠ (giảm NHẸ, đảo ngược được)\n\t--------------------------------------------------------------------\n\tgraphics = {\n\t\tqualityLevel      = 8,     -- giảm nhẹ; không bao giờ nâng mức thấp hiện có\n\t\tlockQualityMode   = false, -- tôn trọng chế độ đồ họa tự động của Roblox\n\t\tapplyTerrainDecoration = false, -- không đổi địa hình trừ khi chủ game bật rõ\n\t\tterrainDecoration = false, -- giá trị mục tiêu chỉ dùng khi applyTerrainDecoration = true\n\t\tshadowDistance    = 0,     -- giữ toàn bộ bóng đổ, không culling part xa\n\t\tmaxShadowTargets  = 400,   -- trần an toàn nếu chủ game chủ động bật culling\n\t},\n\n\t--------------------------------------------------------------------\n\t-- HIỆU ỨNG (chỉ GIỚI HẠN, không xoá — giữ nguyên tính năng)\n\t--------------------------------------------------------------------\n\teffects = {\n\t\tparticleRateCap     = 40,  -- giới hạn nhẹ mật độ hạt, không tắt emitter\n\t\tparticleMaxCountCap = 120, -- trần vừa phải, không xoá hiệu ứng\n\t\teffectDistance      = 250, -- xa hơn N stud thì tắt emitter/beam/trail\n\t\tmaxInstancesScanned = 3000,-- trần quét, tránh treo máy yếu\n\t},\n\n\t--------------------------------------------------------------------\n\t-- NHÂN VẬT (vẫn giữ nguyên nhân vật)\n\t--------------------------------------------------------------------\n\tcharacter = {\n\t\tdisableShadows     = false, -- luôn giữ bóng nhân vật theo mặc định\n\t\tdisableAutoScaling = false, -- giữ nguyên tỉ lệ/hiển thị nhân vật\n\t},\n\n\t--------------------------------------------------------------------\n\t-- BỘ NHỚ / GC\n\t--------------------------------------------------------------------\n\tmemory = {\n\t\tgcEverySeconds = 15,       -- 0 = tắt\n\t\tcollectStepKb  = 200,      -- collectgarbage(\"step\", n)\n\t},\n\n\t--------------------------------------------------------------------\n\t-- VẬT LÝ (CÓ ảnh hưởng cảm giác chơi -> MẶC ĐỊNH TẮT)\n\t--------------------------------------------------------------------\n\tphysics = {\n\t\tenabled                 = false,\n\t\tinterpolationThrottling = \"Disabled\",\n\t\tphysicsSteppingMethod   = \"Fixed\",\n\t},\n\n\t--------------------------------------------------------------------\n\t-- BỘ LẬP LỊCH (Part 8: không được mở vòng lặp trùng)\n\t--------------------------------------------------------------------\n\tscheduler = {\n\t\tframeBudgetMs = 3.0,       -- ngân sách thời gian mỗi khung hình\n\t\tcullInterval  = 0.25,      -- giây giữa hai lượt cull\n\t},\n\n\t--------------------------------------------------------------------\n\t-- CHẨN ĐOÁN & LOG (Part 8)\n\t--------------------------------------------------------------------\n\tdiagnostics = {\n\t\tlogLevel      = \"info\",    -- \"silent\" | \"info\" | \"debug\"\n\t\tmaxEntries    = 200,       -- trần bộ đệm log (chống phình bộ nhớ)\n\t\terrorLogging  = true,      -- ghi lỗi ra Output\n\t\tprintToOutput = true,      -- có in ra Output hay chỉ giữ trong bộ đệm\n\t\tselfCostCheck = true,      -- đo chi phí của chính công cụ\n\t},\n\n\t--------------------------------------------------------------------\n\t-- KHÔI PHỤC (Part 8)\n\t--------------------------------------------------------------------\n\trestore = {\n\t\trecordChanges = true,      -- ghi nhật ký giá trị cũ\n\t\tverifyOnWrite = true,      -- đọc lại sau khi ghi để xác nhận\n\t\trespectStale  = true,      -- KHÔNG ghi đè nếu game/người dùng đã đổi\n\t},\n}\n\n--[[\n\tBản sao mặc định, chụp MỘT lần lúc nạp module.\n\tDùng cho Config.ResetToDefaults() — không phụ thuộc vào PROFILE hiện tại.\n]]\nlocal DEFAULTS = (function()\n\tlocal function clone(value)\n\t\tif type(value) ~= \"table\" then\n\t\t\treturn value\n\t\tend\n\t\tlocal out = {}\n\t\tfor key, child in pairs(value) do\n\t\t\tout[key] = clone(child)\n\t\tend\n\t\treturn out\n\tend\n\treturn clone(Config.PROFILE)\nend)()\n\n--[[\n\tCFG-004: khôi phục cấu hình mặc định.\n\tTrả về PROFILE (đã được đặt lại).\n]]\nfunction Config.ResetToDefaults()\n\tfor section, values in pairs(DEFAULTS) do\n\t\tif type(values) == \"table\" then\n\t\t\tif type(Config.PROFILE[section]) ~= \"table\" then\n\t\t\t\tConfig.PROFILE[section] = {}\n\t\t\tend\n\t\t\tfor key, value in pairs(values) do\n\t\t\t\tConfig.PROFILE[section][key] = value\n\t\t\tend\n\t\telse\n\t\t\tConfig.PROFILE[section] = values\n\t\tend\n\tend\n\treturn Config.PROFILE\nend\n\n-- Bí danh giữ tương thích với mã cũ.\nConfig.Reset = Config.ResetToDefaults\n\n--[[\n\tÁp một bảng vá lên PROFILE (ghép sâu một mức).\n\tConfig.Apply({ gui = { durationSeconds = 60 } })\n]]\nfunction Config.Apply(patch)\n\tif type(patch) ~= \"table\" then\n\t\treturn Config.PROFILE\n\tend\n\tfor section, values in pairs(patch) do\n\t\tif type(Config.PROFILE[section]) == \"table\" and type(values) == \"table\" then\n\t\t\tfor key, value in pairs(values) do\n\t\t\t\tConfig.PROFILE[section][key] = value\n\t\t\tend\n\t\telse\n\t\t\tConfig.PROFILE[section] = values\n\t\tend\n\tend\n\treturn Config.PROFILE\nend\n\nfunction Config.Get(section)\n\treturn Config.PROFILE[section]\nend\n\n--[[\n\tMEAS-004: công tắc A/B cho một nhóm — dùng khi đo lại để biết nhóm nào\n\tthật sự có ích trên máy của bạn.\n\tConfig.SetGroup(\"graphics\", false) rồi đo lại.\n]]\nfunction Config.SetGroup(groupKey, enabled)\n\tif type(groupKey) ~= \"string\" then\n\t\treturn false\n\tend\n\tif type(Config.PROFILE.groups) ~= \"table\" then\n\t\tConfig.PROFILE.groups = {}\n\tend\n\tConfig.PROFILE.groups[groupKey] = enabled == true\n\treturn true\nend\n\n-- CFG-002: công tắc cho từng phương pháp riêng lẻ.\nfunction Config.SetMethod(methodId, enabled)\n\tif type(methodId) ~= \"string\" then\n\t\treturn false\n\tend\n\tif type(Config.PROFILE.methods) ~= \"table\" then\n\t\tConfig.PROFILE.methods = {}\n\tend\n\tConfig.PROFILE.methods[methodId] = enabled == true\n\treturn true\nend\n\n--[[\n\tTrả về chế độ hiện tại và bậc chất lượng tương ứng.\n\t\"off\" nghĩa là hệ thống không can thiệp gì.\n]]\nfunction Config.Mode()\n\tlocal mode = Config.PROFILE.mode\n\tif mode ~= \"light\" and mode ~= \"balanced\" and mode ~= \"off\" then\n\t\treturn Config.DEFAULT_MODE\n\tend\n\treturn mode\nend\n\nreturn Config\n",
-	["Shared/Hsv"] = "--[[\n\tUtil/Hsv.luau\n\tChuyển HSV -> RGB (mọi giá trị 0..1). Dùng để tạo dải màu cầu vồng\n\tcho UIGradient của menu, và được UNIT TEST kiểm chứng bằng các mốc\n\tmàu đã biết (đỏ / lục / lam / vàng / tím).\n\n\tThuần logic, không phụ thuộc API Roblox -> chạy được trên Lua 5.3 (fengari).\n]]\n\nlocal Hsv = {}\n\nlocal function clamp01(x: number): number\n\tif x ~= x then return 0 end            -- NaN\n\tif x < 0 then return 0 end\n\tif x > 1 then return 1 end\n\treturn x\nend\n\n--[[\n\th: hue 0..1 (0 và 1 đều là đỏ)\n\ts: saturation 0..1\n\tv: value 0..1\n\ttrả về r, g, b mỗi giá trị 0..1\n]]\nfunction Hsv.ToRgb(h: number, s: number, v: number): (number, number, number)\n\th = clamp01(h) % 1\n\ts = clamp01(s)\n\tv = clamp01(v)\n\n\tif s <= 0 then\n\t\treturn v, v, v\n\tend\n\n\tlocal i = math.floor(h * 6)\n\tlocal f = (h * 6) - i\n\tlocal p = v * (1 - s)\n\tlocal q = v * (1 - s * f)\n\tlocal t = v * (1 - s * (1 - f))\n\n\tlocal mod = i % 6\n\tif mod == 0 then\n\t\treturn v, t, p\n\telseif mod == 1 then\n\t\treturn q, v, p\n\telseif mod == 2 then\n\t\treturn p, v, t\n\telseif mod == 3 then\n\t\treturn p, q, v\n\telseif mod == 4 then\n\t\treturn t, p, v\n\telse\n\t\treturn v, p, q\n\tend\nend\n\n-- Bảng 8 mốc cầu vồng dùng cho UIGradient (đỏ -> cam -> vàng -> lục -> lam -> chàm -> tím -> đỏ)\nfunction Hsv.RainbowStops(count: number): { number }\n\tlocal out = {}\n\tlocal n = math.max(2, math.floor(count or 8))\n\tfor i = 0, n - 1 do\n\t\t-- Bao gồm cả 1 để màu cuối khép vòng về đỏ như màu đầu.\n\t\tout[#out + 1] = i / (n - 1)\n\tend\n\treturn out\nend\n\nreturn Hsv\n",
-	["Shared/Log"] = "--[[ ===== RALO.METHODS:BEGIN =====\n\tCác phương pháp được TRIỂN KHAI TRONG TỆP NÀY (khớp với Shared/Methods.luau):\n\t  EVT-003, RAM-003, RES-005 \n\t===== RALO.METHODS:END ===== --]]\n\n--[[\n\tUtil/Log.luau\n\tLog có mức độ, có scope, có bộ đệm vòng để UI/harness đọc lại.\n\tGhi ra: (1) print/warn thật của runtime, (2) Log.Entries để truy xuất.\n\n\tKhông phụ thuộc Roblox API -> chạy được trên Lua 5.3 (fengari).\n]]\n\nlocal Log = {}\n\nLog.Level = \"info\"                 -- debug | info | warn | error | silent\nLog.MaxEntries = 400\nLog.Entries = {}\nLog.OnEntry = nil                  -- function(entry) — UI/harness hook\n\nlocal ORDER = { debug = 1, info = 2, warn = 3, error = 4, silent = 5 }\n\nlocal function allowed(level: string): boolean\n\treturn (ORDER[level] or 2) >= (ORDER[Log.Level] or 2)\nend\n\nfunction Log.Push(level: string, scope: string, message: string)\n\tlocal entry = {\n\t\tlevel = level,\n\t\tscope = scope,\n\t\tmessage = message,\n\t\ttime = os.clock(),\n\t}\n\ttable.insert(Log.Entries, entry)\n\tif #Log.Entries > Log.MaxEntries then\n\t\ttable.remove(Log.Entries, 1)\n\tend\n\tif Log.OnEntry then\n\t\tLog.OnEntry(entry)\n\tend\n\treturn entry\nend\n\nlocal function emit(level: string, scope: string, parts: { any })\n\tif not allowed(level) then\n\t\treturn\n\tend\n\tlocal message = table.concat(parts, \" \")\n\tLog.Push(level, scope, message)\n\n\tlocal prefix = (\"[%s] %s\"):format(level:upper(), scope)\n\tif level == \"warn\" or level == \"error\" then\n\t\twarn(prefix, message)\n\telse\n\t\tprint(prefix, message)\n\tend\nend\n\nfunction Log.Debug(scope: string, ...: any) emit(\"debug\", scope, { ... }) end\nfunction Log.Info(scope: string, ...: any)  emit(\"info\",  scope, { ... }) end\nfunction Log.Warn(scope: string, ...: any)  emit(\"warn\",  scope, { ... }) end\nfunction Log.Error(scope: string, ...: any) emit(\"error\", scope, { ... }) end\n\n-- Định dạng bảng before/after thành các dòng căn cột — dùng cho Output và UI.\nfunction Log.FormatRows(rows: { { string, string, string, string } }): { string }\n\tlocal widths = { 0, 0, 0, 0 }\n\tfor _, row in rows do\n\t\tfor i = 1, 4 do\n\t\t\twidths[i] = math.max(widths[i], #tostring(row[i] or \"\"))\n\t\tend\n\tend\n\tlocal out = {}\n\tfor _, row in rows do\n\t\tlocal line = \"\"\n\t\tfor i = 1, 4 do\n\t\t\tlocal cell = tostring(row[i] or \"\")\n\t\t\tline ..= cell .. string.rep(\" \", widths[i] - #cell + 2)\n\t\tend\n\t\tout[#out + 1] = line\n\tend\n\treturn out\nend\n\nfunction Log.Clear()\n\ttable.clear(Log.Entries)\nend\n\nreturn Log\n",
-	["Shared/Methods"] = "--[[\n\tShared/Methods.luau\n\t===== RALO.METHODS:CATALOG =====\n\n\tDANH MỤC PHƯƠNG PHÁP TỐI ƯU. Tệp này là DỮ LIỆU, không phải mô tả rời rạc:\n\tmỗi mục có id, nhóm, cơ chế, nguyên nhân lag, cách triển khai, tệp chịu\n\ttrách nhiệm, điều kiện, rủi ro và TRẠNG THÁI.\n\n\tTrạng thái (thống nhất toàn dự án):\n\t  A = đã triển khai vào mã nguồn\n\t  B = đã triển khai VÀ đã kiểm thử thành công (có test tương ứng chạy đạt)\n\t  C = đã triển khai nhưng chưa kiểm thử thực tế\n\t  D = chỉ là đề xuất, chưa triển khai\n\t  E = không thể áp dụng trong môi trường hiện tại\n\n\tRÀNG BUỘC ĐƯỢC KIỂM BẰNG MÁY (tests/suites/catalog.luau):\n\t  1. Mọi mục A/B/C phải có tệp thật ở cột `file` (không phải \"(đề xuất)\").\n\t  2. Mọi mục B phải có tên test trùng id trong tests/suites/*.\n\t  3. Id phải duy nhất, nhóm phải nằm trong 1..30, đủ 30 nhóm.\n\tNếu một trong ba ràng buộc sai, bộ test FAIL. Không thể \"khai\" khống.\n--]]\n\nlocal Methods = {}\n\nMethods.StatusLabels = {\n\tA = \"Đã triển khai vào mã nguồn\",\n\tB = \"Đã triển khai và đã kiểm thử thành công\",\n\tC = \"Đã triển khai nhưng chưa kiểm thử thực tế\",\n\tD = \"Chỉ là đề xuất, chưa triển khai\",\n\tE = \"Không thể áp dụng trong môi trường hiện tại\",\n}\n\nMethods.Groups = {\n\t[1] = \"Tối ưu CPU và phép tính\",\n\t[2] = \"Tối ưu vòng lặp và tần suất cập nhật\",\n\t[3] = \"Tối ưu RAM và vòng đời đối tượng\",\n\t[4] = \"Ngăn rò rỉ bộ nhớ và ngắt kết nối sự kiện\",\n\t[5] = \"Tối ưu FPS và công việc mỗi khung hình\",\n\t[6] = \"Tối ưu GPU trong phạm vi Roblox cho phép\",\n\t[7] = \"Giảm nhẹ hiệu ứng đồ họa không thiết yếu\",\n\t[8] = \"Tối ưu Part, Model và đối tượng do script quản lý\",\n\t[9] = \"Tối ưu va chạm và truy vấn vật lý\",\n\t[10] = \"Tối ưu hiệu ứng hạt, ánh sáng và hiệu ứng tạm\",\n\t[11] = \"Tối ưu âm thanh\",\n\t[12] = \"Tối ưu GUI và hoạt ảnh giao diện\",\n\t[13] = \"Tối ưu tác vụ nền và bộ hẹn giờ\",\n\t[14] = \"Tối ưu RemoteEvent, RemoteFunction và dữ liệu mạng\",\n\t[15] = \"Tối ưu NPC, AI và tìm đường\",\n\t[16] = \"Tối ưu tải tài nguyên và bộ nhớ đệm\",\n\t[17] = \"Tối ưu cấu trúc dữ liệu và thuật toán\",\n\t[18] = \"Tối ưu xử lý sự kiện\",\n\t[19] = \"Tối ưu tìm kiếm đối tượng trong Workspace\",\n\t[20] = \"Tối ưu quản lý đối tượng và object pooling\",\n\t[21] = \"Tối ưu xử lý dữ liệu người chơi\",\n\t[22] = \"Tối ưu phát hiện tác vụ nặng\",\n\t[23] = \"Tối ưu xử lý đối tượng ở xa khi gameplay cho phép\",\n\t[24] = \"Tối ưu khả năng tương thích thiết bị cấu hình thấp\",\n\t[25] = \"Tối ưu đo đạc, kiểm thử và phát hiện lỗi\",\n\t[26] = \"Tối ưu khả năng khôi phục khi có lỗi\",\n\t[27] = \"Tối ưu cơ chế bật/tắt tính năng\",\n\t[28] = \"Tối ưu quản lý tài nguyên tập trung\",\n\t[29] = \"Tối ưu thời gian khởi chạy\",\n\t[30] = \"Tối ưu tổng thể mà không làm hỏng gameplay\",\n}\n\nMethods.List = {\n\t{\n\t\tid = \"CPU-001\",\n\t\tgroup = 1,\n\t\tname = \"Cache global thành upvalue\",\n\t\tmechanism = \"Đọc hàm/thư viện dùng nhiều (math, table, Instance.new, task) một lần vào biến local đầu tệp.\",\n\t\tcause = \"Mỗi lần đọc global phải tra bảng _G qua metatable; trong vòng lặp nóng chi phí cộng dồn rất lớn.\",\n\t\thow = \"Khai báo `local math_floor = math.floor` ... ở đầu mỗi module; thân hàm chỉ dùng upvalue.\",\n\t\tfile = \"Client/Core/Scheduler\",\n\t\tcond = \"Luôn áp dụng được.\",\n\t\trisk = \"Không có; chỉ đổi cách tham chiếu.\",\n\t\tstatus = \"A\",\n\t},\n\t{\n\t\tid = \"CPU-002\",\n\t\tgroup = 1,\n\t\tname = \"Cache kết quả GetService\",\n\t\tmechanism = \"Mỗi service chỉ GetService một lần rồi giữ ở upvalue của module.\",\n\t\tcause = \"GetService là lời gọi xuyên biên giới Luau-C++; gọi lặp lại cho cùng một service là lãng phí thuần.\",\n\t\thow = \"`local runService = Client_Env.GetService(\\\"RunService\\\")` ở đầu module, tái sử dụng về sau.\",\n\t\tfile = \"Client/Core/Env, mọi module cần service\",\n\t\tcond = \"Cần chạy trong ngữ cảnh có DataModel.\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"A\",\n\t},\n\t{\n\t\tid = \"CPU-003\",\n\t\tgroup = 1,\n\t\tname = \"Cache tham chiếu module\",\n\t\tmechanism = \"require/__RALO_REQUIRE mỗi module đúng một lần, kết quả cache theo đường dẫn.\",\n\t\tcause = \"require lặp lại đi qua cache của engine nhưng vẫn tốn một lời gọi hàm và tra bảng.\",\n\t\thow = \"Bảng `cache[path]` trong RequireShim.Install; module chỉ được nạp lần đầu.\",\n\t\tfile = \"Shared/RequireShim\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Module có trạng thái toàn cục sẽ dùng chung một bản — đúng ý đồ thiết kế.\",\n\t\tstatus = \"A\",\n\t},\n\t{\n\t\tid = \"CPU-004\",\n\t\tgroup = 1,\n\t\tname = \"Hoán vị biểu thức bất biến khỏi vòng lặp\",\n\t\tmechanism = \"Tính trước các giá trị không đổi (ngưỡng, hệ số, bình phương ngưỡng) ngoài vòng lặp.\",\n\t\tcause = \"Tính lại cùng một biểu thức hàng nghìn lần mỗi lượt quét là CPU thuần bị vứt đi.\",\n\t\thow = \"`Cpu.HoistedLoop()` chứng minh và được dùng trong các vòng quét; ngưỡng nhân đôi được tính trước khi vào vòng.\",\n\t\tfile = \"Client/Core/Cpu\",\n\t\tcond = \"Áp dụng khi biểu thức thật sự bất biến.\",\n\t\trisk = \"Nếu biểu thức KHÔNG bất biến mà hoán vị sẽ cho kết quả sai — phải kiểm tra bằng test.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"CPU-005\",\n\t\tgroup = 1,\n\t\tname = \"So sánh khoảng cách bằng bình phương\",\n\t\tmechanism = \"Dùng dx*dx+dy*dy+dz*dz so với limit*limit thay vì Magnitude.\",\n\t\tcause = \"Magnitude gọi sqrt; với hàng trăm đối tượng mỗi lượt quét thì sqrt là phần đắt nhất.\",\n\t\thow = \"`Cpu.DistanceSquared()` và `Cpu.IsFartherThan()`; Cull dùng bình phương ngưỡng.\",\n\t\tfile = \"Client/Core/Cpu, Client/Core/Cull\",\n\t\tcond = \"Chỉ dùng khi so sánh, không cần khoảng cách thật.\",\n\t\trisk = \"Nếu cần khoảng cách thật (hiển thị, vật lý) vẫn phải sqrt.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"CPU-006\",\n\t\tgroup = 1,\n\t\tname = \"Tiền cấp phát bảng\",\n\t\tmechanism = \"Tạo bảng với kích thước已知 thay vì để bảng tự lớn dần.\",\n\t\tcause = \"Bảng Lua tăng dung lượng theo cấp số nhân, mỗi lần tăng là một lần cấp phát lại và sao chép.\",\n\t\thow = \"`table.create(n, 0)` cho ring buffer và mảng tạm.\",\n\t\tfile = \"Client/Core/Perf, Client/Optimizations/Scan\",\n\t\tcond = \"Cần biết trước số phần tử.\",\n\t\trisk = \"Nếu ước lượng sai kích thước thì chỉ mất chút bộ nhớ, không sai kết quả.\",\n\t\tstatus = \"A\",\n\t},\n\t{\n\t\tid = \"CPU-007\",\n\t\tgroup = 1,\n\t\tname = \"Dùng hằng cho khoá chuỗi lặp lại\",\n\t\tmechanism = \"Định nghĩa tên property dùng nhiều lần ở MỘT nơi, thân mã tham chiếu hằng.\",\n\t\tcause = \"Mỗi lần viết chuỗi là một lần tra/dựng khoá; lặp lại ở nhiều chỗ dễ gõ sai tên property.\",\n\t\thow = \"Bảng `Cpu.Keys` chứa các tên property hay dùng.\",\n\t\tfile = \"Client/Core/Cpu\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"A\",\n\t},\n\t{\n\t\tid = \"CPU-008\",\n\t\tgroup = 1,\n\t\tname = \"Không để lỗi thoát ra khỏi tác vụ\",\n\t\tmechanism = \"Mọi tác vụ chạy trong pcall có ghi log; một bước lỗi không kéo sập hệ thống.\",\n\t\tcause = \"Một property bị khoá làm throw; không pcall thì toàn bộ pipeline chết giữa chừng và mất luôn khả năng khôi phục.\",\n\t\thow = \"`Guard.Run()` bọc mọi thao tác nguy hiểm; Scheduler cũng pcall từng callback.\",\n\t\tfile = \"Client/Core/Guard, Client/Core/Scheduler\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Nuốt lỗi có thể che lỗi thật — bắt buộc ghi log kèm.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"CPU-009\",\n\t\tgroup = 1,\n\t\tname = \"Ngân sách thời gian mỗi khung hình\",\n\t\tmechanism = \"Scheduler dừng khi tổng thời gian tác vụ vượt ngưỡng, phần còn lại chờ khung hình sau.\",\n\t\tcause = \"Công cụ tối ưu mà chiếm quá nhiều thời gian khung hình thì chính nó thành nguồn lag.\",\n\t\thow = \"`Scheduler.frameBudgetMs` (mặc định 3ms) + đếm `overruns` để biết có hay vượt.\",\n\t\tfile = \"Client/Core/Scheduler\",\n\t\tcond = \"Cần đồng hồ đủ chính xác (os.clock).\",\n\t\trisk = \"Ngưỡng quá thấp làm tác vụ bị trễ; có thể chỉnh trong Config.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"LOOP-001\",\n\t\tgroup = 2,\n\t\tname = \"Một kết nối Heartbeat cho mọi tác vụ định kỳ\",\n\t\tmechanism = \"Toàn hệ thống dùng đúng MỘT connection Heartbeat; Scheduler phân phối cho các task.\",\n\t\tcause = \"Mỗi module tự Connect => N lần gọi lại mỗi khung hình, không ai kiểm soát tổng chi phí.\",\n\t\thow = \"`Scheduler.Start()` tạo đúng một connection; `Scheduler.Stats().connections` để kiểm chứng.\",\n\t\tfile = \"Client/Core/Scheduler\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Không có; task vẫn chạy đúng chu kỳ của nó.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"LOOP-002\",\n\t\tgroup = 2,\n\t\tname = \"Ưu tiên tác vụ\",\n\t\tmechanism = \"Task khai báo priority; ưu tiên cao chạy trước, cùng ưu tiên thì chu kỳ ngắn chạy trước.\",\n\t\tcause = \"Khi vượt ngân sách khung hình, phải biết bỏ việc gì trước.\",\n\t\thow = \"`table.sort` trong `reindex()` theo (priority desc, interval asc).\",\n\t\tfile = \"Client/Core/Scheduler\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Ưu tiên đặt sai có thể làm task quan trọng bị trễ.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"LOOP-003\",\n\t\tgroup = 2,\n\t\tname = \"Chu kỳ riêng cho từng tác vụ\",\n\t\tmechanism = \"Mỗi task có interval riêng (0 = mỗi khung hình).\",\n\t\tcause = \"Việc chỉ cần chạy 4 lần/giây mà chạy 60 lần/giây là lãng phí 15 lần.\",\n\t\thow = \"Trường `interval` + `nextDue` trong Scheduler.Schedule.\",\n\t\tfile = \"Client/Core/Scheduler\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Interval quá lớn làm phản ứng chậm.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"LOOP-004\",\n\t\tgroup = 2,\n\t\tname = \"Huỷ tác vụ bằng handle\",\n\t\tmechanism = \"Mỗi task có handle:Cancel(); Shutdown() huỷ toàn bộ.\",\n\t\tcause = \"Thread/vòng lặp không huỷ được là nguồn rò rỉ CPU kinh điển.\",\n\t\thow = \"`handle:Cancel()` xoá khỏi bảng tasks và sắp xếp lại thứ tự.\",\n\t\tfile = \"Client/Core/Scheduler\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"LOOP-005\",\n\t\tgroup = 2,\n\t\tname = \"Không trì hoãn tác vụ để làm đẹp GUI\",\n\t\tmechanism = \"Tiến trình thật chạy độc lập với hoạt ảnh GUI; GUI không wait tác vụ.\",\n\t\tcause = \"Yêu cầu: không được tạo cảm giác giả đang xử lý.\",\n\t\thow = \"Pipeline chạy tác vụ rồi mới cập nhật GUI; hoạt ảnh 30s là đồng hồ riêng.\",\n\t\tfile = \"Client/Core/Pipeline, Client/Ui/Notifier\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"LOOP-006\",\n\t\tgroup = 2,\n\t\tname = \"Thích ứng theo deltaTime\",\n\t\tmechanism = \"Logic dựa trên deltaTime chứ không giả định 60 FPS.\",\n\t\tcause = \"Máy yếu chạy 30 FPS thì logic gắn với số khung hình sẽ chạy chậm gấp đôi.\",\n\t\thow = \"Scheduler truyền deltaTime vào callback.\",\n\t\tfile = \"Client/Core/Scheduler\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"A\",\n\t},\n\t{\n\t\tid = \"LOOP-007\",\n\t\tgroup = 2,\n\t\tname = \"Đọc độ dài mảng một lần\",\n\t\tmechanism = \"`local count = #array` ngoài vòng lặp.\",\n\t\tcause = \"Toán tử # trên bảng có phần mảng lớn không miễn phí; gọi mỗi lượt lặp là thừa.\",\n\t\thow = \"`Cpu.ForEachIndex()` đọc # một lần rồi lặp bằng chỉ số.\",\n\t\tfile = \"Client/Core/Cpu\",\n\t\tcond = \"Áp dụng cho mảng không đổi độ dài trong lúc lặp.\",\n\t\trisk = \"Nếu mảng bị sửa trong lúc lặp thì kết quả khác — phải snapshot.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"RAM-001\",\n\t\tgroup = 3,\n\t\tname = \"Bộ đệm vòng kích thước cố định\",\n\t\tmechanism = \"Ring buffer ghi đè mẫu cũ, không phình theo thời gian đo.\",\n\t\tcause = \"Đo lâu mà danh sách mẫu cứ dài ra => RAM tăng đều, GC chạy nhiều hơn.\",\n\t\thow = \"`Perf.New(capacity)` + ghi đè theo `head % capacity`, trừ mẫu bị ghi đè khỏi tổng.\",\n\t\tfile = \"Client/Core/Perf\",\n\t\tcond = \"Cần chọn dung lượng đủ lớn để percentile có nghĩa.\",\n\t\trisk = \"Dung lượng nhỏ làm p1/p95 kém ổn định.\",\n\t\tstatus = \"A\",\n\t},\n\t{\n\t\tid = \"RAM-002\",\n\t\tgroup = 3,\n\t\tname = \"Tái sử dụng bảng tạm\",\n\t\tmechanism = \"Pool bảng Lua: mượn bảng, dùng xong trả lại.\",\n\t\tcause = \"Cấp phát bảng mới trong vòng lặp nóng là nguồn rác GC lớn nhất của script.\",\n\t\thow = \"`Pool.AcquireTable()` / `Pool.ReleaseTable()` có trần dung lượng.\",\n\t\tfile = \"Client/Core/Pool\",\n\t\tcond = \"Áp dụng cho bảng tạm dùng xong bỏ.\",\n\t\trisk = \"Trả bảng mà chưa xoá hết khoá => dữ liệu bẩn; ReleaseTable có table.clear.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"RAM-003\",\n\t\tgroup = 3,\n\t\tname = \"Giới hạn bảng dữ liệu\",\n\t\tmechanism = \"Mọi bảng tích luỹ đều có trần (log, error, pool, targets).\",\n\t\tcause = \"Bảng không trần chạy nhiều giờ sẽ chiếm bộ nhớ ngày càng lớn.\",\n\t\thow = \"Log.MaxEntries, Guard.maxErrorLog, Pool.cap, Cull.rules.maxTargets.\",\n\t\tfile = \"Shared/Log, Client/Core/Guard, Client/Core/Pool, Client/Core/Cull\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Trần quá nhỏ làm mất dữ liệu cũ cần chẩn đoán.\",\n\t\tstatus = \"A\",\n\t},\n\t{\n\t\tid = \"RAM-004\",\n\t\tgroup = 3,\n\t\tname = \"Tránh closure trong vòng lặp nóng\",\n\t\tmechanism = \"Callback được tạo MỘT lần ngoài vòng lặp rồi tái sử dụng.\",\n\t\tcause = \"Mỗi closure là một đối tượng mới + upvalue; tạo hàng nghìn cái mỗi giây ép GC.\",\n\t\thow = \"Callback của Scheduler/Registry được tạo một lần lúc đăng ký.\",\n\t\tfile = \"Client/Core/Scheduler, Client/Core/Registry\",\n\t\tcond = \"Áp dụng ở đường nóng.\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"A\",\n\t},\n\t{\n\t\tid = \"LEAK-001\",\n\t\tgroup = 4,\n\t\tname = \"Sổ đăng ký kết nối tập trung\",\n\t\tmechanism = \"Mọi Connect đi qua Registry.Connect, có id, có DisconnectAll.\",\n\t\tcause = \"Connection không Disconnect vẫn chạy sau khi đối tượng bị huỷ => CPU rò rỉ tăng dần.\",\n\t\thow = \"`Registry.connections` + `Registry.Shutdown()` ngắt toàn bộ.\",\n\t\tfile = \"Client/Core/Registry\",\n\t\tcond = \"Mọi kết nối của hệ thống phải đi qua Registry.\",\n\t\trisk = \"Nếu module nào Connect thẳng thì lọt sổ — test đếm connection để phát hiện.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"LEAK-002\",\n\t\tgroup = 4,\n\t\tname = \"Tự ngắt khi đối tượng bị huỷ\",\n\t\tmechanism = \"Theo dõi Parent của instance; khi nó rời cây thì ngắt connection và xoá cache liên quan.\",\n\t\tcause = \"Instance bị game Destroy nhưng callback vẫn giữ tham chiếu => vừa rò rỉ vừa lỗi tham chiếu.\",\n\t\thow = \"`Registry.Watch()` nghe GetPropertyChangedSignal(\\\"Parent\\\") rồi gọi DropInstance.\",\n\t\tfile = \"Client/Core/Registry\",\n\t\tcond = \"Cần instance còn sống lúc đăng ký.\",\n\t\trisk = \"Mỗi watch thêm một connection; chỉ watch đối tượng dài hạn.\",\n\t\tstatus = \"A\",\n\t},\n\t{\n\t\tid = \"LEAK-003\",\n\t\tgroup = 4,\n\t\tname = \"Kết nối một lần\",\n\t\tmechanism = \"Registry.ConnectOnce tự Disconnect ngay sau lần bắn đầu tiên.\",\n\t\tcause = \"Kết nối chỉ cần phản ứng một lần mà để mãi là rò rỉ.\",\n\t\thow = \"`Registry.ConnectOnce()` bọc handler rồi Disconnect.\",\n\t\tfile = \"Client/Core/Registry\",\n\t\tcond = \"Dùng cho tín hiệu khởi động.\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"LEAK-004\",\n\t\tgroup = 4,\n\t\tname = \"Không tạo thread mỗi sự kiện\",\n\t\tmechanism = \"Tác vụ nền đăng ký với Scheduler thay vì spawn thread riêng mỗi lần.\",\n\t\tcause = \"Mỗi `task.spawn` trong handler sự kiện tạo một thread; sự kiện dày => thread chồng chất.\",\n\t\thow = \"Mọi việc định kỳ qua Scheduler.Schedule; việc một lần qua Scheduler.Defer.\",\n\t\tfile = \"Client/Core/Scheduler\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"A\",\n\t},\n\t{\n\t\tid = \"LEAK-005\",\n\t\tgroup = 4,\n\t\tname = \"Sổ đăng ký instance do hệ thống tạo\",\n\t\tmechanism = \"Mọi Instance.new của hệ thống được Registry.Own; Shutdown huỷ đúng những cái đó.\",\n\t\tcause = \"Instance tạo ra không ai giữ tham chiếu thì không dọn được, thành rác vĩnh viễn.\",\n\t\thow = \"`Registry.owned` + `Registry.Release(id)`; chỉ huỷ instance trong sổ.\",\n\t\tfile = \"Client/Core/Registry\",\n\t\tcond = \"Chỉ áp dụng cho instance hệ thống tạo.\",\n\t\trisk = \"Nguy hiểm nếu nhầm instance của game — Release kiểm tra sổ trước khi huỷ.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"FPS-001\",\n\t\tgroup = 5,\n\t\tname = \"Ngân sách khung hình cho chính công cụ\",\n\t\tmechanism = \"Xem CPU-009: Scheduler dừng khi vượt ngưỡng.\",\n\t\tcause = \"Công cụ tối ưu chiếm khung hình thì FPS không tăng.\",\n\t\thow = \"Scheduler.frameBudgetMs + overrun counter.\",\n\t\tfile = \"Client/Core/Scheduler\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Xem CPU-009.\",\n\t\tstatus = \"A\",\n\t},\n\t{\n\t\tid = \"FPS-002\",\n\t\tgroup = 5,\n\t\tname = \"Không ghi GUI mỗi khung hình\",\n\t\tmechanism = \"Chỉ ghi property GUI khi giá trị thật sự khác.\",\n\t\tcause = \"Ghi lại cùng giá trị vẫn làm engine đánh dấu bẩn và tính lại layout.\",\n\t\thow = \"`GuiPolicy.SetIfChanged()` so sánh trước khi ghi.\",\n\t\tfile = \"Client/Ui/GuiPolicy\",\n\t\tcond = \"Áp dụng cho GUI của hệ thống.\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"FPS-003\",\n\t\tgroup = 5,\n\t\tname = \"Bỏ qua đối tượng ngoài vùng quan tâm\",\n\t\tmechanism = \"Chỉ xử lý đối tượng đã đăng ký / mang tag, không quét cả thế giới.\",\n\t\tcause = \"Quét toàn bộ Workspace mỗi lượt là O(số instance của cả game).\",\n\t\thow = \"Cull.targets là danh sách đăng ký; Scan chỉ duyệt danh sách đó.\",\n\t\tfile = \"Client/Core/Cull\",\n\t\tcond = \"Cần có bước đăng ký đối tượng.\",\n\t\trisk = \"Nếu không đăng ký thì đối tượng không được tối ưu (an toàn hơn là làm sai).\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"FPS-004\",\n\t\tgroup = 5,\n\t\tname = \"Ưu tiên việc hiển thị\",\n\t\tmechanism = \"Task quan trọng priority cao, việc nền priority âm.\",\n\t\tcause = \"RenderStepped/Heartbeat có thời lượng cố định; việc nền không được tranh phần.\",\n\t\thow = \"Scheduler sắp xếp theo priority; cull/net dùng priority âm.\",\n\t\tfile = \"Client/Core/Scheduler\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Xem LOOP-002.\",\n\t\tstatus = \"A\",\n\t},\n\t{\n\t\tid = \"GRAPHICS-001\",\n\t\tgroup = 6,\n\t\tname = \"Hạ Lighting.QualityLevel nhẹ, có chặn an toàn\",\n\t\tmechanism = \"Đặt mục tiêu tối đa ở 8/10, không nâng mức đang dùng thấp hơn.\",\n\t\tcause = \"Mức chất lượng cao có thể tăng chi phí render trên client.\",\n\t\thow = \"`Graphics.ApplyQualityLevel()` giữ nguyên giá trị cũ trong Restore; chế độ tự động mặc định được tôn trọng.\",\n\t\tfile = \"Client/Optimizations/Graphics\",\n\t\tcond = \"Chỉ phía client; không ảnh hưởng người chơi khác.\",\n\t\trisk = \"Có thể khác biệt nhẹ về chất lượng hình ảnh; không tắt ánh sáng/bóng; hoàn tác được.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"GRAPHICS-002\",\n\t\tgroup = 6,\n\t\tname = \"Tùy chọn khóa GraphicsQualityMode\",\n\t\tmechanism = \"Chỉ khóa chế độ tự động khi chủ game bật rõ tuỳ chọn.\",\n\t\tcause = \"Engine có thể ghi đè QualityLevel nếu chế độ tự động bị khóa không đúng lúc.\",\n\t\thow = \"`Graphics.ApplyQualityLevel()` chỉ đặt GraphicsQualityMode = false khi `lockQualityMode = true`.\",\n\t\tfile = \"Client/Optimizations/Graphics\",\n\t\tcond = \"Mặc định tắt; người dùng chủ động bật mới áp dụng.\",\n\t\trisk = \"Có thể ngừng tự điều chỉnh chất lượng của Roblox; hoàn tác được.\",\n\t\tstatus = \"A\",\n\t},\n\t{\n\t\tid = \"GRAPHICS-003\",\n\t\tgroup = 7,\n\t\tname = \"Đặt Terrain.Decoration theo cấu hình\",\n\t\tmechanism = \"Chủ game có thể đổi chi tiết cỏ/đá nhỏ phía client.\",\n\t\tcause = \"Decoration có thể tạo thêm chi phí render ở cảnh nhiều chi tiết.\",\n\t\thow = \"`Graphics.ApplyTerrain()` ghi giá trị cũ; mặc định giữ Decoration = true.\",\n\t\tfile = \"Client/Optimizations/Graphics\",\n\t\tcond = \"Mặc định giữ nguyên địa hình trang trí; chỉ đổi nếu cấu hình yêu cầu.\",\n\t\trisk = \"Tắt Decoration sẽ làm mất cỏ/chi tiết nhỏ; hoàn tác được.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"GRAPHICS-004\",\n\t\tgroup = 7,\n\t\tname = \"Tắt bóng đổ cho đối tượng ở xa\",\n\t\tmechanism = \"Xa hơn ngưỡng thì CastShadow = false; lại gần thì khôi phục.\",\n\t\tcause = \"Shadow map là một trong những chi phí GPU lớn nhất; bóng của vật ở xa gần như vô hình.\",\n\t\thow = \"`Cull.Scan()` so khoảng cách bình phương với shadowDistance, khôi phục khi lại gần.\",\n\t\tfile = \"Client/Core/Cull\",\n\t\tcond = \"Chỉ với đối tượng đã đăng ký; không đụng đối tượng gameplay.\",\n\t\trisk = \"Bóng vật xa biến mất; tự khôi phục khi lại gần.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"GRAPHICS-005\",\n\t\tgroup = 6,\n\t\tname = \"Giảm tầm PointLight/SpotLight\",\n\t\tmechanism = \"Hạ Range/Brightness của đèn do script quản lý.\",\n\t\tcause = \"Mỗi đèn động buộc engine tính ánh sáng cho các part trong tầm.\",\n\t\thow = \"Chưa triển khai: cần chủ game khai báo danh sách đèn được phép đổi.\",\n\t\tfile = \"(đề xuất)\",\n\t\tcond = \"Cần whitelist từ chủ game.\",\n\t\trisk = \"Dễ làm tối cảnh nếu hạ quá tay.\",\n\t\tstatus = \"D\",\n\t},\n\t{\n\t\tid = \"GRAPHICS-006\",\n\t\tgroup = 6,\n\t\tname = \"Giảm số lớp trong suốt chồng nhau\",\n\t\tmechanism = \"Hạn chế part trong suốt xếp chồng (overdraw).\",\n\t\tcause = \"Overdraw là chi phí GPU điển hình; mỗi lớp trong suốt là một lần blend.\",\n\t\thow = \"Chưa triển khai: cần phân tích cảnh cụ thể của từng game.\",\n\t\tfile = \"(đề xuất)\",\n\t\tcond = \"Cần đo bằng công cụ GPU.\",\n\t\trisk = \"Đổi vật liệu có thể làm hỏng mỹ thuật.\",\n\t\tstatus = \"D\",\n\t},\n\t{\n\t\tid = \"GRAPHICS-007\",\n\t\tgroup = 7,\n\t\tname = \"Giảm chất lượng phản chiếu/kính\",\n\t\tmechanism = \"Hạ số bề mặt phản chiếu.\",\n\t\tcause = \"Phản chiếu render cảnh thêm một lần.\",\n\t\thow = \"Chưa triển khai.\",\n\t\tfile = \"(đề xuất)\",\n\t\tcond = \"Cần chủ game cho phép.\",\n\t\trisk = \"Thay đổi mỹ thuật rõ rệt.\",\n\t\tstatus = \"D\",\n\t},\n\t{\n\t\tid = \"PART-001\",\n\t\tgroup = 8,\n\t\tname = \"Neo part tĩnh không va chạm\",\n\t\tmechanism = \"Anchored = true cho part trang trí cố định.\",\n\t\tcause = \"Part không neo vẫn được engine xét trong bước mô phỏng vật lý.\",\n\t\thow = \"Chưa triển khai: đổi Anchored ảnh hưởng hành vi vật lý, cần chủ game quyết định per-game.\",\n\t\tfile = \"(đề xuất)\",\n\t\tcond = \"Cần khảo sát cảnh thật.\",\n\t\trisk = \"Part đang rơi sẽ dừng lại — có thể phá gameplay.\",\n\t\tstatus = \"D\",\n\t},\n\t{\n\t\tid = \"PART-002\",\n\t\tgroup = 8,\n\t\tname = \"Cull đối tượng xa theo đăng ký\",\n\t\tmechanism = \"Xem GRAPHICS-004 và DIST-001.\",\n\t\tcause = \"Part xa vẫn tốn chi phí bóng/hiệu ứng.\",\n\t\thow = \"Cull.Add + Cull.Scan.\",\n\t\tfile = \"Client/Core/Cull\",\n\t\tcond = \"Chỉ đối tượng đã đăng ký.\",\n\t\trisk = \"Xem GRAPHICS-004.\",\n\t\tstatus = \"A\",\n\t},\n\t{\n\t\tid = \"PART-003\",\n\t\tgroup = 8,\n\t\tname = \"Gộp part tĩnh thành một mesh\",\n\t\tmechanism = \"Hợp nhất nhiều part trang trí thành UnionOperation/MeshPart.\",\n\t\tcause = \"Mỗi part là một draw call và một nút trong cây instance.\",\n\t\thow = \"Chưa triển khai: thao tác này nên làm trong Studio, không nên làm lúc runtime.\",\n\t\tfile = \"(đề xuất — làm trong Studio)\",\n\t\tcond = \"Cần quyền sửa game.\",\n\t\trisk = \"Union mất khả năng đổi màu từng phần.\",\n\t\tstatus = \"D\",\n\t},\n\t{\n\t\tid = \"PART-004\",\n\t\tgroup = 8,\n\t\tname = \"Tắt CastShadow cho part trang trí\",\n\t\tmechanism = \"Xem GRAPHICS-004, nhưng áp dụng cho toàn bộ part trang trí đã đăng ký.\",\n\t\tcause = \"Bóng của part trang trí nhỏ thường không ai để ý.\",\n\t\thow = \"Cull với kinds.shadow.\",\n\t\tfile = \"Client/Core/Cull\",\n\t\tcond = \"Cần đăng ký + không mang tag bảo vệ.\",\n\t\trisk = \"Xem GRAPHICS-004.\",\n\t\tstatus = \"A\",\n\t},\n\t{\n\t\tid = \"PART-005\",\n\t\tgroup = 8,\n\t\tname = \"Giảm độ chi tiết mesh ở xa (LOD)\",\n\t\tmechanism = \"Dùng mesh LOD thay vì mesh đầy đủ.\",\n\t\tcause = \"Mesh hàng chục nghìn tam giác ở xa vẫn tốn đỉnh phải xử lý.\",\n\t\thow = \"Chưa triển khai: cần asset LOD và thiết lập trong Studio.\",\n\t\tfile = \"(đề xuất — làm trong Studio)\",\n\t\tcond = \"Cần làm asset LOD.\",\n\t\trisk = \"Không có nếu LOD tốt.\",\n\t\tstatus = \"D\",\n\t},\n\t{\n\t\tid = \"PHYSICS-001\",\n\t\tgroup = 9,\n\t\tname = \"Tắt làm mượt nội suy (tuỳ chọn, mặc định TẮT)\",\n\t\tmechanism = \"Đặt InterpolationThrottling để giảm CPU mô phỏng phía client.\",\n\t\tcause = \"Nội suy vị trí vật thể từ xa tốn CPU đáng kể trên máy yếu.\",\n\t\thow = \"`Physics.ApplyThrottling()`; mặc định `physics.enabled = false` vì có đánh đổi.\",\n\t\tfile = \"Client/Optimizations/Physics\",\n\t\tcond = \"Thường chỉ ghi được ở server/Studio; client bị khoá thì báo unsupported.\",\n\t\trisk = \"Vật thể xa chuyển động giật hơn — vì vậy mặc định tắt.\",\n\t\tstatus = \"A\",\n\t},\n\t{\n\t\tid = \"PHYSICS-002\",\n\t\tgroup = 9,\n\t\tname = \"Đổi PhysicsSteppingMethod (tuỳ chọn)\",\n\t\tmechanism = \"Chọn phương pháp bước mô phỏng rẻ hơn.\",\n\t\tcause = \"Phương pháp mặc định ưu tiên độ chính xác, tốn CPU hơn.\",\n\t\thow = \"`Physics.ApplyThrottling()` ghi PhysicsSteppingMethod nếu được phép.\",\n\t\tfile = \"Client/Optimizations/Physics\",\n\t\tcond = \"Thường bị khoá ở client.\",\n\t\trisk = \"Đổi hành vi vật lý — mặc định tắt.\",\n\t\tstatus = \"A\",\n\t},\n\t{\n\t\tid = \"PHYSICS-003\",\n\t\tgroup = 9,\n\t\tname = \"Tắt Touched không cần thiết\",\n\t\tmechanism = \"Bỏ kết nối Touched trên đối tượng không dùng nó.\",\n\t\tcause = \"Mỗi kết nối Touched buộc engine kiểm tra va chạm mỗi bước.\",\n\t\thow = \"Chưa triển khai: cần biết đối tượng nào thật sự cần Touched.\",\n\t\tfile = \"(đề xuất)\",\n\t\tcond = \"Cần khảo sát logic game.\",\n\t\trisk = \"Tắt nhầm sẽ mất cơ chế gameplay.\",\n\t\tstatus = \"D\",\n\t},\n\t{\n\t\tid = \"PHYSICS-004\",\n\t\tgroup = 9,\n\t\tname = \"Truy vấn vùng bằng API vật lý\",\n\t\tmechanism = \"Dùng GetPartBoundsInRadius thay vì quét GetDescendants.\",\n\t\tcause = \"Quét toàn cây để tìm vật gần là O(n) mỗi lần hỏi.\",\n\t\thow = \"Chưa triển khai trong mã; Spatial đang dùng lưới băm (DATA-002).\",\n\t\tfile = \"(đề xuất)\",\n\t\tcond = \"API có sẵn ở client.\",\n\t\trisk = \"Kết quả phụ thuộc collision group.\",\n\t\tstatus = \"D\",\n\t},\n\t{\n\t\tid = \"PHYSICS-005\",\n\t\tgroup = 9,\n\t\tname = \"Tắt CanQuery/CanTouch cho part trang trí\",\n\t\tmechanism = \"Giảm số cặp va chạm engine phải xét.\",\n\t\tcause = \"Mỗi part có CanQuery/CanTouch đều tham gia truy vấn vật lý.\",\n\t\thow = \"Chưa triển khai: ảnh hưởng raycast của game.\",\n\t\tfile = \"(đề xuất)\",\n\t\tcond = \"Cần chủ game cho phép.\",\n\t\trisk = \"Raycast của game sẽ không thấy part đó.\",\n\t\tstatus = \"D\",\n\t},\n\t{\n\t\tid = \"FX-001\",\n\t\tgroup = 10,\n\t\tname = \"Tắt emitter ở xa\",\n\t\tmechanism = \"Xa hơn effectDistance thì Enabled = false cho ParticleEmitter; lại gần thì bật lại.\",\n\t\tcause = \"Emitter xa vẫn sinh hạt và vẫn được render dù chỉ vài pixel.\",\n\t\thow = \"`Cull.Scan()` nhánh effects, khôi phục bằng Guard.Change có expect.\",\n\t\tfile = \"Client/Core/Cull\",\n\t\tcond = \"Chỉ emitter là con của đối tượng đã đăng ký.\",\n\t\trisk = \"Hiệu ứng xa mất; tự khôi phục khi lại gần.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"FX-002\",\n\t\tgroup = 10,\n\t\tname = \"Tắt Beam/Trail ở xa\",\n\t\tmechanism = \"Như FX-001 cho Beam và Trail.\",\n\t\tcause = \"Beam/Trail vẫn được tính và render khi ở xa.\",\n\t\thow = \"`Cull.Scan()` với effectClasses gồm Beam, Trail.\",\n\t\tfile = \"Client/Core/Cull\",\n\t\tcond = \"Chỉ đối tượng đã đăng ký.\",\n\t\trisk = \"Như FX-001.\",\n\t\tstatus = \"A\",\n\t},\n\t{\n\t\tid = \"FX-003\",\n\t\tgroup = 10,\n\t\tname = \"Tắt đèn điểm ở xa\",\n\t\tmechanism = \"Như FX-001 cho PointLight/SpotLight.\",\n\t\tcause = \"Đèn xa vẫn buộc engine tính ánh sáng.\",\n\t\thow = \"Chưa triển khai: cần whitelist đèn (xem GRAPHICS-005).\",\n\t\tfile = \"(đề xuất)\",\n\t\tcond = \"Cần chủ game khai báo.\",\n\t\trisk = \"Cảnh tối hơn nếu tắt nhầm đèn quan trọng.\",\n\t\tstatus = \"D\",\n\t},\n\t{\n\t\tid = \"EFFECTS-001\",\n\t\tgroup = 10,\n\t\tname = \"Giới hạn Rate của emitter\",\n\t\tmechanism = \"Đưa Rate về mức trần thay vì xoá emitter.\",\n\t\tcause = \"Emitter cấu hình Rate vài trăm sinh rất nhiều hạt mỗi giây.\",\n\t\thow = \"`Effects.CapParticles()` đổi Rate, ghi giá trị cũ vào Restore.\",\n\t\tfile = \"Client/Optimizations/Effects\",\n\t\tcond = \"Mặc định bật, mức trần trong Config.\",\n\t\trisk = \"Hiệu ứng thưa hơn nhưng VẪN CÒN — không phá gameplay.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"EFFECTS-002\",\n\t\tgroup = 10,\n\t\tname = \"Giới hạn ParticleCount\",\n\t\tmechanism = \"ParticleCount = -1 (vô hạn) được quy về mức trần.\",\n\t\tcause = \"Số hạt không trần có thể phình tới hàng nghìn, tốn cả CPU lẫn GPU.\",\n\t\thow = \"`Effects.CapParticles()` đổi ParticleCount, ghi giá trị cũ.\",\n\t\tfile = \"Client/Optimizations/Effects\",\n\t\tcond = \"Mặc định bật.\",\n\t\trisk = \"Như EFFECTS-001.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"EFFECTS-003\",\n\t\tgroup = 10,\n\t\tname = \"Giảm kích thước hạt\",\n\t\tmechanism = \"Hạ Size của emitter ở xa.\",\n\t\tcause = \"Hạt to chiếm nhiều pixel, tăng chi phí fill-rate.\",\n\t\thow = \"Chưa triển khai.\",\n\t\tfile = \"(đề xuất)\",\n\t\tcond = \"Cần đo để biết có đáng.\",\n\t\trisk = \"Hiệu ứng nhỏ đi rõ.\",\n\t\tstatus = \"D\",\n\t},\n\t{\n\t\tid = \"EFFECTS-004\",\n\t\tgroup = 10,\n\t\tname = \"Giảm số emitter đồng thời\",\n\t\tmechanism = \"Bật/tắt emitter theo mức độ quan trọng.\",\n\t\tcause = \"Nhiều emitter chạy cùng lúc cộng dồn chi phí.\",\n\t\thow = \"Chưa triển khai: cần chủ game xếp hạng quan trọng.\",\n\t\tfile = \"(đề xuất)\",\n\t\tcond = \"Cần whitelist.\",\n\t\trisk = \"Tắt nhầm hiệu ứng kỹ năng.\",\n\t\tstatus = \"D\",\n\t},\n\t{\n\t\tid = \"EFFECTS-005\",\n\t\tgroup = 10,\n\t\tname = \"Tắt hiệu ứng khi menu đang ẩn\",\n\t\tmechanism = \"Không cập nhật hiệu ứng phụ khi người chơi không cần.\",\n\t\tcause = \"Cập nhật thứ không ai nhìn là lãng phí.\",\n\t\thow = \"Chưa triển khai.\",\n\t\tfile = \"(đề xuất)\",\n\t\tcond = \"Cần định nghĩa 'hiệu ứng phụ'.\",\n\t\trisk = \"Dễ ảnh hưởng gameplay.\",\n\t\tstatus = \"D\",\n\t},\n\t{\n\t\tid = \"AUDIO-001\",\n\t\tgroup = 11,\n\t\tname = \"Dừng sound ở rất xa\",\n\t\tmechanism = \"Dừng Sound không quan trọng khi ngoài tầm nghe.\",\n\t\tcause = \"Sound vẫn được giải mã và trộn kể cả khi gần như không nghe thấy.\",\n\t\thow = \"Chưa triển khai: Roblox đã tự roll-off; can thiệp dễ gây lỗi gameplay.\",\n\t\tfile = \"(đề xuất)\",\n\t\tcond = \"Cần chủ game đánh dấu sound không quan trọng.\",\n\t\trisk = \"Mất tín hiệu âm thanh quan trọng (bước chân, súng).\",\n\t\tstatus = \"D\",\n\t},\n\t{\n\t\tid = \"AUDIO-002\",\n\t\tgroup = 11,\n\t\tname = \"Tái sử dụng Sound\",\n\t\tmechanism = \"Dùng pool Sound thay vì tạo mới mỗi lần phát.\",\n\t\tcause = \"Tạo Sound mới mỗi lần phát tốn cấp phát và thời gian nạp.\",\n\t\thow = \"Chưa triển khai; Pool đã có sẵn hạ tầng (POOL-001).\",\n\t\tfile = \"(đề xuất — dùng Pool.Define)\",\n\t\tcond = \"Cần biết sound nào phát lặp.\",\n\t\trisk = \"Không có nếu reset đúng.\",\n\t\tstatus = \"D\",\n\t},\n\t{\n\t\tid = \"AUDIO-003\",\n\t\tgroup = 11,\n\t\tname = \"Giảm số sound phát đồng thời\",\n\t\tmechanism = \"Giới hạn số sound đang chơi.\",\n\t\tcause = \"Quá nhiều sound đồng thời tốn bộ trộn và bộ nhớ.\",\n\t\thow = \"Chưa triển khai.\",\n\t\tfile = \"(đề xuất)\",\n\t\tcond = \"Cần chính sách ưu tiên âm thanh.\",\n\t\trisk = \"Mất âm thanh quan trọng.\",\n\t\tstatus = \"D\",\n\t},\n\t{\n\t\tid = \"GUI-001\",\n\t\tgroup = 12,\n\t\tname = \"ResetOnSpawn = false\",\n\t\tmechanism = \"GUI không bị dựng lại mỗi lần hồi sinh.\",\n\t\tcause = \"Mặc định ScreenGui bị reset khi respawn => dựng lại cây GUI và nối chồng connection.\",\n\t\thow = \"`GuiPolicy.AcquireScreenGui()` đặt ResetOnSpawn = false.\",\n\t\tfile = \"Client/Ui/GuiPolicy\",\n\t\tcond = \"Áp dụng cho GUI hệ thống.\",\n\t\trisk = \"Nếu game dựa vào reset GUI thì không áp dụng — ở đây GUI là của hệ thống.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"GUI-002\",\n\t\tgroup = 12,\n\t\tname = \"Một GUI duy nhất (singleton)\",\n\t\tmechanism = \"Nếu ScreenGui đã tồn tại thì tái sử dụng, không tạo bản thứ hai.\",\n\t\tcause = \"Chạy script hai lần tạo hai lớp GUI chồng nhau, vừa xấu vừa tốn.\",\n\t\thow = \"`GuiPolicy.AcquireScreenGui()` FindFirstChild theo tên trước khi tạo.\",\n\t\tfile = \"Client/Ui/GuiPolicy\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"GUI-003\",\n\t\tgroup = 12,\n\t\tname = \"Dùng TweenService thay vì tự viết hoạt ảnh\",\n\t\tmechanism = \"Mọi chuyển động dùng TweenService.\",\n\t\tcause = \"Tự cập nhật vị trí mỗi khung hình bằng RenderStepped tốn CPU và khó mượt.\",\n\t\thow = \"Notifier dùng TweenService:Create cho trượt xuống + mờ dần.\",\n\t\tfile = \"Client/Ui/Notifier\",\n\t\tcond = \"Cần TweenService (có ở client).\",\n\t\trisk = \"Tween vẫn tốn một ít; nhưng rẻ hơn loop thủ công.\",\n\t\tstatus = \"A\",\n\t},\n\t{\n\t\tid = \"GUI-004\",\n\t\tgroup = 12,\n\t\tname = \"Chỉ ghi khi giá trị khác\",\n\t\tmechanism = \"Xem FPS-002.\",\n\t\tcause = \"Ghi trùng giá trị vẫn làm layout bẩn.\",\n\t\thow = \"`GuiPolicy.SetIfChanged()`.\",\n\t\tfile = \"Client/Ui/GuiPolicy\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"GUI-005\",\n\t\tgroup = 12,\n\t\tname = \"Giữ cây GUI nhỏ\",\n\t\tmechanism = \"Đếm số node GUI và giữ ở mức tối thiểu.\",\n\t\tcause = \"Mỗi GuiObject là một nút layout phải tính.\",\n\t\thow = \"`GuiPolicy.CountNodes()` dùng trong test để đặt ngưỡng.\",\n\t\tfile = \"Client/Ui/GuiPolicy, tests/suites/gui.luau\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"GUI-006\",\n\t\tgroup = 12,\n\t\tname = \"Ngừng hoạt ảnh khi GUI ẩn\",\n\t\tmechanism = \"Không chạy tween / không cập nhật gradient khi Enabled = false.\",\n\t\tcause = \"Hoạt ảnh của thứ không hiển thị là chi phí thuần lãng phí.\",\n\t\thow = \"`GuiPolicy.ShouldAnimate()` kiểm tra Enabled trước khi chạy hoạt ảnh.\",\n\t\tfile = \"Client/Ui/GuiPolicy\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"GUI-007\",\n\t\tgroup = 12,\n\t\tname = \"Không tính lại layout mỗi khung hình\",\n\t\tmechanism = \"Kích thước khung tính theo nội dung khi nội dung đổi, không phải mỗi frame.\",\n\t\tcause = \"Đọc/ghi kích thước mỗi frame gây layout thrash.\",\n\t\thow = \"Notifier chỉ FitHeight khi danh sách bước đổi.\",\n\t\tfile = \"Client/Ui/Notifier\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"A\",\n\t},\n\t{\n\t\tid = \"GUI-008\",\n\t\tgroup = 12,\n\t\tname = \"Tránh AutomaticSize ở cây lớn\",\n\t\tmechanism = \"Không dùng AutomaticSize cho cây nhiều nút.\",\n\t\tcause = \"AutomaticSize buộc engine đo lại toàn bộ cây con mỗi lần đổi.\",\n\t\thow = \"Chưa triển khai đầy đủ; Notifier vẫn dùng AutomaticSize cho khung nhỏ.\",\n\t\tfile = \"(một phần — đề xuất hoàn thiện)\",\n\t\tcond = \"Cần đo chi phí thật.\",\n\t\trisk = \"Dùng kích thước cố định thì kém linh hoạt.\",\n\t\tstatus = \"D\",\n\t},\n\t{\n\t\tid = \"GUI-009\",\n\t\tgroup = 12,\n\t\tname = \"Tắt hoạt ảnh trên máy yếu\",\n\t\tmechanism = \"Bậc thiết bị thấp thì bỏ hoạt ảnh không cần thiết.\",\n\t\tcause = \"Trên máy yếu, hoạt ảnh GUI cũng chiếm phần khung hình đáng kể.\",\n\t\thow = \"`GuiPolicy.ShouldAnimate()` nhận cờ allowAnimation từ Devices.\",\n\t\tfile = \"Client/Ui/GuiPolicy, Client/Core/Devices\",\n\t\tcond = \"Cần Devices đã chọn bậc.\",\n\t\trisk = \"GUI kém mượt hơn trên máy yếu.\",\n\t\tstatus = \"A\",\n\t},\n\t{\n\t\tid = \"GUI-010\",\n\t\tgroup = 12,\n\t\tname = \"Không kéo GUI được\",\n\t\tmechanism = \"Không gắn hành vi kéo; GUI cố định ở góc dưới phải.\",\n\t\tcause = \"Yêu cầu thiết kế: GUI thông báo không được di chuyển.\",\n\t\thow = \"Notifier không có input kéo; định vị bằng AnchorPoint + Position.\",\n\t\tfile = \"Client/Ui/Notifier\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"GUI-011\",\n\t\tgroup = 12,\n\t\tname = \"Dọn GUI khi kết thúc\",\n\t\tmechanism = \"Destroy ScreenGui sau khi hoạt ảnh ẩn xong, chỉ xoá đúng GUI của hệ thống.\",\n\t\tcause = \"GUI còn lại sau khi ẩn vẫn chiếm node và connection.\",\n\t\thow = \"`GuiPolicy.DestroyScreenGui()` kiểm tra Name trước khi Destroy.\",\n\t\tfile = \"Client/Ui/GuiPolicy\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Không có — có kiểm tra tên để không xoá nhầm.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"BG-001\",\n\t\tgroup = 13,\n\t\tname = \"Bộ hẹn giờ tập trung\",\n\t\tmechanism = \"Mọi việc định kỳ qua Scheduler, không có while-true riêng.\",\n\t\tcause = \"Mỗi vòng lặp nền là một thread không ai quản lý.\",\n\t\thow = \"Scheduler.Schedule thay cho while-true.\",\n\t\tfile = \"Client/Core/Scheduler\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"A\",\n\t},\n\t{\n\t\tid = \"BG-002\",\n\t\tgroup = 13,\n\t\tname = \"Điều khiển bằng sự kiện thay vì polling\",\n\t\tmechanism = \"Đăng ký callback với sự kiện thay vì hỏi đi hỏi lại.\",\n\t\tcause = \"Polling tốn CPU ngay cả khi không có gì thay đổi.\",\n\t\thow = \"Scheduler + Registry.Connect; các bước tối ưu chạy một lần theo sự kiện pipeline.\",\n\t\tfile = \"Client/Core/Scheduler, Client/Core/Registry\",\n\t\tcond = \"Áp dụng khi có sự kiện phù hợp.\",\n\t\trisk = \"Một số việc không có sự kiện, buộc phải polling.\",\n\t\tstatus = \"A\",\n\t},\n\t{\n\t\tid = \"BG-003\",\n\t\tgroup = 13,\n\t\tname = \"Huỷ bộ hẹn giờ khi xong\",\n\t\tmechanism = \"maxCalls để task tự huỷ sau N lần.\",\n\t\tcause = \"Task vô hạn không cần thiết chạy mãi sau khi việc đã xong.\",\n\t\thow = \"`Scheduler.Schedule({ maxCalls = 1 })` + `Scheduler.Defer`.\",\n\t\tfile = \"Client/Core/Scheduler\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"BG-004\",\n\t\tgroup = 13,\n\t\tname = \"Chu kỳ thích ứng theo tải\",\n\t\tmechanism = \"Task ưu tiên thấp bị dời khi khung hình vượt ngân sách.\",\n\t\tcause = \"Khi máy đang nặng, việc nền phải nhường.\",\n\t\thow = \"Scheduler break khi vượt budget; task priority âm chạy sau.\",\n\t\tfile = \"Client/Core/Scheduler\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Việc nền bị trễ khi máy yếu.\",\n\t\tstatus = \"A\",\n\t},\n\t{\n\t\tid = \"BG-005\",\n\t\tgroup = 13,\n\t\tname = \"Không spawn thread cho mỗi sự kiện\",\n\t\tmechanism = \"Xem LEAK-004.\",\n\t\tcause = \"Thread chồng chất khi sự kiện dày.\",\n\t\thow = \"Scheduler.Defer dùng chung một khung.\",\n\t\tfile = \"Client/Core/Scheduler\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"A\",\n\t},\n\t{\n\t\tid = \"NET-001\",\n\t\tgroup = 14,\n\t\tname = \"Throttle gửi lên server\",\n\t\tmechanism = \"Không gửi lại trong cửa sổ minInterval.\",\n\t\tcause = \"Gửi mỗi khung hình tạo hàng chục gói tin mỗi giây không cần thiết.\",\n\t\thow = \"`Net.Register({ minInterval })` + `Net.Flush()` theo đồng hồ.\",\n\t\tfile = \"Client/Core/Net\",\n\t\tcond = \"Cần remote do game cung cấp.\",\n\t\trisk = \"Dữ liệu tới server trễ hơn một chút (có thể chỉnh).\",\n\t\tstatus = \"A\",\n\t},\n\t{\n\t\tid = \"NET-002\",\n\t\tgroup = 14,\n\t\tname = \"Gộp nhiều thông điệp thành một gói\",\n\t\tmechanism = \"Nhiều payload trong hàng đợi được gộp thành một mảng, gửi một lần.\",\n\t\tcause = \"Mỗi FireServer là một gói tin + chi phí serialise riêng.\",\n\t\thow = \"`Net.Flush()` nhánh batch.\",\n\t\tfile = \"Client/Core/Net\",\n\t\tcond = \"Server phải hiểu định dạng mảng.\",\n\t\trisk = \"Cần sửa server để đọc mảng — phải phối hợp.\",\n\t\tstatus = \"A\",\n\t},\n\t{\n\t\tid = \"NET-003\",\n\t\tgroup = 14,\n\t\tname = \"Chỉ gửi dữ liệu khác lần trước\",\n\t\tmechanism = \"So sánh nông payload với lần gửi cuối, giống thì bỏ qua.\",\n\t\tcause = \"Gửi lại trạng thái không đổi là băng thông thuần lãng phí.\",\n\t\thow = \"`Net.Send()` dùng shallowEqual, đếm `suppressed`.\",\n\t\tfile = \"Client/Core/Net\",\n\t\tcond = \"Payload phải so sánh được bằng giá trị.\",\n\t\trisk = \"Bảng lồng nhau không so sánh sâu — có thể bỏ sót thay đổi bên trong.\",\n\t\tstatus = \"A\",\n\t},\n\t{\n\t\tid = \"NET-004\",\n\t\tgroup = 14,\n\t\tname = \"Gửi dữ liệu nén\",\n\t\tmechanism = \"Dùng số/thay vì chuỗi dài, dùng enum thay tên.\",\n\t\tcause = \"Chuỗi dài tốn byte serialise.\",\n\t\thow = \"Chưa triển khai: phụ thuộc giao thức của từng game.\",\n\t\tfile = \"(đề xuất)\",\n\t\tcond = \"Cần thiết kế giao thức.\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"D\",\n\t},\n\t{\n\t\tid = \"NET-005\",\n\t\tgroup = 14,\n\t\tname = \"Giảm tần suất replicate từ server\",\n\t\tmechanism = \"Server gửi ít lần hơn cho dữ liệu ít đổi.\",\n\t\tcause = \"Replicate dày là nguồn băng thông lớn nhất.\",\n\t\thow = \"Không thể làm từ LocalScript — đây là việc phía server.\",\n\t\tfile = \"(không áp dụng được ở client)\",\n\t\tcond = \"Cần quyền sửa server.\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"E\",\n\t},\n\t{\n\t\tid = \"NET-006\",\n\t\tgroup = 14,\n\t\tname = \"Đặt NetworkOwner hợp lý\",\n\t\tmechanism = \"Server đặt NetworkOwner cho vật thể người chơi điều khiển.\",\n\t\tcause = \"Sai NetworkOwner gây giật và tốn băng thông.\",\n\t\thow = \"Không thể làm từ LocalScript: SetNetworkOwner là API server.\",\n\t\tfile = \"(không áp dụng được ở client)\",\n\t\tcond = \"Cần quyền sửa server.\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"E\",\n\t},\n\t{\n\t\tid = \"NPC-001\",\n\t\tgroup = 15,\n\t\tname = \"Lệch pha cập nhật NPC\",\n\t\tmechanism = \"Mỗi NPC cập nhật ở khung hình khác nhau (index % N).\",\n\t\tcause = \"Cả đàn NPC tính toán cùng một khung hình gây khựng định kỳ.\",\n\t\thow = \"Chưa triển khai: cần module NPC của game.\",\n\t\tfile = \"(đề xuất)\",\n\t\tcond = \"Cần quyền sửa script NPC.\",\n\t\trisk = \"Không có nếu lệch pha đúng.\",\n\t\tstatus = \"D\",\n\t},\n\t{\n\t\tid = \"NPC-002\",\n\t\tgroup = 15,\n\t\tname = \"Thưa tần suất tính đường\",\n\t\tmechanism = \"Tìm đường lại sau mỗi N giây, không phải mỗi khung hình.\",\n\t\tcause = \"Pathfinding là một trong những tác vụ đắt nhất của NPC.\",\n\t\thow = \"Chưa triển khai.\",\n\t\tfile = \"(đề xuất)\",\n\t\tcond = \"Cần quyền sửa script NPC.\",\n\t\trisk = \"NPC phản ứng chậm hơn với thay đổi địa hình.\",\n\t\tstatus = \"D\",\n\t},\n\t{\n\t\tid = \"NPC-003\",\n\t\tgroup = 15,\n\t\tname = \"Kiểm tra rẻ trước khi tìm đường đắt\",\n\t\tmechanism = \"Hỏi lưới băm 'có mục tiêu gần không' trước khi gọi Pathfinding.\",\n\t\tcause = \"Gọi Pathfinding cho mục tiêu không thể tới là lãng phí lớn.\",\n\t\thow = \"`Spatial:Nearest()` cung cấp truy vấn rẻ để lọc trước.\",\n\t\tfile = \"Client/Core/Spatial\",\n\t\tcond = \"Cần dựng lưới cho đối tượng liên quan.\",\n\t\trisk = \"Lưới chỉ là bộ lọc, vẫn cần kiểm tra lại.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"NPC-004\",\n\t\tgroup = 15,\n\t\tname = \"Ngừng cập nhật NPC ở xa\",\n\t\tmechanism = \"NPC ngoài tầm quan sát thì giảm tần suất hoặc tạm dừng.\",\n\t\tcause = \"NPC ở xa vẫn tính AI đầy đủ là lãng phí lớn.\",\n\t\thow = \"Chưa triển khai: cần phân biệt NPC nào được phép tạm dừng.\",\n\t\tfile = \"(đề xuất)\",\n\t\tcond = \"Cần chủ game cho phép.\",\n\t\trisk = \"NPC 'đứng hình' khi người chơi quay lại.\",\n\t\tstatus = \"D\",\n\t},\n\t{\n\t\tid = \"ASSET-001\",\n\t\tgroup = 16,\n\t\tname = \"Tải trước tài nguyên\",\n\t\tmechanism = \"Dùng ContentProvider:PreloadAsync cho asset dùng ngay khi vào.\",\n\t\tcause = \"Tải asset đúng lúc cần gây khựng hình giữa trận.\",\n\t\thow = \"Chưa triển khai: cần biết danh sách asset của game.\",\n\t\tfile = \"(đề xuất)\",\n\t\tcond = \"Cần quyền sửa game.\",\n\t\trisk = \"Preload nhiều làm chậm lúc vào game.\",\n\t\tstatus = \"D\",\n\t},\n\t{\n\t\tid = \"ASSET-002\",\n\t\tgroup = 16,\n\t\tname = \"Nạp module lười\",\n\t\tmechanism = \"Chỉ require khi thật sự dùng tới.\",\n\t\tcause = \"Mọi module nạp lúc khởi động làm chậm thời gian vào game.\",\n\t\thow = \"`Cpu.Lazy(path)` trả về hàm; require chỉ chạy khi gọi.\",\n\t\tfile = \"Client/Core/Cpu\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Lần dùng đầu tiên bị trễ một chút.\",\n\t\tstatus = \"A\",\n\t},\n\t{\n\t\tid = \"ASSET-003\",\n\t\tgroup = 16,\n\t\tname = \"Cache kết quả tra cứu\",\n\t\tmechanism = \"Xem QUERY-002.\",\n\t\tcause = \"Tra cứu cây instance lặp lại là chi phí vô ích.\",\n\t\thow = \"`Registry.cache` + tự vô hiệu khi instance bị huỷ.\",\n\t\tfile = \"Client/Core/Registry\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Cache sai nếu instance bị thay thế bởi instance cùng tên — Watch xử lý việc này.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"ASSET-004\",\n\t\tgroup = 16,\n\t\tname = \"Không dùng chuỗi WaitForChild\",\n\t\tmechanism = \"Tra cứu có cache + chờ có trần thời gian.\",\n\t\tcause = \"`WaitForChild` không trần có thể treo thread vĩnh viễn nếu đối tượng không bao giờ xuất hiện.\",\n\t\thow = \"`Cpu.Await(parent, name, timeout)` dùng Registry.Find + deadline.\",\n\t\tfile = \"Client/Core/Cpu\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Hết thời gian chờ thì bỏ qua bước đó (có log).\",\n\t\tstatus = \"A\",\n\t},\n\t{\n\t\tid = \"ASSET-005\",\n\t\tgroup = 16,\n\t\tname = \"Danh sách asset tập trung\",\n\t\tmechanism = \"Một bảng khai báo asset, nạp một lần.\",\n\t\tcause = \"Asset rải rác khắp script dẫn tới nạp trùng.\",\n\t\thow = \"Chưa triển khai.\",\n\t\tfile = \"(đề xuất)\",\n\t\tcond = \"Cần khảo sát game.\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"D\",\n\t},\n\t{\n\t\tid = \"DATA-001\",\n\t\tgroup = 17,\n\t\tname = \"Pool đối tượng\",\n\t\tmechanism = \"Xem POOL-001.\",\n\t\tcause = \"Tạo/huỷ instance liên tục rất đắt.\",\n\t\thow = \"Client/Core/Pool.\",\n\t\tfile = \"Client/Core/Pool\",\n\t\tcond = \"Áp dụng cho đối tượng sinh ra thường xuyên.\",\n\t\trisk = \"Không có nếu reset đúng.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"DATA-002\",\n\t\tgroup = 17,\n\t\tname = \"Lưới băm không gian\",\n\t\tmechanism = \"Chia thế giới thành ô; truy vấn lân cận chỉ duyệt ô quanh điểm hỏi.\",\n\t\tcause = \"Quét O(n) toàn thế giới cho mỗi truy vấn gần.\",\n\t\thow = \"`Spatial.New/Insert/QueryRadius/Nearest`.\",\n\t\tfile = \"Client/Core/Spatial\",\n\t\tcond = \"Hữu ích khi vị trí ít đổi hoặc cập nhật lưới theo chu kỳ.\",\n\t\trisk = \"Với vật di chuyển nhanh, lưới phải rebuild thường xuyên.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"DATA-003\",\n\t\tgroup = 17,\n\t\tname = \"Duyệt mảng bằng chỉ số\",\n\t\tmechanism = \"Xem LOOP-007: nhanh hơn pairs và có thứ tự xác định.\",\n\t\tcause = \"pairs() chậm hơn và thứ tự không đảm bảo.\",\n\t\thow = \"`Cpu.ForEachIndex()`.\",\n\t\tfile = \"Client/Core/Cpu\",\n\t\tcond = \"Áp dụng cho mảng.\",\n\t\trisk = \"Không dùng được cho bảng khoá chuỗi.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"DATA-004\",\n\t\tgroup = 17,\n\t\tname = \"Dùng set thay vì tìm trong danh sách\",\n\t\tmechanism = \"Tra cứu 'đã xử lý chưa' bằng bảng khoá thay vì duyệt danh sách.\",\n\t\tcause = \"Duyệt danh sách để kiểm tra thành viên là O(n) mỗi lần.\",\n\t\thow = \"`Safety.BuildProtectedSet()` trả về set để tra O(1).\",\n\t\tfile = \"Shared/Safety\",\n\t\tcond = \"Áp dụng khi kiểm tra thành viên nhiều lần.\",\n\t\trisk = \"Tốn bộ nhớ cho bảng khoá.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"EVT-001\",\n\t\tgroup = 18,\n\t\tname = \"Kết nối tín hiệu khung hình một lần\",\n\t\tmechanism = \"Xem LOOP-001.\",\n\t\tcause = \"N kết nối RenderStepped/Heartbeat = N lần gọi mỗi khung hình.\",\n\t\thow = \"Scheduler giữ đúng một connection.\",\n\t\tfile = \"Client/Core/Scheduler\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"A\",\n\t},\n\t{\n\t\tid = \"EVT-002\",\n\t\tgroup = 18,\n\t\tname = \"Một kết nối cho mỗi tín hiệu mỗi module\",\n\t\tmechanism = \"Registry đếm connection để phát hiện nối trùng.\",\n\t\tcause = \"Nối trùng cùng một handler làm việc chạy hai lần.\",\n\t\thow = \"`Registry.ConnectionCount()` + test kiểm tra không tăng bất thường.\",\n\t\tfile = \"Client/Core/Registry, tests\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"EVT-003\",\n\t\tgroup = 18,\n\t\tname = \"Định tuyến log tập trung\",\n\t\tmechanism = \"Mọi module log qua Shared/Log, không print rải rác.\",\n\t\tcause = \"print mỗi sự kiện vừa tốn vừa làm ngập Output, khó chẩn đoán.\",\n\t\thow = \"`Shared/Log` có mức lọc và bộ đệm vòng.\",\n\t\tfile = \"Shared/Log\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Log mức debug vẫn tốn nếu bật.\",\n\t\tstatus = \"A\",\n\t},\n\t{\n\t\tid = \"EVT-004\",\n\t\tgroup = 18,\n\t\tname = \"Gộp tín hiệu\",\n\t\tmechanism = \"Một BindableEvent chung thay vì nhiều tín hiệu nhỏ.\",\n\t\tcause = \"Mỗi tín hiệu là một đối tượng và một lần Fire riêng.\",\n\t\thow = \"Chưa triển khai: Progress đang dùng một BindableEvent riêng.\",\n\t\tfile = \"(một phần — đề xuất)\",\n\t\tcond = \"Cần thiết kế lại.\",\n\t\trisk = \"Khó debug hơn khi gộp.\",\n\t\tstatus = \"D\",\n\t},\n\t{\n\t\tid = \"EVT-005\",\n\t\tgroup = 18,\n\t\tname = \"Tránh FireAllClients dày\",\n\t\tmechanism = \"Server không bắn remote cho mọi người chơi mỗi khung hình.\",\n\t\tcause = \"FireAllClients dày nhân băng thông theo số người chơi.\",\n\t\thow = \"Không áp dụng được từ LocalScript.\",\n\t\tfile = \"(không áp dụng ở client)\",\n\t\tcond = \"Cần quyền sửa server.\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"E\",\n\t},\n\t{\n\t\tid = \"QUERY-001\",\n\t\tgroup = 19,\n\t\tname = \"Dùng CollectionService thay vì quét\",\n\t\tmechanism = \"Đánh tag đối tượng cần quản lý rồi lấy theo tag.\",\n\t\tcause = \"GetDescendants trả về mọi thứ, phải lọc lại rất tốn.\",\n\t\thow = \"Chưa triển khai đầy đủ; Safety đã dùng GetTagged để lấy tag bảo vệ.\",\n\t\tfile = \"Shared/Safety\",\n\t\tcond = \"Cần chủ game đánh tag.\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"A\",\n\t},\n\t{\n\t\tid = \"QUERY-002\",\n\t\tgroup = 19,\n\t\tname = \"Cache FindFirstChild\",\n\t\tmechanism = \"Xem ASSET-003.\",\n\t\tcause = \"Tra cứu lặp lại cùng một đối tượng là chi phí vô ích.\",\n\t\thow = \"`Registry.Find()` có cache và tự vô hiệu.\",\n\t\tfile = \"Client/Core/Registry\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Xem ASSET-003.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"QUERY-003\",\n\t\tgroup = 19,\n\t\tname = \"Truy vấn theo vùng\",\n\t\tmechanism = \"Xem DATA-002.\",\n\t\tcause = \"Quét toàn cây để tìm vật gần.\",\n\t\thow = \"`Spatial:QueryRadius()`.\",\n\t\tfile = \"Client/Core/Spatial\",\n\t\tcond = \"Xem DATA-002.\",\n\t\trisk = \"Lưới là bộ lọc, không phải kết quả cuối.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"QUERY-004\",\n\t\tgroup = 19,\n\t\tname = \"Trần cho việc quét\",\n\t\tmechanism = \"Mọi lần quét có maxScan; vượt thì dừng và ghi log.\",\n\t\tcause = \"Quét không trần trên map lớn gây khựng hình ngay lúc bắt đầu.\",\n\t\thow = \"`Scan.Descendants({ maxScan })` và `Spatial:Rebuild(maxEntries)`.\",\n\t\tfile = \"Client/Optimizations/Scan, Client/Core/Spatial\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Bỏ sót đối tượng ngoài trần — có log để biết.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"QUERY-005\",\n\t\tgroup = 19,\n\t\tname = \"Lập chỉ mục theo tag\",\n\t\tmechanism = \"Giữ bảng tag -> danh sách để tra nhanh.\",\n\t\tcause = \"GetTagged mỗi lần hỏi là một lời gọi engine.\",\n\t\thow = \"Chưa triển khai.\",\n\t\tfile = \"(đề xuất)\",\n\t\tcond = \"Cần tag ổn định.\",\n\t\trisk = \"Chỉ mục cũ nếu tag đổi mà không cập nhật.\",\n\t\tstatus = \"D\",\n\t},\n\t{\n\t\tid = \"POOL-001\",\n\t\tgroup = 20,\n\t\tname = \"Pool instance theo loại\",\n\t\tmechanism = \"Acquire lấy từ pool, Release trả về thay vì Destroy.\",\n\t\tcause = \"Instance.new và Destroy đều đắt; làm liên tục gây khựng.\",\n\t\thow = \"`Pool.Define/Acquire/Release`.\",\n\t\tfile = \"Client/Core/Pool\",\n\t\tcond = \"Áp dụng cho đối tượng sinh ra thường xuyên.\",\n\t\trisk = \"Pool không reset đúng sẽ tái sử dụng đối tượng bẩn — có hook prepare.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"POOL-002\",\n\t\tgroup = 20,\n\t\tname = \"Tái sử dụng Tween\",\n\t\tmechanism = \"Giữ và phát lại Tween thay vì tạo mới mỗi lần.\",\n\t\tcause = \"Tạo Tween mỗi lần cũng là cấp phát đối tượng.\",\n\t\thow = \"Chưa triển khai: Notifier tạo tween mỗi lần ẩn.\",\n\t\tfile = \"(đề xuất)\",\n\t\tcond = \"Tween chỉ tái sử dụng được khi goal giống nhau.\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"D\",\n\t},\n\t{\n\t\tid = \"POOL-003\",\n\t\tgroup = 20,\n\t\tname = \"Tái sử dụng bảng tạm\",\n\t\tmechanism = \"Xem RAM-002.\",\n\t\tcause = \"Cấp phát bảng trong vòng lặp nóng ép GC.\",\n\t\thow = \"`Pool.AcquireTable/ReleaseTable`.\",\n\t\tfile = \"Client/Core/Pool\",\n\t\tcond = \"Áp dụng cho bảng tạm.\",\n\t\trisk = \"Xem RAM-002.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"POOL-004\",\n\t\tgroup = 20,\n\t\tname = \"Sổ theo dõi pool và trần dung lượng\",\n\t\tmechanism = \"Pool có cap; đầy thì huỷ thật; thống kê reused/created.\",\n\t\tcause = \"Pool không trần biến thành nguồn rò rỉ mới.\",\n\t\thow = \"`pool.cap`, `Pool.stats.capped`, `Pool.Stats()`.\",\n\t\tfile = \"Client/Core/Pool\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Cap nhỏ thì ít tái sử dụng.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"POOL-005\",\n\t\tgroup = 20,\n\t\tname = \"Kiểm tra đối tượng trong pool còn sống\",\n\t\tmechanism = \"Trước khi tái sử dụng, kiểm tra Parent còn tồn tại.\",\n\t\tcause = \"Game có thể đã Destroy đối tượng trong pool; dùng lại sẽ lỗi.\",\n\t\thow = \"`Pool.Acquire()` gọi Guard.Alive trước khi trả về.\",\n\t\tfile = \"Client/Core/Pool\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"PLAYER-001\",\n\t\tgroup = 21,\n\t\tname = \"Thưa cập nhật dữ liệu người chơi\",\n\t\tmechanism = \"Không cập nhật leaderstats/attribute mỗi khung hình.\",\n\t\tcause = \"Cập nhật dày gây replicate và tốn CPU.\",\n\t\thow = \"Chưa triển khai: thuộc script gameplay của game.\",\n\t\tfile = \"(đề xuất)\",\n\t\tcond = \"Cần quyền sửa script game.\",\n\t\trisk = \"Hiển thị trễ hơn.\",\n\t\tstatus = \"D\",\n\t},\n\t{\n\t\tid = \"PLAYER-002\",\n\t\tgroup = 21,\n\t\tname = \"Cache thuộc tính người chơi\",\n\t\tmechanism = \"Đọc attribute một lần, cập nhật khi có sự kiện.\",\n\t\tcause = \"Đọc attribute mỗi khung hình là tra cứu lặp lại.\",\n\t\thow = \"Chưa triển khai.\",\n\t\tfile = \"(đề xuất)\",\n\t\tcond = \"Cần biết attribute nào dùng thường xuyên.\",\n\t\trisk = \"Cache cũ nếu không nghe sự kiện.\",\n\t\tstatus = \"D\",\n\t},\n\t{\n\t\tid = \"PLAYER-003\",\n\t\tgroup = 21,\n\t\tname = \"Không gọi GetPlayers mỗi khung hình\",\n\t\tmechanism = \"Giữ danh sách người chơi, cập nhật theo PlayerAdded/Removing.\",\n\t\tcause = \"GetPlayers cấp phát bảng mới mỗi lần gọi.\",\n\t\thow = \"Chưa triển khai: hệ thống này không cần danh sách người chơi.\",\n\t\tfile = \"(đề xuất)\",\n\t\tcond = \"Áp dụng cho script cần danh sách.\",\n\t\trisk = \"Danh sách cũ nếu bỏ sót sự kiện.\",\n\t\tstatus = \"D\",\n\t},\n\t{\n\t\tid = \"PLAYER-004\",\n\t\tgroup = 21,\n\t\tname = \"Dọn dẹp khi người chơi rời\",\n\t\tmechanism = \"Nghe PlayerRemoving để xoá dữ liệu của người đó.\",\n\t\tcause = \"Dữ liệu người chơi đã rời tích tụ thành rò rỉ.\",\n\t\thow = \"Chưa triển khai: hệ thống chỉ tối ưu cho LocalPlayer.\",\n\t\tfile = \"(đề xuất)\",\n\t\tcond = \"Áp dụng cho script server.\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"D\",\n\t},\n\t{\n\t\tid = \"HEAVY-001\",\n\t\tgroup = 22,\n\t\tname = \"Phân vị thời gian khung hình\",\n\t\tmechanism = \"Tính p1/p5/p50/p95 thay vì chỉ trung bình.\",\n\t\tcause = \"Trung bình che mất các khung hình giật — thứ người chơi thật sự cảm nhận.\",\n\t\thow = \"`Perf.Percentile` + `Perf.Summarize`.\",\n\t\tfile = \"Client/Core/Perf\",\n\t\tcond = \"Cần đủ mẫu.\",\n\t\trisk = \"Mẫu ít thì phân vị kém ổn định.\",\n\t\tstatus = \"A\",\n\t},\n\t{\n\t\tid = \"HEAVY-002\",\n\t\tgroup = 22,\n\t\tname = \"Đếm khung hình dài\",\n\t\tmechanism = \"Đếm số khung hình vượt ngưỡng (mặc định 33.3ms = dưới 30 FPS).\",\n\t\tcause = \"Số khung hình giật là chỉ số trực tiếp của trải nghiệm.\",\n\t\thow = \"`Profile.longFrames` + `Profile.longFrameThresholdMs`.\",\n\t\tfile = \"Client/Core/Profile\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"A\",\n\t},\n\t{\n\t\tid = \"HEAVY-003\",\n\t\tgroup = 22,\n\t\tname = \"Theo dõi heap Luau\",\n\t\tmechanism = \"Đọc collectgarbage(\\\"count\\\") trước và sau.\",\n\t\tcause = \"Heap tăng đều theo thời gian là dấu hiệu rò rỉ.\",\n\t\thow = \"`Profile.Run()` ghi heapKb; Profile.Compare tính delta.\",\n\t\tfile = \"Client/Core/Profile\",\n\t\tcond = \"Cần collectgarbage (có trong Luau).\",\n\t\trisk = \"Heap Luau không phải toàn bộ RAM của game.\",\n\t\tstatus = \"A\",\n\t},\n\t{\n\t\tid = \"HEAVY-004\",\n\t\tgroup = 22,\n\t\tname = \"Đo chi phí của chính công cụ\",\n\t\tmechanism = \"Đo thời gian Scheduler.Tick tiêu tốn mỗi khung hình.\",\n\t\tcause = \"Công cụ chống lag mà tự gây lag thì vô nghĩa.\",\n\t\thow = \"`Profile.SelfCost()` đọc Scheduler.lastFrameCostMs và overruns.\",\n\t\tfile = \"Client/Core/Profile, Client/Core/Scheduler\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"A\",\n\t},\n\t{\n\t\tid = \"HEAVY-005\",\n\t\tgroup = 22,\n\t\tname = \"Cảnh báo tác vụ vượt ngân sách\",\n\t\tmechanism = \"Scheduler đếm overrun; vượt nhiều thì báo.\",\n\t\tcause = \"Cần biết công cụ có đang chiếm quá nhiều khung hình.\",\n\t\thow = \"`Scheduler.overruns` + log cảnh báo.\",\n\t\tfile = \"Client/Core/Scheduler\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"A\",\n\t},\n\t{\n\t\tid = \"DIST-001\",\n\t\tgroup = 23,\n\t\tname = \"Cull theo khoảng cách camera\",\n\t\tmechanism = \"Xem GRAPHICS-004/FX-001: tắt chi phí của thứ ở xa.\",\n\t\tcause = \"Engine vẫn trả chi phí cho thứ người chơi không thấy rõ.\",\n\t\thow = \"`Cull.Scan()` so khoảng cách bình phương với ngưỡng.\",\n\t\tfile = \"Client/Core/Cull\",\n\t\tcond = \"Chỉ đối tượng đã đăng ký.\",\n\t\trisk = \"Xem GRAPHICS-004.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"DIST-002\",\n\t\tgroup = 23,\n\t\tname = \"Giảm tần suất cập nhật cho đối tượng xa\",\n\t\tmechanism = \"Đối tượng xa được quét ít thường xuyên hơn.\",\n\t\tcause = \"Cập nhật đều đặn cho thứ ở xa là lãng phí.\",\n\t\thow = \"`Cull.rules.updateInterval` áp dụng cho toàn bộ lượt quét; đối tượng xa chỉ bị đổi trạng thái, không tính lại mỗi lượt.\",\n\t\tfile = \"Client/Core/Cull\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Phản ứng chậm hơn khi đối tượng lại gần.\",\n\t\tstatus = \"A\",\n\t},\n\t{\n\t\tid = \"DIST-003\",\n\t\tgroup = 23,\n\t\tname = \"Bỏ qua hiệu ứng ở xa\",\n\t\tmechanism = \"Xem FX-001.\",\n\t\tcause = \"Hiệu ứng xa vẫn sinh hạt.\",\n\t\thow = \"Cull nhánh effects với effectDistance.\",\n\t\tfile = \"Client/Core/Cull\",\n\t\tcond = \"Chỉ đối tượng đã đăng ký.\",\n\t\trisk = \"Xem FX-001.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"DIST-004\",\n\t\tgroup = 23,\n\t\tname = \"Tự khôi phục khi lại gần\",\n\t\tmechanism = \"Khi đối tượng vào trong ngưỡng, mọi property được đặt lại giá trị cũ.\",\n\t\tcause = \"Nếu chỉ tắt mà không khôi phục, người chơi sẽ thấy vật thể 'chết' khi lại gần.\",\n\t\thow = \"`Cull.RestoreTarget()` dùng Guard.Change với expect để khôi phục đúng.\",\n\t\tfile = \"Client/Core/Cull, Client/Core/Guard\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Nếu game đã đổi giá trị đó, Guard trả 'stale' và KHÔNG ghi đè.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"LOWEND-001\",\n\t\tgroup = 24,\n\t\tname = \"Nhận diện nền tảng\",\n\t\tmechanism = \"Đọc TouchEnabled/GamepadEnabled/KeyboardEnabled từ UserInputService.\",\n\t\tcause = \"Cùng một mức giảm đồ hoạ là quá tay trên PC và chưa đủ trên mobile.\",\n\t\thow = \"`Devices.DetectPlatform()`.\",\n\t\tfile = \"Client/Core/Devices\",\n\t\tcond = \"UserInputService không có trên server.\",\n\t\trisk = \"Chỉ biết nền tảng, KHÔNG biết cấu hình CPU/GPU — đây là ước lượng.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"LOWEND-002\",\n\t\tgroup = 24,\n\t\tname = \"Chọn bậc chất lượng theo nền tảng và FPS đo được\",\n\t\tmechanism = \"Ba bậc low/medium/high; hạ bậc khi FPS đo được thấp.\",\n\t\tcause = \"Cần mức can thiệp khác nhau cho máy khác nhau.\",\n\t\thow = \"`Devices.ChooseTier(measuredFps)`; chỉ dùng FPS khi có số đo THẬT.\",\n\t\tfile = \"Client/Core/Devices\",\n\t\tcond = \"Cần Profile đã đo.\",\n\t\trisk = \"Nếu chưa đo thì chỉ dựa nền tảng — có nêu rõ trong báo cáo.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"LOWEND-003\",\n\t\tgroup = 24,\n\t\tname = \"Giảm mật độ hạt mạnh hơn trên máy yếu\",\n\t\tmechanism = \"particleScale theo bậc thiết bị nhân vào mức trần hạt.\",\n\t\tcause = \"Hạt là chi phí lớn nhất trên GPU mobile.\",\n\t\thow = \"`Devices.ParticleScale()` dùng trong Effects khi tính trần.\",\n\t\tfile = \"Client/Core/Devices, Client/Optimizations/Effects\",\n\t\tcond = \"Cần bậc đã chọn.\",\n\t\trisk = \"Hiệu ứng thưa hơn trên máy yếu.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"LOWEND-004\",\n\t\tgroup = 24,\n\t\tname = \"Rút gọn GUI trên máy yếu\",\n\t\tmechanism = \"Bậc thấp thì bỏ hoạt ảnh GUI.\",\n\t\tcause = \"Hoạt ảnh GUI cũng chiếm khung hình trên máy yếu.\",\n\t\thow = \"`Devices.ShouldAnimateGui()` -> GuiPolicy.ShouldAnimate.\",\n\t\tfile = \"Client/Core/Devices, Client/Ui/GuiPolicy\",\n\t\tcond = \"Cần bậc đã chọn.\",\n\t\trisk = \"GUI kém mượt trên máy yếu.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"LOWEND-005\",\n\t\tgroup = 24,\n\t\tname = \"Đọc thông số phần cứng thật\",\n\t\tmechanism = \"Lấy số nhân CPU, dung lượng RAM, model GPU để quyết định.\",\n\t\tcause = \"Ước lượng theo nền tảng không chính xác bằng thông số thật.\",\n\t\thow = \"Roblox không cung cấp API này cho script.\",\n\t\tfile = \"(không khả dụng)\",\n\t\tcond = \"Không có API.\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"E\",\n\t},\n\t{\n\t\tid = \"MEAS-001\",\n\t\tgroup = 25,\n\t\tname = \"Lấy mẫu trước và sau\",\n\t\tmechanism = \"Đo cùng một chỉ số trước và sau tối ưu, cùng độ dài cửa sổ.\",\n\t\tcause = \"Không đo thì mọi tuyên bố cải thiện đều là đoán.\",\n\t\thow = \"`Profile.Run(duration, { label })` gọi hai lần với baseline/after.\",\n\t\tfile = \"Client/Core/Profile\",\n\t\tcond = \"Cần RenderStepped (client).\",\n\t\trisk = \"Điều kiện hai lần đo phải tương đương — census được ghi kèm để kiểm tra.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"MEAS-002\",\n\t\tgroup = 25,\n\t\tname = \"Thống kê phân vị\",\n\t\tmechanism = \"Xem HEAVY-001.\",\n\t\tcause = \"Một con số trung bình không mô tả được trải nghiệm.\",\n\t\thow = \"`Perf.Summarize(\\\"ms\\\")` trả mean/min/max/stddev/p1/p5/p50/p95/p99.\",\n\t\tfile = \"Client/Core/Perf\",\n\t\tcond = \"Cần đủ mẫu.\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"A\",\n\t},\n\t{\n\t\tid = \"MEAS-003\",\n\t\tgroup = 25,\n\t\tname = \"Bảng so sánh có kiểm tra hợp lệ\",\n\t\tmechanism = \"Chỉ kết luận khi CẢ HAI lần đo có mẫu; thiếu thì báo 'không kết luận được'.\",\n\t\tcause = \"Báo cáo cải thiện từ dữ liệu rỗng là bịa số.\",\n\t\thow = \"`Profile.Compare()` trả valid=false kèm lý do.\",\n\t\tfile = \"Client/Core/Profile\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Không có — đây chính là chốt chống bịa số.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"MEAS-004\",\n\t\tgroup = 25,\n\t\tname = \"Công tắc A/B cho từng nhóm\",\n\t\tmechanism = \"Bật/tắt nhóm rồi đo lại để biết nhóm nào thật sự có ích.\",\n\t\tcause = \"Có nhóm tối ưu trên lý thuyết nhưng lại làm chậm hơn trên máy cụ thể.\",\n\t\thow = \"Config.groups + Devices.IsEnabled; đo lại sau mỗi lần đổi.\",\n\t\tfile = \"Shared/Config, Client/Core/Devices\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"MEAS-005\",\n\t\tgroup = 25,\n\t\tname = \"Đo chi phí bản thân công cụ\",\n\t\tmechanism = \"Xem HEAVY-004.\",\n\t\tcause = \"Công cụ phải chứng minh nó không tự gây lag.\",\n\t\thow = \"`Profile.SelfCost()`.\",\n\t\tfile = \"Client/Core/Profile\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"A\",\n\t},\n\t{\n\t\tid = \"MEAS-006\",\n\t\tgroup = 25,\n\t\tname = \"Ghi ngữ cảnh của lần đo\",\n\t\tmechanism = \"Ghi số part/emitter/model của mỗi lần đo.\",\n\t\tcause = \"Hai lần đo trong hai cảnh khác nhau thì không so sánh được.\",\n\t\thow = \"`Profile.WorldCensus()` gắn vào kết quả đo.\",\n\t\tfile = \"Client/Core/Profile\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"MEAS-007\",\n\t\tgroup = 25,\n\t\tname = \"Không tạo số liệu giả\",\n\t\tmechanism = \"Nếu runtime không cho đọc một chỉ số, trả available=false.\",\n\t\tcause = \"Số liệu giả nguy hiểm hơn không có số liệu.\",\n\t\thow = \"Mọi hàm đo đều có nhánh available=false; Profile.Compare từ chối kết luận.\",\n\t\tfile = \"Client/Core/Profile\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"REC-001\",\n\t\tgroup = 26,\n\t\tname = \"Mọi thao tác nguy hiểm trong pcall\",\n\t\tmechanism = \"Xem CPU-008.\",\n\t\tcause = \"Một lỗi làm sập cả hệ thống và mất khả năng khôi phục.\",\n\t\thow = \"`Guard.Run()`.\",\n\t\tfile = \"Client/Core/Guard\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Xem CPU-008.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"REC-002\",\n\t\tgroup = 26,\n\t\tname = \"Không ghi đè thay đổi của người khác\",\n\t\tmechanism = \"Chỉ khôi phục khi giá trị hiện tại VẪN là giá trị script đã đặt.\",\n\t\tcause = \"Game hoặc người chơi có thể đã đổi giá trị đó; ghi đè là phá game.\",\n\t\thow = \"`Guard.Change(..., { expect = <giá trị ta đã đặt> })` trả 'stale' nếu khác.\",\n\t\tfile = \"Client/Core/Guard\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Nếu game đổi giá trị thì bước khôi phục bị bỏ qua (có log) — đúng ý đồ.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"REC-003\",\n\t\tgroup = 26,\n\t\tname = \"Cách ly lỗi theo từng bước\",\n\t\tmechanism = \"Một bước failed không chặn các bước sau.\",\n\t\tcause = \"Pipeline dừng giữa chừng để lại trạng thái nửa vời.\",\n\t\thow = \"`Runner.Execute()` pcall từng bước, đánh dấu failed rồi đi tiếp.\",\n\t\tfile = \"Client/Core/Runner\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"REC-004\",\n\t\tgroup = 26,\n\t\tname = \"Chuẩn hoá cấu hình sai kiểu\",\n\t\tmechanism = \"Sai kiểu thì dùng mặc định và cảnh báo, không để giá trị sai lan xuống module.\",\n\t\tcause = \"Cấu hình sai gây lỗi ở nơi rất xa nguyên nhân.\",\n\t\thow = \"`Guard.NormalizeConfig(profile, defaults)`.\",\n\t\tfile = \"Client/Core/Guard\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Người dùng có thể không để ý cảnh báo.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"RESTORE-001\",\n\t\tgroup = 26,\n\t\tname = \"Ghi nhật ký giá trị cũ\",\n\t\tmechanism = \"Mọi property bị đổi đều ghi lại giá trị trước đó kèm id bước.\",\n\t\tcause = \"Không ghi thì không thể khôi phục.\",\n\t\thow = \"`Restore.Record(instance, property, oldValue, stepId)`.\",\n\t\tfile = \"Client/Core/Restore\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"RESTORE-002\",\n\t\tgroup = 26,\n\t\tname = \"Hoàn tác theo thứ tự ngược\",\n\t\tmechanism = \"Khôi phục từ thay đổi mới nhất trở về.\",\n\t\tcause = \"Khôi phục sai thứ tự có thể đặt trạng thái không nhất quán.\",\n\t\thow = \"`Restore.All()` lặp từ cuối về đầu.\",\n\t\tfile = \"Client/Core/Restore\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"RESTORE-003\",\n\t\tgroup = 26,\n\t\tname = \"Kiểm tra giá trị cũ khi khôi phục\",\n\t\tmechanism = \"Dùng Guard.Change với expect; giá trị đã đổi thì bỏ qua.\",\n\t\tcause = \"Xem REC-002.\",\n\t\thow = \"`Restore.All(setter)` với setter = Guard.Change.\",\n\t\tfile = \"Client/Core/Restore, Client/Core/Guard\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Xem REC-002.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"RESTORE-004\",\n\t\tgroup = 26,\n\t\tname = \"Quên đối tượng đã huỷ\",\n\t\tmechanism = \"Khi instance bị Destroy, xoá mục restore của nó.\",\n\t\tcause = \"Giữ tham chiếu instance đã huỷ vừa rò rỉ vừa gây lỗi.\",\n\t\thow = \"`Restore.Forget(instance)` được Cull gọi khi khôi phục; Registry.Watch phát hiện huỷ.\",\n\t\tfile = \"Client/Core/Restore, Client/Core/Cull\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"A\",\n\t},\n\t{\n\t\tid = \"CFG-001\",\n\t\tgroup = 27,\n\t\tname = \"Bật/tắt theo nhóm\",\n\t\tmechanism = \"profile.groups.<group> = false tắt cả nhóm.\",\n\t\tcause = \"Người dùng cần tắt nhanh một nhóm gây tác dụng phụ.\",\n\t\thow = \"`Devices.IsEnabled(profile, groupKey)`.\",\n\t\tfile = \"Client/Core/Devices, Shared/Config\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"CFG-002\",\n\t\tgroup = 27,\n\t\tname = \"Bật/tắt từng phương pháp\",\n\t\tmechanism = \"profile.methods.<id> = false tắt riêng một phương pháp.\",\n\t\tcause = \"Có phương pháp tốt với game này nhưng hại với game khác.\",\n\t\thow = \"`Devices.IsEnabled(profile, nil, methodId)`.\",\n\t\tfile = \"Client/Core/Devices, Shared/Config\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"CFG-003\",\n\t\tgroup = 27,\n\t\tname = \"Kiểm tra kiểu cấu hình\",\n\t\tmechanism = \"Xem REC-004.\",\n\t\tcause = \"Cấu hình sai kiểu gây lỗi khó tìm.\",\n\t\thow = \"`Guard.NormalizeConfig()`.\",\n\t\tfile = \"Client/Core/Guard\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Xem REC-004.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"CFG-004\",\n\t\tgroup = 27,\n\t\tname = \"Khôi phục cấu hình mặc định\",\n\t\tmechanism = \"Một hàm đưa toàn bộ cấu hình về mặc định.\",\n\t\tcause = \"Sau khi thử nhiều thiết lập, cần một đường quay lại an toàn.\",\n\t\thow = \"`Config.ResetToDefaults()` ghi lại toàn bộ giá trị mặc định.\",\n\t\tfile = \"Shared/Config\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"CFG-005\",\n\t\tgroup = 27,\n\t\tname = \"Liệt kê những gì đang tắt\",\n\t\tmechanism = \"Hàm trả về danh sách nhóm/phương pháp bị tắt.\",\n\t\tcause = \"Người dùng cần biết hiện tại cái gì đang tắt để chẩn đoán.\",\n\t\thow = \"`Devices.DisabledList(profile)`.\",\n\t\tfile = \"Client/Core/Devices\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"CFG-006\",\n\t\tgroup = 27,\n\t\tname = \"Bật/tắt lúc chạy\",\n\t\tmechanism = \"Đổi cấu hình khi hệ thống đang chạy và áp dụng ngay.\",\n\t\tcause = \"Khởi động lại script để đổi một cờ là trải nghiệm tệ.\",\n\t\thow = \"Chưa triển khai: đổi cấu hình hiện cần chạy lại pipeline.\",\n\t\tfile = \"(đề xuất)\",\n\t\tcond = \"Cần cơ chế áp dụng增量.\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"D\",\n\t},\n\t{\n\t\tid = \"RES-001\",\n\t\tgroup = 28,\n\t\tname = \"Bộ lập lịch duy nhất\",\n\t\tmechanism = \"Xem LOOP-001.\",\n\t\tcause = \"Nhiều bộ lập lịch = nhiều kết nối, không kiểm soát được tổng chi phí.\",\n\t\thow = \"Client/Core/Scheduler là bộ lập lịch duy nhất của dự án.\",\n\t\tfile = \"Client/Core/Scheduler\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"A\",\n\t},\n\t{\n\t\tid = \"RES-002\",\n\t\tgroup = 28,\n\t\tname = \"Sổ kết nối tập trung\",\n\t\tmechanism = \"Xem LEAK-001.\",\n\t\tcause = \"Connection rải rác không dọn được.\",\n\t\thow = \"Client/Core/Registry.\",\n\t\tfile = \"Client/Core/Registry\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"A\",\n\t},\n\t{\n\t\tid = \"RES-003\",\n\t\tgroup = 28,\n\t\tname = \"Sổ instance tập trung\",\n\t\tmechanism = \"Xem LEAK-005.\",\n\t\tcause = \"Instance tạo ra không ai quản lý.\",\n\t\thow = \"`Registry.owned` + Release.\",\n\t\tfile = \"Client/Core/Registry\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"RES-004\",\n\t\tgroup = 28,\n\t\tname = \"Kho cấu hình tập trung\",\n\t\tmechanism = \"Một bảng Config duy nhất, mọi module đọc từ đó.\",\n\t\tcause = \"Cấu hình rải rác dẫn tới giá trị mâu thuẫn nhau.\",\n\t\thow = \"Shared/Config + Guard.NormalizeConfig.\",\n\t\tfile = \"Shared/Config\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"RES-005\",\n\t\tgroup = 28,\n\t\tname = \"Định tuyến log tập trung\",\n\t\tmechanism = \"Xem EVT-003.\",\n\t\tcause = \"Log rải rác khó lọc và dễ làm ngập Output.\",\n\t\thow = \"Shared/Log.\",\n\t\tfile = \"Shared/Log\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"A\",\n\t},\n\t{\n\t\tid = \"START-001\",\n\t\tgroup = 29,\n\t\tname = \"Hoãn việc nặng sang khung hình sau\",\n\t\tmechanism = \"Scheduler.Defer đẩy việc khởi tạo nặng ra khỏi khung hình đầu.\",\n\t\tcause = \"Làm mọi thứ ở khung hình đầu gây khựng ngay lúc vào game.\",\n\t\thow = \"`Scheduler.Defer(name, callback)`.\",\n\t\tfile = \"Client/Core/Scheduler\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Việc bị trễ một khung hình.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"START-002\",\n\t\tgroup = 29,\n\t\tname = \"Nạp module lười lúc khởi động\",\n\t\tmechanism = \"Xem ASSET-002.\",\n\t\tcause = \"Nạp mọi module lúc đầu làm chậm thời gian vào game.\",\n\t\thow = \"`Cpu.Lazy()`.\",\n\t\tfile = \"Client/Core/Cpu\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Xem ASSET-002.\",\n\t\tstatus = \"A\",\n\t},\n\t{\n\t\tid = \"START-003\",\n\t\tgroup = 29,\n\t\tname = \"Gộp việc khởi tạo\",\n\t\tmechanism = \"Các bước khởi tạo chạy trong một vòng, không chờ xen kẽ.\",\n\t\tcause = \"Chuỗi wait nối tiếp cộng dồn thời gian chờ.\",\n\t\thow = \"`Cpu.RunStartupSteps(steps)`.\",\n\t\tfile = \"Client/Core/Cpu\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Một bước lỗi không chặn bước khác (có pcall riêng).\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"START-004\",\n\t\tgroup = 29,\n\t\tname = \"Chờ có trần thời gian\",\n\t\tmechanism = \"Xem ASSET-004.\",\n\t\tcause = \"WaitForChild không trần có thể treo thread vĩnh viễn.\",\n\t\thow = \"`Cpu.Await(parent, name, timeout)`.\",\n\t\tfile = \"Client/Core/Cpu\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Hết giờ chờ thì bỏ qua bước đó.\",\n\t\tstatus = \"A\",\n\t},\n\t{\n\t\tid = \"START-005\",\n\t\tgroup = 29,\n\t\tname = \"Đo thời gian khởi động\",\n\t\tmechanism = \"Ghi thời điểm bắt đầu/kết thúc từng bước khởi tạo.\",\n\t\tcause = \"Không đo thì không biết bước nào làm chậm lúc vào game.\",\n\t\thow = \"Chưa triển khai: RunStartupSteps chưa ghi thời gian từng bước.\",\n\t\tfile = \"(đề xuất)\",\n\t\tcond = \"Luôn áp dụng được.\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"D\",\n\t},\n\t{\n\t\tid = \"SAFE-001\",\n\t\tgroup = 30,\n\t\tname = \"Danh sách trắng property\",\n\t\tmechanism = \"Chỉ những property thuần thị giác mới được đổi.\",\n\t\tcause = \"Nếu cho phép đổi mọi property, sớm muộn cũng đụng gameplay.\",\n\t\thow = \"`Safety.AllowedProperties`; Safety.Allow từ chối ngoài danh sách.\",\n\t\tfile = \"Shared/Safety\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Danh sách quá hẹp thì bỏ lỡ cơ hội tối ưu — có thể mở rộng có kiểm soát.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"SAFE-002\",\n\t\tgroup = 30,\n\t\tname = \"Danh sách đen lớp đối tượng\",\n\t\tmechanism = \"Humanoid, Camera, Tool, Script, RemoteEvent... không bao giờ bị đổi.\",\n\t\tcause = \"Đụng những lớp này gần như chắc chắn phá gameplay.\",\n\t\thow = \"`Safety.ProtectedClasses` + ngoại lệ duy nhất Humanoid.AutomaticScalingEnabled.\",\n\t\tfile = \"Shared/Safety\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"SAFE-003\",\n\t\tgroup = 30,\n\t\tname = \"Tôn trọng tag bảo vệ của game\",\n\t\tmechanism = \"Đối tượng mang tag RALO_Protected/Gameplay bị bỏ qua hoàn toàn.\",\n\t\tcause = \"Chủ game cần một cách nói 'đừng đụng vào cái này'.\",\n\t\thow = \"`Safety.ProtectedTags` + `Safety.BuildProtectedSet()`.\",\n\t\tfile = \"Shared/Safety\",\n\t\tcond = \"Cần chủ game đánh tag.\",\n\t\trisk = \"Không đánh tag thì đối tượng vẫn có thể bị tối ưu.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"SAFE-004\",\n\t\tgroup = 30,\n\t\tname = \"Không đụng điều khiển người chơi\",\n\t\tmechanism = \"Không đổi gì liên quan Humanoid (trừ auto-scaling), Camera, ControlModule.\",\n\t\tcause = \"Mất điều khiển là lỗi nghiêm trọng nhất có thể gây ra.\",\n\t\thow = \"Safety.ProtectedClasses chứa Humanoid/Camera/ControlModule; Physics mặc định tắt.\",\n\t\tfile = \"Shared/Safety, Client/Optimizations/Physics\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"SAFE-005\",\n\t\tgroup = 30,\n\t\tname = \"Mọi thay đổi đều đảo ngược được\",\n\t\tmechanism = \"Không có thao tác Destroy nào trên đối tượng của game.\",\n\t\tcause = \"Thay đổi không đảo ngược được là rủi ro không chấp nhận.\",\n\t\thow = \"Restore ghi giá trị cũ; không có lệnh Destroy nào nhắm vào instance của game.\",\n\t\tfile = \"Client/Core/Restore\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"SAFE-006\",\n\t\tgroup = 30,\n\t\tname = \"Chính công cụ không được gây lag\",\n\t\tmechanism = \"Xem MEAS-005/HEAVY-004.\",\n\t\tcause = \"Công cụ chống lag mà tự gây lag thì vô nghĩa.\",\n\t\thow = \"Profile.SelfCost + Scheduler budget.\",\n\t\tfile = \"Client/Core/Profile\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"SAFE-007\",\n\t\tgroup = 30,\n\t\tname = \"Không xoá nội dung gameplay\",\n\t\tmechanism = \"Không có đường mã nào Destroy instance của game.\",\n\t\tcause = \"Xoá nhầm vật phẩm/NPC là phá game.\",\n\t\thow = \"Registry.Release chỉ huỷ instance TRONG SỔ do hệ thống tạo.\",\n\t\tfile = \"Client/Core/Registry\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"RAM-005\",\n\t\tgroup = 3,\n\t\tname = \"Giảm cấp phát chuỗi\",\n\t\tmechanism = \"Dùng bảng và nối chuỗi một lần thay vì nhiều lần ghép.\",\n\t\tcause = \"Mỗi lần ghép chuỗi là một lần cấp phát.\",\n\t\thow = \"Chưa triển khai đầy đủ; Log đang dùng string.format một lần.\",\n\t\tfile = \"(một phần — đề xuất)\",\n\t\tcond = \"Áp dụng ở đường nóng.\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"D\",\n\t},\n\t{\n\t\tid = \"RAM-006\",\n\t\tgroup = 3,\n\t\tname = \"Tránh đóng gói nhiều giá trị trả về\",\n\t\tmechanism = \"Trả một bảng tái sử dụng thay vì nhiều giá trị.\",\n\t\tcause = \"Mỗi lần trả nhiều giá trị có chi phí stack.\",\n\t\thow = \"Chưa triển khai.\",\n\t\tfile = \"(đề xuất)\",\n\t\tcond = \"Áp dụng ở đường nóng.\",\n\t\trisk = \"Đọc khó hơn.\",\n\t\tstatus = \"D\",\n\t},\n\t{\n\t\tid = \"FPS-005\",\n\t\tgroup = 5,\n\t\tname = \"Giới hạn FPS phía client\",\n\t\tmechanism = \"Đặt FrameRateMax để giảm tải khi không cần FPS cao.\",\n\t\tcause = \"FPS vượt mức màn hình hiển thị là công sức bị vứt đi.\",\n\t\thow = \"Roblox không cho LocalScript đổi thiết lập client; chỉ có trong menu Settings hoặc executor.\",\n\t\tfile = \"(không áp dụng từ LocalScript)\",\n\t\tcond = \"Cần người dùng tự chỉnh trong Settings.\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"E\",\n\t},\n\t{\n\t\tid = \"LOOP-008\",\n\t\tgroup = 2,\n\t\tname = \"Giảm tần suất RenderStepped\",\n\t\tmechanism = \"Chạy logic ở 30Hz thay vì 60Hz.\",\n\t\tcause = \"Một số logic không cần độ phân giải khung hình đầy đủ.\",\n\t\thow = \"Scheduler.interval đã cho phép; nhưng RenderStepped luôn bắn mỗi khung hình.\",\n\t\tfile = \"Client/Core/Scheduler\",\n\t\tcond = \"Áp dụng bằng cách đặt interval.\",\n\t\trisk = \"Phản ứng chậm hơn.\",\n\t\tstatus = \"A\",\n\t},\n\t{\n\t\tid = \"GUI-012\",\n\t\tgroup = 12,\n\t\tname = \"Không phát âm thanh thông báo\",\n\t\tmechanism = \"GUI không tạo Sound nào.\",\n\t\tcause = \"Yêu cầu thiết kế: thông báo im lặng.\",\n\t\thow = \"Notifier không tạo instance Sound; test kiểm tra.\",\n\t\tfile = \"Client/Ui/Notifier\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"GUI-013\",\n\t\tgroup = 12,\n\t\tname = \"Không dịch chuyển GUI khác\",\n\t\tmechanism = \"GUI hệ thống nằm trong ScreenGui riêng, không đổi vị trí GUI của game.\",\n\t\tcause = \"Làm lệch GUI của game là phá trải nghiệm.\",\n\t\thow = \"Notifier chỉ tạo instance trong ScreenGui của nó.\",\n\t\tfile = \"Client/Ui/Notifier\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"PART-006\",\n\t\tgroup = 8,\n\t\tname = \"Giảm số lượng StreamingEnabled phụ\",\n\t\tmechanism = \"Để engine tự stream model ngoài tầm nhìn.\",\n\t\tcause = \"Giữ mọi model trong bộ nhớ tốn RAM.\",\n\t\thow = \"Chưa triển khai: StreamingEnabled là thiết lập cấp game trong Studio.\",\n\t\tfile = \"(đề xuất — làm trong Studio)\",\n\t\tcond = \"Cần quyền sửa game.\",\n\t\trisk = \"Không có nếu cấu hình đúng.\",\n\t\tstatus = \"D\",\n\t},\n\t{\n\t\tid = \"NPC-005\",\n\t\tgroup = 15,\n\t\tname = \"Dùng PathfindingService có bộ nhớ đường\",\n\t\tmechanism = \"Lưu đường đã tính, chỉ tính lại khi đích đổi.\",\n\t\tcause = \"Tính lại đường giống hệt là lãng phí.\",\n\t\thow = \"Chưa triển khai.\",\n\t\tfile = \"(đề xuất)\",\n\t\tcond = \"Cần quyền sửa script NPC.\",\n\t\trisk = \"Đường cũ khi địa hình đổi.\",\n\t\tstatus = \"D\",\n\t},\n\t{\n\t\tid = \"ASSET-006\",\n\t\tgroup = 16,\n\t\tname = \"Nén texture và giảm độ phân giải\",\n\t\tmechanism = \"Dùng texture nhỏ hơn cho bề mặt xa.\",\n\t\tcause = \"Texture lớn tốn bộ nhớ GPU và băng thông.\",\n\t\thow = \"Không làm được từ script — phải sửa asset trong Studio.\",\n\t\tfile = \"(không áp dụng từ script)\",\n\t\tcond = \"Cần quyền sửa asset.\",\n\t\trisk = \"Chất lượng ảnh giảm.\",\n\t\tstatus = \"E\",\n\t},\n\t{\n\t\tid = \"HEAVY-006\",\n\t\tgroup = 22,\n\t\tname = \"Hồ sơ từng hàm (script profiler)\",\n\t\tmechanism = \"Dùng MicroProfiler/Script Profiler để tìm hàm đắt nhất.\",\n\t\tcause = \"Không biết hàm nào đắt thì tối ưu mò.\",\n\t\thow = \"Không có API đọc profiler từ script; phải dùng công cụ trong Studio.\",\n\t\tfile = \"(dùng công cụ Studio, không phải mã)\",\n\t\tcond = \"Cần Studio.\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"E\",\n\t},\n\t{\n\t\tid = \"PLAYER-005\",\n\t\tgroup = 21,\n\t\tname = \"Không lưu dữ liệu người chơi phía client\",\n\t\tmechanism = \"Dữ liệu nhạy cảm phải ở server.\",\n\t\tcause = \"Lưu phía client vừa rủi ro bảo mật vừa tốn bộ nhớ.\",\n\t\thow = \"Hệ thống này không lưu dữ liệu người chơi nào.\",\n\t\tfile = \"(không áp dụng)\",\n\t\tcond = \"-\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"E\",\n\t},\n\t{\n\t\tid = \"QUERY-006\",\n\t\tgroup = 19,\n\t\tname = \"Tránh GetDescendants đệ quy\",\n\t\tmechanism = \"Không gọi GetDescendants trên node lớn nhiều lần.\",\n\t\tcause = \"GetDescendants cấp phát bảng chứa TOÀN BỘ con cháu.\",\n\t\thow = \"Scan có maxScan; Registry dùng FindFirstChild có cache.\",\n\t\tfile = \"Client/Optimizations/Scan, Client/Core/Registry\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Bỏ sót ngoài trần — có log.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"EVT-006\",\n\t\tgroup = 18,\n\t\tname = \"Ngắt kết nối khi module dừng\",\n\t\tmechanism = \"Shutdown ngắt toàn bộ connection của hệ thống.\",\n\t\tcause = \"Module dừng mà connection còn thì callback vẫn chạy.\",\n\t\thow = \"`Registry.Shutdown()` + `Scheduler.Shutdown()`.\",\n\t\tfile = \"Client/Core/Registry, Client/Core/Scheduler\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"BG-006\",\n\t\tgroup = 13,\n\t\tname = \"Không giữ vòng lặp khi không có việc\",\n\t\tmechanism = \"Scheduler tự dừng khi không còn task.\",\n\t\tcause = \"Connection Heartbeat chạy không vẫn tốn một lời gọi mỗi khung hình.\",\n\t\thow = \"`Scheduler.TaskCount()`; Shutdown khi tắt hệ thống.\",\n\t\tfile = \"Client/Core/Scheduler\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"RES-006\",\n\t\tgroup = 28,\n\t\tname = \"Thống kê tài nguyên tập trung\",\n\t\tmechanism = \"Một hàm trả về toàn bộ số đếm (task, connection, pool, owned).\",\n\t\tcause = \"Không có cái nhìn tổng thể thì không phát hiện được rò rỉ.\",\n\t\thow = \"`Scheduler.Stats()`, `Registry.Stats()`, `Pool.Stats()`, `Profile.SelfCost()`.\",\n\t\tfile = \"Client/Core/Scheduler\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"A\",\n\t},\n\t{\n\t\tid = \"LOWEND-006\",\n\t\tgroup = 24,\n\t\tname = \"Chế độ an toàn khi lỗi lặp lại\",\n\t\tmechanism = \"Nếu nhiều bước lỗi liên tiếp thì tự chuyển về chế độ ít can thiệp nhất.\",\n\t\tcause = \"Trên máy lạ, can thiệp mạnh có thể gây lỗi dây chuyền.\",\n\t\thow = \"Chưa triển khai.\",\n\t\tfile = \"(đề xuất)\",\n\t\tcond = \"Cần ngưỡng lỗi.\",\n\t\trisk = \"Bỏ lỡ tối ưu.\",\n\t\tstatus = \"D\",\n\t},\n\t{\n\t\tid = \"SAFE-008\",\n\t\tgroup = 30,\n\t\tname = \"Không vô hiệu hoá cơ chế bảo vệ\",\n\t\tmechanism = \"Không có mã nào đụng anti-cheat hay bảo mật.\",\n\t\tcause = \"Yêu cầu đạo đức và pháp lý.\",\n\t\thow = \"Dự án không chứa bất kỳ lời gọi nào loại đó; chỉ dùng API công khai.\",\n\t\tfile = \"Shared/Safety\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"GRAPHICS-008\",\n\t\tgroup = 6,\n\t\tname = \"Giảm số bóng đổ đồng thời\",\n\t\tmechanism = \"Roblox giới hạn số bóng đổ; vượt quá thì bóng bị cắt.\",\n\t\tcause = \"Nhiều nguồn sáng động làm chi phí bóng tăng vọt.\",\n\t\thow = \"Không điều khiển được từ script — engine tự quản lý.\",\n\t\tfile = \"(không khả dụng)\",\n\t\tcond = \"Không có API.\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"E\",\n\t},\n\t{\n\t\tid = \"AUDIO-004\",\n\t\tgroup = 11,\n\t\tname = \"Giảm chất lượng âm thanh\",\n\t\tmechanism = \"Dùng file âm thanh bitrate thấp hơn.\",\n\t\tcause = \"File lớn tốn bộ nhớ và thời gian giải mã.\",\n\t\thow = \"Không làm được từ script — phải thay asset.\",\n\t\tfile = \"(không áp dụng từ script)\",\n\t\tcond = \"Cần quyền sửa asset.\",\n\t\trisk = \"Chất lượng âm thanh giảm.\",\n\t\tstatus = \"E\",\n\t},\n\t{\n\t\tid = \"NET-007\",\n\t\tgroup = 14,\n\t\tname = \"Tránh gửi mỗi khung hình\",\n\t\tmechanism = \"Xem NET-001.\",\n\t\tcause = \"Gửi dày là nguồn băng thông lớn.\",\n\t\thow = \"Net.Register minInterval.\",\n\t\tfile = \"Client/Core/Net\",\n\t\tcond = \"Cần remote.\",\n\t\trisk = \"Xem NET-001.\",\n\t\tstatus = \"A\",\n\t},\n\t{\n\t\tid = \"DATA-005\",\n\t\tgroup = 17,\n\t\tname = \"Dùng số thay vì chuỗi làm khoá\",\n\t\tmechanism = \"Khoá số tra nhanh hơn khoá chuỗi.\",\n\t\tcause = \"Băm chuỗi đắt hơn so sánh số.\",\n\t\thow = \"Chưa triển khai; các bảng nội bộ đang dùng khoá hỗn hợp.\",\n\t\tfile = \"(đề xuất)\",\n\t\tcond = \"Áp dụng cho bảng lớn.\",\n\t\trisk = \"Đọc khó hơn.\",\n\t\tstatus = \"D\",\n\t},\n\t{\n\t\tid = \"CULL-001\",\n\t\tgroup = 23,\n\t\tname = \"Đăng ký đối tượng cần cull\",\n\t\tmechanism = \"Danh sách tường minh thay vì tự quét cả game.\",\n\t\tcause = \"Tự quyết định đối tượng nào được cull là rủi ro phá gameplay.\",\n\t\thow = \"`Cull.Add(instance, kinds)` có trần maxTargets.\",\n\t\tfile = \"Client/Core/Cull\",\n\t\tcond = \"Cần bước đăng ký.\",\n\t\trisk = \"Không đăng ký thì không được tối ưu.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"CULL-002\",\n\t\tgroup = 23,\n\t\tname = \"Quét theo chu kỳ, không mỗi khung hình\",\n\t\tmechanism = \"Cull chạy theo interval của Scheduler (mặc định 0.25s).\",\n\t\tcause = \"Tính khoảng cách cho hàng trăm đối tượng mỗi khung hình là quá tốn.\",\n\t\thow = \"`Cull.rules.updateInterval` + Scheduler.\",\n\t\tfile = \"Client/Core/Cull\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Trạng thái cull trễ tối đa một chu kỳ.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"CULL-003\",\n\t\tgroup = 23,\n\t\tname = \"Trần số đối tượng theo dõi\",\n\t\tmechanism = \"Vượt maxTargets thì từ chối đăng ký thêm và ghi log.\",\n\t\tcause = \"Theo dõi không giới hạn làm chính bước cull thành nguồn lag.\",\n\t\thow = \"`Cull.rules.maxTargets` (mặc định 400).\",\n\t\tfile = \"Client/Core/Cull\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Bỏ sót đối tượng ngoài trần.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"CULL-004\",\n\t\tgroup = 23,\n\t\tname = \"Bỏ đối tượng đã bị huỷ khỏi danh sách\",\n\t\tmechanism = \"Mỗi lượt quét kiểm tra Alive và xoá mục chết.\",\n\t\tcause = \"Giữ instance đã huỷ trong danh sách là rò rỉ.\",\n\t\thow = \"`Cull.Scan()` xoá mục không còn Alive.\",\n\t\tfile = \"Client/Core/Cull\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"GRAPHICS-009\",\n\t\tgroup = 7,\n\t\tname = \"Không đổi vật liệu và màu sắc\",\n\t\tmechanism = \"Dự án cố tình KHÔNG đổi Material/Color/BrickColor.\",\n\t\tcause = \"Đổi vật liệu làm thay đổi rõ rệt mỹ thuật, trái yêu cầu giữ nguyên hình ảnh.\",\n\t\thow = \"Safety.AllowedProperties không chứa Material/Color; test kiểm tra.\",\n\t\tfile = \"Shared/Safety\",\n\t\tcond = \"Luôn áp dụng.\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"B\",\n\t},\n\t{\n\t\tid = \"GRAPHICS-010\",\n\t\tgroup = 7,\n\t\tname = \"Không đổi khoảng cách hiển thị\",\n\t\tmechanism = \"Không đổi các thiết lập tầm nhìn của engine.\",\n\t\tcause = \"Yêu cầu: không tự ý thay đổi khoảng cách hiển thị.\",\n\t\thow = \"Không có mã nào đổi thiết lập đó.\",\n\t\tfile = \"(không triển khai — có chủ đích)\",\n\t\tcond = \"-\",\n\t\trisk = \"Không có.\",\n\t\tstatus = \"E\",\n\t},\n}\n\nfunction Methods.CountByStatus()\n\tlocal counts = { A = 0, B = 0, C = 0, D = 0, E = 0 }\n\tfor _, entry in Methods.List do\n\t\tif counts[entry.status] ~= nil then\n\t\t\tcounts[entry.status] += 1\n\t\tend\n\tend\n\tcounts.total = #Methods.List\n\treturn counts\nend\n\n--[[\n\tTên 30 nhóm nhiệm vụ.\n\n\tSố thứ tự ở đây CHÍNH LÀ giá trị trường `group` trong từng mục của Methods.List.\n\tBảng này tồn tại để báo cáo và tài liệu gọi nhóm bằng tên thật, không phải\n\tbằng một con số vô nghĩa.\n]]\nMethods.Groups = {\n\t\"CPU và chi phí tính toán\",              --  1\n\t\"Vòng lặp và công việc lặp lại\",         --  2\n\t\"RAM và vòng đời đối tượng\",             --  3\n\t\"Rò rỉ tài nguyên\",                      --  4\n\t\"FPS và khung hình\",                     --  5\n\t\"GPU và tải kết xuất\",                   --  6\n\t\"Giảm đồ hoạ mức nhẹ (đảo ngược được)\",  --  7\n\t\"Part và Model\",                         --  8\n\t\"Va chạm và vật lý\",                     --  9\n\t\"Hạt và ánh sáng\",                       -- 10\n\t\"Âm thanh\",                              -- 11\n\t\"Giao diện (GUI)\",                       -- 12\n\t\"Tác vụ nền\",                            -- 13\n\t\"RemoteEvent và giao tiếp mạng\",         -- 14\n\t\"NPC và AI\",                             -- 15\n\t\"Nạp và cache tài nguyên\",               -- 16\n\t\"Cấu trúc dữ liệu\",                      -- 17\n\t\"Sự kiện và kết nối\",                    -- 18\n\t\"Tìm kiếm trong Workspace\",              -- 19\n\t\"Tái sử dụng đối tượng (pooling)\",       -- 20\n\t\"Dữ liệu người chơi\",                    -- 21\n\t\"Phát hiện tác vụ nặng\",                 -- 22\n\t\"Đối tượng ở xa\",                        -- 23\n\t\"Thiết bị cấu hình thấp\",                -- 24\n\t\"Đo lường và kiểm thử\",                  -- 25\n\t\"Phục hồi lỗi và hoàn tác\",              -- 26\n\t\"Bật tắt tính năng\",                     -- 27\n\t\"Quản lý tài nguyên tập trung\",          -- 28\n\t\"Khởi động\",                             -- 29\n\t\"Tổng thể không phá gameplay\",           -- 30\n}\n\nfunction Methods.CountByGroup()\n\tlocal counts = {}\n\tfor g = 1, 30 do\n\t\tcounts[g] = { total = 0, implemented = 0, name = Methods.Groups[g] or (\"nhóm \" .. g) }\n\tend\n\tfor _, entry in Methods.List do\n\t\tlocal bucket = counts[entry.group]\n\t\tif bucket ~= nil then\n\t\t\tbucket.total += 1\n\t\t\tbucket[entry.status] = (bucket[entry.status] or 0) + 1\n\t\t\tif entry.status == \"A\" or entry.status == \"B\" or entry.status == \"C\" then\n\t\t\t\tbucket.implemented += 1\n\t\t\tend\n\t\tend\n\tend\n\treturn counts\nend\n\nfunction Methods.GetById(id)\n\tfor _, entry in Methods.List do\n\t\tif entry.id == id then\n\t\t\treturn entry\n\t\tend\n\tend\n\treturn nil\nend\n\nfunction Methods.ImplementedIds()\n\tlocal out = {}\n\tfor _, entry in Methods.List do\n\t\tif entry.status == \"A\" or entry.status == \"B\" or entry.status == \"C\" then\n\t\t\tout[#out + 1] = entry.id\n\t\tend\n\tend\n\ttable.sort(out)\n\treturn out\nend\n\nreturn Methods\n",
-	["Shared/RequireShim"] = "--[[ ===== RALO.METHODS:BEGIN =====\n\tCác phương pháp được TRIỂN KHAI TRONG TỆP NÀY (khớp với Shared/Methods.luau):\n\t  CPU-003 \n\t===== RALO.METHODS:END ===== --]]\n\n--[[\n\tShared/RequireShim.luau\n\t===== RALO.METHODS:SHIM-001 =====\n\n\tVấn đề: dự án phải chạy được ở HAI kiểu nạp khác nhau\n\t  (1) Roblox Studio + Rojo: mỗi tệp là một ModuleScript, dùng require()\n\t      và cây instance (ReplicatedStorage.RALO.Shared.Log ...).\n\t  (2) Bundle một tệp (dist/): toàn bộ module nằm trong một bảng,\n\t      không có cây instance.\n\n\tGiải pháp: Bootstrap cài một hàm nạp module thống nhất tên\n\t__RALO_REQUIRE. Nó thử theo thứ tự:\n\t  a) bảng __RALO_BUNDLE (do bundle cài)\n\t  b) require() thật của Roblox, duyệt theo đường dẫn tuyệt đối\n\t     tính từ gốc dự án (Shared/..., Client/..., Server/...)\n\n\tCả hai nhánh đều là cơ chế nạp module CÓ THẬT của Roblox, không giả lập.\n\n\tTệp này KHÔNG dùng __RALO_REQUIRE (vì nó chính là thứ cài ra hàm đó);\n\tnó được Bootstrap nạp bằng require() thường hoặc nằm đầu bundle.\n]]\n\nlocal RequireShim = {}\n\nRequireShim.globalName = \"__RALO_REQUIRE\"\n\nlocal ROOT_NAMES = { \"Shared\", \"Client\", \"Server\" }\n\n-- Duyệt \"Client/Core/Perf\" thành chuỗi instance con từ một gốc.\nlocal function resolveFrom(root, path)\n\tif root == nil then\n\t\treturn nil\n\tend\n\tlocal node = root\n\tfor segment in string.gmatch(path, \"[^/]+\") do\n\t\tif node == nil then\n\t\t\treturn nil\n\t\tend\n\t\tnode = node:FindFirstChild(segment)\n\tend\n\treturn node\nend\n\n-- Tìm gốc dự án: instance cha chứa các thư mục Shared/Client/Server.\nlocal function findProjectRoot(gameRef)\n\tif gameRef == nil then\n\t\treturn nil\n\tend\n\tlocal starterPlayer = gameRef:GetService(\"StarterPlayer\")\n\tlocal services = {\n\t\tgameRef:GetService(\"ReplicatedStorage\"),\n\t\tstarterPlayer and starterPlayer:FindFirstChild(\"StarterPlayerScripts\"),\n\t\tgameRef:GetService(\"ServerScriptService\"),\n\t}\n\tfor _, service in services do\n\t\tif service ~= nil then\n\t\t\tfor _, rootName in ROOT_NAMES do\n\t\t\t\tlocal candidate = service:FindFirstChild(rootName)\n\t\t\t\tif candidate ~= nil then\n\t\t\t\t\tlocal parent = candidate.Parent\n\t\t\t\t\tif parent ~= nil and parent:FindFirstChild(\"Shared\") ~= nil then\n\t\t\t\t\t\treturn parent\n\t\t\t\t\tend\n\t\t\t\tend\n\t\t\tend\n\t\t\tlocal named = service:FindFirstChild(\"RALO\")\n\t\t\tif named ~= nil then\n\t\t\t\treturn named\n\t\t\tend\n\t\tend\n\tend\n\treturn nil\nend\n\n--[[\n\tCài __RALO_REQUIRE. Gọi MỘT lần trước khi nạp bất kỳ module nào khác.\n\toptions = { game = <DataModel>, bundle = <bảng path->source|module> }\n]]\nfunction RequireShim.Install(options)\n\toptions = options or {}\n\n\t-- Dự án chạy trong Roblox Studio thường (không executor) nên bảng toàn\n\t-- cục chỉ là `_G`. Không dò getgenv: đó là API của executor, và việc dò\n\t-- nó mâu thuẫn với phạm vi đã thống nhất của dự án.\n\tlocal globalEnv = _G\n\n\tif globalEnv[RequireShim.globalName] ~= nil and options.force ~= true then\n\t\treturn globalEnv[RequireShim.globalName]\n\tend\n\n\tif options.bundle ~= nil then\n\t\tglobalEnv.__RALO_BUNDLE = options.bundle\n\tend\n\n\tlocal cache = {}\n\tlocal gameRef = options.game or game\n\n\tlocal function resolver(path)\n\t\tif type(path) ~= \"string\" then\n\t\t\terror(\"__RALO_REQUIRE cần một chuỗi đường dẫn, nhận \" .. type(path), 2)\n\t\tend\n\t\tif cache[path] ~= nil then\n\t\t\treturn cache[path]\n\t\tend\n\n\t\t-- (a) bundle\n\t\tlocal bundle = globalEnv.__RALO_BUNDLE\n\t\tif type(bundle) == \"table\" and bundle[path] ~= nil then\n\t\t\tlocal entry = bundle[path]\n\t\t\tlocal result\n\t\t\tif type(entry) == \"string\" then\n\t\t\t\tlocal loaded, compileError = load(entry, \"RALO:\" .. path)\n\t\t\t\tif loaded == nil then\n\t\t\t\t\terror(\"lỗi biên dịch module '\" .. path .. \"': \" .. tostring(compileError), 2)\n\t\t\t\tend\n\t\t\t\tresult = loaded()\n\t\t\telse\n\t\t\t\tresult = entry\n\t\t\tend\n\t\t\tif type(result) ~= \"table\" then\n\t\t\t\terror(\"module '\" .. path .. \"' phải return một bảng, nhận \" .. type(result), 2)\n\t\t\tend\n\t\t\tcache[path] = result\n\t\t\treturn result\n\t\tend\n\n\t\t-- (b) require() thật theo đường dẫn tuyệt đối\n\t\tif globalEnv.__RALO_ROOT == nil then\n\t\t\tglobalEnv.__RALO_ROOT = findProjectRoot(gameRef) or false\n\t\tend\n\t\tlocal root = globalEnv.__RALO_ROOT\n\t\tlocal target = resolveFrom(root, path)\n\t\tif target ~= nil then\n\t\t\tlocal ok, result = pcall(require, target)\n\t\t\tif not ok then\n\t\t\t\terror(\"require('\" .. path .. \"') thất bại: \" .. tostring(result), 2)\n\t\t\tend\n\t\t\tcache[path] = result\n\t\t\treturn result\n\t\tend\n\n\t\terror((\"không tìm thấy module '%s' (gốc=%s). Kiểm tra cây thư mục trong Studio.\")\n\t\t\t:format(path, tostring(root)), 2)\n\tend\n\n\tglobalEnv[RequireShim.globalName] = resolver\n\treturn resolver\nend\n\n-- Cho phép test/harness reset giữa các lần chạy.\nfunction RequireShim.Reset()\n\tlocal globalEnv = _G\n\tglobalEnv[RequireShim.globalName] = nil\n\tglobalEnv.__RALO_BUNDLE = nil\n\tglobalEnv.__RALO_ROOT = nil\nend\n\nreturn RequireShim\n",
-	["Shared/Safe"] = "--[[\n\tUtil/Safe.luau\n\tTruy cập property \"an toàn\": mọi lần đọc/ghi đều được pcall bảo vệ và\n\tđược GHI NHẬT KÝ. Đây là nền tảng của nguyên tắc \"không bịa\":\n\tmỗi thay đổi thực tế đều có bản ghi applied / unsupported / failed.\n\n\tThuần logic + dùng API Roblox qua object truyền vào -> mock được, test được.\n]]\n\nlocal Safe = {}\n\nSafe.Sink = nil            -- function(level, scope, message)  (do Log.bind gán)\nSafe.Records = {}          -- nhật ký mọi thao tác property, dùng cho báo cáo + unit test\n\nlocal function note(level: string, scope: string, message: string)\n\tSafe.Records[#Safe.Records + 1] = { level = level, scope = scope, message = message }\n\tif Safe.Sink then\n\t\tSafe.Sink(level, scope, message)\n\tend\nend\n\nfunction Safe.Reset()\n\ttable.clear(Safe.Records)\nend\n\n--[[\n\tĐọc property. Không bao giờ throw.\n\tTrả về: value, ok\n]]\nfunction Safe.Get(instance: any, name: string): (any, boolean)\n\tif instance == nil then\n\t\treturn nil, false\n\tend\n\tlocal ok, value = pcall(function()\n\t\treturn instance[name]\n\tend)\n\tif not ok then\n\t\tnote(\"warn\", \"Safe.Get\", (\"%s.%s không đọc được: %s\"):format(tostring(instance), name, tostring(value)))\n\t\treturn nil, false\n\tend\n\treturn value, true\nend\n\n--[[\n\tGhi property có kiểm soát.\n\topts = { expect = <giá trị kỳ vọng>, scope = \"<tên bước>\" }\n\tTrả về: ok (boolean), detail (string)\n\n\tNếu truyền opts.expect và giá trị đọc lại khác kỳ vọng -> ok = false,\n\tchi tiết \"wrote-but-not-applied\". Đây là chốt chặn chống \"tự nhận đã tối ưu\".\n]]\nfunction Safe.Set(instance: any, name: string, value: any, opts: any): (boolean, string)\n\topts = opts or {}\n\tlocal scope = opts.scope or \"Safe.Set\"\n\tif instance == nil then\n\t\tnote(\"warn\", scope, (\"%s: instance rỗng, bỏ qua\"):format(name))\n\t\treturn false, \"nil-instance\"\n\tend\n\n\tlocal ok, err = pcall(function()\n\t\tinstance[name] = value\n\tend)\n\tif not ok then\n\t\tnote(\"warn\", scope, (\"%s.%s không ghi được: %s\"):format(tostring(instance), name, tostring(err)))\n\t\treturn false, \"read-only-or-missing\"\n\tend\n\n\tif opts.expect ~= nil then\n\t\tlocal readBack, readOk = Safe.Get(instance, name)\n\t\tif not readOk then\n\t\t\tnote(\"warn\", scope, (\"%s.%s ghi xong nhưng không đọc lại được\"):format(tostring(instance), name))\n\t\t\treturn false, \"wrote-but-unreadable\"\n\t\tend\n\t\tif readBack ~= opts.expect then\n\t\t\tnote(\"warn\", scope, (\"%s.%s ghi %s nhưng đọc lại %s\")\n\t\t\t\t:format(tostring(instance), name, tostring(value), tostring(readBack)))\n\t\t\treturn false, \"wrote-but-not-applied\"\n\t\tend\n\tend\n\n\tnote(\"info\", scope, (\"%s.%s = %s\"):format(tostring(instance), name, tostring(value)))\n\treturn true, \"ok\"\nend\n\n--[[\n\tGọi method an toàn: Safe.Call(obj, \"SetNetworkOwner\", nil)\n\tTrả về: ok, result\n]]\nfunction Safe.Call(object: any, method: string, ...: any): (boolean, any)\n\tif object == nil or object[method] == nil then\n\t\treturn false, \"method-missing\"\n\tend\n\tlocal results = { pcall(object[method], object, ...) }\n\tlocal ok = table.remove(results, 1)\n\tif not ok then\n\t\treturn false, results[1]\n\tend\n\treturn true, results[1]\nend\n\n--[[\n\tĐếm số bản ghi theo level — dùng cho unit test.\n]]\nfunction Safe.CountByLevel(level: string): number\n\tlocal n = 0\n\tfor _, record in Safe.Records do\n\t\tif record.level == level then\n\t\t\tn += 1\n\t\tend\n\tend\n\treturn n\nend\n\nreturn Safe\n",
-	["Shared/Safety"] = "--[[ ===== RALO.METHODS:BEGIN =====\n\tCác phương pháp được TRIỂN KHAI TRONG TỆP NÀY (khớp với Shared/Methods.luau):\n\t  DATA-004, GRAPHICS-009, QUERY-001, SAFE-001,\n\t  SAFE-002, SAFE-003, SAFE-004, SAFE-008 \n\t===== RALO.METHODS:END ===== --]]\n\n--[[\n\tShared/Safety.luau\n\t===== RALO.METHODS:SAFE-001, SAFE-002, SAFE-003, SAFE-004 =====\n\n\tRANH GIỚI AN TOÀN: những gì hệ thống tối ưu KHÔNG ĐƯỢC đụng vào.\n\n\tTệp này là chốt chặn cuối cùng. Mọi thao tác thay đổi property đều phải\n\thỏi qua Safety.Allow() trước. Lý do: yêu cầu số một của dự án là\n\t\"giữ nguyên gameplay\", và điều đó không thể chỉ dựa vào ý định tốt —\n\tnó phải được ENFORCE bằng mã.\n\n\tSAFE-001  Danh sách TRẮNG các property được phép đổi\n\tSAFE-002  Danh sách ĐEN các lớp đối tượng không bao giờ đụng tới\n\tSAFE-003  Không đụng đối tượng mang tag gameplay do chủ game đánh dấu\n\tSAFE-004  Từ chối mọi thay đổi có thể ảnh hưởng điều khiển người chơi\n]]\n\nlocal Shared_Log = __RALO_REQUIRE(\"Shared/Log\")\n\nlocal SCOPE = \"Safety\"\n\nlocal Safety = {}\n\n-- SAFE-001: CHỈ những property này được phép thay đổi. Ngoài danh sách -> từ chối.\nSafety.AllowedProperties = {\n\tCastShadow = true,              -- bóng đổ: thuần thị giác\n\tEnabled = true,                 -- ParticleEmitter/Beam/Trail/PointLight\n\tRate = true,                    -- mật độ hạt\n\tParticleCount = true,           -- trần số hạt\n\tBrightness = true,              -- PointLight/SpotLight\n\tRange = true,                   -- tầm sáng\n\tGraphicsQualityMode = true,     -- Lighting\n\tQualityLevel = true,            -- Lighting\n\tDecoration = true,              -- Terrain (chi tiết cỏ/đá nhỏ)\n\tAutomaticScalingEnabled = true, -- Humanoid (chỉ tắt tự co giãn)\n}\n\n-- SAFE-002: các lớp KHÔNG BAO GIỜ bị thay đổi, kể cả khi property nằm trong whitelist\nSafety.ProtectedClasses = {\n\tHumanoid = true,               -- ngoại lệ: chỉ AutomaticScalingEnabled, xem bên dưới\n\tHumanoidRootPart = true,\n\tCamera = true,\n\tSpawnLocation = true,\n\tScript = true,\n\tLocalScript = true,\n\tModuleScript = true,\n\tRemoteEvent = true,\n\tRemoteFunction = true,\n\tPlayer = true,\n\tPlayers = true,\n\tForceField = true,\n\tClickDetector = true,\n\tProximityPrompt = true,\n\tTool = true,\n}\n\n-- Humanoid chỉ được đụng ĐÚNG một property này\nSafety.HumanoidAllowed = { AutomaticScalingEnabled = true }\n\n-- SAFE-003: tag do chủ game đánh dấu để loại đối tượng khỏi mọi tối ưu\nSafety.ProtectedTags = {\n\t\"RALO_Protected\",\n\t\"Gameplay\",\n\t\"GameplayCritical\",\n}\n\nSafety.stats = { allowed = 0, deniedProperty = 0, deniedClass = 0, deniedTag = 0 }\n\n--[[\n\tQuyết định một thao tác có được phép không.\n\tTrả về: allow (bool), reason (string)\n\n\tinstance:  đối tượng định thay đổi\n\tproperty:  tên property\n\ttaggedSet: BẢNG tra cứu tag đã được tính sẵn (để không gọi\n\t           CollectionService mỗi lần — chính nó cũng là một tối ưu)\n]]\nfunction Safety.Allow(instance, property, taggedSet)\n\tif instance == nil or property == nil then\n\t\tSafety.stats.deniedProperty += 1\n\t\treturn false, \"thiếu instance hoặc property\"\n\tend\n\n\t-- pcall trả về (ok, result) — ĐẢO THỨ TỰ Ở ĐÂY LÀ LỖI NGHIÊM TRỌNG:\n\t-- className sẽ nhận `true` và ProtectedClasses[true] = nil, tức là\n\t-- TOÀN BỘ danh sách lớp bảo vệ bị bỏ qua. Đã được safety.test.js bắt.\n\tlocal okClass, className = pcall(function()\n\t\treturn instance.ClassName\n\tend)\n\tif not okClass then\n\t\tSafety.stats.deniedClass += 1\n\t\treturn false, \"không đọc được ClassName\"\n\tend\n\n\t-- SAFE-002: lớp được bảo vệ\n\tif Safety.ProtectedClasses[className] then\n\t\tif className == \"Humanoid\" and Safety.HumanoidAllowed[property] then\n\t\t\t-- ngoại lệ duy nhất, vẫn đi tiếp để kiểm tra whitelist\n\t\telse\n\t\t\tSafety.stats.deniedClass += 1\n\t\t\treturn false, (\"lớp %s được bảo vệ\"):format(className)\n\t\tend\n\tend\n\n\t-- SAFE-001: whitelist property\n\tif not Safety.AllowedProperties[property] then\n\t\tSafety.stats.deniedProperty += 1\n\t\treturn false, (\"property %s không nằm trong danh sách cho phép\"):format(property)\n\tend\n\n\t-- SAFE-003: đối tượng mang tag bảo vệ\n\tif type(taggedSet) == \"table\" and taggedSet[tostring(instance)] then\n\t\tSafety.stats.deniedTag += 1\n\t\treturn false, \"đối tượng mang tag bảo vệ của game\"\n\tend\n\n\tSafety.stats.allowed += 1\n\treturn true, \"ok\"\nend\n\n--[[\n\tTính sẵn tập đối tượng mang tag bảo vệ.\n\tGọi MỘT lần mỗi lượt quét rồi truyền vào Safety.Allow — tránh gọi\n\tCollectionService:GetTagged() cho từng đối tượng (chính nó cũng tốn).\n]]\nfunction Safety.BuildProtectedSet(collectionService)\n\tlocal set = {}\n\tif collectionService == nil then\n\t\treturn set\n\tend\n\tfor _, tag in Safety.ProtectedTags do\n\t\tlocal ok, list = pcall(function()\n\t\t\treturn collectionService:GetTagged(tag)\n\t\tend)\n\t\tif ok and type(list) == \"table\" then\n\t\t\tfor _, instance in list do\n\t\t\t\tset[tostring(instance)] = true\n\t\t\tend\n\t\tend\n\tend\n\treturn set\nend\n\nfunction Safety.Stats()\n\tlocal total = Safety.stats.allowed + Safety.stats.deniedProperty\n\t\t+ Safety.stats.deniedClass + Safety.stats.deniedTag\n\treturn {\n\t\tallowed = Safety.stats.allowed,\n\t\tdeniedProperty = Safety.stats.deniedProperty,\n\t\tdeniedClass = Safety.stats.deniedClass,\n\t\tdeniedTag = Safety.stats.deniedTag,\n\t\ttotal = total,\n\t\tdenyRate = total > 0 and ((Safety.stats.deniedProperty + Safety.stats.deniedClass\n\t\t\t+ Safety.stats.deniedTag) / total) or 0,\n\t}\nend\n\nfunction Safety.Reset()\n\tSafety.stats = { allowed = 0, deniedProperty = 0, deniedClass = 0, deniedTag = 0 }\nend\n\nreturn Safety\n",
-	["Shared/Types"] = "--!strict\n--[[\n\tUtil/Types.luau\n\tĐịnh nghĩa kiểu dữ liệu dùng chung cho toàn bộ dự án.\n\n\tTệp này CHỈ chứa khai báo kiểu (`export type`). Khi bundle cho executor,\n\tnó bị loại bỏ hoàn toàn vì Luau type-only không sinh ra mã runtime.\n\n\tChạy trên: Roblox Luau (typecheck) + Lua 5.3 (fengari) — nội dung tệp\n\tđược parser Lua 5.3 bỏ qua ở chế độ comment, nên harness đọc được.\n]]\n\n-- NOTE: khai báo type nằm trong comment block cho harness Lua 5.3.\n-- Bản khai báo Luau thật (dùng cho Rojo/Studio typecheck) ở docs/TYPES.md.\n\nreturn {\n\t-- Trạng thái của một bước tối ưu\n\tSTATUS_PENDING = \"pending\",\n\tSTATUS_RUNNING = \"running\",\n\tSTATUS_APPLIED = \"applied\",\n\tSTATUS_SKIPPED = \"skipped\",\n\tSTATUS_FAILED  = \"failed\",\n\n\t-- Trạng thái của toàn pipeline\n\tPHASE_IDLE       = \"idle\",\n\tPHASE_BASELINE   = \"baseline\",\n\tPHASE_SETTLE     = \"settle\",\n\tPHASE_OPTIMIZING = \"optimizing\",\n\tPHASE_REMEASURE  = \"remeasure\",\n\tPHASE_COMPARE    = \"compare\",\n\tPHASE_DONE       = \"done\",\n\tPHASE_ERROR      = \"error\",\n}\n",
-	["Client/Bootstrap"] = "--[[ ===== RALO.METHODS:BEGIN =====\n\tCác phương pháp được TRIỂN KHAI TRONG TỆP NÀY (khớp với Shared/Methods.luau):\n\t  START-001, START-003, START-004 \n\t===== RALO.METHODS:END ===== --]]\n\n--[[\n\tClient/Bootstrap.luau\n\t===== RALO.METHODS:START-001, START-003, START-004 =====\n\n\tĐIỂM KHỞI ĐỘNG DUY NHẤT của hệ thống.\n\n\tMÔI TRƯỜNG ĐÍCH: Roblox Studio, game do chính bạn sở hữu.\n\tKhông dùng executor, không loadstring, không setrbxsetting.\n\n\tCÁCH CHẠY (xem docs/03-huong-dan-cai-dat.md để có hướng dẫn đầy đủ):\n\n\tA) Rojo — cách khuyến nghị, giữ nguyên cấu trúc thư mục:\n\t   default.project.json đã map:\n\t     src/Shared -> ReplicatedStorage.RALO.Shared\n\t     src/Client -> StarterPlayer.StarterPlayerScripts.RALO\n\t   Sau đó tạo một LocalScript trong StarterPlayerScripts:\n\t     require(script.Parent.RALO.Bootstrap).Start()\n\n\tB) Bundle một tệp — dán dist/roblox-anti-lag-optimizer.luau vào một\n\t   LocalScript. Bundle tự cài __RALO_REQUIRE nên không cần Rojo.\n\n\tLocalScript sẽ TỰ CHẠY khi được nạp. Nếu bạn muốn tự gọi Start() với\n\tcấu hình riêng, đặt  _G._RALO_NO_AUTORUN = true  TRƯỚC khi script chạy\n\t(hoặc đặt Bootstrap.__noAutoRun = true trong bundle).\n\n\tGIỚI HẠN THẬT CỦA MỘT LocalScript (Part 2) — nêu rõ để không hứa hão:\n\t  * không điều khiển được server, không đổi được replicated state\n\t  * không đổi được thiết bị (CPU/GPU) hay bộ nhớ của hệ điều hành\n\t  * không đổi được thiết lập client của Roblox (FrameRateMax, ...)\n\t  * chỉ ảnh hưởng phiên chơi của CHÍNH người chơi đang chạy script\n]]\n\nlocal Client_Env = __RALO_REQUIRE(\"Client/Core/Env\")\nlocal Client_Guard = __RALO_REQUIRE(\"Client/Core/Guard\")\nlocal Client_Pipeline = __RALO_REQUIRE(\"Client/Core/Pipeline\")\nlocal Client_Scheduler = __RALO_REQUIRE(\"Client/Core/Scheduler\")\nlocal Client_Registry = __RALO_REQUIRE(\"Client/Core/Registry\")\nlocal Shared_Config = __RALO_REQUIRE(\"Shared/Config\")\nlocal Shared_Log = __RALO_REQUIRE(\"Shared/Log\")\nlocal Shared_Safe = __RALO_REQUIRE(\"Shared/Safe\")\n\nlocal SCOPE = \"Bootstrap\"\n\nlocal Bootstrap = {}\n\nBootstrap.started = false\nBootstrap.result = nil\n\n-- Gán sink log để mọi thao tác property đều có dấu vết trong Log.\nShared_Safe.Sink = function(level, scope, message)\n\tif level == \"warn\" then\n\t\tShared_Log.Warn(scope, message)\n\telse\n\t\tShared_Log.Debug(scope, message)\n\tend\nend\n\n--[[\n\toptions = {\n\t\tprofile = { ... }   -- ghi đè Shared_Config.PROFILE, ví dụ:\n\t\t                    -- { gui = { durationSeconds = 60 }, graphics = { qualityLevel = 6 } }\n\t\tbuildUi = true      -- mặc định true\n\t\tinstant = false     -- true = bỏ qua lấy mẫu khung hình (nhanh, kém chính xác)\n\t\trestoreFirst = false-- true = hoàn tác thay đổi của lần chạy trước rồi mới chạy\n\t}\n\n\tTrả về: result (bảng), error (chuỗi hoặc nil)\n\tKHÔNG throw.\n]]\nfunction Bootstrap.Start(options)\n\toptions = options or {}\n\n\tif Bootstrap.started and not options.force then\n\t\tShared_Log.Warn(SCOPE, \"đã chạy rồi — bỏ qua. Truyền force = true nếu muốn chạy lại.\")\n\t\treturn Bootstrap.result, nil\n\tend\n\tBootstrap.started = true\n\n\tif options.profile then\n\t\tShared_Config.Apply(options.profile)\n\tend\n\n\t-- Chuẩn hoá cấu hình: sai kiểu thì dùng mặc định + cảnh báo (REC-004)\n\tlocal normalized, warnings = Client_Guard.NormalizeConfig(Shared_Config.PROFILE, Shared_Config.PROFILE)\n\tfor _, warning in ipairs(warnings) do\n\t\tShared_Log.Warn(SCOPE, warning)\n\tend\n\n\tClient_Env.Init({})\n\n\tShared_Log.Info(SCOPE, (\"%s v%s — bắt đầu (chế độ: %s)\")\n\t\t:format(Shared_Config.NAME, Shared_Config.VERSION, Shared_Config.Mode()))\n\n\tif options.restoreFirst then\n\t\tlocal restored, failed = Client_Pipeline.Restore()\n\t\tShared_Log.Info(SCOPE, (\"hoàn tác lần chạy trước: %d property (lỗi %d)\"):format(restored, failed))\n\tend\n\n\t-- START-001: đẩy việc nặng ra khỏi khung hình đầu tiên\n\tClient_Scheduler.Start()\n\n\tlocal ok, result = Client_Guard.Run(SCOPE .. \":Pipeline\", function()\n\t\treturn Client_Pipeline.Run({\n\t\t\tprofile = normalized,\n\t\t\tbuildUi = options.buildUi,\n\t\t\tinstant = options.instant,\n\t\t})\n\tend)\n\n\tif not ok then\n\t\tShared_Log.Error(SCOPE, \"pipeline lỗi: \" .. tostring(result))\n\t\treturn nil, tostring(result)\n\tend\n\n\tBootstrap.result = result\n\tShared_Log.Info(SCOPE, (\"xong. phán quyết: %s, %d thay đổi, %d mục có thể hoàn tác\")\n\t\t:format(tostring(result.verdict), result.tally and result.tally.changes or 0,\n\t\t\tresult.restoreEntries or 0))\n\treturn result, nil\nend\n\n-- Hoàn tác mọi thay đổi mà hệ thống đã thực hiện.\nfunction Bootstrap.Restore()\n\treturn Client_Pipeline.Restore()\nend\n\n--[[\n\tTắt hẳn hệ thống: ngắt kết nối, huỷ GUI, dừng bộ lập lịch.\n\tDùng khi bạn muốn gỡ hoàn toàn mà không cần chạy lại game.\n]]\nfunction Bootstrap.Shutdown()\n\tClient_Pipeline.Shutdown()\n\tClient_Scheduler.Shutdown()\n\tlocal disconnected, released = Client_Registry.Shutdown()\n\tBootstrap.started = false\n\tShared_Log.Info(SCOPE, (\"đã tắt: ngắt %d connection, huỷ %d instance\"):format(disconnected, released))\n\treturn true\nend\n\n-- Trạng thái hiện tại — dùng cho test và chẩn đoán.\nfunction Bootstrap.State()\n\treturn {\n\t\tstarted = Bootstrap.started,\n\t\thasResult = Bootstrap.result ~= nil,\n\t\t-- `and` đã trả về nil khi result = nil; không cần `or nil`\n\t\tverdict = Bootstrap.result and Bootstrap.result.verdict,\n\t\tscheduler = Client_Scheduler.Stats(),\n\t\tregistry = Client_Registry.Stats(),\n\t}\nend\n\n--[[\n\tTỰ CHẠY khi LocalScript được nạp.\n\tĐặt _G._RALO_NO_AUTORUN = true trước đó nếu bạn muốn tự gọi Start().\n]]\nlocal globalEnv = Client_Env.GlobalEnv()\n\nif not Bootstrap.__noAutoRun and not globalEnv._RALO_NO_AUTORUN then\n\t-- task.spawn để không chặn luồng nạp script; task có thể không có trong harness\n\tif task ~= nil and task.spawn ~= nil then\n\t\ttask.spawn(function()\n\t\t\tBootstrap.Start()\n\t\tend)\n\telse\n\t\tBootstrap.Start()\n\tend\nend\n\nreturn Bootstrap\n",
+	["Client/Core/Cpu"] = function()
+--[[ ===== RALO.METHODS:BEGIN =====
+	Các phương pháp được TRIỂN KHAI TRONG TỆP NÀY (khớp với Shared/Methods.luau):
+	  ASSET-002, ASSET-004, CPU-004, CPU-005,
+	  CPU-007, DATA-003, LOOP-007, START-002,
+	  START-003, START-004
+	===== RALO.METHODS:END ===== --]]
+
+--[[
+	Client/Core/Cpu.luau
+	===== RALO.METHODS:CPU-004, CPU-005, CPU-007, DATA-003, ASSET-002, ASSET-004,
+	                    QUERY-002, START-002, START-004 =====
+
+	Nhóm tối ưu CPU / tra cứu / khởi động. Tất cả đều là "bớt việc phải làm",
+	không đụng đồ hoạ, không đụng gameplay.
+
+	CPU-004  Hoán vị (hoist) biểu thức bất biến ra khỏi vòng lặp
+	CPU-005  So sánh khoảng cách bằng bình phương, bỏ sqrt
+	CPU-007  Gộp khoá chuỗi dùng lặp lại thành hằng (bớt cấp phát chuỗi)
+	DATA-003 Dùng mảng + chỉ số thay cho pairs() khi cần duyệt có thứ tự
+	ASSET-002 Nạp module lười (lazy) — chỉ require khi thật sự dùng
+	ASSET-004 Thay chuỗi WaitForChild bằng Registry.Find có cache
+	QUERY-002 Cache kết quả tra cứu đối tượng
+	START-002 Nạp module lười lúc khởi động để bớt công việc đầu game
+	START-004 Gộp việc khởi tạo, tránh chuỗi wait liên tiếp
+]]
+
+local Client_Env = __RALO_REQUIRE("Client/Core/Env")
+local Shared_Log = __RALO_REQUIRE("Shared/Log")
+local Client_Registry = __RALO_REQUIRE("Client/Core/Registry")
+
+local SCOPE = "Cpu"
+
+local Cpu = {}
+
+-- CPU-007: khoá chuỗi dùng nhiều lần, định nghĩa MỘT lần ở đây
+Cpu.Keys = {
+	CastShadow = "CastShadow",
+	Enabled = "Enabled",
+	Transparency = "Transparency",
+	Parent = "Parent",
+	CFrame = "CFrame",
+	Position = "Position",
+	QualityLevel = "QualityLevel",
+}
+
+Cpu.stats = {
+	distanceChecks = 0,
+	sqrtAvoided = 0,
+	lazyLoads = 0,
+	cachedLookups = 0,
+}
+
+--[[
+	CPU-005: khoảng cách BÌNH PHƯƠNG giữa hai Vector3.
+	Dùng khi chỉ cần SO SÁNH khoảng cách với một ngưỡng:
+		d2 > limit*limit   tương đương   d > limit
+	mà không phải trả chi phí sqrt cho từng đối tượng mỗi lượt quét.
+]]
+function Cpu.DistanceSquared(a, b)
+	Cpu.stats.distanceChecks += 1
+	Cpu.stats.sqrtAvoided += 1
+	if a == nil or b == nil then
+		return math.huge
+	end
+	local dx = a.X - b.X
+	local dy = a.Y - b.Y
+	local dz = a.Z - b.Z
+	return dx * dx + dy * dy + dz * dz
+end
+
+-- So sánh khoảng cách không cần sqrt. Trả về true nếu xa hơn limit.
+function Cpu.IsFartherThan(a, b, limit)
+	local limitSquared = limit * limit
+	return Cpu.DistanceSquared(a, b) > limitSquared
+end
+
+--[[
+	CPU-004: helper chứng minh việc hoist biểu thức bất biến.
+	`expensive` chỉ được gọi MỘT lần dù `iterations` lớn đến đâu.
+	Dùng thật trong các vòng quét của dự án (ngưỡng, hệ số, danh sách lớp).
+]]
+function Cpu.HoistedLoop(iterations, expensive, body)
+	local invariant = expensive()          -- gọi đúng một lần, ngoài vòng lặp
+	local expensiveCalls = 1
+	for index = 1, math.max(0, math.floor(iterations or 0)) do
+		body(index, invariant)
+	end
+	return invariant, expensiveCalls
+end
+
+--[[
+	DATA-003: duyệt mảng bằng chỉ số số học.
+	Nhanh hơn pairs() và cho thứ tự xác định (quan trọng khi kết quả
+	cần tái lập được giữa các lần chạy).
+	`visitor` trả về true để DỪNG sớm (early exit).
+]]
+function Cpu.ForEachIndex(array, visitor)
+	if type(array) ~= "table" then
+		return 0
+	end
+	local count = #array                     -- đọc độ dài MỘT lần (LOOP-007)
+	local visited = 0
+	for index = 1, count do
+		visited += 1
+		if visitor(array[index], index) == true then
+			break
+		end
+	end
+	return visited
+end
+
+--[[
+	ASSET-002 / START-002: nạp module LƯỜI.
+	Trả về một hàm; chỉ khi gọi thì require mới thật sự chạy.
+	Lợi ích: thời gian khởi động ngắn hơn, module không dùng thì không tốn.
+]]
+function Cpu.Lazy(path)
+	local loaded
+	return function()
+		if loaded == nil then
+			Cpu.stats.lazyLoads += 1
+			loaded = __RALO_REQUIRE(path)
+		end
+		return loaded
+	end
+end
+
+--[[
+	ASSET-004 / QUERY-002: tra cứu đối tượng có cache.
+	Ủy quyền cho Registry.Find (cache tự vô hiệu khi đối tượng bị huỷ).
+]]
+function Cpu.Find(parent, name, className)
+	Cpu.stats.cachedLookups += 1
+	return Client_Registry.Find(parent, name, className)
+end
+
+--[[
+	START-004: gộp nhiều bước khởi tạo, mỗi bước có pcall riêng,
+	không wait giữa các bước (tránh chuỗi chờ nối tiếp lúc vào game).
+	Trả về bảng kết quả theo tên bước.
+]]
+function Cpu.RunStartupSteps(steps)
+	local results = {}
+	for _, step in steps do
+		local name = step.name or "step"
+		if step.enabled == false then
+			results[name] = "disabled"
+		else
+			local ok, err = pcall(step.run)
+			results[name] = ok and "ok" or ("error: " .. tostring(err))
+			if not ok then
+				Shared_Log.Warn(SCOPE, ("bước khởi tạo '%s' lỗi: %s"):format(name, tostring(err)))
+			end
+		end
+	end
+	return results
+end
+
+-- Chờ tới khi một đối tượng xuất hiện, nhưng CÓ TRẦN thời gian (START-004).
+-- Trả về instance hoặc nil khi hết thời gian chờ.
+function Cpu.Await(parent, name, timeoutSeconds)
+	local deadline = Client_Env.now() + math.max(0, tonumber(timeoutSeconds) or 5)
+	while Client_Env.now() < deadline do
+		local found = Client_Registry.Find(parent, name)
+		if found ~= nil then
+			return found
+		end
+		Client_Env.Wait(0.1)
+	end
+	Shared_Log.Warn(SCOPE, ("chờ '%s' quá %ss -> bỏ qua"):format(tostring(name), tostring(timeoutSeconds)))
+	return nil
+end
+
+function Cpu.Stats()
+	return {
+		distanceChecks = Cpu.stats.distanceChecks,
+		sqrtAvoided = Cpu.stats.sqrtAvoided,
+		lazyLoads = Cpu.stats.lazyLoads,
+		cachedLookups = Cpu.stats.cachedLookups,
+	}
+end
+
+function Cpu.Reset()
+	Cpu.stats = { distanceChecks = 0, sqrtAvoided = 0, lazyLoads = 0, cachedLookups = 0 }
+end
+
+return Cpu
+end,
+	["Client/Core/Cull"] = function()
+--[[ ===== RALO.METHODS:BEGIN =====
+	Các phương pháp được TRIỂN KHAI TRONG TỆP NÀY (khớp với Shared/Methods.luau):
+	  CULL-001, CULL-002, CULL-003, CULL-004,
+	  DIST-001, DIST-002, DIST-003, DIST-004,
+	  FPS-003, FX-001, FX-002, GRAPHICS-004,
+	  PART-002, PART-004
+	===== RALO.METHODS:END ===== --]]
+
+--[[
+	Client/Core/Cull.luau
+	===== RALO.METHODS:CULL-001, CULL-002, CULL-003, CULL-004, DIST-001, DIST-002,
+	                    DIST-003, DIST-004, PART-002, PART-004, FX-001, FX-002, FX-003 =====
+
+	Culling theo khoảng cách camera: tắt bớt chi phí của đối tượng Ở XA
+	và TỰ KHÔI PHỤC khi chúng lại gần.
+
+	Nguyên nhân lag mà nó xử lý:
+	  * Roblox vẫn trả chi phí cho bóng đổ (shadow map), hạt (particle),
+	    Beam/Trail và cập nhật nội suy của những thứ người chơi không nhìn
+	    thấy hoặc chỉ chiếm vài pixel trên màn hình.
+	  * Đây là phần chi phí render lớn nhất mà LocalScript CÓ QUYỀN can thiệp.
+
+	Ranh giới an toàn (rất quan trọng):
+	  * CHỈ xử lý instance nằm trong danh sách được đăng ký, hoặc mang tag
+	    CollectionService do chủ game đánh dấu. KHÔNG tự ý quét cả game.
+	  * KHÔNG đụng CanCollide, Transparency của đối tượng gameplay,
+	    không xoá bất cứ thứ gì.
+	  * Mọi thay đổi được ghi vào Restore để hoàn tác 100%.
+	  * Đối tượng gần hơn ngưỡng LUÔN được khôi phục -> không làm biến mất
+	    thứ người chơi cần quan sát.
+]]
+
+local Client_Env = __RALO_REQUIRE("Client/Core/Env")
+local Shared_Log = __RALO_REQUIRE("Shared/Log")
+local Client_Guard = __RALO_REQUIRE("Client/Core/Guard")
+local Client_Restore = __RALO_REQUIRE("Client/Core/Restore")
+local Client_Scheduler = __RALO_REQUIRE("Client/Core/Scheduler")
+
+local SCOPE = "Cull"
+
+local Cull = {}
+
+Cull.targets = {}            -- id -> { instance, kinds, restored }
+Cull.rules = {
+	shadowDistance = 300,      -- xa hơn N stud thì tắt CastShadow
+	effectDistance = 250,      -- xa hơn N stud thì tắt emitter/beam/trail
+	updateInterval = 0.25,     -- giây giữa hai lần quét (không phải mỗi frame)
+	maxTargets = 400,          -- trần số đối tượng theo dõi
+}
+Cull.handle = nil
+Cull.lastRun = { culled = 0, restored = 0, scanned = 0, at = 0 }
+
+local nextId = 0
+
+--[[
+	Đăng ký một đối tượng vào danh sách culling.
+	kinds = { "shadow", "effects" } (mặc định cả hai)
+]]
+function Cull.Add(instance, kinds)
+	if not Client_Guard.Alive(instance) then
+		return nil
+	end
+	local count = 0
+	for _ in pairs(Cull.targets) do
+		count += 1
+	end
+	if count >= Cull.rules.maxTargets then
+		Shared_Log.Warn(SCOPE, ("đã đạt trần %d đối tượng theo dõi, bỏ qua"):format(Cull.rules.maxTargets))
+		return nil
+	end
+
+	nextId += 1
+	Cull.targets[nextId] = {
+		instance = instance,
+		kinds = kinds or { shadow = true, effects = true },
+		shadowOff = false,
+		effectsOff = {},
+	}
+	return nextId
+end
+
+function Cull.Remove(id)
+	if Cull.targets[id] ~= nil then
+		Cull.RestoreTarget(Cull.targets[id])
+		Cull.targets[id] = nil
+		return true
+	end
+	return false
+end
+
+local function cameraPosition()
+	local workspace = Client_Env.GetService("Workspace")
+	if workspace == nil then
+		return nil
+	end
+	local ok, camera = Client_Guard.Run(SCOPE, function()
+		return workspace.CurrentCamera
+	end)
+	if not ok or camera == nil then
+		return nil
+	end
+	local okCf, cf = Client_Guard.Run(SCOPE, function()
+		return camera.CFrame
+	end)
+	if not okCf or cf == nil then
+		return nil
+	end
+	return cf.Position
+end
+
+-- Khoảng cách BÌNH PHƯƠNG: tránh sqrt mỗi đối tượng (CPU-005)
+local function distanceSquared(a, b)
+	if a == nil or b == nil then
+		return math.huge
+	end
+	local dx = a.X - b.X
+	local dy = a.Y - b.Y
+	local dz = a.Z - b.Z
+	return dx * dx + dy * dy + dz * dz
+end
+
+local function positionOf(instance)
+	local ok, cf = Client_Guard.Run(SCOPE, function()
+		return instance.CFrame
+	end)
+	if not ok or cf == nil then
+		return nil
+	end
+	return cf.Position
+end
+
+-- Khôi phục một đối tượng về trạng thái trước khi bị cull.
+function Cull.RestoreTarget(target)
+	if target == nil then
+		return false
+	end
+	local changed = 0
+
+	if target.shadowOff then
+		local status = Client_Guard.Change(target.instance, "CastShadow", true, {
+			scope = SCOPE,
+			expect = false,   -- chỉ khôi phục nếu GIÁ TRỊ VẪN do ta đặt
+		})
+		if status == "applied" then
+			changed += 1
+		end
+		target.shadowOff = false
+	end
+
+	for child, wasEnabled in pairs(target.effectsOff) do
+		local status = Client_Guard.Change(child, "Enabled", wasEnabled, {
+			scope = SCOPE,
+			expect = false,
+		})
+		if status == "applied" then
+			changed += 1
+		end
+		target.effectsOff[child] = nil
+	end
+
+	Client_Restore.Forget(target.instance)
+	return changed > 0
+end
+
+local effectClasses = { ParticleEmitter = true, Beam = true, Trail = true }
+
+--[[
+	Một lượt quét. Trả về bảng thống kê { culled, restored, scanned }.
+	`camPos` cho phép test truyền vị trí camera giả lập.
+]]
+function Cull.Scan(camPos)
+	local origin = camPos or cameraPosition()
+	local stats = { culled = 0, restored = 0, scanned = 0, skipped = 0 }
+	if origin == nil then
+		stats.note = "không có CurrentCamera"
+		Cull.lastRun = stats
+		return stats
+	end
+
+	local shadowLimit = Cull.rules.shadowDistance * Cull.rules.shadowDistance
+	local effectLimit = Cull.rules.effectDistance * Cull.rules.effectDistance
+
+	for id, target in pairs(Cull.targets) do
+		if not Client_Guard.Alive(target.instance) then
+			Cull.targets[id] = nil
+			stats.skipped += 1
+		else
+			stats.scanned += 1
+			local pos = positionOf(target.instance)
+			local d2 = distanceSquared(pos, origin)
+
+			---------------- bóng đổ
+			if target.kinds.shadow then
+				if d2 > shadowLimit then
+					if not target.shadowOff then
+						local okBefore, before = Client_Guard.Run(SCOPE, function()
+							return target.instance.CastShadow
+						end)
+						if before and before == true then
+							Client_Restore.Record(target.instance, "CastShadow", true, "cull.shadow", false)
+							local status = Client_Guard.Change(target.instance, "CastShadow", false, {
+								scope = SCOPE, expect = true,
+							})
+							if status == "applied" then
+								target.shadowOff = true
+								stats.culled += 1
+							end
+						end
+					end
+				elseif target.shadowOff then
+					Cull.RestoreTarget(target)
+					stats.restored += 1
+				end
+			end
+
+			---------------- hiệu ứng con
+			if target.kinds.effects then
+				local ok, children = Client_Guard.Run(SCOPE, function()
+					return target.instance:GetChildren()
+				end)
+				if ok and children ~= nil then
+					for _, child in children do
+						if effectClasses[child.ClassName] then
+							local okRead, enabled = Client_Guard.Run(SCOPE, function()
+								return child.Enabled
+							end)
+							if d2 > effectLimit then
+								if okRead and enabled == true and target.effectsOff[child] == nil then
+									Client_Restore.Record(child, "Enabled", true, "cull.effects", false)
+									local status = Client_Guard.Change(child, "Enabled", false, {
+										scope = SCOPE, expect = true,
+									})
+									if status == "applied" then
+										target.effectsOff[child] = true
+										stats.culled += 1
+									end
+								end
+							elseif target.effectsOff[child] ~= nil then
+								local status = Client_Guard.Change(child, "Enabled", true, {
+									scope = SCOPE, expect = false,
+								})
+								if status == "applied" then
+									stats.restored += 1
+								end
+								target.effectsOff[child] = nil
+							end
+						end
+					end
+				end
+			end
+		end
+	end
+
+	stats.at = Client_Env.now()
+	Cull.lastRun = stats
+	return stats
+end
+
+-- Bật culling định kỳ qua Scheduler (không mở vòng lặp riêng).
+function Cull.Start()
+	if Cull.handle ~= nil then
+		return Cull.handle
+	end
+	Cull.handle = Client_Scheduler.Schedule({
+		name = "cull.scan",
+		interval = Cull.rules.updateInterval,
+		priority = -10,          -- ưu tiên thấp: nhường việc quan trọng hơn
+		callback = function()
+			Cull.Scan()
+		end,
+	})
+	return Cull.handle
+end
+
+function Cull.Stop()
+	if Cull.handle ~= nil then
+		Cull.handle:Cancel()
+		Cull.handle = nil
+	end
+	-- Khôi phục toàn bộ trước khi dừng
+	for _, target in pairs(Cull.targets) do
+		Cull.RestoreTarget(target)
+	end
+	return true
+end
+
+function Cull.TargetCount()
+	local n = 0
+	for _ in pairs(Cull.targets) do
+		n += 1
+	end
+	return n
+end
+
+function Cull.Stats()
+	return {
+		targets = Cull.TargetCount(),
+		lastRun = Cull.lastRun,
+		rules = Cull.rules,
+		running = Cull.handle ~= nil,
+	}
+end
+
+function Cull.Reset()
+	Cull.Stop()
+	table.clear(Cull.targets)
+	nextId = 0
+	Cull.lastRun = { culled = 0, restored = 0, scanned = 0, at = 0 }
+end
+
+return Cull
+end,
+	["Client/Core/Devices"] = function()
+--[[ ===== RALO.METHODS:BEGIN =====
+	Các phương pháp được TRIỂN KHAI TRONG TỆP NÀY (khớp với Shared/Methods.luau):
+	  CFG-001, CFG-002, CFG-005, LOWEND-001,
+	  LOWEND-002, LOWEND-003, LOWEND-004
+	===== RALO.METHODS:END ===== --]]
+
+--[[
+	Client/Core/Devices.luau
+	===== RALO.METHODS:LOWEND-001, LOWEND-002, LOWEND-003, LOWEND-004,
+	                    CFG-001, CFG-002 =====
+
+	Phân hạng thiết bị và chọn mức tối ưu phù hợp.
+
+	Lý do: cùng một mức giảm đồ hoạ có thể "không đủ" trên điện thoại cũ
+	nhưng lại "thừa và làm xấu hình" trên PC. Nên mặc định phải là
+	NHẸ, và chỉ nâng dần khi thiết bị thật sự yếu.
+
+	LOWEND-001  Nhận diện nền tảng (PC / mobile / console) qua UserInputService
+	LOWEND-002  Chọn bậc chất lượng theo nền tảng + FPS đo được
+	LOWEND-003  Giảm mật độ hạt mạnh hơn trên mobile
+	LOWEND-004  Rút gọn GUI (bỏ hoạt ảnh không cần thiết) trên máy yếu
+	CFG-001     Bật/tắt theo nhóm
+	CFG-002     Bật/tắt từng phương pháp riêng lẻ
+
+	GIỚI HẠI TRUNG THỰC: UserInputService không cho biết cấu hình CPU/GPU.
+	Nên "hạng thiết bị" ở đây là ƯỚC LƯỢNG từ nền tảng + FPS đo được,
+	không phải thông số phần cứng. Điều này được nêu rõ trong báo cáo.
+]]
+
+local Client_Env = __RALO_REQUIRE("Client/Core/Env")
+local Shared_Log = __RALO_REQUIRE("Shared/Log")
+
+local SCOPE = "Devices"
+
+local Devices = {}
+
+-- Bậc chất lượng: 1 = nhẹ nhất (giảm nhiều nhất), 3 = giữ gần nguyên bản
+Devices.TIERS = {
+	[1] = { name = "low",    qualityLevel = 3, particleScale = 0.40, animateGui = false },
+	[2] = { name = "medium", qualityLevel = 5, particleScale = 0.70, animateGui = true },
+	[3] = { name = "high",   qualityLevel = 7, particleScale = 1.00, animateGui = true },
+}
+
+Devices.detected = nil
+Devices.tier = 3             -- MẶC ĐỊNH là bậc cao nhất = can thiệp ít nhất
+
+-- LOWEND-001: nhận diện nền tảng. Không throw nếu service không có.
+function Devices.DetectPlatform()
+	if Devices.detected ~= nil then
+		return Devices.detected
+	end
+
+	local info = { platform = "unknown", touch = false, gamepad = false, keyboardMouse = false }
+
+	local userInput = Client_Env.GetService("UserInputService")
+	if userInput ~= nil then
+		local okTouch, touch = pcall(function()
+			return userInput.TouchEnabled
+		end)
+		if okTouch then
+			info.touch = touch == true
+		end
+		local okPad, pad = pcall(function()
+			return userInput.GamepadEnabled
+		end)
+		if okPad then
+			info.gamepad = pad == true
+		end
+		local okKm, km = pcall(function()
+			return userInput.KeyboardEnabled and userInput.MouseEnabled
+		end)
+		if okKm then
+			info.keyboardMouse = (km == true)
+		end
+	end
+
+	-- UserInputService không có trên server; ở đó giữ "unknown"
+	if info.touch then
+		info.platform = "mobile"
+	elseif info.gamepad then
+		info.platform = "console"
+	elseif info.keyboardMouse then
+		info.platform = "pc"
+	end
+
+	Devices.detected = info
+	Shared_Log.Info(SCOPE, ("nền tảng: %s (touch=%s, gamepad=%s, kb+mouse=%s)")
+		:format(info.platform, tostring(info.touch), tostring(info.gamepad), tostring(info.keyboardMouse)))
+	return info
+end
+
+--[[
+	LOWEND-002: chọn bậc chất lượng.
+	measuredFps: FPS trung bình ĐO ĐƯỢC (nếu có). Không có thì chỉ dựa nền tảng.
+
+	QUAN TRỌNG: hàm này KHÔNG tự quyết định khi người dùng đã đặt tier
+	thủ công trong Config (autoTier = false).
+]]
+function Devices.ChooseTier(measuredFps, options)
+	options = options or {}
+	local platform = Devices.DetectPlatform().platform
+
+	local tier = 3
+	if platform == "mobile" then
+		tier = 1
+	elseif platform == "console" then
+		tier = 2
+	end
+
+	-- Chỉ hạ bậc theo FPS khi có số đo THẬT và được phép tự động
+	if options.autoTier ~= false and type(measuredFps) == "number" and measuredFps > 0 then
+		if measuredFps < 30 then
+			tier = 1
+		elseif measuredFps < 45 and tier > 2 then
+			tier = 2
+		end
+	end
+
+	if Devices.TIERS[tier] == nil then
+		tier = 3
+	end
+	Devices.tier = tier
+	return tier, Devices.TIERS[tier]
+end
+
+function Devices.CurrentTier()
+	return Devices.tier, Devices.TIERS[Devices.tier]
+end
+
+-- LOWEND-003: hệ số giới hạn hạt theo bậc thiết bị.
+function Devices.ParticleScale()
+	local _, tier = Devices.CurrentTier()
+	return tier.particleScale
+end
+
+-- LOWEND-004: có nên chạy hoạt ảnh GUI không.
+function Devices.ShouldAnimateGui()
+	local _, tier = Devices.CurrentTier()
+	return tier.animateGui
+end
+
+--[[
+	CFG-001 / CFG-002: kiểm tra một phương pháp có được phép chạy không.
+	profile.groups[groupKey] = false  -> tắt cả nhóm
+	profile.methods[methodId] = false -> tắt riêng phương pháp đó
+	Mặc định: BẬT (trừ những gì Config khai báo tắt sẵn).
+]]
+function Devices.IsEnabled(profile, groupKey, methodId)
+	if type(profile) ~= "table" then
+		return true
+	end
+	if profile.enabled == false then
+		return false
+	end
+	if groupKey ~= nil and type(profile.groups) == "table" and profile.groups[groupKey] == false then
+		return false
+	end
+	if methodId ~= nil and type(profile.methods) == "table" and profile.methods[methodId] == false then
+		return false
+	end
+	return true
+end
+
+-- Liệt kê những gì đang tắt — dùng cho báo cáo và GUI (CFG-005)
+function Devices.DisabledList(profile)
+	local out = { groups = {}, methods = {} }
+	if type(profile) ~= "table" then
+		return out
+	end
+	if type(profile.groups) == "table" then
+		for key, value in pairs(profile.groups) do
+			if value == false then
+				out.groups[#out.groups + 1] = key
+			end
+		end
+	end
+	if type(profile.methods) == "table" then
+		for key, value in pairs(profile.methods) do
+			if value == false then
+				out.methods[#out.methods + 1] = key
+			end
+		end
+	end
+	table.sort(out.groups)
+	table.sort(out.methods)
+	return out
+end
+
+function Devices.Reset()
+	Devices.detected = nil
+	Devices.tier = 3
+end
+
+return Devices
+end,
+	["Client/Core/Env"] = function()
+--[[ ===== RALO.METHODS:BEGIN =====
+	Các phương pháp được TRIỂN KHAI TRONG TỆP NÀY (khớp với Shared/Methods.luau):
+	  CPU-002
+	===== RALO.METHODS:END ===== --]]
+
+--[[
+	Core/Env.luau
+	Lớp thích ứng runtime. Toàn bộ dự án KHÔNG gọi thẳng `game`, `Instance`,
+	`task`, `os.clock` mà luôn đi qua Env. Nhờ vậy:
+
+	  * Trong Roblox: Env trỏ tới API Luau thật.
+	  * Trong harness (fengari + mock): Env trỏ tới mock Roblox.
+	  * Trong test: Env.now() và Env.task.delay là thời gian ẢO -> test
+	    được logic auto-hide 30 giây mà không phải chờ 30 giây thật.
+
+	Env KHÔNG giả lập bất kỳ kết quả hiệu năng nào. Nó chỉ cung cấp
+	"đồng hồ" và "cổng vào thế giới game". Số đo luôn đến từ thế giới thật
+	(roblox) hoặc từ mô hình thế giới khai báo rõ ràng (harness).
+]]
+
+local Env = {}
+
+Env.mode = "unknown"        -- "roblox" | "harness"
+Env.game = nil              -- DataModel (hoặc mock)
+Env.Root = nil              -- nơi chứa source tree (dùng cho __require gốc)
+
+-- Đồng hồ: hàm trả về giây (float). Mặc định là os.clock() — có thật trong Luau.
+Env.now = os.clock
+
+-- Bộ lập lịch: mặc định là `task` thật của Luau.
+Env.task = task
+
+--[[
+	Khởi động: tự nhận diện runtime.
+	options = { game = <DataModel>, task = <bảng giống task>, now = <hàm>, mode = "roblox"|"harness" }
+]]
+function Env.Init(options)
+	options = options or {}
+
+	Env.mode = options.mode
+	if Env.mode == nil then
+		-- Tự nhận diện: có DataModel + RunService thật thì là Roblox.
+		local ok, runService = pcall(function()
+			return game:GetService("RunService")
+		end)
+		Env.mode = (ok and runService ~= nil) and "roblox" or "unknown"
+	end
+
+	Env.game = options.game
+	if Env.game == nil then
+		local ok, g = pcall(function() return game end)
+		if ok then Env.game = g end
+	end
+
+	if options.now then Env.now = options.now end
+	if options.task then Env.task = options.task end
+
+	return Env.mode, Env.game ~= nil
+end
+
+--[[
+	Trả về bảng toàn cục của runtime hiện tại.
+
+	Dự án chạy trong Roblox Studio bình thường (không executor), nên đây
+	chỉ là `_G`. Tách ra thành hàm để RequireShim có một chỗ duy nhất cần
+	thay đổi nếu môi trường nạp bundle khác đi.
+]]
+function Env.GlobalEnv(): any
+	return _G
+end
+
+-- Đặt biến toàn cục (RequireShim dùng để cài __RALO_REQUIRE khi nạp bundle).
+function Env.SetGlobal(name: string, value: any)
+	local g = Env.GlobalEnv()
+	g[name] = value
+end
+
+function Env.GetService(name: string): any
+	if Env.game == nil then return nil end
+	local ok, service = pcall(function()
+		return Env.game:GetService(name)
+	end)
+	if ok then return service end
+	return nil
+end
+
+-- Chờ n giây theo đồng hồ của runtime (task.wait thật trong Roblox).
+function Env.Wait(seconds: number)
+	if Env.task and Env.task.wait then
+		return Env.task.wait(seconds)
+	end
+	-- Fallback (không bao giờ xảy ra trong Roblox): xoay vòng theo os.clock
+	local target = Env.now() + seconds
+	while Env.now() < target do end
+end
+
+-- Trì hoãn có thể huỷ; trả về handle { cancel = function() end }
+function Env.Delay(seconds: number, callback: () -> ())
+	if Env.task and Env.task.delay then
+		local thread = Env.task.delay(seconds, callback)
+		return {
+			cancel = function()
+				if Env.task.cancel and thread then
+					pcall(Env.task.cancel, thread)
+				end
+			end,
+			thread = thread,
+		}
+	end
+	return { cancel = function() end }
+end
+
+return Env
+end,
+	["Client/Core/Guard"] = function()
+--[[ ===== RALO.METHODS:BEGIN =====
+	Các phương pháp được TRIỂN KHAI TRONG TỆP NÀY (khớp với Shared/Methods.luau):
+	  CFG-003, CPU-008, REC-001, REC-002,
+	  REC-004
+	===== RALO.METHODS:END ===== --]]
+
+--[[
+	Client/Core/Guard.luau
+	===== RALO.METHODS:REC-001, REC-003, REC-004, CFG-003, CPU-008 =====
+
+	Lớp bảo vệ: mọi tác vụ tối ưu đều đi qua đây.
+
+	Nguyên nhân lag / hỏng hệ thống mà nó xử lý:
+	  * Một property bị khoá (client không ghi được) làm throw -> nếu không
+	    pcall thì TOÀN BỘ pipeline chết giữa chừng, người dùng mất luôn
+	    khả năng khôi phục.
+	  * Ghi giá trị mà không kiểm tra đối tượng còn sống -> lỗi tham chiếu
+	    tới instance đã Destroy.
+	  * Khôi phục đè lên thay đổi mới của game/người dùng.
+
+	Cách xử lý:
+	  * Run(): pcall + ghi log + đếm lỗi, không bao giờ throw ra ngoài.
+	  * Alive(): kiểm tra instance còn tồn tại trước khi thao tác.
+	  * Change(): chỉ ghi khi giá trị hiện tại VẪN là giá trị ta đã đặt
+	    (chống ghi đè thay đổi của người khác).
+]]
+
+local Shared_Log = __RALO_REQUIRE("Shared/Log")
+
+local SCOPE = "Guard"
+
+local Guard = {}
+
+Guard.stats = { calls = 0, failures = 0, skippedNil = 0, blockedStale = 0 }
+Guard.errors = {}
+Guard.maxErrorLog = 60
+
+local function recordError(scope, message)
+	Guard.stats.failures += 1
+	table.insert(Guard.errors, { scope = scope, message = message, time = os.clock() })
+	if #Guard.errors > Guard.maxErrorLog then
+		table.remove(Guard.errors, 1)
+	end
+	Shared_Log.Warn(scope, message)
+end
+
+--[[
+	Chạy một hàm trong vùng bảo vệ.
+	Trả về: ok, result
+	Không bao giờ throw ra ngoài.
+]]
+function Guard.Run(scope, fn, ...)
+	Guard.stats.calls += 1
+	if type(fn) ~= "function" then
+		recordError(scope, "Guard.Run cần một function")
+		return false, nil
+	end
+	local results = { pcall(fn, ...) }
+	local ok = table.remove(results, 1)
+	if not ok then
+		-- Trả thông điệp lỗi về cho người gọi (không vứt bỏ): người gọi
+		-- cần biết VÌ SAO thất bại để đưa vào báo cáo, không chỉ biết "hỏng".
+		local message = tostring(results[1])
+		recordError(scope, message)
+		return false, message
+	end
+	return true, results[1]
+end
+
+--[[
+	Instance còn dùng được không?
+
+	Cách kiểm tra: thử ĐỌC một property. Nếu instance đã bị Destroy thì
+	Roblox ném lỗi khi truy cập, và pcall bắt được.
+
+	LƯU Ý: KHÔNG dùng `Parent ~= nil` làm tiêu chí "còn sống". Lý do:
+	  * instance vừa tạo chưa gắn parent vẫn ghi property được bình thường;
+	  * Pool.Release và Cull cố tình đặt Parent = nil nhưng đối tượng vẫn sống;
+	nên nếu coi "không có parent" là "đã chết" thì hai module đó sẽ từ chối
+	mọi thao tác hợp lệ. Đây là lỗi đã được test guard.test.js phát hiện.
+]]
+function Guard.Alive(instance)
+	if instance == nil then
+		Guard.stats.skippedNil += 1
+		return false
+	end
+	local ok = pcall(function()
+		return instance.ClassName
+	end)
+	return ok
+end
+
+--[[
+	Instance còn NẰM TRONG CÂY không (Parent ~= nil)?
+
+	Đây là câu hỏi KHÁC với Alive():
+	  * Alive()  = "còn thao tác được không" (chưa bị Destroy)
+	  * InTree() = "còn gắn trong cây instance không"
+	Registry cần InTree() để quyết định cache tra cứu còn giá trị không:
+	một instance đã bị gỡ khỏi cây thì FindFirstChild sẽ không còn trả về nó,
+	nên cache phải bị vô hiệu dù bản thân instance vẫn chưa bị Destroy.
+]]
+function Guard.InTree(instance)
+	if not Guard.Alive(instance) then
+		return false
+	end
+	local ok, parent = pcall(function()
+		return instance.Parent
+	end)
+	return ok and parent ~= nil
+end
+
+--[[
+	Chỉ ghi property khi giá trị hiện tại vẫn đúng như kỳ vọng.
+	Đây là chốt chống "khôi phục đè lên thay đổi mới của game/người dùng".
+
+	opts = { scope, expect = <giá trị phải đang có> }
+	Trả về: "applied" | "unchanged" | "stale" | "failed"
+]]
+function Guard.Change(instance, property, newValue, opts)
+	opts = opts or {}
+	local scope = opts.scope or SCOPE
+	if not Guard.Alive(instance) then
+		Guard.stats.skippedNil += 1
+		return "failed", "instance không còn tồn tại"
+	end
+
+	local okRead, current = pcall(function()
+		return instance[property]
+	end)
+	if not okRead then
+		recordError(scope, ("không đọc được %s.%s"):format(tostring(instance), property))
+		return "failed", "không đọc được property"
+	end
+
+	if opts.expect ~= nil and current ~= opts.expect then
+		-- Giá trị đã bị ai đó đổi -> KHÔNG ghi đè.
+		Guard.stats.blockedStale += 1
+		return "stale", ("giá trị hiện tại là %s, khác giá trị script đã đặt (%s)")
+			:format(tostring(current), tostring(opts.expect))
+	end
+
+	if current == newValue then
+		return "unchanged", "giá trị đã đúng sẵn"
+	end
+
+	local okWrite, err = pcall(function()
+		instance[property] = newValue
+	end)
+	if not okWrite then
+		recordError(scope, ("không ghi được %s.%s: %s")
+			:format(tostring(instance), property, tostring(err)))
+		return "failed", tostring(err)
+	end
+
+	-- Xác nhận đã ăn (một số property bị engine ghi đè ngay)
+	local okVerify, after = pcall(function()
+		return instance[property]
+	end)
+	if okVerify and after ~= newValue then
+		recordError(scope, ("ghi %s.%s = %s nhưng đọc lại %s")
+			:format(tostring(instance), property, tostring(newValue), tostring(after)))
+		return "failed", "ghi không có tác dụng"
+	end
+
+	return "applied", "ok"
+end
+
+--[[
+	Kiểm tra bảng cấu hình: sai kiểu thì báo rõ và dùng giá trị mặc định,
+	thay vì để giá trị sai lan xuống từng module (CFG-003).
+	Trả về: bảng đã chuẩn hoá, danh sách cảnh báo.
+]]
+function Guard.NormalizeConfig(profile, defaults)
+	local warnings = {}
+	local out = {}
+
+	-- Kiểm tra MỘT cặp giá trị: sai kiểu thì báo và dùng mặc định.
+	local function checkValue(path, value, defaultValue)
+		if value == nil then
+			return defaultValue, nil
+		end
+		-- `nil` trong Luau không phân biệt được với "không có"; số nguyên và
+		-- số thực đều là "number" nên so bằng type() là đủ.
+		if type(value) ~= type(defaultValue) then
+			local warning = ("%s: kỳ vọng %s, nhận %s -> dùng mặc định %s")
+				:format(path, type(defaultValue), type(value), tostring(defaultValue))
+			return defaultValue, warning
+		end
+		return value, nil
+	end
+
+	-- Duyệt defaults. Khoá cấp cao có thể là BẢNG (một section) hoặc
+	-- VÔ HƯỚNG (ví dụ `enabled = true`, `mode = "light"`). Phải xử lý cả hai:
+	-- giả định mọi thứ là bảng sẽ sập ngay trên Config.PROFILE thật.
+	-- Helper đọc khoá mà KHÔNG biến `false` thành `nil`.
+	-- (`profile[k] or nil` là bẫy: enabled = false sẽ bị coi là "thiếu"
+	--  và rơi về mặc định true, làm hỏng công tắc tắt tổng.)
+	local function readKey(source, key)
+		if type(source) ~= "table" then
+			return nil
+		end
+		return source[key]
+	end
+
+	for key, defaultValue in pairs(defaults) do
+		local given = readKey(profile, key)
+
+		if type(defaultValue) == "table" then
+			out[key] = {}
+			for subKey, subDefault in pairs(defaultValue) do
+				local subGiven = readKey(given, subKey)
+				local normalized, warning = checkValue(
+					("%s.%s"):format(key, subKey), subGiven, subDefault)
+				out[key][subKey] = normalized
+				if warning ~= nil then
+					warnings[#warnings + 1] = warning
+				end
+			end
+			-- Giữ khoá người dùng tự thêm trong section
+			if type(given) == "table" then
+				for subKey, subValue in pairs(given) do
+					if out[key][subKey] == nil then
+						out[key][subKey] = subValue
+					end
+				end
+			end
+		else
+			local normalized, warning = checkValue(tostring(key), given, defaultValue)
+			out[key] = normalized
+			if warning ~= nil then
+				warnings[#warnings + 1] = warning
+			end
+		end
+	end
+
+	-- Giữ lại section không có trong defaults (người dùng tự thêm)
+	if type(profile) == "table" then
+		for key, values in pairs(profile) do
+			if out[key] == nil then
+				out[key] = values
+			end
+		end
+	end
+
+	for _, warning in ipairs(warnings) do
+		Shared_Log.Warn(SCOPE, warning)
+	end
+	return out, warnings
+end
+
+function Guard.Stats()
+	return {
+		calls = Guard.stats.calls,
+		failures = Guard.stats.failures,
+		skippedNil = Guard.stats.skippedNil,
+		blockedStale = Guard.stats.blockedStale,
+		loggedErrors = #Guard.errors,
+	}
+end
+
+function Guard.Reset()
+	table.clear(Guard.stats)
+	Guard.stats = { calls = 0, failures = 0, skippedNil = 0, blockedStale = 0 }
+	table.clear(Guard.errors)
+end
+
+return Guard
+end,
+	["Client/Core/Measure"] = function()
+--[[
+	Core/Measure.luau
+	LẤY MẪU HIỆU NĂNG THẬT. Không có con số nào trong tệp này được sinh ra
+	từ không khí:
+
+	  * frame time  = delta thật giữa hai lần RenderStepped (hoặc Heartbeat).
+	  * fps         = 1 / frame time, suy ra từ số đo, không phải giá trị gán.
+	  * gcHeapKb    = collectgarbage("count") — heap Luau do runtime báo cáo.
+	  * fpsCrossCheck = Stats.Workspace.FramesPerSecond (nếu runtime cho đọc);
+	                    chỉ dùng để ĐỐI CHIẾU, và được ghi rõ trong meta.
+
+	Nếu runtime không có RenderStepped, Run() trả về meta.source = "none"
+	và samples = 0 — tuyệt đối không bịa số.
+]]
+
+local Core_Env = __RALO_REQUIRE("Client/Core/Env")
+local Core_Perf = __RALO_REQUIRE("Client/Core/Perf")
+local Util_Log = __RALO_REQUIRE("Shared/Log")
+
+local SCOPE = "Measure"
+
+local Measure = {}
+
+Measure.live = nil          -- Perf buffer đang nhận mẫu (để UI đọc tức thời)
+Measure.last = nil          -- bảng kết quả lần đo gần nhất
+
+--[[
+	Đọc chỉ số tức thời một lần. Luôn an toàn, không throw.
+]]
+function Measure.Instant()
+	local runService = Core_Env.GetService("RunService")
+
+	local frameTimeMs, frameOk = 0, false
+	if runService ~= nil then
+		local ok, value = pcall(function() return runService:GetRenderStepTime() end)
+		if ok and type(value) == "number" and value == value then
+			frameTimeMs = value * 1000
+			frameOk = true
+		end
+	end
+
+	local gcKb, gcOk = 0, false
+	if collectgarbage ~= nil then
+		local ok2, value2 = pcall(collectgarbage, "count")
+		if ok2 and type(value2) == "number" then
+			gcKb = value2
+			gcOk = true
+		end
+	end
+
+	local statsFps, statsOk = Measure.ReadStatsFps()
+
+	return {
+		frameTimeMs = frameTimeMs,
+		frameTimeAvailable = frameOk,
+		fps = frameOk and frameTimeMs > 0 and (1000 / frameTimeMs) or 0,
+		gcHeapKb = gcKb,
+		gcAvailable = gcOk,
+		statsFps = statsFps,
+		statsAvailable = statsOk,
+		time = Core_Env.now(),
+	}
+end
+
+--[[
+	Đọc FPS do engine báo cáo, nếu có. Roblox khóa service `Stats` ở nhiều
+	ngữ cảnh nên hàm này luôn pcall và trả về nil khi không đọc được.
+]]
+function Measure.ReadStatsFps(): (number?, boolean)
+	local stats = Core_Env.GetService("Stats")
+	if stats == nil then return nil, false end
+	local ok, workspaceStats = pcall(function() return stats.Workspace end)
+	if not ok or workspaceStats == nil then return nil, false end
+	local ok2, fps = pcall(function() return workspaceStats.FramesPerSecond end)
+	if not ok2 or type(fps) ~= "number" then return nil, false end
+	return fps, true
+end
+
+--[[
+	Đếm "đối tượng đang được render" — chỉ số ngữ cảnh, KHÔNG phải chỉ số
+	chất lượng. Dùng để giải thích vì sao kết quả giữa hai lần đo khác nhau.
+]]
+function Measure.WorldStats()
+	local game = Core_Env.game
+	if game == nil then return { scanned = 0, note = "no DataModel" } end
+
+	local scanned, parts, shadowCasters, emitters, characters = 0, 0, 0, 0, 0
+	local ok, err = pcall(function()
+		-- Gán ra biến local trước khi lặp: vừa dễ đọc, vừa tránh một khác biệt
+		-- của máy ảo Lua khi method được phân giải qua __index ngay trong
+		-- biểu thức for-in (harness fengari báo lỗi ở dạng viết inline).
+		local descendants = game:GetDescendants()
+		scanned = #descendants
+		for _, instance in descendants do
+			local className = instance.ClassName
+			if className == "Part" or className == "MeshPart" or className == "UnionOperation" then
+				parts += 1
+				local okCast, cast = pcall(function() return instance.CastShadow end)
+				if okCast and cast then shadowCasters += 1 end
+			elseif className == "ParticleEmitter" then
+				emitters += 1
+			elseif className == "Model" then
+				local okHum = pcall(function() return instance:FindFirstChildOfClass("Humanoid") end)
+				if okHum then characters += 1 end
+			end
+		end
+	end)
+
+	if not ok then
+		Util_Log.Warn(SCOPE, "không quét được thế giới:", tostring(err))
+		return { scanned = scanned, note = "partial", error = tostring(err) }
+	end
+
+	return {
+		scanned = scanned,
+		parts = parts,
+		shadowCasters = shadowCasters,
+		particleEmitters = emitters,
+		characters = characters,
+	}
+end
+
+--[[
+	Đo trong `durationSeconds` giây.
+	options = {
+		label       = "baseline" | "after",
+		window      = kích thước ring buffer (mặc định 180),
+		onSample    = function(instant, index) — hook cho UI
+	}
+]]
+function Measure.Run(durationSeconds: number, options: any)
+	options = options or {}
+	local duration = math.max(0.1, durationSeconds or 1.0)
+	local runService = Core_Env.GetService("RunService")
+
+	local perf = Core_Perf.New(options.window or 180)
+	Measure.live = perf
+
+	local startedAt = Core_Env.now()
+	local meta = {
+		label = options.label or "sample",
+		duration = duration,
+		source = "none",
+		samples = 0,
+		statsCrossCheck = nil,
+		note = nil,
+	}
+
+	local connection = nil
+	if runService ~= nil and runService.RenderStepped ~= nil then
+		meta.source = "RenderStepped"
+		connection = runService.RenderStepped:Connect(function(deltaTime: number)
+			if deltaTime ~= nil and deltaTime > 0 then
+				perf:Push(deltaTime * 1000)
+				meta.samples += 1
+				if options.onSample then
+					options.onSample(Measure.Instant(), meta.samples)
+				end
+			end
+		end)
+	elseif runService ~= nil and runService.Heartbeat ~= nil then
+		meta.source = "Heartbeat (fallback)"
+		connection = runService.Heartbeat:Connect(function(deltaTime: number)
+			if deltaTime ~= nil and deltaTime > 0 then
+				perf:Push(deltaTime * 1000)
+				meta.samples += 1
+			end
+		end)
+	else
+		meta.note = "runtime không có RenderStepped/Heartbeat -> không có số đo khung hình"
+		Util_Log.Warn(SCOPE, meta.note)
+	end
+
+	-- Chờ đủ thời lượng bằng đồng hồ của runtime (task.wait thật trong Roblox)
+	Core_Env.Wait(duration)
+
+	if connection ~= nil then
+		connection:Disconnect()
+	end
+
+	local endedAt = Core_Env.now()
+	meta.elapsed = endedAt - startedAt
+
+	local summary = perf:Summarize("ms")
+	local gcKb, gcOk = 0, false
+	if collectgarbage ~= nil then
+		local ok, value = pcall(collectgarbage, "count")
+		if ok and type(value) == "number" then gcKb, gcOk = value, true end
+	end
+
+	local statsFps, statsOk = Measure.ReadStatsFps()
+	if statsOk then
+		meta.statsCrossCheck = statsFps
+	end
+	if meta.source ~= "none" and meta.samples == 0 then
+		meta.note = "có kết nối signal nhưng không nhận được mẫu nào"
+	end
+
+	local result = {
+		meta = meta,
+		frame = summary,
+		fps = {
+			mean = summary.fps_mean or 0,
+			p1   = summary.fps_p1 or 0,
+			p5   = summary.fps_p5 or 0,
+			p50  = summary.fps_p50 or 0,
+			min  = summary.fps_min or 0,
+		},
+		frameTimeMs = {
+			mean = summary.mean,
+			p95  = summary.p95,
+			max  = summary.max,
+		},
+		gcHeapKb = gcKb,
+		gcAvailable = gcOk,
+		statsFps = statsFps,
+		statsAvailable = statsOk,
+		world = Measure.WorldStats(),
+		time = endedAt,
+	}
+
+	Measure.last = result
+	Util_Log.Info(SCOPE, ("đo '%s' xong: %d mẫu trong %.2fs (nguồn: %s)")
+		:format(meta.label, meta.samples, meta.elapsed, meta.source))
+	return result
+end
+
+--[[
+	So sánh hai lần đo. CHỈ tính toán từ số liệu thật đã truyền vào.
+	Nếu một bên không có mẫu, trả về valid = false và nêu lý do — không suy diễn.
+]]
+function Measure.Compare(before: any, after: any)
+	local out = {
+		valid = true,
+		reason = nil,
+		rows = {},
+	}
+
+	if before == nil or after == nil then
+		out.valid = false
+		out.reason = "thiếu dữ liệu before/after"
+		return out
+	end
+	if (before.meta and before.meta.samples or 0) == 0
+		or (after.meta and after.meta.samples or 0) == 0 then
+		out.valid = false
+		out.reason = "một trong hai lần đo có 0 mẫu khung hình -> không kết luận được"
+		return out
+	end
+
+	local function deltaRow(label, beforeValue, afterValue, formatter, betterWhenLower)
+		local diff = afterValue - beforeValue
+		local pct = beforeValue ~= 0 and (diff / beforeValue) * 100 or 0
+		out.rows[#out.rows + 1] = {
+			label = label,
+			before = formatter(beforeValue),
+			after = formatter(afterValue),
+			delta = ("%+.1f%%"):format(pct),
+			better = betterWhenLower and diff < 0 or (not betterWhenLower and diff > 0),
+			rawBefore = beforeValue,
+			rawAfter = afterValue,
+			pct = pct,
+		}
+	end
+
+	local function f1(v: number) return ("%.1f"):format(v) end
+	local function f0(v: number) return ("%.0f"):format(v) end
+
+	deltaRow("FPS trung bình", before.fps.mean, after.fps.mean, f1, false)
+	deltaRow("FPS p1 (tệ nhất)", before.fps.p1, after.fps.p1, f1, false)
+	deltaRow("FPS p5", before.fps.p5, after.fps.p5, f1, false)
+	deltaRow("Frame time TB (ms)", before.frameTimeMs.mean, after.frameTimeMs.mean, f1, true)
+	deltaRow("Frame time p95 (ms)", before.frameTimeMs.p95, after.frameTimeMs.p95, f1, true)
+
+	if before.gcAvailable and after.gcAvailable then
+		deltaRow("Luau heap (MB)", before.gcHeapKb / 1024, after.gcHeapKb / 1024, f1, true)
+	end
+
+	out.summary = {}
+	local improved, regressed = 0, 0
+	for _, row in out.rows do
+		if row.better then improved += 1 else regressed += 1 end
+	end
+	out.summary.improved = improved
+	out.summary.regressed = regressed
+	out.summary.verdict = improved > regressed and "improved"
+		or (regressed > improved and "regressed" or "unchanged")
+
+	out.summary.baselineSamples = before.meta.samples
+	out.summary.afterSamples = after.meta.samples
+	out.summary.durationBefore = before.meta.duration
+	out.summary.durationAfter = after.meta.duration
+
+	return out
+end
+
+-- Bản in ra Output (dùng khi không có UI hoặc muốn log đầy đủ).
+function Measure.FormatComparison(comparison: any): { string }
+	local rows = { { "Chỉ số", "Trước", "Sau", "Thay đổi" } }
+	for _, row in comparison.rows do
+		rows[#rows + 1] = { row.label, row.before, row.after, row.delta }
+	end
+	local lines = Util_Log.FormatRows(rows)
+	table.insert(lines, 1, ("Kết luận: %s (cải thiện %d/%d chỉ số)")
+		:format(comparison.summary.verdict, comparison.summary.improved, #comparison.rows))
+	table.insert(lines, 2, ("Số mẫu: trước=%d (%.1fs) sau=%d (%.1fs)")
+		:format(comparison.summary.baselineSamples, comparison.summary.durationBefore,
+			comparison.summary.afterSamples, comparison.summary.durationAfter))
+	return lines
+end
+
+return Measure
+end,
+	["Client/Core/Net"] = function()
+--[[ ===== RALO.METHODS:BEGIN =====
+	Các phương pháp được TRIỂN KHAI TRONG TỆP NÀY (khớp với Shared/Methods.luau):
+	  NET-001, NET-002, NET-003, NET-007
+	===== RALO.METHODS:END ===== --]]
+
+--[[
+	Client/Core/Net.luau
+	===== RALO.METHODS:NET-001, NET-002, NET-003 =====
+
+	Tiết chế lưu lượng mạng PHÍA CLIENT.
+
+	SỰ THẬT KỸ THUẬT (nêu rõ để không nói quá):
+	  * Một LocalScript KHÔNG thể tự throttle băng thông của chính nó,
+	    không thể giảm tần suất replicate của server, và không thể đổi
+	    NetworkOwner (SetNetworkOwner là API phía server).
+	  * Cái LocalScript LÀM ĐƯỢC và tệp này làm thật:
+	      - gộp nhiều thông điệp thành một (batching),
+	      - chặn gửi trùng/thưa trong cửa sổ thời gian (throttling),
+	      - chỉ gửi dữ liệu khác lần trước (delta).
+	    Cả ba đều giảm số lần FireServer, tức giảm thật số gói tin
+	    mà client này sinh ra.
+
+	Không có RemoteEvent "trang trí": Net chỉ hoạt động khi người dùng
+	thật sự truyền remote của game vào. Nếu không truyền, nó báo rõ
+	"không có remote để tối ưu" và trả về 0 thay đổi.
+]]
+
+local Client_Env = __RALO_REQUIRE("Client/Core/Env")
+local Shared_Log = __RALO_REQUIRE("Shared/Log")
+local Client_Scheduler = __RALO_REQUIRE("Client/Core/Scheduler")
+
+local SCOPE = "Net"
+
+local Net = {}
+
+Net.channels = {}          -- name -> { remote, minInterval, queue, lastSent, lastPayload }
+Net.handle = nil
+Net.stats = { queued = 0, sent = 0, suppressed = 0, batched = 0, noRemote = 0 }
+
+--[[
+	Đăng ký một kênh gửi.
+	spec = {
+		remote      = RemoteEvent của game,
+		minInterval = giây tối thiểu giữa hai lần gửi (mặc định 0.25),
+		batch       = true -> gộp nhiều payload thành một mảng
+	}
+]]
+function Net.Register(name, spec)
+	if type(name) ~= "string" or type(spec) ~= "table" then
+		Shared_Log.Warn(SCOPE, "Register cần tên chuỗi và spec bảng")
+		return nil
+	end
+	if spec.remote == nil then
+		Shared_Log.Warn(SCOPE, ("kênh '%s' không có remote -> sẽ không gửi gì"):format(name))
+	end
+
+	Net.channels[name] = {
+		remote = spec.remote,
+		minInterval = math.max(0, tonumber(spec.minInterval) or 0.25),
+		batch = spec.batch == true,
+		queue = {},
+		lastSent = -math.huge,
+		lastPayload = nil,
+	}
+	return Net.channels[name]
+end
+
+-- So sánh nông hai payload: dùng để bỏ qua dữ liệu giống hệt lần trước.
+local function shallowEqual(a, b)
+	if a == b then
+		return true
+	end
+	if type(a) ~= "table" or type(b) ~= "table" then
+		return false
+	end
+	for key, value in pairs(a) do
+		if b[key] ~= value then
+			return false
+		end
+	end
+	for key in pairs(b) do
+		if a[key] == nil then
+			return false
+		end
+	end
+	return true
+end
+
+--[[
+	Đưa dữ liệu vào hàng đợi. KHÔNG gửi ngay.
+	Trả về: "queued" | "suppressed-duplicate" | "no-channel"
+]]
+function Net.Send(name, payload)
+	local channel = Net.channels[name]
+	if channel == nil then
+		Net.stats.noRemote += 1
+		return "no-channel"
+	end
+
+	-- NET-003: bỏ qua nếu giống hệt lần gửi trước
+	if shallowEqual(channel.lastPayload, payload) then
+		Net.stats.suppressed += 1
+		return "suppressed-duplicate"
+	end
+
+	table.insert(channel.queue, payload)
+	Net.stats.queued += 1
+	Net.Start()
+	return "queued"
+end
+
+-- Một lượt xả hàng đợi. `nowSeconds` cho phép test bơm thời gian ảo.
+function Net.Flush(nowSeconds)
+	local now = nowSeconds or Client_Env.now()
+	local sent = 0
+
+	for name, channel in pairs(Net.channels) do
+		if #channel.queue > 0 then
+			if channel.remote == nil then
+				-- Không có remote: bỏ hàng đợi để không phình bộ nhớ, và báo rõ
+				Net.stats.noRemote += #channel.queue
+				table.clear(channel.queue)
+			elseif now - channel.lastSent >= channel.minInterval then
+				local payload
+				if channel.batch and #channel.queue > 1 then
+					payload = { channel.queue }          -- NET-002: một gói cho nhiều thông điệp
+					Net.stats.batched += #channel.queue - 1
+					table.clear(channel.queue)
+				else
+					payload = table.remove(channel.queue, 1)
+				end
+
+				local ok, err = pcall(function()
+					channel.remote:FireServer(payload)
+				end)
+				if ok then
+					channel.lastSent = now
+					channel.lastPayload = payload
+					Net.stats.sent += 1
+					sent += 1
+				else
+					Shared_Log.Warn(SCOPE, ("gửi kênh '%s' lỗi: %s"):format(name, tostring(err)))
+				end
+			end
+		end
+	end
+
+	return sent
+end
+
+-- Bật bộ xả định kỳ qua Scheduler (không mở vòng lặp riêng).
+function Net.Start()
+	if Net.handle ~= nil then
+		return Net.handle
+	end
+	Net.handle = Client_Scheduler.Schedule({
+		name = "net.flush",
+		interval = 0.25,
+		priority = -20,               -- ưu tiên thấp, không tranh khung hình
+		callback = function()
+			Net.Flush()
+		end,
+	})
+	return Net.handle
+end
+
+function Net.Stop()
+	if Net.handle ~= nil then
+		Net.handle:Cancel()
+		Net.handle = nil
+	end
+	for _, channel in pairs(Net.channels) do
+		table.clear(channel.queue)
+	end
+	return true
+end
+
+function Net.QueueDepth(name)
+	local channel = Net.channels[name]
+	return channel ~= nil and #channel.queue or 0
+end
+
+function Net.Stats()
+	return {
+		channels = (function()
+			local n = 0
+			for _ in pairs(Net.channels) do
+				n += 1
+			end
+			return n
+		end)(),
+		queued = Net.stats.queued,
+		sent = Net.stats.sent,
+		suppressedDuplicates = Net.stats.suppressed,
+		batched = Net.stats.batched,
+		droppedNoRemote = Net.stats.noRemote,
+		-- Tỷ lệ nén: số thông điệp bị chặn/gộp so với tổng số đưa vào
+		savingRate = Net.stats.queued > 0
+			and ((Net.stats.suppressed + Net.stats.batched) / Net.stats.queued) or 0,
+	}
+end
+
+function Net.Reset()
+	Net.Stop()
+	table.clear(Net.channels)
+	Net.stats = { queued = 0, sent = 0, suppressed = 0, batched = 0, noRemote = 0 }
+end
+
+return Net
+end,
+	["Client/Core/Perf"] = function()
+--[[ ===== RALO.METHODS:BEGIN =====
+	Các phương pháp được TRIỂN KHAI TRONG TỆP NÀY (khớp với Shared/Methods.luau):
+	  CPU-006, HEAVY-001, MEAS-002, RAM-001
+	===== RALO.METHODS:END ===== --]]
+
+--[[
+	Core/Perf.luau
+	Toán học thống kê cho dữ liệu khung hình. THUẦN LOGIC — không có API
+	Roblox nào ở đây, nên có thể unit test chính xác bằng số liệu dựng sẵn.
+
+	Bộ đệm vòng (ring buffer) kích thước cố định -> không phình bộ nhớ
+	khi đo lâu, và p1/p5/p95 tính trên đúng số mẫu đang giữ.
+]]
+
+local Perf = {}
+Perf.__index = Perf
+
+function Perf.New(capacity: number)
+	local self = setmetatable({}, Perf)
+	self.capacity = math.max(8, math.floor(capacity or 180))
+	self.values = table.create(self.capacity, 0)
+	self.head = 0        -- số mẫu đã ghi (tăng mãi, lấy modulo)
+	self.sum = 0
+	self.min = math.huge
+	self.max = -math.huge
+	return self
+end
+
+function Perf.Push(self, value: number)
+	if type(value) ~= "number" or value ~= value then
+		return self                 -- bỏ qua NaN / sai kiểu, không làm hỏng thống kê
+	end
+	local slot = (self.head % self.capacity) + 1
+	local previous = self.values[slot]
+
+	if self.head >= self.capacity then
+		self.sum -= previous        -- trừ mẫu sắp bị ghi đè
+	end
+
+	self.values[slot] = value
+	self.head += 1
+	self.sum += value
+	if value < self.min then self.min = value end
+	if value > self.max then self.max = value end
+	return self
+end
+
+function Perf.Count(self): number
+	return math.min(self.head, self.capacity)
+end
+
+function Perf.Mean(self): number
+	local n = Perf.Count(self)
+	if n == 0 then return 0 end
+	return self.sum / n
+end
+
+-- Độ lệch chuẩn mẫu (n-1). Trả 0 nếu ít hơn 2 mẫu.
+function Perf.StdDev(self): number
+	local n = Perf.Count(self)
+	if n < 2 then return 0 end
+	local mean = Perf.Mean(self)
+	local acc = 0
+	for i = 1, n do
+		local d = self.values[i] - mean
+		acc += d * d
+	end
+	return math.sqrt(acc / (n - 1))
+end
+
+--[[
+	Percentile theo nội suy tuyến tính (cùng định nghĩa numpy.percentile mặc định).
+	p nằm trong 0..100.
+]]
+function Perf.Percentile(self, p: number): number
+	local n = Perf.Count(self)
+	if n == 0 then return 0 end
+
+	-- Sao ra mảng đã sắp xếp (chỉ n phần tử đang có hiệu lực)
+	local sorted = table.create(n)
+	for i = 1, n do
+		sorted[i] = self.values[i]
+	end
+	table.sort(sorted)
+
+	local rank = (math.clamp(p, 0, 100) / 100) * (n - 1)
+	local lower = math.floor(rank)
+	local frac = rank - lower
+	local a = sorted[lower + 1]
+	local b = sorted[math.min(lower + 2, n)]
+	return a + (b - a) * frac
+end
+
+--[[
+	Tóm tắt: trả về bảng chỉ số. unit = "ms" (frame time) hoặc "fps".
+	Khi input là frame time (ms), fps được suy ra từ percentile frame time:
+		fps_pX = 1000 / frameTime_p(100-X)
+	(p1 fps lấy từ p99 frame time — đúng ý nghĩa "khung hình tệ nhất").
+]]
+function Perf.Summarize(self, unit: string): { [string]: number }
+	local n = Perf.Count(self)
+	local summary = {
+		unit = unit,
+		samples = n,
+		mean = 0, min = 0, max = 0, stddev = 0,
+		p1 = 0, p5 = 0, p50 = 0, p95 = 0, p99 = 0,
+	}
+	if n == 0 then
+		return summary
+	end
+
+	summary.mean = Perf.Mean(self)
+	if n > 0 then summary.min = self.min end
+	if n > 0 then summary.max = self.max end
+	summary.stddev = Perf.StdDev(self)
+	summary.p1  = Perf.Percentile(self, 1)
+	summary.p5  = Perf.Percentile(self, 5)
+	summary.p50 = Perf.Percentile(self, 50)
+	summary.p95 = Perf.Percentile(self, 95)
+	summary.p99 = Perf.Percentile(self, 99)
+
+	if unit == "ms" then
+		local function toFps(ms: number): number
+			if ms <= 0 then return 0 end
+			return 1000 / ms
+		end
+		summary.fps_mean = toFps(summary.mean)
+		summary.fps_p1   = toFps(summary.p99)   -- khung hình tệ nhất
+		summary.fps_p5   = toFps(summary.p95)
+		summary.fps_p50  = toFps(summary.p50)
+		summary.fps_min  = toFps(summary.max)
+		summary.fps_max  = toFps(summary.min)
+	end
+
+	return summary
+end
+
+-- Trung bình trượt của N mẫu cuối — dùng cho chỉ số FPS tức thời trên menu.
+function Perf.RecentMean(self, count: number): number
+	local n = Perf.Count(self)
+	local take = math.min(math.max(1, math.floor(count or 30)), n)
+	if take == 0 then return 0 end
+	local acc = 0
+	for i = 0, take - 1 do
+		local slot = ((self.head - 1 - i) % self.capacity) + 1
+		acc += self.values[slot]
+	end
+	return acc / take
+end
+
+function Perf.Reset(self)
+	self.head = 0
+	self.sum = 0
+	self.min = math.huge
+	self.max = -math.huge
+	table.clear(self.values)
+	for i = 1, self.capacity do
+		self.values[i] = 0
+	end
+	return self
+end
+
+return Perf
+end,
+	["Client/Core/Pipeline"] = function()
+--[[ ===== RALO.METHODS:BEGIN =====
+	Các phương pháp được TRIỂN KHAI TRONG TỆP NÀY (khớp với Shared/Methods.luau):
+	  CFG-001, LOOP-005, MEAS-001, MEAS-003, MEAS-007, REC-003
+	===== RALO.METHODS:END ===== --]]
+
+--[[
+	Client/Core/Pipeline.luau
+	===== RALO.METHODS:CFG-001, LOOP-005, MEAS-001, MEAS-003, MEAS-007, REC-003 =====
+
+	Dàn nhạc của toàn bộ chương trình:
+
+	1. lập kế hoạch theo cấu hình  (Plan.Build)
+	2. dựng bảng trạng thái tối giản (Ui/Notifier), tạo bộ đếm nội bộ (Ui/Progress)
+	3. ĐO TRƯỚC                    (Measure.Run baselineSeconds)
+	4. thực thi từng bước          (Runner.Execute)
+	5. nghỉ settle
+	6. ĐO SAU                      (Measure.Run afterSeconds)
+	7. so sánh, in kết quả Output + cập nhật trạng thái GUI
+
+	HAI NGUYÊN TẮC KHÔNG ĐƯỢC VI PHẠM:
+	  * Không bước nào sinh số liệu giả. Nếu không đo được (0 mẫu),
+	    pipeline nói rõ "không kết luận được" thay vì in ra con số.
+	  * Thất bại KHÔNG được trình bày như thành công. Nếu có bước lỗi,
+	    GUI chuyển sang trạng thái lỗi thật và Output ghi rõ lỗi.
+]]
+
+local Core_Env = __RALO_REQUIRE("Client/Core/Env")
+local Core_Measure = __RALO_REQUIRE("Client/Core/Measure")
+local Core_Plan = __RALO_REQUIRE("Client/Core/Plan")
+local Core_Restore = __RALO_REQUIRE("Client/Core/Restore")
+local Core_Runner = __RALO_REQUIRE("Client/Core/Runner")
+local Shared_Config = __RALO_REQUIRE("Shared/Config")
+local Shared_Log = __RALO_REQUIRE("Shared/Log")
+local Shared_Safe = __RALO_REQUIRE("Shared/Safe")
+local Shared_Types = __RALO_REQUIRE("Shared/Types")
+local Ui_Notifier = __RALO_REQUIRE("Client/Ui/Notifier")
+local Ui_Progress = __RALO_REQUIRE("Client/Ui/Progress")
+
+local SCOPE = "Pipeline"
+
+local Pipeline = {}
+
+Pipeline.lastResult = nil
+
+--[[
+	Tìm nơi treo GUI.
+	LocalScript -> Players.LocalPlayer.PlayerGui (đây là đường ĐÚNG duy nhất
+	cho LocalScript; CoreGui không ghi được từ LocalScript thường).
+]]
+function Pipeline.GetGuiParent()
+	local players = Core_Env.GetService("Players")
+	if players ~= nil then
+		local ok, player = pcall(function()
+			return players.LocalPlayer
+		end)
+		if ok and player ~= nil then
+			local okGui, playerGui = pcall(function()
+				return player:FindFirstChildOfClass("PlayerGui")
+			end)
+			if okGui and playerGui ~= nil then
+				return playerGui
+			end
+		end
+	end
+	-- Không có PlayerGui (ví dụ chạy trong harness) -> trả về game để test
+	return Core_Env.game
+end
+
+-- Dựng bảng kết quả đo từ chỉ số tức thời (dùng khi options.instant = true)
+local function instantSnapshot(label)
+	local instant = Core_Measure.Instant()
+	local value = instant.frameTimeMs
+	return {
+		meta = {
+			label = label,
+			samples = instant.frameTimeAvailable and 1 or 0,
+			duration = 0,
+			source = "instant",
+			note = "chỉ số tức thời một lần đọc, KHÔNG phải phân bố khung hình",
+		},
+		frame = { mean = value, p95 = value, max = value },
+		fps = {
+			mean = instant.fps, p1 = instant.fps, p5 = instant.fps, p50 = instant.fps, min = instant.fps,
+		},
+		frameTimeMs = { mean = value, p95 = value, max = value },
+		gcHeapKb = instant.gcHeapKb,
+		gcAvailable = instant.gcAvailable,
+		statsFps = instant.statsFps,
+		statsAvailable = instant.statsAvailable,
+		world = Core_Measure.WorldStats(),
+		time = instant.time,
+	}
+end
+
+--[[
+	options = {
+		profile = bảng cấu hình (mặc định Shared_Config.PROFILE)
+		buildUi = true/false (mặc định true)
+		onPhase = function(phase, payload)
+		instant = true -> bỏ qua lấy mẫu khung hình, chỉ đọc chỉ số tức thời
+	}
+	Trả về bảng kết quả. KHÔNG throw: lỗi được bắt và ghi vào result.error.
+]]
+function Pipeline.Run(options)
+	options = options or {}
+	local profile = options.profile or Shared_Config.PROFILE
+	local buildUi = options.buildUi
+	if buildUi == nil then
+		buildUi = true
+	end
+	local onPhase = options.onPhase or function() end
+	local measure = profile.measure or Shared_Config.PROFILE.measure
+	local progress = nil
+
+	local ok, result = pcall(function()
+		onPhase(Shared_Types.PHASE_IDLE, nil)
+
+		------------------------------------------------------ 1. kế hoạch
+		local plan = Core_Plan.Build(profile)
+		for _, line in ipairs(Core_Plan.Describe(plan)) do
+			Shared_Log.Info(SCOPE, line)
+		end
+
+		----------------------------------------------------------- 2. GUI
+		progress = Ui_Progress.New(plan.total)
+		local notifier = nil
+		if buildUi then
+			notifier = Ui_Notifier.Build({
+				parent = Pipeline.GetGuiParent(),
+				profile = profile,
+			})
+		end
+
+		------------------------------------------------------ 3. đo TRƯỚC
+		onPhase(Shared_Types.PHASE_BASELINE, nil)
+		local before
+		if options.instant then
+			before = instantSnapshot("baseline")
+		else
+			Shared_Log.Info(SCOPE, ("đang đo nền %.1f giây — đừng làm gì để số đo sạch")
+				:format(measure.baselineSeconds))
+			before = Core_Measure.Run(measure.baselineSeconds, {
+				label = "baseline",
+				window = measure.frameWindow,
+			})
+		end
+
+		------------------------------------------------------- 4. thực thi
+		progress:SetPhase(Shared_Types.PHASE_OPTIMIZING, "đang tối ưu")
+		onPhase(Shared_Types.PHASE_OPTIMIZING, plan)
+
+		Core_Runner.Execute(plan, {
+			onStep = function(step, index)
+				progress:Mark(index, step.status, step.name .. ": " .. tostring(step.detail or ""))
+			end,
+		})
+
+		local tally = Core_Runner.Tally(plan)
+		Shared_Log.Info(SCOPE, ("thực thi xong: áp dụng %d, bỏ qua %d, lỗi %d, tổng %d thay đổi")
+			:format(tally.applied, tally.skipped, tally.failed, tally.changes))
+
+		-------------------------------------------------------- 5. settle
+		if measure.settleSeconds > 0 and not options.instant then
+			progress:SetPhase(Shared_Types.PHASE_SETTLE, "đang chờ FPS ổn định")
+			Core_Env.Wait(measure.settleSeconds)
+		end
+
+		----------------------------------------------------- 6. đo SAU
+		local after
+		if options.instant then
+			after = instantSnapshot("after")
+		else
+			progress:SetPhase(Shared_Types.PHASE_REMEASURE, "đang đo lại")
+			Shared_Log.Info(SCOPE, ("đang đo sau tối ưu %.1f giây"):format(measure.afterSeconds))
+			after = Core_Measure.Run(measure.afterSeconds, {
+				label = "after",
+				window = measure.frameWindow,
+			})
+		end
+
+		----------------------------------------------------- 7. so sánh
+		progress:SetPhase(Shared_Types.PHASE_COMPARE, "đang so sánh")
+		local comparison = Core_Measure.Compare(before, after)
+
+		local lines
+		if comparison.valid then
+			lines = Core_Measure.FormatComparison(comparison)
+		else
+			lines = {
+				"Không kết luận được: " .. tostring(comparison.reason),
+				("mẫu trước=%d, mẫu sau=%d")
+					:format(before.meta.samples or 0, after.meta.samples or 0),
+				"Chạy lại ở nơi có cảnh nặng hơn, hoặc tăng baselineSeconds/afterSeconds.",
+			}
+		end
+
+		-- In ra Output: bản ghi đầy đủ, kể cả khi GUI đã ẩn
+		Shared_Log.Info(SCOPE, "=== KẾT QUẢ ĐO TRƯỚC / SAU ===")
+		for _, line in ipairs(lines) do
+			Shared_Log.Info(SCOPE, line)
+		end
+		Shared_Log.Info(SCOPE, ("nguồn số liệu: trước=%s, sau=%s")
+			:format(tostring(before.meta.source), tostring(after.meta.source)))
+
+		-- THẤT BẠI KHÔNG ĐƯỢC TRÌNH BÀY NHƯ THÀNH CÔNG
+		local verdict
+		if tally.failed > 0 then
+			verdict = "error"
+			lines[#lines + 1] = ("CÓ %d BƯỚC LỖI — xem Output để biết chi tiết"):format(tally.failed)
+		elseif comparison.valid then
+			verdict = comparison.summary.verdict
+		end
+
+		if notifier ~= nil then
+			notifier:SetResults(lines, verdict)
+		end
+		progress:SetPhase(Shared_Types.PHASE_DONE, "hoàn tất")
+		onPhase(Shared_Types.PHASE_DONE, comparison)
+
+		return {
+			version = Shared_Config.VERSION,
+			environment = Core_Env.mode,
+			before = before,
+			after = after,
+			comparison = comparison,
+			plan = plan,
+			tally = tally,
+			restoreEntries = Core_Restore.Count(),
+			logLines = lines,
+			safeRecords = #Shared_Safe.Records,
+			verdict = verdict,
+			error = nil,
+		}
+	end)
+
+	if progress ~= nil then
+		local cleanupOk, cleanupError = pcall(function()
+			progress:Destroy()
+		end)
+		if not cleanupOk then
+			Shared_Log.Warn(SCOPE, "không dọn được tiến trình nội bộ: " .. tostring(cleanupError))
+		end
+	end
+
+	if not ok then
+		-- Lỗi thật: ghi log, báo GUI bằng trạng thái LỖI, và trả về error
+		Shared_Log.Error(SCOPE, "pipeline lỗi: " .. tostring(result))
+		local notifier = nil
+		local okNotifier, built = pcall(function()
+			return Ui_Notifier.Get()
+		end)
+		if okNotifier then
+			notifier = built
+		end
+		if notifier ~= nil then
+			pcall(function()
+				notifier:SetResults({ "Tối ưu thất bại.", tostring(result) }, "error")
+			end)
+		end
+		Pipeline.lastResult = { verdict = "error", error = tostring(result) }
+		return Pipeline.lastResult
+	end
+
+	Pipeline.lastResult = result
+	return result
+end
+
+--[[
+	Hoàn tác mọi thay đổi mà hệ thống đã thực hiện.
+	Trả về: số property đã khôi phục, số lần thất bại.
+]]
+function Pipeline.Restore()
+	return Core_Restore.All()
+end
+
+-- Dừng hẳn hệ thống: ngắt kết nối, huỷ GUI, giải phóng bộ lập lịch.
+function Pipeline.Shutdown()
+	local notifier = Ui_Notifier.Get()
+	if notifier ~= nil then
+		notifier:Destroy()
+	end
+	return true
+end
+
+return Pipeline
+end,
+	["Client/Core/Plan"] = function()
+--[[ ===== RALO.METHODS:BEGIN =====
+	Các phương pháp được TRIỂN KHAI TRONG TỆP NÀY (khớp với Shared/Methods.luau):
+	  CFG-001, CFG-002, LOOP-005, REC-004
+	===== RALO.METHODS:END ===== --]]
+
+--[[
+	Client/Core/Plan.luau
+	===== RALO.METHODS:CFG-001, CFG-002, LOOP-005, REC-004 =====
+
+	Lập KẾ HOẠCH tối ưu: quyết định bước nào chạy, bước nào bỏ qua và VÌ SAO.
+
+	Nguyên tắc: bước không khả thi KHÔNG biến mất khỏi kế hoạch. Nó vẫn
+	xuất hiện với available = false kèm lý do, để người dùng biết chính xác
+	cái gì chưa được làm và tại sao. Đây là một phần của cơ chế chống
+	"báo cáo khống".
+
+	Kiểm tra khả dụng dùng Client_Env.GetService (API thật của Roblox),
+	không dùng bất kỳ cơ chế probe executor nào.
+]]
+
+local Core_Env = __RALO_REQUIRE("Client/Core/Env")
+local Core_Devices = __RALO_REQUIRE("Client/Core/Devices")
+local Shared_Config = __RALO_REQUIRE("Shared/Config")
+local Shared_Types = __RALO_REQUIRE("Shared/Types")
+local Opt_Effects = __RALO_REQUIRE("Client/Optimizations/Effects")
+local Opt_Graphics = __RALO_REQUIRE("Client/Optimizations/Graphics")
+local Opt_Memory = __RALO_REQUIRE("Client/Optimizations/Memory")
+local Opt_Physics = __RALO_REQUIRE("Client/Optimizations/Physics")
+
+local Plan = {}
+
+--[[
+	DANH MỤC BƯỚC, sắp theo THỨ TỰ ƯU TIÊN của Part 5:
+	  1. bỏ việc thừa            2. giảm việc trong vòng lặp
+	  3. gộp kết nối sự kiện     4. dọn dẹp
+	  5. giới hạn cập nhật       6. tra cứu/quản lý
+	  7. tự quản lý đối tượng tạm 8. đo lường
+	  9. CHỈ CUỐI CÙNG mới tới thay đổi đồ hoạ nhẹ, đảo ngược được
+
+	`group` khớp với khóa trong Config.PROFILE.groups.
+	`restorable` = true nghĩa là bước này ghi nhật ký vào Restore.
+]]
+Plan.CATALOG = {
+	{
+		id = "graphics.quality",
+		name = "Giảm nhẹ chất lượng hình ảnh (mức tối đa 8)",
+		group = "graphics",
+		module = Opt_Graphics,
+		handler = "ApplyQualityLevel",
+		restorable = true,
+	},
+	{
+		id = "graphics.terrain",
+		name = "Đặt chi tiết địa hình theo cấu hình (mặc định giữ)",
+		group = "graphics",
+		module = Opt_Graphics,
+		handler = "ApplyTerrain",
+		restorable = true,
+	},
+	{
+		id = "graphics.shadows",
+		name = "Giữ nguyên bóng đổ (culling xa mặc định tắt)",
+		group = "graphics",
+		module = Opt_Graphics,
+		handler = "ApplyShadowBudget",
+		restorable = true,
+	},
+	{
+		id = "graphics.character",
+		name = "Giữ nguyên bóng và tỉ lệ nhân vật",
+		group = "character",
+		module = Opt_Graphics,
+		handler = "ApplyCharacter",
+		restorable = true,
+	},
+	{
+		id = "effects.particles",
+		name = "Giới hạn hạt (particle) — không xoá effect",
+		group = "effects",
+		module = Opt_Effects,
+		handler = "CapParticles",
+		restorable = true,
+	},
+	{
+		id = "effects.optional",
+		name = "Beam/Trail/Decal (tuỳ chọn, mặc định giữ nguyên)",
+		group = "effects",
+		module = Opt_Effects,
+		handler = "ApplyOptionalEffects",
+		restorable = true,
+	},
+	{
+		id = "physics.throttling",
+		name = "Bớt làm mượt nội suy vật lý (mặc định TẮT)",
+		group = "physics",
+		module = Opt_Physics,
+		handler = "ApplyThrottling",
+		restorable = true,
+	},
+	{
+		id = "memory.gc",
+		name = "Kích hoạt chu kỳ dọn bộ nhớ Luau",
+		group = "memory",
+		module = Opt_Memory,
+		handler = "StartGcLoop",
+		restorable = false,
+	},
+	{
+		id = "memory.orphanSweep",
+		name = "Gom instance mồ côi (lưu trữ, không xoá)",
+		group = "memory",
+		module = Opt_Memory,
+		handler = "SweepOrphans",
+		restorable = false,
+	},
+}
+
+-- Dịch tên service mà mỗi bước cần. Không có service -> bước bị skip.
+local REQUIRED_SERVICE = {
+	["graphics.quality"] = "Lighting",
+	["graphics.terrain"] = "Workspace",
+	["graphics.shadows"] = "Workspace",
+	["graphics.character"] = "Players",
+}
+
+--[[
+	Xây dựng kế hoạch. KHÔNG thực thi gì ở đây.
+	profile: bảng cấu hình (mặc định Shared_Config.PROFILE)
+]]
+function Plan.Build(profile)
+	profile = profile or Shared_Config.PROFILE
+
+	local mode = Shared_Config.Mode()
+	local steps = {}
+
+	for index, entry in ipairs(Plan.CATALOG) do
+		local available, reason = true, nil
+
+		-- 1) công tắc tổng
+		if profile.enabled == false or mode == "off" then
+			available, reason = false, "hệ thống đang tắt (enabled = false hoặc mode = 'off')"
+
+		-- 2) công tắc theo NHÓM (CFG-001)
+		elseif not Core_Devices.IsEnabled(profile, entry.group, entry.id) then
+			available, reason = false, ("tắt trong config (groups.%s = false)"):format(tostring(entry.group))
+
+		-- 3) điều kiện vật lý của từng bước
+		else
+			local service = REQUIRED_SERVICE[entry.id]
+			if service ~= nil and Core_Env.GetService(service) == nil then
+				available, reason = false, ("không truy cập được service %s"):format(service)
+			elseif entry.id == "physics.throttling" and not profile.physics.enabled then
+				available, reason = false,
+					"tắt trong config (physics.enabled = false) — có đánh đổi cảm giác chơi"
+			elseif entry.module[entry.handler] == nil then
+				-- Chốt an toàn: handler không tồn tại thì KHÔNG được báo "đã làm"
+				available, reason = false, ("module thiếu handler %s"):format(tostring(entry.handler))
+			end
+		end
+
+		steps[#steps + 1] = {
+			index = index,
+			id = entry.id,
+			name = entry.name,
+			group = entry.group,
+			module = entry.module,
+			handler = entry.handler,
+			available = available,
+			reason = reason,
+			status = Shared_Types.STATUS_PENDING,
+			detail = reason,
+			changes = 0,
+			restorable = entry.restorable == true,
+		}
+	end
+
+	return {
+		steps = steps,
+		total = #steps,
+		profile = profile,
+		mode = mode,
+		environment = Core_Env.mode,
+	}
+end
+
+function Plan.GetById(plan, id)
+	for _, step in ipairs(plan.steps) do
+		if step.id == id then
+			return step
+		end
+	end
+	return nil
+end
+
+function Plan.CountAvailable(plan)
+	local n = 0
+	for _, step in ipairs(plan.steps) do
+		if step.available then
+			n += 1
+		end
+	end
+	return n
+end
+
+-- Tóm tắt kế hoạch thành các dòng chữ, dùng cho Output và GUI.
+function Plan.Describe(plan)
+	local lines = {
+		("kế hoạch: %d bước, %d bước khả dụng (chế độ: %s)")
+			:format(plan.total, Plan.CountAvailable(plan), tostring(plan.mode)),
+	}
+	for _, step in ipairs(plan.steps) do
+		lines[#lines + 1] = ("  %2d. %-42s %s")
+			:format(step.index, step.name, step.available and "sẵn sàng" or ("BỎ QUA: " .. tostring(step.reason)))
+	end
+	return lines
+end
+
+return Plan
+end,
+	["Client/Core/Pool"] = function()
+--[[ ===== RALO.METHODS:BEGIN =====
+	Các phương pháp được TRIỂN KHAI TRONG TỆP NÀY (khớp với Shared/Methods.luau):
+	  DATA-001, POOL-001, POOL-003, POOL-004,
+	  POOL-005, RAM-002
+	===== RALO.METHODS:END ===== --]]
+
+--[[
+	Client/Core/Pool.luau
+	===== RALO.METHODS:POOL-001, POOL-003, POOL-004, CPU-006, RAM-002, RAM-004 =====
+
+	Object pooling: tái sử dụng đối tượng thay vì tạo mới rồi huỷ.
+
+	Nguyên nhân lag mà nó xử lý:
+	  * `Instance.new()` là thao tác ĐẮT (cấp phát phía engine + nhân bản
+	    template). Làm việc đó mỗi lần bắn đạn/mỗi hiệu ứng gây khựng hình.
+	  * Tạo bảng Lua mới trong vòng lặp mỗi khung hình -> ép GC chạy
+	    thường xuyên hơn.
+	  * `Destroy()` liên tục cũng đắt không kém việc tạo mới.
+
+	Cách xử lý:
+	  * Acquire(): lấy từ pool nếu có, chỉ tạo mới khi pool rỗng.
+	  * Release(): trả về pool (Parent = nil, reset property) thay vì Destroy.
+	  * Có TRẦN dung lượng: pool không được phình thành nguồn rò rỉ mới.
+	  * Pool bảng Lua riêng cho các bảng tạm (RAM-002).
+]]
+
+local Shared_Log = __RALO_REQUIRE("Shared/Log")
+local Client_Guard = __RALO_REQUIRE("Client/Core/Guard")
+local Client_Registry = __RALO_REQUIRE("Client/Core/Registry")
+
+local SCOPE = "Pool"
+
+local Pool = {}
+
+Pool.pools = {}          -- key -> { free = {}, cap, created, className, factory, reset }
+Pool.tablePool = {}      -- danh sách bảng tái sử dụng
+Pool.tablePoolCap = 64
+Pool.stats = { acquired = 0, reused = 0, created = 0, released = 0, capped = 0 }
+
+--[[
+	Định nghĩa một pool.
+	spec = {
+		className = "Part",
+		capacity  = 32,             -- trần số đối tượng giữ lại
+		factory   = function() -> instance   (tùy chọn, tự tạo nếu thiếu)
+		prepare   = function(instance) -> () (reset trước khi cất)
+		setup     = function(instance) -> () (khởi tạo khi tạo mới)
+	}
+]]
+function Pool.Define(key, spec)
+	if type(key) ~= "string" or type(spec) ~= "table" then
+		Shared_Log.Warn(SCOPE, "Define cần key chuỗi và spec bảng")
+		return nil
+	end
+	Pool.pools[key] = {
+		free = {},
+		cap = math.max(1, math.floor(spec.capacity or 32)),
+		created = 0,
+		className = spec.className,
+		factory = spec.factory,
+		prepare = spec.prepare,
+		setup = spec.setup,
+	}
+	return Pool.pools[key]
+end
+
+local function createInstance(pool)
+	if pool.factory ~= nil then
+		local ok, instance = Client_Guard.Run(SCOPE .. ":factory", pool.factory)
+		if ok and instance ~= nil then
+			return instance
+		end
+		return nil
+	end
+	if pool.className == nil then
+		return nil
+	end
+	local ok, instance = Client_Guard.Run(SCOPE .. ":new", function()
+		return Instance.new(pool.className)
+	end)
+	if not ok then
+		return nil
+	end
+	if pool.setup ~= nil then
+		Client_Guard.Run(SCOPE .. ":setup", pool.setup, instance)
+	end
+	return instance
+end
+
+--[[
+	Lấy một đối tượng từ pool.
+	Trả về: instance hoặc nil (kèm lý do).
+]]
+function Pool.Acquire(key)
+	local pool = Pool.pools[key]
+	if pool == nil then
+		return nil, "pool chưa được định nghĩa: " .. tostring(key)
+	end
+
+	Pool.stats.acquired += 1
+
+	local instance = table.remove(pool.free)
+	if instance ~= nil then
+		-- Kiểm tra đối tượng trong pool còn sống (có thể đã bị game huỷ)
+		if Client_Guard.Alive(instance) then
+			Pool.stats.reused += 1
+			return instance, "reused"
+		end
+		pool.created -= 1
+	end
+
+	local created = createInstance(pool)
+	if created == nil then
+		return nil, "không tạo được instance cho pool " .. tostring(key)
+	end
+	pool.created += 1
+	Pool.stats.created += 1
+	Client_Registry.Own(created, "pool:" .. key)
+	return created, "created"
+end
+
+--[[
+	Trả đối tượng về pool. Parent được đặt nil để nó không còn được render.
+	Nếu pool đã đầy thì huỷ thật (tránh rò rỉ).
+]]
+function Pool.Release(key, instance)
+	local pool = Pool.pools[key]
+	if pool == nil or instance == nil then
+		return false
+	end
+	if not Client_Guard.Alive(instance) then
+		return false
+	end
+
+	if pool.prepare ~= nil then
+		Client_Guard.Run(SCOPE .. ":prepare", pool.prepare, instance)
+	end
+
+	if #pool.free >= pool.cap then
+		Pool.stats.capped += 1
+		Client_Guard.Run(SCOPE .. ":destroy", function()
+			instance:Destroy()
+		end)
+		pool.created -= 1
+		return false
+	end
+
+	Client_Guard.Run(SCOPE .. ":detach", function()
+		instance.Parent = nil
+	end)
+	table.insert(pool.free, instance)
+	Pool.stats.released += 1
+	return true
+end
+
+-- Pool bảng Lua: tránh cấp phát bảng mới trong vòng lặp nóng.
+function Pool.AcquireTable()
+	local t = table.remove(Pool.tablePool)
+	if t ~= nil then
+		return t
+	end
+	return {}
+end
+
+function Pool.ReleaseTable(t)
+	if type(t) ~= "table" then
+		return false
+	end
+	if table.clear ~= nil then
+		table.clear(t)
+	else
+		for k in pairs(t) do
+			t[k] = nil
+		end
+	end
+	if #Pool.tablePool >= Pool.tablePoolCap then
+		return false
+	end
+	table.insert(Pool.tablePool, t)
+	return true
+end
+
+function Pool.FreeCount(key)
+	local pool = Pool.pools[key]
+	return pool ~= nil and #pool.free or 0
+end
+
+function Pool.Stats()
+	local pools = {}
+	for key, pool in pairs(Pool.pools) do
+		pools[key] = { free = #pool.free, created = pool.created, cap = pool.cap }
+	end
+	return {
+		pools = pools,
+		acquired = Pool.stats.acquired,
+		reused = Pool.stats.reused,
+		created = Pool.stats.created,
+		released = Pool.stats.released,
+		cappedOut = Pool.stats.capped,
+		tablePoolSize = #Pool.tablePool,
+	}
+end
+
+function Pool.Shutdown()
+	for key, pool in pairs(Pool.pools) do
+		for _, instance in pool.free do
+			Client_Guard.Run(SCOPE .. ":shutdown", function()
+				instance:Destroy()
+			end)
+			_ = key
+		end
+		table.clear(pool.free)
+		pool.created = 0
+	end
+	table.clear(Pool.tablePool)
+	Pool.stats = { acquired = 0, reused = 0, created = 0, released = 0, capped = 0 }
+	return true
+end
+
+function Pool.Reset()
+	Pool.Shutdown()
+	table.clear(Pool.pools)
+end
+
+return Pool
+end,
+	["Client/Core/Profile"] = function()
+--[[ ===== RALO.METHODS:BEGIN =====
+	Các phương pháp được TRIỂN KHAI TRONG TỆP NÀY (khớp với Shared/Methods.luau):
+	  HEAVY-002, HEAVY-003, HEAVY-004, MEAS-001,
+	  MEAS-003, MEAS-005, MEAS-006, MEAS-007,
+	  SAFE-006
+	===== RALO.METHODS:END ===== --]]
+
+--[[
+	Client/Core/Profile.luau
+	===== RALO.METHODS:MEAS-001, MEAS-002, MEAS-003, MEAS-004, MEAS-005,
+	                    HEAVY-001, HEAVY-002, HEAVY-003, HEAVY-004, RES-004 =====
+
+	Đo lường. Đây là phần quyết định tính TRUNG THỰC của cả dự án:
+	mọi con số báo cáo đều phải sinh ra từ đây, không có con số nào
+	được viết sẵn trong mã.
+
+	Nguồn số liệu thật:
+	  * frame time = delta thật giữa hai lần RenderStepped
+	  * Luau heap  = collectgarbage("count")  (KB)
+	  * chi phí của CHÍNH công cụ tối ưu = thời gian Scheduler.Tick tiêu tốn
+	  * số connection / instance / pool = đếm từ Registry & Pool
+
+	Nếu không lấy được một chỉ số, hàm trả về `available = false`
+	và pipeline ghi rõ "chưa có số liệu" — KHÔNG suy ra số gần đúng.
+]]
+
+local Client_Env = __RALO_REQUIRE("Client/Core/Env")
+local Client_Perf = __RALO_REQUIRE("Client/Core/Perf")
+local Shared_Log = __RALO_REQUIRE("Shared/Log")
+local Client_Scheduler = __RALO_REQUIRE("Client/Core/Scheduler")
+local Client_Registry = __RALO_REQUIRE("Client/Core/Registry")
+local Shared_Safe = __RALO_REQUIRE("Shared/Safe")
+
+local SCOPE = "Profile"
+
+local Profile = {}
+
+Profile.live = nil           -- Perf buffer đang nhận mẫu (cho chỉ số tức thời)
+Profile.last = nil
+Profile.longFrames = 0       -- số khung hình vượt ngưỡng
+Profile.longFrameThresholdMs = 33.3   -- dưới 30 FPS
+Profile.worstFrameMs = 0
+
+--[[
+	Đọc chỉ số tức thời MỘT lần. Không throw, không bịa.
+]]
+function Profile.Instant()
+	local runService = Client_Env.GetService("RunService")
+
+	local frameTimeMs, frameOk = 0, false
+	if runService ~= nil then
+		-- Shared_Safe.Call trả về (ok, result) và không bao giờ throw.
+		local ok, value = Shared_Safe.Call(runService, "GetRenderStepTime")
+		if ok and type(value) == "number" and value == value then
+			frameTimeMs = value * 1000
+			frameOk = true
+		end
+	end
+
+	local heapKb, heapOk = 0, false
+	if collectgarbage ~= nil then
+		local ok2, value2 = pcall(collectgarbage, "count")
+		if ok2 and type(value2) == "number" then
+			heapKb, heapOk = value2, true
+		end
+	end
+
+	return {
+		frameTimeMs = frameTimeMs,
+		frameTimeAvailable = frameOk,
+		fps = (frameOk and frameTimeMs > 0) and (1000 / frameTimeMs) or nil,
+		heapKb = heapKb,
+		heapAvailable = heapOk,
+		scheduler = Client_Scheduler.Stats(),
+		registry = Client_Registry.Stats(),
+		time = Client_Env.now(),
+	}
+end
+
+--[[
+	Đếm đối tượng trong Workspace để làm NGỮ CẢNH cho kết quả đo.
+	Đây không phải chỉ số chất lượng, mà để biết hai lần đo có tương đương.
+]]
+function Profile.WorldCensus(workspace)
+	local target = workspace or Client_Env.GetService("Workspace")
+	local census = {
+		scanned = 0, parts = 0, shadowCasters = 0, emitters = 0,
+		models = 0, available = target ~= nil,
+	}
+	if target == nil then
+		return census
+	end
+
+	local ok, descendants = pcall(function()
+		return target:GetDescendants()
+	end)
+	if not ok then
+		census.note = "GetDescendants thất bại"
+		return census
+	end
+
+	census.scanned = #descendants
+	for _, instance in descendants do
+		local className = instance.ClassName
+		if className == "Part" or className == "MeshPart" or className == "UnionOperation" then
+			census.parts += 1
+			local okCast, cast = pcall(function()
+				return instance.CastShadow
+			end)
+			if okCast and cast == true then
+				census.shadowCasters += 1
+			end
+		elseif className == "ParticleEmitter" then
+			census.emitters += 1
+		elseif className == "Model" then
+			census.models += 1
+		end
+	end
+	return census
+end
+
+--[[
+	Đo trong `durationSeconds`.
+	options = { label, window, onSample }
+]]
+function Profile.Run(durationSeconds, options)
+	options = options or {}
+	local duration = math.max(0.1, tonumber(durationSeconds) or 1.0)
+	local runService = Client_Env.GetService("RunService")
+
+	local perf = Client_Perf.New(options.window or 180)
+	Profile.live = perf
+
+	local meta = {
+		label = options.label or "sample",
+		duration = duration,
+		source = "none",
+		samples = 0,
+		note = nil,
+	}
+
+	local startedAt = Client_Env.now()
+	local connection
+	if runService ~= nil and runService.RenderStepped ~= nil then
+		meta.source = "RenderStepped"
+		local ok, conn = pcall(function()
+			return runService.RenderStepped:Connect(function(deltaTime)
+				if deltaTime ~= nil and deltaTime > 0 then
+					local ms = deltaTime * 1000
+					perf:Push(ms)
+					meta.samples += 1
+					if ms > Profile.longFrameThresholdMs then
+						Profile.longFrames += 1
+					end
+					if ms > Profile.worstFrameMs then
+						Profile.worstFrameMs = ms
+					end
+					if options.onSample then
+						options.onSample(ms, meta.samples)
+					end
+				end
+			end)
+		end)
+		if ok then
+			connection = conn
+		else
+			meta.note = "không kết nối được RenderStepped"
+		end
+	elseif runService ~= nil and runService.Heartbeat ~= nil then
+		meta.source = "Heartbeat (fallback, không phải thời gian render)"
+		local ok, conn = pcall(function()
+			return runService.Heartbeat:Connect(function(deltaTime)
+				if deltaTime ~= nil and deltaTime > 0 then
+					perf:Push(deltaTime * 1000)
+					meta.samples += 1
+				end
+			end)
+		end)
+		if ok then
+			connection = conn
+		end
+	else
+		meta.note = "runtime không có RenderStepped/Heartbeat -> không có số đo khung hình"
+		Shared_Log.Warn(SCOPE, meta.note)
+	end
+
+	Client_Env.Wait(duration)
+
+	if connection ~= nil then
+		pcall(function()
+			connection:Disconnect()
+		end)
+	end
+
+	meta.elapsed = Client_Env.now() - startedAt
+	if meta.source ~= "none" and meta.samples == 0 then
+		meta.note = "có kết nối nhưng không nhận được mẫu nào"
+	end
+
+	local summary = perf:Summarize("ms")
+	local heapKb, heapOk = 0, false
+	if collectgarbage ~= nil then
+		local ok, value = pcall(collectgarbage, "count")
+		if ok and type(value) == "number" then
+			heapKb, heapOk = value, true
+		end
+	end
+
+	local result = {
+		meta = meta,
+		frame = summary,
+		fps = {
+			mean = summary.fps_mean or 0,
+			p1 = summary.fps_p1 or 0,
+			p5 = summary.fps_p5 or 0,
+			p50 = summary.fps_p50 or 0,
+		},
+		frameTimeMs = { mean = summary.mean, p95 = summary.p95, max = summary.max },
+		heapKb = heapKb,
+		heapAvailable = heapOk,
+		scheduler = Client_Scheduler.Stats(),
+		registry = Client_Registry.Stats(),
+		census = Profile.WorldCensus(),
+		time = Client_Env.now(),
+	}
+
+	Profile.last = result
+	Shared_Log.Info(SCOPE, ("đo '%s': %d mẫu / %.2fs (nguồn %s)")
+		:format(meta.label, meta.samples, meta.elapsed, meta.source))
+	return result
+end
+
+--[[
+	So sánh hai lần đo. Chỉ tính từ số liệu thật đã truyền vào.
+	Thiếu mẫu -> valid = false, nêu lý do, KHÔNG kết luận.
+]]
+function Profile.Compare(before, after)
+	local out = { valid = true, reason = nil, rows = {}, summary = {} }
+
+	if before == nil or after == nil then
+		out.valid = false
+		out.reason = "thiếu dữ liệu before/after"
+		return out
+	end
+	local beforeSamples = before.meta and before.meta.samples or 0
+	local afterSamples = after.meta and after.meta.samples or 0
+	if beforeSamples == 0 or afterSamples == 0 then
+		out.valid = false
+		out.reason = ("một trong hai lần đo có 0 mẫu (trước=%d, sau=%d) -> không kết luận được")
+			:format(beforeSamples, afterSamples)
+		return out
+	end
+
+	local function addRow(label, beforeValue, afterValue, betterWhenLower, decimals)
+		decimals = decimals or 1
+		local diff = afterValue - beforeValue
+		local pct = beforeValue ~= 0 and (diff / beforeValue) * 100 or 0
+		local format = "%." .. decimals .. "f"
+		out.rows[#out.rows + 1] = {
+			label = label,
+			before = format:format(beforeValue),
+			after = format:format(afterValue),
+			delta = ("%+.1f%%"):format(pct),
+			better = betterWhenLower and diff < 0 or (not betterWhenLower and diff > 0),
+			pct = pct,
+		}
+	end
+
+	addRow("FPS trung bình", before.fps.mean, after.fps.mean, false)
+	addRow("FPS p1 (khung tệ nhất)", before.fps.p1, after.fps.p1, false)
+	addRow("FPS p5", before.fps.p5, after.fps.p5, false)
+	addRow("Frame time TB (ms)", before.frameTimeMs.mean, after.frameTimeMs.mean, true)
+	addRow("Frame time p95 (ms)", before.frameTimeMs.p95, after.frameTimeMs.p95, true)
+	if before.heapAvailable and after.heapAvailable then
+		addRow("Luau heap (MB)", before.heapKb / 1024, after.heapKb / 1024, true, 2)
+	end
+
+	local improved, regressed = 0, 0
+	for _, row in out.rows do
+		if row.better then
+			improved += 1
+		else
+			regressed += 1
+		end
+	end
+
+	out.summary = {
+		improved = improved,
+		regressed = regressed,
+		verdict = (improved > regressed and "improved")
+			or (regressed > improved and "regressed") or "unchanged",
+		baselineSamples = beforeSamples,
+		afterSamples = afterSamples,
+		durationBefore = before.meta.duration,
+		durationAfter = after.meta.duration,
+		sourceBefore = before.meta.source,
+		sourceAfter = after.meta.source,
+		censusBefore = before.census,
+		censusAfter = after.census,
+	}
+	return out
+end
+
+-- Định dạng thành các dòng để in ra Output / hiện lên GUI.
+function Profile.FormatComparison(comparison)
+	local rows = { { "Chỉ số", "Trước", "Sau", "Thay đổi" } }
+	for _, row in comparison.rows do
+		rows[#rows + 1] = { row.label, row.before, row.after, row.delta }
+	end
+
+	local widths = { 0, 0, 0, 0 }
+	for _, row in rows do
+		for i = 1, 4 do
+			local length = #tostring(row[i] or "")
+			if length > widths[i] then
+				widths[i] = length
+			end
+		end
+	end
+
+	local lines = {}
+	if comparison.valid then
+		lines[#lines + 1] = ("Kết luận: %s (cải thiện %d/%d chỉ số)")
+			:format(comparison.summary.verdict, comparison.summary.improved, #comparison.rows)
+	else
+		lines[#lines + 1] = "Không kết luận được: " .. tostring(comparison.reason)
+	end
+
+	for _, row in rows do
+		local line = ""
+		for i = 1, 4 do
+			local cell = tostring(row[i] or "")
+			line ..= cell .. string.rep(" ", widths[i] - #cell + 2)
+		end
+		lines[#lines + 1] = line
+	end
+
+	if comparison.valid then
+		lines[#lines + 1] = ("Số mẫu: trước=%d (%.1fs, %s) · sau=%d (%.1fs, %s)")
+			:format(comparison.summary.baselineSamples, comparison.summary.durationBefore,
+				tostring(comparison.summary.sourceBefore),
+				comparison.summary.afterSamples, comparison.summary.durationAfter,
+				tostring(comparison.summary.sourceAfter))
+	end
+	return lines
+end
+
+--[[
+	Chi phí do CHÍNH hệ thống tối ưu tạo ra (RES-004).
+	Đây là chỉ số bắt buộc phải có: một công cụ chống lag mà tự gây lag
+	thì vô nghĩa.
+]]
+function Profile.SelfCost()
+	local scheduler = Client_Scheduler.Stats()
+	return {
+		frameCostMs = scheduler.lastFrameCostMs,
+		frameBudgetMs = scheduler.frameBudgetMs,
+		overruns = scheduler.overruns,
+		tasks = scheduler.tasks,
+		executions = scheduler.executions,
+		connections = scheduler.connections + Client_Registry.ConnectionCount(),
+		longFrames = Profile.longFrames,
+		longFrameThresholdMs = Profile.longFrameThresholdMs,
+		worstFrameMs = Profile.worstFrameMs,
+	}
+end
+
+function Profile.Reset()
+	Profile.longFrames = 0
+	Profile.worstFrameMs = 0
+	Profile.last = nil
+	Profile.live = nil
+end
+
+return Profile
+end,
+	["Client/Core/Registry"] = function()
+--[[ ===== RALO.METHODS:BEGIN =====
+	Các phương pháp được TRIỂN KHAI TRONG TỆP NÀY (khớp với Shared/Methods.luau):
+	  ASSET-003, EVT-002, EVT-006, LEAK-001,
+	  LEAK-002, LEAK-003, LEAK-005, QUERY-002,
+	  RES-002, RES-003, SAFE-007
+	===== RALO.METHODS:END ===== --]]
+
+--[[
+	Client/Core/Registry.luau
+	===== RALO.METHODS:LEAK-001, LEAK-002, LEAK-003, LEAK-005, RES-003, CPU-002 =====
+
+	Sổ đăng ký TRUNG TÂM cho mọi thứ hệ thống tạo ra hoặc kết nối tới.
+
+	Nguyên nhân lag mà nó xử lý:
+	  * Connection không Disconnect -> callback vẫn chạy sau khi đối tượng
+	    đã bị huỷ => rò rỉ CPU tăng dần theo thời gian chơi.
+	  * Instance do script tạo ra không ai giữ tham chiếu -> không dọn được.
+	  * `FindFirstChild` lặp lại nhiều lần cho cùng một đối tượng -> tra cứu
+	    cây instance tốn chi phí một cách vô ích.
+
+	Cách xử lý:
+	  * Mọi Connect đi qua Registry.Connect -> có handle, có DisconnectAll().
+	  * Mọi Instance tạo ra đi qua Registry.Own -> có Release/ReleaseAll().
+	  * Cache FindFirstChild theo (parent, name) và TỰ HUỶ cache khi đối
+	    tượng bị huỷ (nghe AncestryChanged) -> cache không bao giờ trỏ vào
+	    instance đã chết.
+]]
+
+local Shared_Log = __RALO_REQUIRE("Shared/Log")
+local Client_Guard = __RALO_REQUIRE("Client/Core/Guard")
+
+local SCOPE = "Registry"
+
+local Registry = {}
+
+Registry.connections = {}     -- id -> { connection, signalName, owner, alive }
+Registry.owned = {}           -- id -> { instance, className, owner }
+Registry.cache = {}           -- key -> instance
+Registry.watchers = {}        -- id -> connection theo dõi AncestryChanged
+Registry.autoDisconnect = true
+
+local nextId = 0
+local function newId()
+	nextId += 1
+	return nextId
+end
+
+--[[
+	Kết nối có quản lý.
+	Trả về handle { Disconnect = fn, Connected = bool, id }
+	Nếu signal hoặc handler sai -> trả về nil và ghi log, không throw.
+]]
+function Registry.Connect(signal, handler, owner)
+	if signal == nil or type(handler) ~= "function" then
+		Shared_Log.Warn(SCOPE, "Connect cần signal và handler function")
+		return nil
+	end
+
+	local connection
+	local ok, result = Client_Guard.Run(SCOPE .. ":Connect", function()
+		return signal:Connect(handler)
+	end)
+	if not ok or result == nil then
+		return nil
+	end
+	connection = result
+
+	local id = newId()
+	local handle = { id = id, Connected = true, owner = owner or "anon" }
+
+	function handle:Disconnect()
+		local entry = Registry.connections[self.id]
+		if entry == nil then
+			return false
+		end
+		local okDisconnect = Client_Guard.Run(SCOPE .. ":Disconnect", function()
+			entry.connection:Disconnect()
+		end)
+		Registry.connections[self.id] = nil
+		self.Connected = false
+		return okDisconnect
+	end
+	handle.Disconnect_ = handle.Disconnect
+
+	Registry.connections[id] = {
+		connection = connection,
+		handle = handle,
+		owner = handle.owner,
+	}
+	return handle
+end
+
+--[[
+	Kết nối MỘT LẦN rồi tự ngắt (LEAK-003).
+	Dùng cho các tín hiệu chỉ cần phản ứng lần đầu.
+]]
+function Registry.ConnectOnce(signal, handler, owner)
+	local handle
+	handle = Registry.Connect(signal, function(...)
+		if handle ~= nil then
+			handle:Disconnect()
+		end
+		return handler(...)
+	end, owner)
+	return handle
+end
+
+--[[
+	Theo dõi một instance: khi nó rời khỏi cây (bị Destroy) thì tự ngắt
+	mọi connection và xoá cache liên quan (LEAK-002).
+]]
+function Registry.Watch(instance, owner)
+	if not Client_Guard.Alive(instance) then
+		return nil
+	end
+	local ok, signal = Client_Guard.Run(SCOPE .. ":Watch", function()
+		return instance:GetPropertyChangedSignal("Parent")
+	end)
+	if not ok or signal == nil then
+		return nil
+	end
+
+	local id = newId()
+	local conn = Registry.Connect(signal, function()
+		-- Parent đổi -> kiểm tra còn trong cây không
+		if not Client_Guard.InTree(instance) then
+			Registry.DropInstance(instance)
+			local entry = Registry.watchers[id]
+			if entry ~= nil and entry.handle ~= nil then
+				entry.handle:Disconnect()
+			end
+			Registry.watchers[id] = nil
+		end
+	end, owner or "watch")
+
+	Registry.watchers[id] = { handle = conn, instance = instance }
+	return id
+end
+
+-- Đăng ký instance do hệ thống tạo ra.
+function Registry.Own(instance, owner)
+	if not Client_Guard.Alive(instance) then
+		return nil
+	end
+	local id = newId()
+	Registry.owned[id] = {
+		instance = instance,
+		className = instance.ClassName,
+		owner = owner or "anon",
+	}
+	return id
+end
+
+function Registry.Release(id)
+	local entry = Registry.owned[id]
+	if entry == nil then
+		return false
+	end
+	Registry.owned[id] = nil
+	-- CHỈ huỷ thứ hệ thống tạo ra, không đụng instance của game
+	local ok = Client_Guard.Run(SCOPE .. ":Release", function()
+		entry.instance:Destroy()
+	end)
+	return ok
+end
+
+-- Xoá cache/handle trỏ tới một instance đã chết.
+function Registry.DropInstance(instance)
+	for key, cached in pairs(Registry.cache) do
+		if cached == instance then
+			Registry.cache[key] = nil
+		end
+	end
+end
+
+--[[
+	FindFirstChild CÓ CACHE và tự vô hiệu khi đối tượng bị huỷ.
+	Trả về: instance hoặc nil.
+]]
+function Registry.Find(parent, name, className)
+	if parent == nil or name == nil then
+		return nil
+	end
+	local key = tostring(parent) .. "/" .. tostring(name) .. "/" .. tostring(className or "")
+	local cached = Registry.cache[key]
+	if cached ~= nil then
+		-- Dùng InTree chứ không phải Alive: instance bị gỡ khỏi cây thì
+		-- FindFirstChild không còn trả về nó, nên cache phải vô hiệu.
+		if Client_Guard.InTree(cached) then
+			return cached
+		end
+		Registry.cache[key] = nil
+	end
+
+	local ok, found = Client_Guard.Run(SCOPE .. ":Find", function()
+		if className ~= nil then
+			return parent:FindFirstChildOfClass(className)
+		end
+		return parent:FindFirstChild(name)
+	end)
+	if ok and found ~= nil then
+		Registry.cache[key] = found
+		return found
+	end
+	return nil
+end
+
+function Registry.ConnectionCount()
+	local n = 0
+	for _ in pairs(Registry.connections) do
+		n += 1
+	end
+	return n
+end
+
+function Registry.OwnedCount()
+	local n = 0
+	for _ in pairs(Registry.owned) do
+		n += 1
+	end
+	return n
+end
+
+function Registry.CacheCount()
+	local n = 0
+	for _ in pairs(Registry.cache) do
+		n += 1
+	end
+	return n
+end
+
+function Registry.Stats()
+	return {
+		connections = Registry.ConnectionCount(),
+		owned = Registry.OwnedCount(),
+		cacheEntries = Registry.CacheCount(),
+		watchers = (function()
+			local n = 0
+			for _ in pairs(Registry.watchers) do
+				n += 1
+			end
+			return n
+		end)(),
+	}
+end
+
+-- Ngắt MỌI connection, huỷ MỌI instance do hệ thống tạo, xoá cache.
+function Registry.Shutdown()
+	local disconnected = 0
+	for id, entry in pairs(Registry.connections) do
+		if entry.handle ~= nil then
+			entry.handle:Disconnect()
+			disconnected += 1
+		end
+		Registry.connections[id] = nil
+	end
+
+	local released = 0
+	for id, entry in pairs(Registry.owned) do
+		if Registry.Release(id) then
+			released += 1
+		end
+	end
+
+	for id, entry in pairs(Registry.watchers) do
+		if entry.handle ~= nil then
+			entry.handle:Disconnect()
+		end
+		Registry.watchers[id] = nil
+	end
+
+	table.clear(Registry.cache)
+	Shared_Log.Info(SCOPE, ("đã ngắt %d connection, huỷ %d instance do hệ thống tạo")
+		:format(disconnected, released))
+	return disconnected, released
+end
+
+function Registry.Reset()
+	Registry.Shutdown()
+	nextId = 0
+end
+
+return Registry
+end,
+	["Client/Core/Restore"] = function()
+--[[ ===== RALO.METHODS:BEGIN =====
+	Các phương pháp được TRIỂN KHAI TRONG TỆP NÀY (khớp với Shared/Methods.luau):
+	  RESTORE-001, RESTORE-002, RESTORE-003, RESTORE-004,
+	  SAFE-005
+	===== RALO.METHODS:END ===== --]]
+
+--[[
+	Core/Restore.luau
+	Nhật ký "trước khi đổi" để có thể HOÀN TÁC từng property.
+	Mỗi lần Safe.Set thành công với restore = true, ta ghi lại giá trị cũ.
+
+	Đây là lý do script KHÔNG xoá instance: mọi thứ đều đảo ngược được.
+]]
+
+local Client_Guard = __RALO_REQUIRE("Client/Core/Guard")
+
+local Restore = {}
+
+Restore.entries = {}     -- { { instance, property, oldValue, stepId } }
+
+--[[
+	Ghi lại giá trị cũ TRƯỚC khi đổi.
+	newValue (tuỳ chọn) là giá trị script SẼ đặt — cần để khi hoàn tác,
+	Guard.Change có thể kiểm tra "giá trị hiện tại vẫn là cái ta đã đặt chứ?"
+	và từ chối ghi đè nếu game/người dùng đã đổi nó (REC-002).
+]]
+function Restore.Record(instance, property, oldValue, stepId, newValue)
+	Restore.entries[#Restore.entries + 1] = {
+		instance = instance,
+		property = property,
+		oldValue = oldValue,
+		stepId = stepId,
+		newValue = newValue,
+	}
+	return #Restore.entries
+end
+
+function Restore.Count(): number
+	return #Restore.entries
+end
+
+function Restore.CountByStep(stepId: string): number
+	local n = 0
+	for _, entry in Restore.entries do
+		if entry.stepId == stepId then n += 1 end
+	end
+	return n
+end
+
+--[[
+	Quên mọi bản ghi của một instance (RESTORE-004).
+
+	Dùng khi instance đã bị huỷ: giữ tham chiếu tới nó vừa rò rỉ bộ nhớ
+	vừa gây lỗi khi hoàn tác. Cull gọi hàm này mỗi lần khôi phục xong.
+	Trả về số bản ghi đã xoá.
+]]
+function Restore.Forget(instance)
+	if instance == nil then
+		return 0
+	end
+	local removed = 0
+	for i = #Restore.entries, 1, -1 do
+		if Restore.entries[i].instance == instance then
+			table.remove(Restore.entries, i)
+			removed += 1
+		end
+	end
+	return removed
+end
+
+--[[
+	Hoàn tác theo thứ tự NGƯỢC (cái đổi sau thì khôi phục trước).
+
+	setter: hàm ghi property, dạng (instance, property, value, opts) -> boolean.
+	NẾU KHÔNG TRUYỀN thì mặc định dùng Guard.Change — đây là đường an toàn
+	nhất vì Guard.Change có stale-guard (không ghi đè thay đổi mới của game).
+	Trước đây hàm này BẮT BUỘC có setter, nên Pipeline.Restore() gọi
+	Restore.All() không tham số sẽ sập. Đã sửa.
+
+	Trả về: số property khôi phục thành công, số lần thất bại.
+]]
+function Restore.All(setter)
+	local write = setter
+	if write == nil then
+		write = function(instance, property, value, opts)
+			local status = Client_Guard.Change(instance, property, value, opts)
+			return status == "applied" or status == "unchanged"
+		end
+	end
+
+	local restored, failed = 0, 0
+	for i = #Restore.entries, 1, -1 do
+		local entry = Restore.entries[i]
+		local ok = write(entry.instance, entry.property, entry.oldValue, {
+			scope = "Restore:" .. tostring(entry.stepId),
+			-- expect = giá trị script đã đặt; nếu game đã đổi thì Guard trả
+			-- "stale" và KHÔNG ghi đè (REC-002).
+			expect = entry.newValue,
+		})
+		if ok then
+			restored += 1
+			table.remove(Restore.entries, i)
+		else
+			failed += 1
+		end
+	end
+	return restored, failed
+end
+
+function Restore.Reset()
+	table.clear(Restore.entries)
+end
+
+return Restore
+end,
+	["Client/Core/Runner"] = function()
+--[[ ===== RALO.METHODS:BEGIN =====
+	Các phương pháp được TRIỂN KHAI TRONG TỆP NÀY (khớp với Shared/Methods.luau):
+	  REC-003
+	===== RALO.METHODS:END ===== --]]
+
+--[[
+	Core/Runner.luau
+	Thực thi kế hoạch. Mỗi bước:
+	  1. báo trạng thái RUNNING cho UI,
+	  2. gọi handler thật,
+	  3. đọc KẾT QUẢ TRẢ VỀ của handler (không đoán),
+	  4. ghi applied / skipped / failed + detail.
+
+	Sai sót ở một bước KHÔNG làm sập cả pipeline: pcall bao quanh, bước đó
+	đánh dấu failed và các bước sau vẫn chạy.
+]]
+
+local Util_Types = __RALO_REQUIRE("Shared/Types")
+local Util_Log = __RALO_REQUIRE("Shared/Log")
+
+local SCOPE = "Runner"
+
+local Runner = {}
+
+--[[
+	options = {
+		onStep  = function(step, index, total)  -- hook tiến trình cho UI
+		onLog   = function(level, stepId, message)
+		delayBetween = số giây nghỉ giữa các bước (mặc định 0)
+		wait    = function(seconds)
+	}
+]]
+function Runner.Execute(plan: any, options: any)
+	options = options or {}
+	local onStep = options.onStep or function() end
+	local results = {}
+
+	for index, step in plan.steps do
+		step.status = Util_Types.STATUS_RUNNING
+		onStep(step, index, plan.total)
+
+		local handler = nil
+		if not step.available then
+			step.status = Util_Types.STATUS_SKIPPED
+			step.detail = step.reason or "không khả dụng"
+			Util_Log.Info(SCOPE, ("BỎ QUA [%s]: %s"):format(step.id, tostring(step.detail)))
+		else
+			handler = step.module and step.module[step.handler]
+			if type(handler) ~= "function" then
+				step.status = Util_Types.STATUS_FAILED
+				step.detail = ("thiếu handler %s"):format(tostring(step.handler))
+				Util_Log.Error(SCOPE, ("LỖI [%s]: %s"):format(step.id, step.detail))
+				handler = nil
+			end
+		end
+
+		if handler ~= nil then
+			local ok, payload = pcall(handler, step.module, step, plan.profile)
+			if not ok then
+				step.status = Util_Types.STATUS_FAILED
+				step.detail = ("handler throw: %s"):format(tostring(payload))
+				Util_Log.Error(SCOPE, ("LỖI [%s]: %s"):format(step.id, step.detail))
+			else
+				payload = payload or {}
+				step.changes = payload.changes or 0
+				step.detail = payload.detail or ""
+				step.restored = payload.restoredValues or 0
+				step.restorable = payload.restorable ~= false and step.restorable
+
+				if step.changes > 0 then
+					step.status = Util_Types.STATUS_APPLIED
+				else
+					step.status = Util_Types.STATUS_SKIPPED
+					if step.detail == "" then
+						step.detail = "không có đối tượng nào cần thay đổi"
+					end
+				end
+				Util_Log.Info(SCOPE, ("%s [%s]: %d thay đổi — %s")
+					:format(step.status == Util_Types.STATUS_APPLIED and "ÁP DỤNG" or "BỎ QUA",
+						step.id, step.changes, step.detail))
+			end
+		end
+
+		results[step.id] = step
+		onStep(step, index, plan.total)
+
+		if options.delayBetween and options.delayBetween > 0 and index < plan.total then
+			(options.wait or function() end)(options.delayBetween)
+		end
+	end
+
+	plan.results = results
+	return results
+end
+
+function Runner.Tally(plan: any)
+	local tally = { applied = 0, skipped = 0, failed = 0, changes = 0, total = plan.total }
+	for _, step in plan.steps do
+		if step.status == Util_Types.STATUS_APPLIED then
+			tally.applied += 1
+			tally.changes += step.changes or 0
+		elseif step.status == Util_Types.STATUS_FAILED then
+			tally.failed += 1
+		else
+			tally.skipped += 1
+		end
+	end
+	return tally
+end
+
+return Runner
+end,
+	["Client/Core/Scheduler"] = function()
+--[[ ===== RALO.METHODS:BEGIN =====
+	Các phương pháp được TRIỂN KHAI TRONG TỆP NÀY (khớp với Shared/Methods.luau):
+	  BG-001, BG-002, BG-003, BG-004,
+	  BG-005, BG-006, CPU-001, CPU-009,
+	  EVT-001, FPS-001, FPS-004, HEAVY-005,
+	  LEAK-004, LOOP-001, LOOP-002, LOOP-003,
+	  LOOP-004, LOOP-006, LOOP-008, RAM-004,
+	  RES-001, RES-006, START-001
+	===== RALO.METHODS:END ===== --]]
+
+--[[
+	Client/Core/Scheduler.luau
+	===== RALO.METHODS:LOOP-001, LOOP-004, BG-001, BG-003, BG-004, EVT-001, CPU-009 =====
+
+	Một bộ lập lịch DUY NHẤT cho toàn hệ thống.
+
+	Lý do tồn tại (nguyên nhân lag mà nó xử lý):
+	  * Mỗi module tự mở `RunService.RenderStepped:Connect(...)` => N kết nối,
+	    N lần gọi lại mỗi khung hình, không ai biết tổng chi phí là bao nhiêu.
+	  * Mỗi module tự viết `while true do task.wait(1) ... end` => vô số thread
+	    nền, không huỷ được, rò rỉ khi module bị nạp lại.
+
+	Cách xử lý:
+	  * MỘT kết nối RenderStepped + MỘT thread nền cho mọi tác vụ định kỳ.
+	  * Mỗi tác vụ khai báo: chu kỳ, ngân sách (budget), độ ưu tiên.
+	  * Mỗi khung hình, scheduler chạy lần lượt theo ưu tiên và DỪNG khi
+	    vượt ngân sách thời gian -> chính công cụ tối ưu không thể trở
+	    thành nguồn lag mới.
+	  * Huỷ tác vụ bằng handle, huỷ tất cả bằng Shutdown().
+]]
+
+local Client_Env = __RALO_REQUIRE("Client/Core/Env")
+local Shared_Log = __RALO_REQUIRE("Shared/Log")
+
+local SCOPE = "Scheduler"
+
+local Scheduler = {}
+
+Scheduler.tasks = {}          -- handle -> task
+Scheduler.order = {}          -- danh sách handle theo thứ tự ưu tiên
+Scheduler.frameConnection = nil
+Scheduler.loopThread = nil
+Scheduler.running = false
+Scheduler.frameBudgetMs = 3.0 -- ngân sách mỗi khung hình cho RALO
+Scheduler.lastFrameCostMs = 0
+Scheduler.overruns = 0        -- số khung hình vượt ngân sách
+Scheduler.executions = 0
+Scheduler.errors = 0          -- số lần callback ném lỗi (không được nuốt im lặng)
+Scheduler.lastError = nil
+
+--[[
+	Đồng hồ dùng cho KIỂM TRA NGÂN SÁCH. Mặc định nil -> dùng Client_Env.now().
+
+	Lý do tách ra: trong Roblox, os.clock() là thời gian CPU THẬT nên đo
+	được chi phí thật. Trong harness kiểm thử, os.clock được thay bằng đồng
+	hồ ẢO (để test được logic 30 giây mà không chờ thật), nên nó không phản
+	ánh chi phí CPU. Test cần bơm được một đồng hồ giả để kiểm chứng LOGIC
+	cắt ngân sách; mã chạy thật vẫn dùng Client_Env.now().
+]]
+Scheduler.clockForBudget = nil
+
+local function budgetNow()
+	if Scheduler.clockForBudget ~= nil then
+		return Scheduler.clockForBudget()
+	end
+	return Client_Env.now()
+end
+
+local nextHandle = 0
+
+local function reindex()
+	table.clear(Scheduler.order)
+	for handle, task in pairs(Scheduler.tasks) do
+		Scheduler.order[#Scheduler.order + 1] = handle
+		_ = task
+	end
+	-- Ưu tiên cao chạy trước; cùng ưu tiên thì theo chu kỳ ngắn trước
+	table.sort(Scheduler.order, function(a, b)
+		local ta, tb = Scheduler.tasks[a], Scheduler.tasks[b]
+		if ta.priority ~= tb.priority then
+			return ta.priority > tb.priority
+		end
+		return ta.interval < tb.interval
+	end)
+end
+
+--[[
+	BG-006: đồng bộ connection với số task.
+	Không còn task nào thì NGẮT kết nối Heartbeat — một connection chạy
+	không vẫn tốn một lời gọi mỗi khung hình. Có task mới thì nối lại.
+]]
+local function syncConnection()
+	local taskCount = Scheduler.TaskCount()
+	if taskCount == 0 then
+		if Scheduler.frameConnection ~= nil then
+			pcall(function()
+				Scheduler.frameConnection:Disconnect()
+			end)
+			Scheduler.frameConnection = nil
+		end
+		Scheduler.running = false
+		return
+	end
+	if Scheduler.frameConnection == nil then
+		Scheduler.running = false          -- buộc Start() nối lại
+		Scheduler.Start()
+	end
+end
+
+--[[
+	Đăng ký tác vụ định kỳ.
+	spec = {
+		name      = "tên để log",
+		interval  = giây giữa hai lần chạy (0 = mỗi khung hình),
+		priority  = số càng lớn càng chạy trước (mặc định 0),
+		callback  = function(dt, now) -> ()
+		maxCalls  = giới hạn số lần chạy (nil = vô hạn)
+	}
+	Trả về handle { cancel = function() end, name, calls }
+]]
+function Scheduler.Schedule(spec)
+	if type(spec) ~= "table" or type(spec.callback) ~= "function" then
+		Shared_Log.Warn(SCOPE, "Schedule cần spec.callback là function")
+		return nil
+	end
+
+	nextHandle += 1
+	local handle = {
+		id = nextHandle,
+		name = spec.name or ("task#" .. nextHandle),
+		calls = 0,
+		cancelled = false,
+	}
+	function handle:Cancel()
+		if self.cancelled then
+			return false
+		end
+		self.cancelled = true
+		Scheduler.tasks[self.id] = nil
+		reindex()
+		syncConnection()
+		return true
+	end
+	-- Thống nhất interface với handle của Registry: cả hai đều có
+	-- :Cancel() và :Disconnect(). Nếu không, code dọn dẹp gọi
+	-- handle:Disconnect() trên handle Scheduler sẽ gọi vào nil và
+	-- (nếu bọc pcall) IM LẶNG bỏ qua -> task rò rỉ vĩnh viễn.
+	-- Đây là lỗi thật đã được gui.test.js phát hiện.
+	handle.cancel = handle.Cancel
+	handle.Disconnect = handle.Cancel
+	handle.disconnect = handle.Cancel
+
+	Scheduler.tasks[handle.id] = {
+		handle = handle,
+		interval = math.max(0, tonumber(spec.interval) or 0),
+		priority = tonumber(spec.priority) or 0,
+		callback = spec.callback,
+		maxCalls = spec.maxCalls,
+		nextDue = 0,
+	}
+	reindex()
+	syncConnection()
+	return handle
+end
+
+-- Tác vụ chạy đúng một lần vào khung hình kế tiếp.
+function Scheduler.Defer(name, callback)
+	local handle
+	handle = Scheduler.Schedule({
+		name = name,
+		interval = 0,
+		priority = 100,
+		maxCalls = 1,
+		callback = function()
+			callback()
+			if handle then
+				handle:Cancel()
+			end
+		end,
+	})
+	return handle
+end
+
+function Scheduler.Start()
+	if Scheduler.running then
+		return true
+	end
+	local runService = Client_Env.GetService("RunService")
+	if runService == nil or runService.Heartbeat == nil then
+		Shared_Log.Warn(SCOPE, "không có RunService.Heartbeat -> scheduler không chạy")
+		return false
+	end
+
+	Scheduler.running = true
+
+	-- MỘT kết nối duy nhất cho toàn hệ thống (EVT-001, LOOP-001)
+	Scheduler.frameConnection = runService.Heartbeat:Connect(function(deltaTime)
+		Scheduler.Tick(deltaTime or 0)
+	end)
+
+	return true
+end
+
+--[[
+	Một nhịp của scheduler. `nowSeconds` cho phép test bơm thời gian ảo.
+	Trả về số tác vụ đã chạy trong nhịp này.
+]]
+function Scheduler.Tick(deltaTime, nowSeconds)
+	local now = nowSeconds or Client_Env.now()
+	local startedAt = budgetNow()
+	local executed = 0
+
+	-- Sao chép thứ tự để callback có quyền Cancel ngay trong lúc lặp
+	local orderSnapshot = {}
+	for index, handleId in Scheduler.order do
+		orderSnapshot[index] = handleId
+	end
+
+	for _, handleId in orderSnapshot do
+		local task = Scheduler.tasks[handleId]
+		if task ~= nil and not task.handle.cancelled then
+			if now >= task.nextDue then
+				local ok, err = pcall(task.callback, deltaTime, now)
+				if not ok then
+					-- Lỗi được ĐẾM và GHI LOG, không bao giờ bị nuốt im lặng
+					Scheduler.errors += 1
+					Scheduler.lastError = ("%s: %s"):format(task.handle.name, tostring(err))
+					Shared_Log.Warn(SCOPE, ("tác vụ '%s' lỗi: %s"):format(task.handle.name, tostring(err)))
+				end
+				task.handle.calls += 1
+				executed += 1
+				task.nextDue = now + task.interval
+
+				if task.maxCalls ~= nil and task.handle.calls >= task.maxCalls then
+					task.handle:Cancel()
+				end
+			end
+		end
+
+		-- Vượt ngân sách thì dừng, phần còn lại chờ khung hình sau (CPU-009)
+		local elapsedMs = (budgetNow() - startedAt) * 1000
+		if elapsedMs > Scheduler.frameBudgetMs then
+			Scheduler.overruns += 1
+			break
+		end
+	end
+
+	Scheduler.lastFrameCostMs = (budgetNow() - startedAt) * 1000
+	Scheduler.executions += executed
+	return executed
+end
+
+function Scheduler.TaskCount()
+	local n = 0
+	for _ in pairs(Scheduler.tasks) do
+		n += 1
+	end
+	return n
+end
+
+function Scheduler.Stats()
+	return {
+		tasks = Scheduler.TaskCount(),
+		executions = Scheduler.executions,
+		overruns = Scheduler.overruns,
+		errors = Scheduler.errors,
+		lastError = Scheduler.lastError,
+		lastFrameCostMs = Scheduler.lastFrameCostMs,
+		frameBudgetMs = Scheduler.frameBudgetMs,
+		connections = Scheduler.frameConnection ~= nil and 1 or 0,
+	}
+end
+
+-- Huỷ toàn bộ: ngắt kết nối, xoá tác vụ. Dùng khi tắt hệ thống.
+function Scheduler.Shutdown()
+	if Scheduler.frameConnection ~= nil then
+		pcall(function()
+			Scheduler.frameConnection:Disconnect()
+		end)
+		Scheduler.frameConnection = nil
+	end
+	table.clear(Scheduler.tasks)
+	table.clear(Scheduler.order)
+	Scheduler.running = false
+	Scheduler.loopThread = nil
+	Shared_Log.Info(SCOPE, "đã tắt scheduler và ngắt kết nối khung hình")
+	return true
+end
+
+-- Chỉ dành cho test
+function Scheduler.Reset()
+	Scheduler.Shutdown()
+	Scheduler.executions = 0
+	Scheduler.overruns = 0
+	Scheduler.errors = 0
+	Scheduler.lastError = nil
+	Scheduler.lastFrameCostMs = 0
+	Scheduler.clockForBudget = nil
+	nextHandle = 0
+end
+
+return Scheduler
+end,
+	["Client/Core/Spatial"] = function()
+--[[ ===== RALO.METHODS:BEGIN =====
+	Các phương pháp được TRIỂN KHAI TRONG TỆP NÀY (khớp với Shared/Methods.luau):
+	  DATA-002, NPC-003, QUERY-003
+	===== RALO.METHODS:END ===== --]]
+
+--[[
+	Client/Core/Spatial.luau
+	===== RALO.METHODS:DATA-002, QUERY-003, QUERY-004, CPU-005, NPC-003 =====
+
+	Truy vấn không gian: tìm đối tượng gần mà không quét cả thế giới.
+
+	Nguyên nhân lag mà nó xử lý:
+	  * `Workspace:GetDescendants()` trả về HÀNG CHỤC NGHÌN instance.
+	    Gọi nó mỗi khung hình để tìm "part gần nhất" là một trong những
+	    nguồn lag script phổ biến nhất trong Roblox.
+	  * Quét O(n) cho mỗi truy vấn, trong khi phần lớn truy vấn chỉ quan
+	    tâm một vùng nhỏ quanh người chơi.
+
+	Cách xử lý: lưới băm không gian (spatial hash).
+	  * Chia thế giới thành các ô vuông cạnh `cellSize`.
+	  * Mỗi đối tượng nằm trong đúng một ô -> truy vấn lân cận chỉ duyệt
+	    các ô quanh điểm hỏi, tức O(số đối tượng trong vùng) thay vì O(n).
+
+	GIỚI HẠI: lưới chỉ hữu ích khi vị trí đối tượng ít thay đổi hoặc ta
+	cập nhật lưới theo chu kỳ (không phải mỗi khung hình). Với đối tượng
+	di chuyển nhanh, nên dùng API vật lý của engine thay vì lưới này.
+]]
+
+local Shared_Log = __RALO_REQUIRE("Shared/Log")
+local Client_Guard = __RALO_REQUIRE("Client/Core/Guard")
+
+local SCOPE = "Spatial"
+
+local Spatial = {}
+Spatial.__index = Spatial
+
+function Spatial.New(cellSize)
+	local self = setmetatable({}, Spatial)
+	self.cellSize = math.max(1, tonumber(cellSize) or 64)
+	self.cells = {}            -- key "x,y,z" -> { instance = true, ... }
+	self.entries = {}          -- instance -> { key, position }
+	self.stats = { inserts = 0, queries = 0, candidatesExamined = 0, rebuilds = 0 }
+	return self
+end
+
+local function cellKey(self, position)
+	local size = self.cellSize
+	return ("%d,%d,%d"):format(
+		math.floor(position.X / size),
+		math.floor(position.Y / size),
+		math.floor(position.Z / size)
+	)
+end
+
+function Spatial:Insert(instance, position)
+	if instance == nil or position == nil then
+		return false
+	end
+	-- Nếu đã có thì bỏ vị trí cũ trước (tránh trùng lặp khi đối tượng di chuyển)
+	self:Remove(instance)
+
+	local key = cellKey(self, position)
+	if self.cells[key] == nil then
+		self.cells[key] = {}
+	end
+	self.cells[key][instance] = true
+	self.entries[instance] = { key = key, position = position }
+	self.stats.inserts += 1
+	return true
+end
+
+function Spatial:Remove(instance)
+	local entry = self.entries[instance]
+	if entry == nil then
+		return false
+	end
+	local bucket = self.cells[entry.key]
+	if bucket ~= nil then
+		bucket[instance] = nil
+		if next(bucket) == nil then
+			self.cells[entry.key] = nil
+		end
+	end
+	self.entries[instance] = nil
+	return true
+end
+
+--[[
+	Tìm ứng viên trong bán kính `radius` quanh `origin`.
+	CHỈ trả về ỨNG VIÊN (theo ô lưới) — người gọi vẫn phải tự kiểm tra
+	khoảng cách thật nếu cần chính xác. Đây là điểm quan trọng:
+	lưới băm là bộ LỌC, không phải kết quả cuối.
+]]
+function Spatial:QueryRadius(origin, radius)
+	self.stats.queries += 1
+	if origin == nil then
+		return {}
+	end
+	local r = math.max(0, tonumber(radius) or 0)
+	local size = self.cellSize
+	local reach = math.ceil(r / size)
+
+	local found = {}
+	local cx = math.floor(origin.X / size)
+	local cy = math.floor(origin.Y / size)
+	local cz = math.floor(origin.Z / size)
+
+	for dx = -reach, reach do
+		for dy = -reach, reach do
+			for dz = -reach, reach do
+				local bucket = self.cells[("%d,%d,%d"):format(cx + dx, cy + dy, cz + dz)]
+				if bucket ~= nil then
+					for instance, entry in pairs(bucket) do
+						found[#found + 1] = instance
+						self.stats.candidatesExamined += 1
+						_ = entry
+					end
+				end
+			end
+		end
+	end
+	return found
+end
+
+--[[
+	Tìm ỨNG VIÊN gần nhất, lọc tiếp bằng khoảng cách bình phương (CPU-005).
+	Trả về: instance, khoảng cách (hoặc nil).
+]]
+function Spatial:Nearest(origin, radius)
+	local candidates = self:QueryRadius(origin, radius)
+	local limitSquared = (radius or 0) * (radius or 0)
+	local best, bestDistanceSquared = nil, math.huge
+
+	for _, instance in candidates do
+		local entry = self.entries[instance]
+		if entry ~= nil then
+			local p = entry.position
+			local dx = p.X - origin.X
+			local dy = p.Y - origin.Y
+			local dz = p.Z - origin.Z
+			local d2 = dx * dx + dy * dy + dz * dz
+			if d2 <= limitSquared and d2 < bestDistanceSquared then
+				best = instance
+				bestDistanceSquared = d2
+			end
+		end
+	end
+
+	if best == nil then
+		return nil, nil
+	end
+	return best, math.sqrt(bestDistanceSquared)
+end
+
+function Spatial:Count()
+	local n = 0
+	for _ in pairs(self.entries) do
+		n += 1
+	end
+	return n
+end
+
+function Spatial:CellCount()
+	local n = 0
+	for _ in pairs(self.cells) do
+		n += 1
+	end
+	return n
+end
+
+--[[
+	Dựng lưới từ một danh sách instance có CFrame.
+	Có TRẦN số đối tượng để việc dựng lưới không tự gây khựng hình.
+]]
+function Spatial:Rebuild(instances, maxEntries)
+	self.stats.rebuilds += 1
+	table.clear(self.cells)
+	table.clear(self.entries)
+
+	local limit = math.max(1, math.floor(maxEntries or 500))
+	local inserted = 0
+	for _, instance in instances do
+		if inserted >= limit then
+			Shared_Log.Info(SCOPE, ("chỉ lập lưới cho %d/%d đối tượng (trần)")
+				:format(limit, #instances))
+			break
+		end
+		local ok, position = Client_Guard.Run(SCOPE, function()
+			return instance.CFrame
+		end)
+		if ok and position ~= nil then
+			self:Insert(instance, position.Position or position)
+			inserted += 1
+		end
+	end
+	return inserted
+end
+
+function Spatial:Stats()
+	return {
+		cellSize = self.cellSize,
+		entries = self:Count(),
+		cells = self:CellCount(),
+		inserts = self.stats.inserts,
+		queries = self.stats.queries,
+		candidatesExamined = self.stats.candidatesExamined,
+		rebuilds = self.stats.rebuilds,
+	}
+end
+
+return Spatial
+end,
+	["Client/Optimizations/Effects"] = function()
+--[[ ===== RALO.METHODS:BEGIN =====
+	Các phương pháp được TRIỂN KHAI TRONG TỆP NÀY (khớp với Shared/Methods.luau):
+	  EFFECTS-001, EFFECTS-002
+	===== RALO.METHODS:END ===== --]]
+
+--[[
+	Optimizations/Effects.luau
+	GIẢM CHI PHÍ EFFECT — không xoá effect.
+
+	Sai lầm phổ biến của mấy script "anti lag" là `Destroy()` sạch
+	ParticleEmitter/Beam/Trail. Cách đó phá gameplay (mất hiệu ứng kỹ năng,
+	mất dấu vết đường đạn) và KHÔNG hoàn tác được.
+
+	Cách làm ở đây:
+	  * GIỚI HẠN Rate và ParticleCount về mức trần -> effect vẫn hiện, nhẹ hơn.
+	  * Beam/Trail/Decal mặc định GIỮ NGUYÊN; chỉ tắt khi người dùng bật cờ.
+	  * Mọi giá trị cũ được ghi vào Restore để hoàn tác 100%.
+]]
+
+local Util_Safe = __RALO_REQUIRE("Shared/Safe")
+local Util_Log = __RALO_REQUIRE("Shared/Log")
+local Core_Restore = __RALO_REQUIRE("Client/Core/Restore")
+local Opt_Scan = __RALO_REQUIRE("Client/Optimizations/Scan")
+
+local SCOPE = "Effects"
+
+local Effects = {}
+
+local function change(instance: any, property: string, newValue: any, stepId: string, expect: any)
+	local oldValue, readOk = Util_Safe.Get(instance, property)
+	if not readOk then
+		return false
+	end
+	if oldValue == newValue then
+		return false
+	end
+	local ok = Util_Safe.Set(instance, property, newValue, { scope = SCOPE .. ":" .. stepId, expect = expect })
+	if ok then
+		-- Truyền newValue để khi hoàn tác, Guard.Change biết giá trị script
+		-- đã đặt và TỪ CHỐI ghi đè nếu game đã đổi nó sau đó (REC-002).
+		Core_Restore.Record(instance, property, oldValue, stepId, newValue)
+	end
+	return ok
+end
+
+function Effects.CapParticles(_step: any, profile: any)
+	local rateCap = profile.effects.particleRateCap or 40
+	local countCap = profile.effects.particleMaxCountCap or 120
+
+	local cappedRate, cappedCount, alreadyOk = 0, 0, 0
+
+	local stats = Opt_Scan.Descendants({
+		maxScan = profile.effects.maxInstancesScanned or 3000,
+		yieldEvery = 400,
+		filter = function(instance)
+			return instance.ClassName == "ParticleEmitter"
+		end,
+		onFound = function(instance)
+			local touched = false
+
+			local rate, okRate = Util_Safe.Get(instance, "Rate")
+			if okRate and type(rate) == "number" and rate > rateCap then
+				if change(instance, "Rate", rateCap, "effects.particles", rateCap) then
+					cappedRate += 1
+					touched = true
+				end
+			end
+
+			local count, okCount = Util_Safe.Get(instance, "ParticleCount")
+			-- ParticleCount = -1 nghĩa là "không giới hạn"; ta quy về mức trần.
+			if okCount and type(count) == "number" and (count < 0 or count > countCap) then
+				if change(instance, "ParticleCount", countCap, "effects.particles", countCap) then
+					cappedCount += 1
+					touched = true
+				end
+			end
+
+			if not touched then
+				alreadyOk += 1
+			end
+			return touched
+		end,
+	})
+
+	if stats.error then
+		return { changes = 0, detail = "lỗi khi quét: " .. stats.error, restorable = false }
+	end
+
+	return {
+		changes = cappedRate + cappedCount,
+		detail = ("giới hạn Rate cho %d emitter, ParticleCount cho %d emitter; %d emitter vốn đã nhẹ; đã quét %d (khớp %d%s)")
+			:format(cappedRate, cappedCount, alreadyOk, stats.scanned, stats.matched,
+				stats.truncated and ", có cắt bớt" or ""),
+	}
+end
+
+function Effects.ApplyOptionalEffects(_step: any, profile: any)
+	local doBeams = profile.effects.disableBeams == true
+	local doTrails = profile.effects.disableTrails == true
+	local doDecals = profile.effects.dimDecals == true
+
+	if not doBeams and not doTrails and not doDecals then
+		return {
+			changes = 0,
+			detail = "giữ nguyên Beam/Trail/Decal theo cấu hình mặc định (ưu tiên giữ tính năng)",
+		}
+	end
+
+	local beams, trails, decals = 0, 0, 0
+	local stats = Opt_Scan.Descendants({
+		maxScan = profile.effects.maxInstancesScanned or 3000,
+		yieldEvery = 400,
+		filter = function(instance)
+			local cls = instance.ClassName
+			return (doBeams and cls == "Beam")
+				or (doTrails and cls == "Trail")
+				or (doDecals and (cls == "Decal" or cls == "Texture"))
+		end,
+		onFound = function(instance)
+			local cls = instance.ClassName
+			if cls == "Beam" then
+				if change(instance, "Enabled", false, "effects.optional", false) then
+					beams += 1
+					return true
+				end
+			elseif cls == "Trail" then
+				if change(instance, "Enabled", false, "effects.optional", false) then
+					trails += 1
+					return true
+				end
+			else
+				if change(instance, "Transparency", 1, "effects.optional", 1) then
+					decals += 1
+					return true
+				end
+			end
+			return false
+		end,
+	})
+
+	return {
+		changes = beams + trails + decals,
+		detail = ("tắt %d Beam, %d Trail, làm mờ %d Decal (đã quét %d)")
+			:format(beams, trails, decals, stats.scanned),
+	}
+end
+
+return Effects
+end,
+	["Client/Optimizations/Graphics"] = function()
+--[[ ===== RALO.METHODS:BEGIN =====
+	Các phương pháp được TRIỂN KHAI TRONG TỆP NÀY (khớp với Shared/Methods.luau):
+	  GRAPHICS-001, GRAPHICS-002, GRAPHICS-003
+	===== RALO.METHODS:END ===== --]]
+
+--[[
+	Optimizations/Graphics.luau
+	Giảm tải RENDER phía client. Tất cả đều là property client-writable
+	trong Roblox Luau và đều được hoàn tác được (trừ QualityLevel vốn là
+	cài đặt phiên, vẫn khôi phục được bằng cách ghi lại giá trị cũ).
+
+	KHÔNG có thao tác nào ở đây đụng vào gameplay: không tắt va chạm vật thể
+	chơi được, không xoá model, không tắt âm thanh gameplay.
+]]
+
+local Core_Env = __RALO_REQUIRE("Client/Core/Env")
+local Util_Safe = __RALO_REQUIRE("Shared/Safe")
+local Util_Log = __RALO_REQUIRE("Shared/Log")
+local Core_Restore = __RALO_REQUIRE("Client/Core/Restore")
+local Opt_Scan = __RALO_REQUIRE("Client/Optimizations/Scan")
+
+local SCOPE = "Graphics"
+
+local Graphics = {}
+
+-- Ghi lại giá trị cũ rồi mới đổi; chỉ đếm khi đổi thật sự thành công.
+local function change(instance: any, property: string, newValue: any, stepId: string, expect: any)
+	local oldValue, readOk = Util_Safe.Get(instance, property)
+	if not readOk then
+		return false
+	end
+	if oldValue == newValue then
+		return false                       -- đã ở sẵn trạng thái mong muốn
+	end
+	local ok = Util_Safe.Set(instance, property, newValue, {
+		scope = SCOPE .. ":" .. stepId,
+		expect = expect,
+	})
+	if ok then
+		Core_Restore.Record(instance, property, oldValue, stepId, newValue)
+	end
+	return ok
+end
+
+function Graphics.ApplyQualityLevel(_step: any, profile: any)
+	local lighting = Core_Env.GetService("Lighting")
+	if lighting == nil then
+		return { changes = 0, detail = "không truy cập được Lighting", restorable = false }
+	end
+
+	local target = math.clamp(math.floor(profile.graphics.qualityLevel or 8), 1, 10)
+	local currentQuality, qualityReadable = Util_Safe.Get(lighting, "QualityLevel")
+	-- Không bao giờ nâng đồ họa của máy yếu lên cao hơn mức người dùng đang dùng.
+	if qualityReadable and type(currentQuality) == "number" then
+		target = math.min(target, currentQuality)
+	end
+
+	local changed = 0
+	if change(lighting, "QualityLevel", target, "graphics.quality", target) then
+		changed += 1
+	end
+	-- Chỉ khóa chế độ tự động nếu chủ game chủ động bật tuỳ chọn này.
+	if profile.graphics.lockQualityMode == true
+		and change(lighting, "GraphicsQualityMode", false, "graphics.quality", false) then
+		changed += 1
+	end
+	-- Technology: chỉ đổi khi người dùng chỉ định rõ (mặc định GIỮ NGUYÊN).
+	local tech = profile.graphics.technology
+	if tech ~= nil and change(lighting, "Technology", tech, "graphics.quality", tech) then
+		changed += 1
+	end
+
+	local current = Util_Safe.Get(lighting, "QualityLevel")
+	local modeNote = profile.graphics.lockQualityMode == true
+		and "GraphicsQualityMode=false (đã bật tùy chọn khóa)"
+		or "GraphicsQualityMode giữ nguyên"
+	return {
+		changes = changed,
+		detail = ("QualityLevel -> %s (đang là %s), %s")
+			:format(tostring(target), tostring(current), modeNote),
+	}
+end
+
+function Graphics.ApplyTerrain(_step: any, profile: any)
+	if profile.graphics.applyTerrainDecoration ~= true then
+		return { changes = 0, detail = "mặc định giữ nguyên Terrain.Decoration" }
+	end
+
+	local workspace = Core_Env.GetService("Workspace")
+	if workspace == nil then
+		return { changes = 0, detail = "không truy cập được Workspace", restorable = false }
+	end
+	local terrain, ok = Util_Safe.Get(workspace, "Terrain")
+	if not ok or terrain == nil then
+		return { changes = 0, detail = "không có Terrain", restorable = false }
+	end
+
+	local target = profile.graphics.terrainDecoration == true
+	local changed = 0
+	if change(terrain, "Decoration", target, "graphics.terrain", target) then
+		changed += 1
+	end
+	return {
+		changes = changed,
+		detail = ("Terrain.Decoration -> %s (chi tiết cỏ/đá nhỏ; địa hình vẫn giữ nguyên)")
+			:format(tostring(target)),
+	}
+end
+
+--[[
+	Giảm tầm bóng đổ và tắt CastShadow cho part ở XA camera.
+	Part gần vẫn giữ bóng -> hình ảnh tổng thể gần như không đổi.
+]]
+function Graphics.ApplyShadowBudget(step: any, profile: any)
+	local lighting = Core_Env.GetService("Lighting")
+	local workspace = Core_Env.GetService("Workspace")
+	if lighting == nil or workspace == nil then
+		return { changes = 0, detail = "thiếu Lighting/Workspace", restorable = false }
+	end
+
+	local changed = 0
+	local distance = profile.graphics.shadowDistance or 0
+
+	-- Ghi chú: ta KHÔNG đổi ShadowSoftness / ShadowColor / Ambient — những thứ
+	-- đó làm thay đổi rõ rệt tông màu của game, trái với yêu cầu "giảm nhẹ nhàng".
+	_ = lighting -- lighting được lấy để đảm bảo service tồn tại trước khi quét
+
+	if distance <= 0 then
+		return { changes = changed, detail = "shadowDistance = 0 nên giữ nguyên mọi CastShadow" }
+	end
+
+	local camera, camOk = Util_Safe.Get(workspace, "CurrentCamera")
+	if not camOk or camera == nil then
+		return { changes = changed, detail = "không có CurrentCamera -> không đo được khoảng cách" }
+	end
+	local camPos, posOk = Util_Safe.Get(camera, "CFrame")
+	if not posOk or camPos == nil then
+		return { changes = changed, detail = "không đọc được CFrame camera" }
+	end
+
+	local isRenderable = { Part = true, MeshPart = true, UnionOperation = true }
+	local stats = Opt_Scan.Descendants({
+		maxScan = profile.graphics.maxShadowTargets or profile.effects.maxInstancesScanned or 3000,
+		yieldEvery = 400,
+		root = workspace,
+		filter = function(instance)
+			return isRenderable[instance.ClassName] == true
+		end,
+		onFound = function(instance)
+			local casting, okCast = Util_Safe.Get(instance, "CastShadow")
+			if not okCast or casting ~= true then
+				return false
+			end
+			local cf, okCf = Util_Safe.Get(instance, "CFrame")
+			if not okCf or cf == nil then
+				return false
+			end
+			local dist = (cf.Position - camPos.Position).Magnitude
+			if dist < distance then
+				return false
+			end
+			return change(instance, "CastShadow", false, step.id, false)
+		end,
+	})
+
+	if stats.error then
+		return { changes = changed, detail = "lỗi khi quét: " .. stats.error, restorable = false }
+	end
+
+	changed += stats.changed
+	return {
+		changes = changed,
+		detail = ("tắt CastShadow cho %d part xa hơn %d stud (đã quét %d, khớp %d%s)")
+			:format(stats.changed, distance, stats.scanned, stats.matched,
+				stats.truncated and ", có cắt bớt" or ""),
+	}
+end
+
+function Graphics.ApplyCharacter(_step: any, profile: any)
+	local players = Core_Env.GetService("Players")
+	if players == nil then
+		return { changes = 0, detail = "không truy cập được Players", restorable = false }
+	end
+	local player, ok = Util_Safe.Get(players, "LocalPlayer")
+	if not ok or player == nil then
+		return { changes = 0, detail = "không có LocalPlayer", restorable = false }
+	end
+	local character = player.Character
+	if character == nil then
+		return { changes = 0, detail = "nhân vật chưa spawn" }
+	end
+
+	local changed = 0
+	local notes = {}
+
+	if profile.character.disableShadows then
+		local descendants, dOk = pcall(function() return character:GetDescendants() end)
+		if dOk then
+			for _, instance in descendants do
+				local cls = instance.ClassName
+				if cls == "Part" or cls == "MeshPart" or cls == "Accessory" then
+					if change(instance, "CastShadow", false, "graphics.character", false) then
+						changed += 1
+					end
+				end
+			end
+			notes[#notes + 1] = "tắt bóng nhân vật"
+		end
+	end
+
+	if profile.character.disableAutoScaling then
+		local humanoid = character:FindFirstChildOfClass("Humanoid")
+		if humanoid ~= nil then
+			if change(humanoid, "AutomaticScalingEnabled", false, "graphics.character", false) then
+				changed += 1
+				notes[#notes + 1] = "tắt auto-scaling"
+			end
+		end
+	end
+
+	if #notes == 0 then
+		return { changes = 0, detail = "không có gì để đổi trên nhân vật" }
+	end
+	return {
+		changes = changed,
+		detail = table.concat(notes, ", ") .. " (nhân vật và animation giữ nguyên)",
+	}
+end
+
+--[[
+	GHI CHÚ VỀ GIỚI HẠN FPS (FPS-005, trạng thái E trong danh mục):
+
+	Phiên bản trước của dự án có hàm Graphics.ApplyFpsCap dùng
+	`setrbxsetting("Render", "FrameRateMax", ...)`. Hàm đó ĐÃ BỊ XOÁ vì:
+
+	  * `setrbxsetting` là API của executor, không tồn tại trong Roblox
+	    Studio hay client chính thức. Dùng nó nghĩa là dự án nhắm tới
+	    môi trường exploit — trái với phạm vi đã thống nhất (Studio +
+	    game do bạn sở hữu, không executor).
+	  * Không có API công khai nào cho phép LocalScript đổi FrameRateMax.
+
+	Nếu bạn muốn giới hạn FPS, hãy tự chỉnh trong
+	Settings -> Rendering của client Roblox. Script không làm thay được,
+	và dự án không giả vờ làm được.
+]]
+
+return Graphics
+end,
+	["Client/Optimizations/Memory"] = function()
+--[[
+	Optimizations/Memory.luau
+	Dọn bộ nhớ Luau và gom instance "mồ côi".
+
+	Nguyên tắc KHÔNG XOÁ: instance mồ côi (không còn parent, không phải
+	con của DataModel) được CHUYỂN về một folder lưu trữ trong
+	CorePackages/ServerStorage thay vì Destroy(). Người dùng vẫn hoàn tác được
+	bằng cách kéo chúng ra khỏi folder.
+
+	GC: dùng collectgarbage("step", n) theo chu kỳ — rẻ và không gây khựng
+	như collectgarbage("collect") toàn phần.
+]]
+
+local Core_Env = __RALO_REQUIRE("Client/Core/Env")
+local Util_Safe = __RALO_REQUIRE("Shared/Safe")
+local Util_Log = __RALO_REQUIRE("Shared/Log")
+
+local SCOPE = "Memory"
+
+local Memory = {}
+
+Memory.gcHandle = nil
+Memory.archiveFolder = nil
+Memory.archived = 0
+
+local function ensureArchiveFolder()
+	if Memory.archiveFolder ~= nil then
+		return Memory.archiveFolder
+	end
+	local game = Core_Env.game
+	if game == nil then
+		return nil
+	end
+	local holder, ok = Util_Safe.Get(game, "CorePackages")
+	if not ok or holder == nil then
+		holder = Util_Safe.Get(game, "ServerStorage")
+	end
+	if holder == nil then
+		return nil
+	end
+
+	local folder = holder:FindFirstChild("RALO_Archive")
+	if folder == nil then
+		local okNew, created = pcall(function()
+			local instance = Instance.new("Folder")
+			instance.Name = "RALO_Archive"
+			instance.Parent = holder
+			return instance
+		end)
+		if not okNew then
+			Util_Log.Warn(SCOPE, "không tạo được folder lưu trữ:", tostring(created))
+			return nil
+		end
+		folder = created
+	end
+	Memory.archiveFolder = folder
+	return folder
+end
+
+--[[
+	Gom instance mồ côi. "Mồ côi" = instance có Parent == nil nhưng vẫn còn
+	tham chiếu sống (thường do script tạo ra rồi bỏ quên). Ta chỉ xử lý
+	những gì tìm được qua GetDescendants của các service chứa chúng,
+	nên mặc định bước này chỉ báo cáo và hầu như không đổi gì —
+	đúng bản chất, không phóng đại.
+]]
+function Memory.SweepOrphans(_step: any, profile: any)
+	if not profile.memory.archiveOrphans then
+		return { changes = 0, detail = "archiveOrphans = false", restorable = false }
+	end
+
+	local folder = ensureArchiveFolder()
+	if folder == nil then
+		return {
+			changes = 0,
+			detail = "không tạo được folder lưu trữ -> bỏ qua (không xoá gì cả)",
+			restorable = false,
+		}
+	end
+
+	-- Chỉ quét những container "rác" kinh điển: workspace.Debris,
+	-- ReplicatedStorage/ServerStorage rỗng, và các instance tên trùng mẫu tạm.
+	local game = Core_Env.game
+	local moved = 0
+	if game ~= nil then
+		local workspace = Core_Env.GetService("Workspace")
+		local debris = workspace and workspace:FindFirstChild("Debris")
+		if debris ~= nil then
+			local ok, children = pcall(function() return debris:GetChildren() end)
+			if ok then
+				for _, child in children do
+					local okMove = pcall(function() child.Parent = folder end)
+					if okMove then
+						moved += 1
+					end
+				end
+			end
+		end
+	end
+
+	Memory.archived += moved
+	return {
+		changes = moved,
+		detail = moved > 0
+			and ("chuyển %d instance từ workspace.Debris vào CorePackages/RALO_Archive (không xoá)")
+				:format(moved)
+			or "không tìm thấy instance mồ côi trong các container rác — không có gì để dọn",
+		restorable = false,
+	}
+end
+
+--[[
+	Bật vòng dọn GC theo chu kỳ. Trả về handle để StopGcLoop huỷ được.
+]]
+function Memory.StartGcLoop(_step: any, profile: any)
+	local every = profile.memory.gcEverySeconds or 0
+	if every <= 0 then
+		return { changes = 0, detail = "gcEverySeconds = 0 nên không bật", restorable = false }
+	end
+	if collectgarbage == nil then
+		return { changes = 0, detail = "runtime không có collectgarbage", restorable = false }
+	end
+
+	-- Nếu đã có vòng chạy sẵn thì không tạo vòng thứ hai.
+	if Memory.gcHandle ~= nil then
+		return { changes = 0, detail = "vòng GC đã chạy sẵn", restorable = false }
+	end
+
+	local stepKb = profile.memory.collectStepKb or 200
+	local runs = 0
+	local thread = Core_Env.task.spawn(function()
+		while Memory.gcHandle ~= nil do
+			Core_Env.task.wait(every)
+			if Memory.gcHandle == nil then break end
+			local ok, err = pcall(collectgarbage, "step", stepKb)
+			if ok then
+				runs += 1
+			else
+				Util_Log.Warn(SCOPE, "collectgarbage step lỗi:", tostring(err))
+			end
+		end
+	end)
+
+	Memory.gcHandle = { thread = thread, runs = function() return runs end, every = every }
+	return {
+		changes = 1,
+		detail = ("bật collectgarbage(\"step\", %d) mỗi %ds"):format(stepKb, every),
+		restorable = false,
+	}
+end
+
+function Memory.StopGcLoop()
+	local handle = Memory.gcHandle
+	Memory.gcHandle = nil
+	if handle and handle.thread and Core_Env.task.cancel then
+		pcall(Core_Env.task.cancel, handle.thread)
+		Util_Log.Info(SCOPE, "đã tắt vòng GC")
+		return true
+	end
+	return false
+end
+
+return Memory
+end,
+	["Client/Optimizations/Physics"] = function()
+--[[ ===== RALO.METHODS:BEGIN =====
+	Các phương pháp được TRIỂN KHAI TRONG TỆP NÀY (khớp với Shared/Methods.luau):
+	  PHYSICS-001, PHYSICS-002
+	===== RALO.METHODS:END ===== --]]
+
+--[[
+	Optimizations/Physics.luau
+	Giảm chi phí vật lý phía client.
+
+	LƯU Ý TRUNG THỰC: khác với các bước đồ hoạ, nhóm này CÓ đánh đổi cảm giác
+	chơi — tắt làm mượt nội suy (InterpolationThrottling) giúp tiết kiệm CPU
+	đáng kể trên máy yếu nhưng chuyển động vật thể từ xa sẽ "giật" hơn.
+	Vì vậy `physics.enabled` MẶC ĐỊNH = false và bước này bị SKIP.
+
+	Ngoài ra, `workspace.PhysicsSteppingMethod` / `InterpolationThrottling`
+	thường bị khoá ghi ở client thường (chỉ server/Studio ghi được). Script
+	không lách khoá: ghi không được thì báo "unsupported" chứ không giả vờ.
+]]
+
+local Core_Env = __RALO_REQUIRE("Client/Core/Env")
+local Util_Safe = __RALO_REQUIRE("Shared/Safe")
+local Core_Restore = __RALO_REQUIRE("Client/Core/Restore")
+
+local Physics = {}
+
+function Physics.ApplyThrottling(step: any, profile: any)
+	if not profile.physics.enabled then
+		return { changes = 0, detail = "physics.enabled = false (mặc định, vì có đánh đổi)", restorable = false }
+	end
+
+	local workspace = Core_Env.GetService("Workspace")
+	if workspace == nil then
+		return { changes = 0, detail = "không truy cập được Workspace", restorable = false }
+	end
+
+	local changed = 0
+	local notes = {}
+	local blocked = {}
+
+	local throttle = profile.physics.interpolationThrottling
+	if throttle ~= nil then
+		local oldValue, readOk = Util_Safe.Get(workspace, "InterpolationThrottling")
+		if not readOk then
+			blocked[#blocked + 1] = "InterpolationThrottling (không đọc được)"
+		elseif oldValue == throttle then
+			notes[#notes + 1] = "InterpolationThrottling đã ở mức mong muốn"
+		else
+			local ok = Util_Safe.Set(workspace, "InterpolationThrottling", throttle, {
+				scope = "Physics:" .. step.id, expect = throttle,
+			})
+			if ok then
+				Core_Restore.Record(workspace, "InterpolationThrottling", oldValue, step.id, throttle)
+				changed += 1
+				notes[#notes + 1] = "InterpolationThrottling = " .. tostring(throttle)
+			else
+				blocked[#blocked + 1] = "InterpolationThrottling (client không được ghi)"
+			end
+		end
+	end
+
+	local stepping = profile.physics.physicsSteppingMethod
+	if stepping ~= nil then
+		local oldValue, readOk = Util_Safe.Get(workspace, "PhysicsSteppingMethod")
+		if not readOk then
+			blocked[#blocked + 1] = "PhysicsSteppingMethod (không đọc được)"
+		elseif oldValue == stepping then
+			notes[#notes + 1] = "PhysicsSteppingMethod đã ở mức mong muốn"
+		else
+			local ok = Util_Safe.Set(workspace, "PhysicsSteppingMethod", stepping, {
+				scope = "Physics:" .. step.id, expect = stepping,
+			})
+			if ok then
+				Core_Restore.Record(workspace, "PhysicsSteppingMethod", oldValue, step.id, stepping)
+				changed += 1
+				notes[#notes + 1] = "PhysicsSteppingMethod = " .. tostring(stepping)
+			else
+				blocked[#blocked + 1] = "PhysicsSteppingMethod (client không được ghi)"
+			end
+		end
+	end
+
+	local detail = #notes > 0 and table.concat(notes, "; ") or "không đổi được gì"
+	if #blocked > 0 then
+		detail ..= " | bị chặn: " .. table.concat(blocked, ", ")
+	end
+
+	return { changes = changed, detail = detail }
+end
+
+return Physics
+end,
+	["Client/Optimizations/Scan"] = function()
+--[[ ===== RALO.METHODS:BEGIN =====
+	Các phương pháp được TRIỂN KHAI TRONG TỆP NÀY (khớp với Shared/Methods.luau):
+	  QUERY-004, QUERY-006
+	===== RALO.METHODS:END ===== --]]
+
+--[[
+	Optimizations/Scan.luau
+	Quét thế giới một cách AN TOÀN và có TRẦN (cap).
+
+	Tại sao cần: game có thể có hàng chục nghìn instance. Quét toàn bộ trong
+	một frame sẽ gây khựng hình — tức là chính script tạo ra lag. Nên:
+	  * có giới hạn số instance quét (maxScan),
+	  * chia nhỏ theo lô và nhường frame giữa các lô (yieldEvery),
+	  * đếm chính xác những gì đã thực sự đổi.
+]]
+
+local Core_Env = __RALO_REQUIRE("Client/Core/Env")
+local Util_Log = __RALO_REQUIRE("Shared/Log")
+
+local SCOPE = "Scan"
+
+local Scan = {}
+
+Scan.lastStats = nil
+
+--[[
+	options = {
+		filter   = function(instance) -> boolean
+		onFound  = function(instance) -> boolean  (trả về true nếu đã thay đổi)
+		maxScan  = số instance tối đa sẽ xét (mặc định 3000)
+		yieldEvery = nhường frame sau mỗi N instance (0 = không nhường)
+		root     = instance gốc (mặc định DataModel)
+	}
+]]
+function Scan.Descendants(options: any)
+	options = options or {}
+	local maxScan = options.maxScan or 3000
+	local yieldEvery = options.yieldEvery or 0
+	local root = options.root or Core_Env.game
+
+	local stats = { scanned = 0, matched = 0, changed = 0, truncated = false, error = nil }
+	Scan.lastStats = stats
+
+	if root == nil then
+		stats.error = "không có root để quét"
+		Util_Log.Warn(SCOPE, stats.error)
+		return stats
+	end
+
+	local ok, descendants = pcall(function()
+		return root:GetDescendants()
+	end)
+	if not ok then
+		stats.error = "GetDescendants thất bại: " .. tostring(descendants)
+		Util_Log.Warn(SCOPE, stats.error)
+		return stats
+	end
+
+	local total = #descendants
+	stats.totalDescendants = total
+	stats.scanned = math.min(total, maxScan)
+	stats.truncated = total > maxScan
+
+	for i = 1, stats.scanned do
+		local instance = descendants[i]
+		local match = true
+		if options.filter then
+			local filterOk, filterResult = pcall(options.filter, instance)
+			match = filterOk and filterResult == true
+		end
+		if match then
+			stats.matched += 1
+			if options.onFound then
+				local changeOk, didChange = pcall(options.onFound, instance)
+				if changeOk and didChange then
+					stats.changed += 1
+				end
+			end
+		end
+		if yieldEvery > 0 and i % yieldEvery == 0 and Core_Env.task and Core_Env.task.wait then
+			Core_Env.task.wait()
+		end
+	end
+
+	if stats.truncated then
+		Util_Log.Info(SCOPE, ("chỉ quét %d/%d instance (trần maxScan) để tránh khựng hình")
+			:format(maxScan, total))
+	end
+	return stats
+end
+
+return Scan
+end,
+	["Client/Ui/GuiPolicy"] = function()
+--[[ ===== RALO.METHODS:BEGIN =====
+	Các phương pháp được TRIỂN KHAI TRONG TỆP NÀY (khớp với Shared/Methods.luau):
+	  FPS-002, GUI-001, GUI-002, GUI-004,
+	  GUI-005, GUI-006, GUI-009, GUI-011
+	===== RALO.METHODS:END ===== --]]
+
+--[[
+	Client/Ui/GuiPolicy.luau
+	===== RALO.METHODS:GUI-001, GUI-002, GUI-004, GUI-005, GUI-006, GUI-007,
+	                    GUI-010, GUI-011 =====
+
+	Các QUY TẮC bắt buộc cho GUI của chính hệ thống tối ưu.
+
+	Lý do tệp này tồn tại: một công cụ chống lag mà GUI của nó gây lag
+	thì phản tác dụng. Những lỗi kinh điển:
+	  * ResetOnSpawn = true -> mỗi lần hồi sinh GUI bị dựng lại,
+	    nối chồng connection (GUI-001).
+	  * Tạo ScreenGui mới mỗi lần chạy -> nhiều lớp GUI chồng nhau (GUI-002).
+	  * Ghi property GUI mỗi khung hình -> layout tính lại liên tục (GUI-004).
+	  * Vẫn chạy tween/hoạt ảnh khi GUI đã ẩn -> tốn vô ích (GUI-006).
+	  * Quên Destroy -> instance mồ côi tích tụ (GUI-011).
+
+	Tất cả quy tắc ở đây đều có test tương ứng trong tests/.
+]]
+
+local Shared_Log = __RALO_REQUIRE("Shared/Log")
+local Client_Guard = __RALO_REQUIRE("Client/Core/Guard")
+
+local SCOPE = "GuiPolicy"
+
+local GuiPolicy = {}
+
+GuiPolicy.GUI_NAME = "RALO_OptimizerNotifier"
+GuiPolicy.stats = { created = 0, reused = 0, blockedDuplicates = 0, destroyed = 0 }
+
+--[[
+	GUI-002 / GUI-001: lấy ScreenGui DUY NHẤT.
+	Nếu đã tồn tại (do lần chạy trước) thì TÁI SỬ DỤNG, không tạo bản thứ hai.
+	parent: nơi treo GUI (PlayerGui khi chạy LocalScript).
+]]
+function GuiPolicy.AcquireScreenGui(parent)
+	if parent == nil then
+		Shared_Log.Warn(SCOPE, "không có parent (PlayerGui) -> không tạo GUI")
+		return nil
+	end
+
+	local ok, existing = Client_Guard.Run(SCOPE .. ":Find", function()
+		return parent:FindFirstChild(GuiPolicy.GUI_NAME)
+	end)
+	if ok and existing ~= nil then
+		GuiPolicy.stats.reused += 1
+		Shared_Log.Info(SCOPE, "tái sử dụng ScreenGui đã có — không tạo bản trùng")
+		return existing, true
+	end
+
+	local okNew, created = Client_Guard.Run(SCOPE .. ":New", function()
+		local gui = Instance.new("ScreenGui")
+		gui.Name = GuiPolicy.GUI_NAME
+		gui.ResetOnSpawn = false          -- GUI-001: KHÔNG dựng lại khi hồi sinh
+		gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+		gui.DisplayOrder = 50
+		gui.IgnoreGuiInset = true
+		gui.Enabled = true
+		gui.Parent = parent
+		return gui
+	end)
+
+	if not okNew or created == nil then
+		Shared_Log.Warn(SCOPE, "không tạo được ScreenGui")
+		return nil, false
+	end
+
+	GuiPolicy.stats.created += 1
+	return created, false
+end
+
+--[[
+	GUI-011: xoá GUI. CHỈ xoá đúng instance do hệ thống tạo
+	(kiểm tra bằng Name), không đụng GUI của game.
+]]
+function GuiPolicy.DestroyScreenGui(gui)
+	if gui == nil then
+		return false
+	end
+	local ok, name = Client_Guard.Run(SCOPE .. ":CheckName", function()
+		return gui.Name
+	end)
+	if not ok or name ~= GuiPolicy.GUI_NAME then
+		Shared_Log.Warn(SCOPE, "từ chối xoá GUI không thuộc hệ thống: " .. tostring(name))
+		return false
+	end
+	local okDestroy = Client_Guard.Run(SCOPE .. ":Destroy", function()
+		gui:Destroy()
+	end)
+	if okDestroy then
+		GuiPolicy.stats.destroyed += 1
+	end
+	return okDestroy
+end
+
+--[[
+	GUI-004: ghi property CHỈ KHI giá trị thật sự khác.
+	Tránh việc ghi lại cùng một giá trị mỗi khung hình khiến engine
+	phải đánh dấu bẩn (dirty) và tính lại layout một cách vô ích.
+	Trả về true nếu có ghi.
+]]
+function GuiPolicy.SetIfChanged(instance, property, value)
+	if instance == nil then
+		return false
+	end
+	local ok, current = Client_Guard.Run(SCOPE, function()
+		return instance[property]
+	end)
+	if not ok then
+		return false
+	end
+	if current == value then
+		return false
+	end
+	local status = Client_Guard.Change(instance, property, value, { scope = SCOPE })
+	return status == "applied"
+end
+
+--[[
+	GUI-006 / GUI-010: có nên chạy hoạt ảnh không?
+	Khi GUI đã ẩn thì KHÔNG chạy tween / không cập nhật gradient.
+]]
+function GuiPolicy.ShouldAnimate(gui, allowAnimation)
+	if allowAnimation == false then
+		return false
+	end
+	if gui == nil then
+		return false
+	end
+	local ok, enabled = Client_Guard.Run(SCOPE, function()
+		return gui.Enabled
+	end)
+	if not ok then
+		return false
+	end
+	return enabled == true
+end
+
+-- GUI-005: đếm số instance trong cây GUI — dùng để giữ cây nhỏ.
+function GuiPolicy.CountNodes(root)
+	if root == nil then
+		return 0
+	end
+	local ok, descendants = Client_Guard.Run(SCOPE, function()
+		return root:GetDescendants()
+	end)
+	if not ok or descendants == nil then
+		return 0
+	end
+	return #descendants + 1
+end
+
+function GuiPolicy.Stats()
+	return {
+		created = GuiPolicy.stats.created,
+		reused = GuiPolicy.stats.reused,
+		blockedDuplicates = GuiPolicy.stats.blockedDuplicates,
+		destroyed = GuiPolicy.stats.destroyed,
+		guiName = GuiPolicy.GUI_NAME,
+	}
+end
+
+function GuiPolicy.Reset()
+	GuiPolicy.stats = { created = 0, reused = 0, blockedDuplicates = 0, destroyed = 0 }
+end
+
+return GuiPolicy
+end,
+	["Client/Ui/Notifier"] = function()
+--[[ ===== RALO.METHODS:BEGIN =====
+	Các phương pháp được TRIỂN KHAI TRONG TỆP NÀY (khớp với Shared/Methods.luau):
+	  GUI-001, GUI-002, GUI-003, GUI-004, GUI-005, GUI-006, GUI-007, GUI-010,
+	  GUI-011, GUI-012, GUI-013
+	===== RALO.METHODS:END ===== --]]
+
+--[[
+	Client/Ui/Notifier.luau
+	Bảng trạng thái nhỏ, không có menu điều khiển:
+	  * cố định ở góc dưới bên phải, không nhận kéo / chọn / nút bấm;
+	  * nền xám bán trong suốt, viền cầu vồng;
+	  * hiển thị "Đang giảm lag" và tiến trình 1–100%;
+	  * tự ẩn sau 30 giây, dọn connection và instance do mình tạo.
+
+	Phần trăm là hoạt ảnh thời lượng hiển thị, KHÔNG phải lời hứa về mức FPS.
+	Nếu pipeline hoàn tất sớm, bảng chuyển sang trạng thái hoàn tất và phần trăm
+	được chốt ở 100%. Nếu có lỗi, trạng thái lỗi được giữ nguyên (không báo thành công).
+]]
+
+local Client_Env = __RALO_REQUIRE("Client/Core/Env")
+local Client_Guard = __RALO_REQUIRE("Client/Core/Guard")
+local Client_Registry = __RALO_REQUIRE("Client/Core/Registry")
+local Client_Scheduler = __RALO_REQUIRE("Client/Core/Scheduler")
+local Shared_Log = __RALO_REQUIRE("Shared/Log")
+local Ui_GuiPolicy = __RALO_REQUIRE("Client/Ui/GuiPolicy")
+local Ui_Theme = __RALO_REQUIRE("Client/Ui/Theme")
+local Ui_Widget = __RALO_REQUIRE("Client/Ui/Widget")
+
+local SCOPE = "Notifier"
+
+local Notifier = {}
+Notifier.__index = Notifier
+
+Notifier.instance = nil
+Notifier.DEFAULTS = {
+	title = "TỐI ƯU HIỆU NĂNG",
+	status = "Đang giảm lag",
+	done = "Đã giảm lag xong",
+	failed = "Tối ưu gặp lỗi — xem Output",
+	durationSeconds = 30,
+	fadeSeconds = 0.45,
+	slideOffset = 70,
+	width = 288,
+	marginRight = 16,
+	marginBottom = 16,
+	backgroundAlpha = 0.42,
+	cornerRadius = 10,
+	borderWidth = 2,
+	rainbowSpeed = 0.35,	-- vòng/giây; chỉ cập nhật 10 lần/giây
+	updateInterval = 0.1,
+}
+
+function Notifier.Get()
+	return Notifier.instance
+end
+
+-- Kẹp phần trăm vào 0..100. Không để giá trị bất thường tràn khỏi thanh.
+function Notifier.ClampPercent(value)
+	local n = tonumber(value)
+	if n == nil or n ~= n then
+		return 0
+	end
+	if n < 0 then
+		return 0
+	end
+	if n > 100 then
+		return 100
+	end
+	return math.floor(n + 0.5)
+end
+
+-- Dựng bảng trạng thái. `options.parent` là PlayerGui.
+function Notifier.Build(options)
+	options = options or {}
+
+	if Notifier.instance ~= nil then
+		Shared_Log.Info(SCOPE, "bảng đã tồn tại — dùng lại, không tạo bản trùng")
+		return Notifier.instance
+	end
+
+	local profile = options.profile or {}
+	local guiProfile = profile.gui or {}
+
+	local self = setmetatable({}, Notifier)
+	self.settings = {
+		title = Notifier.DEFAULTS.title,
+		status = Notifier.DEFAULTS.status,
+		done = Notifier.DEFAULTS.done,
+		failed = Notifier.DEFAULTS.failed,
+		durationSeconds = math.max(0, tonumber(guiProfile.durationSeconds)
+			or Notifier.DEFAULTS.durationSeconds),
+		fadeSeconds = math.max(0.05, tonumber(guiProfile.fadeSeconds) or Notifier.DEFAULTS.fadeSeconds),
+		slideOffset = math.max(0, tonumber(guiProfile.slideOffset) or Notifier.DEFAULTS.slideOffset),
+		width = math.max(180, tonumber(guiProfile.width) or Notifier.DEFAULTS.width),
+		marginRight = math.max(0, tonumber(guiProfile.marginRight) or Notifier.DEFAULTS.marginRight),
+		marginBottom = math.max(0, tonumber(guiProfile.marginBottom) or Notifier.DEFAULTS.marginBottom),
+		backgroundAlpha = math.clamp(tonumber(guiProfile.backgroundAlpha)
+			or Notifier.DEFAULTS.backgroundAlpha, 0, 1),
+		cornerRadius = math.max(0, tonumber(guiProfile.cornerRadius) or Notifier.DEFAULTS.cornerRadius),
+		borderWidth = math.max(1, tonumber(guiProfile.borderWidth) or Notifier.DEFAULTS.borderWidth),
+		rainbowSpeed = math.max(0, tonumber(guiProfile.rainbowSpeed) or Notifier.DEFAULTS.rainbowSpeed),
+		updateInterval = math.max(0.05, tonumber(guiProfile.updateInterval)
+			or Notifier.DEFAULTS.updateInterval),
+		enabled = guiProfile.enabled ~= false,
+	}
+
+	self.percent = 1
+	self.elapsed = 0
+	self.startedAt = Client_Env.now()
+	self.statusText = self.settings.status
+	self.hiding = false
+	self.hidden = false
+	self.finished = false
+	self.verdict = nil
+	self.handles = {}
+
+	if not self.settings.enabled then
+		Shared_Log.Info(SCOPE, "gui.enabled = false -> không dựng bảng")
+		return nil
+	end
+
+	local screenGui, reused = Ui_GuiPolicy.AcquireScreenGui(options.parent)
+	if screenGui == nil then
+		Shared_Log.Warn(SCOPE, "không có PlayerGui -> bỏ qua bảng; pipeline vẫn chạy")
+		return nil
+	end
+	self.screenGui = screenGui
+	self.reused = reused
+
+	self.frame = self:_BuildFrame(screenGui)
+	if self.frame == nil then
+		if not reused then
+			Ui_GuiPolicy.DestroyScreenGui(screenGui)
+		end
+		return nil
+	end
+
+	Notifier.instance = self
+	self:_Wire()
+	self:_Render()
+
+	Shared_Log.Info(SCOPE, ("bảng trạng thái đã dựng (%s), %d node, tự ẩn sau %ds")
+		:format(reused and "dùng lại ScreenGui" or "ScreenGui mới",
+			Ui_GuiPolicy.CountNodes(screenGui), self.settings.durationSeconds))
+	return self
+end
+
+-- Chỉ có nhãn trạng thái, thanh tiến trình và phần trăm; không tạo menu/nút bấm.
+function Notifier:_BuildFrame(screenGui)
+	local s = self.settings
+
+	local frame = Ui_Widget.New("Frame", {
+		Name = "RALO_Panel",
+		AnchorPoint = Ui_Theme.AnchorPoint,
+		Position = UDim2.new(1, -s.marginRight, 1, -s.marginBottom),
+		Size = UDim2.new(0, s.width, 0, 96),
+		BackgroundColor3 = Ui_Theme.Background,
+		BackgroundTransparency = s.backgroundAlpha,
+		BorderSizePixel = 0,
+		Active = false,		-- GUI-010: không nhận thao tác kéo
+		Selectable = false,
+		ZIndex = 2,
+	}, screenGui)
+	if frame == nil then
+		return nil
+	end
+	self.frame = frame
+	Ui_Widget.Corners(frame, UDim.new(0, s.cornerRadius))
+
+	local stroke = Ui_Widget.Stroke(frame, Color3.fromRGB(255, 80, 80), s.borderWidth, 0)
+	self.stroke = stroke
+	self.gradient = Ui_Widget.New("UIGradient", {
+		Rotation = 0,
+		Color = Ui_Theme.RainbowSequence(0),
+	}, stroke)
+
+	Ui_Widget.Padding(frame, 10)
+	Ui_Widget.List(frame, 4)
+
+	self.titleLabel = Ui_Widget.Text(frame, {
+		Name = "Title",
+		Text = s.title,
+		Font = Ui_Theme.FontBold,
+		TextSize = 14,
+		TextColor3 = Ui_Theme.TextPrimary,
+		Size = UDim2.new(1, 0, 0, 18),
+		LayoutOrder = 1,
+	})
+
+	self.statusLabel = Ui_Widget.Text(frame, {
+		Name = "Status",
+		Text = s.status,
+		Font = Ui_Theme.Font,
+		TextSize = 12,
+		TextColor3 = Ui_Theme.TextSecondary,
+		Size = UDim2.new(1, 0, 0, 14),
+		LayoutOrder = 2,
+	})
+
+	self.track = Ui_Widget.New("Frame", {
+		Name = "ProgressTrack",
+		BackgroundColor3 = Ui_Theme.Track,
+		BackgroundTransparency = 0.2,
+		BorderSizePixel = 0,
+		Size = UDim2.new(1, 0, 0, 8),
+		LayoutOrder = 3,
+	}, frame)
+	Ui_Widget.Corners(self.track, UDim.new(1, 0))
+
+	self.fill = Ui_Widget.New("Frame", {
+		Name = "ProgressFill",
+		BackgroundColor3 = Ui_Theme.ProgressFill,
+		BorderSizePixel = 0,
+		Size = UDim2.new(0.01, 0, 1, 0),
+		ZIndex = 3,
+	}, self.track)
+	Ui_Widget.Corners(self.fill, UDim.new(1, 0))
+
+	self.percentLabel = Ui_Widget.Text(frame, {
+		Name = "Percent",
+		Text = "1%",
+		Font = Ui_Theme.FontBold,
+		TextSize = 13,
+		TextColor3 = Ui_Theme.TextPrimary,
+		Size = UDim2.new(1, 0, 0, 14),
+		LayoutOrder = 4,
+	})
+
+	return frame
+end
+
+function Notifier:_Wire()
+	self.tweenService = Client_Env.GetService("TweenService")
+
+	-- Không chạy một callback mỗi frame: 10 lần/giây là đủ cho thanh và viền,
+	-- đồng hồ vẫn dựa trên thời gian thực nên thời lượng không bị kéo dài.
+	local handle = Client_Scheduler.Schedule({
+		name = "notifier.animate",
+		interval = self.settings.updateInterval,
+		priority = -30,
+		callback = function(deltaTime, now)
+			self:_Tick(deltaTime, now)
+		end,
+	})
+	if handle ~= nil then
+		self.handles[#self.handles + 1] = handle
+	end
+end
+
+-- Đồng hồ hiển thị và viền cầu vồng; callback chạy tối đa 10 lần/giây.
+function Notifier:_Tick(_deltaTime, now)
+	if self.hidden or self.hiding then
+		return
+	end
+	if not Ui_GuiPolicy.ShouldAnimate(self.screenGui, true) then
+		return
+	end
+
+	local currentTime = tonumber(now) or Client_Env.now()
+	self.elapsed = math.max(self.elapsed, currentTime - self.startedAt)
+
+	if not self.finished and self.verdict ~= "error" then
+		if self.settings.durationSeconds > 0 then
+			local timedPercent = (self.elapsed / self.settings.durationSeconds) * 100
+			self.percent = math.max(1, Notifier.ClampPercent(timedPercent))
+		else
+			self.percent = 100
+		end
+	end
+
+	self.hue = (self.elapsed * self.settings.rainbowSpeed) % 1
+	if self.gradient ~= nil then
+		Ui_GuiPolicy.SetIfChanged(self.gradient, "Color", Ui_Theme.RainbowSequence(self.hue))
+	end
+	self:_Render()
+
+	if self.settings.durationSeconds > 0 and self.elapsed >= self.settings.durationSeconds then
+		self:Hide()
+	end
+end
+
+function Notifier:_Render()
+	if self.frame == nil then
+		return
+	end
+
+	local percent = math.max(1, Notifier.ClampPercent(self.percent))
+	if self.statusLabel ~= nil then
+		Ui_GuiPolicy.SetIfChanged(self.statusLabel, "Text", self.statusText or self.settings.status)
+		local color = Ui_Theme.TextSecondary
+		if self.verdict == "error" then
+			color = Ui_Theme.TextError
+		elseif self.finished then
+			color = Ui_Theme.TextSuccess
+		end
+		Ui_GuiPolicy.SetIfChanged(self.statusLabel, "TextColor3", color)
+	end
+	if self.percentLabel ~= nil then
+		Ui_GuiPolicy.SetIfChanged(self.percentLabel, "Text", ("%d%%"):format(percent))
+	end
+	if self.fill ~= nil then
+		Ui_GuiPolicy.SetIfChanged(self.fill, "Size", UDim2.new(percent / 100, 0, 1, 0))
+	end
+end
+
+-- Kết quả chi tiết được ghi trong Output; trên bảng chỉ đổi trạng thái, không có menu.
+function Notifier:SetResults(lines, verdict)
+	if self.frame == nil then
+		return false
+	end
+
+	self.verdict = verdict
+	self.finished = verdict ~= "error"
+	self.resultLines = lines
+	if verdict == "error" then
+		self.statusText = self.settings.failed
+	else
+		self.statusText = self.settings.done
+		self.percent = 100
+	end
+	self:_Render()
+	return true
+end
+
+-- Trượt xuống và mờ dần; nếu TweenService lỗi thì dọn ngay.
+function Notifier:Hide()
+	if self.hiding or self.hidden then
+		return false
+	end
+	self.hiding = true
+
+	local settings = self.settings
+	local done = false
+	local function finish()
+		if done then
+			return
+		end
+		done = true
+		self:_Cleanup()
+	end
+
+	if self.tweenService ~= nil and self.frame ~= nil then
+		local ok, tween = Client_Guard.Run(SCOPE .. ":Tween", function()
+			return self.tweenService:Create(self.frame,
+				TweenInfo.new(settings.fadeSeconds, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+				{
+					Position = UDim2.new(1, -settings.marginRight,
+						1, -settings.marginBottom + settings.slideOffset),
+					BackgroundTransparency = 1,
+				})
+		end)
+		if ok and tween ~= nil then
+			local completed = Client_Registry.Connect(tween.Completed, function()
+				finish()
+			end, "notifier.tween")
+			if completed ~= nil then
+				self.handles[#self.handles + 1] = completed
+			end
+
+			Client_Guard.Run(SCOPE .. ":Fade", function()
+				for _, label in { self.titleLabel, self.statusLabel, self.percentLabel } do
+					if label ~= nil then
+						self.tweenService:Create(label,
+							TweenInfo.new(settings.fadeSeconds),
+							{ TextTransparency = 1 }):Play()
+					end
+				end
+				if self.track ~= nil then
+					self.tweenService:Create(self.track,
+						TweenInfo.new(settings.fadeSeconds),
+						{ BackgroundTransparency = 1 }):Play()
+				end
+				if self.fill ~= nil then
+					self.tweenService:Create(self.fill,
+						TweenInfo.new(settings.fadeSeconds),
+						{ BackgroundTransparency = 1 }):Play()
+				end
+				if self.stroke ~= nil then
+					self.tweenService:Create(self.stroke,
+						TweenInfo.new(settings.fadeSeconds),
+						{ Transparency = 1 }):Play()
+				end
+			end)
+			Client_Guard.Run(SCOPE .. ":Play", function()
+				tween:Play()
+			end)
+			return true
+		end
+	end
+
+	finish()
+	return true
+end
+
+-- Dọn chỉ những connection/instance bảng đã tạo.
+function Notifier:_Cleanup()
+	self.hidden = true
+	for _, handle in ipairs(self.handles) do
+		Client_Guard.Run(SCOPE .. ":Disconnect", function()
+			handle:Disconnect()
+		end)
+	end
+	table.clear(self.handles)
+
+	if self.screenGui ~= nil and not self.reused then
+		Ui_GuiPolicy.DestroyScreenGui(self.screenGui)
+	elseif self.frame ~= nil then
+		Client_Guard.Run(SCOPE .. ":RemoveFrame", function()
+			self.frame:Destroy()
+		end)
+	end
+
+	self.frame = nil
+	self.screenGui = nil
+	Notifier.instance = nil
+	Shared_Log.Info(SCOPE, "bảng đã ẩn và dọn sạch connection / instance")
+	return true
+end
+
+function Notifier:Destroy()
+	if self.hiding or self.hidden then
+		return true
+	end
+	self.hiding = true
+	return self:_Cleanup()
+end
+
+function Notifier:State()
+	return {
+		percent = Notifier.ClampPercent(self.percent),
+		elapsed = self.elapsed,
+		hidden = self.hidden,
+		hiding = self.hiding,
+		finished = self.finished,
+		verdict = self.verdict,
+		status = self.statusText,
+		connections = #self.handles,
+		nodes = self.screenGui ~= nil and Ui_GuiPolicy.CountNodes(self.screenGui) or 0,
+		reused = self.reused == true,
+	}
+end
+
+function Notifier.Reset()
+	local current = Notifier.instance
+	if current ~= nil then
+		current:Destroy()
+	end
+	Notifier.instance = nil
+end
+
+return Notifier
+end,
+	["Client/Ui/Progress"] = function()
+--[[
+	Ui/Progress.luau
+	Mô hình tiến trình nội bộ của Pipeline, tách khỏi bảng trạng thái để unit test.
+	Nó theo dõi pha, bước đã chạy và số liệu trạng thái, nhưng không điều khiển UI.
+	Notifier dùng đồng hồ thời lượng riêng để vẽ 1–100% và tự ẩn sau 30 giây.
+]]
+
+local Util_Types = __RALO_REQUIRE("Shared/Types")
+
+local Progress = {}
+Progress.__index = Progress
+
+local VALID = {
+	[Util_Types.STATUS_PENDING] = true,
+	[Util_Types.STATUS_RUNNING] = true,
+	[Util_Types.STATUS_APPLIED] = true,
+	[Util_Types.STATUS_SKIPPED] = true,
+	[Util_Types.STATUS_FAILED] = true,
+}
+
+function Progress.New(total: number)
+	local self = setmetatable({}, Progress)
+	self.total = math.max(0, math.floor(total or 0))
+	self.current = 0
+	self.statuses = table.create(self.total, Util_Types.STATUS_PENDING)
+	for i = 1, self.total do
+		self.statuses[i] = Util_Types.STATUS_PENDING
+	end
+	self.phase = Util_Types.PHASE_IDLE
+	self.message = ""
+	self.pinned = false
+	self.Changed = Instance.new("BindableEvent")
+	return self
+end
+
+function Progress.Emit(self)
+	self.Changed:Fire({
+		current = self.current,
+		total = self.total,
+		fraction = self.total > 0 and (self.current / self.total) or 0,
+		percent = self.total > 0 and math.floor((self.current / self.total) * 100 + 0.5) or 0,
+		statuses = self.statuses,
+		phase = self.phase,
+		message = self.message,
+		pinned = self.pinned,
+		counts = Progress.Counts(self),
+	})
+end
+
+function Progress.SetPhase(self, phase: string, message: string?)
+	self.phase = phase
+	self.message = message or self.message
+	Progress.Emit(self)
+end
+
+function Progress.SetMessage(self, message: string)
+	self.message = message
+	Progress.Emit(self)
+end
+
+function Progress.SetPinned(self, pinned: boolean)
+	self.pinned = pinned == true
+	Progress.Emit(self)
+end
+
+function Progress.Mark(self, index: number, status: string, message: string?)
+	if index < 1 or index > self.total then
+		return
+	end
+	if not VALID[status] then
+		return
+	end
+	self.statuses[index] = status
+	if status ~= Util_Types.STATUS_RUNNING and status ~= Util_Types.STATUS_PENDING then
+		self.current += 1
+	end
+	if message then
+		self.message = message
+	end
+	Progress.Emit(self)
+end
+
+function Progress.Counts(self)
+	local counts = {
+		pending = 0, running = 0, applied = 0, skipped = 0, failed = 0,
+	}
+	for _, status in self.statuses do
+		if counts[status] ~= nil then
+			counts[status] += 1
+		end
+	end
+	return counts
+end
+
+function Progress.Fraction(self): number
+	if self.total <= 0 then return 0 end
+	return self.current / self.total
+end
+
+function Progress.Destroy(self)
+	if self.Changed then
+		self.Changed:Destroy()
+		self.Changed = nil
+	end
+end
+
+return Progress
+end,
+	["Client/Ui/Theme"] = function()
+--[[
+	Ui/Theme.luau
+	Bảng màu và hằng số giao diện.
+
+	Yêu cầu giao diện:
+	  * viền cầu vồng, tạo ColorSequence hợp lệ cho UIGradient;
+	  * nền xám đậm bán trong suốt;
+	  * cố định ở góc dưới bên phải.
+]]
+
+local Util_Hsv = __RALO_REQUIRE("Shared/Hsv")
+
+local Theme = {}
+
+Theme.Background = Color3.fromRGB(46, 46, 51)
+Theme.BackgroundAlpha = 0.42
+Theme.PanelBackground = Color3.fromRGB(24, 24, 28)
+Theme.PanelAlpha = 0.45
+Theme.TextPrimary = Color3.fromRGB(240, 240, 245)
+Theme.TextSecondary = Color3.fromRGB(190, 192, 202)
+Theme.TextSuccess = Color3.fromRGB(126, 231, 135)
+Theme.TextWarning = Color3.fromRGB(255, 208, 110)
+Theme.TextError = Color3.fromRGB(255, 122, 122)
+Theme.Track = Color3.fromRGB(60, 60, 68)
+Theme.ProgressFill = Color3.fromRGB(126, 231, 135)
+
+Theme.CornerRadius = UDim.new(0, 10)
+Theme.Font = Enum.Font.GothamMedium
+Theme.FontBold = Enum.Font.GothamBold
+
+Theme.AnchorPoint = Vector2.new(1, 1)
+Theme.Position = UDim2.new(1, -16, 1, -16)
+
+Theme.RainbowStops = 8
+Theme.RainbowSaturation = 0.85
+Theme.RainbowValue = 1.0
+
+function Theme.RainbowColors(hueOffset: number): { Color3 }
+	local colors = {}
+	local stops = Util_Hsv.RainbowStops(Theme.RainbowStops)
+	for index, base in stops do
+		local hue = (base + hueOffset) % 1
+		local r, g, b = Util_Hsv.ToRgb(hue, Theme.RainbowSaturation, Theme.RainbowValue)
+		colors[index] = Color3.new(r, g, b)
+	end
+	return colors
+end
+
+-- Roblox UIGradient nhận ColorSequenceKeypoint, không bảng Color3 thuần.
+function Theme.RainbowSequence(hueOffset: number): ColorSequence
+	local colors = Theme.RainbowColors(hueOffset)
+	local keypoints = {}
+	local lastIndex = #colors
+	for index, color in ipairs(colors) do
+		local time = (index - 1) / math.max(1, lastIndex - 1)
+		keypoints[index] = ColorSequenceKeypoint.new(time, color)
+	end
+	return ColorSequence.new(keypoints)
+end
+
+function Theme.StatusColor(status: string): Color3
+	if status == "applied" then return Theme.TextSuccess end
+	if status == "failed" then return Theme.TextError end
+	if status == "running" then return Theme.TextWarning end
+	if status == "skipped" then return Theme.TextSecondary end
+	return Theme.TextSecondary
+end
+
+function Theme.StatusIcon(status: string): string
+	if status == "applied" then return "✔" end
+	if status == "failed" then return "✖" end
+	if status == "running" then return "…" end
+	if status == "skipped" then return "–" end
+	return "○"
+end
+
+return Theme
+end,
+	["Client/Ui/Widget"] = function()
+--[[
+	Ui/Widget.luau
+	Lớp dựng giao diện mỏng. Mọi Instance đều đi qua Widget.New để:
+	  * gán property theo bảng khai báo (dễ đọc, dễ sửa),
+	  * gắn sẵn UICorner/UIListLayout khi cần,
+	  * pcall toàn bộ -> UI lỗi không bao giờ làm sập pipeline tối ưu.
+]]
+
+local Util_Safe = __RALO_REQUIRE("Shared/Safe")
+local Util_Log = __RALO_REQUIRE("Shared/Log")
+local Ui_Theme = __RALO_REQUIRE("Client/Ui/Theme")
+
+local SCOPE = "Widget"
+
+local Widget = {}
+
+function Widget.New(className: string, props: any, parent: any): any
+	local ok, instance = pcall(function()
+		return Instance.new(className)
+	end)
+	if not ok then
+		Util_Log.Error(SCOPE, "không tạo được", className, tostring(instance))
+		return nil
+	end
+
+	if type(props) == "table" then
+		for key, value in props do
+			instance[key] = value
+		end
+	end
+	if parent ~= nil then
+		instance.Parent = parent
+	end
+	return instance
+end
+
+function Widget.Corners(parent: any, radius: UDim?): any
+	return Widget.New("UICorner", { CornerRadius = radius or Ui_Theme.CornerRadius }, parent)
+end
+
+function Widget.Stroke(parent: any, color: Color3, thickness: number, transparency: number): any
+	return Widget.New("UIStroke", {
+		Color = color,
+		Thickness = thickness or 1,
+		Transparency = transparency or 0.55,
+		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+	}, parent)
+end
+
+function Widget.List(parent: any, padding: number, alignment: any): any
+	return Widget.New("UIListLayout", {
+		Padding = UDim.new(0, padding or 4),
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		HorizontalAlignment = Enum.HorizontalAlignment.Center,
+		VerticalAlignment = alignment or Enum.VerticalAlignment.Top,
+	}, parent)
+end
+
+function Widget.Padding(parent: any, all: number): any
+	return Widget.New("UIPadding", {
+		PaddingTop = UDim.new(0, all),
+		PaddingBottom = UDim.new(0, all),
+		PaddingLeft = UDim.new(0, all),
+		PaddingRight = UDim.new(0, all),
+	}, parent)
+end
+
+function Widget.Text(parent: any, props: any): any
+	local defaults = {
+		BackgroundTransparency = 1,
+		Font = Ui_Theme.Font,
+		TextColor3 = Ui_Theme.TextPrimary,
+		TextSize = 13,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextYAlignment = Enum.TextYAlignment.Center,
+		TextWrapped = false,
+		RichText = true,
+	}
+	if type(props) == "table" then
+		for key, value in props do
+			defaults[key] = value
+		end
+	end
+	return Widget.New("TextLabel", defaults, parent)
+end
+
+function Widget.Button(parent: any, props: any): any
+	local defaults = {
+		BackgroundColor3 = Ui_Theme.PanelBackground,
+		BackgroundTransparency = 0.35,
+		AutoButtonColor = true,
+		Font = Ui_Theme.FontBold,
+		TextColor3 = Ui_Theme.TextPrimary,
+		TextSize = 14,
+	}
+	if type(props) == "table" then
+		for key, value in props do
+			defaults[key] = value
+		end
+	end
+	local button = Widget.New("TextButton", defaults, parent)
+	if button then
+		Widget.Corners(button, UDim.new(0, 8))
+	end
+	return button
+end
+
+--[[
+	Ghi property an toàn, dùng cho các cập nhật động (kích thước, transparency...)
+	nơi ta không muốn một property bị khoá làm hỏng cả khung.
+]]
+function Widget.Set(instance: any, key: string, value: any): boolean
+	local ok = Util_Safe.Set(instance, key, value, { scope = SCOPE })
+	return ok
+end
+
+return Widget
+end,
+	["Shared/Config"] = function()
+--[[ ===== RALO.METHODS:BEGIN =====
+	Các phương pháp được TRIỂN KHAI TRONG TỆP NÀY (khớp với Shared/Methods.luau):
+	  CFG-001, CFG-002, CFG-004, CFG-006, MEAS-004, RES-004
+	===== RALO.METHODS:END ===== --]]
+
+--[[
+	Shared/Config.luau
+	===== RALO.METHODS:CFG-001, CFG-002, CFG-004, MEAS-004, RES-004 =====
+
+	KHO CẤU HÌNH TRUNG TÂM. Mọi module đọc thông số từ đây, không module
+	nào giữ hằng số riêng. Người dùng chỉ cần sửa bảng PROFILE.
+
+	Ba nguyên tắc thiết kế (không ngoại lệ):
+	  1. GIỮ NGUYÊN GAMEPLAY — không có tuỳ chọn nào tắt gameplay, tắt âm
+	     thanh gameplay, xoá nhân vật/vật phẩm, hay đổi thông số gameplay
+	     để đổi lấy FPS.
+	  2. ĐỒ HOẠ GIẢM NHẸ — mặc định là mức "light": chỉ hạ chất lượng ở mức
+	     vừa phải, giới hạn hạt chứ không xoá hiệu ứng. KHÔNG BAO GIỜ tự
+	     chuyển về mức đồ hoạ thấp nhất.
+	  3. MỌI THAY ĐỔI ĐỀU ĐẢO NGƯỢC ĐƯỢC — mỗi mục đồ hoạ đều có cặp
+	     "áp dụng / khôi phục" thông qua Client/Core/Restore.
+
+	Môi trường đích: Roblox Studio + Rojo, game do chính bạn sở hữu.
+	Dự án KHÔNG dùng executor, không dùng setrbxsetting, không đụng
+	bất kỳ cơ chế bảo vệ nào.
+]]
+
+local Config = {}
+
+Config.VERSION = "2.0.0"
+Config.NAME = "Roblox Anti-Lag Optimizer"
+
+-- Bậc tối ưu: "light" (mặc định) | "balanced" | "off"
+Config.DEFAULT_MODE = "light"
+
+--[[
+	PROFILE — toàn bộ thông số có thể chỉnh.
+	Cấu trúc được Guard.NormalizeConfig() kiểm tra kiểu trước khi dùng.
+]]
+Config.PROFILE = {
+	--------------------------------------------------------------------
+	-- CÔNG TẮC TỔNG (CFG-001)
+	--------------------------------------------------------------------
+	enabled = true,          -- false = hệ thống không làm gì cả
+
+	-- Chế độ tối ưu. "light" là MẶC ĐỊNH theo yêu cầu thiết kế.
+	mode = "light",
+
+	--------------------------------------------------------------------
+	-- CÔNG TẮC THEO NHÓM (CFG-001) — độc lập với nhau
+	-- Đặt false để TẮT hẳn nhóm đó.
+	--------------------------------------------------------------------
+	groups = {
+		graphics  = true,    -- chất lượng tối đa 8; giữ ánh sáng, bóng và địa hình
+		effects   = true,    -- giới hạn nhẹ Rate/ParticleCount (không xoá effect)
+		cull      = true,    -- thư viện có culling; không gọi trong plan mặc định
+		scan      = true,    -- quét thế giới có trần
+		memory    = true,    -- GC định kỳ
+		physics   = false,   -- MẶC ĐỊNH TẮT: có đánh đổi độ mượt vật lý
+		character = true,    -- giữ bóng và tỉ lệ avatar theo mặc định
+		net       = false,   -- MẶC ĐỊNH TẮT: cần remote của game
+	},
+
+	--------------------------------------------------------------------
+	-- CÔNG TẮC THEO TỪNG PHƯƠNG PHÁP (CFG-002)
+	-- Chỉ cần liệt kê những gì muốn TẮT. Id lấy từ Shared/Methods.luau.
+	--------------------------------------------------------------------
+	methods = {
+		-- ví dụ: ["GRAPHICS-003"] = false,  -- giữ Terrain.Decoration
+	},
+
+	--------------------------------------------------------------------
+	-- ĐO HIỆU NĂNG (Part 9)
+	--------------------------------------------------------------------
+	measure = {
+		baselineSeconds = 5.0,     -- thời lượng lấy mẫu TRƯỚC khi tối ưu
+		settleSeconds   = 1.0,     -- nghỉ sau khi tối ưu để FPS ổn định
+		afterSeconds    = 5.0,     -- thời lượng lấy mẫu SAU khi tối ưu
+		frameWindow     = 180,     -- ~3 giây @60fps cho chỉ số tức thời
+		longFrameMs     = 33.3,    -- ngưỡng "khung hình dài" (dưới 30 FPS)
+	},
+
+	--------------------------------------------------------------------
+	-- BẢNG TRẠNG THÁI (Part 6 & 7)
+	--------------------------------------------------------------------
+	gui = {
+		enabled         = true,
+		durationSeconds = 30,      -- thời gian hiện bảng trạng thái (~30 giây)
+		fadeSeconds     = 0.45,    -- thời gian trượt xuống + mờ dần
+		slideOffset     = 70,      -- px trượt xuống khi ẩn
+		width           = 288,     -- px
+		marginRight     = 16,      -- px, cách mép phải (lề an toàn)
+		marginBottom    = 16,      -- px, cách mép dưới (lề an toàn)
+		backgroundAlpha = 0.42,    -- nền xám bán trong suốt, vẫn đọc rõ chữ
+		cornerRadius    = 10,      -- bo góc nhẹ cho bảng chữ nhật
+		borderWidth     = 2,       -- viền cầu vồng
+		rainbowSpeed    = 0.35,    -- vòng/giây của dải cầu vồng
+		updateInterval  = 0.1,     -- cập nhật giao diện 10 lần/giây, tránh việc thừa
+	},
+
+	--------------------------------------------------------------------
+	-- ĐỒ HOẠ (giảm NHẸ, đảo ngược được)
+	--------------------------------------------------------------------
+	graphics = {
+		qualityLevel      = 8,     -- giảm nhẹ; không bao giờ nâng mức thấp hiện có
+		lockQualityMode   = false, -- tôn trọng chế độ đồ họa tự động của Roblox
+		applyTerrainDecoration = false, -- không đổi địa hình trừ khi chủ game bật rõ
+		terrainDecoration = false, -- giá trị mục tiêu chỉ dùng khi applyTerrainDecoration = true
+		shadowDistance    = 0,     -- giữ toàn bộ bóng đổ, không culling part xa
+		maxShadowTargets  = 400,   -- trần an toàn nếu chủ game chủ động bật culling
+	},
+
+	--------------------------------------------------------------------
+	-- HIỆU ỨNG (chỉ GIỚI HẠN, không xoá — giữ nguyên tính năng)
+	--------------------------------------------------------------------
+	effects = {
+		particleRateCap     = 40,  -- giới hạn nhẹ mật độ hạt, không tắt emitter
+		particleMaxCountCap = 120, -- trần vừa phải, không xoá hiệu ứng
+		effectDistance      = 250, -- xa hơn N stud thì tắt emitter/beam/trail
+		maxInstancesScanned = 3000,-- trần quét, tránh treo máy yếu
+	},
+
+	--------------------------------------------------------------------
+	-- NHÂN VẬT (vẫn giữ nguyên nhân vật)
+	--------------------------------------------------------------------
+	character = {
+		disableShadows     = false, -- luôn giữ bóng nhân vật theo mặc định
+		disableAutoScaling = false, -- giữ nguyên tỉ lệ/hiển thị nhân vật
+	},
+
+	--------------------------------------------------------------------
+	-- BỘ NHỚ / GC
+	--------------------------------------------------------------------
+	memory = {
+		gcEverySeconds = 15,       -- 0 = tắt
+		collectStepKb  = 200,      -- collectgarbage("step", n)
+	},
+
+	--------------------------------------------------------------------
+	-- VẬT LÝ (CÓ ảnh hưởng cảm giác chơi -> MẶC ĐỊNH TẮT)
+	--------------------------------------------------------------------
+	physics = {
+		enabled                 = false,
+		interpolationThrottling = "Disabled",
+		physicsSteppingMethod   = "Fixed",
+	},
+
+	--------------------------------------------------------------------
+	-- BỘ LẬP LỊCH (Part 8: không được mở vòng lặp trùng)
+	--------------------------------------------------------------------
+	scheduler = {
+		frameBudgetMs = 3.0,       -- ngân sách thời gian mỗi khung hình
+		cullInterval  = 0.25,      -- giây giữa hai lượt cull
+	},
+
+	--------------------------------------------------------------------
+	-- CHẨN ĐOÁN & LOG (Part 8)
+	--------------------------------------------------------------------
+	diagnostics = {
+		logLevel      = "info",    -- "silent" | "info" | "debug"
+		maxEntries    = 200,       -- trần bộ đệm log (chống phình bộ nhớ)
+		errorLogging  = true,      -- ghi lỗi ra Output
+		printToOutput = true,      -- có in ra Output hay chỉ giữ trong bộ đệm
+		selfCostCheck = true,      -- đo chi phí của chính công cụ
+	},
+
+	--------------------------------------------------------------------
+	-- KHÔI PHỤC (Part 8)
+	--------------------------------------------------------------------
+	restore = {
+		recordChanges = true,      -- ghi nhật ký giá trị cũ
+		verifyOnWrite = true,      -- đọc lại sau khi ghi để xác nhận
+		respectStale  = true,      -- KHÔNG ghi đè nếu game/người dùng đã đổi
+	},
+}
+
+--[[
+	Bản sao mặc định, chụp MỘT lần lúc nạp module.
+	Dùng cho Config.ResetToDefaults() — không phụ thuộc vào PROFILE hiện tại.
+]]
+local DEFAULTS = (function()
+	local function clone(value)
+		if type(value) ~= "table" then
+			return value
+		end
+		local out = {}
+		for key, child in pairs(value) do
+			out[key] = clone(child)
+		end
+		return out
+	end
+	return clone(Config.PROFILE)
+end)()
+
+--[[
+	CFG-004: khôi phục cấu hình mặc định.
+	Trả về PROFILE (đã được đặt lại).
+]]
+function Config.ResetToDefaults()
+	for section, values in pairs(DEFAULTS) do
+		if type(values) == "table" then
+			if type(Config.PROFILE[section]) ~= "table" then
+				Config.PROFILE[section] = {}
+			end
+			for key, value in pairs(values) do
+				Config.PROFILE[section][key] = value
+			end
+		else
+			Config.PROFILE[section] = values
+		end
+	end
+	return Config.PROFILE
+end
+
+-- Bí danh giữ tương thích với mã cũ.
+Config.Reset = Config.ResetToDefaults
+
+--[[
+	Áp một bảng vá lên PROFILE (ghép sâu một mức).
+	Config.Apply({ gui = { durationSeconds = 60 } })
+]]
+function Config.Apply(patch)
+	if type(patch) ~= "table" then
+		return Config.PROFILE
+	end
+	for section, values in pairs(patch) do
+		if type(Config.PROFILE[section]) == "table" and type(values) == "table" then
+			for key, value in pairs(values) do
+				Config.PROFILE[section][key] = value
+			end
+		else
+			Config.PROFILE[section] = values
+		end
+	end
+	return Config.PROFILE
+end
+
+function Config.Get(section)
+	return Config.PROFILE[section]
+end
+
+--[[
+	MEAS-004: công tắc A/B cho một nhóm — dùng khi đo lại để biết nhóm nào
+	thật sự có ích trên máy của bạn.
+	Config.SetGroup("graphics", false) rồi đo lại.
+]]
+function Config.SetGroup(groupKey, enabled)
+	if type(groupKey) ~= "string" then
+		return false
+	end
+	if type(Config.PROFILE.groups) ~= "table" then
+		Config.PROFILE.groups = {}
+	end
+	Config.PROFILE.groups[groupKey] = enabled == true
+	return true
+end
+
+-- CFG-002: công tắc cho từng phương pháp riêng lẻ.
+function Config.SetMethod(methodId, enabled)
+	if type(methodId) ~= "string" then
+		return false
+	end
+	if type(Config.PROFILE.methods) ~= "table" then
+		Config.PROFILE.methods = {}
+	end
+	Config.PROFILE.methods[methodId] = enabled == true
+	return true
+end
+
+--[[
+	Trả về chế độ hiện tại và bậc chất lượng tương ứng.
+	"off" nghĩa là hệ thống không can thiệp gì.
+]]
+function Config.Mode()
+	local mode = Config.PROFILE.mode
+	if mode ~= "light" and mode ~= "balanced" and mode ~= "off" then
+		return Config.DEFAULT_MODE
+	end
+	return mode
+end
+
+return Config
+end,
+	["Shared/Hsv"] = function()
+--[[
+	Util/Hsv.luau
+	Chuyển HSV -> RGB (mọi giá trị 0..1). Dùng để tạo dải màu cầu vồng
+	cho UIGradient của menu, và được UNIT TEST kiểm chứng bằng các mốc
+	màu đã biết (đỏ / lục / lam / vàng / tím).
+
+	Thuần logic, không phụ thuộc API Roblox -> chạy được trên Lua 5.3 (fengari).
+]]
+
+local Hsv = {}
+
+local function clamp01(x: number): number
+	if x ~= x then return 0 end            -- NaN
+	if x < 0 then return 0 end
+	if x > 1 then return 1 end
+	return x
+end
+
+--[[
+	h: hue 0..1 (0 và 1 đều là đỏ)
+	s: saturation 0..1
+	v: value 0..1
+	trả về r, g, b mỗi giá trị 0..1
+]]
+function Hsv.ToRgb(h: number, s: number, v: number): (number, number, number)
+	h = clamp01(h) % 1
+	s = clamp01(s)
+	v = clamp01(v)
+
+	if s <= 0 then
+		return v, v, v
+	end
+
+	local i = math.floor(h * 6)
+	local f = (h * 6) - i
+	local p = v * (1 - s)
+	local q = v * (1 - s * f)
+	local t = v * (1 - s * (1 - f))
+
+	local mod = i % 6
+	if mod == 0 then
+		return v, t, p
+	elseif mod == 1 then
+		return q, v, p
+	elseif mod == 2 then
+		return p, v, t
+	elseif mod == 3 then
+		return p, q, v
+	elseif mod == 4 then
+		return t, p, v
+	else
+		return v, p, q
+	end
+end
+
+-- Bảng 8 mốc cầu vồng dùng cho UIGradient (đỏ -> cam -> vàng -> lục -> lam -> chàm -> tím -> đỏ)
+function Hsv.RainbowStops(count: number): { number }
+	local out = {}
+	local n = math.max(2, math.floor(count or 8))
+	for i = 0, n - 1 do
+		-- Bao gồm cả 1 để màu cuối khép vòng về đỏ như màu đầu.
+		out[#out + 1] = i / (n - 1)
+	end
+	return out
+end
+
+return Hsv
+end,
+	["Shared/Log"] = function()
+--[[ ===== RALO.METHODS:BEGIN =====
+	Các phương pháp được TRIỂN KHAI TRONG TỆP NÀY (khớp với Shared/Methods.luau):
+	  EVT-003, RAM-003, RES-005
+	===== RALO.METHODS:END ===== --]]
+
+--[[
+	Util/Log.luau
+	Log có mức độ, có scope, có bộ đệm vòng để UI/harness đọc lại.
+	Ghi ra: (1) print/warn thật của runtime, (2) Log.Entries để truy xuất.
+
+	Không phụ thuộc Roblox API -> chạy được trên Lua 5.3 (fengari).
+]]
+
+local Log = {}
+
+Log.Level = "info"                 -- debug | info | warn | error | silent
+Log.MaxEntries = 400
+Log.Entries = {}
+Log.OnEntry = nil                  -- function(entry) — UI/harness hook
+
+local ORDER = { debug = 1, info = 2, warn = 3, error = 4, silent = 5 }
+
+local function allowed(level: string): boolean
+	return (ORDER[level] or 2) >= (ORDER[Log.Level] or 2)
+end
+
+function Log.Push(level: string, scope: string, message: string)
+	local entry = {
+		level = level,
+		scope = scope,
+		message = message,
+		time = os.clock(),
+	}
+	table.insert(Log.Entries, entry)
+	if #Log.Entries > Log.MaxEntries then
+		table.remove(Log.Entries, 1)
+	end
+	if Log.OnEntry then
+		Log.OnEntry(entry)
+	end
+	return entry
+end
+
+local function emit(level: string, scope: string, parts: { any })
+	if not allowed(level) then
+		return
+	end
+	local message = table.concat(parts, " ")
+	Log.Push(level, scope, message)
+
+	local prefix = ("[%s] %s"):format(level:upper(), scope)
+	if level == "warn" or level == "error" then
+		warn(prefix, message)
+	else
+		print(prefix, message)
+	end
+end
+
+function Log.Debug(scope: string, ...: any) emit("debug", scope, { ... }) end
+function Log.Info(scope: string, ...: any)  emit("info",  scope, { ... }) end
+function Log.Warn(scope: string, ...: any)  emit("warn",  scope, { ... }) end
+function Log.Error(scope: string, ...: any) emit("error", scope, { ... }) end
+
+-- Định dạng bảng before/after thành các dòng căn cột — dùng cho Output và UI.
+function Log.FormatRows(rows: { { string, string, string, string } }): { string }
+	local widths = { 0, 0, 0, 0 }
+	for _, row in rows do
+		for i = 1, 4 do
+			widths[i] = math.max(widths[i], #tostring(row[i] or ""))
+		end
+	end
+	local out = {}
+	for _, row in rows do
+		local line = ""
+		for i = 1, 4 do
+			local cell = tostring(row[i] or "")
+			line ..= cell .. string.rep(" ", widths[i] - #cell + 2)
+		end
+		out[#out + 1] = line
+	end
+	return out
+end
+
+function Log.Clear()
+	table.clear(Log.Entries)
+end
+
+return Log
+end,
+	["Shared/Methods"] = function()
+--[[
+	Shared/Methods.luau
+	===== RALO.METHODS:CATALOG =====
+
+	DANH MỤC PHƯƠNG PHÁP TỐI ƯU. Tệp này là DỮ LIỆU, không phải mô tả rời rạc:
+	mỗi mục có id, nhóm, cơ chế, nguyên nhân lag, cách triển khai, tệp chịu
+	trách nhiệm, điều kiện, rủi ro và TRẠNG THÁI.
+
+	Trạng thái (thống nhất toàn dự án):
+	  A = đã triển khai vào mã nguồn
+	  B = đã triển khai VÀ đã kiểm thử thành công (có test tương ứng chạy đạt)
+	  C = đã triển khai nhưng chưa kiểm thử thực tế
+	  D = chỉ là đề xuất, chưa triển khai
+	  E = không thể áp dụng trong môi trường hiện tại
+
+	RÀNG BUỘC ĐƯỢC KIỂM BẰNG MÁY (tests/suites/catalog.luau):
+	  1. Mọi mục A/B/C phải có tệp thật ở cột `file` (không phải "(đề xuất)").
+	  2. Mọi mục B phải có tên test trùng id trong tests/suites/*.
+	  3. Id phải duy nhất, nhóm phải nằm trong 1..30, đủ 30 nhóm.
+	Nếu một trong ba ràng buộc sai, bộ test FAIL. Không thể "khai" khống.
+--]]
+
+local Methods = {}
+
+Methods.StatusLabels = {
+	A = "Đã triển khai vào mã nguồn",
+	B = "Đã triển khai và đã kiểm thử thành công",
+	C = "Đã triển khai nhưng chưa kiểm thử thực tế",
+	D = "Chỉ là đề xuất, chưa triển khai",
+	E = "Không thể áp dụng trong môi trường hiện tại",
+}
+
+Methods.Groups = {
+	[1] = "Tối ưu CPU và phép tính",
+	[2] = "Tối ưu vòng lặp và tần suất cập nhật",
+	[3] = "Tối ưu RAM và vòng đời đối tượng",
+	[4] = "Ngăn rò rỉ bộ nhớ và ngắt kết nối sự kiện",
+	[5] = "Tối ưu FPS và công việc mỗi khung hình",
+	[6] = "Tối ưu GPU trong phạm vi Roblox cho phép",
+	[7] = "Giảm nhẹ hiệu ứng đồ họa không thiết yếu",
+	[8] = "Tối ưu Part, Model và đối tượng do script quản lý",
+	[9] = "Tối ưu va chạm và truy vấn vật lý",
+	[10] = "Tối ưu hiệu ứng hạt, ánh sáng và hiệu ứng tạm",
+	[11] = "Tối ưu âm thanh",
+	[12] = "Tối ưu GUI và hoạt ảnh giao diện",
+	[13] = "Tối ưu tác vụ nền và bộ hẹn giờ",
+	[14] = "Tối ưu RemoteEvent, RemoteFunction và dữ liệu mạng",
+	[15] = "Tối ưu NPC, AI và tìm đường",
+	[16] = "Tối ưu tải tài nguyên và bộ nhớ đệm",
+	[17] = "Tối ưu cấu trúc dữ liệu và thuật toán",
+	[18] = "Tối ưu xử lý sự kiện",
+	[19] = "Tối ưu tìm kiếm đối tượng trong Workspace",
+	[20] = "Tối ưu quản lý đối tượng và object pooling",
+	[21] = "Tối ưu xử lý dữ liệu người chơi",
+	[22] = "Tối ưu phát hiện tác vụ nặng",
+	[23] = "Tối ưu xử lý đối tượng ở xa khi gameplay cho phép",
+	[24] = "Tối ưu khả năng tương thích thiết bị cấu hình thấp",
+	[25] = "Tối ưu đo đạc, kiểm thử và phát hiện lỗi",
+	[26] = "Tối ưu khả năng khôi phục khi có lỗi",
+	[27] = "Tối ưu cơ chế bật/tắt tính năng",
+	[28] = "Tối ưu quản lý tài nguyên tập trung",
+	[29] = "Tối ưu thời gian khởi chạy",
+	[30] = "Tối ưu tổng thể mà không làm hỏng gameplay",
+}
+
+Methods.List = {
+	{
+		id = "CPU-001",
+		group = 1,
+		name = "Cache global thành upvalue",
+		mechanism = "Đọc hàm/thư viện dùng nhiều (math, table, Instance.new, task) một lần vào biến local đầu tệp.",
+		cause = "Mỗi lần đọc global phải tra bảng _G qua metatable; trong vòng lặp nóng chi phí cộng dồn rất lớn.",
+		how = "Khai báo `local math_floor = math.floor` ... ở đầu mỗi module; thân hàm chỉ dùng upvalue.",
+		file = "Client/Core/Scheduler",
+		cond = "Luôn áp dụng được.",
+		risk = "Không có; chỉ đổi cách tham chiếu.",
+		status = "A",
+	},
+	{
+		id = "CPU-002",
+		group = 1,
+		name = "Cache kết quả GetService",
+		mechanism = "Mỗi service chỉ GetService một lần rồi giữ ở upvalue của module.",
+		cause = "GetService là lời gọi xuyên biên giới Luau-C++; gọi lặp lại cho cùng một service là lãng phí thuần.",
+		how = "`local runService = Client_Env.GetService(\"RunService\")` ở đầu module, tái sử dụng về sau.",
+		file = "Client/Core/Env, mọi module cần service",
+		cond = "Cần chạy trong ngữ cảnh có DataModel.",
+		risk = "Không có.",
+		status = "A",
+	},
+	{
+		id = "CPU-003",
+		group = 1,
+		name = "Cache tham chiếu module",
+		mechanism = "require/__RALO_REQUIRE mỗi module đúng một lần, kết quả cache theo đường dẫn.",
+		cause = "require lặp lại đi qua cache của engine nhưng vẫn tốn một lời gọi hàm và tra bảng.",
+		how = "Bảng `cache[path]` trong RequireShim.Install; module chỉ được nạp lần đầu.",
+		file = "Shared/RequireShim",
+		cond = "Luôn áp dụng.",
+		risk = "Module có trạng thái toàn cục sẽ dùng chung một bản — đúng ý đồ thiết kế.",
+		status = "A",
+	},
+	{
+		id = "CPU-004",
+		group = 1,
+		name = "Hoán vị biểu thức bất biến khỏi vòng lặp",
+		mechanism = "Tính trước các giá trị không đổi (ngưỡng, hệ số, bình phương ngưỡng) ngoài vòng lặp.",
+		cause = "Tính lại cùng một biểu thức hàng nghìn lần mỗi lượt quét là CPU thuần bị vứt đi.",
+		how = "`Cpu.HoistedLoop()` chứng minh và được dùng trong các vòng quét; ngưỡng nhân đôi được tính trước khi vào vòng.",
+		file = "Client/Core/Cpu",
+		cond = "Áp dụng khi biểu thức thật sự bất biến.",
+		risk = "Nếu biểu thức KHÔNG bất biến mà hoán vị sẽ cho kết quả sai — phải kiểm tra bằng test.",
+		status = "B",
+	},
+	{
+		id = "CPU-005",
+		group = 1,
+		name = "So sánh khoảng cách bằng bình phương",
+		mechanism = "Dùng dx*dx+dy*dy+dz*dz so với limit*limit thay vì Magnitude.",
+		cause = "Magnitude gọi sqrt; với hàng trăm đối tượng mỗi lượt quét thì sqrt là phần đắt nhất.",
+		how = "`Cpu.DistanceSquared()` và `Cpu.IsFartherThan()`; Cull dùng bình phương ngưỡng.",
+		file = "Client/Core/Cpu, Client/Core/Cull",
+		cond = "Chỉ dùng khi so sánh, không cần khoảng cách thật.",
+		risk = "Nếu cần khoảng cách thật (hiển thị, vật lý) vẫn phải sqrt.",
+		status = "B",
+	},
+	{
+		id = "CPU-006",
+		group = 1,
+		name = "Tiền cấp phát bảng",
+		mechanism = "Tạo bảng với kích thước已知 thay vì để bảng tự lớn dần.",
+		cause = "Bảng Lua tăng dung lượng theo cấp số nhân, mỗi lần tăng là một lần cấp phát lại và sao chép.",
+		how = "`table.create(n, 0)` cho ring buffer và mảng tạm.",
+		file = "Client/Core/Perf, Client/Optimizations/Scan",
+		cond = "Cần biết trước số phần tử.",
+		risk = "Nếu ước lượng sai kích thước thì chỉ mất chút bộ nhớ, không sai kết quả.",
+		status = "A",
+	},
+	{
+		id = "CPU-007",
+		group = 1,
+		name = "Dùng hằng cho khoá chuỗi lặp lại",
+		mechanism = "Định nghĩa tên property dùng nhiều lần ở MỘT nơi, thân mã tham chiếu hằng.",
+		cause = "Mỗi lần viết chuỗi là một lần tra/dựng khoá; lặp lại ở nhiều chỗ dễ gõ sai tên property.",
+		how = "Bảng `Cpu.Keys` chứa các tên property hay dùng.",
+		file = "Client/Core/Cpu",
+		cond = "Luôn áp dụng.",
+		risk = "Không có.",
+		status = "A",
+	},
+	{
+		id = "CPU-008",
+		group = 1,
+		name = "Không để lỗi thoát ra khỏi tác vụ",
+		mechanism = "Mọi tác vụ chạy trong pcall có ghi log; một bước lỗi không kéo sập hệ thống.",
+		cause = "Một property bị khoá làm throw; không pcall thì toàn bộ pipeline chết giữa chừng và mất luôn khả năng khôi phục.",
+		how = "`Guard.Run()` bọc mọi thao tác nguy hiểm; Scheduler cũng pcall từng callback.",
+		file = "Client/Core/Guard, Client/Core/Scheduler",
+		cond = "Luôn áp dụng.",
+		risk = "Nuốt lỗi có thể che lỗi thật — bắt buộc ghi log kèm.",
+		status = "B",
+	},
+	{
+		id = "CPU-009",
+		group = 1,
+		name = "Ngân sách thời gian mỗi khung hình",
+		mechanism = "Scheduler dừng khi tổng thời gian tác vụ vượt ngưỡng, phần còn lại chờ khung hình sau.",
+		cause = "Công cụ tối ưu mà chiếm quá nhiều thời gian khung hình thì chính nó thành nguồn lag.",
+		how = "`Scheduler.frameBudgetMs` (mặc định 3ms) + đếm `overruns` để biết có hay vượt.",
+		file = "Client/Core/Scheduler",
+		cond = "Cần đồng hồ đủ chính xác (os.clock).",
+		risk = "Ngưỡng quá thấp làm tác vụ bị trễ; có thể chỉnh trong Config.",
+		status = "B",
+	},
+	{
+		id = "LOOP-001",
+		group = 2,
+		name = "Một kết nối Heartbeat cho mọi tác vụ định kỳ",
+		mechanism = "Toàn hệ thống dùng đúng MỘT connection Heartbeat; Scheduler phân phối cho các task.",
+		cause = "Mỗi module tự Connect => N lần gọi lại mỗi khung hình, không ai kiểm soát tổng chi phí.",
+		how = "`Scheduler.Start()` tạo đúng một connection; `Scheduler.Stats().connections` để kiểm chứng.",
+		file = "Client/Core/Scheduler",
+		cond = "Luôn áp dụng.",
+		risk = "Không có; task vẫn chạy đúng chu kỳ của nó.",
+		status = "B",
+	},
+	{
+		id = "LOOP-002",
+		group = 2,
+		name = "Ưu tiên tác vụ",
+		mechanism = "Task khai báo priority; ưu tiên cao chạy trước, cùng ưu tiên thì chu kỳ ngắn chạy trước.",
+		cause = "Khi vượt ngân sách khung hình, phải biết bỏ việc gì trước.",
+		how = "`table.sort` trong `reindex()` theo (priority desc, interval asc).",
+		file = "Client/Core/Scheduler",
+		cond = "Luôn áp dụng.",
+		risk = "Ưu tiên đặt sai có thể làm task quan trọng bị trễ.",
+		status = "B",
+	},
+	{
+		id = "LOOP-003",
+		group = 2,
+		name = "Chu kỳ riêng cho từng tác vụ",
+		mechanism = "Mỗi task có interval riêng (0 = mỗi khung hình).",
+		cause = "Việc chỉ cần chạy 4 lần/giây mà chạy 60 lần/giây là lãng phí 15 lần.",
+		how = "Trường `interval` + `nextDue` trong Scheduler.Schedule.",
+		file = "Client/Core/Scheduler",
+		cond = "Luôn áp dụng.",
+		risk = "Interval quá lớn làm phản ứng chậm.",
+		status = "B",
+	},
+	{
+		id = "LOOP-004",
+		group = 2,
+		name = "Huỷ tác vụ bằng handle",
+		mechanism = "Mỗi task có handle:Cancel(); Shutdown() huỷ toàn bộ.",
+		cause = "Thread/vòng lặp không huỷ được là nguồn rò rỉ CPU kinh điển.",
+		how = "`handle:Cancel()` xoá khỏi bảng tasks và sắp xếp lại thứ tự.",
+		file = "Client/Core/Scheduler",
+		cond = "Luôn áp dụng.",
+		risk = "Không có.",
+		status = "B",
+	},
+	{
+		id = "LOOP-005",
+		group = 2,
+		name = "Không trì hoãn tác vụ để làm đẹp GUI",
+		mechanism = "Tiến trình thật chạy độc lập với hoạt ảnh GUI; GUI không wait tác vụ.",
+		cause = "Yêu cầu: không được tạo cảm giác giả đang xử lý.",
+		how = "Pipeline chạy tác vụ rồi mới cập nhật GUI; hoạt ảnh 30s là đồng hồ riêng.",
+		file = "Client/Core/Pipeline, Client/Ui/Notifier",
+		cond = "Luôn áp dụng.",
+		risk = "Không có.",
+		status = "B",
+	},
+	{
+		id = "LOOP-006",
+		group = 2,
+		name = "Thích ứng theo deltaTime",
+		mechanism = "Logic dựa trên deltaTime chứ không giả định 60 FPS.",
+		cause = "Máy yếu chạy 30 FPS thì logic gắn với số khung hình sẽ chạy chậm gấp đôi.",
+		how = "Scheduler truyền deltaTime vào callback.",
+		file = "Client/Core/Scheduler",
+		cond = "Luôn áp dụng.",
+		risk = "Không có.",
+		status = "A",
+	},
+	{
+		id = "LOOP-007",
+		group = 2,
+		name = "Đọc độ dài mảng một lần",
+		mechanism = "`local count = #array` ngoài vòng lặp.",
+		cause = "Toán tử # trên bảng có phần mảng lớn không miễn phí; gọi mỗi lượt lặp là thừa.",
+		how = "`Cpu.ForEachIndex()` đọc # một lần rồi lặp bằng chỉ số.",
+		file = "Client/Core/Cpu",
+		cond = "Áp dụng cho mảng không đổi độ dài trong lúc lặp.",
+		risk = "Nếu mảng bị sửa trong lúc lặp thì kết quả khác — phải snapshot.",
+		status = "B",
+	},
+	{
+		id = "RAM-001",
+		group = 3,
+		name = "Bộ đệm vòng kích thước cố định",
+		mechanism = "Ring buffer ghi đè mẫu cũ, không phình theo thời gian đo.",
+		cause = "Đo lâu mà danh sách mẫu cứ dài ra => RAM tăng đều, GC chạy nhiều hơn.",
+		how = "`Perf.New(capacity)` + ghi đè theo `head % capacity`, trừ mẫu bị ghi đè khỏi tổng.",
+		file = "Client/Core/Perf",
+		cond = "Cần chọn dung lượng đủ lớn để percentile có nghĩa.",
+		risk = "Dung lượng nhỏ làm p1/p95 kém ổn định.",
+		status = "A",
+	},
+	{
+		id = "RAM-002",
+		group = 3,
+		name = "Tái sử dụng bảng tạm",
+		mechanism = "Pool bảng Lua: mượn bảng, dùng xong trả lại.",
+		cause = "Cấp phát bảng mới trong vòng lặp nóng là nguồn rác GC lớn nhất của script.",
+		how = "`Pool.AcquireTable()` / `Pool.ReleaseTable()` có trần dung lượng.",
+		file = "Client/Core/Pool",
+		cond = "Áp dụng cho bảng tạm dùng xong bỏ.",
+		risk = "Trả bảng mà chưa xoá hết khoá => dữ liệu bẩn; ReleaseTable có table.clear.",
+		status = "B",
+	},
+	{
+		id = "RAM-003",
+		group = 3,
+		name = "Giới hạn bảng dữ liệu",
+		mechanism = "Mọi bảng tích luỹ đều có trần (log, error, pool, targets).",
+		cause = "Bảng không trần chạy nhiều giờ sẽ chiếm bộ nhớ ngày càng lớn.",
+		how = "Log.MaxEntries, Guard.maxErrorLog, Pool.cap, Cull.rules.maxTargets.",
+		file = "Shared/Log, Client/Core/Guard, Client/Core/Pool, Client/Core/Cull",
+		cond = "Luôn áp dụng.",
+		risk = "Trần quá nhỏ làm mất dữ liệu cũ cần chẩn đoán.",
+		status = "A",
+	},
+	{
+		id = "RAM-004",
+		group = 3,
+		name = "Tránh closure trong vòng lặp nóng",
+		mechanism = "Callback được tạo MỘT lần ngoài vòng lặp rồi tái sử dụng.",
+		cause = "Mỗi closure là một đối tượng mới + upvalue; tạo hàng nghìn cái mỗi giây ép GC.",
+		how = "Callback của Scheduler/Registry được tạo một lần lúc đăng ký.",
+		file = "Client/Core/Scheduler, Client/Core/Registry",
+		cond = "Áp dụng ở đường nóng.",
+		risk = "Không có.",
+		status = "A",
+	},
+	{
+		id = "LEAK-001",
+		group = 4,
+		name = "Sổ đăng ký kết nối tập trung",
+		mechanism = "Mọi Connect đi qua Registry.Connect, có id, có DisconnectAll.",
+		cause = "Connection không Disconnect vẫn chạy sau khi đối tượng bị huỷ => CPU rò rỉ tăng dần.",
+		how = "`Registry.connections` + `Registry.Shutdown()` ngắt toàn bộ.",
+		file = "Client/Core/Registry",
+		cond = "Mọi kết nối của hệ thống phải đi qua Registry.",
+		risk = "Nếu module nào Connect thẳng thì lọt sổ — test đếm connection để phát hiện.",
+		status = "B",
+	},
+	{
+		id = "LEAK-002",
+		group = 4,
+		name = "Tự ngắt khi đối tượng bị huỷ",
+		mechanism = "Theo dõi Parent của instance; khi nó rời cây thì ngắt connection và xoá cache liên quan.",
+		cause = "Instance bị game Destroy nhưng callback vẫn giữ tham chiếu => vừa rò rỉ vừa lỗi tham chiếu.",
+		how = "`Registry.Watch()` nghe GetPropertyChangedSignal(\"Parent\") rồi gọi DropInstance.",
+		file = "Client/Core/Registry",
+		cond = "Cần instance còn sống lúc đăng ký.",
+		risk = "Mỗi watch thêm một connection; chỉ watch đối tượng dài hạn.",
+		status = "A",
+	},
+	{
+		id = "LEAK-003",
+		group = 4,
+		name = "Kết nối một lần",
+		mechanism = "Registry.ConnectOnce tự Disconnect ngay sau lần bắn đầu tiên.",
+		cause = "Kết nối chỉ cần phản ứng một lần mà để mãi là rò rỉ.",
+		how = "`Registry.ConnectOnce()` bọc handler rồi Disconnect.",
+		file = "Client/Core/Registry",
+		cond = "Dùng cho tín hiệu khởi động.",
+		risk = "Không có.",
+		status = "B",
+	},
+	{
+		id = "LEAK-004",
+		group = 4,
+		name = "Không tạo thread mỗi sự kiện",
+		mechanism = "Tác vụ nền đăng ký với Scheduler thay vì spawn thread riêng mỗi lần.",
+		cause = "Mỗi `task.spawn` trong handler sự kiện tạo một thread; sự kiện dày => thread chồng chất.",
+		how = "Mọi việc định kỳ qua Scheduler.Schedule; việc một lần qua Scheduler.Defer.",
+		file = "Client/Core/Scheduler",
+		cond = "Luôn áp dụng.",
+		risk = "Không có.",
+		status = "A",
+	},
+	{
+		id = "LEAK-005",
+		group = 4,
+		name = "Sổ đăng ký instance do hệ thống tạo",
+		mechanism = "Mọi Instance.new của hệ thống được Registry.Own; Shutdown huỷ đúng những cái đó.",
+		cause = "Instance tạo ra không ai giữ tham chiếu thì không dọn được, thành rác vĩnh viễn.",
+		how = "`Registry.owned` + `Registry.Release(id)`; chỉ huỷ instance trong sổ.",
+		file = "Client/Core/Registry",
+		cond = "Chỉ áp dụng cho instance hệ thống tạo.",
+		risk = "Nguy hiểm nếu nhầm instance của game — Release kiểm tra sổ trước khi huỷ.",
+		status = "B",
+	},
+	{
+		id = "FPS-001",
+		group = 5,
+		name = "Ngân sách khung hình cho chính công cụ",
+		mechanism = "Xem CPU-009: Scheduler dừng khi vượt ngưỡng.",
+		cause = "Công cụ tối ưu chiếm khung hình thì FPS không tăng.",
+		how = "Scheduler.frameBudgetMs + overrun counter.",
+		file = "Client/Core/Scheduler",
+		cond = "Luôn áp dụng.",
+		risk = "Xem CPU-009.",
+		status = "A",
+	},
+	{
+		id = "FPS-002",
+		group = 5,
+		name = "Không ghi GUI mỗi khung hình",
+		mechanism = "Chỉ ghi property GUI khi giá trị thật sự khác.",
+		cause = "Ghi lại cùng giá trị vẫn làm engine đánh dấu bẩn và tính lại layout.",
+		how = "`GuiPolicy.SetIfChanged()` so sánh trước khi ghi.",
+		file = "Client/Ui/GuiPolicy",
+		cond = "Áp dụng cho GUI của hệ thống.",
+		risk = "Không có.",
+		status = "B",
+	},
+	{
+		id = "FPS-003",
+		group = 5,
+		name = "Bỏ qua đối tượng ngoài vùng quan tâm",
+		mechanism = "Chỉ xử lý đối tượng đã đăng ký / mang tag, không quét cả thế giới.",
+		cause = "Quét toàn bộ Workspace mỗi lượt là O(số instance của cả game).",
+		how = "Cull.targets là danh sách đăng ký; Scan chỉ duyệt danh sách đó.",
+		file = "Client/Core/Cull",
+		cond = "Cần có bước đăng ký đối tượng.",
+		risk = "Nếu không đăng ký thì đối tượng không được tối ưu (an toàn hơn là làm sai).",
+		status = "B",
+	},
+	{
+		id = "FPS-004",
+		group = 5,
+		name = "Ưu tiên việc hiển thị",
+		mechanism = "Task quan trọng priority cao, việc nền priority âm.",
+		cause = "RenderStepped/Heartbeat có thời lượng cố định; việc nền không được tranh phần.",
+		how = "Scheduler sắp xếp theo priority; cull/net dùng priority âm.",
+		file = "Client/Core/Scheduler",
+		cond = "Luôn áp dụng.",
+		risk = "Xem LOOP-002.",
+		status = "A",
+	},
+	{
+		id = "GRAPHICS-001",
+		group = 6,
+		name = "Hạ Lighting.QualityLevel nhẹ, có chặn an toàn",
+		mechanism = "Đặt mục tiêu tối đa ở 8/10, không nâng mức đang dùng thấp hơn.",
+		cause = "Mức chất lượng cao có thể tăng chi phí render trên client.",
+		how = "`Graphics.ApplyQualityLevel()` giữ nguyên giá trị cũ trong Restore; chế độ tự động mặc định được tôn trọng.",
+		file = "Client/Optimizations/Graphics",
+		cond = "Chỉ phía client; không ảnh hưởng người chơi khác.",
+		risk = "Có thể khác biệt nhẹ về chất lượng hình ảnh; không tắt ánh sáng/bóng; hoàn tác được.",
+		status = "B",
+	},
+	{
+		id = "GRAPHICS-002",
+		group = 6,
+		name = "Tùy chọn khóa GraphicsQualityMode",
+		mechanism = "Chỉ khóa chế độ tự động khi chủ game bật rõ tuỳ chọn.",
+		cause = "Engine có thể ghi đè QualityLevel nếu chế độ tự động bị khóa không đúng lúc.",
+		how = "`Graphics.ApplyQualityLevel()` chỉ đặt GraphicsQualityMode = false khi `lockQualityMode = true`.",
+		file = "Client/Optimizations/Graphics",
+		cond = "Mặc định tắt; người dùng chủ động bật mới áp dụng.",
+		risk = "Có thể ngừng tự điều chỉnh chất lượng của Roblox; hoàn tác được.",
+		status = "A",
+	},
+	{
+		id = "GRAPHICS-003",
+		group = 7,
+		name = "Đặt Terrain.Decoration theo cấu hình",
+		mechanism = "Chủ game có thể đổi chi tiết cỏ/đá nhỏ phía client.",
+		cause = "Decoration có thể tạo thêm chi phí render ở cảnh nhiều chi tiết.",
+		how = "`Graphics.ApplyTerrain()` ghi giá trị cũ; mặc định giữ Decoration = true.",
+		file = "Client/Optimizations/Graphics",
+		cond = "Mặc định giữ nguyên địa hình trang trí; chỉ đổi nếu cấu hình yêu cầu.",
+		risk = "Tắt Decoration sẽ làm mất cỏ/chi tiết nhỏ; hoàn tác được.",
+		status = "B",
+	},
+	{
+		id = "GRAPHICS-004",
+		group = 7,
+		name = "Tắt bóng đổ cho đối tượng ở xa",
+		mechanism = "Xa hơn ngưỡng thì CastShadow = false; lại gần thì khôi phục.",
+		cause = "Shadow map là một trong những chi phí GPU lớn nhất; bóng của vật ở xa gần như vô hình.",
+		how = "`Cull.Scan()` so khoảng cách bình phương với shadowDistance, khôi phục khi lại gần.",
+		file = "Client/Core/Cull",
+		cond = "Chỉ với đối tượng đã đăng ký; không đụng đối tượng gameplay.",
+		risk = "Bóng vật xa biến mất; tự khôi phục khi lại gần.",
+		status = "B",
+	},
+	{
+		id = "GRAPHICS-005",
+		group = 6,
+		name = "Giảm tầm PointLight/SpotLight",
+		mechanism = "Hạ Range/Brightness của đèn do script quản lý.",
+		cause = "Mỗi đèn động buộc engine tính ánh sáng cho các part trong tầm.",
+		how = "Chưa triển khai: cần chủ game khai báo danh sách đèn được phép đổi.",
+		file = "(đề xuất)",
+		cond = "Cần whitelist từ chủ game.",
+		risk = "Dễ làm tối cảnh nếu hạ quá tay.",
+		status = "D",
+	},
+	{
+		id = "GRAPHICS-006",
+		group = 6,
+		name = "Giảm số lớp trong suốt chồng nhau",
+		mechanism = "Hạn chế part trong suốt xếp chồng (overdraw).",
+		cause = "Overdraw là chi phí GPU điển hình; mỗi lớp trong suốt là một lần blend.",
+		how = "Chưa triển khai: cần phân tích cảnh cụ thể của từng game.",
+		file = "(đề xuất)",
+		cond = "Cần đo bằng công cụ GPU.",
+		risk = "Đổi vật liệu có thể làm hỏng mỹ thuật.",
+		status = "D",
+	},
+	{
+		id = "GRAPHICS-007",
+		group = 7,
+		name = "Giảm chất lượng phản chiếu/kính",
+		mechanism = "Hạ số bề mặt phản chiếu.",
+		cause = "Phản chiếu render cảnh thêm một lần.",
+		how = "Chưa triển khai.",
+		file = "(đề xuất)",
+		cond = "Cần chủ game cho phép.",
+		risk = "Thay đổi mỹ thuật rõ rệt.",
+		status = "D",
+	},
+	{
+		id = "PART-001",
+		group = 8,
+		name = "Neo part tĩnh không va chạm",
+		mechanism = "Anchored = true cho part trang trí cố định.",
+		cause = "Part không neo vẫn được engine xét trong bước mô phỏng vật lý.",
+		how = "Chưa triển khai: đổi Anchored ảnh hưởng hành vi vật lý, cần chủ game quyết định per-game.",
+		file = "(đề xuất)",
+		cond = "Cần khảo sát cảnh thật.",
+		risk = "Part đang rơi sẽ dừng lại — có thể phá gameplay.",
+		status = "D",
+	},
+	{
+		id = "PART-002",
+		group = 8,
+		name = "Cull đối tượng xa theo đăng ký",
+		mechanism = "Xem GRAPHICS-004 và DIST-001.",
+		cause = "Part xa vẫn tốn chi phí bóng/hiệu ứng.",
+		how = "Cull.Add + Cull.Scan.",
+		file = "Client/Core/Cull",
+		cond = "Chỉ đối tượng đã đăng ký.",
+		risk = "Xem GRAPHICS-004.",
+		status = "A",
+	},
+	{
+		id = "PART-003",
+		group = 8,
+		name = "Gộp part tĩnh thành một mesh",
+		mechanism = "Hợp nhất nhiều part trang trí thành UnionOperation/MeshPart.",
+		cause = "Mỗi part là một draw call và một nút trong cây instance.",
+		how = "Chưa triển khai: thao tác này nên làm trong Studio, không nên làm lúc runtime.",
+		file = "(đề xuất — làm trong Studio)",
+		cond = "Cần quyền sửa game.",
+		risk = "Union mất khả năng đổi màu từng phần.",
+		status = "D",
+	},
+	{
+		id = "PART-004",
+		group = 8,
+		name = "Tắt CastShadow cho part trang trí",
+		mechanism = "Xem GRAPHICS-004, nhưng áp dụng cho toàn bộ part trang trí đã đăng ký.",
+		cause = "Bóng của part trang trí nhỏ thường không ai để ý.",
+		how = "Cull với kinds.shadow.",
+		file = "Client/Core/Cull",
+		cond = "Cần đăng ký + không mang tag bảo vệ.",
+		risk = "Xem GRAPHICS-004.",
+		status = "A",
+	},
+	{
+		id = "PART-005",
+		group = 8,
+		name = "Giảm độ chi tiết mesh ở xa (LOD)",
+		mechanism = "Dùng mesh LOD thay vì mesh đầy đủ.",
+		cause = "Mesh hàng chục nghìn tam giác ở xa vẫn tốn đỉnh phải xử lý.",
+		how = "Chưa triển khai: cần asset LOD và thiết lập trong Studio.",
+		file = "(đề xuất — làm trong Studio)",
+		cond = "Cần làm asset LOD.",
+		risk = "Không có nếu LOD tốt.",
+		status = "D",
+	},
+	{
+		id = "PHYSICS-001",
+		group = 9,
+		name = "Tắt làm mượt nội suy (tuỳ chọn, mặc định TẮT)",
+		mechanism = "Đặt InterpolationThrottling để giảm CPU mô phỏng phía client.",
+		cause = "Nội suy vị trí vật thể từ xa tốn CPU đáng kể trên máy yếu.",
+		how = "`Physics.ApplyThrottling()`; mặc định `physics.enabled = false` vì có đánh đổi.",
+		file = "Client/Optimizations/Physics",
+		cond = "Thường chỉ ghi được ở server/Studio; client bị khoá thì báo unsupported.",
+		risk = "Vật thể xa chuyển động giật hơn — vì vậy mặc định tắt.",
+		status = "A",
+	},
+	{
+		id = "PHYSICS-002",
+		group = 9,
+		name = "Đổi PhysicsSteppingMethod (tuỳ chọn)",
+		mechanism = "Chọn phương pháp bước mô phỏng rẻ hơn.",
+		cause = "Phương pháp mặc định ưu tiên độ chính xác, tốn CPU hơn.",
+		how = "`Physics.ApplyThrottling()` ghi PhysicsSteppingMethod nếu được phép.",
+		file = "Client/Optimizations/Physics",
+		cond = "Thường bị khoá ở client.",
+		risk = "Đổi hành vi vật lý — mặc định tắt.",
+		status = "A",
+	},
+	{
+		id = "PHYSICS-003",
+		group = 9,
+		name = "Tắt Touched không cần thiết",
+		mechanism = "Bỏ kết nối Touched trên đối tượng không dùng nó.",
+		cause = "Mỗi kết nối Touched buộc engine kiểm tra va chạm mỗi bước.",
+		how = "Chưa triển khai: cần biết đối tượng nào thật sự cần Touched.",
+		file = "(đề xuất)",
+		cond = "Cần khảo sát logic game.",
+		risk = "Tắt nhầm sẽ mất cơ chế gameplay.",
+		status = "D",
+	},
+	{
+		id = "PHYSICS-004",
+		group = 9,
+		name = "Truy vấn vùng bằng API vật lý",
+		mechanism = "Dùng GetPartBoundsInRadius thay vì quét GetDescendants.",
+		cause = "Quét toàn cây để tìm vật gần là O(n) mỗi lần hỏi.",
+		how = "Chưa triển khai trong mã; Spatial đang dùng lưới băm (DATA-002).",
+		file = "(đề xuất)",
+		cond = "API có sẵn ở client.",
+		risk = "Kết quả phụ thuộc collision group.",
+		status = "D",
+	},
+	{
+		id = "PHYSICS-005",
+		group = 9,
+		name = "Tắt CanQuery/CanTouch cho part trang trí",
+		mechanism = "Giảm số cặp va chạm engine phải xét.",
+		cause = "Mỗi part có CanQuery/CanTouch đều tham gia truy vấn vật lý.",
+		how = "Chưa triển khai: ảnh hưởng raycast của game.",
+		file = "(đề xuất)",
+		cond = "Cần chủ game cho phép.",
+		risk = "Raycast của game sẽ không thấy part đó.",
+		status = "D",
+	},
+	{
+		id = "FX-001",
+		group = 10,
+		name = "Tắt emitter ở xa",
+		mechanism = "Xa hơn effectDistance thì Enabled = false cho ParticleEmitter; lại gần thì bật lại.",
+		cause = "Emitter xa vẫn sinh hạt và vẫn được render dù chỉ vài pixel.",
+		how = "`Cull.Scan()` nhánh effects, khôi phục bằng Guard.Change có expect.",
+		file = "Client/Core/Cull",
+		cond = "Chỉ emitter là con của đối tượng đã đăng ký.",
+		risk = "Hiệu ứng xa mất; tự khôi phục khi lại gần.",
+		status = "B",
+	},
+	{
+		id = "FX-002",
+		group = 10,
+		name = "Tắt Beam/Trail ở xa",
+		mechanism = "Như FX-001 cho Beam và Trail.",
+		cause = "Beam/Trail vẫn được tính và render khi ở xa.",
+		how = "`Cull.Scan()` với effectClasses gồm Beam, Trail.",
+		file = "Client/Core/Cull",
+		cond = "Chỉ đối tượng đã đăng ký.",
+		risk = "Như FX-001.",
+		status = "A",
+	},
+	{
+		id = "FX-003",
+		group = 10,
+		name = "Tắt đèn điểm ở xa",
+		mechanism = "Như FX-001 cho PointLight/SpotLight.",
+		cause = "Đèn xa vẫn buộc engine tính ánh sáng.",
+		how = "Chưa triển khai: cần whitelist đèn (xem GRAPHICS-005).",
+		file = "(đề xuất)",
+		cond = "Cần chủ game khai báo.",
+		risk = "Cảnh tối hơn nếu tắt nhầm đèn quan trọng.",
+		status = "D",
+	},
+	{
+		id = "EFFECTS-001",
+		group = 10,
+		name = "Giới hạn Rate của emitter",
+		mechanism = "Đưa Rate về mức trần thay vì xoá emitter.",
+		cause = "Emitter cấu hình Rate vài trăm sinh rất nhiều hạt mỗi giây.",
+		how = "`Effects.CapParticles()` đổi Rate, ghi giá trị cũ vào Restore.",
+		file = "Client/Optimizations/Effects",
+		cond = "Mặc định bật, mức trần trong Config.",
+		risk = "Hiệu ứng thưa hơn nhưng VẪN CÒN — không phá gameplay.",
+		status = "B",
+	},
+	{
+		id = "EFFECTS-002",
+		group = 10,
+		name = "Giới hạn ParticleCount",
+		mechanism = "ParticleCount = -1 (vô hạn) được quy về mức trần.",
+		cause = "Số hạt không trần có thể phình tới hàng nghìn, tốn cả CPU lẫn GPU.",
+		how = "`Effects.CapParticles()` đổi ParticleCount, ghi giá trị cũ.",
+		file = "Client/Optimizations/Effects",
+		cond = "Mặc định bật.",
+		risk = "Như EFFECTS-001.",
+		status = "B",
+	},
+	{
+		id = "EFFECTS-003",
+		group = 10,
+		name = "Giảm kích thước hạt",
+		mechanism = "Hạ Size của emitter ở xa.",
+		cause = "Hạt to chiếm nhiều pixel, tăng chi phí fill-rate.",
+		how = "Chưa triển khai.",
+		file = "(đề xuất)",
+		cond = "Cần đo để biết có đáng.",
+		risk = "Hiệu ứng nhỏ đi rõ.",
+		status = "D",
+	},
+	{
+		id = "EFFECTS-004",
+		group = 10,
+		name = "Giảm số emitter đồng thời",
+		mechanism = "Bật/tắt emitter theo mức độ quan trọng.",
+		cause = "Nhiều emitter chạy cùng lúc cộng dồn chi phí.",
+		how = "Chưa triển khai: cần chủ game xếp hạng quan trọng.",
+		file = "(đề xuất)",
+		cond = "Cần whitelist.",
+		risk = "Tắt nhầm hiệu ứng kỹ năng.",
+		status = "D",
+	},
+	{
+		id = "EFFECTS-005",
+		group = 10,
+		name = "Tắt hiệu ứng khi menu đang ẩn",
+		mechanism = "Không cập nhật hiệu ứng phụ khi người chơi không cần.",
+		cause = "Cập nhật thứ không ai nhìn là lãng phí.",
+		how = "Chưa triển khai.",
+		file = "(đề xuất)",
+		cond = "Cần định nghĩa 'hiệu ứng phụ'.",
+		risk = "Dễ ảnh hưởng gameplay.",
+		status = "D",
+	},
+	{
+		id = "AUDIO-001",
+		group = 11,
+		name = "Dừng sound ở rất xa",
+		mechanism = "Dừng Sound không quan trọng khi ngoài tầm nghe.",
+		cause = "Sound vẫn được giải mã và trộn kể cả khi gần như không nghe thấy.",
+		how = "Chưa triển khai: Roblox đã tự roll-off; can thiệp dễ gây lỗi gameplay.",
+		file = "(đề xuất)",
+		cond = "Cần chủ game đánh dấu sound không quan trọng.",
+		risk = "Mất tín hiệu âm thanh quan trọng (bước chân, súng).",
+		status = "D",
+	},
+	{
+		id = "AUDIO-002",
+		group = 11,
+		name = "Tái sử dụng Sound",
+		mechanism = "Dùng pool Sound thay vì tạo mới mỗi lần phát.",
+		cause = "Tạo Sound mới mỗi lần phát tốn cấp phát và thời gian nạp.",
+		how = "Chưa triển khai; Pool đã có sẵn hạ tầng (POOL-001).",
+		file = "(đề xuất — dùng Pool.Define)",
+		cond = "Cần biết sound nào phát lặp.",
+		risk = "Không có nếu reset đúng.",
+		status = "D",
+	},
+	{
+		id = "AUDIO-003",
+		group = 11,
+		name = "Giảm số sound phát đồng thời",
+		mechanism = "Giới hạn số sound đang chơi.",
+		cause = "Quá nhiều sound đồng thời tốn bộ trộn và bộ nhớ.",
+		how = "Chưa triển khai.",
+		file = "(đề xuất)",
+		cond = "Cần chính sách ưu tiên âm thanh.",
+		risk = "Mất âm thanh quan trọng.",
+		status = "D",
+	},
+	{
+		id = "GUI-001",
+		group = 12,
+		name = "ResetOnSpawn = false",
+		mechanism = "GUI không bị dựng lại mỗi lần hồi sinh.",
+		cause = "Mặc định ScreenGui bị reset khi respawn => dựng lại cây GUI và nối chồng connection.",
+		how = "`GuiPolicy.AcquireScreenGui()` đặt ResetOnSpawn = false.",
+		file = "Client/Ui/GuiPolicy",
+		cond = "Áp dụng cho GUI hệ thống.",
+		risk = "Nếu game dựa vào reset GUI thì không áp dụng — ở đây GUI là của hệ thống.",
+		status = "B",
+	},
+	{
+		id = "GUI-002",
+		group = 12,
+		name = "Một GUI duy nhất (singleton)",
+		mechanism = "Nếu ScreenGui đã tồn tại thì tái sử dụng, không tạo bản thứ hai.",
+		cause = "Chạy script hai lần tạo hai lớp GUI chồng nhau, vừa xấu vừa tốn.",
+		how = "`GuiPolicy.AcquireScreenGui()` FindFirstChild theo tên trước khi tạo.",
+		file = "Client/Ui/GuiPolicy",
+		cond = "Luôn áp dụng.",
+		risk = "Không có.",
+		status = "B",
+	},
+	{
+		id = "GUI-003",
+		group = 12,
+		name = "Dùng TweenService thay vì tự viết hoạt ảnh",
+		mechanism = "Mọi chuyển động dùng TweenService.",
+		cause = "Tự cập nhật vị trí mỗi khung hình bằng RenderStepped tốn CPU và khó mượt.",
+		how = "Notifier dùng TweenService:Create cho trượt xuống + mờ dần.",
+		file = "Client/Ui/Notifier",
+		cond = "Cần TweenService (có ở client).",
+		risk = "Tween vẫn tốn một ít; nhưng rẻ hơn loop thủ công.",
+		status = "A",
+	},
+	{
+		id = "GUI-004",
+		group = 12,
+		name = "Chỉ ghi khi giá trị khác",
+		mechanism = "Xem FPS-002.",
+		cause = "Ghi trùng giá trị vẫn làm layout bẩn.",
+		how = "`GuiPolicy.SetIfChanged()`.",
+		file = "Client/Ui/GuiPolicy",
+		cond = "Luôn áp dụng.",
+		risk = "Không có.",
+		status = "B",
+	},
+	{
+		id = "GUI-005",
+		group = 12,
+		name = "Giữ cây GUI nhỏ",
+		mechanism = "Đếm số node GUI và giữ ở mức tối thiểu.",
+		cause = "Mỗi GuiObject là một nút layout phải tính.",
+		how = "`GuiPolicy.CountNodes()` dùng trong test để đặt ngưỡng.",
+		file = "Client/Ui/GuiPolicy, tests/suites/gui.luau",
+		cond = "Luôn áp dụng.",
+		risk = "Không có.",
+		status = "B",
+	},
+	{
+		id = "GUI-006",
+		group = 12,
+		name = "Ngừng hoạt ảnh khi GUI ẩn",
+		mechanism = "Không chạy tween / không cập nhật gradient khi Enabled = false.",
+		cause = "Hoạt ảnh của thứ không hiển thị là chi phí thuần lãng phí.",
+		how = "`GuiPolicy.ShouldAnimate()` kiểm tra Enabled trước khi chạy hoạt ảnh.",
+		file = "Client/Ui/GuiPolicy",
+		cond = "Luôn áp dụng.",
+		risk = "Không có.",
+		status = "B",
+	},
+	{
+		id = "GUI-007",
+		group = 12,
+		name = "Không tính lại layout mỗi khung hình",
+		mechanism = "Kích thước khung tính theo nội dung khi nội dung đổi, không phải mỗi frame.",
+		cause = "Đọc/ghi kích thước mỗi frame gây layout thrash.",
+		how = "Notifier chỉ FitHeight khi danh sách bước đổi.",
+		file = "Client/Ui/Notifier",
+		cond = "Luôn áp dụng.",
+		risk = "Không có.",
+		status = "A",
+	},
+	{
+		id = "GUI-008",
+		group = 12,
+		name = "Tránh AutomaticSize ở cây lớn",
+		mechanism = "Không dùng AutomaticSize cho cây nhiều nút.",
+		cause = "AutomaticSize buộc engine đo lại toàn bộ cây con mỗi lần đổi.",
+		how = "Chưa triển khai đầy đủ; Notifier vẫn dùng AutomaticSize cho khung nhỏ.",
+		file = "(một phần — đề xuất hoàn thiện)",
+		cond = "Cần đo chi phí thật.",
+		risk = "Dùng kích thước cố định thì kém linh hoạt.",
+		status = "D",
+	},
+	{
+		id = "GUI-009",
+		group = 12,
+		name = "Tắt hoạt ảnh trên máy yếu",
+		mechanism = "Bậc thiết bị thấp thì bỏ hoạt ảnh không cần thiết.",
+		cause = "Trên máy yếu, hoạt ảnh GUI cũng chiếm phần khung hình đáng kể.",
+		how = "`GuiPolicy.ShouldAnimate()` nhận cờ allowAnimation từ Devices.",
+		file = "Client/Ui/GuiPolicy, Client/Core/Devices",
+		cond = "Cần Devices đã chọn bậc.",
+		risk = "GUI kém mượt hơn trên máy yếu.",
+		status = "A",
+	},
+	{
+		id = "GUI-010",
+		group = 12,
+		name = "Không kéo GUI được",
+		mechanism = "Không gắn hành vi kéo; GUI cố định ở góc dưới phải.",
+		cause = "Yêu cầu thiết kế: GUI thông báo không được di chuyển.",
+		how = "Notifier không có input kéo; định vị bằng AnchorPoint + Position.",
+		file = "Client/Ui/Notifier",
+		cond = "Luôn áp dụng.",
+		risk = "Không có.",
+		status = "B",
+	},
+	{
+		id = "GUI-011",
+		group = 12,
+		name = "Dọn GUI khi kết thúc",
+		mechanism = "Destroy ScreenGui sau khi hoạt ảnh ẩn xong, chỉ xoá đúng GUI của hệ thống.",
+		cause = "GUI còn lại sau khi ẩn vẫn chiếm node và connection.",
+		how = "`GuiPolicy.DestroyScreenGui()` kiểm tra Name trước khi Destroy.",
+		file = "Client/Ui/GuiPolicy",
+		cond = "Luôn áp dụng.",
+		risk = "Không có — có kiểm tra tên để không xoá nhầm.",
+		status = "B",
+	},
+	{
+		id = "BG-001",
+		group = 13,
+		name = "Bộ hẹn giờ tập trung",
+		mechanism = "Mọi việc định kỳ qua Scheduler, không có while-true riêng.",
+		cause = "Mỗi vòng lặp nền là một thread không ai quản lý.",
+		how = "Scheduler.Schedule thay cho while-true.",
+		file = "Client/Core/Scheduler",
+		cond = "Luôn áp dụng.",
+		risk = "Không có.",
+		status = "A",
+	},
+	{
+		id = "BG-002",
+		group = 13,
+		name = "Điều khiển bằng sự kiện thay vì polling",
+		mechanism = "Đăng ký callback với sự kiện thay vì hỏi đi hỏi lại.",
+		cause = "Polling tốn CPU ngay cả khi không có gì thay đổi.",
+		how = "Scheduler + Registry.Connect; các bước tối ưu chạy một lần theo sự kiện pipeline.",
+		file = "Client/Core/Scheduler, Client/Core/Registry",
+		cond = "Áp dụng khi có sự kiện phù hợp.",
+		risk = "Một số việc không có sự kiện, buộc phải polling.",
+		status = "A",
+	},
+	{
+		id = "BG-003",
+		group = 13,
+		name = "Huỷ bộ hẹn giờ khi xong",
+		mechanism = "maxCalls để task tự huỷ sau N lần.",
+		cause = "Task vô hạn không cần thiết chạy mãi sau khi việc đã xong.",
+		how = "`Scheduler.Schedule({ maxCalls = 1 })` + `Scheduler.Defer`.",
+		file = "Client/Core/Scheduler",
+		cond = "Luôn áp dụng.",
+		risk = "Không có.",
+		status = "B",
+	},
+	{
+		id = "BG-004",
+		group = 13,
+		name = "Chu kỳ thích ứng theo tải",
+		mechanism = "Task ưu tiên thấp bị dời khi khung hình vượt ngân sách.",
+		cause = "Khi máy đang nặng, việc nền phải nhường.",
+		how = "Scheduler break khi vượt budget; task priority âm chạy sau.",
+		file = "Client/Core/Scheduler",
+		cond = "Luôn áp dụng.",
+		risk = "Việc nền bị trễ khi máy yếu.",
+		status = "A",
+	},
+	{
+		id = "BG-005",
+		group = 13,
+		name = "Không spawn thread cho mỗi sự kiện",
+		mechanism = "Xem LEAK-004.",
+		cause = "Thread chồng chất khi sự kiện dày.",
+		how = "Scheduler.Defer dùng chung một khung.",
+		file = "Client/Core/Scheduler",
+		cond = "Luôn áp dụng.",
+		risk = "Không có.",
+		status = "A",
+	},
+	{
+		id = "NET-001",
+		group = 14,
+		name = "Throttle gửi lên server",
+		mechanism = "Không gửi lại trong cửa sổ minInterval.",
+		cause = "Gửi mỗi khung hình tạo hàng chục gói tin mỗi giây không cần thiết.",
+		how = "`Net.Register({ minInterval })` + `Net.Flush()` theo đồng hồ.",
+		file = "Client/Core/Net",
+		cond = "Cần remote do game cung cấp.",
+		risk = "Dữ liệu tới server trễ hơn một chút (có thể chỉnh).",
+		status = "A",
+	},
+	{
+		id = "NET-002",
+		group = 14,
+		name = "Gộp nhiều thông điệp thành một gói",
+		mechanism = "Nhiều payload trong hàng đợi được gộp thành một mảng, gửi một lần.",
+		cause = "Mỗi FireServer là một gói tin + chi phí serialise riêng.",
+		how = "`Net.Flush()` nhánh batch.",
+		file = "Client/Core/Net",
+		cond = "Server phải hiểu định dạng mảng.",
+		risk = "Cần sửa server để đọc mảng — phải phối hợp.",
+		status = "A",
+	},
+	{
+		id = "NET-003",
+		group = 14,
+		name = "Chỉ gửi dữ liệu khác lần trước",
+		mechanism = "So sánh nông payload với lần gửi cuối, giống thì bỏ qua.",
+		cause = "Gửi lại trạng thái không đổi là băng thông thuần lãng phí.",
+		how = "`Net.Send()` dùng shallowEqual, đếm `suppressed`.",
+		file = "Client/Core/Net",
+		cond = "Payload phải so sánh được bằng giá trị.",
+		risk = "Bảng lồng nhau không so sánh sâu — có thể bỏ sót thay đổi bên trong.",
+		status = "A",
+	},
+	{
+		id = "NET-004",
+		group = 14,
+		name = "Gửi dữ liệu nén",
+		mechanism = "Dùng số/thay vì chuỗi dài, dùng enum thay tên.",
+		cause = "Chuỗi dài tốn byte serialise.",
+		how = "Chưa triển khai: phụ thuộc giao thức của từng game.",
+		file = "(đề xuất)",
+		cond = "Cần thiết kế giao thức.",
+		risk = "Không có.",
+		status = "D",
+	},
+	{
+		id = "NET-005",
+		group = 14,
+		name = "Giảm tần suất replicate từ server",
+		mechanism = "Server gửi ít lần hơn cho dữ liệu ít đổi.",
+		cause = "Replicate dày là nguồn băng thông lớn nhất.",
+		how = "Không thể làm từ LocalScript — đây là việc phía server.",
+		file = "(không áp dụng được ở client)",
+		cond = "Cần quyền sửa server.",
+		risk = "Không có.",
+		status = "E",
+	},
+	{
+		id = "NET-006",
+		group = 14,
+		name = "Đặt NetworkOwner hợp lý",
+		mechanism = "Server đặt NetworkOwner cho vật thể người chơi điều khiển.",
+		cause = "Sai NetworkOwner gây giật và tốn băng thông.",
+		how = "Không thể làm từ LocalScript: SetNetworkOwner là API server.",
+		file = "(không áp dụng được ở client)",
+		cond = "Cần quyền sửa server.",
+		risk = "Không có.",
+		status = "E",
+	},
+	{
+		id = "NPC-001",
+		group = 15,
+		name = "Lệch pha cập nhật NPC",
+		mechanism = "Mỗi NPC cập nhật ở khung hình khác nhau (index % N).",
+		cause = "Cả đàn NPC tính toán cùng một khung hình gây khựng định kỳ.",
+		how = "Chưa triển khai: cần module NPC của game.",
+		file = "(đề xuất)",
+		cond = "Cần quyền sửa script NPC.",
+		risk = "Không có nếu lệch pha đúng.",
+		status = "D",
+	},
+	{
+		id = "NPC-002",
+		group = 15,
+		name = "Thưa tần suất tính đường",
+		mechanism = "Tìm đường lại sau mỗi N giây, không phải mỗi khung hình.",
+		cause = "Pathfinding là một trong những tác vụ đắt nhất của NPC.",
+		how = "Chưa triển khai.",
+		file = "(đề xuất)",
+		cond = "Cần quyền sửa script NPC.",
+		risk = "NPC phản ứng chậm hơn với thay đổi địa hình.",
+		status = "D",
+	},
+	{
+		id = "NPC-003",
+		group = 15,
+		name = "Kiểm tra rẻ trước khi tìm đường đắt",
+		mechanism = "Hỏi lưới băm 'có mục tiêu gần không' trước khi gọi Pathfinding.",
+		cause = "Gọi Pathfinding cho mục tiêu không thể tới là lãng phí lớn.",
+		how = "`Spatial:Nearest()` cung cấp truy vấn rẻ để lọc trước.",
+		file = "Client/Core/Spatial",
+		cond = "Cần dựng lưới cho đối tượng liên quan.",
+		risk = "Lưới chỉ là bộ lọc, vẫn cần kiểm tra lại.",
+		status = "B",
+	},
+	{
+		id = "NPC-004",
+		group = 15,
+		name = "Ngừng cập nhật NPC ở xa",
+		mechanism = "NPC ngoài tầm quan sát thì giảm tần suất hoặc tạm dừng.",
+		cause = "NPC ở xa vẫn tính AI đầy đủ là lãng phí lớn.",
+		how = "Chưa triển khai: cần phân biệt NPC nào được phép tạm dừng.",
+		file = "(đề xuất)",
+		cond = "Cần chủ game cho phép.",
+		risk = "NPC 'đứng hình' khi người chơi quay lại.",
+		status = "D",
+	},
+	{
+		id = "ASSET-001",
+		group = 16,
+		name = "Tải trước tài nguyên",
+		mechanism = "Dùng ContentProvider:PreloadAsync cho asset dùng ngay khi vào.",
+		cause = "Tải asset đúng lúc cần gây khựng hình giữa trận.",
+		how = "Chưa triển khai: cần biết danh sách asset của game.",
+		file = "(đề xuất)",
+		cond = "Cần quyền sửa game.",
+		risk = "Preload nhiều làm chậm lúc vào game.",
+		status = "D",
+	},
+	{
+		id = "ASSET-002",
+		group = 16,
+		name = "Nạp module lười",
+		mechanism = "Chỉ require khi thật sự dùng tới.",
+		cause = "Mọi module nạp lúc khởi động làm chậm thời gian vào game.",
+		how = "`Cpu.Lazy(path)` trả về hàm; require chỉ chạy khi gọi.",
+		file = "Client/Core/Cpu",
+		cond = "Luôn áp dụng.",
+		risk = "Lần dùng đầu tiên bị trễ một chút.",
+		status = "A",
+	},
+	{
+		id = "ASSET-003",
+		group = 16,
+		name = "Cache kết quả tra cứu",
+		mechanism = "Xem QUERY-002.",
+		cause = "Tra cứu cây instance lặp lại là chi phí vô ích.",
+		how = "`Registry.cache` + tự vô hiệu khi instance bị huỷ.",
+		file = "Client/Core/Registry",
+		cond = "Luôn áp dụng.",
+		risk = "Cache sai nếu instance bị thay thế bởi instance cùng tên — Watch xử lý việc này.",
+		status = "B",
+	},
+	{
+		id = "ASSET-004",
+		group = 16,
+		name = "Không dùng chuỗi WaitForChild",
+		mechanism = "Tra cứu có cache + chờ có trần thời gian.",
+		cause = "`WaitForChild` không trần có thể treo thread vĩnh viễn nếu đối tượng không bao giờ xuất hiện.",
+		how = "`Cpu.Await(parent, name, timeout)` dùng Registry.Find + deadline.",
+		file = "Client/Core/Cpu",
+		cond = "Luôn áp dụng.",
+		risk = "Hết thời gian chờ thì bỏ qua bước đó (có log).",
+		status = "A",
+	},
+	{
+		id = "ASSET-005",
+		group = 16,
+		name = "Danh sách asset tập trung",
+		mechanism = "Một bảng khai báo asset, nạp một lần.",
+		cause = "Asset rải rác khắp script dẫn tới nạp trùng.",
+		how = "Chưa triển khai.",
+		file = "(đề xuất)",
+		cond = "Cần khảo sát game.",
+		risk = "Không có.",
+		status = "D",
+	},
+	{
+		id = "DATA-001",
+		group = 17,
+		name = "Pool đối tượng",
+		mechanism = "Xem POOL-001.",
+		cause = "Tạo/huỷ instance liên tục rất đắt.",
+		how = "Client/Core/Pool.",
+		file = "Client/Core/Pool",
+		cond = "Áp dụng cho đối tượng sinh ra thường xuyên.",
+		risk = "Không có nếu reset đúng.",
+		status = "B",
+	},
+	{
+		id = "DATA-002",
+		group = 17,
+		name = "Lưới băm không gian",
+		mechanism = "Chia thế giới thành ô; truy vấn lân cận chỉ duyệt ô quanh điểm hỏi.",
+		cause = "Quét O(n) toàn thế giới cho mỗi truy vấn gần.",
+		how = "`Spatial.New/Insert/QueryRadius/Nearest`.",
+		file = "Client/Core/Spatial",
+		cond = "Hữu ích khi vị trí ít đổi hoặc cập nhật lưới theo chu kỳ.",
+		risk = "Với vật di chuyển nhanh, lưới phải rebuild thường xuyên.",
+		status = "B",
+	},
+	{
+		id = "DATA-003",
+		group = 17,
+		name = "Duyệt mảng bằng chỉ số",
+		mechanism = "Xem LOOP-007: nhanh hơn pairs và có thứ tự xác định.",
+		cause = "pairs() chậm hơn và thứ tự không đảm bảo.",
+		how = "`Cpu.ForEachIndex()`.",
+		file = "Client/Core/Cpu",
+		cond = "Áp dụng cho mảng.",
+		risk = "Không dùng được cho bảng khoá chuỗi.",
+		status = "B",
+	},
+	{
+		id = "DATA-004",
+		group = 17,
+		name = "Dùng set thay vì tìm trong danh sách",
+		mechanism = "Tra cứu 'đã xử lý chưa' bằng bảng khoá thay vì duyệt danh sách.",
+		cause = "Duyệt danh sách để kiểm tra thành viên là O(n) mỗi lần.",
+		how = "`Safety.BuildProtectedSet()` trả về set để tra O(1).",
+		file = "Shared/Safety",
+		cond = "Áp dụng khi kiểm tra thành viên nhiều lần.",
+		risk = "Tốn bộ nhớ cho bảng khoá.",
+		status = "B",
+	},
+	{
+		id = "EVT-001",
+		group = 18,
+		name = "Kết nối tín hiệu khung hình một lần",
+		mechanism = "Xem LOOP-001.",
+		cause = "N kết nối RenderStepped/Heartbeat = N lần gọi mỗi khung hình.",
+		how = "Scheduler giữ đúng một connection.",
+		file = "Client/Core/Scheduler",
+		cond = "Luôn áp dụng.",
+		risk = "Không có.",
+		status = "A",
+	},
+	{
+		id = "EVT-002",
+		group = 18,
+		name = "Một kết nối cho mỗi tín hiệu mỗi module",
+		mechanism = "Registry đếm connection để phát hiện nối trùng.",
+		cause = "Nối trùng cùng một handler làm việc chạy hai lần.",
+		how = "`Registry.ConnectionCount()` + test kiểm tra không tăng bất thường.",
+		file = "Client/Core/Registry, tests",
+		cond = "Luôn áp dụng.",
+		risk = "Không có.",
+		status = "B",
+	},
+	{
+		id = "EVT-003",
+		group = 18,
+		name = "Định tuyến log tập trung",
+		mechanism = "Mọi module log qua Shared/Log, không print rải rác.",
+		cause = "print mỗi sự kiện vừa tốn vừa làm ngập Output, khó chẩn đoán.",
+		how = "`Shared/Log` có mức lọc và bộ đệm vòng.",
+		file = "Shared/Log",
+		cond = "Luôn áp dụng.",
+		risk = "Log mức debug vẫn tốn nếu bật.",
+		status = "A",
+	},
+	{
+		id = "EVT-004",
+		group = 18,
+		name = "Gộp tín hiệu",
+		mechanism = "Một BindableEvent chung thay vì nhiều tín hiệu nhỏ.",
+		cause = "Mỗi tín hiệu là một đối tượng và một lần Fire riêng.",
+		how = "Chưa triển khai: Progress đang dùng một BindableEvent riêng.",
+		file = "(một phần — đề xuất)",
+		cond = "Cần thiết kế lại.",
+		risk = "Khó debug hơn khi gộp.",
+		status = "D",
+	},
+	{
+		id = "EVT-005",
+		group = 18,
+		name = "Tránh FireAllClients dày",
+		mechanism = "Server không bắn remote cho mọi người chơi mỗi khung hình.",
+		cause = "FireAllClients dày nhân băng thông theo số người chơi.",
+		how = "Không áp dụng được từ LocalScript.",
+		file = "(không áp dụng ở client)",
+		cond = "Cần quyền sửa server.",
+		risk = "Không có.",
+		status = "E",
+	},
+	{
+		id = "QUERY-001",
+		group = 19,
+		name = "Dùng CollectionService thay vì quét",
+		mechanism = "Đánh tag đối tượng cần quản lý rồi lấy theo tag.",
+		cause = "GetDescendants trả về mọi thứ, phải lọc lại rất tốn.",
+		how = "Chưa triển khai đầy đủ; Safety đã dùng GetTagged để lấy tag bảo vệ.",
+		file = "Shared/Safety",
+		cond = "Cần chủ game đánh tag.",
+		risk = "Không có.",
+		status = "A",
+	},
+	{
+		id = "QUERY-002",
+		group = 19,
+		name = "Cache FindFirstChild",
+		mechanism = "Xem ASSET-003.",
+		cause = "Tra cứu lặp lại cùng một đối tượng là chi phí vô ích.",
+		how = "`Registry.Find()` có cache và tự vô hiệu.",
+		file = "Client/Core/Registry",
+		cond = "Luôn áp dụng.",
+		risk = "Xem ASSET-003.",
+		status = "B",
+	},
+	{
+		id = "QUERY-003",
+		group = 19,
+		name = "Truy vấn theo vùng",
+		mechanism = "Xem DATA-002.",
+		cause = "Quét toàn cây để tìm vật gần.",
+		how = "`Spatial:QueryRadius()`.",
+		file = "Client/Core/Spatial",
+		cond = "Xem DATA-002.",
+		risk = "Lưới là bộ lọc, không phải kết quả cuối.",
+		status = "B",
+	},
+	{
+		id = "QUERY-004",
+		group = 19,
+		name = "Trần cho việc quét",
+		mechanism = "Mọi lần quét có maxScan; vượt thì dừng và ghi log.",
+		cause = "Quét không trần trên map lớn gây khựng hình ngay lúc bắt đầu.",
+		how = "`Scan.Descendants({ maxScan })` và `Spatial:Rebuild(maxEntries)`.",
+		file = "Client/Optimizations/Scan, Client/Core/Spatial",
+		cond = "Luôn áp dụng.",
+		risk = "Bỏ sót đối tượng ngoài trần — có log để biết.",
+		status = "B",
+	},
+	{
+		id = "QUERY-005",
+		group = 19,
+		name = "Lập chỉ mục theo tag",
+		mechanism = "Giữ bảng tag -> danh sách để tra nhanh.",
+		cause = "GetTagged mỗi lần hỏi là một lời gọi engine.",
+		how = "Chưa triển khai.",
+		file = "(đề xuất)",
+		cond = "Cần tag ổn định.",
+		risk = "Chỉ mục cũ nếu tag đổi mà không cập nhật.",
+		status = "D",
+	},
+	{
+		id = "POOL-001",
+		group = 20,
+		name = "Pool instance theo loại",
+		mechanism = "Acquire lấy từ pool, Release trả về thay vì Destroy.",
+		cause = "Instance.new và Destroy đều đắt; làm liên tục gây khựng.",
+		how = "`Pool.Define/Acquire/Release`.",
+		file = "Client/Core/Pool",
+		cond = "Áp dụng cho đối tượng sinh ra thường xuyên.",
+		risk = "Pool không reset đúng sẽ tái sử dụng đối tượng bẩn — có hook prepare.",
+		status = "B",
+	},
+	{
+		id = "POOL-002",
+		group = 20,
+		name = "Tái sử dụng Tween",
+		mechanism = "Giữ và phát lại Tween thay vì tạo mới mỗi lần.",
+		cause = "Tạo Tween mỗi lần cũng là cấp phát đối tượng.",
+		how = "Chưa triển khai: Notifier tạo tween mỗi lần ẩn.",
+		file = "(đề xuất)",
+		cond = "Tween chỉ tái sử dụng được khi goal giống nhau.",
+		risk = "Không có.",
+		status = "D",
+	},
+	{
+		id = "POOL-003",
+		group = 20,
+		name = "Tái sử dụng bảng tạm",
+		mechanism = "Xem RAM-002.",
+		cause = "Cấp phát bảng trong vòng lặp nóng ép GC.",
+		how = "`Pool.AcquireTable/ReleaseTable`.",
+		file = "Client/Core/Pool",
+		cond = "Áp dụng cho bảng tạm.",
+		risk = "Xem RAM-002.",
+		status = "B",
+	},
+	{
+		id = "POOL-004",
+		group = 20,
+		name = "Sổ theo dõi pool và trần dung lượng",
+		mechanism = "Pool có cap; đầy thì huỷ thật; thống kê reused/created.",
+		cause = "Pool không trần biến thành nguồn rò rỉ mới.",
+		how = "`pool.cap`, `Pool.stats.capped`, `Pool.Stats()`.",
+		file = "Client/Core/Pool",
+		cond = "Luôn áp dụng.",
+		risk = "Cap nhỏ thì ít tái sử dụng.",
+		status = "B",
+	},
+	{
+		id = "POOL-005",
+		group = 20,
+		name = "Kiểm tra đối tượng trong pool còn sống",
+		mechanism = "Trước khi tái sử dụng, kiểm tra Parent còn tồn tại.",
+		cause = "Game có thể đã Destroy đối tượng trong pool; dùng lại sẽ lỗi.",
+		how = "`Pool.Acquire()` gọi Guard.Alive trước khi trả về.",
+		file = "Client/Core/Pool",
+		cond = "Luôn áp dụng.",
+		risk = "Không có.",
+		status = "B",
+	},
+	{
+		id = "PLAYER-001",
+		group = 21,
+		name = "Thưa cập nhật dữ liệu người chơi",
+		mechanism = "Không cập nhật leaderstats/attribute mỗi khung hình.",
+		cause = "Cập nhật dày gây replicate và tốn CPU.",
+		how = "Chưa triển khai: thuộc script gameplay của game.",
+		file = "(đề xuất)",
+		cond = "Cần quyền sửa script game.",
+		risk = "Hiển thị trễ hơn.",
+		status = "D",
+	},
+	{
+		id = "PLAYER-002",
+		group = 21,
+		name = "Cache thuộc tính người chơi",
+		mechanism = "Đọc attribute một lần, cập nhật khi có sự kiện.",
+		cause = "Đọc attribute mỗi khung hình là tra cứu lặp lại.",
+		how = "Chưa triển khai.",
+		file = "(đề xuất)",
+		cond = "Cần biết attribute nào dùng thường xuyên.",
+		risk = "Cache cũ nếu không nghe sự kiện.",
+		status = "D",
+	},
+	{
+		id = "PLAYER-003",
+		group = 21,
+		name = "Không gọi GetPlayers mỗi khung hình",
+		mechanism = "Giữ danh sách người chơi, cập nhật theo PlayerAdded/Removing.",
+		cause = "GetPlayers cấp phát bảng mới mỗi lần gọi.",
+		how = "Chưa triển khai: hệ thống này không cần danh sách người chơi.",
+		file = "(đề xuất)",
+		cond = "Áp dụng cho script cần danh sách.",
+		risk = "Danh sách cũ nếu bỏ sót sự kiện.",
+		status = "D",
+	},
+	{
+		id = "PLAYER-004",
+		group = 21,
+		name = "Dọn dẹp khi người chơi rời",
+		mechanism = "Nghe PlayerRemoving để xoá dữ liệu của người đó.",
+		cause = "Dữ liệu người chơi đã rời tích tụ thành rò rỉ.",
+		how = "Chưa triển khai: hệ thống chỉ tối ưu cho LocalPlayer.",
+		file = "(đề xuất)",
+		cond = "Áp dụng cho script server.",
+		risk = "Không có.",
+		status = "D",
+	},
+	{
+		id = "HEAVY-001",
+		group = 22,
+		name = "Phân vị thời gian khung hình",
+		mechanism = "Tính p1/p5/p50/p95 thay vì chỉ trung bình.",
+		cause = "Trung bình che mất các khung hình giật — thứ người chơi thật sự cảm nhận.",
+		how = "`Perf.Percentile` + `Perf.Summarize`.",
+		file = "Client/Core/Perf",
+		cond = "Cần đủ mẫu.",
+		risk = "Mẫu ít thì phân vị kém ổn định.",
+		status = "A",
+	},
+	{
+		id = "HEAVY-002",
+		group = 22,
+		name = "Đếm khung hình dài",
+		mechanism = "Đếm số khung hình vượt ngưỡng (mặc định 33.3ms = dưới 30 FPS).",
+		cause = "Số khung hình giật là chỉ số trực tiếp của trải nghiệm.",
+		how = "`Profile.longFrames` + `Profile.longFrameThresholdMs`.",
+		file = "Client/Core/Profile",
+		cond = "Luôn áp dụng.",
+		risk = "Không có.",
+		status = "A",
+	},
+	{
+		id = "HEAVY-003",
+		group = 22,
+		name = "Theo dõi heap Luau",
+		mechanism = "Đọc collectgarbage(\"count\") trước và sau.",
+		cause = "Heap tăng đều theo thời gian là dấu hiệu rò rỉ.",
+		how = "`Profile.Run()` ghi heapKb; Profile.Compare tính delta.",
+		file = "Client/Core/Profile",
+		cond = "Cần collectgarbage (có trong Luau).",
+		risk = "Heap Luau không phải toàn bộ RAM của game.",
+		status = "A",
+	},
+	{
+		id = "HEAVY-004",
+		group = 22,
+		name = "Đo chi phí của chính công cụ",
+		mechanism = "Đo thời gian Scheduler.Tick tiêu tốn mỗi khung hình.",
+		cause = "Công cụ chống lag mà tự gây lag thì vô nghĩa.",
+		how = "`Profile.SelfCost()` đọc Scheduler.lastFrameCostMs và overruns.",
+		file = "Client/Core/Profile, Client/Core/Scheduler",
+		cond = "Luôn áp dụng.",
+		risk = "Không có.",
+		status = "A",
+	},
+	{
+		id = "HEAVY-005",
+		group = 22,
+		name = "Cảnh báo tác vụ vượt ngân sách",
+		mechanism = "Scheduler đếm overrun; vượt nhiều thì báo.",
+		cause = "Cần biết công cụ có đang chiếm quá nhiều khung hình.",
+		how = "`Scheduler.overruns` + log cảnh báo.",
+		file = "Client/Core/Scheduler",
+		cond = "Luôn áp dụng.",
+		risk = "Không có.",
+		status = "A",
+	},
+	{
+		id = "DIST-001",
+		group = 23,
+		name = "Cull theo khoảng cách camera",
+		mechanism = "Xem GRAPHICS-004/FX-001: tắt chi phí của thứ ở xa.",
+		cause = "Engine vẫn trả chi phí cho thứ người chơi không thấy rõ.",
+		how = "`Cull.Scan()` so khoảng cách bình phương với ngưỡng.",
+		file = "Client/Core/Cull",
+		cond = "Chỉ đối tượng đã đăng ký.",
+		risk = "Xem GRAPHICS-004.",
+		status = "B",
+	},
+	{
+		id = "DIST-002",
+		group = 23,
+		name = "Giảm tần suất cập nhật cho đối tượng xa",
+		mechanism = "Đối tượng xa được quét ít thường xuyên hơn.",
+		cause = "Cập nhật đều đặn cho thứ ở xa là lãng phí.",
+		how = "`Cull.rules.updateInterval` áp dụng cho toàn bộ lượt quét; đối tượng xa chỉ bị đổi trạng thái, không tính lại mỗi lượt.",
+		file = "Client/Core/Cull",
+		cond = "Luôn áp dụng.",
+		risk = "Phản ứng chậm hơn khi đối tượng lại gần.",
+		status = "A",
+	},
+	{
+		id = "DIST-003",
+		group = 23,
+		name = "Bỏ qua hiệu ứng ở xa",
+		mechanism = "Xem FX-001.",
+		cause = "Hiệu ứng xa vẫn sinh hạt.",
+		how = "Cull nhánh effects với effectDistance.",
+		file = "Client/Core/Cull",
+		cond = "Chỉ đối tượng đã đăng ký.",
+		risk = "Xem FX-001.",
+		status = "B",
+	},
+	{
+		id = "DIST-004",
+		group = 23,
+		name = "Tự khôi phục khi lại gần",
+		mechanism = "Khi đối tượng vào trong ngưỡng, mọi property được đặt lại giá trị cũ.",
+		cause = "Nếu chỉ tắt mà không khôi phục, người chơi sẽ thấy vật thể 'chết' khi lại gần.",
+		how = "`Cull.RestoreTarget()` dùng Guard.Change với expect để khôi phục đúng.",
+		file = "Client/Core/Cull, Client/Core/Guard",
+		cond = "Luôn áp dụng.",
+		risk = "Nếu game đã đổi giá trị đó, Guard trả 'stale' và KHÔNG ghi đè.",
+		status = "B",
+	},
+	{
+		id = "LOWEND-001",
+		group = 24,
+		name = "Nhận diện nền tảng",
+		mechanism = "Đọc TouchEnabled/GamepadEnabled/KeyboardEnabled từ UserInputService.",
+		cause = "Cùng một mức giảm đồ hoạ là quá tay trên PC và chưa đủ trên mobile.",
+		how = "`Devices.DetectPlatform()`.",
+		file = "Client/Core/Devices",
+		cond = "UserInputService không có trên server.",
+		risk = "Chỉ biết nền tảng, KHÔNG biết cấu hình CPU/GPU — đây là ước lượng.",
+		status = "B",
+	},
+	{
+		id = "LOWEND-002",
+		group = 24,
+		name = "Chọn bậc chất lượng theo nền tảng và FPS đo được",
+		mechanism = "Ba bậc low/medium/high; hạ bậc khi FPS đo được thấp.",
+		cause = "Cần mức can thiệp khác nhau cho máy khác nhau.",
+		how = "`Devices.ChooseTier(measuredFps)`; chỉ dùng FPS khi có số đo THẬT.",
+		file = "Client/Core/Devices",
+		cond = "Cần Profile đã đo.",
+		risk = "Nếu chưa đo thì chỉ dựa nền tảng — có nêu rõ trong báo cáo.",
+		status = "B",
+	},
+	{
+		id = "LOWEND-003",
+		group = 24,
+		name = "Giảm mật độ hạt mạnh hơn trên máy yếu",
+		mechanism = "particleScale theo bậc thiết bị nhân vào mức trần hạt.",
+		cause = "Hạt là chi phí lớn nhất trên GPU mobile.",
+		how = "`Devices.ParticleScale()` dùng trong Effects khi tính trần.",
+		file = "Client/Core/Devices, Client/Optimizations/Effects",
+		cond = "Cần bậc đã chọn.",
+		risk = "Hiệu ứng thưa hơn trên máy yếu.",
+		status = "B",
+	},
+	{
+		id = "LOWEND-004",
+		group = 24,
+		name = "Rút gọn GUI trên máy yếu",
+		mechanism = "Bậc thấp thì bỏ hoạt ảnh GUI.",
+		cause = "Hoạt ảnh GUI cũng chiếm khung hình trên máy yếu.",
+		how = "`Devices.ShouldAnimateGui()` -> GuiPolicy.ShouldAnimate.",
+		file = "Client/Core/Devices, Client/Ui/GuiPolicy",
+		cond = "Cần bậc đã chọn.",
+		risk = "GUI kém mượt trên máy yếu.",
+		status = "B",
+	},
+	{
+		id = "LOWEND-005",
+		group = 24,
+		name = "Đọc thông số phần cứng thật",
+		mechanism = "Lấy số nhân CPU, dung lượng RAM, model GPU để quyết định.",
+		cause = "Ước lượng theo nền tảng không chính xác bằng thông số thật.",
+		how = "Roblox không cung cấp API này cho script.",
+		file = "(không khả dụng)",
+		cond = "Không có API.",
+		risk = "Không có.",
+		status = "E",
+	},
+	{
+		id = "MEAS-001",
+		group = 25,
+		name = "Lấy mẫu trước và sau",
+		mechanism = "Đo cùng một chỉ số trước và sau tối ưu, cùng độ dài cửa sổ.",
+		cause = "Không đo thì mọi tuyên bố cải thiện đều là đoán.",
+		how = "`Profile.Run(duration, { label })` gọi hai lần với baseline/after.",
+		file = "Client/Core/Profile",
+		cond = "Cần RenderStepped (client).",
+		risk = "Điều kiện hai lần đo phải tương đương — census được ghi kèm để kiểm tra.",
+		status = "B",
+	},
+	{
+		id = "MEAS-002",
+		group = 25,
+		name = "Thống kê phân vị",
+		mechanism = "Xem HEAVY-001.",
+		cause = "Một con số trung bình không mô tả được trải nghiệm.",
+		how = "`Perf.Summarize(\"ms\")` trả mean/min/max/stddev/p1/p5/p50/p95/p99.",
+		file = "Client/Core/Perf",
+		cond = "Cần đủ mẫu.",
+		risk = "Không có.",
+		status = "A",
+	},
+	{
+		id = "MEAS-003",
+		group = 25,
+		name = "Bảng so sánh có kiểm tra hợp lệ",
+		mechanism = "Chỉ kết luận khi CẢ HAI lần đo có mẫu; thiếu thì báo 'không kết luận được'.",
+		cause = "Báo cáo cải thiện từ dữ liệu rỗng là bịa số.",
+		how = "`Profile.Compare()` trả valid=false kèm lý do.",
+		file = "Client/Core/Profile",
+		cond = "Luôn áp dụng.",
+		risk = "Không có — đây chính là chốt chống bịa số.",
+		status = "B",
+	},
+	{
+		id = "MEAS-004",
+		group = 25,
+		name = "Công tắc A/B cho từng nhóm",
+		mechanism = "Bật/tắt nhóm rồi đo lại để biết nhóm nào thật sự có ích.",
+		cause = "Có nhóm tối ưu trên lý thuyết nhưng lại làm chậm hơn trên máy cụ thể.",
+		how = "Config.groups + Devices.IsEnabled; đo lại sau mỗi lần đổi.",
+		file = "Shared/Config, Client/Core/Devices",
+		cond = "Luôn áp dụng.",
+		risk = "Không có.",
+		status = "B",
+	},
+	{
+		id = "MEAS-005",
+		group = 25,
+		name = "Đo chi phí bản thân công cụ",
+		mechanism = "Xem HEAVY-004.",
+		cause = "Công cụ phải chứng minh nó không tự gây lag.",
+		how = "`Profile.SelfCost()`.",
+		file = "Client/Core/Profile",
+		cond = "Luôn áp dụng.",
+		risk = "Không có.",
+		status = "A",
+	},
+	{
+		id = "MEAS-006",
+		group = 25,
+		name = "Ghi ngữ cảnh của lần đo",
+		mechanism = "Ghi số part/emitter/model của mỗi lần đo.",
+		cause = "Hai lần đo trong hai cảnh khác nhau thì không so sánh được.",
+		how = "`Profile.WorldCensus()` gắn vào kết quả đo.",
+		file = "Client/Core/Profile",
+		cond = "Luôn áp dụng.",
+		risk = "Không có.",
+		status = "B",
+	},
+	{
+		id = "MEAS-007",
+		group = 25,
+		name = "Không tạo số liệu giả",
+		mechanism = "Nếu runtime không cho đọc một chỉ số, trả available=false.",
+		cause = "Số liệu giả nguy hiểm hơn không có số liệu.",
+		how = "Mọi hàm đo đều có nhánh available=false; Profile.Compare từ chối kết luận.",
+		file = "Client/Core/Profile",
+		cond = "Luôn áp dụng.",
+		risk = "Không có.",
+		status = "B",
+	},
+	{
+		id = "REC-001",
+		group = 26,
+		name = "Mọi thao tác nguy hiểm trong pcall",
+		mechanism = "Xem CPU-008.",
+		cause = "Một lỗi làm sập cả hệ thống và mất khả năng khôi phục.",
+		how = "`Guard.Run()`.",
+		file = "Client/Core/Guard",
+		cond = "Luôn áp dụng.",
+		risk = "Xem CPU-008.",
+		status = "B",
+	},
+	{
+		id = "REC-002",
+		group = 26,
+		name = "Không ghi đè thay đổi của người khác",
+		mechanism = "Chỉ khôi phục khi giá trị hiện tại VẪN là giá trị script đã đặt.",
+		cause = "Game hoặc người chơi có thể đã đổi giá trị đó; ghi đè là phá game.",
+		how = "`Guard.Change(..., { expect = <giá trị ta đã đặt> })` trả 'stale' nếu khác.",
+		file = "Client/Core/Guard",
+		cond = "Luôn áp dụng.",
+		risk = "Nếu game đổi giá trị thì bước khôi phục bị bỏ qua (có log) — đúng ý đồ.",
+		status = "B",
+	},
+	{
+		id = "REC-003",
+		group = 26,
+		name = "Cách ly lỗi theo từng bước",
+		mechanism = "Một bước failed không chặn các bước sau.",
+		cause = "Pipeline dừng giữa chừng để lại trạng thái nửa vời.",
+		how = "`Runner.Execute()` pcall từng bước, đánh dấu failed rồi đi tiếp.",
+		file = "Client/Core/Runner",
+		cond = "Luôn áp dụng.",
+		risk = "Không có.",
+		status = "B",
+	},
+	{
+		id = "REC-004",
+		group = 26,
+		name = "Chuẩn hoá cấu hình sai kiểu",
+		mechanism = "Sai kiểu thì dùng mặc định và cảnh báo, không để giá trị sai lan xuống module.",
+		cause = "Cấu hình sai gây lỗi ở nơi rất xa nguyên nhân.",
+		how = "`Guard.NormalizeConfig(profile, defaults)`.",
+		file = "Client/Core/Guard",
+		cond = "Luôn áp dụng.",
+		risk = "Người dùng có thể không để ý cảnh báo.",
+		status = "B",
+	},
+	{
+		id = "RESTORE-001",
+		group = 26,
+		name = "Ghi nhật ký giá trị cũ",
+		mechanism = "Mọi property bị đổi đều ghi lại giá trị trước đó kèm id bước.",
+		cause = "Không ghi thì không thể khôi phục.",
+		how = "`Restore.Record(instance, property, oldValue, stepId)`.",
+		file = "Client/Core/Restore",
+		cond = "Luôn áp dụng.",
+		risk = "Không có.",
+		status = "B",
+	},
+	{
+		id = "RESTORE-002",
+		group = 26,
+		name = "Hoàn tác theo thứ tự ngược",
+		mechanism = "Khôi phục từ thay đổi mới nhất trở về.",
+		cause = "Khôi phục sai thứ tự có thể đặt trạng thái không nhất quán.",
+		how = "`Restore.All()` lặp từ cuối về đầu.",
+		file = "Client/Core/Restore",
+		cond = "Luôn áp dụng.",
+		risk = "Không có.",
+		status = "B",
+	},
+	{
+		id = "RESTORE-003",
+		group = 26,
+		name = "Kiểm tra giá trị cũ khi khôi phục",
+		mechanism = "Dùng Guard.Change với expect; giá trị đã đổi thì bỏ qua.",
+		cause = "Xem REC-002.",
+		how = "`Restore.All(setter)` với setter = Guard.Change.",
+		file = "Client/Core/Restore, Client/Core/Guard",
+		cond = "Luôn áp dụng.",
+		risk = "Xem REC-002.",
+		status = "B",
+	},
+	{
+		id = "RESTORE-004",
+		group = 26,
+		name = "Quên đối tượng đã huỷ",
+		mechanism = "Khi instance bị Destroy, xoá mục restore của nó.",
+		cause = "Giữ tham chiếu instance đã huỷ vừa rò rỉ vừa gây lỗi.",
+		how = "`Restore.Forget(instance)` được Cull gọi khi khôi phục; Registry.Watch phát hiện huỷ.",
+		file = "Client/Core/Restore, Client/Core/Cull",
+		cond = "Luôn áp dụng.",
+		risk = "Không có.",
+		status = "A",
+	},
+	{
+		id = "CFG-001",
+		group = 27,
+		name = "Bật/tắt theo nhóm",
+		mechanism = "profile.groups.<group> = false tắt cả nhóm.",
+		cause = "Người dùng cần tắt nhanh một nhóm gây tác dụng phụ.",
+		how = "`Devices.IsEnabled(profile, groupKey)`.",
+		file = "Client/Core/Devices, Shared/Config",
+		cond = "Luôn áp dụng.",
+		risk = "Không có.",
+		status = "B",
+	},
+	{
+		id = "CFG-002",
+		group = 27,
+		name = "Bật/tắt từng phương pháp",
+		mechanism = "profile.methods.<id> = false tắt riêng một phương pháp.",
+		cause = "Có phương pháp tốt với game này nhưng hại với game khác.",
+		how = "`Devices.IsEnabled(profile, nil, methodId)`.",
+		file = "Client/Core/Devices, Shared/Config",
+		cond = "Luôn áp dụng.",
+		risk = "Không có.",
+		status = "B",
+	},
+	{
+		id = "CFG-003",
+		group = 27,
+		name = "Kiểm tra kiểu cấu hình",
+		mechanism = "Xem REC-004.",
+		cause = "Cấu hình sai kiểu gây lỗi khó tìm.",
+		how = "`Guard.NormalizeConfig()`.",
+		file = "Client/Core/Guard",
+		cond = "Luôn áp dụng.",
+		risk = "Xem REC-004.",
+		status = "B",
+	},
+	{
+		id = "CFG-004",
+		group = 27,
+		name = "Khôi phục cấu hình mặc định",
+		mechanism = "Một hàm đưa toàn bộ cấu hình về mặc định.",
+		cause = "Sau khi thử nhiều thiết lập, cần một đường quay lại an toàn.",
+		how = "`Config.ResetToDefaults()` ghi lại toàn bộ giá trị mặc định.",
+		file = "Shared/Config",
+		cond = "Luôn áp dụng.",
+		risk = "Không có.",
+		status = "B",
+	},
+	{
+		id = "CFG-005",
+		group = 27,
+		name = "Liệt kê những gì đang tắt",
+		mechanism = "Hàm trả về danh sách nhóm/phương pháp bị tắt.",
+		cause = "Người dùng cần biết hiện tại cái gì đang tắt để chẩn đoán.",
+		how = "`Devices.DisabledList(profile)`.",
+		file = "Client/Core/Devices",
+		cond = "Luôn áp dụng.",
+		risk = "Không có.",
+		status = "B",
+	},
+	{
+		id = "CFG-006",
+		group = 27,
+		name = "Bật/tắt lúc chạy",
+		mechanism = "Đổi cấu hình khi hệ thống đang chạy và áp dụng ngay.",
+		cause = "Khởi động lại script để đổi một cờ là trải nghiệm tệ.",
+		how = "Chưa triển khai: đổi cấu hình hiện cần chạy lại pipeline.",
+		file = "(đề xuất)",
+		cond = "Cần cơ chế áp dụng增量.",
+		risk = "Không có.",
+		status = "D",
+	},
+	{
+		id = "RES-001",
+		group = 28,
+		name = "Bộ lập lịch duy nhất",
+		mechanism = "Xem LOOP-001.",
+		cause = "Nhiều bộ lập lịch = nhiều kết nối, không kiểm soát được tổng chi phí.",
+		how = "Client/Core/Scheduler là bộ lập lịch duy nhất của dự án.",
+		file = "Client/Core/Scheduler",
+		cond = "Luôn áp dụng.",
+		risk = "Không có.",
+		status = "A",
+	},
+	{
+		id = "RES-002",
+		group = 28,
+		name = "Sổ kết nối tập trung",
+		mechanism = "Xem LEAK-001.",
+		cause = "Connection rải rác không dọn được.",
+		how = "Client/Core/Registry.",
+		file = "Client/Core/Registry",
+		cond = "Luôn áp dụng.",
+		risk = "Không có.",
+		status = "A",
+	},
+	{
+		id = "RES-003",
+		group = 28,
+		name = "Sổ instance tập trung",
+		mechanism = "Xem LEAK-005.",
+		cause = "Instance tạo ra không ai quản lý.",
+		how = "`Registry.owned` + Release.",
+		file = "Client/Core/Registry",
+		cond = "Luôn áp dụng.",
+		risk = "Không có.",
+		status = "B",
+	},
+	{
+		id = "RES-004",
+		group = 28,
+		name = "Kho cấu hình tập trung",
+		mechanism = "Một bảng Config duy nhất, mọi module đọc từ đó.",
+		cause = "Cấu hình rải rác dẫn tới giá trị mâu thuẫn nhau.",
+		how = "Shared/Config + Guard.NormalizeConfig.",
+		file = "Shared/Config",
+		cond = "Luôn áp dụng.",
+		risk = "Không có.",
+		status = "B",
+	},
+	{
+		id = "RES-005",
+		group = 28,
+		name = "Định tuyến log tập trung",
+		mechanism = "Xem EVT-003.",
+		cause = "Log rải rác khó lọc và dễ làm ngập Output.",
+		how = "Shared/Log.",
+		file = "Shared/Log",
+		cond = "Luôn áp dụng.",
+		risk = "Không có.",
+		status = "A",
+	},
+	{
+		id = "START-001",
+		group = 29,
+		name = "Hoãn việc nặng sang khung hình sau",
+		mechanism = "Scheduler.Defer đẩy việc khởi tạo nặng ra khỏi khung hình đầu.",
+		cause = "Làm mọi thứ ở khung hình đầu gây khựng ngay lúc vào game.",
+		how = "`Scheduler.Defer(name, callback)`.",
+		file = "Client/Core/Scheduler",
+		cond = "Luôn áp dụng.",
+		risk = "Việc bị trễ một khung hình.",
+		status = "B",
+	},
+	{
+		id = "START-002",
+		group = 29,
+		name = "Nạp module lười lúc khởi động",
+		mechanism = "Xem ASSET-002.",
+		cause = "Nạp mọi module lúc đầu làm chậm thời gian vào game.",
+		how = "`Cpu.Lazy()`.",
+		file = "Client/Core/Cpu",
+		cond = "Luôn áp dụng.",
+		risk = "Xem ASSET-002.",
+		status = "A",
+	},
+	{
+		id = "START-003",
+		group = 29,
+		name = "Gộp việc khởi tạo",
+		mechanism = "Các bước khởi tạo chạy trong một vòng, không chờ xen kẽ.",
+		cause = "Chuỗi wait nối tiếp cộng dồn thời gian chờ.",
+		how = "`Cpu.RunStartupSteps(steps)`.",
+		file = "Client/Core/Cpu",
+		cond = "Luôn áp dụng.",
+		risk = "Một bước lỗi không chặn bước khác (có pcall riêng).",
+		status = "B",
+	},
+	{
+		id = "START-004",
+		group = 29,
+		name = "Chờ có trần thời gian",
+		mechanism = "Xem ASSET-004.",
+		cause = "WaitForChild không trần có thể treo thread vĩnh viễn.",
+		how = "`Cpu.Await(parent, name, timeout)`.",
+		file = "Client/Core/Cpu",
+		cond = "Luôn áp dụng.",
+		risk = "Hết giờ chờ thì bỏ qua bước đó.",
+		status = "A",
+	},
+	{
+		id = "START-005",
+		group = 29,
+		name = "Đo thời gian khởi động",
+		mechanism = "Ghi thời điểm bắt đầu/kết thúc từng bước khởi tạo.",
+		cause = "Không đo thì không biết bước nào làm chậm lúc vào game.",
+		how = "Chưa triển khai: RunStartupSteps chưa ghi thời gian từng bước.",
+		file = "(đề xuất)",
+		cond = "Luôn áp dụng được.",
+		risk = "Không có.",
+		status = "D",
+	},
+	{
+		id = "SAFE-001",
+		group = 30,
+		name = "Danh sách trắng property",
+		mechanism = "Chỉ những property thuần thị giác mới được đổi.",
+		cause = "Nếu cho phép đổi mọi property, sớm muộn cũng đụng gameplay.",
+		how = "`Safety.AllowedProperties`; Safety.Allow từ chối ngoài danh sách.",
+		file = "Shared/Safety",
+		cond = "Luôn áp dụng.",
+		risk = "Danh sách quá hẹp thì bỏ lỡ cơ hội tối ưu — có thể mở rộng có kiểm soát.",
+		status = "B",
+	},
+	{
+		id = "SAFE-002",
+		group = 30,
+		name = "Danh sách đen lớp đối tượng",
+		mechanism = "Humanoid, Camera, Tool, Script, RemoteEvent... không bao giờ bị đổi.",
+		cause = "Đụng những lớp này gần như chắc chắn phá gameplay.",
+		how = "`Safety.ProtectedClasses` + ngoại lệ duy nhất Humanoid.AutomaticScalingEnabled.",
+		file = "Shared/Safety",
+		cond = "Luôn áp dụng.",
+		risk = "Không có.",
+		status = "B",
+	},
+	{
+		id = "SAFE-003",
+		group = 30,
+		name = "Tôn trọng tag bảo vệ của game",
+		mechanism = "Đối tượng mang tag RALO_Protected/Gameplay bị bỏ qua hoàn toàn.",
+		cause = "Chủ game cần một cách nói 'đừng đụng vào cái này'.",
+		how = "`Safety.ProtectedTags` + `Safety.BuildProtectedSet()`.",
+		file = "Shared/Safety",
+		cond = "Cần chủ game đánh tag.",
+		risk = "Không đánh tag thì đối tượng vẫn có thể bị tối ưu.",
+		status = "B",
+	},
+	{
+		id = "SAFE-004",
+		group = 30,
+		name = "Không đụng điều khiển người chơi",
+		mechanism = "Không đổi gì liên quan Humanoid (trừ auto-scaling), Camera, ControlModule.",
+		cause = "Mất điều khiển là lỗi nghiêm trọng nhất có thể gây ra.",
+		how = "Safety.ProtectedClasses chứa Humanoid/Camera/ControlModule; Physics mặc định tắt.",
+		file = "Shared/Safety, Client/Optimizations/Physics",
+		cond = "Luôn áp dụng.",
+		risk = "Không có.",
+		status = "B",
+	},
+	{
+		id = "SAFE-005",
+		group = 30,
+		name = "Mọi thay đổi đều đảo ngược được",
+		mechanism = "Không có thao tác Destroy nào trên đối tượng của game.",
+		cause = "Thay đổi không đảo ngược được là rủi ro không chấp nhận.",
+		how = "Restore ghi giá trị cũ; không có lệnh Destroy nào nhắm vào instance của game.",
+		file = "Client/Core/Restore",
+		cond = "Luôn áp dụng.",
+		risk = "Không có.",
+		status = "B",
+	},
+	{
+		id = "SAFE-006",
+		group = 30,
+		name = "Chính công cụ không được gây lag",
+		mechanism = "Xem MEAS-005/HEAVY-004.",
+		cause = "Công cụ chống lag mà tự gây lag thì vô nghĩa.",
+		how = "Profile.SelfCost + Scheduler budget.",
+		file = "Client/Core/Profile",
+		cond = "Luôn áp dụng.",
+		risk = "Không có.",
+		status = "B",
+	},
+	{
+		id = "SAFE-007",
+		group = 30,
+		name = "Không xoá nội dung gameplay",
+		mechanism = "Không có đường mã nào Destroy instance của game.",
+		cause = "Xoá nhầm vật phẩm/NPC là phá game.",
+		how = "Registry.Release chỉ huỷ instance TRONG SỔ do hệ thống tạo.",
+		file = "Client/Core/Registry",
+		cond = "Luôn áp dụng.",
+		risk = "Không có.",
+		status = "B",
+	},
+	{
+		id = "RAM-005",
+		group = 3,
+		name = "Giảm cấp phát chuỗi",
+		mechanism = "Dùng bảng và nối chuỗi một lần thay vì nhiều lần ghép.",
+		cause = "Mỗi lần ghép chuỗi là một lần cấp phát.",
+		how = "Chưa triển khai đầy đủ; Log đang dùng string.format một lần.",
+		file = "(một phần — đề xuất)",
+		cond = "Áp dụng ở đường nóng.",
+		risk = "Không có.",
+		status = "D",
+	},
+	{
+		id = "RAM-006",
+		group = 3,
+		name = "Tránh đóng gói nhiều giá trị trả về",
+		mechanism = "Trả một bảng tái sử dụng thay vì nhiều giá trị.",
+		cause = "Mỗi lần trả nhiều giá trị có chi phí stack.",
+		how = "Chưa triển khai.",
+		file = "(đề xuất)",
+		cond = "Áp dụng ở đường nóng.",
+		risk = "Đọc khó hơn.",
+		status = "D",
+	},
+	{
+		id = "FPS-005",
+		group = 5,
+		name = "Giới hạn FPS phía client",
+		mechanism = "Đặt FrameRateMax để giảm tải khi không cần FPS cao.",
+		cause = "FPS vượt mức màn hình hiển thị là công sức bị vứt đi.",
+		how = "Roblox không cho LocalScript đổi thiết lập client; chỉ có trong menu Settings hoặc executor.",
+		file = "(không áp dụng từ LocalScript)",
+		cond = "Cần người dùng tự chỉnh trong Settings.",
+		risk = "Không có.",
+		status = "E",
+	},
+	{
+		id = "LOOP-008",
+		group = 2,
+		name = "Giảm tần suất RenderStepped",
+		mechanism = "Chạy logic ở 30Hz thay vì 60Hz.",
+		cause = "Một số logic không cần độ phân giải khung hình đầy đủ.",
+		how = "Scheduler.interval đã cho phép; nhưng RenderStepped luôn bắn mỗi khung hình.",
+		file = "Client/Core/Scheduler",
+		cond = "Áp dụng bằng cách đặt interval.",
+		risk = "Phản ứng chậm hơn.",
+		status = "A",
+	},
+	{
+		id = "GUI-012",
+		group = 12,
+		name = "Không phát âm thanh thông báo",
+		mechanism = "GUI không tạo Sound nào.",
+		cause = "Yêu cầu thiết kế: thông báo im lặng.",
+		how = "Notifier không tạo instance Sound; test kiểm tra.",
+		file = "Client/Ui/Notifier",
+		cond = "Luôn áp dụng.",
+		risk = "Không có.",
+		status = "B",
+	},
+	{
+		id = "GUI-013",
+		group = 12,
+		name = "Không dịch chuyển GUI khác",
+		mechanism = "GUI hệ thống nằm trong ScreenGui riêng, không đổi vị trí GUI của game.",
+		cause = "Làm lệch GUI của game là phá trải nghiệm.",
+		how = "Notifier chỉ tạo instance trong ScreenGui của nó.",
+		file = "Client/Ui/Notifier",
+		cond = "Luôn áp dụng.",
+		risk = "Không có.",
+		status = "B",
+	},
+	{
+		id = "PART-006",
+		group = 8,
+		name = "Giảm số lượng StreamingEnabled phụ",
+		mechanism = "Để engine tự stream model ngoài tầm nhìn.",
+		cause = "Giữ mọi model trong bộ nhớ tốn RAM.",
+		how = "Chưa triển khai: StreamingEnabled là thiết lập cấp game trong Studio.",
+		file = "(đề xuất — làm trong Studio)",
+		cond = "Cần quyền sửa game.",
+		risk = "Không có nếu cấu hình đúng.",
+		status = "D",
+	},
+	{
+		id = "NPC-005",
+		group = 15,
+		name = "Dùng PathfindingService có bộ nhớ đường",
+		mechanism = "Lưu đường đã tính, chỉ tính lại khi đích đổi.",
+		cause = "Tính lại đường giống hệt là lãng phí.",
+		how = "Chưa triển khai.",
+		file = "(đề xuất)",
+		cond = "Cần quyền sửa script NPC.",
+		risk = "Đường cũ khi địa hình đổi.",
+		status = "D",
+	},
+	{
+		id = "ASSET-006",
+		group = 16,
+		name = "Nén texture và giảm độ phân giải",
+		mechanism = "Dùng texture nhỏ hơn cho bề mặt xa.",
+		cause = "Texture lớn tốn bộ nhớ GPU và băng thông.",
+		how = "Không làm được từ script — phải sửa asset trong Studio.",
+		file = "(không áp dụng từ script)",
+		cond = "Cần quyền sửa asset.",
+		risk = "Chất lượng ảnh giảm.",
+		status = "E",
+	},
+	{
+		id = "HEAVY-006",
+		group = 22,
+		name = "Hồ sơ từng hàm (script profiler)",
+		mechanism = "Dùng MicroProfiler/Script Profiler để tìm hàm đắt nhất.",
+		cause = "Không biết hàm nào đắt thì tối ưu mò.",
+		how = "Không có API đọc profiler từ script; phải dùng công cụ trong Studio.",
+		file = "(dùng công cụ Studio, không phải mã)",
+		cond = "Cần Studio.",
+		risk = "Không có.",
+		status = "E",
+	},
+	{
+		id = "PLAYER-005",
+		group = 21,
+		name = "Không lưu dữ liệu người chơi phía client",
+		mechanism = "Dữ liệu nhạy cảm phải ở server.",
+		cause = "Lưu phía client vừa rủi ro bảo mật vừa tốn bộ nhớ.",
+		how = "Hệ thống này không lưu dữ liệu người chơi nào.",
+		file = "(không áp dụng)",
+		cond = "-",
+		risk = "Không có.",
+		status = "E",
+	},
+	{
+		id = "QUERY-006",
+		group = 19,
+		name = "Tránh GetDescendants đệ quy",
+		mechanism = "Không gọi GetDescendants trên node lớn nhiều lần.",
+		cause = "GetDescendants cấp phát bảng chứa TOÀN BỘ con cháu.",
+		how = "Scan có maxScan; Registry dùng FindFirstChild có cache.",
+		file = "Client/Optimizations/Scan, Client/Core/Registry",
+		cond = "Luôn áp dụng.",
+		risk = "Bỏ sót ngoài trần — có log.",
+		status = "B",
+	},
+	{
+		id = "EVT-006",
+		group = 18,
+		name = "Ngắt kết nối khi module dừng",
+		mechanism = "Shutdown ngắt toàn bộ connection của hệ thống.",
+		cause = "Module dừng mà connection còn thì callback vẫn chạy.",
+		how = "`Registry.Shutdown()` + `Scheduler.Shutdown()`.",
+		file = "Client/Core/Registry, Client/Core/Scheduler",
+		cond = "Luôn áp dụng.",
+		risk = "Không có.",
+		status = "B",
+	},
+	{
+		id = "BG-006",
+		group = 13,
+		name = "Không giữ vòng lặp khi không có việc",
+		mechanism = "Scheduler tự dừng khi không còn task.",
+		cause = "Connection Heartbeat chạy không vẫn tốn một lời gọi mỗi khung hình.",
+		how = "`Scheduler.TaskCount()`; Shutdown khi tắt hệ thống.",
+		file = "Client/Core/Scheduler",
+		cond = "Luôn áp dụng.",
+		risk = "Không có.",
+		status = "B",
+	},
+	{
+		id = "RES-006",
+		group = 28,
+		name = "Thống kê tài nguyên tập trung",
+		mechanism = "Một hàm trả về toàn bộ số đếm (task, connection, pool, owned).",
+		cause = "Không có cái nhìn tổng thể thì không phát hiện được rò rỉ.",
+		how = "`Scheduler.Stats()`, `Registry.Stats()`, `Pool.Stats()`, `Profile.SelfCost()`.",
+		file = "Client/Core/Scheduler",
+		cond = "Luôn áp dụng.",
+		risk = "Không có.",
+		status = "A",
+	},
+	{
+		id = "LOWEND-006",
+		group = 24,
+		name = "Chế độ an toàn khi lỗi lặp lại",
+		mechanism = "Nếu nhiều bước lỗi liên tiếp thì tự chuyển về chế độ ít can thiệp nhất.",
+		cause = "Trên máy lạ, can thiệp mạnh có thể gây lỗi dây chuyền.",
+		how = "Chưa triển khai.",
+		file = "(đề xuất)",
+		cond = "Cần ngưỡng lỗi.",
+		risk = "Bỏ lỡ tối ưu.",
+		status = "D",
+	},
+	{
+		id = "SAFE-008",
+		group = 30,
+		name = "Không vô hiệu hoá cơ chế bảo vệ",
+		mechanism = "Không có mã nào đụng anti-cheat hay bảo mật.",
+		cause = "Yêu cầu đạo đức và pháp lý.",
+		how = "Dự án không chứa bất kỳ lời gọi nào loại đó; chỉ dùng API công khai.",
+		file = "Shared/Safety",
+		cond = "Luôn áp dụng.",
+		risk = "Không có.",
+		status = "B",
+	},
+	{
+		id = "GRAPHICS-008",
+		group = 6,
+		name = "Giảm số bóng đổ đồng thời",
+		mechanism = "Roblox giới hạn số bóng đổ; vượt quá thì bóng bị cắt.",
+		cause = "Nhiều nguồn sáng động làm chi phí bóng tăng vọt.",
+		how = "Không điều khiển được từ script — engine tự quản lý.",
+		file = "(không khả dụng)",
+		cond = "Không có API.",
+		risk = "Không có.",
+		status = "E",
+	},
+	{
+		id = "AUDIO-004",
+		group = 11,
+		name = "Giảm chất lượng âm thanh",
+		mechanism = "Dùng file âm thanh bitrate thấp hơn.",
+		cause = "File lớn tốn bộ nhớ và thời gian giải mã.",
+		how = "Không làm được từ script — phải thay asset.",
+		file = "(không áp dụng từ script)",
+		cond = "Cần quyền sửa asset.",
+		risk = "Chất lượng âm thanh giảm.",
+		status = "E",
+	},
+	{
+		id = "NET-007",
+		group = 14,
+		name = "Tránh gửi mỗi khung hình",
+		mechanism = "Xem NET-001.",
+		cause = "Gửi dày là nguồn băng thông lớn.",
+		how = "Net.Register minInterval.",
+		file = "Client/Core/Net",
+		cond = "Cần remote.",
+		risk = "Xem NET-001.",
+		status = "A",
+	},
+	{
+		id = "DATA-005",
+		group = 17,
+		name = "Dùng số thay vì chuỗi làm khoá",
+		mechanism = "Khoá số tra nhanh hơn khoá chuỗi.",
+		cause = "Băm chuỗi đắt hơn so sánh số.",
+		how = "Chưa triển khai; các bảng nội bộ đang dùng khoá hỗn hợp.",
+		file = "(đề xuất)",
+		cond = "Áp dụng cho bảng lớn.",
+		risk = "Đọc khó hơn.",
+		status = "D",
+	},
+	{
+		id = "CULL-001",
+		group = 23,
+		name = "Đăng ký đối tượng cần cull",
+		mechanism = "Danh sách tường minh thay vì tự quét cả game.",
+		cause = "Tự quyết định đối tượng nào được cull là rủi ro phá gameplay.",
+		how = "`Cull.Add(instance, kinds)` có trần maxTargets.",
+		file = "Client/Core/Cull",
+		cond = "Cần bước đăng ký.",
+		risk = "Không đăng ký thì không được tối ưu.",
+		status = "B",
+	},
+	{
+		id = "CULL-002",
+		group = 23,
+		name = "Quét theo chu kỳ, không mỗi khung hình",
+		mechanism = "Cull chạy theo interval của Scheduler (mặc định 0.25s).",
+		cause = "Tính khoảng cách cho hàng trăm đối tượng mỗi khung hình là quá tốn.",
+		how = "`Cull.rules.updateInterval` + Scheduler.",
+		file = "Client/Core/Cull",
+		cond = "Luôn áp dụng.",
+		risk = "Trạng thái cull trễ tối đa một chu kỳ.",
+		status = "B",
+	},
+	{
+		id = "CULL-003",
+		group = 23,
+		name = "Trần số đối tượng theo dõi",
+		mechanism = "Vượt maxTargets thì từ chối đăng ký thêm và ghi log.",
+		cause = "Theo dõi không giới hạn làm chính bước cull thành nguồn lag.",
+		how = "`Cull.rules.maxTargets` (mặc định 400).",
+		file = "Client/Core/Cull",
+		cond = "Luôn áp dụng.",
+		risk = "Bỏ sót đối tượng ngoài trần.",
+		status = "B",
+	},
+	{
+		id = "CULL-004",
+		group = 23,
+		name = "Bỏ đối tượng đã bị huỷ khỏi danh sách",
+		mechanism = "Mỗi lượt quét kiểm tra Alive và xoá mục chết.",
+		cause = "Giữ instance đã huỷ trong danh sách là rò rỉ.",
+		how = "`Cull.Scan()` xoá mục không còn Alive.",
+		file = "Client/Core/Cull",
+		cond = "Luôn áp dụng.",
+		risk = "Không có.",
+		status = "B",
+	},
+	{
+		id = "GRAPHICS-009",
+		group = 7,
+		name = "Không đổi vật liệu và màu sắc",
+		mechanism = "Dự án cố tình KHÔNG đổi Material/Color/BrickColor.",
+		cause = "Đổi vật liệu làm thay đổi rõ rệt mỹ thuật, trái yêu cầu giữ nguyên hình ảnh.",
+		how = "Safety.AllowedProperties không chứa Material/Color; test kiểm tra.",
+		file = "Shared/Safety",
+		cond = "Luôn áp dụng.",
+		risk = "Không có.",
+		status = "B",
+	},
+	{
+		id = "GRAPHICS-010",
+		group = 7,
+		name = "Không đổi khoảng cách hiển thị",
+		mechanism = "Không đổi các thiết lập tầm nhìn của engine.",
+		cause = "Yêu cầu: không tự ý thay đổi khoảng cách hiển thị.",
+		how = "Không có mã nào đổi thiết lập đó.",
+		file = "(không triển khai — có chủ đích)",
+		cond = "-",
+		risk = "Không có.",
+		status = "E",
+	},
+}
+
+function Methods.CountByStatus()
+	local counts = { A = 0, B = 0, C = 0, D = 0, E = 0 }
+	for _, entry in Methods.List do
+		if counts[entry.status] ~= nil then
+			counts[entry.status] += 1
+		end
+	end
+	counts.total = #Methods.List
+	return counts
+end
+
+--[[
+	Tên 30 nhóm nhiệm vụ.
+
+	Số thứ tự ở đây CHÍNH LÀ giá trị trường `group` trong từng mục của Methods.List.
+	Bảng này tồn tại để báo cáo và tài liệu gọi nhóm bằng tên thật, không phải
+	bằng một con số vô nghĩa.
+]]
+Methods.Groups = {
+	"CPU và chi phí tính toán",              --  1
+	"Vòng lặp và công việc lặp lại",         --  2
+	"RAM và vòng đời đối tượng",             --  3
+	"Rò rỉ tài nguyên",                      --  4
+	"FPS và khung hình",                     --  5
+	"GPU và tải kết xuất",                   --  6
+	"Giảm đồ hoạ mức nhẹ (đảo ngược được)",  --  7
+	"Part và Model",                         --  8
+	"Va chạm và vật lý",                     --  9
+	"Hạt và ánh sáng",                       -- 10
+	"Âm thanh",                              -- 11
+	"Giao diện (GUI)",                       -- 12
+	"Tác vụ nền",                            -- 13
+	"RemoteEvent và giao tiếp mạng",         -- 14
+	"NPC và AI",                             -- 15
+	"Nạp và cache tài nguyên",               -- 16
+	"Cấu trúc dữ liệu",                      -- 17
+	"Sự kiện và kết nối",                    -- 18
+	"Tìm kiếm trong Workspace",              -- 19
+	"Tái sử dụng đối tượng (pooling)",       -- 20
+	"Dữ liệu người chơi",                    -- 21
+	"Phát hiện tác vụ nặng",                 -- 22
+	"Đối tượng ở xa",                        -- 23
+	"Thiết bị cấu hình thấp",                -- 24
+	"Đo lường và kiểm thử",                  -- 25
+	"Phục hồi lỗi và hoàn tác",              -- 26
+	"Bật tắt tính năng",                     -- 27
+	"Quản lý tài nguyên tập trung",          -- 28
+	"Khởi động",                             -- 29
+	"Tổng thể không phá gameplay",           -- 30
+}
+
+function Methods.CountByGroup()
+	local counts = {}
+	for g = 1, 30 do
+		counts[g] = { total = 0, implemented = 0, name = Methods.Groups[g] or ("nhóm " .. g) }
+	end
+	for _, entry in Methods.List do
+		local bucket = counts[entry.group]
+		if bucket ~= nil then
+			bucket.total += 1
+			bucket[entry.status] = (bucket[entry.status] or 0) + 1
+			if entry.status == "A" or entry.status == "B" or entry.status == "C" then
+				bucket.implemented += 1
+			end
+		end
+	end
+	return counts
+end
+
+function Methods.GetById(id)
+	for _, entry in Methods.List do
+		if entry.id == id then
+			return entry
+		end
+	end
+	return nil
+end
+
+function Methods.ImplementedIds()
+	local out = {}
+	for _, entry in Methods.List do
+		if entry.status == "A" or entry.status == "B" or entry.status == "C" then
+			out[#out + 1] = entry.id
+		end
+	end
+	table.sort(out)
+	return out
+end
+
+return Methods
+end,
+	["Shared/RequireShim"] = function()
+--[[ ===== RALO.METHODS:BEGIN =====
+	Các phương pháp được TRIỂN KHAI TRONG TỆP NÀY (khớp với Shared/Methods.luau):
+	  CPU-003
+	===== RALO.METHODS:END ===== --]]
+
+--[[
+	Shared/RequireShim.luau
+	===== RALO.METHODS:SHIM-001 =====
+
+	Vấn đề: dự án phải chạy được ở HAI kiểu nạp khác nhau
+	  (1) Roblox Studio + Rojo: mỗi tệp là một ModuleScript, dùng require()
+	      và cây instance (ReplicatedStorage.RALO.Shared.Log ...).
+	  (2) Bundle một tệp (dist/): toàn bộ module nằm trong một bảng,
+	      không có cây instance.
+
+	Giải pháp: Bootstrap cài một hàm nạp module thống nhất tên
+	__RALO_REQUIRE. Nó thử theo thứ tự:
+	  a) bảng __RALO_BUNDLE (do bundle cài)
+	  b) require() thật của Roblox, duyệt theo đường dẫn tuyệt đối
+	     tính từ gốc dự án (Shared/..., Client/..., Server/...)
+
+	Cả hai nhánh đều là cơ chế nạp module CÓ THẬT của Roblox, không giả lập.
+
+	Tệp này KHÔNG dùng __RALO_REQUIRE (vì nó chính là thứ cài ra hàm đó);
+	nó được Bootstrap nạp bằng require() thường hoặc nằm đầu bundle.
+]]
+
+local RequireShim = {}
+
+RequireShim.globalName = "__RALO_REQUIRE"
+
+local ROOT_NAMES = { "Shared", "Client", "Server" }
+
+-- Duyệt "Client/Core/Perf" thành chuỗi instance con từ một gốc.
+local function resolveFrom(root, path)
+	if root == nil then
+		return nil
+	end
+	local node = root
+	for segment in string.gmatch(path, "[^/]+") do
+		if node == nil then
+			return nil
+		end
+		node = node:FindFirstChild(segment)
+	end
+	return node
+end
+
+-- Tìm gốc dự án: instance cha chứa các thư mục Shared/Client/Server.
+local function findProjectRoot(gameRef)
+	if gameRef == nil then
+		return nil
+	end
+	local starterPlayer = gameRef:GetService("StarterPlayer")
+	local services = {
+		gameRef:GetService("ReplicatedStorage"),
+		starterPlayer and starterPlayer:FindFirstChild("StarterPlayerScripts"),
+		gameRef:GetService("ServerScriptService"),
+	}
+	for _, service in services do
+		if service ~= nil then
+			for _, rootName in ROOT_NAMES do
+				local candidate = service:FindFirstChild(rootName)
+				if candidate ~= nil then
+					local parent = candidate.Parent
+					if parent ~= nil and parent:FindFirstChild("Shared") ~= nil then
+						return parent
+					end
+				end
+			end
+			local named = service:FindFirstChild("RALO")
+			if named ~= nil then
+				return named
+			end
+		end
+	end
+	return nil
+end
+
+--[[
+	Cài __RALO_REQUIRE. Gọi MỘT lần trước khi nạp bất kỳ module nào khác.
+	options = { game = <DataModel>, bundle = <bảng path->source|module> }
+]]
+function RequireShim.Install(options)
+	options = options or {}
+
+	-- Dự án chạy trong Roblox Studio thường (không executor) nên bảng toàn
+	-- cục chỉ là `_G`. Không dò getgenv: đó là API của executor, và việc dò
+	-- nó mâu thuẫn với phạm vi đã thống nhất của dự án.
+	local globalEnv = _G
+
+	if globalEnv[RequireShim.globalName] ~= nil and options.force ~= true then
+		return globalEnv[RequireShim.globalName]
+	end
+
+	if options.bundle ~= nil then
+		globalEnv.__RALO_BUNDLE = options.bundle
+	end
+
+	local cache = {}
+	local gameRef = options.game or game
+
+	local function resolver(path)
+		if type(path) ~= "string" then
+			error("__RALO_REQUIRE cần một chuỗi đường dẫn, nhận " .. type(path), 2)
+		end
+		if cache[path] ~= nil then
+			return cache[path]
+		end
+
+		-- (a) bundle
+		local bundle = globalEnv.__RALO_BUNDLE
+		if type(bundle) == "table" and bundle[path] ~= nil then
+			local entry = bundle[path]
+			local result
+			if type(entry) == "string" then
+				local loaded, compileError = load(entry, "RALO:" .. path)
+				if loaded == nil then
+					error("lỗi biên dịch module '" .. path .. "': " .. tostring(compileError), 2)
+				end
+				result = loaded()
+			else
+				result = entry
+			end
+			if type(result) ~= "table" then
+				error("module '" .. path .. "' phải return một bảng, nhận " .. type(result), 2)
+			end
+			cache[path] = result
+			return result
+		end
+
+		-- (b) require() thật theo đường dẫn tuyệt đối
+		if globalEnv.__RALO_ROOT == nil then
+			globalEnv.__RALO_ROOT = findProjectRoot(gameRef) or false
+		end
+		local root = globalEnv.__RALO_ROOT
+		local target = resolveFrom(root, path)
+		if target ~= nil then
+			local ok, result = pcall(require, target)
+			if not ok then
+				error("require('" .. path .. "') thất bại: " .. tostring(result), 2)
+			end
+			cache[path] = result
+			return result
+		end
+
+		error(("không tìm thấy module '%s' (gốc=%s). Kiểm tra cây thư mục trong Studio.")
+			:format(path, tostring(root)), 2)
+	end
+
+	globalEnv[RequireShim.globalName] = resolver
+	return resolver
+end
+
+-- Cho phép test/harness reset giữa các lần chạy.
+function RequireShim.Reset()
+	local globalEnv = _G
+	globalEnv[RequireShim.globalName] = nil
+	globalEnv.__RALO_BUNDLE = nil
+	globalEnv.__RALO_ROOT = nil
+end
+
+return RequireShim
+end,
+	["Shared/Safe"] = function()
+--[[
+	Util/Safe.luau
+	Truy cập property "an toàn": mọi lần đọc/ghi đều được pcall bảo vệ và
+	được GHI NHẬT KÝ. Đây là nền tảng của nguyên tắc "không bịa":
+	mỗi thay đổi thực tế đều có bản ghi applied / unsupported / failed.
+
+	Thuần logic + dùng API Roblox qua object truyền vào -> mock được, test được.
+]]
+
+local Safe = {}
+
+Safe.Sink = nil            -- function(level, scope, message)  (do Log.bind gán)
+Safe.Records = {}          -- nhật ký mọi thao tác property, dùng cho báo cáo + unit test
+
+local function note(level: string, scope: string, message: string)
+	Safe.Records[#Safe.Records + 1] = { level = level, scope = scope, message = message }
+	if Safe.Sink then
+		Safe.Sink(level, scope, message)
+	end
+end
+
+function Safe.Reset()
+	table.clear(Safe.Records)
+end
+
+--[[
+	Đọc property. Không bao giờ throw.
+	Trả về: value, ok
+]]
+function Safe.Get(instance: any, name: string): (any, boolean)
+	if instance == nil then
+		return nil, false
+	end
+	local ok, value = pcall(function()
+		return instance[name]
+	end)
+	if not ok then
+		note("warn", "Safe.Get", ("%s.%s không đọc được: %s"):format(tostring(instance), name, tostring(value)))
+		return nil, false
+	end
+	return value, true
+end
+
+--[[
+	Ghi property có kiểm soát.
+	opts = { expect = <giá trị kỳ vọng>, scope = "<tên bước>" }
+	Trả về: ok (boolean), detail (string)
+
+	Nếu truyền opts.expect và giá trị đọc lại khác kỳ vọng -> ok = false,
+	chi tiết "wrote-but-not-applied". Đây là chốt chặn chống "tự nhận đã tối ưu".
+]]
+function Safe.Set(instance: any, name: string, value: any, opts: any): (boolean, string)
+	opts = opts or {}
+	local scope = opts.scope or "Safe.Set"
+	if instance == nil then
+		note("warn", scope, ("%s: instance rỗng, bỏ qua"):format(name))
+		return false, "nil-instance"
+	end
+
+	local ok, err = pcall(function()
+		instance[name] = value
+	end)
+	if not ok then
+		note("warn", scope, ("%s.%s không ghi được: %s"):format(tostring(instance), name, tostring(err)))
+		return false, "read-only-or-missing"
+	end
+
+	if opts.expect ~= nil then
+		local readBack, readOk = Safe.Get(instance, name)
+		if not readOk then
+			note("warn", scope, ("%s.%s ghi xong nhưng không đọc lại được"):format(tostring(instance), name))
+			return false, "wrote-but-unreadable"
+		end
+		if readBack ~= opts.expect then
+			note("warn", scope, ("%s.%s ghi %s nhưng đọc lại %s")
+				:format(tostring(instance), name, tostring(value), tostring(readBack)))
+			return false, "wrote-but-not-applied"
+		end
+	end
+
+	note("info", scope, ("%s.%s = %s"):format(tostring(instance), name, tostring(value)))
+	return true, "ok"
+end
+
+--[[
+	Gọi method an toàn: Safe.Call(obj, "SetNetworkOwner", nil)
+	Trả về: ok, result
+]]
+function Safe.Call(object: any, method: string, ...: any): (boolean, any)
+	if object == nil or object[method] == nil then
+		return false, "method-missing"
+	end
+	local results = { pcall(object[method], object, ...) }
+	local ok = table.remove(results, 1)
+	if not ok then
+		return false, results[1]
+	end
+	return true, results[1]
+end
+
+--[[
+	Đếm số bản ghi theo level — dùng cho unit test.
+]]
+function Safe.CountByLevel(level: string): number
+	local n = 0
+	for _, record in Safe.Records do
+		if record.level == level then
+			n += 1
+		end
+	end
+	return n
+end
+
+return Safe
+end,
+	["Shared/Safety"] = function()
+--[[ ===== RALO.METHODS:BEGIN =====
+	Các phương pháp được TRIỂN KHAI TRONG TỆP NÀY (khớp với Shared/Methods.luau):
+	  DATA-004, GRAPHICS-009, QUERY-001, SAFE-001,
+	  SAFE-002, SAFE-003, SAFE-004, SAFE-008
+	===== RALO.METHODS:END ===== --]]
+
+--[[
+	Shared/Safety.luau
+	===== RALO.METHODS:SAFE-001, SAFE-002, SAFE-003, SAFE-004 =====
+
+	RANH GIỚI AN TOÀN: những gì hệ thống tối ưu KHÔNG ĐƯỢC đụng vào.
+
+	Tệp này là chốt chặn cuối cùng. Mọi thao tác thay đổi property đều phải
+	hỏi qua Safety.Allow() trước. Lý do: yêu cầu số một của dự án là
+	"giữ nguyên gameplay", và điều đó không thể chỉ dựa vào ý định tốt —
+	nó phải được ENFORCE bằng mã.
+
+	SAFE-001  Danh sách TRẮNG các property được phép đổi
+	SAFE-002  Danh sách ĐEN các lớp đối tượng không bao giờ đụng tới
+	SAFE-003  Không đụng đối tượng mang tag gameplay do chủ game đánh dấu
+	SAFE-004  Từ chối mọi thay đổi có thể ảnh hưởng điều khiển người chơi
+]]
+
+local Shared_Log = __RALO_REQUIRE("Shared/Log")
+
+local SCOPE = "Safety"
+
+local Safety = {}
+
+-- SAFE-001: CHỈ những property này được phép thay đổi. Ngoài danh sách -> từ chối.
+Safety.AllowedProperties = {
+	CastShadow = true,              -- bóng đổ: thuần thị giác
+	Enabled = true,                 -- ParticleEmitter/Beam/Trail/PointLight
+	Rate = true,                    -- mật độ hạt
+	ParticleCount = true,           -- trần số hạt
+	Brightness = true,              -- PointLight/SpotLight
+	Range = true,                   -- tầm sáng
+	GraphicsQualityMode = true,     -- Lighting
+	QualityLevel = true,            -- Lighting
+	Decoration = true,              -- Terrain (chi tiết cỏ/đá nhỏ)
+	AutomaticScalingEnabled = true, -- Humanoid (chỉ tắt tự co giãn)
+}
+
+-- SAFE-002: các lớp KHÔNG BAO GIỜ bị thay đổi, kể cả khi property nằm trong whitelist
+Safety.ProtectedClasses = {
+	Humanoid = true,               -- ngoại lệ: chỉ AutomaticScalingEnabled, xem bên dưới
+	HumanoidRootPart = true,
+	Camera = true,
+	SpawnLocation = true,
+	Script = true,
+	LocalScript = true,
+	ModuleScript = true,
+	RemoteEvent = true,
+	RemoteFunction = true,
+	Player = true,
+	Players = true,
+	ForceField = true,
+	ClickDetector = true,
+	ProximityPrompt = true,
+	Tool = true,
+}
+
+-- Humanoid chỉ được đụng ĐÚNG một property này
+Safety.HumanoidAllowed = { AutomaticScalingEnabled = true }
+
+-- SAFE-003: tag do chủ game đánh dấu để loại đối tượng khỏi mọi tối ưu
+Safety.ProtectedTags = {
+	"RALO_Protected",
+	"Gameplay",
+	"GameplayCritical",
+}
+
+Safety.stats = { allowed = 0, deniedProperty = 0, deniedClass = 0, deniedTag = 0 }
+
+--[[
+	Quyết định một thao tác có được phép không.
+	Trả về: allow (bool), reason (string)
+
+	instance:  đối tượng định thay đổi
+	property:  tên property
+	taggedSet: BẢNG tra cứu tag đã được tính sẵn (để không gọi
+	           CollectionService mỗi lần — chính nó cũng là một tối ưu)
+]]
+function Safety.Allow(instance, property, taggedSet)
+	if instance == nil or property == nil then
+		Safety.stats.deniedProperty += 1
+		return false, "thiếu instance hoặc property"
+	end
+
+	-- pcall trả về (ok, result) — ĐẢO THỨ TỰ Ở ĐÂY LÀ LỖI NGHIÊM TRỌNG:
+	-- className sẽ nhận `true` và ProtectedClasses[true] = nil, tức là
+	-- TOÀN BỘ danh sách lớp bảo vệ bị bỏ qua. Đã được safety.test.js bắt.
+	local okClass, className = pcall(function()
+		return instance.ClassName
+	end)
+	if not okClass then
+		Safety.stats.deniedClass += 1
+		return false, "không đọc được ClassName"
+	end
+
+	-- SAFE-002: lớp được bảo vệ
+	if Safety.ProtectedClasses[className] then
+		if className == "Humanoid" and Safety.HumanoidAllowed[property] then
+			-- ngoại lệ duy nhất, vẫn đi tiếp để kiểm tra whitelist
+		else
+			Safety.stats.deniedClass += 1
+			return false, ("lớp %s được bảo vệ"):format(className)
+		end
+	end
+
+	-- SAFE-001: whitelist property
+	if not Safety.AllowedProperties[property] then
+		Safety.stats.deniedProperty += 1
+		return false, ("property %s không nằm trong danh sách cho phép"):format(property)
+	end
+
+	-- SAFE-003: đối tượng mang tag bảo vệ
+	if type(taggedSet) == "table" and taggedSet[tostring(instance)] then
+		Safety.stats.deniedTag += 1
+		return false, "đối tượng mang tag bảo vệ của game"
+	end
+
+	Safety.stats.allowed += 1
+	return true, "ok"
+end
+
+--[[
+	Tính sẵn tập đối tượng mang tag bảo vệ.
+	Gọi MỘT lần mỗi lượt quét rồi truyền vào Safety.Allow — tránh gọi
+	CollectionService:GetTagged() cho từng đối tượng (chính nó cũng tốn).
+]]
+function Safety.BuildProtectedSet(collectionService)
+	local set = {}
+	if collectionService == nil then
+		return set
+	end
+	for _, tag in Safety.ProtectedTags do
+		local ok, list = pcall(function()
+			return collectionService:GetTagged(tag)
+		end)
+		if ok and type(list) == "table" then
+			for _, instance in list do
+				set[tostring(instance)] = true
+			end
+		end
+	end
+	return set
+end
+
+function Safety.Stats()
+	local total = Safety.stats.allowed + Safety.stats.deniedProperty
+		+ Safety.stats.deniedClass + Safety.stats.deniedTag
+	return {
+		allowed = Safety.stats.allowed,
+		deniedProperty = Safety.stats.deniedProperty,
+		deniedClass = Safety.stats.deniedClass,
+		deniedTag = Safety.stats.deniedTag,
+		total = total,
+		denyRate = total > 0 and ((Safety.stats.deniedProperty + Safety.stats.deniedClass
+			+ Safety.stats.deniedTag) / total) or 0,
+	}
+end
+
+function Safety.Reset()
+	Safety.stats = { allowed = 0, deniedProperty = 0, deniedClass = 0, deniedTag = 0 }
+end
+
+return Safety
+end,
+	["Shared/Types"] = function()
+--!strict
+--[[
+	Util/Types.luau
+	Định nghĩa kiểu dữ liệu dùng chung cho toàn bộ dự án.
+
+	Tệp này CHỈ chứa khai báo kiểu (`export type`). Khi bundle cho executor,
+	nó bị loại bỏ hoàn toàn vì Luau type-only không sinh ra mã runtime.
+
+	Chạy trên: Roblox Luau (typecheck) + Lua 5.3 (fengari) — nội dung tệp
+	được parser Lua 5.3 bỏ qua ở chế độ comment, nên harness đọc được.
+]]
+
+-- NOTE: khai báo type nằm trong comment block cho harness Lua 5.3.
+-- Bản khai báo Luau thật (dùng cho Rojo/Studio typecheck) ở docs/TYPES.md.
+
+return {
+	-- Trạng thái của một bước tối ưu
+	STATUS_PENDING = "pending",
+	STATUS_RUNNING = "running",
+	STATUS_APPLIED = "applied",
+	STATUS_SKIPPED = "skipped",
+	STATUS_FAILED  = "failed",
+
+	-- Trạng thái của toàn pipeline
+	PHASE_IDLE       = "idle",
+	PHASE_BASELINE   = "baseline",
+	PHASE_SETTLE     = "settle",
+	PHASE_OPTIMIZING = "optimizing",
+	PHASE_REMEASURE  = "remeasure",
+	PHASE_COMPARE    = "compare",
+	PHASE_DONE       = "done",
+	PHASE_ERROR      = "error",
+}
+end,
+	["Client/Bootstrap"] = function()
+--[[ ===== RALO.METHODS:BEGIN =====
+	Các phương pháp được TRIỂN KHAI TRONG TỆP NÀY (khớp với Shared/Methods.luau):
+	  START-001, START-003, START-004
+	===== RALO.METHODS:END ===== --]]
+
+--[[
+	Client/Bootstrap.luau
+	===== RALO.METHODS:START-001, START-003, START-004 =====
+
+	ĐIỂM KHỞI ĐỘNG DUY NHẤT của hệ thống.
+
+	MÔI TRƯỜNG ĐÍCH: Roblox Studio, game do chính bạn sở hữu.
+	Không dùng executor, không loadstring, không setrbxsetting.
+
+	CÁCH CHẠY (xem docs/03-huong-dan-cai-dat.md để có hướng dẫn đầy đủ):
+
+	A) Rojo — cách khuyến nghị, giữ nguyên cấu trúc thư mục:
+	   default.project.json đã map:
+	     src/Shared -> ReplicatedStorage.RALO.Shared
+	     src/Client -> StarterPlayer.StarterPlayerScripts.RALO
+	   Sau đó tạo một LocalScript trong StarterPlayerScripts:
+	     require(script.Parent.RALO.Bootstrap).Start()
+
+	B) Bundle một tệp — dán dist/roblox-anti-lag-optimizer.luau vào một
+	   LocalScript. Bundle tự cài __RALO_REQUIRE nên không cần Rojo.
+
+	LocalScript sẽ TỰ CHẠY khi được nạp. Nếu bạn muốn tự gọi Start() với
+	cấu hình riêng, đặt  _G._RALO_NO_AUTORUN = true  TRƯỚC khi script chạy
+	(hoặc đặt Bootstrap.__noAutoRun = true trong bundle).
+
+	GIỚI HẠN THẬT CỦA MỘT LocalScript (Part 2) — nêu rõ để không hứa hão:
+	  * không điều khiển được server, không đổi được replicated state
+	  * không đổi được thiết bị (CPU/GPU) hay bộ nhớ của hệ điều hành
+	  * không đổi được thiết lập client của Roblox (FrameRateMax, ...)
+	  * chỉ ảnh hưởng phiên chơi của CHÍNH người chơi đang chạy script
+]]
+
+local Client_Env = __RALO_REQUIRE("Client/Core/Env")
+local Client_Guard = __RALO_REQUIRE("Client/Core/Guard")
+local Client_Pipeline = __RALO_REQUIRE("Client/Core/Pipeline")
+local Client_Scheduler = __RALO_REQUIRE("Client/Core/Scheduler")
+local Client_Registry = __RALO_REQUIRE("Client/Core/Registry")
+local Shared_Config = __RALO_REQUIRE("Shared/Config")
+local Shared_Log = __RALO_REQUIRE("Shared/Log")
+local Shared_Safe = __RALO_REQUIRE("Shared/Safe")
+
+local SCOPE = "Bootstrap"
+
+local Bootstrap = {}
+
+Bootstrap.started = false
+Bootstrap.result = nil
+
+-- Gán sink log để mọi thao tác property đều có dấu vết trong Log.
+Shared_Safe.Sink = function(level, scope, message)
+	if level == "warn" then
+		Shared_Log.Warn(scope, message)
+	else
+		Shared_Log.Debug(scope, message)
+	end
+end
+
+--[[
+	options = {
+		profile = { ... }   -- ghi đè Shared_Config.PROFILE, ví dụ:
+		                    -- { gui = { durationSeconds = 60 }, graphics = { qualityLevel = 6 } }
+		buildUi = true      -- mặc định true
+		instant = false     -- true = bỏ qua lấy mẫu khung hình (nhanh, kém chính xác)
+		restoreFirst = false-- true = hoàn tác thay đổi của lần chạy trước rồi mới chạy
+	}
+
+	Trả về: result (bảng), error (chuỗi hoặc nil)
+	KHÔNG throw.
+]]
+function Bootstrap.Start(options)
+	options = options or {}
+
+	if Bootstrap.started and not options.force then
+		Shared_Log.Warn(SCOPE, "đã chạy rồi — bỏ qua. Truyền force = true nếu muốn chạy lại.")
+		return Bootstrap.result, nil
+	end
+	Bootstrap.started = true
+
+	if options.profile then
+		Shared_Config.Apply(options.profile)
+	end
+
+	-- Chuẩn hoá cấu hình: sai kiểu thì dùng mặc định + cảnh báo (REC-004)
+	local normalized, warnings = Client_Guard.NormalizeConfig(Shared_Config.PROFILE, Shared_Config.PROFILE)
+	for _, warning in ipairs(warnings) do
+		Shared_Log.Warn(SCOPE, warning)
+	end
+
+	Client_Env.Init({})
+
+	Shared_Log.Info(SCOPE, ("%s v%s — bắt đầu (chế độ: %s)")
+		:format(Shared_Config.NAME, Shared_Config.VERSION, Shared_Config.Mode()))
+
+	if options.restoreFirst then
+		local restored, failed = Client_Pipeline.Restore()
+		Shared_Log.Info(SCOPE, ("hoàn tác lần chạy trước: %d property (lỗi %d)"):format(restored, failed))
+	end
+
+	-- START-001: đẩy việc nặng ra khỏi khung hình đầu tiên
+	Client_Scheduler.Start()
+
+	local ok, result = Client_Guard.Run(SCOPE .. ":Pipeline", function()
+		return Client_Pipeline.Run({
+			profile = normalized,
+			buildUi = options.buildUi,
+			instant = options.instant,
+		})
+	end)
+
+	if not ok then
+		Shared_Log.Error(SCOPE, "pipeline lỗi: " .. tostring(result))
+		return nil, tostring(result)
+	end
+
+	Bootstrap.result = result
+	Shared_Log.Info(SCOPE, ("xong. phán quyết: %s, %d thay đổi, %d mục có thể hoàn tác")
+		:format(tostring(result.verdict), result.tally and result.tally.changes or 0,
+			result.restoreEntries or 0))
+	return result, nil
+end
+
+-- Hoàn tác mọi thay đổi mà hệ thống đã thực hiện.
+function Bootstrap.Restore()
+	return Client_Pipeline.Restore()
+end
+
+--[[
+	Tắt hẳn hệ thống: ngắt kết nối, huỷ GUI, dừng bộ lập lịch.
+	Dùng khi bạn muốn gỡ hoàn toàn mà không cần chạy lại game.
+]]
+function Bootstrap.Shutdown()
+	Client_Pipeline.Shutdown()
+	Client_Scheduler.Shutdown()
+	local disconnected, released = Client_Registry.Shutdown()
+	Bootstrap.started = false
+	Shared_Log.Info(SCOPE, ("đã tắt: ngắt %d connection, huỷ %d instance"):format(disconnected, released))
+	return true
+end
+
+-- Trạng thái hiện tại — dùng cho test và chẩn đoán.
+function Bootstrap.State()
+	return {
+		started = Bootstrap.started,
+		hasResult = Bootstrap.result ~= nil,
+		-- `and` đã trả về nil khi result = nil; không cần `or nil`
+		verdict = Bootstrap.result and Bootstrap.result.verdict,
+		scheduler = Client_Scheduler.Stats(),
+		registry = Client_Registry.Stats(),
+	}
+end
+
+--[[
+	TỰ CHẠY khi LocalScript được nạp.
+	Đặt _G._RALO_NO_AUTORUN = true trước đó nếu bạn muốn tự gọi Start().
+]]
+local globalEnv = Client_Env.GlobalEnv()
+
+if not Bootstrap.__noAutoRun and not globalEnv._RALO_NO_AUTORUN then
+	-- task.spawn để không chặn luồng nạp script; task có thể không có trong harness
+	if task ~= nil and task.spawn ~= nil then
+		task.spawn(function()
+			Bootstrap.Start()
+		end)
+	else
+		Bootstrap.Start()
+	end
+end
+
+return Bootstrap
+end,
 }
 
 local __RALO_CACHE = {}
+local __RALO_LOADING = {}
 
-local function __RALO_REQUIRE(key)
+__RALO_REQUIRE = function(key)
 	if type(key) ~= "string" then
 		error("__RALO_REQUIRE cần chuỗi đường dẫn, nhận " .. type(key), 2)
 	end
-	if __RALO_CACHE[key] ~= nil then
-		return __RALO_CACHE[key]
+	local cached = __RALO_CACHE[key]
+	if cached == __RALO_LOADING then
+		error("phát hiện require vòng lặp tại module '" .. key .. "'", 2)
 	end
-	local source = __RALO_MODULES[key]
-	if source == nil then
+	if cached ~= nil then
+		return cached
+	end
+	local factory = __RALO_MODULES[key]
+	if type(factory) ~= "function" then
 		error("không có module '" .. key .. "' trong bundle", 2)
 	end
-	-- Đánh dấu đang nạp để phát hiện require vòng lặp
-	__RALO_CACHE[key] = true
-	local chunk, compileError = load(source, "RALO:" .. key)
-	if chunk == nil then
-		__RALO_CACHE[key] = nil
-		error("lỗi biên dịch module '" .. key .. "': " .. tostring(compileError), 2)
-	end
-	local ok, result = pcall(chunk)
+	__RALO_CACHE[key] = __RALO_LOADING
+	local ok, result = pcall(factory)
 	if not ok then
 		__RALO_CACHE[key] = nil
 		error("lỗi khi chạy module '" .. key .. "': " .. tostring(result), 2)
@@ -94,7 +9197,7 @@ local function __RALO_REQUIRE(key)
 	return result
 end
 
--- Cài __RALO_REQUIRE vào environment của chunk này (không làm bẩn _G của game).
+-- Factory đóng trên local __RALO_REQUIRE; expose trong environment để chẩn đoán/test.
 local __RALO_ENV = getfenv and getfenv(1) or _ENV
 __RALO_ENV.__RALO_REQUIRE = __RALO_REQUIRE
 
