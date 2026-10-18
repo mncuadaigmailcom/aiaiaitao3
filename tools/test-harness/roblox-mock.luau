@@ -195,6 +195,7 @@ Mock.getProps = getProps
 local function makeInstance(className)
 	local props = { ClassName = className, Name = className }
 	local api = {}
+	api.DescendantAdded = Signal.new()
 	local children = {}
 	local changedSignals = {}
 	local parentSignal = Signal.new()
@@ -249,6 +250,14 @@ local function makeInstance(className)
 					rawset(value, "__children", newChildren)
 				end
 				table.insert(newChildren, self)
+                local ancestor = value
+                while ancestor do
+                    ancestor.DescendantAdded:Fire(self)
+                    for _, descendant in ipairs(self:GetDescendants()) do
+                        ancestor.DescendantAdded:Fire(descendant)
+                    end
+                    ancestor = ancestor.Parent
+                end
 			end
 			parentSignal:Fire(value)
 			return
@@ -305,10 +314,14 @@ local function makeInstance(className)
 	end
 
 	function api.IsA(_self, name)
+		local postEffects = { BloomEffect = true, BlurEffect = true, ColorCorrectionEffect = true, DepthOfFieldEffect = true, SunRaysEffect = true }
+		if name == "PostEffect" and postEffects[props.ClassName] then return true end
 		return props.ClassName == name
 	end
 
+	api.Destroying = Signal.new()
 	function api.Destroy(_self)
+		api.Destroying:Fire()
 		-- Gỡ con trước (Roblox huỷ cả cây con)
 		for _, child in pairs(rawget(self, "__children") or {}) do
 			if registry[child] and not rawget(child, "__destroyed") then
