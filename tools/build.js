@@ -3,7 +3,7 @@
  * tools/build.js
  *
  * Gộp toàn bộ src/**\/*.luau thành MỘT tệp Luau tự chứa trong dist/,
- * nạp được bằng loadstring() trong executor hoặc dán thẳng vào Studio.
+ * dán thẳng vào MỘT LocalScript trong Roblox Studio (game bạn sở hữu).
  *
  * Cơ chế: mỗi module được nhúng nguyên văn (KHÔNG sửa một ký tự nào của
  * logic) vào bảng __RALO_MODULES, và một __require tối giản ánh xạ
@@ -81,10 +81,21 @@ function renderBundle(moduleMap) {
 
 	${keys.length} module, sinh lúc ${new Date().toISOString()}
 
-	Cách nạp (executor):
-		loadstring(<nội dung tệp này>)()
-	Cách nạp (không có HttpGet):
-		dán thẳng nội dung tệp vào executor rồi chạy.
+	CÁCH NẠP (Roblox Studio, game bạn SỞ HỮU):
+	  1. StarterPlayer -> StarterPlayerScripts -> Insert Object -> LocalScript
+	  2. Trong Properties, đặt LocalScript đó RunContext = Legacy
+	  3. Dán TOÀN BỘ nội dung tệp này vào, rồi Play
+
+	KHÔNG dùng loadstring() và KHÔNG dùng executor:
+	  * loadstring bị TẮT mặc định và chỉ chạy được ở SERVER script,
+	    không chạy trong LocalScript (ServerScriptService.LoadStringEnabled
+	    mặc định = false, và thuộc tính này không script được).
+	  * Muốn loadstring(game:HttpGet(...))() chạy được thì bắt buộc phải có
+	    executor. Dự án này KHÔNG hỗ trợ và KHÔNG khuyến khích cách đó:
+	    nó nằm ngoài phạm vi "chỉ game bạn sở hữu, không executor".
+	  * Hệ thống là LocalScript: chỉ tối ưu được CLIENT của người chơi,
+	    và CHỈ trong game có chứa nó. Không có cách hợp lệ nào để "gắn vào
+	    game của người khác".
 ]]
 `;
 

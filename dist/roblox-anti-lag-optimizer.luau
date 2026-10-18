@@ -3,12 +3,23 @@
 	TỆP SINH TỰ ĐỘNG bởi tools/build.js — ĐỪNG SỬA TAY.
 	Nguồn: src/**.luau
 
-	36 module, sinh lúc 2026-10-18T03:21:10.520Z
+	36 module, sinh lúc 2026-10-18T03:36:39.608Z
 
-	Cách nạp (executor):
-		loadstring(<nội dung tệp này>)()
-	Cách nạp (không có HttpGet):
-		dán thẳng nội dung tệp vào executor rồi chạy.
+	CÁCH NẠP (Roblox Studio, game bạn SỞ HỮU):
+	  1. StarterPlayer -> StarterPlayerScripts -> Insert Object -> LocalScript
+	  2. Trong Properties, đặt LocalScript đó RunContext = Legacy
+	  3. Dán TOÀN BỘ nội dung tệp này vào, rồi Play
+
+	KHÔNG dùng loadstring() và KHÔNG dùng executor:
+	  * loadstring bị TẮT mặc định và chỉ chạy được ở SERVER script,
+	    không chạy trong LocalScript (ServerScriptService.LoadStringEnabled
+	    mặc định = false, và thuộc tính này không script được).
+	  * Muốn loadstring(game:HttpGet(...))() chạy được thì bắt buộc phải có
+	    executor. Dự án này KHÔNG hỗ trợ và KHÔNG khuyến khích cách đó:
+	    nó nằm ngoài phạm vi "chỉ game bạn sở hữu, không executor".
+	  * Hệ thống là LocalScript: chỉ tối ưu được CLIENT của người chơi,
+	    và CHỈ trong game có chứa nó. Không có cách hợp lệ nào để "gắn vào
+	    game của người khác".
 ]]
 
 local __RALO_MODULES = {
