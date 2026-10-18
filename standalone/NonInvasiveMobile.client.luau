@@ -17,7 +17,7 @@ gui.IgnoreGuiInset = false
 local panel = Instance.new("Frame")
 panel.Name = "Panel"
 panel.AnchorPoint = Vector2.new(1, 1)
-panel.Position = UDim2.new(0, -4, 1, -12)
+panel.Position = UDim2.new(1, 20, 1, -12)
 -- Tỉ lệ chiều rộng để vừa cả màn hình điện thoại hẹp.
 panel.Size = UDim2.new(0.65, 0, 0, 84)
 panel.BackgroundColor3 = Color3.fromRGB(75, 75, 75)
@@ -25,6 +25,7 @@ panel.BackgroundTransparency = 0.3
 panel.BorderSizePixel = 0
 panel.Active = false
 panel.Selectable = false
+panel.Visible = false
 panel.Parent = gui
 local limit = Instance.new("UISizeConstraint")
 limit.MaxSize = Vector2.new(220, 84)
@@ -78,7 +79,9 @@ local settled = false
 local function slidePosition(alpha)
     -- Smoothstep: di chuyển mượt; không cập nhật vị trí trong lúc đứng yên.
     local eased = alpha * alpha * (3 - 2 * alpha)
-    panel.Position = UDim2.new(eased, -4 - 8 * eased, 1, -12)
+    -- Chỉ trượt 32 px trong góc dưới phải, không đi ngang màn hình.
+    panel.Position = UDim2.new(1, 20 - 32 * eased, 1, -12)
+    panel.Visible = alpha > 0
 end
 connection = RunService.Heartbeat:Connect(function()
     -- Mốc thời gian thực: không đếm frame, không chờ nối tiếp gây trôi giờ.

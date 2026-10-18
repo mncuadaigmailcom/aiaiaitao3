@@ -22,7 +22,7 @@ module.exports = (suite) => {
     A.equal(h.eval(progress)[0], '1%');
     A.equal(h.eval(`
       local panel = pg:FindFirstChild("NonInvasiveMobileNotice"):FindFirstChild("Panel")
-      assert(panel.Position.X.Scale == 0 and panel.Position.Y.Scale == 1)
+      assert(panel.Position.X.Scale == 1 and panel.Position.Y.Scale == 1)
       assert(panel.Size.Y.Offset == 84)
       assert(panel:FindFirstChildOfClass("UISizeConstraint").MaxSize.X == 220)
       assert(panel.AnchorPoint.X == 1 and panel.AnchorPoint.Y == 1)
@@ -32,21 +32,21 @@ module.exports = (suite) => {
       return true
     `)[0], true);
   });
-  suite.test('trượt vào trái → phải, đứng yên, trượt ra phải → trái', (_, A) => {
+  suite.test('trượt ngắn góc phải: hiện phải → trái, ẩn trái → phải', (_, A) => {
     const h = setup();
-    const x = 'return pg:FindFirstChild("NonInvasiveMobileNotice"):FindFirstChild("Panel").Position.X.Scale';
+    const x = 'return pg:FindFirstChild("NonInvasiveMobileNotice"):FindFirstChild("Panel").Position.X.Offset';
     h.advance(0.2);
     const entering = h.eval(x)[0];
-    A.equal(entering > 0 && entering < 1, true);
+    A.equal(entering > -12 && entering < 20, true);
     h.advance(0.3);
-    A.equal(h.eval(x)[0], 1);
+    A.equal(h.eval(x)[0], -12);
     h.advance(29.1);
-    A.equal(h.eval(x)[0], 1);
+    A.equal(h.eval(x)[0], -12);
     h.advance(0.2);
     const leaving = h.eval(x)[0];
-    A.equal(leaving > 0 && leaving < 1, true);
+    A.equal(leaving > -12 && leaving < 20, true);
     h.advance(0.1);
-    A.equal(h.eval(x)[0] < leaving, true);
+    A.equal(h.eval(x)[0] > leaving, true);
     h.advance(0.2);
     A.equal(h.eval('return pg:FindFirstChild("NonInvasiveMobileNotice") == nil')[0], true);
   });
