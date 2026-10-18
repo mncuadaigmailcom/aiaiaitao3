@@ -55,7 +55,7 @@ Ghi lại:
 
 ### Bước 3 — Bật hệ thống, đo lại
 
-Đặt `enabled = true`, `preset = "light"`. Play. **Đứng đúng chỗ cũ**, cùng 60 giây.
+Đặt `enabled = true`, `mode = "light"`. Play. **Đứng đúng chỗ cũ**, cùng 60 giây.
 Chờ qua mốc 30 giây (khi GUI đã tự huỷ) rồi mới ghi số — đo trong lúc GUI đang chạy
 là đo cả chi phí của GUI.
 

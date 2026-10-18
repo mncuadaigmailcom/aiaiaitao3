@@ -20,7 +20,7 @@ Kết quả thật, ngày 2026-10-18:
 | Bộ | Số test | Kiểm chứng điều gì |
 | -- | ------- | ------------------ |
 | `catalog` | 7 | Danh mục khớp mã nguồn: mọi A/B/C có tệp thật + marker, mọi B có test khai id, D/E không trỏ vào tệp nguồn, id không trùng, đủ 10 trường |
-| `config` | 13 | Cấu hình, preset, bật/tắt nhóm, phân loại thiết bị |
+| `config` | 13 | Cấu hình, `mode`, bật/tắt nhóm, phân loại thiết bị |
 | `cull` | 10 | Tắt ở xa / bật lại khi gần, có trần, không xoá |
 | `guard` | 9 | Kiểm tra tồn tại, stale-guard, phân lập lỗi |
 | `gui` | 16 | Không trùng lặp, không kéo thả được, không âm thanh, phần trăm ≤ 100, tự huỷ sạch |
@@ -84,12 +84,12 @@ Danh sách này **chưa được thực hiện** — môi trường phát triể
 | 6 | Gameplay không đổi | Chơi thử toàn bộ tính năng chính | ☐ |
 | 7 | Map/nhân vật/vật phẩm còn nguyên | Đối chiếu trước/sau | ☐ |
 | 8 | Bật/tắt từng nhóm đều chạy được | Đổi từng nhóm rồi Play | ☐ |
-| 9 | `preset = "off"` thì không làm gì | Đặt off rồi Play | ☐ |
+| 9 | `enabled = false` thì không làm gì | Đặt `enabled = false` rồi Play | ☐ |
 
 ## 4.3 Quy trình khi phát hiện lỗi
 
 1. Chép **nguyên văn** thông báo từ Output.
-2. Ghi điều kiện: preset, nhóm bật/tắt, đang làm gì.
+2. Ghi điều kiện: `mode`, nhóm bật/tắt, đang làm gì.
 3. Tái hiện tối thiểu được.
 4. Tìm trong `docs/06-bao-cao-test-loi.md` xem đã gặp chưa.
 5. Nếu chưa — đó là lỗi mới, báo theo mẫu ở mục 3.6.

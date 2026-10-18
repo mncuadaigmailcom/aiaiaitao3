@@ -57,25 +57,64 @@ chạy hoạt ảnh khoảng 30 giây rồi trượt xuống và **tự xoá ho�
 
 ## 2. Cấu hình
 
-Toàn bộ cấu hình nằm ở **một nơi**: `src/Shared/Config.luau`.
+Toàn bộ cấu hình nằm ở **một nơi**: bảng `Config.PROFILE` trong `src/Shared/Config.luau`.
+Bảng dưới đây chép **đúng** từ mã nguồn — tên khoá, giá trị mặc định đều là thật.
 
-Mặc định là `preset = "light"` — **không** tự hạ đồ hoạ xuống thấp nhất,
-không xoá map/nhân vật/vật phẩm/hiệu ứng quan trọng.
+### 2.1 Công tắc tổng
 
-| Khoá                        | Ý nghĩa                                            | Mặc định |
-| --------------------------- | -------------------------------------------------- | -------- |
-| `enabled`                   | Bật/tắt toàn hệ thống                              | `true`   |
-| `preset`                    | `"off"` / `"light"` / `"balanced"`                 | `"light"`|
-| `groups.<tên>`              | Bật/tắt từng nhóm nhiệm vụ (độc lập nhau)          | theo preset |
-| `graphics.quality`          | Đổi `Lighting.QualityLevel` (tối đa mức bạn cho phép) | `false` |
-| `graphics.terrainDecoration`| Đổi `Terrain.Decoration` (đảo ngược được)          | `false` |
-| `diagnostics.logLevel`      | `0`=im, `1`=cảnh báo, `2`=thông tin, `3`=chi tiết  | `1`      |
-| `gui.durationSeconds`       | Thời lượng hoạt ảnh (giây)                         | `30`     |
-| `gui.sound`                 | **Bắt buộc `false`** — hệ thống không phát âm thanh | `false`  |
+| Khoá | Ý nghĩa | Mặc định |
+| ---- | ------- | -------- |
+| `enabled` | `false` = hệ thống không làm gì cả | `true` |
+| `mode` | Chế độ tối ưu | `"light"` |
 
-Đổi cấu hình xong **chỉ cần Play lại**, hoặc gọi `RALO.Shutdown()` rồi `RALO.Start()`.
+### 2.2 Bật/tắt theo nhóm (`Config.PROFILE.groups`)
 
-### Hoàn tác
+Có **8 nhóm**, độc lập nhau. Đặt `false` để tắt hẳn nhóm đó.
+
+| Nhóm | Mặc định | Làm gì |
+| ---- | -------- | ------ |
+| `graphics` | **`true`** | `Lighting.QualityLevel` → **6**, tắt `GraphicsQualityMode` |
+| `effects` | `true` | **Giới hạn** `Rate`/`ParticleCount`, tắt emitter ở xa — **không xoá** effect |
+| `cull` | `true` | Tắt bóng/hiệu ứng của đối tượng **ở xa**, bật lại khi gần |
+| `scan` | `true` | Quét thế giới có trần |
+| `memory` | `true` | GC định kỳ |
+| `character` | `true` | Bỏ bóng + `AutomaticScalingEnabled` của nhân vật |
+| `physics` | **`false`** | Throttle nội suy — **TẮT** vì có đánh đổi độ mượt |
+| `net` | **`false`** | **TẮT** vì cần remote của game |
+
+> ⚠️ **Đọc kỹ:** `graphics` mặc định **BẬT**, và nó hạ `Lighting.QualityLevel`
+> từ ~10 (mặc định Roblox) xuống **6**. Đây là giảm **nhẹ**, **đảo ngược được**
+> (`restorable = true`), không phải hạ xuống thấp nhất. Nhưng nó **có** làm game
+> của bạn trông khác đi ngay khi Play.
+>
+> Muốn giữ nguyên đồ hoạ, đặt `groups.graphics = false`.
+
+### 2.3 Thông số đồ hoạ (`Config.PROFILE.graphics`)
+
+| Khoá | Mặc định | Ý nghĩa |
+| ---- | -------- | ------- |
+| `qualityLevel` | `6` | `Lighting.QualityLevel` 1..10 |
+| `lockQualityMode` | `true` | Tắt `GraphicsQualityMode` để engine không ghi đè |
+| `terrainDecoration` | `false` | `Terrain.Decoration` (cỏ/chi tiết nhỏ) — **mặc định KHÔNG đổi** |
+| `shadowDistance` | `300` | Xa hơn N stud thì tắt `CastShadow` (`0` = tắt bước này) |
+| `maxShadowTargets` | `400` | Trần số đối tượng bị đổi, tránh khựng khi quét |
+
+### 2.4 Các bảng còn lại
+
+| Bảng | Khoá chính | Mặc định |
+| ---- | ---------- | -------- |
+| `effects` | `particleRateCap` / `particleMaxCountCap` / `effectDistance` / `maxInstancesScanned` | `20` / `60` / `250` / `3000` |
+| `character` | `disableShadows` / `disableAutoScaling` | `true` / `true` |
+| `memory` | `gcEverySeconds` / `collectStepKb` | `15` / `200` |
+| `physics` | `enabled` / `interpolationThrottling` / `physicsSteppingMethod` | `false` / `"Disabled"` / `"Fixed"` |
+| `scheduler` | `frameBudgetMs` / `cullInterval` | `3.0` / `0.25` |
+| `gui` | `durationSeconds` / `backgroundAlpha` / `marginRight` / `marginBottom` | `30` / `0.72` / `16` / `16` |
+| `measure` | `baselineSeconds` / `settleSeconds` / `afterSeconds` | `5.0` / `1.0` / `5.0` |
+| `diagnostics` | `logLevel` / `errorLogging` / `printToOutput` | `"info"` / `true` / `true` |
+| `restore` | `recordChanges` / `verifyOnWrite` / `respectStale` | `true` / `true` / `true` |
+| `methods` | Tắt **từng phương pháp** theo id, ví dụ `["GRAPHICS-003"] = false` | rỗng |
+
+### 2.5 Hoàn tác
 
 Mọi thuộc tính hệ thống đã sửa đều được ghi lại. Hoàn tác bằng:
 
@@ -86,7 +125,7 @@ RALO.Restore()    -- trả thuộc tính về giá trị gốc
 ```
 
 `Restore()` **không ghi đè** nếu game (hoặc bạn) đã đổi giá trị đó **sau khi** hệ thống
-ghi — nó bỏ qua và log lại. Đó là chủ ý: không đè lên thay đổi mới hơn của game.
+ghi — nó bỏ qua và log lại (`restore.respectStale = true`). Đó là chủ ý.
 
 ---
 
