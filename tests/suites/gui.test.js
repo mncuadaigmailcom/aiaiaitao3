@@ -54,22 +54,50 @@ module.exports = function guiSuite(suite) {
       for _, d in ipairs(_G.__RALO_PLAYERGUI:GetDescendants()) do
         if d.ClassName == "ScreenGui" then screenGuis += 1 end
       end
+      local gui = _G.__RALO_PLAYERGUI:FindFirstChild("RALO_OptimizerNotifier")
+      gui.Enabled = false
+      gui.DisplayOrder = 1
+      local GuiPolicy = __RALO_REQ("Client/Ui/GuiPolicy")
+      local reused = GuiPolicy.AcquireScreenGui(_G.__RALO_PLAYERGUI)
       return screenGuis .. "|" .. tostring(Notifier.Get() ~= nil)
+        .. "|" .. tostring(reused == gui) .. "|" .. tostring(gui.Enabled)
+        .. "|" .. tostring(gui.DisplayOrder)
     `)[0];
-    const [screenGuis, hasInstance] = out.split('|');
+    const [screenGuis, hasInstance, repaired, enabled, displayOrder] = out.split('|');
     A.equal(screenGuis, '1', 'dù Build 3 lần, chỉ được có MỘT ScreenGui');
     A.equal(hasInstance, 'true', 'singleton phải tồn tại');
+    A.equal(repaired, 'true', 'ScreenGui cũ phải được tái sử dụng');
+    A.equal(enabled, 'true', 'nếu ScreenGui cũ bị tắt, lần chạy mới phải bật lại');
+    A.equal(displayOrder, '1000', 'ScreenGui cũ phải được đưa lên trước HUD thông thường');
   });
 
-  suite.test('GUI-001: ScreenGui có ResetOnSpawn = false', (t, A) => {
+  suite.test('GUI: từ chối dựng ScreenGui trực tiếp dưới DataModel', (t, A) => {
+    const h = createRuntime();
+    const out = h.eval(`
+      local Notifier = __RALO_REQ("Client/Ui/Notifier")
+      local result = Notifier.Build({ parent = game })
+      return tostring(result == nil)
+        .. "|" .. tostring(game:FindFirstChild("RALO_OptimizerNotifier") == nil)
+    `)[0];
+    const [rejected, noScreenGui] = out.split('|');
+    A.equal(rejected, 'true', 'Build phải từ chối parent không phải PlayerGui');
+    A.equal(noScreenGui, 'true', 'không được tạo ScreenGui vô hiệu trong DataModel');
+  });
+
+  suite.test('GUI-001: ScreenGui được bật, ở trên HUD thông thường và không reset khi hồi sinh', (t, A) => {
     const h = createRuntime();
     const out = h.eval(BUILD() + `
       local gui = _G.__RALO_PLAYERGUI:FindFirstChild("RALO_OptimizerNotifier")
       return tostring(gui ~= nil) .. "|" .. tostring(gui.ResetOnSpawn)
+        .. "|" .. tostring(gui.Enabled) .. "|" .. tostring(gui.DisplayOrder)
+        .. "|" .. tostring(gui.IgnoreGuiInset)
     `)[0];
-    const [found, resetOnSpawn] = out.split('|');
+    const [found, resetOnSpawn, enabled, displayOrder, ignoreInset] = out.split('|');
     A.equal(found, 'true', 'GUI phải được đặt tên cố định để tìm lại được');
     A.equal(resetOnSpawn, 'false', 'ResetOnSpawn phải false để không dựng lại khi hồi sinh');
+    A.equal(enabled, 'true', 'ScreenGui phải được bật');
+    A.equal(displayOrder, '1000', 'overlay phải nổi trên HUD PlayerGui thông thường');
+    A.equal(ignoreInset, 'true', 'tọa độ phải tính theo toàn màn hình để neo đúng góc');
   });
 
   suite.test('GUI-010: khung có Active = false — KHÔNG kéo được', (t, A) => {

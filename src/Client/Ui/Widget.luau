@@ -15,21 +15,27 @@ local SCOPE = "Widget"
 local Widget = {}
 
 function Widget.New(className: string, props: any, parent: any): any
-	local ok, instance = pcall(function()
-		return Instance.new(className)
-	end)
-	if not ok then
-		Util_Log.Error(SCOPE, "không tạo được", className, tostring(instance))
+	if parent == nil then
+		Util_Log.Warn(SCOPE, "không tạo", className, "vì không có parent hợp lệ")
 		return nil
 	end
 
-	if type(props) == "table" then
-		for key, value in props do
-			instance[key] = value
+	local instance = nil
+	local ok, err = pcall(function()
+		instance = Instance.new(className)
+		if type(props) == "table" then
+			for key, value in props do
+				instance[key] = value
+			end
 		end
-	end
-	if parent ~= nil then
 		instance.Parent = parent
+	end)
+	if not ok then
+		if instance ~= nil then
+			pcall(function() instance.Parent = nil end)
+		end
+		Util_Log.Error(SCOPE, "không dựng được", className, tostring(err))
+		return nil
 	end
 	return instance
 end

@@ -3,7 +3,7 @@
 	TỆP SINH TỰ ĐỘNG bởi tools/build.js — ĐỪNG SỬA TAY.
 	Nguồn: src/**.luau
 
-	36 module, sinh lúc 2026-10-18T06:04:07.375Z
+	36 module, sinh lúc 2026-10-18T07:53:08.443Z
 
 	CÁCH NẠP (Roblox Studio, game bạn SỞ HỮU):
 	  1. StarterPlayer -> StarterPlayerScripts -> Insert Object -> LocalScript
@@ -1864,21 +1864,36 @@ Pipeline.lastResult = nil
 ]]
 function Pipeline.GetGuiParent()
 	local players = Core_Env.GetService("Players")
-	if players ~= nil then
-		local ok, player = pcall(function()
-			return players.LocalPlayer
-		end)
-		if ok and player ~= nil then
-			local okGui, playerGui = pcall(function()
-				return player:FindFirstChildOfClass("PlayerGui")
-			end)
-			if okGui and playerGui ~= nil then
-				return playerGui
-			end
-		end
+	if players == nil then
+		Shared_Log.Warn(SCOPE, "không lấy được Players -> không thể dựng GUI client")
+		return nil
 	end
-	-- Không có PlayerGui (ví dụ chạy trong harness) -> trả về game để test
-	return Core_Env.game
+
+	local okPlayer, player = pcall(function()
+		return players.LocalPlayer
+	end)
+	if not okPlayer or player == nil then
+		Shared_Log.Warn(SCOPE, "LocalPlayer chưa sẵn sàng -> bỏ qua GUI, không gắn vào game")
+		return nil
+	end
+
+	local okGui, playerGui = pcall(function()
+		local found = player:FindFirstChildOfClass("PlayerGui")
+		if found == nil then
+			-- StarterPlayerScripts có thể khởi động trước khi PlayerGui được tạo.
+			found = player:WaitForChild("PlayerGui", 10)
+		end
+		if found ~= nil and found:IsA("PlayerGui") then
+			return found
+		end
+		return nil
+	end)
+	if okGui and playerGui ~= nil then
+		return playerGui
+	end
+
+	Shared_Log.Warn(SCOPE, "PlayerGui chưa sẵn sàng sau tối đa 10 giây -> bỏ qua GUI")
+	return nil
 end
 
 -- Dựng bảng kết quả đo từ chỉ số tức thời (dùng khi options.instant = true)
@@ -4785,15 +4800,43 @@ GuiPolicy.stats = { created = 0, reused = 0, blockedDuplicates = 0, destroyed = 
 function GuiPolicy.AcquireScreenGui(parent)
 	if parent == nil then
 		Shared_Log.Warn(SCOPE, "không có parent (PlayerGui) -> không tạo GUI")
-		return nil
+		return nil, false
+	end
+
+	local validParent, isPlayerGui = pcall(function()
+		return parent:IsA("PlayerGui")
+	end)
+	if not validParent or not isPlayerGui then
+		Shared_Log.Warn(SCOPE, "parent không phải PlayerGui -> từ chối tạo GUI không hiển thị")
+		return nil, false
 	end
 
 	local ok, existing = Client_Guard.Run(SCOPE .. ":Find", function()
 		return parent:FindFirstChild(GuiPolicy.GUI_NAME)
 	end)
 	if ok and existing ~= nil then
+		local valid, isScreenGui = pcall(function()
+			return existing:IsA("ScreenGui")
+		end)
+		if not valid or not isScreenGui then
+			Shared_Log.Warn(SCOPE, "đã có object cùng tên nhưng không phải ScreenGui -> không đè lên object đó")
+			return nil, false
+		end
+
+		local configured, configureError = pcall(function()
+			existing.ResetOnSpawn = false
+			existing.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+			existing.DisplayOrder = 1000
+			existing.IgnoreGuiInset = true
+			existing.Enabled = true
+		end)
+		if not configured then
+			Shared_Log.Warn(SCOPE, "không thể bật ScreenGui cũ:", tostring(configureError))
+			return nil, false
+		end
+
 		GuiPolicy.stats.reused += 1
-		Shared_Log.Info(SCOPE, "tái sử dụng ScreenGui đã có — không tạo bản trùng")
+		Shared_Log.Info(SCOPE, "đã bật lại ScreenGui hiện có (DisplayOrder=1000)")
 		return existing, true
 	end
 
@@ -4802,7 +4845,7 @@ function GuiPolicy.AcquireScreenGui(parent)
 		gui.Name = GuiPolicy.GUI_NAME
 		gui.ResetOnSpawn = false          -- GUI-001: KHÔNG dựng lại khi hồi sinh
 		gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-		gui.DisplayOrder = 50
+		gui.DisplayOrder = 1000            -- nổi trên HUD thông thường trong PlayerGui
 		gui.IgnoreGuiInset = true
 		gui.Enabled = true
 		gui.Parent = parent
@@ -5077,7 +5120,8 @@ function Notifier:_BuildFrame(screenGui)
 		BorderSizePixel = 0,
 		Active = false,		-- GUI-010: không nhận thao tác kéo
 		Selectable = false,
-		ZIndex = 2,
+		Visible = true,
+		ZIndex = 10,
 	}, screenGui)
 	if frame == nil then
 		return nil
@@ -5103,6 +5147,7 @@ function Notifier:_BuildFrame(screenGui)
 		TextColor3 = Ui_Theme.TextPrimary,
 		Size = UDim2.new(1, 0, 0, 18),
 		LayoutOrder = 1,
+		ZIndex = 11,
 	})
 
 	self.statusLabel = Ui_Widget.Text(frame, {
@@ -5113,6 +5158,7 @@ function Notifier:_BuildFrame(screenGui)
 		TextColor3 = Ui_Theme.TextSecondary,
 		Size = UDim2.new(1, 0, 0, 14),
 		LayoutOrder = 2,
+		ZIndex = 11,
 	})
 
 	self.track = Ui_Widget.New("Frame", {
@@ -5122,6 +5168,7 @@ function Notifier:_BuildFrame(screenGui)
 		BorderSizePixel = 0,
 		Size = UDim2.new(1, 0, 0, 8),
 		LayoutOrder = 3,
+		ZIndex = 11,
 	}, frame)
 	Ui_Widget.Corners(self.track, UDim.new(1, 0))
 
@@ -5130,7 +5177,7 @@ function Notifier:_BuildFrame(screenGui)
 		BackgroundColor3 = Ui_Theme.ProgressFill,
 		BorderSizePixel = 0,
 		Size = UDim2.new(0.01, 0, 1, 0),
-		ZIndex = 3,
+		ZIndex = 12,
 	}, self.track)
 	Ui_Widget.Corners(self.fill, UDim.new(1, 0))
 
@@ -5142,6 +5189,7 @@ function Notifier:_BuildFrame(screenGui)
 		TextColor3 = Ui_Theme.TextPrimary,
 		Size = UDim2.new(1, 0, 0, 14),
 		LayoutOrder = 4,
+		ZIndex = 11,
 	})
 
 	return frame
@@ -5574,21 +5622,27 @@ local SCOPE = "Widget"
 local Widget = {}
 
 function Widget.New(className: string, props: any, parent: any): any
-	local ok, instance = pcall(function()
-		return Instance.new(className)
-	end)
-	if not ok then
-		Util_Log.Error(SCOPE, "không tạo được", className, tostring(instance))
+	if parent == nil then
+		Util_Log.Warn(SCOPE, "không tạo", className, "vì không có parent hợp lệ")
 		return nil
 	end
 
-	if type(props) == "table" then
-		for key, value in props do
-			instance[key] = value
+	local instance = nil
+	local ok, err = pcall(function()
+		instance = Instance.new(className)
+		if type(props) == "table" then
+			for key, value in props do
+				instance[key] = value
+			end
 		end
-	end
-	if parent ~= nil then
 		instance.Parent = parent
+	end)
+	if not ok then
+		if instance ~= nil then
+			pcall(function() instance.Parent = nil end)
+		end
+		Util_Log.Error(SCOPE, "không dựng được", className, tostring(err))
+		return nil
 	end
 	return instance
 end

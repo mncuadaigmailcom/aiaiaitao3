@@ -24,6 +24,7 @@ module.exports = function pipelineSuite(suite) {
     const out = h.eval(`
       local Config = __RALO_REQ("Shared/Config")
       local Pipeline = __RALO_REQ("Client/Core/Pipeline")
+      local Players = game:GetService("Players")
       Config.Apply({
         measure = { baselineSeconds = 1.0, settleSeconds = 0, afterSeconds = 1.0, frameWindow = 60 },
         gui = { enabled = false },
@@ -40,9 +41,10 @@ module.exports = function pipelineSuite(suite) {
         .. "|" .. tostring(result.selfCost.connections)
         .. "|" .. tostring(result.tally.failed)
         .. "|" .. tostring(result.tally.applied)
+        .. "|" .. tostring(Pipeline.GetGuiParent() == Players.LocalPlayer:FindFirstChildOfClass("PlayerGui"))
     `)[0];
     const [hasResult, hasTally, hasComparison, hasPlan, hasSelfCost, hasSchedulerCost, hasHandlerDuration,
-      tasks, connections, failedSteps, appliedSteps] = out.split('|');
+      tasks, connections, failedSteps, appliedSteps, hasPlayerGui] = out.split('|');
     A.equal(hasResult, 'true', 'phải trả về bảng kết quả');
     A.equal(hasTally, 'true', 'phải có thống kê thực thi');
     A.equal(hasComparison, 'true', 'phải có bảng so sánh');
@@ -54,6 +56,22 @@ module.exports = function pipelineSuite(suite) {
     A.equal(connections, '0', 'không có tác vụ thì Scheduler phải ngắt Heartbeat');
     A.equal(failedSteps, '0', 'runner phải gọi handler với đúng chữ ký (step, profile)');
     A.greaterThan(Number(appliedSteps), 0, 'pipeline phải áp dụng được các bước an toàn');
+    A.equal(hasPlayerGui, 'true', 'GUI phải gắn vào PlayerGui của người chơi, không vào DataModel');
+  });
+
+  suite.test('GUI: thiếu PlayerGui thì bỏ qua GUI, không gắn ScreenGui vào game', (t, A) => {
+    const h = createRuntime();
+    const out = h.eval(`
+      local players = game:GetService("Players")
+      local player = players.LocalPlayer
+      local playerGui = player:FindFirstChildOfClass("PlayerGui")
+      playerGui.Parent = nil
+      local parent = __RALO_REQ("Client/Core/Pipeline").GetGuiParent()
+      return tostring(parent == nil) .. "|" .. tostring(parent ~= game)
+    `)[0];
+    const [isNil, isNotGame] = out.split('|');
+    A.equal(isNil, 'true', 'nếu PlayerGui chưa có, hàm phải báo không có parent');
+    A.equal(isNotGame, 'true', 'không được dùng DataModel làm parent thay thế');
   });
 
   suite.test('PERF-001: mô hình mock cho thấy tác động giảm Rate particle lên chi phí/FPS', (t, A) => {

@@ -36,6 +36,39 @@ try {
   console.log('CAUTION: this is a deterministic mock model, not Roblox Studio/GPU performance.');
   console.log('--- relevant log lines ---');
   console.log(rt.logs.filter((line) => /ERROR|thực thi xong|Kết luận:|chi phí Scheduler/.test(line)).join('\n'));
+
+  // Xác minh luôn đường hiển thị GUI của bundle dist (cấu trúc mock, không render pixel).
+  const guiOut = rt.run(`
+    local Config = __RALO_REQUIRE("Shared/Config")
+    Config.Apply({
+      measure = { baselineSeconds = 0.1, settleSeconds = 0, afterSeconds = 0.1, frameWindow = 60 },
+      gui = { enabled = true },
+    })
+    local result, err = __RALO.Start({ force = true })
+    if err ~= nil then error(err) end
+    local playerGui = game:GetService("Players").LocalPlayer:FindFirstChildOfClass("PlayerGui")
+    local screenGui = playerGui and playerGui:FindFirstChild("RALO_OptimizerNotifier")
+    local panel = screenGui and screenGui:FindFirstChild("RALO_Panel")
+    local status = panel and panel:FindFirstChild("Status")
+    return table.concat({
+      tostring(screenGui ~= nil), tostring(screenGui and screenGui.Parent == playerGui),
+      tostring(screenGui and screenGui.Enabled), tostring(screenGui and screenGui.DisplayOrder),
+      tostring(panel ~= nil), tostring(panel and panel.Visible),
+      tostring(panel and panel.Position.X.Scale), tostring(panel and panel.Position.X.Offset),
+      tostring(panel and panel.Position.Y.Scale), tostring(panel and panel.Position.Y.Offset),
+      tostring(status ~= nil and status.Text ~= ""), tostring(result.tally.failed),
+    }, "|")
+  `, 'dist-gui-smoke')[0];
+  const [hasScreenGui, correctParent, guiEnabled, displayOrder, hasPanel, panelVisible,
+    xScale, xOffset, yScale, yOffset, hasStatus, uiPipelineFailures] = guiOut.split('|');
+  const guiChecks = [hasScreenGui, correctParent, guiEnabled, hasPanel, panelVisible, hasStatus];
+  if (guiChecks.some((value) => value !== 'true') || displayOrder !== '1000'
+      || xScale !== '1' || xOffset !== '-16' || yScale !== '1' || yOffset !== '-16'
+      || uiPipelineFailures !== '0') {
+    throw new Error(`dist GUI smoke failed: ${guiOut}`);
+  }
+  console.log('dist GUI mock: PlayerGui parent OK, enabled, visible, fixed bottom-right; pipeline failures:', uiPipelineFailures);
+  console.log('CAUTION: mock verifies instance/properties only; it cannot confirm Roblox Studio rendering.');
 } catch (err) {
   console.error('FAILED:', err.message);
   console.error('--- logs ---');

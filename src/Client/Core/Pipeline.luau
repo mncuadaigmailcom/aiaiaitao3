@@ -51,21 +51,36 @@ Pipeline.lastResult = nil
 ]]
 function Pipeline.GetGuiParent()
 	local players = Core_Env.GetService("Players")
-	if players ~= nil then
-		local ok, player = pcall(function()
-			return players.LocalPlayer
-		end)
-		if ok and player ~= nil then
-			local okGui, playerGui = pcall(function()
-				return player:FindFirstChildOfClass("PlayerGui")
-			end)
-			if okGui and playerGui ~= nil then
-				return playerGui
-			end
-		end
+	if players == nil then
+		Shared_Log.Warn(SCOPE, "không lấy được Players -> không thể dựng GUI client")
+		return nil
 	end
-	-- Không có PlayerGui (ví dụ chạy trong harness) -> trả về game để test
-	return Core_Env.game
+
+	local okPlayer, player = pcall(function()
+		return players.LocalPlayer
+	end)
+	if not okPlayer or player == nil then
+		Shared_Log.Warn(SCOPE, "LocalPlayer chưa sẵn sàng -> bỏ qua GUI, không gắn vào game")
+		return nil
+	end
+
+	local okGui, playerGui = pcall(function()
+		local found = player:FindFirstChildOfClass("PlayerGui")
+		if found == nil then
+			-- StarterPlayerScripts có thể khởi động trước khi PlayerGui được tạo.
+			found = player:WaitForChild("PlayerGui", 10)
+		end
+		if found ~= nil and found:IsA("PlayerGui") then
+			return found
+		end
+		return nil
+	end)
+	if okGui and playerGui ~= nil then
+		return playerGui
+	end
+
+	Shared_Log.Warn(SCOPE, "PlayerGui chưa sẵn sàng sau tối đa 10 giây -> bỏ qua GUI")
+	return nil
 end
 
 -- Dựng bảng kết quả đo từ chỉ số tức thời (dùng khi options.instant = true)

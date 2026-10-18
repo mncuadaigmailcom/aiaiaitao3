@@ -159,7 +159,8 @@ function Notifier:_BuildFrame(screenGui)
 		BorderSizePixel = 0,
 		Active = false,		-- GUI-010: không nhận thao tác kéo
 		Selectable = false,
-		ZIndex = 2,
+		Visible = true,
+		ZIndex = 10,
 	}, screenGui)
 	if frame == nil then
 		return nil
@@ -185,6 +186,7 @@ function Notifier:_BuildFrame(screenGui)
 		TextColor3 = Ui_Theme.TextPrimary,
 		Size = UDim2.new(1, 0, 0, 18),
 		LayoutOrder = 1,
+		ZIndex = 11,
 	})
 
 	self.statusLabel = Ui_Widget.Text(frame, {
@@ -195,6 +197,7 @@ function Notifier:_BuildFrame(screenGui)
 		TextColor3 = Ui_Theme.TextSecondary,
 		Size = UDim2.new(1, 0, 0, 14),
 		LayoutOrder = 2,
+		ZIndex = 11,
 	})
 
 	self.track = Ui_Widget.New("Frame", {
@@ -204,6 +207,7 @@ function Notifier:_BuildFrame(screenGui)
 		BorderSizePixel = 0,
 		Size = UDim2.new(1, 0, 0, 8),
 		LayoutOrder = 3,
+		ZIndex = 11,
 	}, frame)
 	Ui_Widget.Corners(self.track, UDim.new(1, 0))
 
@@ -212,7 +216,7 @@ function Notifier:_BuildFrame(screenGui)
 		BackgroundColor3 = Ui_Theme.ProgressFill,
 		BorderSizePixel = 0,
 		Size = UDim2.new(0.01, 0, 1, 0),
-		ZIndex = 3,
+		ZIndex = 12,
 	}, self.track)
 	Ui_Widget.Corners(self.fill, UDim.new(1, 0))
 
@@ -224,6 +228,7 @@ function Notifier:_BuildFrame(screenGui)
 		TextColor3 = Ui_Theme.TextPrimary,
 		Size = UDim2.new(1, 0, 0, 14),
 		LayoutOrder = 4,
+		ZIndex = 11,
 	})
 
 	return frame

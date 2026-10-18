@@ -41,15 +41,43 @@ GuiPolicy.stats = { created = 0, reused = 0, blockedDuplicates = 0, destroyed = 
 function GuiPolicy.AcquireScreenGui(parent)
 	if parent == nil then
 		Shared_Log.Warn(SCOPE, "không có parent (PlayerGui) -> không tạo GUI")
-		return nil
+		return nil, false
+	end
+
+	local validParent, isPlayerGui = pcall(function()
+		return parent:IsA("PlayerGui")
+	end)
+	if not validParent or not isPlayerGui then
+		Shared_Log.Warn(SCOPE, "parent không phải PlayerGui -> từ chối tạo GUI không hiển thị")
+		return nil, false
 	end
 
 	local ok, existing = Client_Guard.Run(SCOPE .. ":Find", function()
 		return parent:FindFirstChild(GuiPolicy.GUI_NAME)
 	end)
 	if ok and existing ~= nil then
+		local valid, isScreenGui = pcall(function()
+			return existing:IsA("ScreenGui")
+		end)
+		if not valid or not isScreenGui then
+			Shared_Log.Warn(SCOPE, "đã có object cùng tên nhưng không phải ScreenGui -> không đè lên object đó")
+			return nil, false
+		end
+
+		local configured, configureError = pcall(function()
+			existing.ResetOnSpawn = false
+			existing.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+			existing.DisplayOrder = 1000
+			existing.IgnoreGuiInset = true
+			existing.Enabled = true
+		end)
+		if not configured then
+			Shared_Log.Warn(SCOPE, "không thể bật ScreenGui cũ:", tostring(configureError))
+			return nil, false
+		end
+
 		GuiPolicy.stats.reused += 1
-		Shared_Log.Info(SCOPE, "tái sử dụng ScreenGui đã có — không tạo bản trùng")
+		Shared_Log.Info(SCOPE, "đã bật lại ScreenGui hiện có (DisplayOrder=1000)")
 		return existing, true
 	end
 
@@ -58,7 +86,7 @@ function GuiPolicy.AcquireScreenGui(parent)
 		gui.Name = GuiPolicy.GUI_NAME
 		gui.ResetOnSpawn = false          -- GUI-001: KHÔNG dựng lại khi hồi sinh
 		gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-		gui.DisplayOrder = 50
+		gui.DisplayOrder = 1000            -- nổi trên HUD thông thường trong PlayerGui
 		gui.IgnoreGuiInset = true
 		gui.Enabled = true
 		gui.Parent = parent
