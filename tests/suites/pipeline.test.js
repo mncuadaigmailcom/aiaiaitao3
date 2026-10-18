@@ -169,8 +169,8 @@ module.exports = function pipelineSuite(suite) {
       = out.split('|');
     A.equal(rateBefore, '200', 'thế giới test phải có emitter Rate cao');
     A.lessThan(Number(rateAfter), Number(rateBefore), 'Rate phải bị hạ xuống');
-    A.lessThan(Number(rateAfter), 21, 'Rate phải về dưới trần 20');
-    A.equal(countAfter, '60', 'ParticleCount -1 (vô hạn) phải về trần 60');
+    A.lessThan(Number(rateAfter), 41, 'Rate phải về dưới trần nhẹ 40');
+    A.equal(countAfter, '120', 'ParticleCount -1 (vô hạn) phải về trần vừa phải 120');
     A.equal(enBefore, enAfter, 'số emitter BẬT không được giảm — không xoá hiệu ứng');
     A.equal(total, '6', 'không emitter nào bị mất');
     A.greaterThan(Number(changes), 0, 'phải đếm được số thay đổi thật');
@@ -198,7 +198,7 @@ module.exports = function pipelineSuite(suite) {
     `)[0];
     const [before, during, after, entries, restored, failed] = out.split('|').map(Number);
     A.equal(before, 10, 'giá trị ban đầu của game');
-    A.equal(during, 6, 'script hạ về 6 theo cấu hình');
+    A.equal(during, 8, 'script chỉ hạ nhẹ về mức 8 theo cấu hình');
     A.greaterThan(entries, 0, 'phải có bản ghi để hoàn tác');
     A.equal(after, before, 'hoàn tác phải đưa về ĐÚNG giá trị ban đầu');
     A.greaterThan(restored, 0, 'phải khôi phục được ít nhất một property');
@@ -214,7 +214,7 @@ module.exports = function pipelineSuite(suite) {
       Config.ResetToDefaults()
       local lighting = game:GetService("Lighting")
       lighting.QualityLevel = 10
-      Graphics.ApplyQualityLevel(nil, Config.PROFILE)   -- script đặt 6
+      Graphics.ApplyQualityLevel(nil, Config.PROFILE)   -- script đặt 8
       lighting.QualityLevel = 9                        -- GAME/người dùng đổi thành 9
       Restore.All()
       return tostring(lighting.QualityLevel)
@@ -279,7 +279,7 @@ module.exports = function pipelineSuite(suite) {
     A.equal(notifier, 'nil', 'không GUI nào được dựng khi buildUi = false');
   });
 
-  suite.test('GRAPHICS-001 / GRAPHICS-003: QualityLevel và Terrain.Decoration đổi được', (t, A) => {
+  suite.test('GRAPHICS-001 / GRAPHICS-002 / GRAPHICS-003: giảm nhẹ và giữ chế độ tự động/địa hình', (t, A) => {
     const h = createRuntime();
     const out = h.eval(`
       local Config = __RALO_REQ("Shared/Config")
@@ -295,13 +295,63 @@ module.exports = function pipelineSuite(suite) {
 
       Graphics.ApplyQualityLevel(nil, Config.PROFILE)
       Graphics.ApplyTerrain(nil, Config.PROFILE)
+      local terrainPreserved = terrain.Decoration
+      Config.PROFILE.graphics.applyTerrainDecoration = true
+      Config.PROFILE.graphics.terrainDecoration = false
+      Graphics.ApplyTerrain(nil, Config.PROFILE)
       return lighting.QualityLevel .. "|" .. tostring(lighting.GraphicsQualityMode)
-        .. "|" .. tostring(terrain.Decoration)
+        .. "|" .. tostring(terrainPreserved) .. "|" .. tostring(terrain.Decoration)
     `)[0];
-    const [quality, qualityMode, decoration] = out.split('|');
-    A.equal(quality, '6', 'QualityLevel phải hạ về 6');
-    A.equal(qualityMode, 'false', 'GraphicsQualityMode phải tắt để engine không ghi đè');
-    A.equal(decoration, 'false', 'Terrain.Decoration phải tắt');
+    const [quality, qualityMode, terrainPreserved, decoration] = out.split('|');
+    A.equal(quality, '8', 'QualityLevel chỉ hạ nhẹ về 8');
+    A.equal(qualityMode, 'true', 'mặc định phải tôn trọng GraphicsQualityMode của người chơi');
+    A.equal(terrainPreserved, 'true', 'mặc định phải giữ cỏ/chi tiết địa hình');
+    A.equal(decoration, 'false', 'chỉ đổi địa hình khi chủ game bật cờ opt-in');
+  });
+
+  suite.test('GRAPHICS-004: mặc định giữ ánh sáng, bóng đổ và hình nhân vật nguyên vẹn', (t, A) => {
+    const h = createRuntime();
+    const out = h.eval(`
+      local Config = __RALO_REQ("Shared/Config")
+      local Graphics = __RALO_REQ("Client/Optimizations/Graphics")
+      Config.ResetToDefaults()
+      local lighting = game:GetService("Lighting")
+      lighting.GlobalShadows = true
+      lighting.Brightness = 2.5
+      local workspace = game:GetService("Workspace")
+      local propFolder = workspace:FindFirstChild("Props")
+      local farPart = propFolder:FindFirstChild("Prop60")
+      local players = game:GetService("Players")
+      local character = players.LocalPlayer.Character
+      local limb = character:FindFirstChild("Limb1")
+      local humanoid = character:FindFirstChildOfClass("Humanoid")
+
+      Graphics.ApplyShadowBudget({ id = "graphics.shadows" }, Config.PROFILE)
+      Graphics.ApplyCharacter(nil, Config.PROFILE)
+      return tostring(lighting.GlobalShadows) .. "|" .. lighting.Brightness
+        .. "|" .. tostring(farPart.CastShadow) .. "|" .. tostring(limb.CastShadow)
+        .. "|" .. tostring(humanoid.AutomaticScalingEnabled)
+    `)[0];
+    const [globalShadows, brightness, farShadow, characterShadow, autoScaling] = out.split('|');
+    A.equal(globalShadows, 'true', 'GlobalShadows phải luôn bật như trước');
+    A.equal(brightness, '2.5', 'độ sáng không được đổi');
+    A.equal(farShadow, 'true', 'bóng của part xa không bị tắt theo mặc định');
+    A.equal(characterShadow, 'true', 'bóng nhân vật phải còn');
+    A.equal(autoScaling, 'true', 'tỉ lệ avatar không bị thay đổi');
+  });
+
+  suite.test('GRAPHICS-001: không nâng chất lượng lên trên mức người chơi đang dùng', (t, A) => {
+    const h = createRuntime();
+    const out = h.eval(`
+      local Config = __RALO_REQ("Shared/Config")
+      local Graphics = __RALO_REQ("Client/Optimizations/Graphics")
+      Config.ResetToDefaults()
+      local lighting = game:GetService("Lighting")
+      lighting.QualityLevel = 4
+      Graphics.ApplyQualityLevel(nil, Config.PROFILE)
+      return tostring(lighting.QualityLevel)
+    `)[0];
+    A.equal(out, '4', 'mức hiện tại thấp hơn ngưỡng thì phải giữ nguyên, không tăng lên 8');
   });
 
   suite.test('pipeline lỗi thì báo LỖI, không báo thành công', (t, A) => {
@@ -320,6 +370,23 @@ module.exports = function pipelineSuite(suite) {
     A.equal(hasResult, 'true', 'vẫn phải trả về bảng (không throw ra ngoài)');
     A.equal(hasError, 'true', 'phải ghi rõ là có lỗi');
     A.equal(verdict, 'error', 'verdict phải là error, không được là improved');
+  });
+
+  suite.test('GUI hết 30 giây không làm pipeline dài bị lỗi', (t, A) => {
+    const h = createRuntime();
+    const out = h.eval(`
+      local Config = __RALO_REQ("Shared/Config")
+      local Pipeline = __RALO_REQ("Client/Core/Pipeline")
+      local Notifier = __RALO_REQ("Client/Ui/Notifier")
+      Config.Apply({
+        measure = { baselineSeconds = 30.2, settleSeconds = 0, afterSeconds = 0.1, frameWindow = 60 },
+      })
+      local result = Pipeline.Run({ profile = Config.PROFILE, buildUi = true })
+      return tostring(result.error == nil) .. "|" .. tostring(Notifier.Get() == nil)
+    `)[0];
+    const [completed, guiHidden] = out.split('|');
+    A.equal(completed, 'true', 'pipeline phải tiếp tục sau khi bảng đã tự ẩn');
+    A.equal(guiHidden, 'true', 'bảng vẫn phải tự dọn sau 30 giây');
   });
 
   suite.test('tích hợp: chạy xong rồi Shutdown thì không còn connection nào', (t, A) => {

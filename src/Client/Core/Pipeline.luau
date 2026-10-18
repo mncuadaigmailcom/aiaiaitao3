@@ -9,13 +9,13 @@
 
 	Dàn nhạc của toàn bộ chương trình:
 
-	  1. ĐO TRƯỚC                    (Measure.Run baselineSeconds)
-	  2. lập kế hoạch theo cấu hình  (Plan.Build)
-	  3. dựng GUI + thanh tiến trình (Ui/Notifier, Ui/Progress)
-	  4. thực thi từng bước          (Runner.Execute)
-	  5. nghỉ settle
-	  6. ĐO SAU                      (Measure.Run afterSeconds)
-	  7. so sánh, in Output + hiện GUI (Measure.Compare)
+	1. lập kế hoạch theo cấu hình  (Plan.Build)
+	2. dựng bảng trạng thái tối giản (Ui/Notifier), tạo bộ đếm nội bộ (Ui/Progress)
+	3. ĐO TRƯỚC                    (Measure.Run baselineSeconds)
+	4. thực thi từng bước          (Runner.Execute)
+	5. nghỉ settle
+	6. ĐO SAU                      (Measure.Run afterSeconds)
+	7. so sánh, in kết quả Output + cập nhật trạng thái GUI
 
 	HAI NGUYÊN TẮC KHÔNG ĐƯỢC VI PHẠM:
 	  * Không bước nào sinh số liệu giả. Nếu không đo được (0 mẫu),
@@ -110,11 +110,28 @@ function Pipeline.Run(options)
 	end
 	local onPhase = options.onPhase or function() end
 	local measure = profile.measure or Shared_Config.PROFILE.measure
+	local progress = nil
 
 	local ok, result = pcall(function()
 		onPhase(Shared_Types.PHASE_IDLE, nil)
 
-		------------------------------------------------------ 1. đo TRƯỚC
+		------------------------------------------------------ 1. kế hoạch
+		local plan = Core_Plan.Build(profile)
+		for _, line in ipairs(Core_Plan.Describe(plan)) do
+			Shared_Log.Info(SCOPE, line)
+		end
+
+		----------------------------------------------------------- 2. GUI
+		progress = Ui_Progress.New(plan.total)
+		local notifier = nil
+		if buildUi then
+			notifier = Ui_Notifier.Build({
+				parent = Pipeline.GetGuiParent(),
+				profile = profile,
+			})
+		end
+
+		------------------------------------------------------ 3. đo TRƯỚC
 		onPhase(Shared_Types.PHASE_BASELINE, nil)
 		local before
 		if options.instant then
@@ -128,32 +145,6 @@ function Pipeline.Run(options)
 			})
 		end
 
-		------------------------------------------------------ 2. kế hoạch
-		local plan = Core_Plan.Build(profile)
-		for _, line in ipairs(Core_Plan.Describe(plan)) do
-			Shared_Log.Info(SCOPE, line)
-		end
-
-		----------------------------------------------------------- 3. GUI
-		local progress = Ui_Progress.New(plan.total)
-		local notifier = nil
-		if buildUi then
-			notifier = Ui_Notifier.Build({
-				parent = Pipeline.GetGuiParent(),
-				progress = progress,
-				steps = plan.steps,
-				profile = profile,
-				onRestore = function(restored, failed)
-					if notifier ~= nil then
-						notifier:SetResults({
-							("đã hoàn tác %d property (lỗi %d)"):format(restored, failed),
-							"đồ hoạ đã trở về trạng thái trước khi tối ưu",
-						}, "restored")
-					end
-				end,
-			})
-		end
-
 		------------------------------------------------------- 4. thực thi
 		progress:SetPhase(Shared_Types.PHASE_OPTIMIZING, "đang tối ưu")
 		onPhase(Shared_Types.PHASE_OPTIMIZING, plan)
@@ -161,9 +152,6 @@ function Pipeline.Run(options)
 		Core_Runner.Execute(plan, {
 			onStep = function(step, index)
 				progress:Mark(index, step.status, step.name .. ": " .. tostring(step.detail or ""))
-				if notifier ~= nil then
-					notifier:SetCurrentTask(step.name)
-				end
 			end,
 		})
 
@@ -244,6 +232,15 @@ function Pipeline.Run(options)
 			error = nil,
 		}
 	end)
+
+	if progress ~= nil then
+		local cleanupOk, cleanupError = pcall(function()
+			progress:Destroy()
+		end)
+		if not cleanupOk then
+			Shared_Log.Warn(SCOPE, "không dọn được tiến trình nội bộ: " .. tostring(cleanupError))
+		end
+	end
 
 	if not ok then
 		-- Lỗi thật: ghi log, báo GUI bằng trạng thái LỖI, và trả về error

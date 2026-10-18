@@ -125,7 +125,7 @@ for (const chunk of listRaw.split(';;;')) {
 md += `
 ## 5.5 Vì sao không có mục nào ở trạng thái C
 
-Ban đầu có 141 mục A và 0 mục B. Sau khi viết 115 test, **90 mục được nâng lên B** vì
+Ban đầu có 141 mục A và 0 mục B. Sau khi viết 122 test, **90 mục được nâng lên B** vì
 có test khai đúng id đó trong tên test và test đạt. ${A} mục A còn lại **chưa có test
 riêng khai rõ id**, nhưng không bị hạ xuống C vì:
 

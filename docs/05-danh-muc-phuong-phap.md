@@ -136,8 +136,8 @@ công khai ở 5.4, không trộn vào số đã triển khai.
 
 | ID | Tên | TT | Tệp chịu trách nhiệm | Nguyên nhân gây lag |
 | -- | --- | -- | -------------------- | ------------------- |
-| GRAPHICS-001 | Hạ Lighting.QualityLevel có kiểm soát | B | `src/Client/Optimizations/Graphics.luau` | QualityLevel cao làm tăng chi phí render bóng/ánh sáng cho mọi khung hình. |
-| GRAPHICS-002 | Tắt GraphicsQualityMode | A | `src/Client/Optimizations/Graphics.luau` | Engine có thể ghi đè QualityLevel mỗi khi đổi cảnh, làm cấu hình mất tác dụng. |
+| GRAPHICS-001 | Hạ Lighting.QualityLevel nhẹ, có chặn an toàn | B | `src/Client/Optimizations/Graphics.luau` | Mức chất lượng cao có thể tăng chi phí render trên client. |
+| GRAPHICS-002 | Tùy chọn khóa GraphicsQualityMode | A | `src/Client/Optimizations/Graphics.luau` | Engine có thể ghi đè QualityLevel nếu chế độ tự động bị khóa không đúng lúc. |
 | GRAPHICS-005 | Giảm tầm PointLight/SpotLight | D | `src/(đề xuất).luau` | Mỗi đèn động buộc engine tính ánh sáng cho các part trong tầm. |
 | GRAPHICS-006 | Giảm số lớp trong suốt chồng nhau | D | `src/(đề xuất).luau` | Overdraw là chi phí GPU điển hình; mỗi lớp trong suốt là một lần blend. |
 | GRAPHICS-008 | Giảm số bóng đổ đồng thời | E | `src/(không khả dụng).luau` | Nhiều nguồn sáng động làm chi phí bóng tăng vọt. |
@@ -146,7 +146,7 @@ công khai ở 5.4, không trộn vào số đã triển khai.
 
 | ID | Tên | TT | Tệp chịu trách nhiệm | Nguyên nhân gây lag |
 | -- | --- | -- | -------------------- | ------------------- |
-| GRAPHICS-003 | Tắt Terrain.Decoration | B | `src/Client/Optimizations/Graphics.luau` | Decoration sinh rất nhiều chi tiết nhỏ phải render ở gần camera. |
+| GRAPHICS-003 | Đặt Terrain.Decoration theo cấu hình | B | `src/Client/Optimizations/Graphics.luau` | Decoration có thể tạo thêm chi phí render ở cảnh nhiều chi tiết. |
 | GRAPHICS-004 | Tắt bóng đổ cho đối tượng ở xa | B | `src/Client/Core/Cull.luau` | Shadow map là một trong những chi phí GPU lớn nhất; bóng của vật ở xa gần như vô hình. |
 | GRAPHICS-007 | Giảm chất lượng phản chiếu/kính | D | `src/(đề xuất).luau` | Phản chiếu render cảnh thêm một lần. |
 | GRAPHICS-009 | Không đổi vật liệu và màu sắc | B | `src/Shared/Safety.luau` | Đổi vật liệu làm thay đổi rõ rệt mỹ thuật, trái yêu cầu giữ nguyên hình ảnh. |
@@ -416,7 +416,7 @@ công khai ở 5.4, không trộn vào số đã triển khai.
 
 ## 5.5 Vì sao không có mục nào ở trạng thái C
 
-Ban đầu có 141 mục A và 0 mục B. Sau khi viết 115 test, **90 mục được nâng lên B** vì
+Ban đầu có 141 mục A và 0 mục B. Sau khi viết 122 test, **90 mục được nâng lên B** vì
 có test khai đúng id đó trong tên test và test đạt. 51 mục A còn lại **chưa có test
 riêng khai rõ id**, nhưng không bị hạ xuống C vì:
 

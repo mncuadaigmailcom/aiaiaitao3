@@ -58,7 +58,8 @@ function Hsv.RainbowStops(count: number): { number }
 	local out = {}
 	local n = math.max(2, math.floor(count or 8))
 	for i = 0, n - 1 do
-		out[#out + 1] = i / n
+		-- Bao gồm cả 1 để màu cuối khép vòng về đỏ như màu đầu.
+		out[#out + 1] = i / (n - 1)
 	end
 	return out
 end

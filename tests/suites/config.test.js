@@ -36,7 +36,7 @@ module.exports = function configSuite(suite) {
     `)[0];
     const [changed, restored] = out.split(' -> ');
     A.equal(changed, '999|1', 'Apply phải đổi được giá trị');
-    A.equal(restored, '30|6', 'ResetToDefaults phải đưa về 30 giây và quality 6');
+    A.equal(restored, '30|8', 'ResetToDefaults phải đưa về 30 giây và quality 8');
   });
 
   suite.test('CFG-001: SetGroup tắt được từng nhóm độc lập', (t, A) => {

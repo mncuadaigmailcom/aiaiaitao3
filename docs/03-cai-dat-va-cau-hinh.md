@@ -38,14 +38,17 @@ Không cần tạo thêm bất kỳ Instance nào.
 
 ## 3.2 Thứ tự chạy khi Play
 
-1. LocalScript chạy → `Bootstrap` nạp `Pipeline`.
-2. `Pipeline.Start()` tạo GUI **ngay lập tức** (`Notifier.Show()`), hiển thị
-   "ANTI-LAG OPTIMIZER" + "Đang tối ưu hiệu năng" + thanh 0%.
-3. Hoạt ảnh tiến trình chạy **độc lập** với tác vụ thật — nó không chờ và không bị chờ.
-4. `Plan` trả về 9 bước theo thứ tự ưu tiên; `Runner` chạy từng bước qua `Guard.Run`.
+1. LocalScript chạy → `Bootstrap` nạp `Pipeline` và lập kế hoạch theo cấu hình.
+2. Bảng trạng thái xuất hiện ngay ở góc dưới bên phải: nền xám trong suốt,
+   viền cầu vồng, **“Đang giảm lag”**, thanh và số **1% → 100%**. Không có nút/menu
+   điều khiển và không thể kéo bảng.
+3. Hệ thống đo nền trong 5 giây rồi áp dụng kế hoạch; hoạt ảnh bảng cập nhật 10 lần/giây,
+   độc lập với tác vụ. Phần trăm là hoạt ảnh thời lượng, không phải số FPS; nếu pipeline
+   xong sớm, bảng chuyển sang “Đã giảm lag xong” và phần trăm chốt ở 100%.
+4. `Plan` trả về 9 bước; `Runner` chạy từng bước qua `Guard.Run`.
 5. Mỗi bước báo `applied / skipped / failed / unchanged`; lỗi không chặn bước sau.
-6. Khoảng 30 giây sau, GUI in **"Hoàn tất tối ưu"**, trượt xuống, mờ dần,
-   rồi **xoá toàn bộ** instance, connection và timer mà nó tạo.
+6. Sau 30 giây kể từ khi bảng được dựng, GUI trượt xuống, mờ dần, rồi **xoá toàn bộ**
+   instance và connection mà nó tạo. Kết quả chi tiết vẫn nằm trong Output.
 
 ## 3.3 Bật/tắt từng nhóm
 
@@ -53,13 +56,13 @@ Mở `src/Shared/Config.luau`. Bảng `Config.PROFILE.groups` có **8 nhóm** (c
 
 ```lua
 groups = {
-	graphics  = true,    -- Lighting.QualityLevel, Terrain.Decoration
-	effects   = true,    -- giới hạn Rate/ParticleCount (không xoá effect)
-	cull      = true,    -- tắt bóng/hiệu ứng của đối tượng Ở XA
+	graphics  = true,    -- chất lượng tối đa 8; giữ ánh sáng, bóng và địa hình
+	effects   = true,    -- giới hạn nhẹ Rate/ParticleCount (không xoá effect)
+	cull      = true,    -- có trong thư viện, không nằm trong plan mặc định
 	scan      = true,    -- quét thế giới có trần
 	memory    = true,    -- GC định kỳ
 	physics   = false,   -- MẶC ĐỊNH TẮT: có đánh đổi độ mượt vật lý
-	character = true,    -- bỏ bóng + auto-scaling của nhân vật
+	character = true,    -- giữ bóng và tỉ lệ avatar theo mặc định
 	net       = false,   -- MẶC ĐỊNH TẮT: cần remote của game
 },
 ```
@@ -78,11 +81,11 @@ thống làm lúc chạy, xếp theo thứ tự ưu tiên:
 
 | # | id bước | Tên | Nhóm | Ghi nhật ký hoàn tác |
 | - | ------- | --- | ---- | -------------------- |
-| 1 | `graphics.quality` | Hạ mức chất lượng hình ảnh | `graphics` | Có |
-| 2 | `graphics.terrain` | Tắt chi tiết địa hình (Decoration) | `graphics` | Có |
-| 3 | `graphics.shadows` | Giảm tầm bóng đổ + tắt bóng part xa | `graphics` | Có |
-| 4 | `graphics.character` | Tắt bóng & auto-scaling nhân vật | `character` | Có |
-| 5 | `effects.particles` | Giới hạn hạt — **không xoá** effect | `effects` | Có |
+| 1 | `graphics.quality` | Giảm nhẹ chất lượng hình ảnh, tối đa mức 8 | `graphics` | Có |
+| 2 | `graphics.terrain` | Đặt chi tiết địa hình theo cấu hình (mặc định giữ) | `graphics` | Có |
+| 3 | `graphics.shadows` | Giữ bóng đổ; culling xa mặc định tắt | `graphics` | Có |
+| 4 | `graphics.character` | Giữ bóng và tỉ lệ nhân vật (mặc định không đổi) | `character` | Có |
+| 5 | `effects.particles` | Giới hạn nhẹ hạt — **không xoá** emitter | `effects` | Có |
 | 6 | `effects.optional` | Beam/Trail/Decal (mặc định giữ nguyên) | `effects` | Có |
 | 7 | `physics.throttling` | Bớt làm mượt nội suy vật lý (mặc định TẮT) | `physics` | Có |
 | 8 | `memory.gc` | Kích hoạt chu kỳ dọn bộ nhớ Luau | `memory` | Không |
@@ -90,16 +93,18 @@ thống làm lúc chạy, xếp theo thứ tự ưu tiên:
 
 Mỗi bước cần một service nhất định; thiếu service thì bước bị **skip** chứ không lỗi.
 
-### ⚠️ Mặc định có đổi đồ hoạ
+### Giảm đồ hoạ nhẹ, giữ ánh sáng và bóng
 
-`groups.graphics = true`, nên khi Play hệ thống **sẽ** hạ `Lighting.QualityLevel`
-từ ~10 xuống **6** và đặt `GraphicsQualityMode = false`.
+`groups.graphics = true`, nên mức `Lighting.QualityLevel` chỉ được hạ tối đa về **8**;
+nếu người chơi đang dùng mức thấp hơn, script giữ nguyên mức đó. `GraphicsQualityMode`
+được tôn trọng. `Terrain.Decoration` mặc định giữ nguyên.
 
-- Đây là giảm **nhẹ** và **đảo ngược được** — không phải hạ xuống thấp nhất.
-- Nhưng nó **có** làm game trông khác đi. Nếu bạn không muốn, đặt
-  `groups.graphics = false`.
-- `graphics.terrainDecoration = false` trong `Config.PROFILE.graphics`, nên
-  `Terrain.Decoration` **mặc định không bị đổi**.
+- Script không tắt `Lighting.GlobalShadows`, không tắt `CastShadow` và không đổi
+  độ sáng/màu ánh sáng.
+- `graphics.shadowDistance = 0` giữ toàn bộ bóng xa. Chỉ chủ game chủ động đặt
+  giá trị lớn hơn 0 mới bật culling bóng.
+- Bất kỳ thay đổi property nào cũng có thể hoàn tác; để giữ mọi cài đặt đồ hoạ,
+  đặt `groups.graphics = false`.
 
 ### Tắt từng phương pháp riêng lẻ
 

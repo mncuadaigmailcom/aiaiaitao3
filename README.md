@@ -5,7 +5,7 @@ không dùng executor, không dùng `setrbxsetting`, không can thiệp anti-che
 
 > ## ⚠️ Đọc trước — mức độ đã kiểm chứng thật
 >
-> - **Đã kiểm chứng tự động (115 test)** trên máy ảo Lua 5.3 (fengari) + mock Roblox API.
+> - **Đã kiểm chứng tự động (122 test)** trên máy ảo Lua 5.3 (fengari) + mock Roblox API.
 >   Đây **KHÔNG phải Roblox Studio**. Nó chứng minh **logic** đúng, không chứng minh
 >   API Roblox hoạt động giống hệt mock.
 > - **Chưa chạy trong Roblox Studio**: môi trường phát triển không có Roblox Studio.
@@ -50,8 +50,7 @@ rojo serve           # rồi bấm "Connect" trong plugin Rojo
 - **Cách A:** LocalScript `src/Client/Bootstrap.luau` tự chạy khi Play.
 - **Cách B:** LocalScript bạn vừa dán.
 
-Khi chạy, màn hình xuất hiện bảng **"ANTI-LAG OPTIMIZER"** ở **góc dưới phải**,
-chạy hoạt ảnh khoảng 30 giây rồi trượt xuống và **tự xoá hoàn toàn**.
+Khi chạy, màn hình hiện một **bảng trạng thái cố định ở góc dưới phải** (không có menu/nút bấm, không kéo được): nền xám bán trong suốt, viền cầu vồng, dòng **“Đang giảm lag”** và phần trăm bắt đầu **1%**. Bảng tự trượt xuống, mờ dần và dọn sạch sau **30 giây**. Phần trăm là hoạt ảnh thời lượng hiển thị; nếu tối ưu xong sớm, trạng thái đổi thành hoàn tất và phần trăm chốt ở 100%.
 
 ---
 
@@ -73,42 +72,43 @@ Có **8 nhóm**, độc lập nhau. Đặt `false` để tắt hẳn nhóm đó.
 
 | Nhóm | Mặc định | Làm gì |
 | ---- | -------- | ------ |
-| `graphics` | **`true`** | `Lighting.QualityLevel` → **6**, tắt `GraphicsQualityMode` |
-| `effects` | `true` | **Giới hạn** `Rate`/`ParticleCount`, tắt emitter ở xa — **không xoá** effect |
-| `cull` | `true` | Tắt bóng/hiệu ứng của đối tượng **ở xa**, bật lại khi gần |
-| `scan` | `true` | Quét thế giới có trần |
-| `memory` | `true` | GC định kỳ |
-| `character` | `true` | Bỏ bóng + `AutomaticScalingEnabled` của nhân vật |
+| `graphics` | **`true`** | Hạ chất lượng tối đa về **8/10** nếu mức hiện tại cao hơn; giữ chế độ tự động, địa hình và bóng |
+| `effects` | `true` | Giới hạn nhẹ mật độ hạt (`Rate` tối đa 40, `ParticleCount` tối đa 120), không xoá emitter |
+| `cull` | `true` | Nhóm culling có trong thư viện; không được gọi trong kế hoạch mặc định |
+| `scan` | `true` | Quét thế giới có trần khi cần xử lý hạt |
+| `memory` | `true` | GC theo chu kỳ |
+| `character` | `true` | Bước mặc định giữ nguyên bóng và tỉ lệ nhân vật |
 | `physics` | **`false`** | Throttle nội suy — **TẮT** vì có đánh đổi độ mượt |
 | `net` | **`false`** | **TẮT** vì cần remote của game |
 
-> ⚠️ **Đọc kỹ:** `graphics` mặc định **BẬT**, và nó hạ `Lighting.QualityLevel`
-> từ ~10 (mặc định Roblox) xuống **6**. Đây là giảm **nhẹ**, **đảo ngược được**
-> (`restorable = true`), không phải hạ xuống thấp nhất. Nhưng nó **có** làm game
-> của bạn trông khác đi ngay khi Play.
->
-> Muốn giữ nguyên đồ hoạ, đặt `groups.graphics = false`.
+> **Mức đồ hoạ nhẹ:** `graphics` mặc định **BẬT** và chỉ đặt mục tiêu tối đa ở
+> `QualityLevel = 8`; nếu mức người chơi đang dùng thấp hơn thì script **không nâng lên**.
+> Mặc định script không tắt `GlobalShadows`/`CastShadow`, không đổi độ sáng và giữ
+> chi tiết địa hình (`shadowDistance = 0`). Chỉ khi chủ game chủ động đổi cấu hình,
+> culling bóng/địa hình mới được áp dụng. Roblox có thể hiển thị khác đôi chút ở mức
+> chất lượng 8; thay đổi property có thể hoàn tác. Để giữ mọi cài đặt đồ hoạ, đặt
+> `groups.graphics = false`.
 
 ### 2.3 Thông số đồ hoạ (`Config.PROFILE.graphics`)
 
 | Khoá | Mặc định | Ý nghĩa |
 | ---- | -------- | ------- |
-| `qualityLevel` | `6` | `Lighting.QualityLevel` 1..10 |
-| `lockQualityMode` | `true` | Tắt `GraphicsQualityMode` để engine không ghi đè |
-| `terrainDecoration` | `false` | `Terrain.Decoration` (cỏ/chi tiết nhỏ) — **mặc định KHÔNG đổi** |
-| `shadowDistance` | `300` | Xa hơn N stud thì tắt `CastShadow` (`0` = tắt bước này) |
-| `maxShadowTargets` | `400` | Trần số đối tượng bị đổi, tránh khựng khi quét |
+| `qualityLevel` | `8` | Mức mục tiêu tối đa; không nâng đồ hoạ nếu mức hiện tại thấp hơn |
+| `lockQualityMode` | `false` | Tôn trọng chế độ tự động của người chơi |
+| `applyTerrainDecoration` / `terrainDecoration` | `false` / `false` | Mặc định giữ nguyên; chỉ khi `applyTerrainDecoration = true` mới áp giá trị mục tiêu |
+| `shadowDistance` | `0` | Không culling bóng (`0` = giữ mọi `CastShadow`) |
+| `maxShadowTargets` | `400` | Giới hạn quét nếu chủ game chủ động đặt `shadowDistance > 0` |
 
 ### 2.4 Các bảng còn lại
 
 | Bảng | Khoá chính | Mặc định |
 | ---- | ---------- | -------- |
-| `effects` | `particleRateCap` / `particleMaxCountCap` / `effectDistance` / `maxInstancesScanned` | `20` / `60` / `250` / `3000` |
-| `character` | `disableShadows` / `disableAutoScaling` | `true` / `true` |
+| `effects` | `particleRateCap` / `particleMaxCountCap` / `effectDistance` / `maxInstancesScanned` | `40` / `120` / `250` / `3000` |
+| `character` | `disableShadows` / `disableAutoScaling` | `false` / `false` |
 | `memory` | `gcEverySeconds` / `collectStepKb` | `15` / `200` |
 | `physics` | `enabled` / `interpolationThrottling` / `physicsSteppingMethod` | `false` / `"Disabled"` / `"Fixed"` |
 | `scheduler` | `frameBudgetMs` / `cullInterval` | `3.0` / `0.25` |
-| `gui` | `durationSeconds` / `backgroundAlpha` / `marginRight` / `marginBottom` | `30` / `0.72` / `16` / `16` |
+| `gui` | `durationSeconds` / `backgroundAlpha` / `marginRight` / `marginBottom` / `updateInterval` | `30` / `0.42` / `16` / `16` / `0.1s` |
 | `measure` | `baselineSeconds` / `settleSeconds` / `afterSeconds` | `5.0` / `1.0` / `5.0` |
 | `diagnostics` | `logLevel` / `errorLogging` / `printToOutput` | `"info"` / `true` / `true` |
 | `restore` | `recordChanges` / `verifyOnWrite` / `respectStale` | `true` / `true` / `true` |
@@ -141,6 +141,7 @@ ghi — nó bỏ qua và log lại (`restore.respectStale = true`). Đó là ch�
 | [docs/06-bao-cao-test-loi.md](docs/06-bao-cao-test-loi.md) | Bảng test, bảng lỗi, mục chưa kiểm chứng |
 | [docs/07-do-luong-hoan-tac.md](docs/07-do-luong-hoan-tac.md) | Đo trước/sau, quy trình hoàn tác |
 | [docs/08-nghiem-thu.md](docs/08-nghiem-thu.md) | Đối chiếu 12 tiêu chí nghiệm thu |
+| [docs/10-ke-hoach-giam-lag.md](docs/10-ke-hoach-giam-lag.md) | Phân tích yêu cầu, kế hoạch tối ưu nhẹ và tiêu chí an toàn |
 
 ---
 
@@ -150,7 +151,7 @@ ghi — nó bỏ qua và log lại (`restore.respectStale = true`). Đó là ch�
 npm run lint      # 4 quy ước an toàn tĩnh (0 vi phạm)
 npm run catalog   # đối chiếu danh mục phương pháp với mã nguồn thật
 npm run syntax    # phân tích cú pháp toàn bộ .luau
-npm run test      # 115 test trên máy ảo Lua + mock Roblox
+npm run test      # 122 test trên máy ảo Lua + mock Roblox
 npm run check     # chạy cả bốn bước trên
 npm run build     # tạo dist/roblox-anti-lag-optimizer.luau
 ```
@@ -163,8 +164,8 @@ npm run build     # tạo dist/roblox-anti-lag-optimizer.luau
 2. Hệ thống là **LocalScript**, chỉ ảnh hưởng **client của người chơi đó**.
    Nó **không** sửa được `workspace.PhysicsSteppingMethod` phía server hay bất kỳ
    trạng thái server nào.
-3. Giảm đồ hoạ là **có chủ ý ở mức nhẹ** và **mặc định tắt**. Bật lên là quyết định
-   của bạn, không phải của hệ thống.
-4. Hệ thống **không bao giờ** xoá map, nhân vật, vật phẩm hay hiệu ứng quan trọng;
-   chỉ tắt tạm thời ở khoảng cách xa và bật lại khi lại gần.
+3. Giảm đồ hoạ mặc định là **nhẹ**: mục tiêu tối đa 8/10, tôn trọng mức thấp hơn
+   của người chơi và **không tắt ánh sáng hoặc bóng đổ**.
+4. Hệ thống **không bao giờ** xoá map, nhân vật, vật phẩm hay emitter; mật độ hạt
+   chỉ bị giới hạn nhẹ và các thay đổi property đều có cơ chế hoàn tác.
 5. Hệ thống **không bao giờ** đổi tham số gameplay để lấy FPS.

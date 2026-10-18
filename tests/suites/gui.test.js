@@ -12,7 +12,7 @@
  * GUI trông ra sao. Phần đó bạn phải xem trong Studio (docs/04-kiem-thu.md).
  */
 
-const { createRuntime, P } = require('../lib/runtime');
+const { createRuntime } = require('../lib/runtime');
 
 /** Dựng GUI với PlayerGui thật trong mock. */
 const BUILD = (durationSeconds = 30) => `
@@ -25,12 +25,8 @@ const BUILD = (durationSeconds = 30) => `
   playerGui.Parent = player
 
   local Notifier = __RALO_REQ("Client/Ui/Notifier")
-  local Progress = __RALO_REQ("Client/Ui/Progress")
-  _G.__RALO_PROGRESS = Progress.New(3)
   _G.__RALO_GUI = Notifier.Build({
     parent = playerGui,
-    progress = _G.__RALO_PROGRESS,
-    steps = {},
     profile = { gui = { durationSeconds = ${durationSeconds}, fadeSeconds = 0.1 } },
   })
   _G.__RALO_PLAYERGUI = playerGui
@@ -52,8 +48,8 @@ module.exports = function guiSuite(suite) {
     const h = createRuntime();
     const out = h.eval(BUILD() + `
       local Notifier = __RALO_REQ("Client/Ui/Notifier")
-      Notifier.Build({ parent = _G.__RALO_PLAYERGUI, progress = _G.__RALO_PROGRESS })
-      Notifier.Build({ parent = _G.__RALO_PLAYERGUI, progress = _G.__RALO_PROGRESS })
+      Notifier.Build({ parent = _G.__RALO_PLAYERGUI })
+      Notifier.Build({ parent = _G.__RALO_PLAYERGUI })
       local screenGuis = 0
       for _, d in ipairs(_G.__RALO_PLAYERGUI:GetDescendants()) do
         if d.ClassName == "ScreenGui" then screenGuis += 1 end
@@ -88,6 +84,63 @@ module.exports = function guiSuite(suite) {
     A.equal(selectable, 'false', 'Selectable phải false');
   });
 
+  suite.test('GUI-010: bảng cố định dưới-phải, nền xám trong suốt, bắt đầu ở 1%', (t, A) => {
+    const h = createRuntime();
+    const out = h.eval(BUILD() + `
+      local panel = _G.__RALO_PLAYERGUI:FindFirstChild("RALO_OptimizerNotifier")
+        :FindFirstChild("RALO_Panel")
+      local status = panel:FindFirstChild("Status")
+      local percent = panel:FindFirstChild("Percent")
+      return panel.AnchorPoint.X .. "|" .. panel.AnchorPoint.Y
+        .. "|" .. panel.Position.X.Scale .. "|" .. panel.Position.X.Offset
+        .. "|" .. panel.Position.Y.Scale .. "|" .. panel.Position.Y.Offset
+        .. "|" .. panel.BackgroundTransparency .. "|" .. status.Text .. "|" .. percent.Text
+    `)[0];
+    const [anchorX, anchorY, xScale, xOffset, yScale, yOffset, alpha, status, percent] = out.split('|');
+    A.equal(anchorX, '1', 'AnchorPoint X phải neo vào mép phải');
+    A.equal(anchorY, '1', 'AnchorPoint Y phải neo vào đáy');
+    A.equal(xScale, '1', 'vị trí X phải tương đối theo mép phải');
+    A.equal(xOffset, '-16', 'phải chừa lề bên phải');
+    A.equal(yScale, '1', 'vị trí Y phải tương đối theo đáy');
+    A.equal(yOffset, '-16', 'phải chừa lề dưới');
+    A.equal(alpha, '0.42', 'nền xám phải bán trong suốt');
+    A.equal(status, 'Đang giảm lag', 'phải hiện đúng trạng thái đang giảm lag');
+    A.equal(percent, '1%', 'phần trăm đầu tiên phải là 1%');
+  });
+
+  suite.test('GUI-010: không có menu, nút bấm hoặc thành phần kéo thả', (t, A) => {
+    const h = createRuntime();
+    const out = h.eval(BUILD() + `
+      local panel = _G.__RALO_PLAYERGUI:FindFirstChild("RALO_OptimizerNotifier")
+        :FindFirstChild("RALO_Panel")
+      local buttons = 0
+      for _, d in ipairs(panel:GetDescendants()) do
+        if d.ClassName == "TextButton" then buttons += 1 end
+      end
+      return buttons .. "|" .. tostring(panel.Active) .. "|" .. tostring(panel.Selectable)
+    `)[0];
+    const [buttons, active, selectable] = out.split('|');
+    A.equal(buttons, '0', 'bảng trạng thái không được có nút menu');
+    A.equal(active, 'false', 'khung không nhận thao tác kéo');
+    A.equal(selectable, 'false', 'khung không được chọn tương tác');
+  });
+
+  suite.test('GUI-003: viền cầu vồng dùng ColorSequenceKeypoint hợp lệ', (t, A) => {
+    const h = createRuntime();
+    const out = h.eval(BUILD() + `
+      local panel = _G.__RALO_PLAYERGUI:FindFirstChild("RALO_OptimizerNotifier")
+        :FindFirstChild("RALO_Panel")
+      local stroke = panel:FindFirstChildOfClass("UIStroke")
+      local gradient = stroke:FindFirstChildOfClass("UIGradient")
+      local points = gradient.Color.Keypoints
+      return #points .. "|" .. points[1].Time .. "|" .. points[#points].Time
+    `)[0];
+    const [count, first, last] = out.split('|');
+    A.equal(count, '8', 'viền có đủ 8 mốc cầu vồng');
+    A.equal(Number(first), 0, 'dải màu bắt đầu ở mốc 0');
+    A.equal(Number(last), 1, 'dải màu kết thúc ở mốc 1');
+  });
+
   suite.test('GUI-012: KHÔNG tạo bất kỳ instance Sound nào', (t, A) => {
     const h = createRuntime();
     const out = h.eval(BUILD() + COUNT_BY_CLASS('_G.__RALO_PLAYERGUI') + `
@@ -110,7 +163,7 @@ module.exports = function guiSuite(suite) {
       gameLabel.Parent = gameGui
 
       local Notifier = __RALO_REQ("Client/Ui/Notifier")
-      Notifier.Build({ parent = _G.__RALO_PLAYERGUI, progress = _G.__RALO_PROGRESS })
+      Notifier.Build({ parent = _G.__RALO_PLAYERGUI })
 
       local stillThere = _G.__RALO_PLAYERGUI:FindFirstChild("GameHUD") ~= nil
       local label = gameGui:FindFirstChild("Health")
@@ -129,12 +182,10 @@ module.exports = function guiSuite(suite) {
       return Notifier.Get():State().nodes
     `)[0];
     const nodes = Number(out);
-    // Mốc 25 là số node ĐO ĐƯỢC của GUI hiện tại (1 khung + 6 nhãn + thanh
-    // tiến trình + khung kết quả + 2 nút + UICorner/UIGradient/UIPadding/
-    // UIListLayout kèm theo). Test này là CHỐT CHỐNG PHÌNH: nếu ai đó thêm
-    // node mới, con số sẽ vượt mốc và test báo — chứ không phải mốc tuỳ hứng.
-    A.greaterThan(nodes, 10, 'GUI phải đủ thành phần theo đặc tả');
-    A.lessThan(nodes, 26, 'vượt mốc 25 node: xem lại có cần thiết không');
+    // Bảng tối giản: 4 đối tượng hiển thị + khung, thanh tiến trình,
+    // viền/gradient và các modifier bố cục; không có bảng kết quả hay nút.
+    A.greaterThan(nodes, 8, 'bảng phải có đủ trạng thái, thanh và phần trăm');
+    A.lessThan(nodes, 18, 'bảng vượt 17 node; tránh phình giao diện');
   });
 
   suite.test('Part 7: phần trăm KHÔNG BAO GIỜ vượt 100 dù chạy rất lâu', (t, A) => {
@@ -153,13 +204,20 @@ module.exports = function guiSuite(suite) {
     // Và với GUI có thời lượng: đọc ngay TRƯỚC khi ẩn
     const h2 = createRuntime();
     h2.eval(BUILD(30));
-    h2.advance(29.9);
+    h2.advance(15);
+    const middle = h2.eval(`
+      local Notifier = __RALO_REQ("Client/Ui/Notifier")
+      local g = Notifier.Get()
+      return g and g:State().percent or -1
+    `)[0];
+    h2.advance(14.9);
     const nearEnd = h2.eval(`
       local Notifier = __RALO_REQ("Client/Ui/Notifier")
       local g = Notifier.Get()
       return g and g:State().percent or -1
     `)[0];
-    A.inRange(Number(nearEnd), 0, 100, 'gần hết thời lượng vẫn phải <= 100');
+    A.inRange(Number(middle), 45, 55, 'ở nửa thời lượng, tiến trình phải ở khoảng 50%');
+    A.inRange(Number(nearEnd), 99, 100, 'gần hết thời lượng phải đạt 99–100% mà không vượt');
   });
 
   suite.test('Part 7: ClampPercent chặn mọi giá trị ngoài 0..100', (t, A) => {
@@ -192,6 +250,26 @@ module.exports = function guiSuite(suite) {
     A.equal(instance, 'nil', 'sau khi ẩn, singleton phải được xoá');
     A.equal(screenGui, 'nil', 'ScreenGui phải bị huỷ (GUI-011)');
     A.equal(conns, '0', 'không được để lại connection nào (GUI-011)');
+  });
+
+  suite.test('GUI-011: bảng mặc định tồn tại 30 giây rồi tự dọn sạch', (t, A) => {
+    const h = createRuntime();
+    h.eval(BUILD(30));
+    h.advance(29.9);
+    const stillVisible = h.eval(`
+      local N = __RALO_REQ("Client/Ui/Notifier")
+      return tostring(N.Get() ~= nil)
+    `)[0];
+    h.advance(0.2);
+    const gone = h.eval(`
+      local N = __RALO_REQ("Client/Ui/Notifier")
+      local gui = _G.__RALO_PLAYERGUI:FindFirstChild("RALO_OptimizerNotifier")
+      return tostring(N.Get()) .. "|" .. tostring(gui)
+    `)[0];
+    const [instance, screenGui] = gone.split('|');
+    A.equal(stillVisible, 'true', 'bảng phải còn trước mốc 30 giây');
+    A.equal(instance, 'nil', 'sau 30 giây singleton phải được dọn');
+    A.equal(screenGui, 'nil', 'ScreenGui phải bị huỷ khi hết giờ');
   });
 
   suite.test('GUI-011: Destroy chỉ xoá GUI do hệ thống tạo', (t, A) => {
@@ -272,22 +350,23 @@ module.exports = function guiSuite(suite) {
     const [verdict, finished, statusText] = out.split('|');
     A.equal(verdict, 'error', 'verdict phải là error');
     A.equal(finished, 'false', 'lỗi KHÔNG được đánh dấu là đã hoàn tất');
-    A.equal(statusText, 'Tối ưu thất bại', 'nhãn phải hiện thông báo lỗi');
+    A.equal(statusText, 'Tối ưu gặp lỗi — xem Output', 'nhãn phải hiện lỗi, không báo thành công');
   });
 
-  suite.test('Part 7: SetResults thành công thì hiện "Hoàn tất tối ưu"', (t, A) => {
+  suite.test('Part 7: SetResults thành công thì hiện "Đã giảm lag xong"', (t, A) => {
     const h = createRuntime();
     const out = h.eval(BUILD() + `
       local Notifier = __RALO_REQ("Client/Ui/Notifier")
       local gui = Notifier.Get()
       gui:SetResults({ "cải thiện 12%" }, "improved")
       return gui.statusLabel.Text .. "|" .. tostring(gui:State().finished)
-        .. "|" .. tostring(gui.resultPanel.Visible)
+        .. "|" .. tostring(gui.resultPanel == nil) .. "|" .. gui.percentLabel.Text
     `)[0];
-    const [text, finished, visible] = out.split('|');
-    A.equal(text, 'Hoàn tất tối ưu', 'nhãn phải đổi sang hoàn tất');
+    const [text, finished, noResultMenu, percent] = out.split('|');
+    A.equal(text, 'Đã giảm lag xong', 'nhãn phải đổi sang hoàn tất');
     A.equal(finished, 'true', 'phải đánh dấu hoàn tất');
-    A.equal(visible, 'true', 'khung kết quả phải hiện ra');
+    A.equal(noResultMenu, 'true', 'không được mở menu kết quả');
+    A.equal(percent, '100%', 'khi hoàn tất phải chốt tiến trình ở 100%');
   });
 
   suite.test('Part 7: hoạt ảnh chạy độc lập — GUI ẩn KHÔNG chạy lại tác vụ', (t, A) => {

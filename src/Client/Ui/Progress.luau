@@ -1,10 +1,8 @@
 --[[
 	Ui/Progress.luau
-	Mô hình trạng thái tiến trình. Tách khỏi UI để unit test được:
-	tiến trình, phần trăm, đếm theo trạng thái đều là logic thuần.
-
-	UI (Menu.luau) chỉ là "người quan sát": nó Connect vào Progress.Changed
-	và vẽ lại. Nhờ vậy có thể test logic tiến trình mà không cần vẽ gì.
+	Mô hình tiến trình nội bộ của Pipeline, tách khỏi bảng trạng thái để unit test.
+	Nó theo dõi pha, bước đã chạy và số liệu trạng thái, nhưng không điều khiển UI.
+	Notifier dùng đồng hồ thời lượng riêng để vẽ 1–100% và tự ẩn sau 30 giây.
 ]]
 
 local Util_Types = __RALO_REQUIRE("Shared/Types")

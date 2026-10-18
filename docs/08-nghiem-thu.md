@@ -8,11 +8,11 @@ Mỗi tiêu chí được đánh dấu: **Đạt** (đã kiểm chứng bằng l
 | - | -------- | -------- | ------ |
 | 1 | Mã nguồn và cấu trúc đầy đủ | **Đạt** | 36 tệp `.luau`, 9.246 dòng. `npm run syntax` → `38 tệp, lỗi: 0`. Cây thư mục ở [02](02-cau-truc-vai-tro-tep.md). Không module nào thiếu: `catalog.test.js` bắt mọi mục A/B/C phải trỏ tới một tệp **tồn tại thật**. |
 | 2 | Hướng dẫn kiểm chứng được | **Một phần** | Toàn bộ lệnh `npm run ...` chạy được và đã chạy. Phần cài vào Studio ([03](03-cai-dat-va-cau-hinh.md)) **chưa được thực thi** vì không có Studio. |
-| 3 | GUI hoạt động trong môi trường đã test | **Một phần** | `gui.test.js` 16/16 đạt: không trùng lặp, không kéo được, không âm thanh, phần trăm ≤ 100, tự huỷ sạch. **Chưa** thấy GUI thật trên màn hình Studio. |
+| 3 | GUI hoạt động trong môi trường đã test | **Một phần** | `gui.test.js` 20/20 đạt: không menu/nút, cố định góc dưới phải, nền xám/gradient, 1–100%, 30 giây, tự huỷ sạch. **Chưa** thấy GUI thật trên màn hình Studio. |
 | 4 | Cơ chế bật/tắt và hoàn tác | **Đạt** (mức harness) | `config.test.js` 13/13, `pipeline` CFG-001 + RESTORE-001/002/003 + REC-002 đạt. |
 | 5 | Kết quả test trung thực | **Đạt** | Bảng ở [06](06-bao-cao-test-loi.md) chỉ khai "Đạt" cho test **đã chạy thật**, kèm lệnh tái tạo. Mục chưa làm được ghi rõ là "Chưa làm". |
 | 6 | Không có lỗi nghiêm trọng bị giấu | **Đạt** | 13 lỗi tìm thấy đều được ghi trong bảng ở 6.2 kèm nguyên nhân gốc. Lỗi nghiêm trọng nhất (BUG-04 làm vô hiệu danh sách lớp bảo vệ) được nêu bật, không che. |
-| 7 | Lỗi tìm thấy đã sửa + test hồi quy | **Đạt** | Mỗi dòng trong bảng 6.2 có cột "Kết quả test lại". `npm run check` chạy lại toàn bộ sau mỗi lần sửa → 115/115. |
+| 7 | Lỗi tìm thấy đã sửa + test hồi quy | **Đạt** | Mỗi dòng trong bảng 6.2 có cột "Kết quả test lại". `npm run check` chạy lại toàn bộ sau mỗi lần sửa → 122/122. |
 | 8 | Không xoá tính năng gameplay để lấy hiệu năng | **Đạt** | `SAFE-005`: 7 module đụng nội dung game **không có** lệnh `:Destroy(` nào. `SAFE-007`: `:Destroy(` chỉ được phép ở 6 module quản lý tài nguyên hệ thống. Đây là test tĩnh trên mã thật, không phải tuyên bố. |
 | 9 | Phân loại phương pháp đúng | **Đạt** | `verify-catalog.js` kiểm bằng máy: B phải có test khai id; D/E không được trỏ vào tệp nguồn; id không trùng; đủ 10 trường. Kết quả: `✓ không có khai khống`. |
 | 10 | Đo trước/sau khi có thể hỗ trợ | **Chưa đạt** | Không đo được. **Không có con số nào được công bố.** Quy trình tự đo ở [07](07-do-luong-hoan-tac.md). |

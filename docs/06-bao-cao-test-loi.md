@@ -16,12 +16,12 @@ trong môi trường này và in kết quả ra.
 | Test `pool` (8) | Đạt | `đạt 8 / hỏng 0` — POOL-001/003/004/005, RAM-002, DATA-001, CPU-006 |
 | Test `cull` (10) | Đạt | `đạt 10 / hỏng 0` — CULL-001..004, DIST-001/003/004, FX-001, FPS-003, GRAPHICS-004, CPU-005, REC-002 |
 | Test `spatial` (10) | Đạt | `đạt 10 / hỏng 0` — DATA-002/003/004, QUERY-003/004, CPU-004/005, NPC-003, LOOP-007 |
-| Test `gui` (16) | Đạt | `đạt 16 / hỏng 0` — GUI-001/002/004/005/006/010/011/012/013, FPS-002, LOWEND-004 |
+| Test `gui` (20) | Đạt | `đạt 20 / hỏng 0` — GUI đơn giản, vị trí cố định, màu/gradient, 1–100%, 30 giây, không nút/kéo, dọn sạch |
 | Test `safety` (10) | Đạt | `đạt 10 / hỏng 0` — SAFE-001..008, GRAPHICS-009, DATA-004 |
 | Test `config` (13) | Đạt | `đạt 13 / hỏng 0` — CFG-001/002/004/005/006, RES-004, MEAS-004, LOWEND-001..004, REC-004 |
 | Test `catalog` (7) | Đạt | `đạt 7 / hỏng 0` — tính toàn vẹn của danh mục |
-| Test `pipeline` (15) | Đạt | `đạt 15 / hỏng 0` — MEAS-001/003/006/007, CFG-001, EFFECTS-001/002, RESTORE-001/002/003, REC-002/003, QUERY-004/006, LOOP-005, GRAPHICS-001/003, START-003 |
-| **Tổng** | **Đạt** | **`npm run check` → đạt 115 / hỏng 0 / tổng 115** |
+| Test `pipeline` (18) | Đạt | `đạt 18 / hỏng 0` — đo lường, giới hạn hiệu ứng, hoàn tác, đồ họa nhẹ, giữ ánh sáng/bóng/avatar, không nâng mức thấp, lỗi |
+| **Tổng** | **Đạt** | **`npm run check` → đạt 122 / hỏng 0 / tổng 122** |
 | Chạy trong **Roblox Studio** | **Chưa làm** | Môi trường phát triển không có Roblox Studio. Xem 6.4 |
 | Đo FPS / RAM / CPU trước–sau | **Chưa làm** | Không có GPU, không có thiết bị thật. Xem [07](07-do-luong-hoan-tac.md) |
 
@@ -59,7 +59,7 @@ trong môi trường này và in kết quả ra.
 **Không có lỗi nào đã biết mà bị bỏ qua.** Mọi lỗi phát hiện được trong quá trình
 làm việc đều đã sửa và test lại.
 
-Điều này **không** có nghĩa là không còn lỗi. Nó có nghĩa: trong phạm vi 115 test
+Điều này **không** có nghĩa là không còn lỗi. Nó có nghĩa: trong phạm vi 122 test
 đã viết, không còn lỗi nào lộ ra. Những phần chưa có test (xem 6.4) hoàn toàn có
 thể chứa lỗi chưa phát hiện.
 

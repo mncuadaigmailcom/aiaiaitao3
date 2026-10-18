@@ -51,13 +51,13 @@ Config.PROFILE = {
 	-- Đặt false để TẮT hẳn nhóm đó.
 	--------------------------------------------------------------------
 	groups = {
-		graphics  = true,    -- Lighting.QualityLevel, Terrain.Decoration
-		effects   = true,    -- giới hạn Rate/ParticleCount (không xoá effect)
-		cull      = true,    -- tắt bóng/hiệu ứng của đối tượng Ở XA
+		graphics  = true,    -- chất lượng tối đa 8; giữ ánh sáng, bóng và địa hình
+		effects   = true,    -- giới hạn nhẹ Rate/ParticleCount (không xoá effect)
+		cull      = true,    -- thư viện có culling; không gọi trong plan mặc định
 		scan      = true,    -- quét thế giới có trần
 		memory    = true,    -- GC định kỳ
 		physics   = false,   -- MẶC ĐỊNH TẮT: có đánh đổi độ mượt vật lý
-		character = true,    -- bỏ bóng + auto-scaling của nhân vật
+		character = true,    -- giữ bóng và tỉ lệ avatar theo mặc định
 		net       = false,   -- MẶC ĐỊNH TẮT: cần remote của game
 	},
 
@@ -81,40 +81,41 @@ Config.PROFILE = {
 	},
 
 	--------------------------------------------------------------------
-	-- GUI THÔNG BÁO (Part 6 & 7)
+	-- BẢNG TRẠNG THÁI (Part 6 & 7)
 	--------------------------------------------------------------------
 	gui = {
 		enabled         = true,
-		durationSeconds = 30,      -- thời gian hiện menu (~30 giây)
+		durationSeconds = 30,      -- thời gian hiện bảng trạng thái (~30 giây)
 		fadeSeconds     = 0.45,    -- thời gian trượt xuống + mờ dần
-		slideOffset     = 90,      -- px trượt xuống khi ẩn
-		width           = 320,     -- px
+		slideOffset     = 70,      -- px trượt xuống khi ẩn
+		width           = 288,     -- px
 		marginRight     = 16,      -- px, cách mép phải (lề an toàn)
 		marginBottom    = 16,      -- px, cách mép dưới (lề an toàn)
-		backgroundAlpha = 0.72,    -- nền XÁM ĐẬM BÁN TRONG SUỐT
-		cornerRadius    = 12,      -- bo góc (UICorner)
+		backgroundAlpha = 0.42,    -- nền xám bán trong suốt, vẫn đọc rõ chữ
+		cornerRadius    = 10,      -- bo góc nhẹ cho bảng chữ nhật
 		borderWidth     = 2,       -- viền cầu vồng
-		rainbowSpeed    = 0.5,     -- vòng/giây của dải cầu vồng
-		showResults     = true,    -- hiện bảng trước/sau khi hoàn tất
+		rainbowSpeed    = 0.35,    -- vòng/giây của dải cầu vồng
+		updateInterval  = 0.1,     -- cập nhật giao diện 10 lần/giây, tránh việc thừa
 	},
 
 	--------------------------------------------------------------------
 	-- ĐỒ HOẠ (giảm NHẸ, đảo ngược được)
 	--------------------------------------------------------------------
 	graphics = {
-		qualityLevel      = 6,     -- Lighting.QualityLevel 1..10 (Roblox mặc định ~10)
-		lockQualityMode   = true,  -- tắt GraphicsQualityMode để engine không ghi đè
-		terrainDecoration = false, -- Terrain.Decoration (cỏ/chi tiết nhỏ)
-		shadowDistance    = 300,   -- xa hơn N stud thì tắt CastShadow (0 = tắt bước này)
-		maxShadowTargets  = 400,   -- trần số đối tượng bị đổi, tránh khựng khi quét
+		qualityLevel      = 8,     -- giảm nhẹ; không bao giờ nâng mức thấp hiện có
+		lockQualityMode   = false, -- tôn trọng chế độ đồ họa tự động của Roblox
+		applyTerrainDecoration = false, -- không đổi địa hình trừ khi chủ game bật rõ
+		terrainDecoration = false, -- giá trị mục tiêu chỉ dùng khi applyTerrainDecoration = true
+		shadowDistance    = 0,     -- giữ toàn bộ bóng đổ, không culling part xa
+		maxShadowTargets  = 400,   -- trần an toàn nếu chủ game chủ động bật culling
 	},
 
 	--------------------------------------------------------------------
 	-- HIỆU ỨNG (chỉ GIỚI HẠN, không xoá — giữ nguyên tính năng)
 	--------------------------------------------------------------------
 	effects = {
-		particleRateCap     = 20,  -- Rate tối đa cho mỗi ParticleEmitter
-		particleMaxCountCap = 60,  -- ParticleCount tối đa
+		particleRateCap     = 40,  -- giới hạn nhẹ mật độ hạt, không tắt emitter
+		particleMaxCountCap = 120, -- trần vừa phải, không xoá hiệu ứng
 		effectDistance      = 250, -- xa hơn N stud thì tắt emitter/beam/trail
 		maxInstancesScanned = 3000,-- trần quét, tránh treo máy yếu
 	},
@@ -123,8 +124,8 @@ Config.PROFILE = {
 	-- NHÂN VẬT (vẫn giữ nguyên nhân vật)
 	--------------------------------------------------------------------
 	character = {
-		disableShadows     = true, -- CastShadow = false cho part nhân vật
-		disableAutoScaling = true, -- Humanoid.AutomaticScalingEnabled = false
+		disableShadows     = false, -- luôn giữ bóng nhân vật theo mặc định
+		disableAutoScaling = false, -- giữ nguyên tỉ lệ/hiển thị nhân vật
 	},
 
 	--------------------------------------------------------------------

@@ -43,7 +43,7 @@ local Plan = {}
 Plan.CATALOG = {
 	{
 		id = "graphics.quality",
-		name = "Hạ mức chất lượng hình ảnh",
+		name = "Giảm nhẹ chất lượng hình ảnh (mức tối đa 8)",
 		group = "graphics",
 		module = Opt_Graphics,
 		handler = "ApplyQualityLevel",
@@ -51,7 +51,7 @@ Plan.CATALOG = {
 	},
 	{
 		id = "graphics.terrain",
-		name = "Tắt chi tiết địa hình (Decoration)",
+		name = "Đặt chi tiết địa hình theo cấu hình (mặc định giữ)",
 		group = "graphics",
 		module = Opt_Graphics,
 		handler = "ApplyTerrain",
@@ -59,7 +59,7 @@ Plan.CATALOG = {
 	},
 	{
 		id = "graphics.shadows",
-		name = "Giảm tầm bóng đổ + tắt bóng part xa",
+		name = "Giữ nguyên bóng đổ (culling xa mặc định tắt)",
 		group = "graphics",
 		module = Opt_Graphics,
 		handler = "ApplyShadowBudget",
@@ -67,7 +67,7 @@ Plan.CATALOG = {
 	},
 	{
 		id = "graphics.character",
-		name = "Tắt bóng & auto-scaling nhân vật",
+		name = "Giữ nguyên bóng và tỉ lệ nhân vật",
 		group = "character",
 		module = Opt_Graphics,
 		handler = "ApplyCharacter",

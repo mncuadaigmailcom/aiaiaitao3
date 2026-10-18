@@ -48,15 +48,20 @@ function Graphics.ApplyQualityLevel(_step: any, profile: any)
 		return { changes = 0, detail = "không truy cập được Lighting", restorable = false }
 	end
 
-	local target = math.clamp(math.floor(profile.graphics.qualityLevel or 4), 1, 10)
-	local changed = 0
+	local target = math.clamp(math.floor(profile.graphics.qualityLevel or 8), 1, 10)
+	local currentQuality, qualityReadable = Util_Safe.Get(lighting, "QualityLevel")
+	-- Không bao giờ nâng đồ họa của máy yếu lên cao hơn mức người dùng đang dùng.
+	if qualityReadable and type(currentQuality) == "number" then
+		target = math.min(target, currentQuality)
+	end
 
+	local changed = 0
 	if change(lighting, "QualityLevel", target, "graphics.quality", target) then
 		changed += 1
 	end
-	-- GraphicsQualityMode: tự động chỉnh chất lượng theo thiết bị. Tắt nó đi
-	-- để mức ta đặt không bị engine ghi đè.
-	if change(lighting, "GraphicsQualityMode", false, "graphics.quality", false) then
+	-- Chỉ khóa chế độ tự động nếu chủ game chủ động bật tuỳ chọn này.
+	if profile.graphics.lockQualityMode == true
+		and change(lighting, "GraphicsQualityMode", false, "graphics.quality", false) then
 		changed += 1
 	end
 	-- Technology: chỉ đổi khi người dùng chỉ định rõ (mặc định GIỮ NGUYÊN).
@@ -66,14 +71,21 @@ function Graphics.ApplyQualityLevel(_step: any, profile: any)
 	end
 
 	local current = Util_Safe.Get(lighting, "QualityLevel")
+	local modeNote = profile.graphics.lockQualityMode == true
+		and "GraphicsQualityMode=false (đã bật tùy chọn khóa)"
+		or "GraphicsQualityMode giữ nguyên"
 	return {
 		changes = changed,
-		detail = ("QualityLevel -> %s (đang là %s), GraphicsQualityMode=false")
-			:format(tostring(target), tostring(current)),
+		detail = ("QualityLevel -> %s (đang là %s), %s")
+			:format(tostring(target), tostring(current), modeNote),
 	}
 end
 
 function Graphics.ApplyTerrain(_step: any, profile: any)
+	if profile.graphics.applyTerrainDecoration ~= true then
+		return { changes = 0, detail = "mặc định giữ nguyên Terrain.Decoration" }
+	end
+
 	local workspace = Core_Env.GetService("Workspace")
 	if workspace == nil then
 		return { changes = 0, detail = "không truy cập được Workspace", restorable = false }
@@ -107,14 +119,14 @@ function Graphics.ApplyShadowBudget(step: any, profile: any)
 	end
 
 	local changed = 0
-	local distance = profile.graphics.disableCastShadowDistance or 0
+	local distance = profile.graphics.shadowDistance or 0
 
 	-- Ghi chú: ta KHÔNG đổi ShadowSoftness / ShadowColor / Ambient — những thứ
 	-- đó làm thay đổi rõ rệt tông màu của game, trái với yêu cầu "giảm nhẹ nhàng".
 	_ = lighting -- lighting được lấy để đảm bảo service tồn tại trước khi quét
 
 	if distance <= 0 then
-		return { changes = changed, detail = "disableCastShadowDistance = 0 nên bỏ qua quét part" }
+		return { changes = changed, detail = "shadowDistance = 0 nên giữ nguyên mọi CastShadow" }
 	end
 
 	local camera, camOk = Util_Safe.Get(workspace, "CurrentCamera")
@@ -128,7 +140,7 @@ function Graphics.ApplyShadowBudget(step: any, profile: any)
 
 	local isRenderable = { Part = true, MeshPart = true, UnionOperation = true }
 	local stats = Opt_Scan.Descendants({
-		maxScan = profile.effects.maxInstancesScanned or 3000,
+		maxScan = profile.graphics.maxShadowTargets or profile.effects.maxInstancesScanned or 3000,
 		yieldEvery = 400,
 		root = workspace,
 		filter = function(instance)

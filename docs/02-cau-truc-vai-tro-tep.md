@@ -44,21 +44,21 @@ aiaiaitao3/
 │   │   │   └── Pipeline.luau     Điều phối: Start / Shutdown / Restore
 │   │   ├── Optimizations/
 │   │   │   ├── Scan.luau         Quét thế giới có trần, không treo
-│   │   │   ├── Graphics.luau     QualityLevel / Terrain.Decoration (mặc định TẮT)
+│   │   │   ├── Graphics.luau     QualityLevel nhẹ; giữ Terrain.Decoration, ánh sáng và bóng
 │   │   │   ├── Effects.luau      GIỚI HẠN hạt/ánh sáng, không xoá
 │   │   │   ├── Memory.luau       Dọn tham chiếu cũ của chính hệ thống
 │   │   │   └── Physics.luau      Tinh chỉnh phía client, đảo ngược được
 │   │   └── Ui/
 │   │       ├── Theme.luau        Màu, bo góc, cỡ chữ
 │   │       ├── Widget.luau       Tạo instance có kiểm tra thuộc tính
-│   │       ├── Progress.luau     Thanh 0–100%, kẹp cứng không vượt 100
-│   │       ├── Notifier.luau     Bảng góc dưới phải, viền cầu vồng, tự huỷ
+│   │       ├── Progress.luau     Trạng thái tiến trình các bước, kẹp trong 0–100
+│   │       ├── Notifier.luau     Bảng 1–100% ở góc dưới phải, không nút, tự huỷ
 │   │       └── GuiPolicy.luau    Chống trùng lặp, chỉ xoá thứ nó tạo
 │   └── Server/                   → rỗng (không có mã server, không RemoteEvent)
 ├── tests/
 │   ├── lib/assert.js             Bộ khẳng định không phụ thuộc
 │   ├── lib/runtime.js            Nối Node với máy ảo Lua + mock Roblox
-│   └── suites/*.test.js          11 bộ, 115 test
+│   └── suites/*.test.js          11 bộ, 122 test
 └── tools/
     ├── luau-to-lua.js            Chuyển Luau → Lua 5.3 để test được
     ├── luau-prelude.luau         Polyfill cho Lua 5.3

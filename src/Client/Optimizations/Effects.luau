@@ -44,8 +44,8 @@ local function change(instance: any, property: string, newValue: any, stepId: st
 end
 
 function Effects.CapParticles(_step: any, profile: any)
-	local rateCap = profile.effects.particleRateCap or 20
-	local countCap = profile.effects.particleMaxCountCap or 60
+	local rateCap = profile.effects.particleRateCap or 40
+	local countCap = profile.effects.particleMaxCountCap or 120
 
 	local cappedRate, cappedCount, alreadyOk = 0, 0, 0
 
