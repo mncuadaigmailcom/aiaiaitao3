@@ -167,7 +167,7 @@ module.exports = function catalogSuite(suite) {
     A.greaterThan(ids.length, 0, 'danh mục không được rỗng');
   });
 
-  suite.test('CATALOG: mỗi mục đủ 9 trường bắt buộc theo Part 4', (t, A) => {
+  suite.test('CATALOG: mỗi mục đủ 10 trường bắt buộc theo Part 4', (t, A) => {
     const raw = fs.readFileSync(path.join(SRC, 'Shared', 'Methods.luau'), 'utf8');
     const required = ['id', 'group', 'name', 'mechanism', 'cause', 'how', 'file', 'cond', 'risk', 'status'];
     const blocks = raw.split(/^\t\{$/m).slice(1);
@@ -180,6 +180,7 @@ module.exports = function catalogSuite(suite) {
         if (!re.test(block)) incomplete.push(`${idMatch[1]}: thiếu trường ${field}`);
       }
     }
+    A.equal(required.length, 10, 'danh sách trường bắt buộc phải đúng 10 (id, group, name, mechanism, cause, how, file, cond, risk, status)');
     A.deepEqual(incomplete, [], 'mỗi phương pháp phải mô tả đủ theo đặc tả');
     A.greaterThan(blocks.length, 100, 'phải có số lượng phương pháp đáng kể');
   });
