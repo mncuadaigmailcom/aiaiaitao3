@@ -1,5 +1,10 @@
 # Roblox Anti-Lag Optimizer
 
+## Bản gộp hai chế độ (khuyến nghị)
+
+Dùng riêng [`standalone/MobilePerformance.client.luau`](standalone/MobilePerformance.client.luau). Mặc định `MODE = "safe"`: chỉ GUI/đo FPS, **không thay đổi đồ hoạ và không tăng FPS thật**. Tuỳ chọn `MODE = "graphics"` giữ chức năng giảm bóng/hiệu ứng và hoàn tác của bản trước. Giữ menu nhỏ, tiến trình và trượt tại góc dưới phải; tự dừng đo ở giây 30. [Hướng dẫn cấu hình và hoàn tác](standalone/README.md). Chỉ cài trong game bạn sở hữu qua Roblox Studio; không có hỗ trợ executor hay lời hứa 10 → 60 FPS.
+
+
 ## Bản ưu tiên FPS (có giảm chất lượng đồ hoạ)
 
 Dùng riêng [`standalone/MobileFpsPriority.client.luau`](standalone/MobileFpsPriority.client.luau) để tự tắt bóng, giảm ánh sáng/phản xạ môi trường và PostEffect trong Lighting. **Không bảo đảm 60 FPS.** Không dùng kèm bản chỉ thông báo hoặc optimizer cũ. Cài đặt, giới hạn và hoàn tác: [standalone/README.md](standalone/README.md). Đã có 5 test logic riêng; chưa đo FPS trên thiết bị thật.
