@@ -17,9 +17,9 @@ gui.IgnoreGuiInset = false
 local panel = Instance.new("Frame")
 panel.Name = "Panel"
 panel.AnchorPoint = Vector2.new(1, 1)
-panel.Position = UDim2.new(1, -12, 1, -12)
+panel.Position = UDim2.new(0, -4, 1, -12)
 -- Tỉ lệ chiều rộng để vừa cả màn hình điện thoại hẹp.
-panel.Size = UDim2.new(0.8, 0, 0, 104)
+panel.Size = UDim2.new(0.65, 0, 0, 84)
 panel.BackgroundColor3 = Color3.fromRGB(75, 75, 75)
 panel.BackgroundTransparency = 0.3
 panel.BorderSizePixel = 0
@@ -27,7 +27,7 @@ panel.Active = false
 panel.Selectable = false
 panel.Parent = gui
 local limit = Instance.new("UISizeConstraint")
-limit.MaxSize = Vector2.new(280, 104)
+limit.MaxSize = Vector2.new(220, 84)
 limit.Parent = panel
 
 local stroke = Instance.new("UIStroke")
@@ -65,14 +65,21 @@ local function label(labelName, text, y, height, size)
     item.Parent = panel
     return item
 end
-label("Title", "Đang giảm lag", 6, 24, 17)
-local percent = label("Progress", "1%", 32, 26, 20)
-label("Disclaimer", "Tiến trình hiển thị • Không đo FPS\nKhông thay đổi game", 62, 36, 11)
+label("Title", "Đang giảm lag", 4, 20, 15)
+local percent = label("Progress", "1%", 25, 22, 18)
+label("Disclaimer", "Tiến trình hiển thị • Không đo FPS\nKhông thay đổi game", 49, 32, 10)
 gui.Parent = playerGui
 
 local started = os.clock()
 local previous = 1
 local connection
+local slideSeconds = 0.4
+local settled = false
+local function slidePosition(alpha)
+    -- Smoothstep: di chuyển mượt; không cập nhật vị trí trong lúc đứng yên.
+    local eased = alpha * alpha * (3 - 2 * alpha)
+    panel.Position = UDim2.new(eased, -4 - 8 * eased, 1, -12)
+end
 connection = RunService.Heartbeat:Connect(function()
     -- Mốc thời gian thực: không đếm frame, không chờ nối tiếp gây trôi giờ.
     local elapsed = os.clock() - started
@@ -80,6 +87,14 @@ connection = RunService.Heartbeat:Connect(function()
         connection:Disconnect()
         if gui.Parent == playerGui then gui:Destroy() end
         return
+    end
+    if elapsed < slideSeconds then
+        slidePosition(math.clamp(elapsed / slideSeconds, 0, 1))
+    elseif elapsed >= 30 - slideSeconds then
+        slidePosition(math.clamp((30 - elapsed) / slideSeconds, 0, 1))
+    elseif not settled then
+        settled = true
+        slidePosition(1)
     end
     local value = math.min(100, 1 + math.floor(math.max(0, elapsed) * 99 / 25))
     if value ~= previous then
