@@ -1,5 +1,20 @@
 # Roblox Anti-Lag Optimizer
 
+## Bản thông báo nhẹ, không can thiệp game
+
+Dùng riêng [`standalone/NonInvasiveMobile.client.luau`](standalone/NonInvasiveMobile.client.luau) nếu bạn không muốn sửa game hay script khác. **Không chạy kèm bộ optimizer cũ** nếu muốn giữ điều kiện này.
+
+- Trong Roblox Studio, game bạn sở hữu: tạo LocalScript trong StarterPlayer → StarterPlayerScripts, dán nội dung tệp rồi Play. Không dùng executor.
+- Bảng cố định dưới phải, nền xám trong suốt, viền cầu vồng tĩnh để nhẹ máy.
+- Hiện “Đang giảm lag”, từ 1% đến 100% trong 25 giây, giữ tới giây 30 rồi xoá và ngắt callback. Khi máy đứng hình, cập nhật ở frame kế tiếp theo thời gian thực.
+- Đây chỉ là thông báo: phần trăm **không đo mức giảm lag**, không có thay đổi FPS được bảo đảm. Không thể có “tất cả cách giảm lag” mà vẫn không thay đổi gì.
+- Không sửa Lighting, Workspace, vật lý, mạng hoặc mã nguồn khác. Không quét cây game; chỉ cập nhật chữ khi phần trăm đổi.
+- Kiểm thử: `npm test -- mobile-notice` (4 test logic bằng mock, chưa kiểm thử Roblox Studio/điện thoại thật).
+
+Nếu chỉ chơi game người khác trên điện thoại, bạn không thể cài LocalScript bằng ứng dụng Roblox thông thường. Để giảm tải thật: vào Settings → Graphics Mode: Manual → giảm Graphics Quality; đóng ứng dụng nền không cần thiết, tắt quay màn hình, tránh vừa sạc vừa chơi nếu máy nóng. Wi-Fi ổn định giúp ping, không nhất thiết tăng FPS. Không cài ứng dụng “boost RAM” hoặc executor không rõ nguồn.
+
+---
+
 Tối ưu hiệu năng **client** cho game **do bạn sở hữu**, chạy trong **Roblox Studio**,
 không dùng executor, không dùng `setrbxsetting`, không can thiệp anti-cheat.
 
