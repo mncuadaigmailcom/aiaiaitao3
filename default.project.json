@@ -1,0 +1,30 @@
+{
+  "name": "roblox-anti-lag-optimizer",
+  "tree": {
+    "$className": "DataModel",
+
+    "ReplicatedStorage": {
+      "$className": "ReplicatedStorage",
+      "RALO": {
+        "$path": "src/Shared"
+      }
+    },
+
+    "StarterPlayer": {
+      "$className": "StarterPlayer",
+      "StarterPlayerScripts": {
+        "$className": "StarterPlayerScripts",
+        "RALO": {
+          "$path": "src/Client"
+        }
+      }
+    },
+
+    "ServerScriptService": {
+      "$className": "ServerScriptService",
+      "RALO": {
+        "$path": "src/Server"
+      }
+    }
+  }
+}

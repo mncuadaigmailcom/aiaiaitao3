@@ -1,0 +1,19 @@
+{
+  "name": "roblox-anti-lag-optimizer",
+  "version": "1.0.0",
+  "description": "Roblox Anti-Lag Optimizer - LocalScript, chay trong Roblox Studio, khong dung executor",
+  "private": true,
+  "scripts": {
+    "build": "node tools/build.js",
+    "syntax": "node tools/syntax-check.js",
+    "catalog": "node tools/verify-catalog.js",
+    "lint": "node tools/lint-conventions.js",
+    "test": "node tools/test-harness/run.js",
+    "test:file": "node tools/test-harness/run.js",
+    "check": "node tools/lint-conventions.js && node tools/verify-catalog.js && node tools/syntax-check.js && node tools/test-harness/run.js",
+    "smoke": "node tools/test-harness/smoke.js"
+  },
+  "devDependencies": {
+    "fengari": "^0.1.4"
+  }
+}
