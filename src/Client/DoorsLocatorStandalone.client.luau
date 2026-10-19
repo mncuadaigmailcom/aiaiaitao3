@@ -1,4 +1,4 @@
--- Standalone Studio LocalScript: menu + Doors entity locator in one file.
+-- Standalone Studio LocalScript: Banana Cat menu + Doors entity locator.
 -- Doors entity locator for a Roblox experience you own, used in Roblox Studio.
 -- This is an opt-in visual debugging aid, not an executor script. It only scans
 -- descendants replicated to the client and does not reveal occluded/unloaded objects.
@@ -109,26 +109,35 @@ local panel = Instance.new("Frame")
 panel.Name = "Panel"
 panel.AnchorPoint = Vector2.new(1, 0.5)
 panel.Position = UDim2.new(1, -20, 0.5, 0)
-panel.Size = UDim2.fromOffset(230, 390)
-panel.BackgroundColor3 = Color3.fromRGB(25, 28, 36)
+panel.Size = UDim2.fromOffset(270, 430)
+panel.BackgroundColor3 = Color3.fromRGB(255, 248, 218)
 panel.BorderSizePixel = 0
 panel.Parent = gui
 local corner = Instance.new("UICorner")
-corner.CornerRadius = UDim.new(0, 10)
+corner.CornerRadius = UDim.new(0, 18)
 corner.Parent = panel
 local title = Instance.new("TextLabel")
-title.Size = UDim2.new(1, -20, 0, 42)
-title.Position = UDim2.fromOffset(10, 4)
+title.Size = UDim2.new(1, -24, 0, 38)
+title.Position = UDim2.fromOffset(12, 6)
 title.BackgroundTransparency = 1
-title.Text = "DOORS · ENTITY LOCATOR"
-title.TextColor3 = Color3.fromRGB(255, 205, 95)
+title.Text = "🍌 BANANA CAT 🍌"
+title.TextColor3 = Color3.fromRGB(104, 73, 28)
 title.Font = Enum.Font.GothamBold
-title.TextSize = 15
+title.TextSize = 20
 title.Parent = panel
+local subtitle = Instance.new("TextLabel")
+subtitle.Size = UDim2.new(1, -24, 0, 22)
+subtitle.Position = UDim2.fromOffset(12, 42)
+subtitle.BackgroundTransparency = 1
+subtitle.Text = "ฅ^•ﻌ•^ฅ   DOORS ENTITY LOCATOR · 2026"
+subtitle.TextColor3 = Color3.fromRGB(156, 111, 43)
+subtitle.Font = Enum.Font.GothamMedium
+subtitle.TextSize = 11
+subtitle.Parent = panel
 local list = Instance.new("ScrollingFrame")
 list.Name = "Sections"
-list.Position = UDim2.fromOffset(10, 50)
-list.Size = UDim2.new(1, -20, 1, -100)
+list.Position = UDim2.fromOffset(12, 70)
+list.Size = UDim2.new(1, -24, 1, -124)
 list.BackgroundTransparency = 1
 list.BorderSizePixel = 0
 list.ScrollBarThickness = 4
@@ -143,15 +152,15 @@ local activeStop
 local function makeButton(text, parent, color)
 	local button = Instance.new("TextButton")
 	button.Size = UDim2.new(1, 0, 0, 34)
-	button.BackgroundColor3 = color or Color3.fromRGB(49, 56, 70)
+	button.BackgroundColor3 = color or Color3.fromRGB(255, 224, 125)
 	button.BorderSizePixel = 0
 	button.Text = text
-	button.TextColor3 = Color3.new(1, 1, 1)
-	button.Font = Enum.Font.GothamMedium
+	button.TextColor3 = Color3.fromRGB(82, 59, 29)
+	button.Font = Enum.Font.GothamSemibold
 	button.TextSize = 13
 	button.Parent = parent
 	local c = Instance.new("UICorner")
-	c.CornerRadius = UDim.new(0, 6)
+	c.CornerRadius = UDim.new(0, 10)
 	c.Parent = button
 	return button
 end
@@ -164,16 +173,16 @@ for index, section in ipairs(sectionNames) do
 		activeStop = Locator.Start(workspace, section)
 	end)
 end
-local stopButton = makeButton("Tắt định vị", panel, Color3.fromRGB(130, 54, 54))
+local stopButton = makeButton("🍌  Tắt định vị", panel, Color3.fromRGB(255, 190, 176))
 stopButton.Position = UDim2.new(0, 10, 1, -42)
 stopButton.Size = UDim2.new(0.5, -14, 0, 32)
 stopButton.Activated:Connect(function()
 	if activeStop then activeStop(); activeStop = nil end
 end)
-local hideButton = makeButton("Ẩn menu", panel, Color3.fromRGB(70, 82, 105))
+local hideButton = makeButton("Ẩn menu  ☁", panel, Color3.fromRGB(255, 232, 167))
 hideButton.Position = UDim2.new(0.5, 4, 1, -42)
 hideButton.Size = UDim2.new(0.5, -14, 0, 32)
-local reopenButton = makeButton("Mở menu", gui, Color3.fromRGB(49, 56, 70))
+local reopenButton = makeButton("🍌 Mở menu", gui, Color3.fromRGB(255, 224, 125))
 reopenButton.AnchorPoint = Vector2.new(1, 0.5)
 reopenButton.Position = UDim2.new(1, -20, 0.5, 0)
 reopenButton.Size = UDim2.fromOffset(110, 38)
