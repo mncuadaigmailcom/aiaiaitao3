@@ -110,7 +110,7 @@ local panel = Instance.new("Frame")
 panel.Name = "Panel"
 panel.AnchorPoint = Vector2.new(0.5, 1)
 panel.Position = UDim2.new(0.5, 0, 1, -18)
-panel.Size = UDim2.fromOffset(640, 340)
+panel.Size = UDim2.fromOffset(520, 280)
 panel.BackgroundColor3 = Color3.fromRGB(255, 248, 218)
 panel.BorderSizePixel = 0
 panel.Parent = gui
@@ -138,17 +138,17 @@ label(panel, "ฅ^•ﻌ•^ฅ   Chọn khu vực, tìm vật thể rồi bấm
 local sectionFrame = Instance.new("Frame")
 sectionFrame.BackgroundTransparency = 1
 sectionFrame.Position = UDim2.fromOffset(14, 62)
-sectionFrame.Size = UDim2.new(1, -28, 0, 78)
+sectionFrame.Size = UDim2.new(1, -28, 0, 52)
 sectionFrame.Parent = panel
 local sectionGrid = Instance.new("UIGridLayout")
-sectionGrid.CellSize = UDim2.new(0.25, -7, 0, 32)
-sectionGrid.CellPadding = UDim2.fromOffset(8, 7)
+sectionGrid.CellSize = UDim2.new(0.25, -6, 0, 23)
+sectionGrid.CellPadding = UDim2.fromOffset(6, 4)
 sectionGrid.SortOrder = Enum.SortOrder.LayoutOrder
 sectionGrid.Parent = sectionFrame
 local search = Instance.new("TextBox")
 search.Name = "SearchEntity"
-search.Position = UDim2.fromOffset(14, 147)
-search.Size = UDim2.new(1, -28, 0, 32)
+search.Position = UDim2.fromOffset(14, 119)
+search.Size = UDim2.new(1, -28, 0, 26)
 search.BackgroundColor3 = Color3.fromRGB(255, 255, 242)
 search.BorderSizePixel = 0
 search.PlaceholderText = "Tìm tên vật thể trong danh sách…"
@@ -162,8 +162,8 @@ search.Parent = panel
 corner(search, 9)
 local entityList = Instance.new("ScrollingFrame")
 entityList.Name = "EntityPicker"
-entityList.Position = UDim2.fromOffset(14, 188)
-entityList.Size = UDim2.new(1, -28, 0, 96)
+entityList.Position = UDim2.fromOffset(14, 152)
+entityList.Size = UDim2.new(1, -28, 0, 72)
 entityList.BackgroundColor3 = Color3.fromRGB(255, 252, 234)
 entityList.BorderSizePixel = 0
 entityList.ScrollBarThickness = 5
@@ -172,8 +172,8 @@ entityList.CanvasSize = UDim2.new()
 entityList.Parent = panel
 corner(entityList, 10)
 local entityGrid = Instance.new("UIGridLayout")
-entityGrid.CellSize = UDim2.new(0.25, -7, 0, 32)
-entityGrid.CellPadding = UDim2.fromOffset(8, 6)
+entityGrid.CellSize = UDim2.new(0.25, -6, 0, 28)
+entityGrid.CellPadding = UDim2.fromOffset(6, 5)
 entityGrid.SortOrder = Enum.SortOrder.LayoutOrder
 entityGrid.Parent = entityList
 local sectionNames = {"The Hotel", "The Mines", "The Backdoor", "The Archives", "The Outdoors", "The Stairwell", "The Rooms", "Special & Events"}
@@ -182,7 +182,7 @@ local selectedBySection = {}
 for _, section in ipairs(sectionNames) do selectedBySection[section] = {} end
 local activeStop
 local sectionButtons = {}
-local status = label(panel, "Chưa bật định vị vật thể", UDim2.fromOffset(140, 296), UDim2.new(1, -280, 0, 34), Color3.fromRGB(125, 92, 43), Enum.Font.GothamMedium, 12, Enum.TextXAlignment.Center)
+local status = label(panel, "Chưa bật định vị vật thể", UDim2.fromOffset(130, 242), UDim2.new(1, -260, 0, 30), Color3.fromRGB(125, 92, 43), Enum.Font.GothamMedium, 12, Enum.TextXAlignment.Center)
 local function button(parent, text, color, textColor)
 	local b = Instance.new("TextButton")
 	b.Size = UDim2.new(1, 0, 1, 0)
@@ -248,8 +248,8 @@ for index, section in ipairs(sectionNames) do
 end
 search:GetPropertyChangedSignal("Text"):Connect(refreshEntities)
 local stopButton = button(panel, "Tắt định vị", Color3.fromRGB(255, 190, 176))
-stopButton.Position = UDim2.new(0, 12, 1, -44)
-stopButton.Size = UDim2.fromOffset(118, 32)
+stopButton.Position = UDim2.new(0, 12, 1, -38)
+stopButton.Size = UDim2.fromOffset(108, 28)
 stopButton.Activated:Connect(function()
 	for _, selected in pairs(selectedBySection) do table.clear(selected) end
 	if activeStop then activeStop(); activeStop = nil end
@@ -257,12 +257,12 @@ stopButton.Activated:Connect(function()
 	status.Text = "Đã tắt định vị và bỏ chọn vật thể"
 end)
 local hideButton = button(panel, "Ẩn menu", Color3.fromRGB(255, 232, 167))
-hideButton.Position = UDim2.new(1, -130, 1, -44)
-hideButton.Size = UDim2.fromOffset(118, 32)
+hideButton.Position = UDim2.new(1, -120, 1, -38)
+hideButton.Size = UDim2.fromOffset(108, 28)
 local reopen = button(gui, "🍌 Mở menu", Color3.fromRGB(255, 224, 125))
 reopen.AnchorPoint = Vector2.new(0.5, 1)
 reopen.Position = UDim2.new(0.5, 0, 1, -18)
-reopen.Size = UDim2.fromOffset(150, 40)
+reopen.Size = UDim2.fromOffset(125, 34)
 reopen.Visible = false
 hideButton.Activated:Connect(function() panel.Visible = false; reopen.Visible = true end)
 reopen.Activated:Connect(function() panel.Visible = true; reopen.Visible = false end)
