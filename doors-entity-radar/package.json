@@ -10,6 +10,7 @@
     "docs": "node tools/gen-catalog-doc.js",
     "test": "node tools/run-tests.js",
     "test:file": "node tools/run-tests.js",
-    "check": "node tools/lint-conventions.js && node tools/check-syntax.js && node tools/bundle.js && node tools/gen-catalog-doc.js && node tools/run-tests.js"
+    "check": "node tools/lint-conventions.js && node tools/check-syntax.js && node tools/bundle.js && node tools/gen-catalog-doc.js && node tools/make-allinone.js && node tools/run-tests.js",
+    "allinone": "node tools/make-allinone.js"
   }
 }

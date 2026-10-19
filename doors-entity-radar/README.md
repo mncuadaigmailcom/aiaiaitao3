@@ -143,6 +143,10 @@ Trong Roblox Studio (game bạn sở hữu):
 `StarterPlayer > StarterPlayerScripts > Insert Object > LocalScript` → dán toàn bộ
 `bundle/doors-entity-radar.luau` → Play. Bảng điều khiển hiện ra; `F2` để ẩn/hiện.
 
+Muốn **một tệp duy nhất** chứa toàn bộ mã nguồn + tài liệu (để chia sẻ 1 link):
+`npm run allinone` sinh `TOAN-BO-MA-NGUON.md` (23 module, chép nguyên văn, tự đối
+chiếu từng byte với `src/`).
+
 Cách cài nhiều tệp (Rojo) và cách kiểm tra sau cài: [`docs/cai-dat.md`](docs/cai-dat.md).
 
 ## 4. Trạng thái hiển thị
