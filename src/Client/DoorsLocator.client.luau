@@ -13,7 +13,7 @@ local panel = Instance.new("Frame")
 panel.Name = "Panel"
 panel.AnchorPoint = Vector2.new(0.5, 1)
 panel.Position = UDim2.new(0.5, 0, 1, -18)
-panel.Size = UDim2.fromOffset(800, 420)
+panel.Size = UDim2.fromOffset(640, 340)
 panel.BackgroundColor3 = Color3.fromRGB(255, 248, 218)
 panel.BorderSizePixel = 0
 panel.Parent = gui
@@ -66,7 +66,7 @@ corner(search, 9)
 local entityList = Instance.new("ScrollingFrame")
 entityList.Name = "EntityPicker"
 entityList.Position = UDim2.fromOffset(14, 188)
-entityList.Size = UDim2.new(1, -28, 0, 166)
+entityList.Size = UDim2.new(1, -28, 0, 96)
 entityList.BackgroundColor3 = Color3.fromRGB(255, 252, 234)
 entityList.BorderSizePixel = 0
 entityList.ScrollBarThickness = 5
@@ -85,7 +85,7 @@ local selectedBySection = {}
 for _, section in ipairs(sectionNames) do selectedBySection[section] = {} end
 local activeStop
 local sectionButtons = {}
-local status = label(panel, "Chưa bật định vị vật thể", UDim2.fromOffset(176, 366), UDim2.new(1, -354, 0, 34), Color3.fromRGB(125, 92, 43), Enum.Font.GothamMedium, 12, Enum.TextXAlignment.Center)
+local status = label(panel, "Chưa bật định vị vật thể", UDim2.fromOffset(140, 296), UDim2.new(1, -280, 0, 34), Color3.fromRGB(125, 92, 43), Enum.Font.GothamMedium, 12, Enum.TextXAlignment.Center)
 local function button(parent, text, color, textColor)
 	local b = Instance.new("TextButton")
 	b.Size = UDim2.new(1, 0, 1, 0)
@@ -151,8 +151,8 @@ for index, section in ipairs(sectionNames) do
 end
 search:GetPropertyChangedSignal("Text"):Connect(refreshEntities)
 local stopButton = button(panel, "Tắt định vị", Color3.fromRGB(255, 190, 176))
-stopButton.Position = UDim2.new(0, 14, 1, -48)
-stopButton.Size = UDim2.fromOffset(145, 34)
+stopButton.Position = UDim2.new(0, 12, 1, -44)
+stopButton.Size = UDim2.fromOffset(118, 32)
 stopButton.Activated:Connect(function()
 	for _, selected in pairs(selectedBySection) do table.clear(selected) end
 	if activeStop then activeStop(); activeStop = nil end
@@ -160,8 +160,8 @@ stopButton.Activated:Connect(function()
 	status.Text = "Đã tắt định vị và bỏ chọn vật thể"
 end)
 local hideButton = button(panel, "Ẩn menu", Color3.fromRGB(255, 232, 167))
-hideButton.Position = UDim2.new(1, -159, 1, -48)
-hideButton.Size = UDim2.fromOffset(145, 34)
+hideButton.Position = UDim2.new(1, -130, 1, -44)
+hideButton.Size = UDim2.fromOffset(118, 32)
 local reopen = button(gui, "🍌 Mở menu", Color3.fromRGB(255, 224, 125))
 reopen.AnchorPoint = Vector2.new(0.5, 1)
 reopen.Position = UDim2.new(0.5, 0, 1, -18)
