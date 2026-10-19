@@ -39,7 +39,7 @@ doors-entity-radar/
 1. Use a **test place you own**. Install Rojo and its Studio plugin.
 2. From this directory, run `rojo serve default.project.json`, then connect with the Studio plugin.
 3. Rojo maps `src/Shared` to `ReplicatedStorage.DoorsEntityRadar.Shared`; `src/Client` maps to `StarterPlayer.StarterPlayerScripts.DoorsEntityRadar`.
-4. Press **Play**. The GUI appears. Select an area and one or more names, then press **Start**. `Refresh` scans again; `Pause` stops event tracking; `Resume` rebinds and scans; `Stop` clears live matches. The close button hides the panel without stopping detection; the floating `Radar` button reopens it.
+4. Press **Play**. The GUI appears and automatically starts scanning all catalog names in the default area, The Hotel. Choose another area to automatically select and scan that area's names. Click rows to include/exclude individual names. `Refresh` scans again; `Pause` stops event tracking; `Resume` rebinds and scans; `Stop` clears live matches. The close button hides the panel without stopping detection; the floating `Radar` button reopens it.
 5. Use the Studio **View → Output** window for `[DoorsEntityRadar]` diagnostics.
 
 ## Exact name aliases

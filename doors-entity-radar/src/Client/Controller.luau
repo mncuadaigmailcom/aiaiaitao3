@@ -37,6 +37,7 @@ function Controller.new(playerGui, catalog, detector)
 		section = catalog.Sections[1], selected = {}, selectedEntry = nil,
 		connections = {}, closed = false, lastPaint = 0,
 	}, Controller)
+	self:_selectSection(self.section)
 	self:_build()
 	return self
 end
@@ -49,6 +50,16 @@ function Controller:_button(parent, text, size, color)
 	}, parent)
 	round(button, 8)
 	return button
+end
+
+function Controller:_selectSection(section)
+	self.section = section
+	self.selected = {}
+	self.selectedEntry = nil
+	for _, entry in ipairs(section.entities) do
+		self.selected[entry.name] = entry
+		if not self.selectedEntry then self.selectedEntry = entry end
+	end
 end
 
 function Controller:_build()
@@ -99,10 +110,10 @@ function Controller:_build()
 		button.LayoutOrder = index
 		self.sectionButtons[section.name] = button
 		button.Activated:Connect(function()
-			self.section = section
-			self.selectedEntry = nil
+			self:_selectSection(section)
 			self.search.Text = ""
 			self:_renderSections(); self:_renderEntities(); self:_renderDetail()
+			if self.detector.active then self.detector:SetSelection(self:_selectedEntries()) end
 		end)
 	end
 
@@ -164,6 +175,8 @@ function Controller:_build()
 			if self.detector.active then self:_renderDetail(); self:_renderState() end
 		end
 	end)
+	-- Mặc định tự chọn toàn bộ tên của khu vực đầu tiên và bắt đầu quét.
+	self:_start()
 end
 
 function Controller:_renderSections()
