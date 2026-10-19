@@ -1,0 +1,15 @@
+{
+  "name": "doors-entity-radar",
+  "version": "1.0.0",
+  "private": true,
+  "description": "DOORS Entity Radar - LocalScript Luau, chi doc du lieu client duoc phep doc, khong executor, khong doi tro choi",
+  "scripts": {
+    "build": "node tools/bundle.js",
+    "syntax": "node tools/check-syntax.js",
+    "lint": "node tools/lint-conventions.js",
+    "docs": "node tools/gen-catalog-doc.js",
+    "test": "node tools/run-tests.js",
+    "test:file": "node tools/run-tests.js",
+    "check": "node tools/lint-conventions.js && node tools/check-syntax.js && node tools/bundle.js && node tools/gen-catalog-doc.js && node tools/run-tests.js"
+  }
+}

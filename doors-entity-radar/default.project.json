@@ -1,0 +1,25 @@
+{
+  "name": "doors-entity-radar",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "$className": "ReplicatedStorage",
+      "DoorsEntityRadar": {
+        "$className": "Folder",
+        "Shared": { "$path": "src/Shared" },
+        "Client": { "$path": "src/Client" },
+        "Server": { "$path": "src/Server" }
+      }
+    },
+    "StarterPlayer": {
+      "$className": "StarterPlayer",
+      "StarterPlayerScripts": {
+        "$className": "StarterPlayerScripts",
+        "DoorsEntityRadar": {
+          "$className": "LocalScript",
+          "$path": "bundle/doors-entity-radar.luau"
+        }
+      }
+    }
+  }
+}
