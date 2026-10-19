@@ -1,4 +1,4 @@
--- Standalone Studio LocalScript: Banana Cat menu + Doors entity locator.
+-- Standalone Studio LocalScript: horizontal Banana Cat menu + Doors entity locator.
 -- Doors entity locator for a Roblox experience you own, used in Roblox Studio.
 -- This is an opt-in visual debugging aid, not an executor script. It only scans
 -- descendants replicated to the client and does not reveal occluded/unloaded objects.
@@ -107,9 +107,9 @@ gui.Parent = playerGui
 
 local panel = Instance.new("Frame")
 panel.Name = "Panel"
-panel.AnchorPoint = Vector2.new(1, 0.5)
-panel.Position = UDim2.new(1, -20, 0.5, 0)
-panel.Size = UDim2.fromOffset(270, 430)
+panel.AnchorPoint = Vector2.new(0.5, 1)
+panel.Position = UDim2.new(0.5, 0, 1, -18)
+panel.Size = UDim2.fromOffset(700, 250)
 panel.BackgroundColor3 = Color3.fromRGB(255, 248, 218)
 panel.BorderSizePixel = 0
 panel.Parent = gui
@@ -136,16 +136,17 @@ subtitle.TextSize = 11
 subtitle.Parent = panel
 local list = Instance.new("ScrollingFrame")
 list.Name = "Sections"
-list.Position = UDim2.fromOffset(12, 70)
-list.Size = UDim2.new(1, -24, 1, -124)
+list.Position = UDim2.fromOffset(14, 72)
+list.Size = UDim2.new(1, -28, 0, 112)
 list.BackgroundTransparency = 1
 list.BorderSizePixel = 0
 list.ScrollBarThickness = 4
 list.CanvasSize = UDim2.new()
 list.AutomaticCanvasSize = Enum.AutomaticSize.Y
 list.Parent = panel
-local layout = Instance.new("UIListLayout")
-layout.Padding = UDim.new(0, 6)
+local layout = Instance.new("UIGridLayout")
+layout.CellSize = UDim2.new(0.25, -6, 0, 40)
+layout.CellPadding = UDim2.fromOffset(8, 8)
 layout.SortOrder = Enum.SortOrder.LayoutOrder
 layout.Parent = list
 local activeStop
@@ -174,18 +175,18 @@ for index, section in ipairs(sectionNames) do
 	end)
 end
 local stopButton = makeButton("🍌  Tắt định vị", panel, Color3.fromRGB(255, 190, 176))
-stopButton.Position = UDim2.new(0, 10, 1, -42)
-stopButton.Size = UDim2.new(0.5, -14, 0, 32)
+stopButton.Position = UDim2.new(0, 14, 1, -48)
+stopButton.Size = UDim2.fromOffset(150, 34)
 stopButton.Activated:Connect(function()
 	if activeStop then activeStop(); activeStop = nil end
 end)
 local hideButton = makeButton("Ẩn menu  ☁", panel, Color3.fromRGB(255, 232, 167))
-hideButton.Position = UDim2.new(0.5, 4, 1, -42)
-hideButton.Size = UDim2.new(0.5, -14, 0, 32)
+hideButton.Position = UDim2.new(1, -164, 1, -48)
+hideButton.Size = UDim2.fromOffset(150, 34)
 local reopenButton = makeButton("🍌 Mở menu", gui, Color3.fromRGB(255, 224, 125))
-reopenButton.AnchorPoint = Vector2.new(1, 0.5)
-reopenButton.Position = UDim2.new(1, -20, 0.5, 0)
-reopenButton.Size = UDim2.fromOffset(110, 38)
+reopenButton.AnchorPoint = Vector2.new(0.5, 1)
+reopenButton.Position = UDim2.new(0.5, 0, 1, -18)
+reopenButton.Size = UDim2.fromOffset(150, 40)
 reopenButton.Visible = false
 hideButton.Activated:Connect(function()
 	panel.Visible = false
