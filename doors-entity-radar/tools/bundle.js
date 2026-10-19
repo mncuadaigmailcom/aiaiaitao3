@@ -37,12 +37,21 @@ function walk(dir, base = '') {
   return out;
 }
 
-/** Nhúng an toàn vào chuỗi Luau: ưu tiên long string, fallback JSON. */
+/**
+ * Nhúng module vào chuỗi Luau bằng long string `[==[ ... ]==]`.
+ *
+ * Trước đây hễ nguồn có `]]` (mọi module đều mở đầu bằng chú thích `--[[ ... ]]`)
+ * là fallback sang JSON.stringify -> cả module thành MỘT DÒNG dài 12.000 ký tự,
+ * bundle 290 KB chỉ có 81 dòng, mở trên GitHub thành một bức tường khó đọc.
+ * Giờ chọn mức `=` đủ cao để chuỗi kết thúc không xuất hiện trong nguồn,
+ * nhờ đó bundle giữ nguyên xuống dòng — đọc được như mã thường.
+ */
 function embed(source) {
-  if (source.includes(']]')) {
-    return JSON.stringify(source).replace(/^\uFEFF/, '');
-  }
-  return `[[\n${source.replace(/\n$/, '')}\n]]`;
+  const body = source.replace(/^\uFEFF/, '').replace(/\s+$/, '');
+  let level = 0;
+  while (body.includes(`]${'='.repeat(level)}]`)) level += 1;
+  const bar = '='.repeat(level);
+  return `[${bar}[\n${body}\n]${bar}]`;
 }
 
 function readModules() {
