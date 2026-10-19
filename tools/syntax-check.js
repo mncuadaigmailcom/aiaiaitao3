@@ -107,9 +107,11 @@ function main() {
   }
   targets.push({ abs: path.join(ROOT, 'tools', 'luau-prelude.luau'), label: 'tools/luau-prelude.luau' });
 
-  const distFile = path.join(ROOT, 'dist', 'roblox-anti-lag-optimizer.luau');
-  if (fs.existsSync(distFile)) {
-    targets.push({ abs: distFile, label: 'dist/roblox-anti-lag-optimizer.luau' });
+  const distDir = path.join(ROOT, 'dist');
+  if (fs.existsSync(distDir)) {
+    for (const rel of walk(distDir)) {
+      targets.push({ abs: path.join(distDir, rel), label: `dist/${rel}` });
+    }
   }
 
   for (const target of targets) {

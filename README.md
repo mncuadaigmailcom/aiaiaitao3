@@ -5,7 +5,7 @@ không dùng executor, không dùng `setrbxsetting`, không can thiệp anti-che
 
 > ## ⚠️ Đọc trước — mức độ đã kiểm chứng thật
 >
-> - **Đã kiểm chứng tự động (115 test)** trên máy ảo Lua 5.3 (fengari) + mock Roblox API.
+> - **Đã kiểm chứng tự động (123 test)** trên máy ảo Lua 5.3 (fengari) + mock Roblox API.
 >   Đây **KHÔNG phải Roblox Studio**. Nó chứng minh **logic** đúng, không chứng minh
 >   API Roblox hoạt động giống hệt mock.
 > - **Chưa chạy trong Roblox Studio**: môi trường phát triển không có Roblox Studio.
@@ -141,6 +141,7 @@ ghi — nó bỏ qua và log lại (`restore.respectStale = true`). Đó là ch�
 | [docs/06-bao-cao-test-loi.md](docs/06-bao-cao-test-loi.md) | Bảng test, bảng lỗi, mục chưa kiểm chứng |
 | [docs/07-do-luong-hoan-tac.md](docs/07-do-luong-hoan-tac.md) | Đo trước/sau, quy trình hoàn tác |
 | [docs/08-nghiem-thu.md](docs/08-nghiem-thu.md) | Đối chiếu 12 tiêu chí nghiệm thu |
+| [docs/10-doors-dev-locator.md](docs/10-doors-dev-locator.md) | Bộ định vị QA Studio-only, tag thủ công, 8 khu vực |
 
 ---
 
@@ -150,9 +151,11 @@ ghi — nó bỏ qua và log lại (`restore.respectStale = true`). Đó là ch�
 npm run lint      # 4 quy ước an toàn tĩnh (0 vi phạm)
 npm run catalog   # đối chiếu danh mục phương pháp với mã nguồn thật
 npm run syntax    # phân tích cú pháp toàn bộ .luau
-npm run test      # 115 test trên máy ảo Lua + mock Roblox
-npm run check     # chạy cả bốn bước trên
+npm run test      # 123 test trên máy ảo Lua + mock Roblox
+npm run test:doors-locator # chỉ chạy test bộ định vị Studio-only
+npm run check     # chạy lint, catalog, syntax và toàn bộ test
 npm run build     # tạo dist/roblox-anti-lag-optimizer.luau
+npm run build:doors-locator # tạo dist/roblox-doors-dev-locator.luau (chỉ Studio)
 ```
 
 ---
@@ -168,3 +171,19 @@ npm run build     # tạo dist/roblox-anti-lag-optimizer.luau
 4. Hệ thống **không bao giờ** xoá map, nhân vật, vật phẩm hay hiệu ứng quan trọng;
    chỉ tắt tạm thời ở khoảng cách xa và bật lại khi lại gần.
 5. Hệ thống **không bao giờ** đổi tham số gameplay để lấy FPS.
+
+## 6. Bộ định vị QA cho trải nghiệm của bạn (Studio-only)
+
+Repo có thêm một công cụ gỡ lỗi riêng cho **place do bạn sở hữu**: menu 8 khu vực,
+nút nổi ẨN/MỞ MENU và nhãn khoảng cách trên các object bạn chủ động tag. Nó chỉ
+chạy khi `RunService:IsStudio()` là `true`; nó **không phải ESP cho DOORS trực tuyến**,
+không quét Workspace theo tên và không thể định vị object trong game của người khác.
+
+- Danh mục: `src/Shared/DoorsCatalog.luau` (110 tên, 8 khu vực).
+- Cách đánh tag / cài / kiểm thử: [docs/10-doors-dev-locator.md](docs/10-doors-dev-locator.md).
+- Bundle riêng: `npm run build:doors-locator` → `dist/roblox-doors-dev-locator.luau`.
+- Test riêng: `npm run test:doors-locator`.
+
+Cần gắn `RALO_DoorsDevLocator`, `RALO_LocatorSection` và `RALO_LocatorName` vào
+object trong Studio. Object không được chủ game tag hoặc không khớp catalog sẽ bị
+bỏ qua. Việc ẩn menu không tắt marker; mỗi nút khu vực bật/tắt marker riêng.

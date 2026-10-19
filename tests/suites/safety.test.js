@@ -207,6 +207,7 @@ module.exports = function safetySuite(suite) {
       'Client/Ui/Notifier.luau',     // gỡ khung GUI của chính nó
       'Client/Ui/Progress.luau',     // huỷ BindableEvent của chính nó
       'Client/Core/Pipeline.luau',   // gọi notifier:Destroy() (không phải instance)
+      'Client/Debug/DoorsLocator.luau', // chỉ huỷ BillboardGui/ScreenGui do QA tool tự tạo
     ];
     const hits = [];
     const walk = (dir) => {

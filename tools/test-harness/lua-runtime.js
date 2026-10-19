@@ -381,10 +381,13 @@ class LuaRuntime {
    * rồi lắp lại bằng CHÍNH hàm renderBundle của tools/build.js — cùng một
    * khuôn bundle, chỉ khác lớp cú pháp.
    */
-  loadBundle({ fromDist = false } = {}) {
+  loadBundle({ fromDist = false, entry = 'Client/Bootstrap' } = {}) {
     let code;
     if (fromDist) {
-      const distPath = path.join(ROOT, 'dist', 'roblox-anti-lag-optimizer.luau');
+      const distName = entry === 'Client/Debug/DoorsLocatorBundle'
+        ? 'roblox-doors-dev-locator.luau'
+        : 'roblox-anti-lag-optimizer.luau';
+      const distPath = path.join(ROOT, 'dist', distName);
       if (!fs.existsSync(distPath)) {
         throw new Error('chưa có dist — chạy `npm run build` trước');
       }
@@ -394,7 +397,7 @@ class LuaRuntime {
       const { modules } = readModules();
       const transpiled = new Map();
       for (const [key, source] of modules) transpiled.set(key, transpile(source));
-      code = renderBundle(transpiled).bundle;
+      code = renderBundle(transpiled, { entry }).bundle;
     }
     // Test phải tất định: tắt auto-run của Bootstrap, test sẽ tự gọi Start().
     this.run('_RALO_NO_AUTORUN = true', 'no-autorun');

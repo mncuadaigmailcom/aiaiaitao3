@@ -5,11 +5,13 @@
   "private": true,
   "scripts": {
     "build": "node tools/build.js",
+    "build:doors-locator": "node tools/build.js --doors-locator",
     "syntax": "node tools/syntax-check.js",
     "catalog": "node tools/verify-catalog.js",
     "lint": "node tools/lint-conventions.js",
     "test": "node tools/test-harness/run.js",
     "test:file": "node tools/test-harness/run.js",
+    "test:doors-locator": "node tools/test-harness/run.js doors-locator",
     "check": "node tools/lint-conventions.js && node tools/verify-catalog.js && node tools/syntax-check.js && node tools/test-harness/run.js",
     "smoke": "node tools/test-harness/smoke.js"
   },

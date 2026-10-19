@@ -6,22 +6,23 @@
 npm run check
 ```
 
-Kết quả thật, ngày 2026-10-18:
+Kết quả thật, ngày 2026-10-19:
 
 | Bước | Lệnh | Kết quả |
 | ---- | ---- | ------- |
-| Lint tĩnh | `npm run lint` | ✓ Không có vi phạm (36 tệp .luau) |
+| Lint tĩnh | `npm run lint` | ✓ Không có vi phạm (40 tệp .luau) |
 | Đối chiếu danh mục | `npm run catalog` | ✓ 190 phương pháp khớp mã nguồn thật |
-| Cú pháp | `npm run syntax` | ✓ 38 tệp, lỗi: 0 |
-| Test tự động | `npm run test` | ✓ đạt 115 / hỏng 0 / tổng 115 |
+| Cú pháp | `npm run syntax` | ✓ 43 tệp, lỗi: 0 |
+| Test tự động | `npm run test` | ✓ đạt 123 / hỏng 0 / tổng 123 |
 
-### 11 bộ test
+### 12 bộ test
 
 | Bộ | Số test | Kiểm chứng điều gì |
 | -- | ------- | ------------------ |
 | `catalog` | 7 | Danh mục khớp mã nguồn: mọi A/B/C có tệp thật + marker, mọi B có test khai id, D/E không trỏ vào tệp nguồn, id không trùng, đủ 10 trường |
 | `config` | 13 | Cấu hình, `mode`, bật/tắt nhóm, phân loại thiết bị |
 | `cull` | 10 | Tắt ở xa / bật lại khi gần, có trần, không xoá |
+| `doors-locator` | 8 | Catalog 8 khu vực, Studio-only, tag tường minh, menu và marker, dọn tài nguyên |
 | `guard` | 9 | Kiểm tra tồn tại, stale-guard, phân lập lỗi |
 | `gui` | 16 | Không trùng lặp, không kéo thả được, không âm thanh, phần trăm ≤ 100, tự huỷ sạch |
 | `pipeline` | 15 | Tích hợp toàn luồng: đo, tắt nhóm, giới hạn hạt, hoàn tác, lỗi |

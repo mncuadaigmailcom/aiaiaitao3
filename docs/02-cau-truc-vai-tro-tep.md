@@ -1,6 +1,6 @@
 # 2. Cây thư mục và vai trò từng tệp
 
-Tổng: **36 tệp `.luau`, 9.246 dòng**, không có tệp thừa, không có module bị thiếu.
+Hiện có **40 tệp `.luau`, 10.074 dòng**; gồm hệ thống Anti-Lag và công cụ QA Studio-only được mô tả ở [10](10-doors-dev-locator.md).
 
 ## 2.1 Cây thư mục
 
@@ -10,8 +10,9 @@ aiaiaitao3/
 ├── package.json                  Lệnh lint / catalog / syntax / test / build
 ├── README.md                     Cổng vào
 ├── dist/
-│   └── roblox-anti-lag-optimizer.luau   Bundle một tệp để dán vào LocalScript
-├── docs/                         Tài liệu (01 → 08)
+│   ├── roblox-anti-lag-optimizer.luau   Bundle một tệp cho Anti-Lag
+│   └── roblox-doors-dev-locator.luau    Bundle QA riêng, chỉ chạy trong Studio
+├── docs/                         Tài liệu (01 → 10)
 ├── src/
 │   ├── Shared/                   → ReplicatedStorage.RALO
 │   │   ├── RequireShim.luau      Shim require theo đường dẫn chuỗi
@@ -21,7 +22,8 @@ aiaiaitao3/
 │   │   ├── Types.luau            Định nghĩa kiểu Luau
 │   │   ├── Safety.luau           Danh sách thuộc tính được phép + lớp được bảo vệ
 │   │   ├── Config.luau           CẤU HÌNH DUY NHẤT của toàn hệ thống
-│   │   └── Methods.luau          Danh mục 190 phương pháp, 30 nhóm, trạng thái A–E
+│   │   ├── Methods.luau          Danh mục 190 phương pháp, 30 nhóm, trạng thái A–E
+│   │   └── DoorsCatalog.luau     Catalog 110 nhãn QA, 8 khu vực
 │   ├── Client/                   → StarterPlayer.StarterPlayerScripts.RALO
 │   │   ├── Bootstrap.luau        LocalScript — điểm khởi động duy nhất
 │   │   ├── Core/
@@ -48,6 +50,10 @@ aiaiaitao3/
 │   │   │   ├── Effects.luau      GIỚI HẠN hạt/ánh sáng, không xoá
 │   │   │   ├── Memory.luau       Dọn tham chiếu cũ của chính hệ thống
 │   │   │   └── Physics.luau      Tinh chỉnh phía client, đảo ngược được
+│   │   ├── Debug/
+│   │   │   ├── DoorsLocator.luau                  Module QA, tag tường minh, Studio-only
+│   │   │   ├── DoorsLocatorBootstrap.client.luau LocalScript chạy khi Play trong Studio
+│   │   │   └── DoorsLocatorBundle.luau            Entry riêng cho bundle QA
 │   │   └── Ui/
 │   │       ├── Theme.luau        Màu, bo góc, cỡ chữ
 │   │       ├── Widget.luau       Tạo instance có kiểm tra thuộc tính
@@ -58,7 +64,7 @@ aiaiaitao3/
 ├── tests/
 │   ├── lib/assert.js             Bộ khẳng định không phụ thuộc
 │   ├── lib/runtime.js            Nối Node với máy ảo Lua + mock Roblox
-│   └── suites/*.test.js          11 bộ, 115 test
+│   └── suites/*.test.js          12 bộ, 123 test
 └── tools/
     ├── luau-to-lua.js            Chuyển Luau → Lua 5.3 để test được
     ├── luau-prelude.luau         Polyfill cho Lua 5.3
@@ -83,9 +89,8 @@ Bootstrap → Pipeline → Plan → {Graphics, Effects, Memory, Physics, Scan}
                                       Cull, Spatial, Measure, Profile, Perf,
                                       Cpu, Devices, Net, Env, Runner)
                             ↘ Ui (Notifier → Progress → Widget → Theme, GuiPolicy)
-Mọi tầng → Shared (Config, Safe, Safety, Log, Hsv, Methods, RequireShim, Types)
+Mọi tầng → Shared (Config, Safe, Safety, Log, Hsv, Methods, DoorsCatalog, RequireShim, Types)
+DoorsLocatorBootstrap → DoorsLocator → DoorsCatalog + CollectionService/RunService/Players
 ```
 
-Không module nào trong `src/Client` gọi thẳng `game:GetService` ngoài `Env`,
-`Devices`, `Net` và `Notifier` — bốn tệp này là **ranh giới duy nhất** với API Roblox,
-nên phần còn lại có thể chạy trong mock để test.
+Các module Anti-Lag dùng lớp môi trường riêng. Công cụ `DoorsLocator` là ngoại lệ tách biệt: nó chỉ lấy ba service cần thiết trong Studio, và chỉ đọc object được chủ game gắn tag QA.

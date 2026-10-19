@@ -22,8 +22,10 @@ const SRC = path.join(ROOT, 'src');
 const OUT_DIR = path.join(ROOT, 'dist');
 const OUT_FILE = path.join(OUT_DIR, 'roblox-anti-lag-optimizer.luau');
 
-// Điểm khởi động của bundle (đường dẫn module tương đối src/)
+// Điểm khởi động của từng bundle (đường dẫn module tương đối src/)
 const ENTRY = 'Client/Bootstrap';
+const DOORS_LOCATOR_ENTRY = 'Client/Debug/DoorsLocatorBundle';
+const DOORS_LOCATOR_OUT_FILE = path.join(OUT_DIR, 'roblox-doors-dev-locator.luau');
 
 function walk(dir, base = '') {
   const out = [];
@@ -63,46 +65,47 @@ function readModules() {
  * Harness dùng ĐÚNG hàm này với source đã transpile sang Lua 5.3,
  * nên cấu trúc bundle được kiểm thử giống hệt bản dist thật.
  */
-function renderBundle(moduleMap) {
+function renderBundle(moduleMap, options = {}) {
+  const entry = options.entry || ENTRY;
+  const outputFile = options.outputFile || OUT_FILE;
+  const productName = options.productName || (entry === DOORS_LOCATOR_ENTRY
+    ? 'Roblox DOORS Dev Locator (Studio-only)'
+    : 'Roblox Anti-Lag Optimizer');
   const keys = [...moduleMap.keys()].sort();
-  if (!moduleMap.has(ENTRY)) {
-    throw new Error(`renderBundle: thiếu module khởi động '${ENTRY}'`);
+  if (!moduleMap.has(entry)) {
+    throw new Error(`renderBundle: thiếu module khởi động '${entry}'`);
   }
   const modules = keys
-    .filter((k) => k !== ENTRY)
+    .filter((k) => k !== entry)
     .map((key) => `\t[${JSON.stringify(key)}] = ${embed(moduleMap.get(key))},`)
     .join('\n');
-  const initSource = moduleMap.get(ENTRY);
+  const initSource = moduleMap.get(entry);
+
+  const outputName = path.basename(outputFile);
+  const locatorNotes = entry === DOORS_LOCATOR_ENTRY
+    ? `\tCông cụ QA chạy DUY NHẤT trong Roblox Studio và chỉ với tag do bạn tự gắn.\n\tNó không quét game của người khác; không dùng executor/loadstring.`
+    : `\tLocalScript chỉ ảnh hưởng client trong game do bạn sở hữu.\n\tKhông dùng executor, loadstring, setrbxsetting hay can thiệp anti-cheat.`;
 
   const banner = `--[[
-	dist/roblox-anti-lag-optimizer.luau
-	TỆP SINH TỰ ĐỘNG bởi tools/build.js — ĐỪNG SỬA TAY.
-	Nguồn: src/**.luau
+\tdist/${outputName}
+\t${productName} — bundle sinh tự động bởi tools/build.js; đừng sửa tay.
+\tNguồn: src/**.luau
 
-	${keys.length} module, sinh lúc ${new Date().toISOString()}
+\t${keys.length} module, sinh lúc ${new Date().toISOString()}
 
-	CÁCH NẠP (Roblox Studio, game bạn SỞ HỮU):
-	  1. StarterPlayer -> StarterPlayerScripts -> Insert Object -> LocalScript
-	  2. Trong Properties, đặt LocalScript đó RunContext = Legacy
-	  3. Dán TOÀN BỘ nội dung tệp này vào, rồi Play
+\tCÁCH NẠP (Roblox Studio, trải nghiệm bạn sở hữu):
+\t  1. StarterPlayer -> StarterPlayerScripts -> Insert Object -> LocalScript
+\t  2. Trong Properties, đặt RunContext = Legacy
+\t  3. Dán TOÀN BỘ tệp này vào LocalScript rồi bấm Play
 
-	KHÔNG dùng loadstring() và KHÔNG dùng executor:
-	  * loadstring bị TẮT mặc định và chỉ chạy được ở SERVER script,
-	    không chạy trong LocalScript (ServerScriptService.LoadStringEnabled
-	    mặc định = false, và thuộc tính này không script được).
-	  * Muốn loadstring(game:HttpGet(...))() chạy được thì bắt buộc phải có
-	    executor. Dự án này KHÔNG hỗ trợ và KHÔNG khuyến khích cách đó:
-	    nó nằm ngoài phạm vi "chỉ game bạn sở hữu, không executor".
-	  * Hệ thống là LocalScript: chỉ tối ưu được CLIENT của người chơi,
-	    và CHỈ trong game có chứa nó. Không có cách hợp lệ nào để "gắn vào
-	    game của người khác".
+${locatorNotes}
 ]]
 `;
 
   const bundle = `${banner}
 local __RALO_MODULES = {
 ${modules}
-	[${JSON.stringify(ENTRY)}] = ${embed(initSource)},
+	[${JSON.stringify(entry)}] = ${embed(initSource)},
 }
 
 local __RALO_CACHE = {}
@@ -142,32 +145,47 @@ end
 local __RALO_ENV = getfenv and getfenv(1) or _ENV
 __RALO_ENV.__RALO_REQUIRE = __RALO_REQUIRE
 
--- Nạp điểm khởi động. Bootstrap tự chạy pipeline khi được nạp.
-local __RALO_BOOTSTRAP = __RALO_REQUIRE(${JSON.stringify(ENTRY)})
+-- Nạp điểm khởi động của bundle (tối ưu hoá hoặc công cụ QA).
+local __RALO_BOOTSTRAP = __RALO_REQUIRE(${JSON.stringify(entry)})
 
--- Trả về bootstrap để người dùng gọi lại Start() với cấu hình riêng.
+-- Trả về module điểm khởi động để có thể chẩn đoán khi cần.
 return __RALO_BOOTSTRAP
 `;
 
   return { bundle, moduleCount: keys.length };
 }
 
-function build() {
+function build(options = {}) {
   const { files, modules } = readModules();
-  const { bundle, moduleCount } = renderBundle(modules);
+  const entry = options.entry || ENTRY;
+  const outputFile = options.outputFile || OUT_FILE;
+  const { bundle, moduleCount } = renderBundle(modules, {
+    ...options,
+    entry,
+    outputFile,
+  });
 
-  fs.mkdirSync(OUT_DIR, { recursive: true });
-  fs.writeFileSync(OUT_FILE, bundle, 'utf8');
+  fs.mkdirSync(path.dirname(outputFile), { recursive: true });
+  fs.writeFileSync(outputFile, bundle, 'utf8');
 
-  const stats = fs.statSync(OUT_FILE);
-  return { file: OUT_FILE, files, bytes: stats.size, moduleCount };
+  const stats = fs.statSync(outputFile);
+  return { file: outputFile, files, bytes: stats.size, moduleCount };
 }
 
 if (require.main === module) {
-  const result = build();
+  const doorsLocator = process.argv.includes('--doors-locator');
+  const options = doorsLocator
+    ? {
+      entry: DOORS_LOCATOR_ENTRY,
+      outputFile: DOORS_LOCATOR_OUT_FILE,
+      productName: 'Roblox DOORS Dev Locator (Studio-only)',
+    }
+    : {};
+  const result = build(options);
   console.log(`Đã gộp ${result.files.length} module -> ${path.relative(ROOT, result.file)}`);
+  console.log(`Module khởi động: ${options.entry || ENTRY}`);
   console.log(`Kích thước: ${(result.bytes / 1024).toFixed(1)} KB`);
   for (const f of result.files) console.log(`  - src/${f}`);
 }
 
-module.exports = { build, readModules, renderBundle, SRC, OUT_FILE };
+module.exports = { build, readModules, renderBundle, SRC, OUT_FILE, DOORS_LOCATOR_ENTRY, DOORS_LOCATOR_OUT_FILE };

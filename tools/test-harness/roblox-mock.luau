@@ -161,6 +161,7 @@ local CLASS_DEFAULTS = {
 	Texture = { Transparency = 0 },
 	Humanoid = { AutomaticScalingEnabled = true },
 	ScreenGui = { Enabled = true, ResetOnSpawn = true },
+	BillboardGui = { Enabled = true },
 	Frame = { Visible = true, BackgroundTransparency = 0 },
 	TextLabel = { Visible = true, Text = "", BackgroundTransparency = 1 },
 	TextButton = { Visible = true, Text = "", AutoButtonColor = true },
@@ -197,6 +198,7 @@ local function makeInstance(className)
 	local api = {}
 	local children = {}
 	local changedSignals = {}
+	local attributes = {}
 	local parentSignal = Signal.new()
 
 	local self = {}
@@ -305,7 +307,15 @@ local function makeInstance(className)
 	end
 
 	function api.IsA(_self, name)
-		return props.ClassName == name
+		if props.ClassName == name then
+			return true
+		end
+		if name == "BasePart" then
+			return props.ClassName == "Part" or props.ClassName == "MeshPart"
+				or props.ClassName == "UnionOperation" or props.ClassName == "WedgePart"
+				or props.ClassName == "CornerWedgePart" or props.ClassName == "TrussPart"
+		end
+		return false
 	end
 
 	function api.Destroy(_self)
@@ -327,6 +337,25 @@ local function makeInstance(className)
 		return changedSignals[property]
 	end
 
+	function api.SetAttribute(_self, name, value)
+		if type(name) ~= "string" then
+			error("mock SetAttribute cần tên string")
+		end
+		attributes[name] = value
+	end
+
+	function api.GetAttribute(_self, name)
+		return attributes[name]
+	end
+
+	function api.GetAttributes(_self)
+		local out = {}
+		for name, value in pairs(attributes) do
+			out[name] = value
+		end
+		return out
+	end
+
 	function api.CountDescendants(_self)
 		return #api.GetDescendants(self)
 	end
@@ -337,6 +366,7 @@ local function makeInstance(className)
 
 	------------------------------------------------------- per-class extras
 	if className == "TextButton" then
+		api.Activated = Signal.new()
 		api.MouseButton1Click = Signal.new()
 	end
 
@@ -358,6 +388,9 @@ local function makeInstance(className)
 		api.RenderStepped = Signal.new()
 		api.Heartbeat = Signal.new()
 		api.Stepped = Signal.new()
+		api.IsStudio = function()
+			return true
+		end
 		-- GetRenderStepTime trả về độ dài khung hình do scheduler ảo tính
 		-- từ mô hình chi phí (xem ComputeFrameCost). Không hard-code.
 		api.GetRenderStepTime = function()
@@ -418,6 +451,77 @@ function Mock.CreateGame()
 	local game = makeInstance("DataModel")
 	game.Name = "Game"
 	local services = {}
+	local tagsByInstance = setmetatable({}, { __mode = "k" })
+	local instancesByTag = {}
+	local addedSignals = {}
+	local removedSignals = {}
+
+	local function getTagSignal(signalMap, tag)
+		if signalMap[tag] == nil then
+			signalMap[tag] = Signal.new()
+		end
+		return signalMap[tag]
+	end
+
+	local function attachCollectionApi(service)
+		Mock.AttachApi(service, "GetTagged", function(_self, tag)
+			local source = instancesByTag[tag] or {}
+			local out = {}
+			for _, instance in ipairs(source) do
+				local tags = tagsByInstance[instance]
+				if tags ~= nil and tags[tag] == true then
+					table.insert(out, instance)
+				end
+			end
+			return out
+		end)
+		Mock.AttachApi(service, "GetInstanceAddedSignal", function(_self, tag)
+			return getTagSignal(addedSignals, tag)
+		end)
+		Mock.AttachApi(service, "GetInstanceRemovedSignal", function(_self, tag)
+			return getTagSignal(removedSignals, tag)
+		end)
+		Mock.AttachApi(service, "AddTag", function(_self, instance, tag)
+			local tags = tagsByInstance[instance]
+			if tags == nil then
+				tags = {}
+				tagsByInstance[instance] = tags
+			end
+			if tags[tag] == true then
+				return
+			end
+			tags[tag] = true
+			instancesByTag[tag] = instancesByTag[tag] or {}
+			table.insert(instancesByTag[tag], instance)
+			getTagSignal(addedSignals, tag):Fire(instance)
+		end)
+		Mock.AttachApi(service, "RemoveTag", function(_self, instance, tag)
+			local tags = tagsByInstance[instance]
+			if tags == nil or tags[tag] ~= true then
+				return
+			end
+			tags[tag] = nil
+			local list = instancesByTag[tag] or {}
+			for index = #list, 1, -1 do
+				if list[index] == instance then
+					table.remove(list, index)
+					break
+				end
+			end
+			getTagSignal(removedSignals, tag):Fire(instance)
+		end)
+		Mock.AttachApi(service, "HasTag", function(_self, instance, tag)
+			local tags = tagsByInstance[instance]
+			return tags ~= nil and tags[tag] == true
+		end)
+		Mock.AttachApi(service, "GetTags", function(_self, instance)
+			local out = {}
+			for tag, present in pairs(tagsByInstance[instance] or {}) do
+				if present then table.insert(out, tag) end
+			end
+			return out
+		end)
+	end
 
 	-- GetService là method, phải đưa vào bảng api (không phải property thường).
 	Mock.AttachApi(game, "GetService", function(_self, name)
@@ -426,6 +530,9 @@ function Mock.CreateGame()
 			service.Name = name
 			service.Parent = game
 			services[name] = service
+			if name == "CollectionService" then
+				attachCollectionApi(service)
+			end
 		end
 		return services[name]
 	end)

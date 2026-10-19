@@ -4,8 +4,9 @@
 
 | Tệp | Loại script | Vì sao |
 | --- | ----------- | ------ |
-| `src/Client/Bootstrap.luau` | **LocalScript** | Hệ thống chạy ở client, phải có `LocalPlayer`, camera, và `RenderStepped` của client. Script server không có những thứ này. |
-| Mọi tệp khác trong `src/` | **ModuleScript** | Được `require` từ LocalScript. ModuleScript **không tự chạy**, chỉ xuất bảng API. |
+| `src/Client/Bootstrap.luau` | **ModuleScript** | Điểm vào của bộ Anti-Lag; được gọi từ LocalScript/bundle. |
+| `src/Client/Debug/DoorsLocatorBootstrap.client.luau` | **LocalScript** | Entry Rojo cho công cụ QA định vị; chỉ chạy trong Studio và game bạn sở hữu. |
+| Mọi tệp `.luau` còn lại trong `src/` | **ModuleScript** | Được `require` từ LocalScript/bundle; không tự chạy. |
 | `src/Server/` | **rỗng** | Không có mã server. Không RemoteEvent. Không mã trang trí. |
 
 ### Giới hạn cứng của LocalScript
@@ -26,6 +27,8 @@
 | `game:GetService("Workspace").Terrain` (`.Decoration`) | Graphics | Client, đổi được trên client | **Chưa** |
 | `game:GetService("StarterGui")` / `CoreGui` | Notifier | `StarterGui` dùng được; **`CoreGui` cần plugin** → hệ thống dùng `PlayerGui` | **Chưa** |
 | `game:GetService("UserInputService")` | Devices | Client | **Chưa** |
+| `game:GetService("CollectionService")` (`GetTagged`, tag signals) | DoorsLocator | Chỉ object có tag QA trong Studio | **Chưa** |
+| `BillboardGui` trong `PlayerGui` | DoorsLocator | Nhãn QA do chính công cụ tạo | **Chưa** |
 | `os.clock()` | Env.now | Luau | **Chưa** |
 | `collectgarbage("count")` | Measure | Luau | **Chưa** |
 
@@ -43,7 +46,7 @@
 ## 1.4 Kiến trúc
 
 ```
-Bootstrap (LocalScript)
+Bootstrap (ModuleScript/entry bundle)
    └─ Pipeline ── Plan (9 bước, có thứ tự ưu tiên)
         ├─ Guard    : kiểm tra tồn tại + stale-guard + ghi log
         ├─ Restore  : ghi lại giá trị gốc để hoàn tác
@@ -51,6 +54,9 @@ Bootstrap (LocalScript)
         ├─ Registry : theo dõi connection để ngắt khi Shutdown
         ├─ Spatial  : tra cứu theo ô lưới thay vì duyệt toàn thế giới
         └─ Notifier : GUI góc dưới phải, ~30 s, tự huỷ
+
+DoorsLocatorBootstrap.client (LocalScript, Studio-only)
+   └─ DoorsLocator → DoorsCatalog; đọc tag tường minh, chỉ tạo nhãn trong PlayerGui
 ```
 
 Nguyên tắc xuyên suốt:

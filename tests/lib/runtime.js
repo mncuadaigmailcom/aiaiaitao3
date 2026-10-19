@@ -18,11 +18,11 @@ const { LuaRuntime, transpile } = require('../../tools/test-harness/lua-runtime'
 
 const DEFAULT_WORLD = { parts: 60, emitters: 6, emitterRate: 80 };
 
-function createRuntime(world = {}, { bundle = true } = {}) {
+function createRuntime(world = {}, { bundle = true, entry = 'Client/Bootstrap', fromDist = false } = {}) {
   const rt = new LuaRuntime();
   rt.setup({ ...DEFAULT_WORLD, ...world });
   if (bundle) {
-    rt.loadBundle();
+    rt.loadBundle({ entry, fromDist });
     // Test tắt auto-run (để tất định), nên phải tự khởi động Env:
     // nếu không, Env.GetService trả về nil và mọi module cần service chết.
     rt.callModule('Client/Core/Env', 'Init', {});
@@ -85,6 +85,8 @@ function createRuntime(world = {}, { bundle = true } = {}) {
 const P = {
   config: 'Shared/Config',
   methods: 'Shared/Methods',
+  doorsCatalog: 'Shared/DoorsCatalog',
+  doorsLocator: 'Client/Debug/DoorsLocator',
   safety: 'Shared/Safety',
   log: 'Shared/Log',
   safe: 'Shared/Safe',
