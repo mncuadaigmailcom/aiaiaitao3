@@ -129,7 +129,11 @@ ghi — nó bỏ qua và log lại (`restore.respectStale = true`). Đó là ch�
 
 ---
 
-## 3. Tài liệu
+## 3. DOORS ENTITY RADAR (dự án riêng)
+
+Thư mục [doors-entity-radar/](doors-entity-radar/README.md) là dự án Roblox Luau riêng: giao diện tìm/lọc theo 8 khu vực, chọn tên, quét Workspace phía client, báo trạng thái có căn cứ, và chỉ hiện vị trí/khoảng cách/hướng khi lấy được dữ liệu Instance thật. Đây là bộ dò tên tổng quát cho trải nghiệm do bạn sở hữu, **không phải tích hợp đã xác minh với DOORS công khai**. Xem hướng dẫn, giới hạn, cây thư mục và smoke test tại [doors-entity-radar/README.md](doors-entity-radar/README.md).
+
+## 4. Tài liệu
 
 | Tệp | Nội dung |
 | --- | -------- |

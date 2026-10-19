@@ -1,0 +1,20 @@
+{
+  "name": "doors-entity-radar",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "$className": "ReplicatedStorage",
+      "DoorsEntityRadar": {
+        "$className": "Folder",
+        "Shared": { "$path": "src/Shared" }
+      }
+    },
+    "StarterPlayer": {
+      "$className": "StarterPlayer",
+      "StarterPlayerScripts": {
+        "$className": "StarterPlayerScripts",
+        "DoorsEntityRadar": { "$path": "src/Client" }
+      }
+    }
+  }
+}

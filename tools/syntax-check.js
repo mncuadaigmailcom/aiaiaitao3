@@ -105,6 +105,14 @@ function main() {
   for (const rel of walk(path.join(ROOT, 'tests'))) {
     targets.push({ abs: path.join(ROOT, 'tests', rel), label: `tests/${rel}` });
   }
+  const radarRoot = path.join(ROOT, 'doors-entity-radar');
+  for (const subdir of ['src', 'tests']) {
+    const dir = path.join(radarRoot, subdir);
+    if (!fs.existsSync(dir)) continue;
+    for (const rel of walk(dir)) {
+      targets.push({ abs: path.join(dir, rel), label: `doors-entity-radar/${subdir}/${rel}` });
+    }
+  }
   targets.push({ abs: path.join(ROOT, 'tools', 'luau-prelude.luau'), label: 'tools/luau-prelude.luau' });
 
   const distFile = path.join(ROOT, 'dist', 'roblox-anti-lag-optimizer.luau');
