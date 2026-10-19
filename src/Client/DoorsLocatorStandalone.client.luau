@@ -26,6 +26,26 @@ local function buildNameSet(category, selectedNames)
 	return set
 end
 
+local function normalizeName(value)
+	return string.lower(tostring(value)):gsub("[^%w]", "")
+end
+
+local SUFFIXES = { moving = true, entity = true, model = true, rig = true, npc = true, character = true, clone = true }
+
+local function nameMatches(instanceName, names)
+	local candidate = normalizeName(instanceName)
+	if names[string.lower(instanceName)] then return true end
+	for listedName in pairs(names) do
+		local key = normalizeName(listedName)
+		if candidate == key then return true end
+		if #key >= 3 and candidate:sub(1, #key) == key then
+			local suffix = candidate:sub(#key + 1)
+			if SUFFIXES[suffix] then return true end
+		end
+	end
+	return false
+end
+
 local function findAdornee(instance)
 	if instance:IsA("Model") then
 		return instance
@@ -49,7 +69,7 @@ function DoorsLocator.Start(container, category, options)
 	folder.Parent = container
 
 	local function inspect(instance)
-		if not alive or marked[instance] or not names[string.lower(instance.Name)] then return end
+		if not alive or marked[instance] or not nameMatches(instance.Name, names) then return end
 		local target = findAdornee(instance)
 		if not target then return end
 		marked[instance] = true
@@ -80,6 +100,9 @@ function DoorsLocator.Start(container, category, options)
 			label.TextStrokeTransparency = 0.25
 			label.TextScaled = true
 			label.Parent = gui
+		end
+		if type(options.onMatch) == "function" then
+			pcall(options.onMatch, instance.Name, instance)
 		end
 	end
 
@@ -204,8 +227,17 @@ local function restartLocator()
 		if enabled then table.insert(names, name) end
 	end
 	if #names > 0 then
-		activeStop = Locator.Start(workspace, currentSection, { entityNames = names })
-		status.Text = string.format("Đang định vị %d tên vật thể trong %s", #names, currentSection)
+		local matched = 0
+		activeStop = Locator.Start(workspace, currentSection, {
+			entityNames = names,
+			onMatch = function(instanceName)
+				matched = matched + 1
+				status.Text = string.format("Tìm thấy %d vật thể · %s", matched, instanceName)
+			end,
+		})
+		if matched == 0 then
+			status.Text = string.format("Chưa khớp vật thể — kiểm tra Workspace.Name (%s)", currentSection)
+		end
 	else
 		status.Text = "Chưa chọn vật thể — hãy bấm tên trong danh sách"
 	end

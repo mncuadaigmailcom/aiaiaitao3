@@ -107,8 +107,17 @@ local function restartLocator()
 		if enabled then table.insert(names, name) end
 	end
 	if #names > 0 then
-		activeStop = Locator.Start(workspace, currentSection, { entityNames = names })
-		status.Text = string.format("Đang định vị %d tên vật thể trong %s", #names, currentSection)
+		local matched = 0
+		activeStop = Locator.Start(workspace, currentSection, {
+			entityNames = names,
+			onMatch = function(instanceName)
+				matched = matched + 1
+				status.Text = string.format("Tìm thấy %d vật thể · %s", matched, instanceName)
+			end,
+		})
+		if matched == 0 then
+			status.Text = string.format("Chưa khớp vật thể — kiểm tra Workspace.Name (%s)", currentSection)
+		end
 	else
 		status.Text = "Chưa chọn vật thể — hãy bấm tên trong danh sách"
 	end

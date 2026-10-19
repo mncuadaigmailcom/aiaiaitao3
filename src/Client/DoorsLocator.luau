@@ -25,6 +25,26 @@ local function buildNameSet(category, selectedNames)
 	return set
 end
 
+local function normalizeName(value)
+	return string.lower(tostring(value)):gsub("[^%w]", "")
+end
+
+local SUFFIXES = { moving = true, entity = true, model = true, rig = true, npc = true, character = true, clone = true }
+
+local function nameMatches(instanceName, names)
+	local candidate = normalizeName(instanceName)
+	if names[string.lower(instanceName)] then return true end
+	for listedName in pairs(names) do
+		local key = normalizeName(listedName)
+		if candidate == key then return true end
+		if #key >= 3 and candidate:sub(1, #key) == key then
+			local suffix = candidate:sub(#key + 1)
+			if SUFFIXES[suffix] then return true end
+		end
+	end
+	return false
+end
+
 local function findAdornee(instance)
 	if instance:IsA("Model") then
 		return instance
@@ -48,7 +68,7 @@ function DoorsLocator.Start(container, category, options)
 	folder.Parent = container
 
 	local function inspect(instance)
-		if not alive or marked[instance] or not names[string.lower(instance.Name)] then return end
+		if not alive or marked[instance] or not nameMatches(instance.Name, names) then return end
 		local target = findAdornee(instance)
 		if not target then return end
 		marked[instance] = true
@@ -79,6 +99,9 @@ function DoorsLocator.Start(container, category, options)
 			label.TextStrokeTransparency = 0.25
 			label.TextScaled = true
 			label.Parent = gui
+		end
+		if type(options.onMatch) == "function" then
+			pcall(options.onMatch, instance.Name, instance)
 		end
 	end
 
