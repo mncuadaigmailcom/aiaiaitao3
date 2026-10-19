@@ -70,11 +70,27 @@ for index, section in ipairs(sectionNames) do
 		activeStop = Locator.Start(workspace, section)
 	end)
 end
-local stopButton = makeButton("Stop locator", panel, Color3.fromRGB(130, 54, 54))
+local stopButton = makeButton("Tắt định vị", panel, Color3.fromRGB(130, 54, 54))
 stopButton.Position = UDim2.new(0, 10, 1, -42)
-stopButton.Size = UDim2.new(1, -20, 0, 32)
+stopButton.Size = UDim2.new(0.5, -14, 0, 32)
 stopButton.Activated:Connect(function()
 	if activeStop then activeStop(); activeStop = nil end
+end)
+local hideButton = makeButton("Ẩn menu", panel, Color3.fromRGB(70, 82, 105))
+hideButton.Position = UDim2.new(0.5, 4, 1, -42)
+hideButton.Size = UDim2.new(0.5, -14, 0, 32)
+local reopenButton = makeButton("Mở menu", gui, Color3.fromRGB(49, 56, 70))
+reopenButton.AnchorPoint = Vector2.new(1, 0.5)
+reopenButton.Position = UDim2.new(1, -20, 0.5, 0)
+reopenButton.Size = UDim2.fromOffset(110, 38)
+reopenButton.Visible = false
+hideButton.Activated:Connect(function()
+	panel.Visible = false
+	reopenButton.Visible = true
+end)
+reopenButton.Activated:Connect(function()
+	panel.Visible = true
+	reopenButton.Visible = false
 end)
 script.Destroying:Connect(function()
 	if activeStop then activeStop() end
