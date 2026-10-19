@@ -1,4 +1,4 @@
--- Standalone Studio LocalScript: horizontal Banana Cat menu + Doors entity locator.
+-- Standalone Studio LocalScript: entity selection, search, and locator.
 -- Doors entity locator for a Roblox experience you own, used in Roblox Studio.
 -- This is an opt-in visual debugging aid, not an executor script. It only scans
 -- descendants replicated to the client and does not reveal occluded/unloaded objects.
@@ -15,9 +15,12 @@ DoorsLocator.CATEGORIES = {
 	["Special & Events"] = {"Jeff The Killer", "Greed", "Evil Key", "DRAKOBLOXXERS", "SEEKING WALL!!!", "LAVA!", "Cringle", "Treater", "Rushing Light", "RNIUSHCg==", "AROxMBUSH", "SCJVEREECH"},
 }
 
-local function buildNameSet(category)
-	local names = DoorsLocator.CATEGORIES[category]
-	assert(names, "Unknown Doors locator category: " .. tostring(category))
+local function buildNameSet(category, selectedNames)
+	local names = selectedNames
+	if names == nil then
+		names = DoorsLocator.CATEGORIES[category]
+		assert(names, "Unknown Doors locator category: " .. tostring(category))
+	end
 	local set = {}
 	for _, name in ipairs(names) do set[string.lower(name)] = true end
 	return set
@@ -37,7 +40,7 @@ end
 function DoorsLocator.Start(container, category, options)
 	assert(container and container.GetDescendants, "Pass a Roblox container such as workspace")
 	options = options or {}
-	local names = buildNameSet(category)
+	local names = buildNameSet(category, options.entityNames)
 	local marked = setmetatable({}, { __mode = "k" })
 	local alive = true
 	local connections = {}
@@ -93,109 +96,177 @@ function DoorsLocator.Start(container, category, options)
 end
 
 
--- Opt-in section picker for the Doors Locator. For use in your own Roblox place.
+-- Opt-in Doors entity picker for Roblox Studio / an experience you own.
 local Players = game:GetService("Players")
-local player = Players.LocalPlayer
-local playerGui = player:WaitForChild("PlayerGui")
-
+local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
 local existing = playerGui:FindFirstChild("DoorsLocatorUI")
 if existing then existing:ClearAllChildren(); existing.Parent = nil end
+
 local gui = Instance.new("ScreenGui")
 gui.Name = "DoorsLocatorUI"
 gui.ResetOnSpawn = false
 gui.Parent = playerGui
-
 local panel = Instance.new("Frame")
 panel.Name = "Panel"
 panel.AnchorPoint = Vector2.new(0.5, 1)
 panel.Position = UDim2.new(0.5, 0, 1, -18)
-panel.Size = UDim2.fromOffset(700, 250)
+panel.Size = UDim2.fromOffset(800, 420)
 panel.BackgroundColor3 = Color3.fromRGB(255, 248, 218)
 panel.BorderSizePixel = 0
 panel.Parent = gui
-local corner = Instance.new("UICorner")
-corner.CornerRadius = UDim.new(0, 18)
-corner.Parent = panel
-local title = Instance.new("TextLabel")
-title.Size = UDim2.new(1, -24, 0, 38)
-title.Position = UDim2.fromOffset(12, 6)
-title.BackgroundTransparency = 1
-title.Text = "🍌 BANANA CAT 🍌"
-title.TextColor3 = Color3.fromRGB(104, 73, 28)
-title.Font = Enum.Font.GothamBold
-title.TextSize = 20
-title.Parent = panel
-local subtitle = Instance.new("TextLabel")
-subtitle.Size = UDim2.new(1, -24, 0, 22)
-subtitle.Position = UDim2.fromOffset(12, 42)
-subtitle.BackgroundTransparency = 1
-subtitle.Text = "ฅ^•ﻌ•^ฅ   DOORS ENTITY LOCATOR · 2026"
-subtitle.TextColor3 = Color3.fromRGB(156, 111, 43)
-subtitle.Font = Enum.Font.GothamMedium
-subtitle.TextSize = 11
-subtitle.Parent = panel
-local list = Instance.new("ScrollingFrame")
-list.Name = "Sections"
-list.Position = UDim2.fromOffset(14, 72)
-list.Size = UDim2.new(1, -28, 0, 112)
-list.BackgroundTransparency = 1
-list.BorderSizePixel = 0
-list.ScrollBarThickness = 4
-list.CanvasSize = UDim2.new()
-list.AutomaticCanvasSize = Enum.AutomaticSize.Y
-list.Parent = panel
-local layout = Instance.new("UIGridLayout")
-layout.CellSize = UDim2.new(0.25, -6, 0, 40)
-layout.CellPadding = UDim2.fromOffset(8, 8)
-layout.SortOrder = Enum.SortOrder.LayoutOrder
-layout.Parent = list
-local activeStop
-local function makeButton(text, parent, color)
-	local button = Instance.new("TextButton")
-	button.Size = UDim2.new(1, 0, 0, 34)
-	button.BackgroundColor3 = color or Color3.fromRGB(255, 224, 125)
-	button.BorderSizePixel = 0
-	button.Text = text
-	button.TextColor3 = Color3.fromRGB(82, 59, 29)
-	button.Font = Enum.Font.GothamSemibold
-	button.TextSize = 13
-	button.Parent = parent
+local function corner(obj, radius)
 	local c = Instance.new("UICorner")
-	c.CornerRadius = UDim.new(0, 10)
-	c.Parent = button
-	return button
+	c.CornerRadius = UDim.new(0, radius)
+	c.Parent = obj
 end
+corner(panel, 18)
+local function label(parent, text, pos, size, color, font, textSize, align)
+	local obj = Instance.new("TextLabel")
+	obj.BackgroundTransparency = 1
+	obj.Text = text
+	obj.Position = pos
+	obj.Size = size
+	obj.TextColor3 = color
+	obj.Font = font
+	obj.TextSize = textSize
+	obj.TextXAlignment = align or Enum.TextXAlignment.Left
+	obj.Parent = parent
+	return obj
+end
+label(panel, "🍌 BANANA CAT  ·  ENTITY LOCATOR", UDim2.fromOffset(16, 7), UDim2.new(1, -32, 0, 30), Color3.fromRGB(104, 73, 28), Enum.Font.GothamBold, 19)
+label(panel, "ฅ^•ﻌ•^ฅ   Chọn khu vực, tìm vật thể rồi bấm tên để bật/tắt định vị", UDim2.fromOffset(17, 36), UDim2.new(1, -34, 0, 20), Color3.fromRGB(156, 111, 43), Enum.Font.GothamMedium, 11)
+local sectionFrame = Instance.new("Frame")
+sectionFrame.BackgroundTransparency = 1
+sectionFrame.Position = UDim2.fromOffset(14, 62)
+sectionFrame.Size = UDim2.new(1, -28, 0, 78)
+sectionFrame.Parent = panel
+local sectionGrid = Instance.new("UIGridLayout")
+sectionGrid.CellSize = UDim2.new(0.25, -7, 0, 32)
+sectionGrid.CellPadding = UDim2.fromOffset(8, 7)
+sectionGrid.SortOrder = Enum.SortOrder.LayoutOrder
+sectionGrid.Parent = sectionFrame
+local search = Instance.new("TextBox")
+search.Name = "SearchEntity"
+search.Position = UDim2.fromOffset(14, 147)
+search.Size = UDim2.new(1, -28, 0, 32)
+search.BackgroundColor3 = Color3.fromRGB(255, 255, 242)
+search.BorderSizePixel = 0
+search.PlaceholderText = "Tìm tên vật thể trong danh sách…"
+search.Text = ""
+search.TextColor3 = Color3.fromRGB(82, 59, 29)
+search.PlaceholderColor3 = Color3.fromRGB(160, 142, 105)
+search.Font = Enum.Font.Gotham
+search.TextSize = 13
+search.ClearTextOnFocus = false
+search.Parent = panel
+corner(search, 9)
+local entityList = Instance.new("ScrollingFrame")
+entityList.Name = "EntityPicker"
+entityList.Position = UDim2.fromOffset(14, 188)
+entityList.Size = UDim2.new(1, -28, 0, 166)
+entityList.BackgroundColor3 = Color3.fromRGB(255, 252, 234)
+entityList.BorderSizePixel = 0
+entityList.ScrollBarThickness = 5
+entityList.AutomaticCanvasSize = Enum.AutomaticSize.Y
+entityList.CanvasSize = UDim2.new()
+entityList.Parent = panel
+corner(entityList, 10)
+local entityGrid = Instance.new("UIGridLayout")
+entityGrid.CellSize = UDim2.new(0.25, -7, 0, 32)
+entityGrid.CellPadding = UDim2.fromOffset(8, 6)
+entityGrid.SortOrder = Enum.SortOrder.LayoutOrder
+entityGrid.Parent = entityList
 local sectionNames = {"The Hotel", "The Mines", "The Backdoor", "The Archives", "The Outdoors", "The Stairwell", "The Rooms", "Special & Events"}
+local currentSection = sectionNames[1]
+local selectedBySection = {}
+for _, section in ipairs(sectionNames) do selectedBySection[section] = {} end
+local activeStop
+local sectionButtons = {}
+local status = label(panel, "Chưa bật định vị vật thể", UDim2.fromOffset(176, 366), UDim2.new(1, -354, 0, 34), Color3.fromRGB(125, 92, 43), Enum.Font.GothamMedium, 12, Enum.TextXAlignment.Center)
+local function button(parent, text, color, textColor)
+	local b = Instance.new("TextButton")
+	b.Size = UDim2.new(1, 0, 1, 0)
+	b.BackgroundColor3 = color
+	b.BorderSizePixel = 0
+	b.Text = text
+	b.TextColor3 = textColor or Color3.fromRGB(82, 59, 29)
+	b.Font = Enum.Font.GothamSemibold
+	b.TextSize = 12
+	b.AutoButtonColor = true
+	b.Parent = parent
+	corner(b, 9)
+	return b
+end
+local function restartLocator()
+	if activeStop then activeStop(); activeStop = nil end
+	local names = {}
+	for name, enabled in pairs(selectedBySection[currentSection]) do
+		if enabled then table.insert(names, name) end
+	end
+	if #names > 0 then
+		activeStop = Locator.Start(workspace, currentSection, { entityNames = names })
+		status.Text = string.format("Đang định vị %d tên vật thể trong %s", #names, currentSection)
+	else
+		status.Text = "Chưa chọn vật thể — hãy bấm tên trong danh sách"
+	end
+end
+local function refreshEntities()
+	for _, child in ipairs(entityList:GetChildren()) do
+		if child ~= entityGrid then child.Parent = nil end
+	end
+	local query = string.lower(search.Text or "")
+	local names = Locator.CATEGORIES[currentSection]
+	local shown = 0
+	for _, name in ipairs(names) do
+		if query == "" or string.find(string.lower(name), query, 1, true) then
+			shown = shown + 1
+			local isSelected = selectedBySection[currentSection][name] == true
+			local b = button(entityList, (isSelected and "✓  " or "+  ") .. name,
+				isSelected and Color3.fromRGB(176, 224, 151) or Color3.fromRGB(255, 232, 167))
+			b.LayoutOrder = shown
+			b.Activated:Connect(function()
+				selectedBySection[currentSection][name] = not selectedBySection[currentSection][name]
+				refreshEntities()
+				restartLocator()
+			end)
+		end
+	end
+	if shown == 0 then status.Text = "Không có tên khớp trong danh mục khu vực này" end
+end
 for index, section in ipairs(sectionNames) do
-	local button = makeButton(section, list)
-	button.LayoutOrder = index
-	button.Activated:Connect(function()
-		if activeStop then activeStop() end
-		activeStop = Locator.Start(workspace, section)
+	local b = button(sectionFrame, section, Color3.fromRGB(255, 224, 125))
+	b.LayoutOrder = index
+	sectionButtons[section] = b
+	b.Activated:Connect(function()
+		currentSection = section
+		for name, other in pairs(sectionButtons) do
+			other.BackgroundColor3 = name == section and Color3.fromRGB(255, 204, 91) or Color3.fromRGB(255, 224, 125)
+		end
+		refreshEntities()
+		restartLocator()
 	end)
 end
-local stopButton = makeButton("🍌  Tắt định vị", panel, Color3.fromRGB(255, 190, 176))
+search:GetPropertyChangedSignal("Text"):Connect(refreshEntities)
+local stopButton = button(panel, "Tắt định vị", Color3.fromRGB(255, 190, 176))
 stopButton.Position = UDim2.new(0, 14, 1, -48)
-stopButton.Size = UDim2.fromOffset(150, 34)
+stopButton.Size = UDim2.fromOffset(145, 34)
 stopButton.Activated:Connect(function()
+	for _, selected in pairs(selectedBySection) do table.clear(selected) end
 	if activeStop then activeStop(); activeStop = nil end
+	refreshEntities()
+	status.Text = "Đã tắt định vị và bỏ chọn vật thể"
 end)
-local hideButton = makeButton("Ẩn menu  ☁", panel, Color3.fromRGB(255, 232, 167))
-hideButton.Position = UDim2.new(1, -164, 1, -48)
-hideButton.Size = UDim2.fromOffset(150, 34)
-local reopenButton = makeButton("🍌 Mở menu", gui, Color3.fromRGB(255, 224, 125))
-reopenButton.AnchorPoint = Vector2.new(0.5, 1)
-reopenButton.Position = UDim2.new(0.5, 0, 1, -18)
-reopenButton.Size = UDim2.fromOffset(150, 40)
-reopenButton.Visible = false
-hideButton.Activated:Connect(function()
-	panel.Visible = false
-	reopenButton.Visible = true
-end)
-reopenButton.Activated:Connect(function()
-	panel.Visible = true
-	reopenButton.Visible = false
-end)
+local hideButton = button(panel, "Ẩn menu", Color3.fromRGB(255, 232, 167))
+hideButton.Position = UDim2.new(1, -159, 1, -48)
+hideButton.Size = UDim2.fromOffset(145, 34)
+local reopen = button(gui, "🍌 Mở menu", Color3.fromRGB(255, 224, 125))
+reopen.AnchorPoint = Vector2.new(0.5, 1)
+reopen.Position = UDim2.new(0.5, 0, 1, -18)
+reopen.Size = UDim2.fromOffset(150, 40)
+reopen.Visible = false
+hideButton.Activated:Connect(function() panel.Visible = false; reopen.Visible = true end)
+reopen.Activated:Connect(function() panel.Visible = true; reopen.Visible = false end)
+refreshEntities()
 script.Destroying:Connect(function()
 	if activeStop then activeStop() end
 end)

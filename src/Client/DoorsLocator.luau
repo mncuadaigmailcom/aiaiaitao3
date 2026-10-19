@@ -14,9 +14,12 @@ DoorsLocator.CATEGORIES = {
 	["Special & Events"] = {"Jeff The Killer", "Greed", "Evil Key", "DRAKOBLOXXERS", "SEEKING WALL!!!", "LAVA!", "Cringle", "Treater", "Rushing Light", "RNIUSHCg==", "AROxMBUSH", "SCJVEREECH"},
 }
 
-local function buildNameSet(category)
-	local names = DoorsLocator.CATEGORIES[category]
-	assert(names, "Unknown Doors locator category: " .. tostring(category))
+local function buildNameSet(category, selectedNames)
+	local names = selectedNames
+	if names == nil then
+		names = DoorsLocator.CATEGORIES[category]
+		assert(names, "Unknown Doors locator category: " .. tostring(category))
+	end
 	local set = {}
 	for _, name in ipairs(names) do set[string.lower(name)] = true end
 	return set
@@ -36,7 +39,7 @@ end
 function DoorsLocator.Start(container, category, options)
 	assert(container and container.GetDescendants, "Pass a Roblox container such as workspace")
 	options = options or {}
-	local names = buildNameSet(category)
+	local names = buildNameSet(category, options.entityNames)
 	local marked = setmetatable({}, { __mode = "k" })
 	local alive = true
 	local connections = {}
