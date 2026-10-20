@@ -3,14 +3,15 @@ local function test(name, fn)
     fn(); passed = passed + 1; print('PASS '..name)
 end
 local function eq(a,b) assert(a == b, tostring(a)..' ~= '..tostring(b)) end
-local root, players, origin, tracker, markers, clock
+local root, players, origin, tracker, markers, clock, alertOrigin
 local function setup()
     root = Mock.node('Workspace','Workspace',nil)
     clock = function() return 0 end
     players = {list={},calls=0}
     function players:GetPlayers() self.calls=self.calls+1; return self.list end
     origin, markers = Vector3.new(0,0,0), {}
-    tracker = createTracker({root=root,players=players,getOrigin=function() return origin end,now=function() return clock() end,
+    alertOrigin = Vector3.new(0,0,0)
+    tracker = createTracker({root=root,players=players,getOrigin=function() return origin end,getAlertOrigin=function() return alertOrigin end,now=function() return clock() end,
         createMarker=function(hit)
             local marker={hit=hit}; markers[#markers+1]=marker; return marker
         end,
@@ -317,10 +318,107 @@ test('fast events still exclude player characters and effect roots',function()
     tracker:notifyAdded(char); tracker:step(1/60); eq(#tracker.list,0)
     local own=Mock.node('Folder','OwnEffects',root); eq(tracker:notifyAdded(own),false)
 end)
+test('alerts whitelist only Rush Ambush Seek Screech Sally, independent of ESP',function()
+    setup()
+    for _, name in ipairs({'RushMoving','AmbushMoving','SeekRig','Screech','WindowEntity'}) do
+        local inst=Mock.node('Part',name,root,10); assert(tracker:notifyAlert(inst))
+    end
+    for _, name in ipairs({'Eyes','Figure','Dread','Snare','Chest','RushMovingSound'}) do
+        eq(tracker:notifyAlert(Mock.node('Part',name,root,10)),false)
+    end
+    tracker:step(1/60)
+    eq(tracker.enabled,false); eq(#tracker.alerts.active,5)
+    local names={}
+    for _, entry in ipairs(tracker.alerts.active) do names[entry.name]=true; eq(entry.distance,10) end
+    for _, name in ipairs({'Rush','Ambush','Seek','Screech','Sally'}) do assert(names[name]) end
+end)
+test('toast expires five seconds after its first display',function()
+    setup(); tracker:notifyAlert(Mock.node('Part','Rush',root,10)); tracker:step(0.01)
+    eq(tracker.alerts.active[1].remaining,5)
+    tracker:step(4.99); eq(#tracker.alerts.active,1)
+    tracker:step(0.02); eq(#tracker.alerts.active,0)
+end)
+test('duplicate entity children cannot reset the toast timer or re-alert after expiry',function()
+    setup(); local entity=Mock.node('Model','AmbushMoving',root)
+    Mock.node('Part','Root',entity,9); tracker:notifyAlert(entity); tracker:step(0.01)
+    local expires=tracker.alerts.active[1].expires
+    local child=Mock.node('Part','AmbushMoving',entity,2)
+    eq(tracker:notifyAlert(child),false); tracker:step(1)
+    eq(tracker.alerts.active[1].expires,expires); eq(#tracker.alerts.active,1)
+    tracker:step(5); eq(#tracker.alerts.active,0)
+    eq(tracker:notifyAlert(entity),false)
+end)
+test('new instance of same kind refreshes one toast, without evicting other kinds',function()
+    setup(); tracker:notifyAlert(Mock.node('Part','Seek',root,10)); tracker:step(0.01)
+    tracker:notifyAlert(Mock.node('Part','Rush',root,20)); tracker:step(2)
+    local expires=tracker.alerts.active[2].expires
+    local newRush=Mock.node('Part','RushMoving',root,30)
+    tracker:notifyAlert(newRush); tracker:step(0.01)
+    eq(#tracker.alerts.active,2); eq(tracker.alerts.active[1].inst,newRush)
+    eq(tracker.alerts.active[1].remaining,5); eq(tracker.alerts.active[2].expires,expires)
+end)
+test('simultaneous alert kinds retain independent five-second deadlines',function()
+    setup()
+    for _, name in ipairs({'Rush','Ambush','Screech'}) do tracker:notifyAlert(Mock.node('Part',name,root,12)) end
+    tracker:step(0.01); eq(#tracker.alerts.active,3)
+    for _, entry in ipairs(tracker.alerts.active) do eq(entry.remaining,5) end
+    tracker:step(5.01); eq(#tracker.alerts.active,0)
+end)
+test('distance follows player head origin and entity movement; nil origin is unknown',function()
+    setup(); local inst=Mock.node('Part','Screech',root,10)
+    tracker:notifyAlert(inst); tracker:step(0.01); eq(tracker.alerts.active[1].distance,10)
+    alertOrigin=Vector3.new(4,0,0); inst.Position=Vector3.new(14,0,0)
+    tracker:step(0.05); eq(tracker.alerts.active[1].distance,10)
+    alertOrigin=nil; tracker:step(0.05); eq(tracker.alerts.active[1].distance,nil)
+end)
+test('despawn keeps toast to deadline but does not display a fabricated live distance',function()
+    setup(); local inst=Mock.node('Part','Seek',root,10)
+    tracker:notifyAlert(inst); tracker:step(0.01); inst:Destroy(); tracker:step(0.05)
+    eq(#tracker.alerts.active,1); eq(tracker.alerts.active[1].present,false)
+    eq(tracker.alerts.active[1].distance,nil)
+end)
+test('empty alert Model can be recognized when its part arrives later',function()
+    setup(); local entity=Mock.node('Model','Sally',root)
+    tracker:notifyAlert(entity); tracker:step(0.01); eq(#tracker.alerts.active,0)
+    local child=Mock.node('Part','Root',entity,3); tracker:notifyAlert(child); tracker:step(0.01)
+    eq(#tracker.alerts.active,1); eq(tracker.alerts.active[1].name,'Sally')
+end)
+test('alert toggle clears active and queued alerts, and blocks notifications while off',function()
+    setup(); local inst=Mock.node('Part','Rush',root,4); tracker:notifyAlert(inst)
+    tracker:setAlertsEnabled(false); tracker:step(1)
+    eq(#tracker.alerts.active,0); eq(tracker.alerts.tail,0); eq(tracker:notifyAlert(inst),false)
+    tracker:setAlertsEnabled(true); assert(tracker:notifyAlert(inst)); tracker:step(0.01)
+    eq(#tracker.alerts.active,1)
+end)
+test('alert work has a quota and ignores non-whitelisted scenery bursts',function()
+    setup(); tracker.alerts.budget=1
+    for i=1,100 do eq(tracker:notifyAlert(Mock.node('Part','Decoration',root,i)),false) end
+    for _, name in ipairs({'Rush','Seek','Sally'}) do tracker:notifyAlert(Mock.node('Part',name,root,4)) end
+    tracker:step(0.01); eq(#tracker.alerts.active,1)
+    tracker:step(0.01); eq(#tracker.alerts.active,2)
+    tracker:step(0.01); eq(#tracker.alerts.active,3)
+end)
+test('alert queue cap and character/effect filtering remain effective',function()
+    setup(); tracker.alerts.maxPending=1
+    assert(tracker:notifyAlert(Mock.node('Part','Rush',root,4)))
+    eq(tracker:notifyAlert(Mock.node('Part','Seek',root,4)),false)
+    tracker:setAlertsEnabled(false); tracker:setAlertsEnabled(true)
+    local char=Mock.node('Model','Seek',root); Mock.node('Part','Head',char,1)
+    players.list={{Character=char}}; tracker:notifyAlert(char); tracker:step(0.01)
+    eq(#tracker.alerts.active,0)
+end)
+test('alert character exclusion is independent of the ESP skip-player switch',function()
+    setup(); tracker.skipPlayers=false
+    local char=Mock.node('Model','Screech',root); Mock.node('Part','Head',char,1)
+    players.list={{Character=char}}; tracker:notifyAlert(char); tracker:step(0.01)
+    eq(#tracker.alerts.active,0)
+end)
 test('destroy is idempotent and cannot be restarted',function()
     tracker:destroy(); tracker:destroy(); eq(tracker:setEnabled(true),false); eq(tracker:beginScan(),false)
     eq(tracker:setQuery('drop'),false)
     eq(tracker:setPreset('Rush',true),false); eq(tracker:setAllPresets(true),false)
     eq(tracker:setObjectEnabled(root,false),false)
+    eq(#tracker.alerts.active,0); eq(tracker:setAlertsEnabled(true),false)
+    eq(tracker:notifyAlert(root),false)
 end)
 print(string.format('%d core regression tests passed',passed))

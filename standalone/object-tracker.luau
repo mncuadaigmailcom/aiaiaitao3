@@ -31,6 +31,15 @@ local function createTracker(deps)
         {name = "Snare", aliases = {"Snare"}},
         {name = "Fallen Chandeliers", aliases = {"Fallen Chandeliers", "FallenChandeliers", "FallenChandelier", "ChandelierFallen"}},
     }
+    local alertNames = {}
+    local supportedAlerts = {Rush = true, Ambush = true, Seek = true, Screech = true, ["Sally (Window)"] = true}
+    for _, preset in ipairs(presets) do
+        if supportedAlerts[preset.name] then
+            for _, alias in ipairs(preset.aliases) do
+                alertNames[alias:lower()] = preset.name == "Sally (Window)" and "Sally" or preset.name
+            end
+        end
+    end
     local folds = {}
     for base, chars in pairs({
         a = "áàảãạăắằẳẵặâấầẩẫậÁÀẢÃẠĂẮẰẲẴẶÂẤẦẨẪẬ",
@@ -110,6 +119,9 @@ local function createTracker(deps)
             eventBudget = 32, eventSliceSeconds = 0.001, maxPending = 2048,
             scanSeen = setmetatable({}, {__mode = "k"}), hitsDirty = false,
             markerBudget = 8, markerPending = false,
+            alerts = {enabled = true, active = {}, queue = {}, queued = {}, head = 1, tail = 0,
+                seen = setmetatable({}, {__mode = "k"}), time = 0, duration = 5,
+                budget = 32, sliceSeconds = 0.001, maxPending = 256},
         }, Tracker)
     end
     function Tracker:clear()
@@ -207,19 +219,19 @@ local function createTracker(deps)
     end
     function Tracker:refreshCharacters()
         self.chars = {}
-        if self.skipPlayers then
-            for _, player in ipairs(deps.players:GetPlayers()) do
-                if player.Character then self.chars[#self.chars + 1] = player.Character end
-            end
+        for _, player in ipairs(deps.players:GetPlayers()) do
+            if player.Character then self.chars[#self.chars + 1] = player.Character end
         end
     end
-    function Tracker:isCharacter(inst)
-        if not self.skipPlayers then return false end
+    function Tracker:isPlayerCharacter(inst)
         if not self.chars then self:refreshCharacters() end
         for _, char in ipairs(self.chars) do
             if inst == char or inst:IsDescendantOf(char) then return true end
         end
         return false
+    end
+    function Tracker:isCharacter(inst)
+        return self.skipPlayers and self:isPlayerCharacter(inst) or false
     end
     function Tracker:coveredByModel(inst)
         local parent = inst.Parent
@@ -400,12 +412,86 @@ local function createTracker(deps)
         self.list = list
         if self.markerRemaining then self.markerRemaining = math.max(0, self.markerRemaining - made) end
     end
+    function Tracker:setAlertsEnabled(enabled)
+        if self.destroyed then return false end
+        local alerts = self.alerts
+        alerts.enabled = enabled == true
+        alerts.active, alerts.queue, alerts.queued, alerts.head, alerts.tail = {}, {}, {}, 1, 0
+        alerts.seen = setmetatable({}, {__mode = "k"})
+        return alerts.enabled
+    end
+    function Tracker:notifyAlert(inst)
+        local alerts = self.alerts
+        if self.destroyed or not alerts.enabled then return false end
+        if deps.ignore and deps.ignore(inst) then return false end
+        -- Cheap name-only ancestor filter: unrelated scenery cannot fill the alert queue.
+        -- Part lookup and distance work still happen in the budgeted Heartbeat worker.
+        local node, target = inst, nil
+        while node and node ~= deps.root do
+            if alertNames[node.Name:lower()] then target = node end
+            node = node.Parent
+        end
+        if not target or alerts.seen[target] or alerts.queued[target] then return false end
+        if alerts.tail - alerts.head + 1 >= alerts.maxPending then return false end
+        alerts.tail = alerts.tail + 1
+        alerts.queue[alerts.tail], alerts.queued[target] = target, true
+        return true
+    end
+    function Tracker:stepAlerts(dt)
+        local alerts = self.alerts
+        alerts.time = alerts.time + dt
+        if not alerts.enabled then return end
+        -- Expiry is based on Heartbeat time, never a task.delay per toast.
+        for i = #alerts.active, 1, -1 do
+            if alerts.time >= alerts.active[i].expires then table.remove(alerts.active, i) end
+        end
+        local started, count = deps.now(), 0
+        while alerts.head <= alerts.tail do
+            local inst = alerts.queue[alerts.head]
+            alerts.queue[alerts.head], alerts.queued[inst] = nil, nil
+            alerts.head = alerts.head + 1
+            if live(inst) and not self:isPlayerCharacter(inst) and not (deps.ignore and deps.ignore(inst)) then
+                local node, target, name, part = inst, nil, nil, nil
+                -- Prefer the outer named entity over its identically named children.
+                while node and node ~= deps.root do
+                    local kind = alertNames[node.Name:lower()]
+                    if kind then
+                        local candidate = partOf(node)
+                        if candidate and live(candidate) then target, name, part = node, kind, candidate end
+                    end
+                    node = node.Parent
+                end
+                if target and not alerts.seen[target] then
+                    alerts.seen[target] = true
+                    -- One card per supported kind: a new spawn refreshes that kind's five-second card.
+                    for i = #alerts.active, 1, -1 do
+                        if alerts.active[i].name == name then table.remove(alerts.active, i) end
+                    end
+                    table.insert(alerts.active, 1, {name = name, inst = target, part = part,
+                        expires = alerts.time + alerts.duration, remaining = alerts.duration})
+                end
+            end
+            count = count + 1
+            if count >= alerts.budget or deps.now() - started >= alerts.sliceSeconds then break end
+        end
+        if alerts.head > alerts.tail then alerts.queue, alerts.head, alerts.tail = {}, 1, 0 end
+        local origin = deps.getAlertOrigin and deps.getAlertOrigin() or nil
+        if not deps.getAlertOrigin then origin = deps.getOrigin() end
+        for _, entry in ipairs(alerts.active) do
+            entry.remaining = math.max(0, entry.expires - alerts.time)
+            local part = live(entry.inst) and partOf(entry.inst) or nil
+            entry.present = part ~= nil and live(part)
+            entry.part = part
+            entry.distance = entry.present and origin and (part.Position - origin).Magnitude or nil
+        end
+    end
     function Tracker:step(dt)
-        if not self.enabled or self.destroyed then return end
-        if not finite(dt) or dt < 0 then return end
+        if self.destroyed or not finite(dt) or dt < 0 then return end
+        self:refreshCharacters()
+        self:stepAlerts(dt)
+        if not self.enabled then return end
         self.markerRemaining = self.markerBudget
         self.scanElapsed, self.labelElapsed = self.scanElapsed + dt, self.labelElapsed + dt
-        self:refreshCharacters()
         -- Never restart a sweep before draining the fast queue: pending spawn events win.
         self:drainEvents()
         if not self.stack and self.scanElapsed >= self.refreshEvery then self:beginScan() end
@@ -417,6 +503,7 @@ local function createTracker(deps)
     end
     function Tracker:destroy()
         if self.destroyed then return end
+        self:setAlertsEnabled(false)
         self.enabled, self.destroyed = false, true
         self:clear()
     end
@@ -460,6 +547,14 @@ local function origin()
 end
 local tracker = createTracker({
     root = workspace, players = Players, getOrigin = origin, now = os.clock,
+    getAlertOrigin = function()
+        local char = player.Character
+        local head = char and char:FindFirstChild("Head")
+        local root = char and char:FindFirstChild("HumanoidRootPart")
+        if head and head:IsA("BasePart") then return head.Position end
+        if root and root:IsA("BasePart") then return root.Position end
+        return nil -- No camera distance pretending to be distance to the player.
+    end,
     ignore = function(inst) return inst == effects or inst:IsDescendantOf(effects) end,
     createMarker = function(hit)
         local container = new("Folder", {Name = "Marker"}, effects)
@@ -510,7 +605,10 @@ local function shutdown()
     effects:Destroy()
     gui:Destroy()
 end
-connect(workspace.DescendantAdded, function(inst) tracker:notifyAdded(inst) end)
+connect(workspace.DescendantAdded, function(inst)
+    tracker:notifyAdded(inst)
+    tracker:notifyAlert(inst)
+end)
 connect(stopEvent.Event, shutdown)
 connect(gui.Destroying, shutdown)
 if script and script.Destroying then connect(script.Destroying, shutdown) end
@@ -608,8 +706,59 @@ local version = label("v5.0 · NOIR", 6, 0, 64, 16, pill)
 version.TextColor3, version.TextSize = C.ACCENT3, 8
 local pageTitle = label("👥 Người Chơi", 10, 0, 180, 24, header)
 pageTitle.TextColor3, pageTitle.Font = C.ACCENT, Enum.Font.GothamBold
-local onlyFeature = label("🌳 Định vị vật thể", 230, 0, 270, 24, header)
+local onlyFeature = label("🌳 Định vị vật thể", 190, 0, 150, 24, header)
 onlyFeature.TextColor3 = C.MUTED
+-- Toasts are siblings of the menu: hiding the menu must not hide danger alerts.
+local alertLayer = new("Frame", {Name = "EntityAlerts", AnchorPoint = Vector2.new(1, 0),
+    Position = UDim2.new(1, -12, 0, 12), Size = UDim2.fromOffset(280, 0),
+    BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = 2000}, gui)
+local alertScale = new("UIScale", {Scale = 1}, alertLayer)
+local toastCards = {}
+local function renderAlerts()
+    local keep = {}
+    for i, entry in ipairs(tracker.alerts.active) do
+        keep[entry.name] = true
+        local toast = toastCards[entry.name]
+        if not toast then
+            local frame = new("Frame", {Name = "Alert_" .. entry.name, Size = UDim2.fromOffset(280, 66),
+                BackgroundColor3 = C.SURFACE, BorderSizePixel = 0, ZIndex = 2001}, alertLayer)
+            corner(frame, 7); stroke(frame, C.ACCENT2, 1.2)
+            local heading = label(entry.name .. " xuất hiện!", 10, 6, 260, 22, frame)
+            heading.Font, heading.TextColor3, heading.ZIndex = Enum.Font.GothamBold, C.ACCENT3, 2002
+            local distanceLabel = label("", 10, 29, 260, 24, frame)
+            distanceLabel.TextColor3, distanceLabel.ZIndex = C.DARK, 2002
+            local progress = new("Frame", {Name = "Lifetime", Position = UDim2.fromOffset(0, 63),
+                Size = UDim2.new(1, 0, 0, 3), BackgroundColor3 = C.ACCENT2,
+                BorderSizePixel = 0, ZIndex = 2002}, frame)
+            toast = {frame = frame, distance = distanceLabel, progress = progress}
+            toastCards[entry.name] = toast
+        end
+        toast.frame.Position = UDim2.fromOffset(0, (i - 1) * 74)
+        if not entry.present then toast.distance.Text = "Đã rời khỏi vùng quan sát"
+        elseif entry.distance then toast.distance.Text = string.format("Cách bạn: %.1f stud", entry.distance)
+        else toast.distance.Text = "Khoảng cách: chưa có nhân vật" end
+        toast.progress.Size = UDim2.new(entry.remaining / tracker.alerts.duration, 0, 0, 3)
+    end
+    for name, toast in pairs(toastCards) do
+        if not keep[name] then toast.frame:Destroy(); toastCards[name] = nil end
+    end
+    local height = math.max(1, #tracker.alerts.active * 74)
+    alertLayer.Size = UDim2.fromOffset(280, height)
+    local camera = workspace.CurrentCamera
+    if camera then
+        local view = camera.ViewportSize
+        alertScale.Scale = math.max(0.1, math.min(1, (view.X - 24) / 280, (view.Y - 24) / height))
+    end
+end
+local alertToggle
+alertToggle = button("Cảnh báo: BẬT", 0, 2, 140, function()
+    tracker:setAlertsEnabled(not tracker.alerts.enabled)
+    alertToggle.Text = tracker.alerts.enabled and "Cảnh báo: BẬT" or "Cảnh báo: TẮT"
+    alertToggle.TextColor3 = tracker.alerts.enabled and C.GREEN or C.MUTED
+    renderAlerts()
+end, header)
+alertToggle.Name, alertToggle.Size = "AlertToggle", UDim2.fromOffset(140, 20)
+alertToggle.Position, alertToggle.TextColor3 = UDim2.new(1, -148, 0, 2), C.GREEN
 local playerTab = new("TextButton", {Name = "PlayerTabButton", Position = UDim2.fromOffset(4, 8),
     Size = UDim2.fromOffset(46, 58), Text = "👥\nNgười\nChơi", TextSize = 10,
     TextColor3 = C.ACCENT3, BackgroundColor3 = C.SURFACE2,
@@ -855,6 +1004,7 @@ local uiElapsed = 0
 connect(RunService.Heartbeat, function(dt)
     local ok, err = pcall(function()
         tracker:step(dt)
+        renderAlerts()
         ringGradient.Rotation = (ringGradient.Rotation + dt * 90) % 360
         uiElapsed = uiElapsed + dt
         if uiElapsed >= 0.10 then
