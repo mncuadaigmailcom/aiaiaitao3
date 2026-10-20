@@ -39,7 +39,7 @@ Enum = setmetatable({}, {__index = function(t,k)
     rawset(t,k,group); return group
 end})
 local methods = {}
-local signals = {Destroying=true, Activated=true, FocusLost=true, InputBegan=true, InputChanged=true, InputEnded=true, Event=true}
+local signals = {DescendantAdded=true,Destroying=true, Activated=true, FocusLost=true, InputBegan=true, InputChanged=true, InputEnded=true, Event=true}
 function methods:IsA(class)
     return self.ClassName == class or class == 'Instance' or (class == 'BasePart' and (self.ClassName == 'Part' or self.ClassName == 'MeshPart'))
 end
@@ -88,7 +88,27 @@ local mt = {
         end
         return t._props[k]
     end,
-    __newindex = function(t,k,v) t._props[k] = v end,
+    __newindex = function(t,k,v)
+        local old = t._props[k]
+        t._props[k] = v
+        if k == 'Parent' and v and old ~= v then
+            local previous = {}
+            local node = old
+            while node do previous[node] = true; node = node.Parent end
+            node = v
+            while node do
+                local event = node._signals.DescendantAdded
+                if not previous[node] and event and event:count() > 0 then
+                    local function added(inst)
+                        event:Fire(inst)
+                        for _, child in ipairs(inst:GetChildren()) do added(child) end
+                    end
+                    added(t)
+                end
+                node = node.Parent
+            end
+        end
+    end,
 }
 Instance = {new = function(class)
     local obj = setmetatable({_props = {ClassName=class,Name=class}, _signals = {}},mt)

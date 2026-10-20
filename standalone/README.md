@@ -46,8 +46,15 @@ Bốn góc cho phép đổi kích thước trong khoảng 560–900 × 280–700
   bấm **Chọn thực thể ↓** hoặc cuộn xuống để mở phần này.
 - Giới hạn khoảng cách: **stud**, `0` là không giới hạn. Không ghi nhầm đơn vị mét.
 - Giữ tối đa **50 vật gần nhất**; thống kê số khớp có thể lớn hơn 50.
-- Quét lại tự động và thủ công. Ngân sách mặc định 150 nút hoặc khoảng 2 ms mỗi
-  callback; đây là ngân sách hợp tác, không phải bảo đảm hard realtime.
+- Phát hiện nhanh qua `Workspace.DescendantAdded`: vật mới được đưa vào hàng đợi
+  ưu tiên, xử lý ở Heartbeat tiếp theo thay vì đợi hết vòng quét toàn map.
+- Hiện dần kết quả ngay trong lúc quét. Quét dự phòng và nút Quét lại vẫn được giữ.
+- Ngân sách mặc định 300 nút hoặc khoảng 2 ms cho phần quét, 32 sự kiện hoặc khoảng
+  1 ms cho hàng đợi mỗi Heartbeat; đây là ngân sách hợp tác, không phải hard realtime.
+- Tạo tối đa 8 marker mỗi Heartbeat, tối đa 50 marker đang hoạt động. Hàng đợi tối đa
+  2.048 mục có chống trùng; khi tràn sẽ yêu cầu quét dự phòng thay vì tăng RAM vô hạn.
+- Cache tên chuẩn hóa, tra alias chính xác qua bảng hash và lấy danh sách nhân vật
+  theo nhịp cập nhật, không gọi GetPlayers cho từng nút của map.
 - Bấm **🔒** để mở khóa kéo thanh tiêu đề (**🔓**); mặc định khóa như bản chính.
 - Bốn nút góc để resize; tự co theo viewport nhỏ, chặn menu bị kéo mất khỏi màn hình.
 - **X**: chỉ ẩn menu, vẫn định vị, giống bản chính. Nút nổi góc dưới phải để mở lại.
@@ -98,8 +105,15 @@ Glitch, Void, Red Barrier, Snare, Fallen Chandeliers.
   minh rằng tất cả highlight hiển thị đúng trong engine thật.
 - `GetChildren()` và tìm part đại diện là các lệnh native không thể ngắt giữa
   chừng; cây rất rộng/model rất lớn vẫn cần đo trong Studio. Không công bố FPS/RAM.
-- Danh sách ưu tiên gần nhất cập nhật sau mỗi vòng quét; khoảng cách/XYZ cập nhật
-  khoảng 0,15 giây, GUI danh sách khoảng 0,25 giây. Không cam kết tức thời.
+- Kết quả đầu tiên hiện dần khi tìm thấy; nhóm gần nhất hoàn thiện sau mỗi vòng quét.
+  Mục đã thấy không bị xóa nhấp nháy chỉ vì vòng quét kế tiếp chưa đi tới nó.
+- Khoảng cách/XYZ cập nhật khoảng 0,05 giây; GUI danh sách khoảng 0,10 giây.
+  Đây là nhịp lập lịch, không phải số đo độ trễ hay FPS trong Roblox thật.
+- Thực thể spawn trong hàng đợi nhẹ có thể được nhận ở Heartbeat kế tiếp;
+  khi spawn hàng loạt hoặc map lớn, xử lý vẫn được chia ra nhiều nhịp để giảm giật.
+- Quét dự phòng vẫn chạy theo chu kỳ 1 giây (mỗi vòng có thể kéo dài nhiều frame),
+  để bắt đổi tên, sửa path, dịch chuyển vào vùng khoảng cách hoặc sự kiện bị bỏ lỡ.
+  Đổi tên tổ tiên của path được sửa ở vòng quét sau; không gắn listener lên mọi instance.
 
 ## Test tự động
 
@@ -116,17 +130,23 @@ Bộ test mới lấy **nguyên core từ file bàn giao**, không chép một b
 Kết quả trong sandbox:
 
 - Kiểm tra cú pháp toàn file: đạt trên parser Lua 5.3 (mã dùng tập con tương thích Luau).
-- **42 test core: đạt.** Tên/path/tiếng Việt, query chỉ có path, path xuất hiện trễ,
+- **55 test core: đạt.** Tên/path/tiếng Việt, query chỉ có path, path xuất hiện trễ,
   query rỗng, đổi query giữa vòng quét, người chơi respawn, xóa/reparent vật,
   PrimaryPart bị xóa, khoảng cách không hợp lệ, mất vị trí gốc, gộp Model,
   ngân sách quét, giữ 50 vật gần nhất trong fixture 1.000 vật, dừng/idempotent destroy.
   Thêm kiểm tra đủ 23 preset và mọi alias cấu hình, so khớp exact, công tắc độc lập,
   preset xuất hiện trễ, batch bật/tắt, phối hợp bộ lọc thủ công, và ẩn riêng vật trùng tên.
-- **21 test tích hợp GUI/mock: đạt.** Boot không có executor, Enter, marker,
+  Thêm 13 ca chống chậm: kết quả trước khi quét xong, event chen trước quét nền,
+  Model nhận part trễ, chống event trùng, giới hạn queue/quota/thời gian/tạo marker,
+  không mất event khi kết thúc quét, xóa queue khi tắt, cache nhân vật và tên,
+  và bảo toàn loại trừ nhân vật/effect trong đường xử lý nhanh.
+- **22 test tích hợp GUI/mock: đạt.** Boot không có executor, Enter, marker,
   switch hiển thị, chọn kết quả, vật trùng tên được thay mới, X/nút nổi, bật/tắt,
   khóa kéo/co GUI, chỉ một tab/card, palette/header NOIR, cả bốn góc resize,
   RightControl, nút Tắt/Bật từng dòng, nhảy tới danh sách hỗ trợ, các công tắc preset,
-  batch bật/tắt, phối hợp manual/preset, xóa hết, nạp lại, Dừng & thoát và GUI bị hủy từ bên ngoài.
+  batch bật/tắt, phối hợp manual/preset, xóa hết, marker từ sự kiện spawn thật của mock
+  xuất hiện sau một Heartbeat mô phỏng, nạp lại, Dừng & thoát và GUI bị hủy từ bên ngoài.
+  Có kiểm tra listener DescendantAdded không bị nhân đôi và được ngắt khi thoát.
 - **115 test cũ của dự án: đạt**, không bị thay thế bởi bộ test mới.
 
 **Chưa chạy trong Roblox Studio/game thật.** Fengari + mock chỉ kiểm chứng logic
@@ -151,3 +171,11 @@ Tạo Model/Part giả lập theo các alias (không cần chạy game bên th�
 Rush/Ambush độc lập, bật/tắt từng dòng, thêm hai vật trùng tên và thử preset
 xuất hiện trễ. Để xác nhận trong game đích, cần kiểm tra tên/path thực tế và
 quyền truy cập của client; test mock hiện tại không chứng minh phát hiện đủ mọi thực thể.
+
+### Đo bản nhanh trong Studio
+
+Chọn Rush, hoàn tất quét ban đầu, rồi tạo Model `RushMoving` ở phía client và
+thêm một Part vào nó. Kiểm tra marker được cập nhật mà không cần bấm Quét lại.
+Thử thêm 1.000 part trang trí cùng lúc và dùng MicroProfiler/Output để kiểm tra
+độ trễ và chi phí thực tế. Mốc “một Heartbeat” trong test là kết quả mô phỏng
+cho hàng đợi nhỏ, không phải cam kết tốc độ trên thiết bị/game thật.

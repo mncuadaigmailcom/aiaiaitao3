@@ -3,13 +3,14 @@ local function test(name, fn)
     fn(); passed = passed + 1; print('PASS '..name)
 end
 local function eq(a,b) assert(a == b, tostring(a)..' ~= '..tostring(b)) end
-local root, players, origin, tracker, markers
+local root, players, origin, tracker, markers, clock
 local function setup()
     root = Mock.node('Workspace','Workspace',nil)
-    players = {list={}}
-    function players:GetPlayers() return self.list end
+    clock = function() return 0 end
+    players = {list={},calls=0}
+    function players:GetPlayers() self.calls=self.calls+1; return self.list end
     origin, markers = Vector3.new(0,0,0), {}
-    tracker = createTracker({root=root,players=players,getOrigin=function() return origin end,now=os.clock,
+    tracker = createTracker({root=root,players=players,getOrigin=function() return origin end,now=function() return clock() end,
         createMarker=function(hit)
             local marker={hit=hit}; markers[#markers+1]=marker; return marker
         end,
@@ -24,6 +25,7 @@ local function scan(query)
     while tracker.stack do
         tracker:scanSlice(); guard=guard+1; assert(guard<1000,'scan never completed')
     end
+    while tracker.markerPending do tracker:refreshMarkers() end
 end
 setup()
 test('Vietnamese precomposed / uppercase normalization',function() eq(tracker.normalize('  CÂY ĐỎ  '),'cay do') end)
@@ -94,7 +96,7 @@ test('scan budget slices wide trees',function()
     setup(); tracker.scanBudget=2
     for i=1,40 do Mock.node('Part','Gem',root,i) end
     tracker:setQuery('gem'); tracker:setEnabled(true); tracker:scanSlice()
-    assert(tracker.stack); eq(#tracker.list,0)
+    assert(tracker.stack); eq(#tracker.list,1) -- Progressive result before sweep completion
     local n=0; while tracker.stack do tracker:scanSlice(); n=n+1; assert(n<100) end
     eq(#tracker.list,40)
 end)
@@ -146,7 +148,9 @@ test('1000 objects: incremental scan keeps only nearest 50 markers',function()
     for i=1000,1,-1 do Mock.node('Part','Resource',root,i) end
     scan('resource'); eq(#tracker.list,50); eq(tracker.found,1000)
     eq(tracker.list[1].distance,1); eq(tracker.list[50].distance,50)
-    eq(#markers,50)
+    local active=0
+    for _, marker in ipairs(markers) do if not marker.removed then active=active+1 end end
+    eq(active,50) -- Progressive nearest replacements may create more than 50 over time.
 end)
 test('invalid frame deltas do not advance state',function()
     tracker:step(-1); tracker:step(0/0); tracker:step(math.huge)
@@ -215,6 +219,103 @@ test('late spawning selected preset is found by auto rescan',function()
     eq(#tracker.list,0); Mock.node('Model','RushMoving',root)
     local model=root:FindFirstChild('RushMoving'); Mock.node('Part','Root',model,4)
     tracker:step(1.1); eq(#tracker.list,1); eq(tracker.list[1].inst,model)
+end)
+test('progressive result is visible before a wide sweep finishes',function()
+    setup(); tracker.scanBudget=2
+    Mock.node('Part','RushMoving',root,5)
+    for i=1,100 do Mock.node('Part','Decoration',root,i) end
+    tracker:setPreset('Rush',true); tracker:setEnabled(true); tracker:step(1/60)
+    assert(tracker.stack,'fixture must still be scanning')
+    eq(#tracker.list,1); assert(tracker.items[tracker.list[1].inst].visible)
+end)
+test('spawn event bypasses an unfinished background sweep in one simulated frame',function()
+    setup(); tracker.scanBudget=1; scan('nothing')
+    tracker:setQuery('rapid'); tracker:setEnabled(true); tracker:step(1/60)
+    for i=1,300 do Mock.node('Part','Decoration',root,i) end
+    local target=Mock.node('Part','Rapid',root,4)
+    assert(tracker:notifyAdded(target)); tracker:step(1/60)
+    eq(tracker.list[1].inst,target); assert(tracker.items[target].visible)
+end)
+test('part arriving after its empty Model promotes the matching Model',function()
+    setup(); tracker.scanBudget=1; scan('rush')
+    local model=Mock.node('Model','RushMoving',root)
+    tracker:notifyAdded(model); tracker:step(1/60); eq(#tracker.list,0)
+    local part=Mock.node('Part','Root',model,3)
+    tracker:notifyAdded(part); tracker:step(1/60)
+    eq(#tracker.list,1); eq(tracker.list[1].inst,model)
+end)
+test('duplicate spawn events never inflate result count',function()
+    setup(); scan('drop'); local target=Mock.node('Part','Drop',root,2)
+    tracker:notifyAdded(target); eq(tracker:notifyAdded(target),false)
+    tracker:step(1/60); eq(tracker.found,1)
+    tracker:notifyAdded(target); tracker:step(1/60); eq(tracker.found,1); eq(#tracker.list,1)
+end)
+test('event queue is bounded and overflow requests a fallback sweep',function()
+    setup(); scan('drop'); tracker.maxPending=2
+    for i=1,2 do assert(tracker:notifyAdded(Mock.node('Part','Drop',root,i))) end
+    eq(tracker:notifyAdded(Mock.node('Part','Drop',root,3)),false)
+    eq(tracker.eventTail-tracker.eventHead+1,2)
+    assert(tracker.scanElapsed>=tracker.refreshEvery)
+end)
+test('event item quota spreads a burst across frames',function()
+    setup(); scan('drop'); tracker.eventBudget=1
+    for i=1,3 do tracker:notifyAdded(Mock.node('Part','Drop',root,i)) end
+    tracker:step(1/60); eq(#tracker.list,1)
+    tracker:step(1/60); eq(#tracker.list,2)
+    tracker:step(1/60); eq(#tracker.list,3)
+    eq(tracker.eventTail,0); eq(next(tracker.queued),nil)
+end)
+test('event time budget yields without draining the whole burst',function()
+    setup(); scan('drop')
+    for i=1,3 do tracker:notifyAdded(Mock.node('Part','Drop',root,i)) end
+    local ticks=0; clock=function() ticks=ticks+1; return ticks*0.002 end
+    tracker:step(1/60); eq(#tracker.list,1)
+    assert(tracker.eventHead<=tracker.eventTail)
+end)
+test('marker creation is capped per heartbeat, then drains without another sweep',function()
+    setup(); tracker.scanBudget=300
+    for i=1,100 do Mock.node('Part','Coin',root,i) end
+    tracker:setQuery('coin'); tracker:setEnabled(true); tracker:step(1/60)
+    eq(#markers,tracker.markerBudget); assert(tracker.markerPending)
+    local frames=1
+    while tracker.markerPending do
+        local before=#markers; tracker:step(1/60)
+        assert(#markers-before<=tracker.markerBudget); frames=frames+1; assert(frames<20)
+    end
+    eq(#tracker.list,50); eq(#markers,50)
+end)
+test('event hit is not lost when an already-started sweep finishes',function()
+    setup(); tracker.scanBudget=1
+    local folder=Mock.node('Folder','Map',root)
+    tracker:setQuery('drop'); tracker:setEnabled(true)
+    tracker:step(1/60); tracker:step(1/60) -- Folder child snapshot has already been visited.
+    local target=Mock.node('Part','Drop',folder,3)
+    tracker:notifyAdded(target); tracker:step(1/60)
+    while tracker.stack do tracker:scanSlice() end
+    eq(#tracker.list,1); eq(tracker.list[1].inst,target)
+end)
+test('disable flushes queued events; deleted pending instances are ignored',function()
+    setup(); scan('drop'); local target=Mock.node('Part','Drop',root,3)
+    tracker:notifyAdded(target); target:Destroy(); tracker:step(1/60); eq(#tracker.list,0)
+    local other=Mock.node('Part','Drop',root,4); tracker:notifyAdded(other)
+    tracker:setEnabled(false); tracker:step(1/60)
+    eq(tracker.eventTail,0); eq(next(tracker.items),nil); eq(tracker:notifyAdded(other),false)
+end)
+test('cached character roots avoid GetPlayers per scanned node',function()
+    setup(); for i=1,100 do Mock.node('Part','Decoration',root,i) end
+    tracker:setQuery('missing'); tracker:setEnabled(true)
+    players.calls=0; tracker:scanSlice(); assert(players.calls<=1)
+end)
+test('cached normalized name invalidates when Name changes',function()
+    setup(); tracker:setQuery('tree'); local target=Mock.node('Part','Stone',root,1)
+    eq(tracker:matches(target),false); target.Name='TREE'; eq(tracker:matches(target),true)
+end)
+test('fast events still exclude player characters and effect roots',function()
+    setup(); scan('rush')
+    local char=Mock.node('Model','Rush',root); Mock.node('Part','Root',char,1)
+    players.list={{Character=char}}
+    tracker:notifyAdded(char); tracker:step(1/60); eq(#tracker.list,0)
+    local own=Mock.node('Folder','OwnEffects',root); eq(tracker:notifyAdded(own),false)
 end)
 test('destroy is idempotent and cannot be restarted',function()
     tracker:destroy(); tracker:destroy(); eq(tracker:setEnabled(true),false); eq(tracker:beginScan(),false)

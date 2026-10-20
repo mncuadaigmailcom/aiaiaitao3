@@ -42,6 +42,9 @@ local function createTracker(deps)
     end
     local function normalize(value)
         local text, out = tostring(value or ""), {}
+        if not text:find("[\128-\255]") then
+            return (text:lower():gsub("%s+", " "):gsub("^%s+", ""):gsub("%s+$", ""))
+        end
         local ok = pcall(function()
             for _, cp in utf8.codes(text) do
                 -- Ignore decomposed combining accents as well as precomposed Vietnamese.
@@ -97,11 +100,16 @@ local function createTracker(deps)
         return setmetatable({
             enabled = false, destroyed = false, query = "", terms = {},
             presets = presets, selectedPresets = {}, disabledObjects = setmetatable({}, {__mode = "k"}),
-            maxDistance = 0, maxItems = 50, scanBudget = 150, sliceSeconds = 0.002,
+            maxDistance = 0, maxItems = 50, scanBudget = 300, sliceSeconds = 0.002,
             skipPlayers = true, showBox = false, showLabel = true, showXYZ = true,
             throughWalls = true, colorIndex = 1, items = {}, list = {},
             stack = nil, hits = {}, found = 0, scanElapsed = 0, labelElapsed = 0,
-            refreshEvery = 1, lastError = nil,
+            refreshEvery = 1, lastError = nil, labelEvery = 0.05,
+            nameCache = setmetatable({}, {__mode = "k"}), exactNames = {}, nameKeys = {}, paths = {},
+            chars = nil, eventQueue = {}, eventHead = 1, eventTail = 0, queued = {},
+            eventBudget = 32, eventSliceSeconds = 0.001, maxPending = 2048,
+            scanSeen = setmetatable({}, {__mode = "k"}), hitsDirty = false,
+            markerBudget = 8, markerPending = false,
         }, Tracker)
     end
     function Tracker:clear()
@@ -111,6 +119,9 @@ local function createTracker(deps)
         end
         self.list, self.hits, self.stack, self.found = {}, {}, nil, 0
         self.scanElapsed = 0
+        self.eventQueue, self.queued, self.eventHead, self.eventTail = {}, {}, 1, 0
+        self.scanSeen = setmetatable({}, {__mode = "k"})
+        self.hitsDirty, self.markerPending = false, false
     end
     function Tracker:setQuery(query)
         if self.destroyed then return false end
@@ -126,6 +137,12 @@ local function createTracker(deps)
                     end
                 end
             end
+        end
+        self.exactNames, self.nameKeys, self.paths = {}, {}, {}
+        for _, term in ipairs(self.terms) do
+            if term.path then self.paths[term.value] = true
+            elseif term.exact then self.exactNames[term.value] = true
+            else self.nameKeys[#self.nameKeys + 1] = term.value end
         end
         self:clear() -- Drop stale markers immediately, including during a partial scan.
         if #self.terms == 0 then self.enabled = false end
@@ -172,37 +189,103 @@ local function createTracker(deps)
         if self.enabled then self:beginScan() end
         return true
     end
+    function Tracker:normalizedName(inst)
+        local raw = inst.Name
+        local cached = self.nameCache[inst]
+        if cached and cached.raw == raw then return cached.norm end
+        local name = normalize(raw)
+        self.nameCache[inst] = {raw = raw, norm = name}
+        return name
+    end
     function Tracker:matches(inst)
-        local name, path = normalize(inst.Name), nil
-        for _, term in ipairs(self.terms) do
-            if term.path then
-                path = path or normalize(pathOf(inst))
-                if path == term.value then return true end
-            elseif term.exact then
-                if name == term.value then return true end
-            elseif name:find(term.value, 1, true) then return true end
+        local name = self:normalizedName(inst)
+        if self.exactNames[name] then return true end
+        for _, key in ipairs(self.nameKeys) do
+            if name:find(key, 1, true) then return true end
         end
-        return false
+        return next(self.paths) ~= nil and self.paths[normalize(pathOf(inst))] == true
+    end
+    function Tracker:refreshCharacters()
+        self.chars = {}
+        if self.skipPlayers then
+            for _, player in ipairs(deps.players:GetPlayers()) do
+                if player.Character then self.chars[#self.chars + 1] = player.Character end
+            end
+        end
     end
     function Tracker:isCharacter(inst)
         if not self.skipPlayers then return false end
-        for _, player in ipairs(deps.players:GetPlayers()) do
-            local char = player.Character
-            if char and (inst == char or inst:IsDescendantOf(char)) then return true end
+        if not self.chars then self:refreshCharacters() end
+        for _, char in ipairs(self.chars) do
+            if inst == char or inst:IsDescendantOf(char) then return true end
         end
         return false
+    end
+    function Tracker:coveredByModel(inst)
+        local parent = inst.Parent
+        while parent and parent ~= deps.root do
+            if parent:IsA("Model") and self:matches(parent) and partOf(parent) then return true end
+            parent = parent.Parent
+        end
+        return false
+    end
+    -- Event handlers enqueue only. Matching, marker creation and ancestor lookup stay budgeted.
+    function Tracker:notifyAdded(inst)
+        if not self.enabled or self.destroyed or self.queued[inst] then return false end
+        if deps.ignore and deps.ignore(inst) then return false end
+        if self.eventTail - self.eventHead + 1 >= self.maxPending then
+            self.scanElapsed = self.refreshEvery -- Fallback sweep repairs overflow.
+            return false
+        end
+        self.eventTail = self.eventTail + 1
+        self.eventQueue[self.eventTail], self.queued[inst] = inst, true
+        return true
+    end
+    function Tracker:drainEvents()
+        local started, count = deps.now(), 0
+        self.origin = deps.getOrigin()
+        while self.eventHead <= self.eventTail do
+            local inst = self.eventQueue[self.eventHead]
+            self.eventQueue[self.eventHead], self.queued[inst] = nil, nil
+            self.eventHead = self.eventHead + 1
+            if live(inst) and not self:isCharacter(inst) and not (deps.ignore and deps.ignore(inst)) then
+                local node, candidates = inst, {}
+                while node and node ~= deps.root do
+                    if self:matches(node) then
+                        local part = partOf(node)
+                        if part and live(part) then
+                            if node:IsA("Model") then candidates = {} end
+                            candidates[#candidates + 1] = {inst = node, part = part}
+                        end
+                    end
+                    node = node.Parent
+                end
+                for _, hit in ipairs(candidates) do self:addHit(hit.inst, hit.part) end
+            end
+            count = count + 1
+            if count >= self.eventBudget or deps.now() - started >= self.eventSliceSeconds then break end
+        end
+        if self.eventHead > self.eventTail then
+            self.eventQueue, self.eventHead, self.eventTail = {}, 1, 0
+        end
+        if self.hitsDirty then self:commitHits(true) end
     end
     function Tracker:beginScan()
         if not self.enabled or self.destroyed then return false end
         self.stack, self.hits, self.found = {deps.root}, {}, 0
         self.origin = deps.getOrigin()
+        self.scanSeen = setmetatable({}, {__mode = "k"})
+        self.hitsDirty = false
+        self:refreshCharacters()
         self.scanElapsed = 0
         return true
     end
     function Tracker:addHit(inst, part)
+        if self.scanSeen[inst] then return end
         local distance = self.origin and (part.Position - self.origin).Magnitude or nil
         -- A missing character/camera must not make every distance look like zero.
         if self.maxDistance > 0 and (not distance or distance > self.maxDistance) then return end
+        self.scanSeen[inst] = true
         self.found = self.found + 1
         local hit = {inst = inst, part = part, distance = distance, path = pathOf(inst)}
         local index = #self.hits + 1
@@ -211,25 +294,38 @@ local function createTracker(deps)
         end
         if index <= self.maxItems then
             table.insert(self.hits, index, hit)
+            self.hitsDirty = true
             if #self.hits > self.maxItems then table.remove(self.hits) end
         end
     end
-    function Tracker:finishScan()
-        local keep, list = {}, {}
-        for _, hit in ipairs(self.hits) do
-            if live(hit.inst) and live(hit.part) and not self:isCharacter(hit.inst) then
-                keep[hit.inst] = true
-                list[#list + 1] = hit
+    function Tracker:commitHits(partial)
+        local candidates, seen, keep, list = {}, {}, {}, {}
+        local function collect(source)
+            for _, hit in ipairs(source) do
+                if not seen[hit.inst] and live(hit.inst) and live(hit.part)
+                    and self:matches(hit.inst) and not self:isCharacter(hit.inst)
+                    and not self:coveredByModel(hit.inst) then
+                    seen[hit.inst] = true
+                    candidates[#candidates + 1] = hit
+                end
             end
+        end
+        collect(self.hits)
+        if partial then collect(self.list) end -- Don't flicker old markers while sweeping.
+        table.sort(candidates, function(a, b) return (a.distance or math.huge) < (b.distance or math.huge) end)
+        for i = 1, math.min(#candidates, self.maxItems) do
+            local hit = candidates[i]
+            keep[hit.inst], list[#list + 1] = true, hit
         end
         for inst, marker in pairs(self.items) do
             if not keep[inst] then deps.removeMarker(marker); self.items[inst] = nil end
         end
-        for _, hit in ipairs(list) do
-            if not self.items[hit.inst] then self.items[hit.inst] = deps.createMarker(hit) end
-        end
-        self.list, self.stack, self.hits = list, nil, {}
+        self.list, self.hitsDirty = list, false
         self:refreshMarkers()
+    end
+    function Tracker:finishScan()
+        self:commitHits(false)
+        self.stack = nil
     end
     function Tracker:scanSlice()
         if not self.stack then return end
@@ -271,18 +367,29 @@ local function createTracker(deps)
             end
             if count >= self.scanBudget or deps.now() - started >= self.sliceSeconds then break end
         end
-        if #self.stack == 0 then self:finishScan() end
+        if #self.stack == 0 then self:finishScan()
+        elseif self.hitsDirty then self:commitHits(true) end
     end
     function Tracker:refreshMarkers()
         local origin, list = deps.getOrigin(), {}
+        local made, allowed = 0, self.markerRemaining or self.markerBudget
+        self.markerPending = false
         for _, hit in ipairs(self.list) do
             local part = live(hit.inst) and partOf(hit.inst) or nil
             if part and live(part) and not self:isCharacter(hit.inst) then
-                hit.part, hit.path = part, pathOf(hit.inst)
+                hit.part = part
+                if hit.pathName ~= hit.inst.Name or hit.pathParent ~= hit.inst.Parent then
+                    hit.path, hit.pathName, hit.pathParent = pathOf(hit.inst), hit.inst.Name, hit.inst.Parent
+                end
                 hit.distance = origin and (part.Position - origin).Magnitude or nil
                 local visible = self.maxDistance == 0 or (hit.distance ~= nil and hit.distance <= self.maxDistance)
                 visible = visible and not self.disabledObjects[hit.inst]
                 local marker = self.items[hit.inst]
+                if not marker and made < allowed then
+                    marker = deps.createMarker(hit)
+                    self.items[hit.inst], made = marker, made + 1
+                end
+                if not marker then self.markerPending = true end
                 if marker then deps.updateMarker(marker, hit, self, visible) end
                 list[#list + 1] = hit
             else
@@ -291,14 +398,22 @@ local function createTracker(deps)
             end
         end
         self.list = list
+        if self.markerRemaining then self.markerRemaining = math.max(0, self.markerRemaining - made) end
     end
     function Tracker:step(dt)
         if not self.enabled or self.destroyed then return end
         if not finite(dt) or dt < 0 then return end
+        self.markerRemaining = self.markerBudget
         self.scanElapsed, self.labelElapsed = self.scanElapsed + dt, self.labelElapsed + dt
+        self:refreshCharacters()
+        -- Never restart a sweep before draining the fast queue: pending spawn events win.
+        self:drainEvents()
         if not self.stack and self.scanElapsed >= self.refreshEvery then self:beginScan() end
         self:scanSlice()
-        if self.labelElapsed >= 0.15 then self.labelElapsed = 0; self:refreshMarkers() end
+        if self.markerPending or self.labelElapsed >= self.labelEvery then
+            self.labelElapsed = 0; self:refreshMarkers()
+        end
+        self.markerRemaining = nil
     end
     function Tracker:destroy()
         if self.destroyed then return end
@@ -395,6 +510,7 @@ local function shutdown()
     effects:Destroy()
     gui:Destroy()
 end
+connect(workspace.DescendantAdded, function(inst) tracker:notifyAdded(inst) end)
 connect(stopEvent.Event, shutdown)
 connect(gui.Destroying, shutdown)
 if script and script.Destroying then connect(script.Destroying, shutdown) end
@@ -547,7 +663,7 @@ local function paintToggle()
 end
 local function applyQuery()
     tracker:setQuery(query.Text)
-    tracker:setEnabled(true)
+    if not tracker.enabled then tracker:setEnabled(true) end
     paintToggle()
     selected, viewObjects = nil, {}
 end
@@ -578,8 +694,8 @@ paintPresets = function()
     end
 end
 local function applyPresetChange()
-    tracker:setQuery(query.Text)
-    tracker:setEnabled(true) -- Remains off when no manual filter/preset is selected.
+    if query.Text ~= tracker.query then tracker:setQuery(query.Text) end
+    if not tracker.enabled then tracker:setEnabled(true) end -- No filters means it stays off.
     selected, viewObjects = nil, {}
     paintToggle(); paintPresets()
 end
@@ -741,12 +857,12 @@ connect(RunService.Heartbeat, function(dt)
         tracker:step(dt)
         ringGradient.Rotation = (ringGradient.Rotation + dt * 90) % 360
         uiElapsed = uiElapsed + dt
-        if uiElapsed >= 0.25 then
+        if uiElapsed >= 0.10 then
             uiElapsed = 0
             fit(); fitContent(); renderList(); paintToggle()
             status.Text = string.format("%s | %d/%d vật | tối đa %d | %s",
                 tracker.enabled and "BẬT" or "TẮT", #tracker.list, tracker.found, tracker.maxItems,
-                tracker.stack and "đang quét..." or "tự quét mỗi giây")
+                tracker.stack and "đang quét..." or "nhanh: sự kiện + quét dự phòng")
         end
     end)
     if not ok then
