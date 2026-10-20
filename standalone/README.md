@@ -16,6 +16,17 @@ của `script.js`. Không cần nạp hub gốc. Không sửa `script.js`.
 Không cần executor, `loadstring`, HTTP, hook, remote hoặc script server.
 Rojo mapping hiện tại của repo không tự cài file này; hãy cài thủ công như trên.
 
+## Giao diện NOIR một tab
+
+Menu dùng bảng màu nền tối/vàng của bản chính `script.js`, thanh tiêu đề
+`taodepzai v5.0 NOIR`, nhãn phiên bản, thanh tab trái và header trang.
+**Chỉ có một tab `Người Chơi`; trong đó chỉ có card `Định vị vật thể`.**
+Không nạp hoặc ẩn các chức năng khác của hub: chúng không được đưa vào file này.
+
+Kích thước mặc định 620 × 380; nội dung tab cuộn dọc để xem danh sách và chi tiết.
+Bốn góc cho phép đổi kích thước trong khoảng 560–900 × 280–700; card tự co nếu cần.
+Đây là bản tái tạo phong cách NOIR, không phải sao chép toàn bộ hub/hiệu ứng của bản gốc.
+
 ## Chức năng
 
 - Tìm tên chứa từ khóa; không phân biệt hoa/thường và dấu tiếng Việt.
@@ -33,9 +44,11 @@ Rojo mapping hiện tại của repo không tự cài file này; hãy cài thủ
 - Giữ tối đa **50 vật gần nhất**; thống kê số khớp có thể lớn hơn 50.
 - Quét lại tự động và thủ công. Ngân sách mặc định 150 nút hoặc khoảng 2 ms mỗi
   callback; đây là ngân sách hợp tác, không phải bảo đảm hard realtime.
-- Kéo thanh tiêu đề, tự co theo viewport nhỏ, chặn menu bị kéo mất khỏi màn hình.
-- `_`: thu nhỏ, vẫn định vị. **RightControl**: ẩn/hiện.
-- **X**: dừng hoàn toàn, ngắt kết nối và xóa GUI/marker.
+- Bấm **🔒** để mở khóa kéo thanh tiêu đề (**🔓**); mặc định khóa như bản chính.
+- Bốn nút góc để resize; tự co theo viewport nhỏ, chặn menu bị kéo mất khỏi màn hình.
+- **X**: chỉ ẩn menu, vẫn định vị, giống bản chính. Nút nổi góc dưới phải để mở lại.
+- **RightControl**: ẩn/hiện (bỏ qua nếu input đã được game xử lý).
+- **Dừng & thoát** ở cuối card: dừng hoàn toàn, ngắt kết nối và xóa GUI/marker.
 - Nạp lại cùng file sẽ dừng bản cũ qua BindableEvent trước khi tạo bản mới.
 
 Không mang theo bay tới vật, teleport, noclip, AntiBan, phân tích trang phục,
@@ -77,9 +90,10 @@ Kết quả trong sandbox:
   query rỗng, đổi query giữa vòng quét, người chơi respawn, xóa/reparent vật,
   PrimaryPart bị xóa, khoảng cách không hợp lệ, mất vị trí gốc, gộp Model,
   ngân sách quét, giữ 50 vật gần nhất trong fixture 1.000 vật, dừng/idempotent destroy.
-- **12 test tích hợp GUI/mock: đạt.** Boot không có executor, Enter, marker,
-  switch hiển thị, chọn kết quả, vật trùng tên được thay mới, thu nhỏ, bật/tắt,
-  kéo/co GUI, nạp lại, nút X và GUI bị hủy từ bên ngoài.
+- **16 test tích hợp GUI/mock: đạt.** Boot không có executor, Enter, marker,
+  switch hiển thị, chọn kết quả, vật trùng tên được thay mới, X/nút nổi, bật/tắt,
+  khóa kéo/co GUI, chỉ một tab/card, palette/header NOIR, cả bốn góc resize,
+  RightControl, nạp lại, Dừng & thoát và GUI bị hủy từ bên ngoài.
 - **115 test cũ của dự án: đạt**, không bị thay thế bởi bộ test mới.
 
 **Chưa chạy trong Roblox Studio/game thật.** Fengari + mock chỉ kiểm chứng logic
@@ -93,6 +107,7 @@ hiệu năng thật hoặc hành vi trên thiết bị cảm ứng thật.
 3. Đổi tên, di chuyển, xóa, tạo lại cùng tên và respawn nhân vật.
 4. Đặt khoảng cách `0`, `20`, chuỗi không phải số và số âm.
 5. Dùng Device Emulator cho màn hình nhỏ; kéo bằng chuột và cảm ứng.
-6. Thu nhỏ, nạp lại và bấm X; xác nhận `ObjectTrackerLocalEffects` được xóa,
+6. Bấm X và nút nổi để ẩn/hiện: marker phải còn hoạt động. Thử khóa kéo và bốn góc resize.
+7. Nạp lại rồi bấm **Dừng & thoát**; xác nhận `ObjectTrackerLocalEffects` được xóa,
    không còn callback từ bản cũ hoặc thông báo lỗi trong Output.
-7. Thử map lớn/StreamingEnabled và đo bằng MicroProfiler trước khi sử dụng rộng rãi.
+8. Thử map lớn/StreamingEnabled và đo bằng MicroProfiler trước khi sử dụng rộng rãi.

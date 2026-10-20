@@ -32,6 +32,7 @@ UDim = {new = function(s,o) return {Scale=s,Offset=o} end}
 UDim2 = {new = function(xs,xo,ys,yo) return {X=UDim.new(xs,xo),Y=UDim.new(ys,yo)} end}
 UDim2.fromOffset = function(x,y) return UDim2.new(0,x,0,y) end
 UDim2.fromScale = function(x,y) return UDim2.new(x,0,y,0) end
+ColorSequence = {new = function(first,last) return {first=first,last=last} end}
 Color3 = {fromRGB = function(r,g,b) return {R=r/255,G=g/255,B=b/255} end}
 Enum = setmetatable({}, {__index = function(t,k)
     local group = setmetatable({}, {__index = function(g,v) rawset(g,v,k..'.'..v); return g[v] end})

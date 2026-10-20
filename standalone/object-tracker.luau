@@ -332,62 +332,149 @@ end
 connect(stopEvent.Event, shutdown)
 connect(gui.Destroying, shutdown)
 if script and script.Destroying then connect(script.Destroying, shutdown) end
-local bg, surface, ink = Color3.fromRGB(17, 21, 30), Color3.fromRGB(35, 44, 60), Color3.fromRGB(230, 237, 248)
-local panel = new("Frame", {Size = UDim2.fromOffset(520, 480), Position = UDim2.new(0.5, -260, 0.5, -240),
+-- NOIR shell: one player tab, with only the object tracker inside it.
+local C = {
+    BG = Color3.fromRGB(11, 12, 17), SURFACE = Color3.fromRGB(20, 22, 30),
+    SURFACE2 = Color3.fromRGB(29, 32, 43), SURFACE3 = Color3.fromRGB(44, 49, 64),
+    BORDER = Color3.fromRGB(60, 66, 84), MUTED = Color3.fromRGB(154, 162, 180),
+    ACCENT = Color3.fromRGB(240, 201, 122), ACCENT2 = Color3.fromRGB(198, 141, 62),
+    ACCENT3 = Color3.fromRGB(255, 238, 203), DARK = Color3.fromRGB(238, 241, 248),
+    GREEN = Color3.fromRGB(64, 214, 152), RED = Color3.fromRGB(230, 88, 88),
+}
+local bg, surface, ink = C.BG, C.SURFACE2, C.DARK
+local function corner(obj, radius)
+    new("UICorner", {CornerRadius = UDim.new(0, radius or 6)}, obj)
+end
+local function stroke(obj, color, thickness)
+    return new("UIStroke", {Color = color or C.BORDER, Thickness = thickness or 1,
+        Transparency = 0.15, ApplyStrokeMode = Enum.ApplyStrokeMode.Border}, obj)
+end
+local function gradient(obj, first, last, rotation)
+    return new("UIGradient", {Color = ColorSequence.new(first, last), Rotation = rotation or 90}, obj)
+end
+local panel = new("Frame", {Name = "Main", Visible = true, Size = UDim2.fromOffset(620, 380),
+    AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5),
     BackgroundColor3 = bg, BorderSizePixel = 0}, gui)
-new("UICorner", {CornerRadius = UDim.new(0, 12)}, panel)
+corner(panel, 16); stroke(panel, C.BORDER, 1.2)
+gradient(panel, C.SURFACE2, C.BG)
 local scale = new("UIScale", {Scale = 1}, panel)
 local function fit()
     local camera = workspace.CurrentCamera
-    if camera then scale.Scale = math.min(1, math.max(0.1, math.min(camera.ViewportSize.X / 540, camera.ViewportSize.Y / 500))) end
-    -- Keep the menu reachable after dragging or changing viewport size.
-    if camera then
-        local view = camera.ViewportSize
-        local limitX = math.max(0, (view.X - 520 * scale.Scale) / 2)
-        local limitY = math.max(0, (view.Y - 480 * scale.Scale) / 2)
-        panel.Position = UDim2.new(0.5, math.max(-limitX, math.min(limitX, panel.Position.X.Offset)),
-            0.5, math.max(-limitY, math.min(limitY, panel.Position.Y.Offset)))
-    end
+    if not camera then return end
+    local view = camera.ViewportSize
+    local width, height = panel.Size.X.Offset, panel.Size.Y.Offset
+    scale.Scale = math.min(1, math.max(0.1, math.min(view.X / (width + 20), view.Y / (height + 20))))
+    local limitX = math.max(0, (view.X - width * scale.Scale) / 2)
+    local limitY = math.max(0, (view.Y - height * scale.Scale) / 2)
+    panel.Position = UDim2.new(0.5, math.max(-limitX, math.min(limitX, panel.Position.X.Offset)),
+        0.5, math.max(-limitY, math.min(limitY, panel.Position.Y.Offset)))
 end
-panel.AnchorPoint, panel.Position = Vector2.new(0.5, 0.5), UDim2.fromScale(0.5, 0.5)
+local titleBar = new("Frame", {Name = "TitleBar", Size = UDim2.new(1, 0, 0, 30),
+    BackgroundColor3 = C.SURFACE2, BorderSizePixel = 0}, panel)
+corner(titleBar, 16); gradient(titleBar, C.SURFACE3, C.SURFACE)
+new("Frame", {Name = "TitleAccent", Position = UDim2.new(0, 1, 1, -1),
+    Size = UDim2.new(1, -2, 0, 2), BackgroundColor3 = C.ACCENT, BorderSizePixel = 0}, titleBar)
+local rail = new("Frame", {Name = "TabBar", Size = UDim2.new(0, 56, 1, -30),
+    Position = UDim2.fromOffset(0, 30), BackgroundColor3 = C.SURFACE, BorderSizePixel = 0}, panel)
+gradient(rail, C.SURFACE, C.BG)
+new("Frame", {Name = "TabRailDivider", Position = UDim2.fromOffset(56, 30),
+    Size = UDim2.new(0, 1, 1, -30), BackgroundColor3 = C.BORDER, BorderSizePixel = 0}, panel)
+local header = new("Frame", {Name = "PageHeader", Size = UDim2.new(1, -56, 0, 24),
+    Position = UDim2.fromOffset(56, 30), BackgroundColor3 = C.SURFACE, BorderSizePixel = 0}, panel)
+gradient(header, C.SURFACE2, C.SURFACE)
+local page = new("ScrollingFrame", {Name = "PlayerTab", Size = UDim2.new(1, -56, 1, -54),
+    Position = UDim2.fromOffset(56, 54), BackgroundTransparency = 1, BorderSizePixel = 0,
+    ScrollBarThickness = 3, ScrollBarImageColor3 = C.ACCENT2,
+    ScrollingDirection = Enum.ScrollingDirection.Y, CanvasSize = UDim2.fromOffset(0, 510)}, panel)
+local card = new("Frame", {Name = "HubObjTrack_Panel", Position = UDim2.fromOffset(8, 8),
+    Size = UDim2.fromOffset(548, 494), BackgroundColor3 = C.SURFACE,
+    BackgroundTransparency = 0.12, BorderSizePixel = 0}, page)
+corner(card, 10); stroke(card); gradient(card, C.SURFACE2, C.SURFACE)
+local cardScale = new("UIScale", {Scale = 1}, card)
+local function fitContent()
+    cardScale.Scale = math.min(1, (panel.Size.X.Offset - 72) / 548)
+    page.CanvasSize = UDim2.fromOffset(0, 16 + 494 * cardScale.Scale)
+end
 local function label(text, x, y, w, h, parent)
     return new("TextLabel", {Position = UDim2.fromOffset(x, y), Size = UDim2.fromOffset(w, h),
-        Text = text, TextColor3 = ink, Font = Enum.Font.Gotham, TextSize = 12,
+        Text = text, TextColor3 = ink, Font = Enum.Font.Gotham, TextSize = 11,
         BackgroundTransparency = 1, TextXAlignment = Enum.TextXAlignment.Left,
-        TextWrapped = true, RichText = false}, parent or panel)
+        TextWrapped = true, RichText = false}, parent or card)
 end
-local function button(text, x, y, w, callback)
+local function button(text, x, y, w, callback, parent)
     local b = new("TextButton", {Position = UDim2.fromOffset(x, y), Size = UDim2.fromOffset(w, 28),
-        Text = text, TextColor3 = ink, Font = Enum.Font.GothamBold, TextSize = 11,
-        BackgroundColor3 = surface, BorderSizePixel = 0}, panel)
-    new("UICorner", {CornerRadius = UDim.new(0, 6)}, b)
+        Text = text, TextColor3 = ink, Font = Enum.Font.GothamBold, TextSize = 10,
+        BackgroundColor3 = surface, BorderSizePixel = 0}, parent or card)
+    corner(b); stroke(b)
     connect(b.Activated, callback)
     return b
 end
 local function input(text, hint, x, y, w)
     local box = new("TextBox", {Position = UDim2.fromOffset(x, y), Size = UDim2.fromOffset(w, 30),
         Text = text, PlaceholderText = hint, ClearTextOnFocus = false, TextColor3 = ink,
-        PlaceholderColor3 = Color3.fromRGB(145, 156, 178), Font = Enum.Font.Gotham, TextSize = 12,
-        BackgroundColor3 = surface, BorderSizePixel = 0}, panel)
-    new("UICorner", {CornerRadius = UDim.new(0, 6)}, box)
+        PlaceholderColor3 = C.MUTED, Font = Enum.Font.Gotham, TextSize = 11,
+        BackgroundColor3 = C.SURFACE2, BorderSizePixel = 0}, card)
+    corner(box); stroke(box)
     return box
 end
-local title = label("ĐỊNH VỊ VẬT THỂ · kéo thanh này để di chuyển", 12, 4, 418, 32)
-title.Active = true
-local restore = new("TextButton", {Position = UDim2.fromOffset(12, 12), Size = UDim2.fromOffset(135, 32),
-    Text = "Mở định vị vật thể", Visible = false, BackgroundColor3 = surface,
-    TextColor3 = ink, TextSize = 12}, gui)
-connect(restore.Activated, function() panel.Visible = true; restore.Visible = false end)
-button("_", 438, 8, 30, function() panel.Visible = false; restore.Visible = true end)
-button("X", 476, 8, 30, shutdown)
-label("Tên chứa từ khóa; nhiều mục cách nhau bằng dấu , hoặc ;", 12, 40, 496, 22)
+local title = label("taodepzai v5.0 NOIR", 12, 0, 164, 30, titleBar)
+title.Name, title.Active, title.TextColor3, title.Font = "Title", true, C.ACCENT3, Enum.Font.GothamBold
+local pill = new("Frame", {Name = "VersionPill", Position = UDim2.fromOffset(178, 7),
+    Size = UDim2.fromOffset(70, 16), BackgroundColor3 = C.BG, BorderSizePixel = 0}, titleBar)
+corner(pill, 8); stroke(pill, C.ACCENT2)
+local version = label("v5.0 · NOIR", 6, 0, 64, 16, pill)
+version.TextColor3, version.TextSize = C.ACCENT3, 8
+local pageTitle = label("👥 Người Chơi", 10, 0, 180, 24, header)
+pageTitle.TextColor3, pageTitle.Font = C.ACCENT, Enum.Font.GothamBold
+local onlyFeature = label("🌳 Định vị vật thể", 230, 0, 270, 24, header)
+onlyFeature.TextColor3 = C.MUTED
+local playerTab = new("TextButton", {Name = "PlayerTabButton", Position = UDim2.fromOffset(4, 8),
+    Size = UDim2.fromOffset(46, 58), Text = "👥\nNgười\nChơi", TextSize = 10,
+    TextColor3 = C.ACCENT3, BackgroundColor3 = C.SURFACE2,
+    Font = Enum.Font.GothamBold, BorderSizePixel = 0}, rail)
+corner(playerTab, 6); stroke(playerTab, C.ACCENT2)
+new("Frame", {Name = "ActiveTabBar", Position = UDim2.fromOffset(0, 8),
+    Size = UDim2.new(0, 2, 1, -16), BackgroundColor3 = C.ACCENT, BorderSizePixel = 0}, playerTab)
+connect(playerTab.Activated, function() page.Visible = true end)
+local restore = new("TextButton", {Name = "MenuToggle", Position = UDim2.new(1, -48, 1, -48),
+    Size = UDim2.fromOffset(36, 36), Text = "✕", BackgroundColor3 = C.BG,
+    TextColor3 = C.ACCENT3, Font = Enum.Font.GothamBold, TextSize = 18,
+    BorderSizePixel = 0, ZIndex = 1000}, gui)
+corner(restore, 18)
+local ring = stroke(restore, C.ACCENT, 2)
+local ringGradient = gradient(ring, C.ACCENT2, C.ACCENT3, 0)
+local function showMenu(visible)
+    panel.Visible = visible
+    restore.Text = visible and "✕" or "☰"
+end
+connect(restore.Activated, function() showMenu(not panel.Visible) end)
+local dragLocked, lockButton = true, nil
+lockButton = button("🔒", 0, 3, 24, function()
+    dragLocked = not dragLocked
+    lockButton.Text = dragLocked and "🔒" or "🔓"
+end, titleBar)
+lockButton.Name, lockButton.Size = "DragLock", UDim2.fromOffset(24, 24)
+lockButton.Position = UDim2.new(1, -54, 0, 3)
+local closeButton = button("X", 0, 3, 24, function() showMenu(false) end, titleBar)
+closeButton.Name, closeButton.Size = "CloseMenu", UDim2.fromOffset(24, 24)
+closeButton.Position, closeButton.TextColor3 = UDim2.new(1, -28, 0, 3), C.RED
+local featureTitle = label("🌳 ĐỊNH VỊ VẬT THỂ", 12, 8, 496, 24)
+featureTitle.TextColor3, featureTitle.Font = C.ACCENT, Enum.Font.GothamBold
+label("Tên chứa từ khóa; nhiều mục cách nhau bằng dấu , hoặc ;", 12, 36, 496, 22)
 local query = input("", "VD: cây, rương; Workspace.Map.Chest", 12, 66, 496)
-local status = label("Nhập tên/path rồi bấm Bật. X = dừng và dọn sạch.", 12, 204, 496, 38)
-local detail = label("Chọn một dòng để xem đường dẫn và tọa độ (có thể chọn/copy ô bên dưới).", 12, 386, 496, 36)
+local status = label("Nhập tên/path rồi bật. X chỉ ẩn menu; dùng Dừng & thoát để dọn sạch.", 12, 204, 496, 38)
+status.TextColor3 = C.ACCENT
+local detail = label("Chọn một dòng để xem đường dẫn và tọa độ.", 12, 386, 496, 36)
 local copyBox = input("", "Thông tin vật được chọn", 12, 428, 496)
 copyBox.TextEditable = false
+local exitButton = button("Dừng & thoát", 12, 464, 128, shutdown)
+exitButton.TextColor3 = C.RED
+label("Chỉ định vị · không bay / không chạy script ngoài", 150, 464, 364, 28)
 local selected, rows, toggle, viewObjects = nil, {}, nil, {}
-local function paintToggle() toggle.Text = tracker.enabled and "Định vị: BẬT" or "Định vị: TẮT" end
+local function paintToggle()
+    toggle.Text = tracker.enabled and "Định vị: BẬT" or "Định vị: TẮT"
+    toggle.TextColor3 = tracker.enabled and C.GREEN or C.MUTED
+end
 local function applyQuery()
     tracker:setQuery(query.Text)
     tracker:setEnabled(true)
@@ -407,7 +494,10 @@ end)
 connect(query.FocusLost, function(enter) if enter then applyQuery() end end)
 local function option(text, field, x, y, w)
     local b
-    local function paint() b.Text = text .. (tracker[field] and ": BẬT" or ": TẮT") end
+    local function paint()
+        b.Text = text .. (tracker[field] and ": BẬT" or ": TẮT")
+        b.TextColor3 = tracker[field] and C.GREEN or C.MUTED
+    end
     b = button("", x, y, w, function()
         tracker[field] = not tracker[field]
         if field == "skipPlayers" then
@@ -435,7 +525,7 @@ button("Đặt xa", 434, 176, 74, function()
 end)
 local listGui = new("ScrollingFrame", {Position = UDim2.fromOffset(12, 248), Size = UDim2.fromOffset(496, 132),
     BackgroundColor3 = surface, BorderSizePixel = 0, ScrollBarThickness = 5,
-    CanvasSize = UDim2.fromOffset(0, 0)}, panel)
+    Name = "ObjTrackList", CanvasSize = UDim2.fromOffset(0, 0)}, card)
 local function renderList()
     local changed = #viewObjects ~= #tracker.list
     for i, hit in ipairs(tracker.list) do
@@ -477,34 +567,68 @@ cleanupRows = function()
     rows = {}
 end
 local dragging, dragInput, dragStart, startPosition
-connect(title.InputBegan, function(i)
-    if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+local resizing, resizeInput, resizeStart, resizeSize, resizePosition
+for _, spec in ipairs({
+    {name = "TL", x = 0, xo = 2, y = 0, yo = 2, text = "↖"},
+    {name = "TR", x = 1, xo = -18, y = 0, yo = 2, text = "↗"},
+    {name = "BL", x = 0, xo = 2, y = 1, yo = -18, text = "↙"},
+    {name = "BR", x = 1, xo = -18, y = 1, yo = -18, text = "↘"},
+}) do
+    local handle = new("TextButton", {Name = "Resize" .. spec.name,
+        Position = UDim2.new(spec.x, spec.xo, spec.y, spec.yo), Size = UDim2.fromOffset(16, 16),
+        Text = spec.text, TextColor3 = C.MUTED, BackgroundColor3 = C.SURFACE3,
+        TextSize = 9, BorderSizePixel = 0, ZIndex = 20}, panel)
+    corner(handle, 4)
+    connect(handle.InputBegan, function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+            resizing, resizeInput, resizeStart = spec.name, i, i.Position
+            resizeSize, resizePosition = panel.Size, panel.Position
+            dragging = false
+        end
+    end)
+end
+local function beginDrag(i)
+    if not dragLocked and (i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch) then
         dragging, dragInput, dragStart, startPosition = true, i, i.Position, panel.Position
+        resizing = nil
     end
-end)
+end
+connect(title.InputBegan, beginDrag)
+connect(titleBar.InputBegan, beginDrag)
 connect(UserInputService.InputChanged, function(i)
-    if dragging and (i.UserInputType == Enum.UserInputType.MouseMovement or i == dragInput) then
+    if resizing and (i.UserInputType == Enum.UserInputType.MouseMovement or i == resizeInput) then
+        local d = i.Position - resizeStart
+        local right, bottom = resizing:sub(2, 2) == "R", resizing:sub(1, 1) == "B"
+        local factor = scale.Scale
+        local width = math.max(560, math.min(900, resizeSize.X.Offset + (right and d.X or -d.X) / factor))
+        local height = math.max(280, math.min(700, resizeSize.Y.Offset + (bottom and d.Y or -d.Y) / factor))
+        panel.Size = UDim2.fromOffset(width, height)
+        panel.Position = UDim2.new(0.5, resizePosition.X.Offset + (width - resizeSize.X.Offset) * factor * (right and 0.5 or -0.5),
+            0.5, resizePosition.Y.Offset + (height - resizeSize.Y.Offset) * factor * (bottom and 0.5 or -0.5))
+        fit()
+    elseif dragging and (i.UserInputType == Enum.UserInputType.MouseMovement or i == dragInput) then
         local d = i.Position - dragStart
         panel.Position = UDim2.new(startPosition.X.Scale, startPosition.X.Offset + d.X,
             startPosition.Y.Scale, startPosition.Y.Offset + d.Y)
+        fit()
     end
 end)
 connect(UserInputService.InputEnded, function(i)
     if i == dragInput then dragging, dragInput = false, nil end
+    if i == resizeInput then resizing, resizeInput = nil, nil end
 end)
 connect(UserInputService.InputBegan, function(i, processed)
-    if not processed and i.KeyCode == Enum.KeyCode.RightControl then
-        panel.Visible = not panel.Visible; restore.Visible = not panel.Visible
-    end
+    if not processed and i.KeyCode == Enum.KeyCode.RightControl then showMenu(not panel.Visible) end
 end)
 local uiElapsed = 0
 connect(RunService.Heartbeat, function(dt)
     local ok, err = pcall(function()
         tracker:step(dt)
+        ringGradient.Rotation = (ringGradient.Rotation + dt * 90) % 360
         uiElapsed = uiElapsed + dt
         if uiElapsed >= 0.25 then
             uiElapsed = 0
-            fit(); renderList(); paintToggle()
+            fit(); fitContent(); renderList(); paintToggle()
             status.Text = string.format("%s | %d/%d vật | tối đa %d | %s",
                 tracker.enabled and "BẬT" or "TẮT", #tracker.list, tracker.found, tracker.maxItems,
                 tracker.stack and "đang quét..." or "tự quét mỗi giây")
@@ -517,4 +641,4 @@ connect(RunService.Heartbeat, function(dt)
         warn("[ObjectTracker] " .. tostring(err))
     end
 end)
-fit()
+fit(); fitContent()
