@@ -1,5 +1,9 @@
 # Roblox Anti-Lag Optimizer
 
+> **Script định vị vật thể độc lập:** xem [hướng dẫn và kết quả test](standalone/README.md)
+> và [file `object-tracker.luau`](standalone/object-tracker.luau). Đây là công cụ riêng,
+> không phải một phần của bundle Anti-Lag và không cần nạp `script.js`.
+
 Tối ưu hiệu năng **client** cho game **do bạn sở hữu**, chạy trong **Roblox Studio**,
 không dùng executor, không dùng `setrbxsetting`, không can thiệp anti-cheat.
 

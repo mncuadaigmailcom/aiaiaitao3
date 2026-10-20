@@ -10,8 +10,9 @@
     "lint": "node tools/lint-conventions.js",
     "test": "node tools/test-harness/run.js",
     "test:file": "node tools/test-harness/run.js",
-    "check": "node tools/lint-conventions.js && node tools/verify-catalog.js && node tools/syntax-check.js && node tools/test-harness/run.js",
-    "smoke": "node tools/test-harness/smoke.js"
+    "check": "node tools/lint-conventions.js && node tools/verify-catalog.js && node tools/syntax-check.js && node tools/test-harness/run.js && node tests/object-tracker/run.js",
+    "smoke": "node tools/test-harness/smoke.js",
+    "test:object-tracker": "node tests/object-tracker/run.js"
   },
   "devDependencies": {
     "fengari": "^0.1.4"
