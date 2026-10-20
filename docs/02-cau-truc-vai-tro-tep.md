@@ -58,7 +58,13 @@ aiaiaitao3/
 ├── tests/
 │   ├── lib/assert.js             Bộ khẳng định không phụ thuộc
 │   ├── lib/runtime.js            Nối Node với máy ảo Lua + mock Roblox
-│   └── suites/*.test.js          11 bộ, 115 test
+│   ├── suites/*.test.js          12 bộ, 142 test
+│   ├── fixtures/objectlocator/    27 ca cho module định vị vật thể
+│   ├── legacy/cases.lua            8 ca tái hiện lỗi S.ObjTrack
+│   └── lib/legacy-objtrack.js      trích nguyên văn mã S.ObjTrack từ script.js
+├── object-locator/
+│   ├── ObjectLocator.lua         Script định vị vật thể tự chứa (3.717 dòng)
+│   └── README.md                 Hướng dẫn dùng + API + test
 └── tools/
     ├── luau-to-lua.js            Chuyển Luau → Lua 5.3 để test được
     ├── luau-prelude.luau         Polyfill cho Lua 5.3
@@ -70,6 +76,7 @@ aiaiaitao3/
         ├── roblox-mock.luau      Mock Instance/Signal/Game (Lua 5.3 thuần)
         ├── lua-runtime.js        Cầu nối Node ↔ fengari
         ├── run.js                Trình chạy test
+        ├── run-legacy.js         Chạy 12 kiểm tra tái hiện lỗi S.ObjTrack
         └── smoke.js              Kiểm tra nhanh
 ```
 

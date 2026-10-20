@@ -6,16 +6,17 @@
 npm run check
 ```
 
-Kết quả thật, ngày 2026-10-18:
+Kết quả thật (cập nhật 2026-10-20; các bước lint/catalog/syntax giữ nguyên từ 2026-10-18):
 
 | Bước | Lệnh | Kết quả |
 | ---- | ---- | ------- |
 | Lint tĩnh | `npm run lint` | ✓ Không có vi phạm (36 tệp .luau) |
 | Đối chiếu danh mục | `npm run catalog` | ✓ 190 phương pháp khớp mã nguồn thật |
 | Cú pháp | `npm run syntax` | ✓ 38 tệp, lỗi: 0 |
-| Test tự động | `npm run test` | ✓ đạt 115 / hỏng 0 / tổng 115 |
+| Test tự động | `npm run test` | ✓ đạt 142 / hỏng 0 / tổng 142 |
+| Tái hiện lỗi bản gốc | `npm run test:legacy` | ✓ 12/12 kiểm tra (9 lỗi `S.ObjTrack`) |
 
-### 11 bộ test
+### 12 bộ test
 
 | Bộ | Số test | Kiểm chứng điều gì |
 | -- | ------- | ------------------ |
@@ -30,12 +31,17 @@ Kết quả thật, ngày 2026-10-18:
 | `safety` | 10 | Không xoá nội dung, lớp được bảo vệ, không có API executor |
 | `scheduler` | 9 | Một connection, ưu tiên, chu kỳ riêng, huỷ đúng task |
 | `spatial` | 10 | Lưới băm đúng kết quả, ít phép xét hơn quét toàn bộ |
+| `objectlocator` | 27 | `ObjectLocator.lua`: quét theo ngân sách, path, hiển thị, preset, UI, `start`/`stop` |
 
 > **Máy ảo Lua 5.3 (fengari) + mock Roblox API — KHÔNG phải Roblox Studio.**
 > Nó chứng minh **logic** đúng. Nó **không** chứng minh API Roblox thật hành xử
 > giống mock, và **không** tạo ra được bất kỳ con số FPS/RAM/CPU nào.
 
 Chạy một bộ: `npm run test gui`.
+
+> **Cập nhật 2026-10-20:** thêm bộ `objectlocator` (27 test) và lệnh
+> `npm run test:legacy` (12 kiểm tra tái hiện lỗi `S.ObjTrack`). Xem
+> [10-phan-tich-dinh-vi-vat-the.md](10-phan-tich-dinh-vi-vat-the.md).
 
 ## 4.2 Những gì BẠN phải làm trong Roblox Studio
 

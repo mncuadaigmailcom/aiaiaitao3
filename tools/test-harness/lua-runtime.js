@@ -196,6 +196,7 @@ class LuaRuntime {
       __RALO_GAME = __RALO_MOCK.CreateGame()
       __RALO_WORLD = __RALO_MOCK.BuildWorld(__RALO_GAME, { ${opts} })
       game = __RALO_GAME
+      workspace = __RALO_WORLD.workspace
     `, 'build-world');
 
     return this.run('return __RALO_WORLD', 'read-world')[0];
