@@ -152,8 +152,74 @@ test('invalid frame deltas do not advance state',function()
     tracker:step(-1); tracker:step(0/0); tracker:step(math.huge)
     eq(#tracker.list,50)
 end)
+test('preset catalog contains all 23 requested names',function()
+    setup()
+    local names={'Rush','Ambush','Eyes','Screech','Figure','Seek','Dupe','Halt','Hide','Timothy',
+        'Sally (Window)','Dread','Jeff','El Goblino','Bob','Jack','Moonlight','Weirdo','Glitch','Void',
+        'Red Barrier','Snare','Fallen Chandeliers'}
+    eq(#tracker.presets,#names)
+    for i,name in ipairs(names) do eq(tracker.presets[i].name,name) end
+end)
+test('every configured alias can be located independently',function()
+    for _, preset in ipairs(tracker.presets) do
+        for _, alias in ipairs(preset.aliases) do
+            setup(); Mock.node('Part',alias,root,10)
+            assert(tracker:setPreset(preset.name,true))
+            assert(tracker:setEnabled(true))
+            while tracker.stack do tracker:scanSlice() end
+            eq(#tracker.list,1)
+        end
+    end
+end)
+test('presets use exact names, not accidental substrings',function()
+    setup(); Mock.node('Part','HideSpot',root,1); Mock.node('Part','Bobblehead',root,2)
+    Mock.node('Part','RushMovingSound',root,3); Mock.node('Part','RushMoving',root,4)
+    tracker:setPreset('Hide',true); tracker:setPreset('Bob',true); tracker:setPreset('Rush',true)
+    tracker:setEnabled(true); while tracker.stack do tracker:scanSlice() end
+    eq(#tracker.list,1); eq(tracker.list[1].inst.Name,'RushMoving')
+end)
+test('independent preset switches keep other presets selected',function()
+    setup(); Mock.node('Part','RushMoving',root,1); Mock.node('Part','AmbushMoving',root,2)
+    tracker:setPreset('Rush',true); tracker:setPreset('Ambush',true)
+    tracker:setEnabled(true); while tracker.stack do tracker:scanSlice() end
+    eq(#tracker.list,2)
+    tracker:setPreset('Rush',false); while tracker.stack do tracker:scanSlice() end
+    eq(#tracker.list,1); eq(tracker.list[1].inst.Name,'AmbushMoving')
+end)
+test('empty manual query plus last preset off disables tracking',function()
+    tracker:setPreset('Ambush',false); eq(tracker.enabled,false); eq(#tracker.list,0)
+end)
+test('preset batch off preserves arbitrary manual filters',function()
+    setup(); Mock.node('Part','Chest',root,1); Mock.node('Part','Rush',root,2)
+    tracker:setQuery('chest'); tracker:setAllPresets(true); tracker:setEnabled(true)
+    while tracker.stack do tracker:scanSlice() end
+    eq(#tracker.list,2)
+    tracker:setAllPresets(false); while tracker.stack do tracker:scanSlice() end
+    eq(#tracker.list,1); eq(tracker.list[1].inst.Name,'Chest')
+end)
+test('per-object switch only hides selected instance, including same-name objects',function()
+    setup(); Mock.node('Part','Coin',root,1); Mock.node('Part','Coin',root,2); scan('coin')
+    local one,two=tracker.list[1].inst,tracker.list[2].inst
+    tracker:setObjectEnabled(one,false)
+    eq(tracker.items[one].visible,false); eq(tracker.items[two].visible,true)
+    tracker:beginScan(); while tracker.stack do tracker:scanSlice() end
+    eq(tracker.items[one].visible,false)
+    tracker:setObjectEnabled(one,true); eq(tracker.items[one].visible,true)
+end)
+test('unsupported preset names do not change state',function()
+    eq(tracker:setPreset('Unknown',true),false); eq(next(tracker.selectedPresets),nil)
+end)
+test('late spawning selected preset is found by auto rescan',function()
+    setup(); tracker:setPreset('Rush',true); tracker:setEnabled(true)
+    while tracker.stack do tracker:scanSlice() end
+    eq(#tracker.list,0); Mock.node('Model','RushMoving',root)
+    local model=root:FindFirstChild('RushMoving'); Mock.node('Part','Root',model,4)
+    tracker:step(1.1); eq(#tracker.list,1); eq(tracker.list[1].inst,model)
+end)
 test('destroy is idempotent and cannot be restarted',function()
     tracker:destroy(); tracker:destroy(); eq(tracker:setEnabled(true),false); eq(tracker:beginScan(),false)
     eq(tracker:setQuery('drop'),false)
+    eq(tracker:setPreset('Rush',true),false); eq(tracker:setAllPresets(true),false)
+    eq(tracker:setObjectEnabled(root,false),false)
 end)
 print(string.format('%d core regression tests passed',passed))

@@ -5,6 +5,32 @@
 local function createTracker(deps)
     local Tracker = {}
     Tracker.__index = Tracker
+    -- Name aliases are configurable hints, not a guarantee about a game's internals.
+    local presets = {
+        {name = "Rush", aliases = {"Rush", "RushMoving"}},
+        {name = "Ambush", aliases = {"Ambush", "AmbushMoving"}},
+        {name = "Eyes", aliases = {"Eyes"}},
+        {name = "Screech", aliases = {"Screech"}},
+        {name = "Figure", aliases = {"Figure", "FigureRig"}},
+        {name = "Seek", aliases = {"Seek", "SeekMoving", "SeekRig"}},
+        {name = "Dupe", aliases = {"Dupe", "DupeRig"}},
+        {name = "Halt", aliases = {"Halt", "HaltMoving", "Shade"}},
+        {name = "Hide", aliases = {"Hide"}},
+        {name = "Timothy", aliases = {"Timothy"}},
+        {name = "Sally (Window)", aliases = {"Sally", "Window", "WindowEntity", "Sally (Window)"}},
+        {name = "Dread", aliases = {"Dread"}},
+        {name = "Jeff", aliases = {"Jeff"}},
+        {name = "El Goblino", aliases = {"El Goblino", "ElGoblino", "El_Goblino"}},
+        {name = "Bob", aliases = {"Bob"}},
+        {name = "Jack", aliases = {"Jack"}},
+        {name = "Moonlight", aliases = {"Moonlight"}},
+        {name = "Weirdo", aliases = {"Weirdo"}},
+        {name = "Glitch", aliases = {"Glitch"}},
+        {name = "Void", aliases = {"Void"}},
+        {name = "Red Barrier", aliases = {"Red Barrier", "RedBarrier", "Red_Barrier"}},
+        {name = "Snare", aliases = {"Snare"}},
+        {name = "Fallen Chandeliers", aliases = {"Fallen Chandeliers", "FallenChandeliers", "FallenChandelier", "ChandelierFallen"}},
+    }
     local folds = {}
     for base, chars in pairs({
         a = "áàảãạăắằẳẵặâấầẩẫậÁÀẢÃẠĂẮẰẲẴẶÂẤẦẨẪẬ",
@@ -70,6 +96,7 @@ local function createTracker(deps)
     function Tracker.new()
         return setmetatable({
             enabled = false, destroyed = false, query = "", terms = {},
+            presets = presets, selectedPresets = {}, disabledObjects = setmetatable({}, {__mode = "k"}),
             maxDistance = 0, maxItems = 50, scanBudget = 150, sliceSeconds = 0.002,
             skipPlayers = true, showBox = false, showLabel = true, showXYZ = true,
             throughWalls = true, colorIndex = 1, items = {}, list = {},
@@ -88,10 +115,46 @@ local function createTracker(deps)
     function Tracker:setQuery(query)
         if self.destroyed then return false end
         self.query, self.terms = tostring(query or ""), parse(query)
+        local seen = {}
+        for _, preset in ipairs(self.presets) do
+            if self.selectedPresets[preset.name] then
+                for _, alias in ipairs(preset.aliases) do
+                    local value = normalize(alias)
+                    if not seen[value] then
+                        seen[value] = true
+                        self.terms[#self.terms + 1] = {value = value, exact = true}
+                    end
+                end
+            end
+        end
         self:clear() -- Drop stale markers immediately, including during a partial scan.
         if #self.terms == 0 then self.enabled = false end
         if self.enabled then self:beginScan() end
         return #self.terms > 0
+    end
+    function Tracker:setPreset(name, enabled)
+        if self.destroyed then return false end
+        local exists = false
+        for _, preset in ipairs(self.presets) do if preset.name == name then exists = true; break end end
+        if not exists then return false end
+        self.selectedPresets[name] = enabled == true or nil
+        self:setQuery(self.query)
+        return true
+    end
+    function Tracker:setAllPresets(enabled)
+        if self.destroyed then return false end
+        self.selectedPresets = {}
+        if enabled then
+            for _, preset in ipairs(self.presets) do self.selectedPresets[preset.name] = true end
+        end
+        self:setQuery(self.query)
+        return true
+    end
+    function Tracker:setObjectEnabled(inst, enabled)
+        if self.destroyed or not inst then return false end
+        self.disabledObjects[inst] = enabled ~= true or nil
+        self:refreshMarkers()
+        return true
     end
     function Tracker:setEnabled(enabled)
         if self.destroyed then return false end
@@ -115,6 +178,8 @@ local function createTracker(deps)
             if term.path then
                 path = path or normalize(pathOf(inst))
                 if path == term.value then return true end
+            elseif term.exact then
+                if name == term.value then return true end
             elseif name:find(term.value, 1, true) then return true end
         end
         return false
@@ -216,6 +281,7 @@ local function createTracker(deps)
                 hit.part, hit.path = part, pathOf(hit.inst)
                 hit.distance = origin and (part.Position - origin).Magnitude or nil
                 local visible = self.maxDistance == 0 or (hit.distance ~= nil and hit.distance <= self.maxDistance)
+                visible = visible and not self.disabledObjects[hit.inst]
                 local marker = self.items[hit.inst]
                 if marker then deps.updateMarker(marker, hit, self, visible) end
                 list[#list + 1] = hit
@@ -387,13 +453,13 @@ local page = new("ScrollingFrame", {Name = "PlayerTab", Size = UDim2.new(1, -56,
     ScrollBarThickness = 3, ScrollBarImageColor3 = C.ACCENT2,
     ScrollingDirection = Enum.ScrollingDirection.Y, CanvasSize = UDim2.fromOffset(0, 510)}, panel)
 local card = new("Frame", {Name = "HubObjTrack_Panel", Position = UDim2.fromOffset(8, 8),
-    Size = UDim2.fromOffset(548, 494), BackgroundColor3 = C.SURFACE,
+    Size = UDim2.fromOffset(548, 1000), BackgroundColor3 = C.SURFACE,
     BackgroundTransparency = 0.12, BorderSizePixel = 0}, page)
 corner(card, 10); stroke(card); gradient(card, C.SURFACE2, C.SURFACE)
 local cardScale = new("UIScale", {Scale = 1}, card)
 local function fitContent()
     cardScale.Scale = math.min(1, (panel.Size.X.Offset - 72) / 548)
-    page.CanvasSize = UDim2.fromOffset(0, 16 + 494 * cardScale.Scale)
+    page.CanvasSize = UDim2.fromOffset(0, 16 + 1000 * cardScale.Scale)
 end
 local function label(text, x, y, w, h, parent)
     return new("TextLabel", {Position = UDim2.fromOffset(x, y), Size = UDim2.fromOffset(w, h),
@@ -460,6 +526,9 @@ closeButton.Name, closeButton.Size = "CloseMenu", UDim2.fromOffset(24, 24)
 closeButton.Position, closeButton.TextColor3 = UDim2.new(1, -28, 0, 3), C.RED
 local featureTitle = label("🌳 ĐỊNH VỊ VẬT THỂ", 12, 8, 496, 24)
 featureTitle.TextColor3, featureTitle.Font = C.ACCENT, Enum.Font.GothamBold
+button("Chọn thực thể ↓", 350, 8, 158, function()
+    page.CanvasPosition = Vector2.new(0, 450 * cardScale.Scale)
+end)
 label("Tên chứa từ khóa; nhiều mục cách nhau bằng dấu , hoặc ;", 12, 36, 496, 22)
 local query = input("", "VD: cây, rương; Workspace.Map.Chest", 12, 66, 496)
 local status = label("Nhập tên/path rồi bật. X chỉ ẩn menu; dùng Dừng & thoát để dọn sạch.", 12, 204, 496, 38)
@@ -467,10 +536,11 @@ status.TextColor3 = C.ACCENT
 local detail = label("Chọn một dòng để xem đường dẫn và tọa độ.", 12, 386, 496, 36)
 local copyBox = input("", "Thông tin vật được chọn", 12, 428, 496)
 copyBox.TextEditable = false
-local exitButton = button("Dừng & thoát", 12, 464, 128, shutdown)
+local exitButton = button("Dừng & thoát", 12, 960, 128, shutdown)
 exitButton.TextColor3 = C.RED
-label("Chỉ định vị · không bay / không chạy script ngoài", 150, 464, 364, 28)
+label("Chỉ định vị · không bay / không chạy script ngoài", 150, 960, 364, 28)
 local selected, rows, toggle, viewObjects = nil, {}, nil, {}
+local paintPresets = function() end
 local function paintToggle()
     toggle.Text = tracker.enabled and "Định vị: BẬT" or "Định vị: TẮT"
     toggle.TextColor3 = tracker.enabled and C.GREEN or C.MUTED
@@ -489,9 +559,46 @@ button("Quét lại", 176, 104, 156, function()
     if query.Text ~= tracker.query then applyQuery() elseif tracker.enabled then tracker:beginScan() end
 end)
 button("Xóa kết quả", 340, 104, 168, function()
-    query.Text = ""; tracker:setQuery(""); selected = nil; paintToggle()
+    query.Text = ""; tracker:setAllPresets(false); tracker:setQuery("")
+    tracker.disabledObjects = setmetatable({}, {__mode = "k"})
+    selected = nil; paintToggle(); paintPresets()
 end)
 connect(query.FocusLost, function(enter) if enter then applyQuery() end end)
+-- Presets are exact-name filters; arbitrary manual names/paths remain available above.
+local presetTitle = label("HỖ TRỢ ĐỊNH VỊ · CHỌN TỪNG THỰC THỂ", 12, 464, 496, 24)
+presetTitle.TextColor3, presetTitle.Font = C.ACCENT, Enum.Font.GothamBold
+label("Chọn BẬT/TẮT từng mục. Chỉ thấy đối tượng đã xuất hiện ở client; tên nội bộ có thể khác. Muốn tìm tên khác, dùng ô phía trên.", 12, 492, 496, 44)
+local presetButtons = {}
+paintPresets = function()
+    for _, preset in ipairs(tracker.presets) do
+        local b = presetButtons[preset.name]
+        local on = tracker.selectedPresets[preset.name] == true
+        b.Text = preset.name .. (on and ": BẬT" or ": TẮT")
+        b.TextColor3 = on and C.GREEN or C.MUTED
+    end
+end
+local function applyPresetChange()
+    tracker:setQuery(query.Text)
+    tracker:setEnabled(true) -- Remains off when no manual filter/preset is selected.
+    selected, viewObjects = nil, {}
+    paintToggle(); paintPresets()
+end
+button("Bật tất cả mục hỗ trợ", 12, 548, 244, function()
+    tracker:setAllPresets(true); applyPresetChange()
+end)
+button("Tắt tất cả mục hỗ trợ", 264, 548, 244, function()
+    tracker:setAllPresets(false); applyPresetChange()
+end)
+for i, preset in ipairs(tracker.presets) do
+    local x, y = 12 + ((i - 1) % 2) * 252, 584 + math.floor((i - 1) / 2) * 30
+    local b = button("", x, y, 244, function()
+        tracker:setPreset(preset.name, not tracker.selectedPresets[preset.name])
+        applyPresetChange()
+    end)
+    b.Name = "Preset_" .. tostring(i)
+    presetButtons[preset.name] = b
+end
+paintPresets()
 local function option(text, field, x, y, w)
     local b
     local function paint()
@@ -534,19 +641,27 @@ local function renderList()
     if changed then
         viewObjects = {}
         for i, hit in ipairs(tracker.list) do viewObjects[i] = hit.inst end
-        for _, row in ipairs(rows) do row.connection:Disconnect(); row.button:Destroy() end
+        for _, row in ipairs(rows) do row.connection:Disconnect(); row.toggleConnection:Disconnect(); row.button:Destroy(); row.toggle:Destroy() end
         rows = {}
         for i, hit in ipairs(tracker.list) do
             local inst = hit.inst
-            local b = new("TextButton", {Position = UDim2.fromOffset(4, (i - 1) * 28), Size = UDim2.new(1, -12, 0, 26),
+            local b = new("TextButton", {Position = UDim2.fromOffset(4, (i - 1) * 28), Size = UDim2.new(1, -76, 0, 26),
                 BackgroundColor3 = bg, TextColor3 = ink, Font = Enum.Font.Gotham, TextSize = 11,
                 TextXAlignment = Enum.TextXAlignment.Left, RichText = false}, listGui)
             local connection = b.Activated:Connect(function() selected = inst end)
-            rows[#rows + 1] = {button = b, connection = connection}
+            local perObject = new("TextButton", {Name = "ToggleObject", Position = UDim2.new(1, -68, 0, (i - 1) * 28),
+                Size = UDim2.fromOffset(56, 26), BackgroundColor3 = C.SURFACE3, TextSize = 10,
+                TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, BorderSizePixel = 0}, listGui)
+            corner(perObject)
+            local toggleConnection = perObject.Activated:Connect(function()
+                tracker:setObjectEnabled(inst, tracker.disabledObjects[inst] == true)
+            end)
+            rows[#rows + 1] = {button = b, connection = connection, toggle = perObject, toggleConnection = toggleConnection}
         end
         listGui.CanvasSize = UDim2.fromOffset(0, #rows * 28)
     end
     for i, hit in ipairs(tracker.list) do
+        rows[i].toggle.Text = tracker.disabledObjects[hit.inst] and "Bật" or "Tắt"
         rows[i].button.Text = string.format("%d. %s | %s stud", i, hit.inst.Name,
             hit.distance and string.format("%.1f", hit.distance) or "?")
     end
@@ -563,7 +678,7 @@ local function renderList()
 end
 -- Row signals are tracked separately to avoid an ever-growing connection registry.
 cleanupRows = function()
-    for _, row in ipairs(rows) do row.connection:Disconnect() end
+    for _, row in ipairs(rows) do row.connection:Disconnect(); row.toggleConnection:Disconnect() end
     rows = {}
 end
 local dragging, dragInput, dragStart, startPosition
