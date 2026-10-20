@@ -21,9 +21,13 @@ trong môi trường này và in kết quả ra.
 | Test `config` (13) | Đạt | `đạt 13 / hỏng 0` — CFG-001/002/004/005/006, RES-004, MEAS-004, LOWEND-001..004, REC-004 |
 | Test `catalog` (7) | Đạt | `đạt 7 / hỏng 0` — tính toàn vẹn của danh mục |
 | Test `pipeline` (15) | Đạt | `đạt 15 / hỏng 0` — MEAS-001/003/006/007, CFG-001, EFFECTS-001/002, RESTORE-001/002/003, REC-002/003, QUERY-004/006, LOOP-005, GRAPHICS-001/003, START-003 |
-| **Tổng** | **Đạt** | **`npm run check` → đạt 115 / hỏng 0 / tổng 115** |
+| **Tổng** | **Đạt** | **`npm run check` → đạt 115 / hỏng 0 / tổng 115** (bản gốc 2026-10-18) |
 | Chạy trong **Roblox Studio** | **Chưa làm** | Môi trường phát triển không có Roblox Studio. Xem 6.4 |
 | Đo FPS / RAM / CPU trước–sau | **Chưa làm** | Không có GPU, không có thiết bị thật. Xem [07](07-do-luong-hoan-tac.md) |
+
+> **Cập nhật 2026-10-20:** `npm test` → **142/142** (thêm bộ `objectlocator`, 27 test);
+> `npm run test:legacy` → **12/12** tái hiện 9 lỗi của `S.ObjTrack`. Xem
+> [10-phan-tich-dinh-vi-vat-the.md](10-phan-tich-dinh-vi-vat-the.md).
 
 ## 6.2 Bảng lỗi đã gặp và đã sửa
 

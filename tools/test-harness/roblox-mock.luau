@@ -147,6 +147,12 @@ Mock.Enum = {
 	EasingStyle = { Quad = "Quad", Linear = "Linear" },
 	EasingDirection = { Out = "Out", In = "In" },
 	QualityLevel = { Automatic = "Automatic" },
+	HighlightDepthMode = { AlwaysOnTop = "AlwaysOnTop", Occluded = "Occluded" },
+	ScrollingDirection = { X = "X", Y = "Y" },
+	AutomaticSize = { None = "None", X = "X", Y = "Y", XY = "XY" },
+	UserInputType = { MouseButton1 = "MouseButton1", Touch = "Touch", MouseMovement = "MouseMovement" },
+	KeyCode = { RightShift = "RightShift", LeftAlt = "LeftAlt" },
+	RenderPriority = { Camera = { Value = 200 } },
 }
 
 -------------------------------------------------------------------- Instance
@@ -175,6 +181,24 @@ local CLASS_DEFAULTS = {
 	Workspace = {},
 	Lighting = { QualityLevel = 10, GraphicsQualityMode = true },
 	Players = {},
+}
+
+--[[
+	Cây kế thừa lớp tối thiểu: đủ để IsA("BasePart"/"Model"/"GuiObject"...)
+	đúng như Roblox. Trước đây mock chỉ so khớp ClassName chính xác nên
+	IsA("BasePart") luôn false — đó là lỗ hổng của mock, không phải của mã nguồn.
+]]
+local CLASS_PARENT = {
+	Part = "BasePart", MeshPart = "BasePart", UnionOperation = "BasePart",
+	WedgePart = "BasePart", CornerWedgePart = "BasePart", TrussPart = "BasePart",
+	BasePart = "PVInstance", Model = "PVInstance",
+	Highlight = "Instance", SelectionBox = "Adornment", BoxHandleAdornment = "Adornment",
+	Adornment = "Instance",
+	ScreenGui = "LayerCollector", BillboardGui = "LayerCollector",
+	LayerCollector = "GuiBase2d", GuiBase2d = "Instance",
+	Frame = "GuiObject", TextLabel = "GuiObject", TextButton = "GuiObject",
+	TextBox = "GuiObject", ScrollingFrame = "GuiObject", ImageLabel = "GuiObject",
+	GuiObject = "GuiBase2d",
 }
 
 --[[
@@ -305,7 +329,64 @@ local function makeInstance(className)
 	end
 
 	function api.IsA(_self, name)
-		return props.ClassName == name
+		local current = props.ClassName
+		local guard = 0
+		while current ~= nil and guard < 24 do
+			if current == name then
+				return true
+			end
+			current = CLASS_PARENT[current] or (current ~= "Instance" and "Instance" or nil)
+			guard = guard + 1
+		end
+		return false
+	end
+
+	function api.IsDescendantOf(_self, ancestor)
+		local current = props.Parent
+		local guard = 0
+		while current ~= nil and guard < 120 do
+			if current == ancestor then
+				return true
+			end
+			local parentProps = registry[current]
+			current = parentProps and parentProps.Parent or nil
+			guard = guard + 1
+		end
+		return false
+	end
+
+	function api.FindFirstChildWhichIsA(_self, className, recursive)
+		local function matches(instance)
+			local instanceProps = registry[instance]
+			if instanceProps == nil then
+				return false
+			end
+			local current = instanceProps.ClassName
+			local guard = 0
+			while current ~= nil and guard < 24 do
+				if current == className then
+					return true
+				end
+				current = CLASS_PARENT[current] or (current ~= "Instance" and "Instance" or nil)
+				guard = guard + 1
+			end
+			return false
+		end
+		local function search(node)
+			for _, child in pairs(rawget(node, "__children") or {}) do
+				if matches(child) then
+					return child
+				end
+				if recursive == true then
+					local found = search(child)
+					if found ~= nil then
+						return found
+					end
+				end
+			end
+			return nil
+		end
+		return search(self)
 	end
 
 	function api.Destroy(_self)
@@ -336,8 +417,46 @@ local function makeInstance(className)
 	end
 
 	------------------------------------------------------- per-class extras
-	if className == "TextButton" then
+	if className == "TextButton" or className == "ImageButton" then
 		api.MouseButton1Click = Signal.new()
+		api.Activated = Signal.new()
+	end
+
+	if className == "TextBox" then
+		api.FocusLost = Signal.new()
+		api.Focused = Signal.new()
+		api.CaptureFocus = function() end
+		api.ReleaseFocus = function() end
+		api.IsFocused = function(_self)
+			return rawget(_self, "__focused") == true
+		end
+	end
+
+	if className == "Frame" or className == "ScrollingFrame" or className == "TextLabel"
+		or className == "TextButton" or className == "TextBox" then
+		api.InputBegan = Signal.new()
+		api.InputEnded = Signal.new()
+		api.InputChanged = Signal.new()
+	end
+
+	if className == "Player" then
+		api.CharacterAdded = Signal.new()
+		api.CharacterRemoving = Signal.new()
+	end
+
+	if className == "UserInputService" then
+		api.InputBegan = Signal.new()
+		api.InputChanged = Signal.new()
+		api.InputEnded = Signal.new()
+		api.WindowFocused = Signal.new()
+		api.WindowFocusReleased = Signal.new()
+	end
+
+	if className == "Humanoid" then
+		api.MoveTo = function(_self, position)
+			props.MoveToPosition = position
+			props.MoveToCount = (tonumber(props.MoveToCount) or 0) + 1
+		end
 	end
 
 	-- BindableEvent theo ĐÚNG API Roblox:
@@ -439,6 +558,16 @@ function Mock.BuildWorld(game, options)
 	local workspace = game:GetService("Workspace")
 	local lighting = game:GetService("Lighting")
 	local players = game:GetService("Players")
+	Mock.AttachApi(players, "GetPlayers", function(self)
+		local out = {}
+		for _, child in pairs(rawget(self, "__children") or {}) do
+			local childProps = getProps(child)
+			if childProps ~= nil and childProps.ClassName == "Player" then
+				out[#out + 1] = child
+			end
+		end
+		return out
+	end)
 
 	workspace.Terrain = Instance.new("Terrain")
 	workspace.Terrain.Parent = workspace
