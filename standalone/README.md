@@ -66,41 +66,50 @@ Không mang theo bay tới vật, teleport, noclip, AntiBan, phân tích trang p
 chạy script ngoài hoặc lưu preset xuống file. Từ khóa/cấu hình chỉ tồn tại trong
 phiên chạy; đây là bản chỉ định vị.
 
-## Cảnh báo xuất hiện — chỉ 5 loại
+## Cảnh báo đang hiện diện — một ô cố định, chỉ 5 loại
 
-**Rush, Ambush, Seek, Screech và Sally** có thông báo riêng. Đây là whitelist
-cảnh báo độc lập: 23 preset định vị cũ vẫn giữ nguyên, nhưng Eyes/Figure và các
-vật thể khác **không được đưa vào hệ thống cảnh báo**.
+**Rush, Ambush, Seek, Screech và Sally** có cảnh báo hiện diện. Whitelist cảnh báo
+độc lập với 23 preset định vị cũ: Eyes/Figure và các vật thể khác không được đưa
+vào ô cảnh báo này.
 
-- Mặc định **Cảnh báo: BẬT** ở header tab Người Chơi; bấm để tắt/bật riêng.
-- Khi nhận được đối tượng mới phù hợp trong Workspace (bao gồm hậu duệ của
-  CurrentCamera nếu camera nằm trong Workspace), hiện một hình chữ nhật nhỏ
-  ở **góc trên bên phải**: ví dụ `Rush xuất hiện!` và `Cách bạn: 18.0 stud`.
-- Khoảng cách tới **Head** của nhân vật bạn, dự phòng HumanoidRootPart nếu chưa
-  có Head. Không dùng vị trí camera để giả làm khoảng cách tới nhân vật.
-- Thông báo sống **5 giây kể từ khi được hiển thị**, có thanh thời gian và cập
-  nhật khoảng cách mỗi Heartbeat. Không dùng một vòng lặp/task.delay riêng cho mỗi ô.
-- Thông báo mới ở trên, ô cũ tự xuống dưới, cách nhau 8px. Hai hoặc ba thông
-  báo cùng lúc không chồng nhau; có thể hiển thị cả năm loại cùng lúc.
-- Tối đa một ô cho mỗi loại. Nếu một **instance mới** cùng loại xuất hiện trong
-  lúc ô cũ còn hiện, cập nhật ô đó và bắt đầu lại 5 giây; không đẩy mất ô loại khác.
-- Một instance chỉ báo một lần, kể cả có nhiều part/effect con xuất hiện hoặc
-  alias trùng giữa Model và part. Part đến sau Model rỗng vẫn có thể kích hoạt cảnh báo.
-- Hình chữ nhật được co theo viewport nhỏ. Ẩn menu bằng X/RightControl không ẩn
-  cảnh báo. Tắt định vị/không chọn preset cũng không tắt cảnh báo riêng.
-- Thực thể biến mất trước 5 giây: ô còn tới hạn nhưng hiển thị `Đã rời khỏi vùng quan sát`
-  thay vì báo khoảng cách hiện tại giả. Chưa có nhân vật: báo chưa có khoảng cách.
-- `Dừng & thoát`, hủy GUI hoặc nạp lại sẽ dọn cả các ô và hàng đợi cảnh báo.
-- Cảnh báo dùng cùng các alias của năm preset đó (Sally hiển thị là `Sally`).
-  Alias vẫn là gợi ý theo tên; `Window` có thể trùng cảnh vật không phải Sally.
-  Chưa xác minh tên/đường dẫn trong game đích bằng Roblox thật.
-- Chỉ nhận các sự kiện xuất hiện sau khi script/listener hoạt động; không quét
-  toàn map riêng để báo lại mọi thực thể đã có sẵn. Thực thể chỉ ở server hoặc
-  hiệu ứng không có part phía client không thể định vị khoảng cách bằng cách này.
+- Mặc định **Cảnh báo: BẬT** ở header tab Người Chơi; có thể tắt/bật riêng.
+- Chỉ có **một hình chữ nhật 280 × 66** ở góc trên bên phải. Kích thước ô và layer
+  không đổi theo số thực thể. Không còn nhiều ô xếp dọc hoặc thanh đếm ngược.
+- Ví dụ hai thực thể cùng xuất hiện, phần nội dung chung sẽ có hai dòng:
 
-Hàng đợi cảnh báo chống trùng, lọc tên trước khi đưa vào queue để cảnh vật bình
-thường không chiếm chỗ, giới hạn 256 mục và xử lý tối đa 32 mục/khoảng 1 ms mỗi
-Heartbeat. Giới hạn này là hợp tác, không phải bảo đảm độ trễ/FPS trong engine thật.
+  ```text
+  Rush: 18.0 stud
+  Ambush: 42.0 stud
+  ```
+
+- Chữ tự nhỏ lại theo số dòng, có TextScaled/UITextSizeConstraint để vừa ô.
+  Khi một thực thể rời đi, chỉ bỏ dòng đó, chữ tự lớn lại nhưng ô không đổi kích thước.
+- **Không còn tự ẩn sau 5 giây.** Ô hiện miễn là còn ít nhất một thực thể đang được
+  theo dõi. Chỉ ẩn khi thực thể cuối cùng biến mất khỏi Workspace phía client,
+  không còn BasePart đại diện hợp lệ hoặc không còn thuộc whitelist.
+- Nếu hai instance cùng loại (ví dụ hai Rush) còn tồn tại, hiển thị hai dòng khoảng
+  cách riêng, không thay thế instance cũ bằng instance mới.
+- Khoảng cách cập nhật mỗi Heartbeat, tính tới **Head** của nhân vật bạn; dự phòng
+  HumanoidRootPart nếu chưa có Head, không dùng camera giả làm vị trí nhân vật.
+  Nếu chưa có nhân vật, vẫn giữ tên thực thể và báo chưa có vị trí nhân vật.
+- Một instance không bị thêm trùng vì nhiều part/effect con hoặc alias trùng.
+  Model rỗng có thể được nhận khi part đến sau. Nếu instance rời Workspace rồi
+  trở lại sau khi đã được bỏ khỏi danh sách, có thể theo dõi lại instance đó.
+- Ô chỉ co theo viewport nhỏ, không co/giãn vì thêm thực thể. X/RightControl chỉ
+  ẩn menu, không ẩn cảnh báo. Tắt ESP/không chọn preset cũng không tắt cảnh báo riêng.
+- `Dừng & thoát`, hủy GUI hoặc nạp lại sẽ dọn cả ô và queue cảnh báo.
+- “Biến mất” được xác định bằng dữ liệu client: rời Workspace, bị Destroy hoặc
+  mất toàn bộ part có thể định vị. Không có nghĩa là rời màn hình/đứng sau tường;
+  script không suy đoán việc game chỉ làm trong suốt hay giấu một Model còn tồn tại.
+- Alias vẫn là gợi ý theo tên; `Window` có thể trùng cảnh vật không phải Sally.
+  Chưa xác minh tên/đường dẫn thực tế trong game đích bằng Roblox thật.
+- Chỉ nhận các sự kiện xuất hiện sau khi listener hoạt động, không quét toàn map
+  riêng để báo lại mọi thực thể có sẵn. Thực thể chỉ ở server hoặc hiệu ứng không
+  có BasePart phía client không thể đo khoảng cách bằng cách này.
+
+Queue chống trùng, lọc tên trước khi enqueue để cảnh vật bình thường không chiếm
+chỗ, giới hạn 256 mục và xử lý tối đa 32 mục/khoảng 1 ms mỗi Heartbeat. Đây là
+ngân sách hợp tác, không phải cam kết FPS/độ trễ trong engine thật.
 
 ## Danh sách thực thể hỗ trợ
 
@@ -166,7 +175,7 @@ Bộ test mới lấy **nguyên core từ file bàn giao**, không chép một b
 Kết quả trong sandbox:
 
 - Kiểm tra cú pháp toàn file: đạt trên parser Lua 5.3 (mã dùng tập con tương thích Luau).
-- **67 test core: đạt.** Tên/path/tiếng Việt, query chỉ có path, path xuất hiện trễ,
+- **72 test core: đạt.** Tên/path/tiếng Việt, query chỉ có path, path xuất hiện trễ,
   query rỗng, đổi query giữa vòng quét, người chơi respawn, xóa/reparent vật,
   PrimaryPart bị xóa, khoảng cách không hợp lệ, mất vị trí gốc, gộp Model,
   ngân sách quét, giữ 50 vật gần nhất trong fixture 1.000 vật, dừng/idempotent destroy.
@@ -176,20 +185,21 @@ Kết quả trong sandbox:
   Model nhận part trễ, chống event trùng, giới hạn queue/quota/thời gian/tạo marker,
   không mất event khi kết thúc quét, xóa queue khi tắt, cache nhân vật và tên,
   và bảo toàn loại trừ nhân vật/effect trong đường xử lý nhanh.
-  Thêm 12 ca cảnh báo: whitelist đúng năm loại, chạy khi ESP tắt, deadline 5 giây,
-  chống trùng/không gia hạn vì part con, spawn mới cùng loại, ba cảnh báo đồng thời,
-  khoảng cách và mất nhân vật, despawn, Model nhận part trễ, công tắc độc lập,
-  ngân sách queue và loại trừ nhân vật bất kể công tắc ESP.
-- **28 test tích hợp GUI/mock: đạt.** Boot không có executor, Enter, marker,
+  Có 17 ca cảnh báo: whitelist đúng năm loại, ESP tắt vẫn cảnh báo, còn hiện diện
+  sau 5/60 giây, chống trùng part con, hai instance cùng loại, loại bỏ từng thực thể,
+  khoảng cách/mất nhân vật, despawn, Model nhận part trễ, công tắc/queue/loại trừ nhân vật,
+  cùng instance rời rồi trở lại, mất toàn bộ part/thay part và đổi tên ngoài whitelist.
+- **31 test tích hợp GUI/mock: đạt.** Boot không có executor, Enter, marker,
   switch hiển thị, chọn kết quả, vật trùng tên được thay mới, X/nút nổi, bật/tắt,
   khóa kéo/co GUI, chỉ một tab/card, palette/header NOIR, cả bốn góc resize,
   RightControl, nút Tắt/Bật từng dòng, nhảy tới danh sách hỗ trợ, các công tắc preset,
   batch bật/tắt, phối hợp manual/preset, xóa hết, marker từ sự kiện spawn thật của mock
   xuất hiện sau một Heartbeat mô phỏng, nạp lại, Dừng & thoát và GUI bị hủy từ bên ngoài.
   Có kiểm tra listener DescendantAdded không bị nhân đôi và được ngắt khi thoát.
-  Thêm 6 ca GUI cảnh báo: ba ô xếp dọc/top-right và khoảng cách tới Head, cập nhật
-  khi menu ẩn, hết 5 giây, từ chối loại không hỗ trợ/tắt công tắc, năm loại trên
-  màn hình nhỏ, và dự phòng Head/root/không dùng camera. Reload có kiểm tra các ô cũ bị hủy.
+  Có 9 ca GUI cảnh báo: ô cố định góc phải, hai/ba thực thể chung ô và chỉ thu nhỏ chữ,
+  không hết hạn sau 5 giây, xóa từng dòng/lớn chữ lại, ẩn sau khi thực thể cuối rời đi,
+  whitelist/công tắc riêng, năm loại trên màn hình nhỏ, Head/root/mất nhân vật,
+  và hai instance cùng loại có khoảng cách riêng. Reload kiểm tra ô cũ bị hủy.
 - **115 test cũ của dự án: đạt**, không bị thay thế bởi bộ test mới.
 
 **Chưa chạy trong Roblox Studio/game thật.** Fengari + mock chỉ kiểm chứng logic
@@ -225,8 +235,10 @@ cho hàng đợi nhỏ, không phải cam kết tốc độ trên thiết bị/g
 
 ### Kiểm tra cảnh báo trong Studio
 
-Tắt ESP, giữ Cảnh báo BẬT. Tạo ba Part `Rush`, `Ambush`, `Seek` gần nhân vật;
-xác nhận ba ô ở góc phải, so khoảng cách tới Head, di chuyển nhân vật và chờ 5 giây.
-Thử `Screech`, `Sally`, đối tượng `Eyes` (không được báo), tạo Model trước rồi
-thêm Part sau, ẩn menu, màn hình nhỏ, respawn và thoát/nạp lại. Các test mock
-chưa thay thế bước xác nhận hình ảnh/thực thể thật trong Roblox Studio.
+Tắt ESP, giữ Cảnh báo BẬT. Tạo một Part `Rush`, sau đó thêm `Ambush` và `Seek`;
+xác nhận vẫn chỉ một ô, kích thước không đổi, có đủ tên/khoảng cách và chữ nhỏ lại.
+Chờ hơn 5 giây: ô vẫn phải hiện. Xóa từng Part: chỉ dòng tương ứng biến mất;
+xóa Part cuối: ô ẩn. Thử hai Rush, Sally/Screech, Eyes (không cảnh báo), Model
+rỗng nhận part trễ, di chuyển Head, mất nhân vật, màn hình nhỏ và thoát/nạp lại.
+Test mock kiểm tra logic/cấu hình layout, không thay thế đo text rendering hoặc
+xác minh thực thể thật trong Roblox Studio.

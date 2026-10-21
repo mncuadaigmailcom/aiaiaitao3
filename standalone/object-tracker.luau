@@ -120,7 +120,7 @@ local function createTracker(deps)
             scanSeen = setmetatable({}, {__mode = "k"}), hitsDirty = false,
             markerBudget = 8, markerPending = false,
             alerts = {enabled = true, active = {}, queue = {}, queued = {}, head = 1, tail = 0,
-                seen = setmetatable({}, {__mode = "k"}), time = 0, duration = 5,
+                seen = setmetatable({}, {__mode = "k"}),
                 budget = 32, sliceSeconds = 0.001, maxPending = 256},
         }, Tracker)
     end
@@ -437,14 +437,25 @@ local function createTracker(deps)
         alerts.queue[alerts.tail], alerts.queued[target] = target, true
         return true
     end
-    function Tracker:stepAlerts(dt)
+    function Tracker:pruneAlerts()
         local alerts = self.alerts
-        alerts.time = alerts.time + dt
-        if not alerts.enabled then return end
-        -- Expiry is based on Heartbeat time, never a task.delay per toast.
         for i = #alerts.active, 1, -1 do
-            if alerts.time >= alerts.active[i].expires then table.remove(alerts.active, i) end
+            local entry = alerts.active[i]
+            local part = live(entry.inst) and partOf(entry.inst) or nil
+            local name = alertNames[entry.inst.Name:lower()]
+            if not part or not live(part) or not name or self:isPlayerCharacter(entry.inst) then
+                alerts.seen[entry.inst] = nil
+                table.remove(alerts.active, i)
+            else
+                entry.name, entry.part = name, part
+            end
         end
+    end
+    function Tracker:stepAlerts()
+        local alerts = self.alerts
+        if not alerts.enabled then return end
+        -- Presence, not a countdown, controls the notification lifetime.
+        self:pruneAlerts()
         local started, count = deps.now(), 0
         while alerts.head <= alerts.tail do
             local inst = alerts.queue[alerts.head]
@@ -463,12 +474,8 @@ local function createTracker(deps)
                 end
                 if target and not alerts.seen[target] then
                     alerts.seen[target] = true
-                    -- One card per supported kind: a new spawn refreshes that kind's five-second card.
-                    for i = #alerts.active, 1, -1 do
-                        if alerts.active[i].name == name then table.remove(alerts.active, i) end
-                    end
-                    table.insert(alerts.active, 1, {name = name, inst = target, part = part,
-                        expires = alerts.time + alerts.duration, remaining = alerts.duration})
+                    -- Keep every live instance, including two instances of the same kind.
+                    alerts.active[#alerts.active + 1] = {name = name, inst = target, part = part}
                 end
             end
             count = count + 1
@@ -478,17 +485,13 @@ local function createTracker(deps)
         local origin = deps.getAlertOrigin and deps.getAlertOrigin() or nil
         if not deps.getAlertOrigin then origin = deps.getOrigin() end
         for _, entry in ipairs(alerts.active) do
-            entry.remaining = math.max(0, entry.expires - alerts.time)
-            local part = live(entry.inst) and partOf(entry.inst) or nil
-            entry.present = part ~= nil and live(part)
-            entry.part = part
-            entry.distance = entry.present and origin and (part.Position - origin).Magnitude or nil
+            entry.distance = origin and (entry.part.Position - origin).Magnitude or nil
         end
     end
     function Tracker:step(dt)
         if self.destroyed or not finite(dt) or dt < 0 then return end
         self:refreshCharacters()
-        self:stepAlerts(dt)
+        self:stepAlerts()
         if not self.enabled then return end
         self.markerRemaining = self.markerBudget
         self.scanElapsed, self.labelElapsed = self.scanElapsed + dt, self.labelElapsed + dt
@@ -708,46 +711,42 @@ local pageTitle = label("👥 Người Chơi", 10, 0, 180, 24, header)
 pageTitle.TextColor3, pageTitle.Font = C.ACCENT, Enum.Font.GothamBold
 local onlyFeature = label("🌳 Định vị vật thể", 190, 0, 150, 24, header)
 onlyFeature.TextColor3 = C.MUTED
--- Toasts are siblings of the menu: hiding the menu must not hide danger alerts.
+-- One fixed-size notification, independent of menu visibility and entity count.
 local alertLayer = new("Frame", {Name = "EntityAlerts", AnchorPoint = Vector2.new(1, 0),
-    Position = UDim2.new(1, -12, 0, 12), Size = UDim2.fromOffset(280, 0),
-    BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = 2000}, gui)
+    Position = UDim2.new(1, -12, 0, 12), Size = UDim2.fromOffset(280, 66),
+    BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = 2000, Visible = false}, gui)
 local alertScale = new("UIScale", {Scale = 1}, alertLayer)
-local toastCards = {}
+local alertCard = new("Frame", {Name = "CombinedAlert", Size = UDim2.fromOffset(280, 66),
+    Position = UDim2.fromOffset(0, 0), BackgroundColor3 = C.SURFACE,
+    BorderSizePixel = 0, ZIndex = 2001}, alertLayer)
+corner(alertCard, 7); stroke(alertCard, C.ACCENT2, 1.2)
+local alertHeading = label("", 10, 3, 260, 18, alertCard)
+alertHeading.Name, alertHeading.Font = "AlertTitle", Enum.Font.GothamBold
+alertHeading.TextColor3, alertHeading.ZIndex = C.ACCENT3, 2002
+local alertBody = label("", 10, 23, 260, 40, alertCard)
+alertBody.Name, alertBody.TextColor3, alertBody.ZIndex = "AlertEntities", C.DARK, 2002
+alertBody.TextScaled, alertBody.TextWrapped = true, true
+alertBody.TextYAlignment = Enum.TextYAlignment.Center
+local alertTextLimit = new("UITextSizeConstraint", {MinTextSize = 1, MaxTextSize = 18}, alertBody)
 local function renderAlerts()
-    local keep = {}
-    for i, entry in ipairs(tracker.alerts.active) do
-        keep[entry.name] = true
-        local toast = toastCards[entry.name]
-        if not toast then
-            local frame = new("Frame", {Name = "Alert_" .. entry.name, Size = UDim2.fromOffset(280, 66),
-                BackgroundColor3 = C.SURFACE, BorderSizePixel = 0, ZIndex = 2001}, alertLayer)
-            corner(frame, 7); stroke(frame, C.ACCENT2, 1.2)
-            local heading = label(entry.name .. " xuất hiện!", 10, 6, 260, 22, frame)
-            heading.Font, heading.TextColor3, heading.ZIndex = Enum.Font.GothamBold, C.ACCENT3, 2002
-            local distanceLabel = label("", 10, 29, 260, 24, frame)
-            distanceLabel.TextColor3, distanceLabel.ZIndex = C.DARK, 2002
-            local progress = new("Frame", {Name = "Lifetime", Position = UDim2.fromOffset(0, 63),
-                Size = UDim2.new(1, 0, 0, 3), BackgroundColor3 = C.ACCENT2,
-                BorderSizePixel = 0, ZIndex = 2002}, frame)
-            toast = {frame = frame, distance = distanceLabel, progress = progress}
-            toastCards[entry.name] = toast
-        end
-        toast.frame.Position = UDim2.fromOffset(0, (i - 1) * 74)
-        if not entry.present then toast.distance.Text = "Đã rời khỏi vùng quan sát"
-        elseif entry.distance then toast.distance.Text = string.format("Cách bạn: %.1f stud", entry.distance)
-        else toast.distance.Text = "Khoảng cách: chưa có nhân vật" end
-        toast.progress.Size = UDim2.new(entry.remaining / tracker.alerts.duration, 0, 0, 3)
+    local entries, lines = tracker.alerts.active, {}
+    for _, entry in ipairs(entries) do
+        local distance = entry.distance and string.format("%.1f stud", entry.distance) or "chưa có vị trí nhân vật"
+        lines[#lines + 1] = entry.name .. ": " .. distance
     end
-    for name, toast in pairs(toastCards) do
-        if not keep[name] then toast.frame:Destroy(); toastCards[name] = nil end
-    end
-    local height = math.max(1, #tracker.alerts.active * 74)
-    alertLayer.Size = UDim2.fromOffset(280, height)
+    local count = #entries
+    alertLayer.Visible = tracker.alerts.enabled and count > 0
+    alertHeading.Text = count == 1 and (entries[1].name .. " xuất hiện!") or (tostring(count) .. " thực thể xuất hiện!")
+    alertBody.Text = table.concat(lines, "\n")
+    -- The panel never grows with the count. Only the text budget changes.
+    local sizes = {18, 16, 12, 10, 8}
+    local size = sizes[math.max(1, count)] or math.max(1, math.floor(40 / count))
+    alertBody.TextSize, alertTextLimit.MaxTextSize = size, size
     local camera = workspace.CurrentCamera
     if camera then
         local view = camera.ViewportSize
-        alertScale.Scale = math.max(0.1, math.min(1, (view.X - 24) / 280, (view.Y - 24) / height))
+        -- Viewport-only scaling: adding a second or third entity cannot resize the panel.
+        alertScale.Scale = math.max(0.1, math.min(1, (view.X - 24) / 280, (view.Y - 24) / 66))
     end
 end
 local alertToggle
