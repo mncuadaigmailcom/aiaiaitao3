@@ -27,8 +27,10 @@ lua.lua_pop(L, 1);
 console.log('PASS full standalone syntax (Lua 5.3 subset)');
 run(fs.readFileSync(path.join(__dirname, 'mock.lua'), 'utf8'), 'Roblox mock');
 run(core + '\n' + fs.readFileSync(path.join(__dirname, 'core-tests.lua'), 'utf8'), 'core tests');
+run(core + '\n' + fs.readFileSync(path.join(__dirname, 'item-tests.lua'), 'utf8'), 'item core tests');
 run(source, 'full standalone boot');
 run(fs.readFileSync(path.join(__dirname, 'ui-tests.lua'), 'utf8'), 'UI integration');
+run(fs.readFileSync(path.join(__dirname, 'item-ui-tests.lua'), 'utf8'), 'item UI integration');
 // Re-run while active: verify the BindableEvent teardown of the previous instance.
 run(source, 'standalone reload');
 run('testReloaded()', 'reload assertions');

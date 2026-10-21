@@ -45,7 +45,7 @@ function methods:IsA(class)
 end
 function methods:GetChildren()
     local out = {}
-    for _, item in ipairs(Mock.instances) do if item.Parent == self then out[#out+1] = item end end
+    for _, item in ipairs(self._children) do out[#out+1] = item end
     return out
 end
 function methods:IsDescendantOf(root)
@@ -91,6 +91,12 @@ local mt = {
     __newindex = function(t,k,v)
         local old = t._props[k]
         t._props[k] = v
+        if k == 'Parent' and old ~= v then
+            if old then
+                for i,child in ipairs(old._children) do if child==t then table.remove(old._children,i); break end end
+            end
+            if v then v._children[#v._children+1] = t end
+        end
         if k == 'Parent' and v and old ~= v then
             local previous = {}
             local node = old
@@ -111,7 +117,7 @@ local mt = {
     end,
 }
 Instance = {new = function(class)
-    local obj = setmetatable({_props = {ClassName=class,Name=class}, _signals = {}},mt)
+    local obj = setmetatable({_props = {ClassName=class,Name=class}, _signals = {}, _children = {}},mt)
     if obj:IsA('BasePart') then obj.Position=Vector3.new(0,0,0); obj.Size=Vector3.new(2,2,2) end
     Mock.instances[#Mock.instances+1] = obj
     return obj

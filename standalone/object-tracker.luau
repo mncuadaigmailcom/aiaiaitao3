@@ -88,7 +88,11 @@ local function createTracker(deps)
     local function live(inst) return inst and inst:IsDescendantOf(deps.root) end
     local function partOf(inst)
         if inst:IsA("BasePart") then return inst end
-        if inst:IsA("Model") or inst:IsA("Folder") then
+        if inst:IsA("Model") or inst:IsA("Folder") or inst:IsA("Tool") then
+            if inst:IsA("Tool") then
+                local handle = inst:FindFirstChild("Handle")
+                if handle and handle:IsA("BasePart") then return handle end
+            end
             if inst:IsA("Model") and inst.PrimaryPart and inst.PrimaryPart:IsDescendantOf(inst) then
                 return inst.PrimaryPart
             end
@@ -236,7 +240,7 @@ local function createTracker(deps)
     function Tracker:coveredByModel(inst)
         local parent = inst.Parent
         while parent and parent ~= deps.root do
-            if parent:IsA("Model") and self:matches(parent) and partOf(parent) then return true end
+            if (parent:IsA("Model") or parent:IsA("Tool")) and self:matches(parent) and partOf(parent) then return true end
             parent = parent.Parent
         end
         return false
@@ -266,7 +270,7 @@ local function createTracker(deps)
                     if self:matches(node) then
                         local part = partOf(node)
                         if part and live(part) then
-                            if node:IsA("Model") then candidates = {} end
+                            if node:IsA("Model") or node:IsA("Tool") then candidates = {} end
                             candidates[#candidates + 1] = {inst = node, part = part}
                         end
                     end
@@ -352,8 +356,8 @@ local function createTracker(deps)
                         local part = partOf(inst)
                         if part and live(part) then
                             self:addHit(inst, part)
-                            -- One marker for a matching Model, not one per child part.
-                            grouped = inst:IsA("Model")
+                            -- One marker for a matching Model/Tool, not one per child part.
+                            grouped = inst:IsA("Model") or inst:IsA("Tool")
                         end
                     end
                     if not grouped then
@@ -490,6 +494,7 @@ local function createTracker(deps)
     end
     function Tracker:step(dt)
         if self.destroyed or not finite(dt) or dt < 0 then return end
+        if not self.enabled and not self.alerts.enabled then return end
         self:refreshCharacters()
         self:stepAlerts()
         if not self.enabled then return end
@@ -512,6 +517,131 @@ local function createTracker(deps)
     end
     Tracker.normalize, Tracker.parse, Tracker.pathOf = normalize, parse, pathOf
     return Tracker.new()
+end
+-- Independent item controller; shares the tested scanner, not entity selections/state.
+local function createItemTracker(deps)
+    local engine = createTracker(deps)
+    engine:setAlertsEnabled(false)
+    engine.scanBudget, engine.sliceSeconds = 150, 0.001
+    engine.eventBudget, engine.eventSliceSeconds, engine.markerBudget = 16, 0.0005, 4
+    engine.presets = {}
+    local groups = {
+        {id = "lights", title = "🔦 Nguồn sáng & đèn", rgb = {170, 100, 255}, items = {
+            "Lighter", "Candle", "Moonlight Candle", "Flashlight", "Bulklight", "Straplight",
+            "Glowstick", "Flare", "Laser Pointer", "Shakelight"}},
+        {id = "healing", title = "🩹 Hồi máu, tăng lực & đồ ăn", rgb = {255, 155, 55}, items = {
+            "Bandage", "Bandage Pack", "Vitamins", "Starlight Vial", "Starlight Bottle", "Starlight Jug",
+            "Moonlight Float", "Gween Soda", "Pack of Gween Soda", "Smoothie", "Pizza", "Bread", "Cheese",
+            "Donut", "Peach Cobbler", "Water Cup", "Honey Pot"}},
+        {id = "tools", title = "🗝️ Mở khóa, công cụ & hỗ trợ", rgb = {180, 245, 85}, items = {
+            "Lockpick", "Skeleton Key", "Battery", "Battery Pack", "Shears", "Alarm Clock", "Scanner",
+            "Scanner Module", "Compass", "Multitool"}},
+        {id = "magic", title = "✨ Ma thuật & đặc biệt", rgb = {255, 105, 180}, items = {
+            "Crucifix", "Lotus Petal", "The World Lotus", "Rift Jar", "Glitch Fragment", "Pocket Mirror",
+            "Holy Egg Grenade", "Sallys Toy"}},
+        {id = "quest", title = "🔑 Nhiệm vụ & bắt buộc", rgb = {65, 210, 95}, items = {
+            "Key", "Hotel Key", "Backdoor Key", "Electrical Room Key", "Iron Key", "Garage Key", "Book", "Paper",
+            "Breaker Pole", "Fuse", "Waiting Ticket", "Storage Box", "Salvage Scrap", "Lotus Petal", "Water Cup"}},
+        {id = "misc", title = "📦 Tương tác, trao đổi & khác", rgb = {255, 220, 70}, items = {
+            "Salvage Scrap", "Storage Box", "Briefcase", "Lunchbox", "Fih Flakes", "Ceramic Stem", "Paper Plane",
+            "Mugg", "Tophat", "Coin Roll", "Tip Jar"}},
+    }
+    local controller = {engine = engine, groups = groups, byId = {}, query = "", paused = false,
+        aliasColors = {}, destroyed = false}
+    for _, group in ipairs(groups) do
+        group.enabled, group.selected, group.known = false, {}, {}
+        controller.byId[group.id] = group
+        for _, name in ipairs(group.items) do
+            group.known[name] = true
+            -- Exact spaced, compact and underscore spellings, never a broad substring "Key".
+            local aliases = {name, name:gsub("%s+", ""), (name:gsub("%s+", "_"))}
+            engine.presets[#engine.presets + 1] = {name = group.id .. ":" .. name, aliases = aliases}
+        end
+    end
+    function controller:refresh()
+        if self.destroyed then return false end
+        local selections, colors = {}, {}
+        for _, group in ipairs(self.groups) do
+            for _, name in ipairs(group.items) do
+                if group.enabled and group.selected[name] then
+                    selections[group.id .. ":" .. name] = true
+                    for _, alias in ipairs({name, name:gsub("%s+", ""), (name:gsub("%s+", "_"))}) do
+                        local key = engine.normalize(alias)
+                        if not colors[key] then colors[key] = group.rgb end
+                    end
+                end
+            end
+        end
+        self.aliasColors, engine.selectedPresets = colors, selections
+        engine:setQuery(self.query)
+        if self.paused then engine:setEnabled(false)
+        elseif not engine.enabled then engine:setEnabled(true) end
+        return engine.enabled
+    end
+    function controller:setItem(id, name, selected)
+        local group = self.byId[id]
+        if self.destroyed or not group or not group.known[name] then return false end
+        group.selected[name] = selected == true or nil
+        if selected then group.enabled, self.paused = true, false
+        elseif next(group.selected) == nil then group.enabled = false end
+        self:refresh()
+        return true
+    end
+    function controller:setGroupEnabled(id, enabled)
+        local group = self.byId[id]
+        if self.destroyed or not group then return false end
+        group.enabled = enabled == true
+        if enabled then self.paused = false end
+        self:refresh()
+        return true
+    end
+    function controller:selectGroup(id, selected)
+        local group = self.byId[id]
+        if self.destroyed or not group then return false end
+        group.selected = {}
+        if selected then
+            for _, name in ipairs(group.items) do group.selected[name] = true end
+            self.paused = false
+        end
+        group.enabled = selected == true
+        self:refresh()
+        return true
+    end
+    function controller:setAll(selected)
+        if self.destroyed then return false end
+        for _, group in ipairs(self.groups) do
+            group.selected, group.enabled = {}, selected == true
+            if selected then for _, name in ipairs(group.items) do group.selected[name] = true end end
+        end
+        if selected then self.paused = false end
+        self:refresh()
+        return true
+    end
+    function controller:setEnabled(enabled)
+        if self.destroyed then return false end
+        self.paused = enabled ~= true
+        return self:refresh()
+    end
+    function controller:setQuery(text)
+        if self.destroyed then return false end
+        self.query, self.paused = tostring(text or ""), false
+        return self:refresh()
+    end
+    function controller:colorFor(inst)
+        return self.aliasColors[engine.normalize(inst.Name)]
+    end
+    function controller:clear()
+        if self.destroyed then return end
+        self.query = ""
+        engine.disabledObjects = setmetatable({}, {__mode = "k"})
+        self:setAll(false)
+    end
+    function controller:destroy()
+        if self.destroyed then return end
+        self.destroyed = true
+        engine:destroy()
+    end
+    return controller
 end
 -- END TRACKER CORE
 
@@ -538,8 +668,10 @@ local gui = new("ScreenGui", {Name = GUI_NAME, ResetOnSpawn = false,
     ZIndexBehavior = Enum.ZIndexBehavior.Sibling}, playerGui)
 local stopEvent = new("BindableEvent", {Name = "StopTracker"}, gui)
 local effects = new("Folder", {Name = "ObjectTrackerLocalEffects"}, workspace)
+local itemEffects = new("Folder", {Name = "ItemTrackerLocalEffects"}, workspace)
 local connections, stopped = {}, false
 local cleanupRows = function() end
+local cleanupItemRows = function() end
 local palette = {Color3.fromRGB(0, 190, 255), Color3.fromRGB(80, 255, 160),
     Color3.fromRGB(255, 185, 60), Color3.fromRGB(230, 110, 255)}
 local function origin()
@@ -548,7 +680,7 @@ local function origin()
     if root then return root.Position end
     return workspace.CurrentCamera and workspace.CurrentCamera.CFrame.Position or nil
 end
-local tracker = createTracker({
+local trackerDeps = {
     root = workspace, players = Players, getOrigin = origin, now = os.clock,
     getAlertOrigin = function()
         local char = player.Character
@@ -558,7 +690,9 @@ local tracker = createTracker({
         if root and root:IsA("BasePart") then return root.Position end
         return nil -- No camera distance pretending to be distance to the player.
     end,
-    ignore = function(inst) return inst == effects or inst:IsDescendantOf(effects) end,
+    ignore = function(inst)
+        return inst == effects or inst:IsDescendantOf(effects) or inst == itemEffects or inst:IsDescendantOf(itemEffects)
+    end,
     createMarker = function(hit)
         local container = new("Folder", {Name = "Marker"}, effects)
         local hl = new("Highlight", {Adornee = hit.inst, FillTransparency = 0.7,
@@ -574,9 +708,9 @@ local tracker = createTracker({
     end,
     removeMarker = function(marker) marker.container:Destroy() end,
     updateMarker = function(marker, hit, state, visible)
-        local color = palette[state.colorIndex] or palette[1]
-        -- Folders cannot be Highlight adornees: use their representative BasePart.
-        marker.hl.Adornee = hit.inst:IsA("Folder") and hit.part or hit.inst
+        local color = state.markerColorFor and state.markerColorFor(hit.inst) or palette[state.colorIndex] or palette[1]
+        -- Folders/Tools use a representative BasePart rather than the container as Highlight adornee.
+        marker.hl.Adornee = (hit.inst:IsA("Model") or hit.inst:IsA("BasePart")) and hit.inst or hit.part
         marker.hl.Enabled = visible
         marker.hl.FillColor, marker.hl.OutlineColor = color, color
         marker.hl.DepthMode = state.throughWalls and Enum.HighlightDepthMode.AlwaysOnTop or Enum.HighlightDepthMode.Occluded
@@ -593,7 +727,20 @@ local tracker = createTracker({
         end
         marker.label.Text, marker.label.TextColor3 = text, color
     end,
-})
+}
+local tracker = createTracker(trackerDeps)
+local itemDeps = {}
+for key, value in pairs(trackerDeps) do itemDeps[key] = value end
+itemDeps.createMarker = function(hit)
+    local marker = trackerDeps.createMarker(hit)
+    marker.container.Name, marker.container.Parent = "ItemMarker", itemEffects
+    return marker
+end
+local itemTracker = createItemTracker(itemDeps)
+itemTracker.engine.markerColorFor = function(inst)
+    local rgb = itemTracker:colorFor(inst) or {240, 201, 122}
+    return Color3.fromRGB(rgb[1], rgb[2], rgb[3])
+end
 local function connect(signal, fn)
     local connection = signal:Connect(fn)
     connections[#connections + 1] = connection
@@ -604,18 +751,20 @@ local function shutdown()
     stopped = true
     for _, connection in ipairs(connections) do connection:Disconnect() end
     tracker:destroy()
-    cleanupRows()
-    effects:Destroy()
+    itemTracker:destroy()
+    cleanupRows(); cleanupItemRows()
+    effects:Destroy(); itemEffects:Destroy()
     gui:Destroy()
 end
 connect(workspace.DescendantAdded, function(inst)
     tracker:notifyAdded(inst)
+    itemTracker.engine:notifyAdded(inst)
     tracker:notifyAlert(inst)
 end)
 connect(stopEvent.Event, shutdown)
 connect(gui.Destroying, shutdown)
 if script and script.Destroying then connect(script.Destroying, shutdown) end
--- NOIR shell: one player tab, with only the object tracker inside it.
+-- NOIR shell: one player tab with separate entity and item tracker cards.
 local C = {
     BG = Color3.fromRGB(11, 12, 17), SURFACE = Color3.fromRGB(20, 22, 30),
     SURFACE2 = Color3.fromRGB(29, 32, 43), SURFACE3 = Color3.fromRGB(44, 49, 64),
@@ -674,9 +823,14 @@ local card = new("Frame", {Name = "HubObjTrack_Panel", Position = UDim2.fromOffs
     BackgroundTransparency = 0.12, BorderSizePixel = 0}, page)
 corner(card, 10); stroke(card); gradient(card, C.SURFACE2, C.SURFACE)
 local cardScale = new("UIScale", {Scale = 1}, card)
+local itemCard, itemCardScale
 local function fitContent()
     cardScale.Scale = math.min(1, (panel.Size.X.Offset - 72) / 548)
-    page.CanvasSize = UDim2.fromOffset(0, 16 + 1000 * cardScale.Scale)
+    if itemCard then
+        itemCardScale.Scale = cardScale.Scale
+        itemCard.Position = UDim2.fromOffset(8, 16 + 1000 * cardScale.Scale)
+        page.CanvasSize = UDim2.fromOffset(0, 24 + (1000 + itemCard.Size.Y.Offset) * cardScale.Scale)
+    else page.CanvasSize = UDim2.fromOffset(0, 16 + 1000 * cardScale.Scale) end
 end
 local function label(text, x, y, w, h, parent)
     return new("TextLabel", {Position = UDim2.fromOffset(x, y), Size = UDim2.fromOffset(w, h),
@@ -692,11 +846,11 @@ local function button(text, x, y, w, callback, parent)
     connect(b.Activated, callback)
     return b
 end
-local function input(text, hint, x, y, w)
+local function input(text, hint, x, y, w, parent)
     local box = new("TextBox", {Position = UDim2.fromOffset(x, y), Size = UDim2.fromOffset(w, 30),
         Text = text, PlaceholderText = hint, ClearTextOnFocus = false, TextColor3 = ink,
         PlaceholderColor3 = C.MUTED, Font = Enum.Font.Gotham, TextSize = 11,
-        BackgroundColor3 = C.SURFACE2, BorderSizePixel = 0}, card)
+        BackgroundColor3 = C.SURFACE2, BorderSizePixel = 0}, parent or card)
     corner(box); stroke(box)
     return box
 end
@@ -945,6 +1099,181 @@ cleanupRows = function()
     for _, row in ipairs(rows) do row.connection:Disconnect(); row.toggleConnection:Disconnect() end
     rows = {}
 end
+-- Item locator is a sibling card, never part of the entity preset list.
+itemCard = new("Frame", {Name = "ItemTrackerPanel", Size = UDim2.fromOffset(548, 800),
+    BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, BorderSizePixel = 0}, page)
+corner(itemCard, 10); stroke(itemCard); gradient(itemCard, C.SURFACE2, C.SURFACE)
+itemCardScale = new("UIScale", {Scale = 1}, itemCard)
+local itemTitle = label("📦 ĐỊNH VỊ VẬT PHẨM · 6 NHÓM RIÊNG", 12, 8, 510, 24, itemCard)
+itemTitle.Font, itemTitle.TextColor3 = Enum.Font.GothamBold, C.ACCENT
+label("Chọn món riêng hoặc bật/chọn cả nhóm. Mở tiêu đề nhóm để xem các món. Không đổi định vị thực thể hay cảnh báo.", 12, 36, 510, 38, itemCard)
+local itemQuery = input("", "VP: tên/path tùy chọn", 12, 80, 338, itemCard)
+local itemMaster, itemStatus
+local groupWidgets, itemRows, itemView, itemSelected = {}, {}, {}, nil
+local itemDetail = label("Chọn một vật phẩm trong kết quả để xem path và XYZ.", 12, 380, 510, 36, itemCard)
+local itemCopy = input("", "VP: path và XYZ", 12, 422, 496, itemCard)
+itemCopy.TextEditable = false
+local itemList = new("ScrollingFrame", {Name = "ItemResults", Position = UDim2.fromOffset(12, 262),
+    Size = UDim2.fromOffset(496, 110), BackgroundColor3 = C.SURFACE2, BorderSizePixel = 0,
+    ScrollBarThickness = 4, CanvasSize = UDim2.fromOffset(0, 0)}, itemCard)
+local function paintItemControls()
+    itemMaster.Text = itemTracker.engine.enabled and "Vật phẩm: BẬT" or "Vật phẩm: TẮT"
+    itemMaster.TextColor3 = itemTracker.engine.enabled and C.GREEN or C.MUTED
+    for _, group in ipairs(itemTracker.groups) do
+        local widgets = groupWidgets[group.id]
+        if widgets then
+            local selectedCount = 0
+            for _, name in ipairs(group.items) do
+                local chosen = group.selected[name] == true
+                if chosen then selectedCount = selectedCount + 1 end
+                widgets.items[name].Text = name .. (chosen and ": ✓" or ": —")
+                widgets.items[name].TextColor3 = chosen and widgets.color or C.MUTED
+            end
+            widgets.toggle.Text = (group.enabled and "Nhóm: BẬT" or "Nhóm: TẮT") .. " (" .. selectedCount .. ")"
+            widgets.toggle.TextColor3 = group.enabled and widgets.color or C.MUTED
+            widgets.title.Text = (widgets.expanded and "▼ " or "▶ ") .. group.title
+        end
+    end
+end
+local function applyItemQuery()
+    itemTracker:setQuery(itemQuery.Text)
+    paintItemControls()
+end
+button("VP Tìm tên/path", 360, 80, 148, applyItemQuery, itemCard)
+connect(itemQuery.FocusLost, function(enter) if enter then applyItemQuery() end end)
+itemMaster = button("Vật phẩm: TẮT", 12, 118, 156, function()
+    itemTracker:setEnabled(not itemTracker.engine.enabled)
+    paintItemControls()
+end, itemCard)
+button("VP Quét lại", 176, 118, 156, function()
+    if itemQuery.Text ~= itemTracker.query then applyItemQuery()
+    elseif itemTracker.engine.enabled then itemTracker.engine:beginScan() end
+end, itemCard)
+button("VP Xóa lựa chọn", 340, 118, 168, function()
+    itemQuery.Text, itemSelected = "", nil
+    itemTracker:clear(); paintItemControls()
+end, itemCard)
+local function itemOption(text, key, x, width)
+    local b
+    local function paint()
+        b.Text = "VP " .. text .. (itemTracker.engine[key] and ": BẬT" or ": TẮT")
+        b.TextColor3 = itemTracker.engine[key] and C.GREEN or C.MUTED
+    end
+    b = button("", x, 154, width, function()
+        itemTracker.engine[key] = not itemTracker.engine[key]
+        itemTracker.engine:refreshMarkers(); paint()
+    end, itemCard)
+    paint()
+end
+itemOption("Hộp", "showBox", 12, 108)
+itemOption("Nhãn", "showLabel", 128, 108)
+itemOption("XYZ", "showXYZ", 244, 108)
+itemOption("Xuyên tường", "throughWalls", 360, 148)
+local itemDistance = input("0", "VP stud; 0 = vô hạn", 12, 190, 118, itemCard)
+button("VP Đặt xa", 138, 190, 106, function()
+    if not itemTracker.engine:setDistance(itemDistance.Text) then itemStatus.Text = "VP: khoảng cách phải là số hữu hạn >= 0." end
+end, itemCard)
+button("VP Chọn tất cả", 252, 190, 124, function() itemTracker:setAll(true); paintItemControls() end, itemCard)
+button("VP Bỏ tất cả", 384, 190, 124, function() itemTracker:setAll(false); paintItemControls() end, itemCard)
+itemStatus = label("Vật phẩm tắt · chưa chọn món nào", 12, 226, 510, 28, itemCard)
+itemStatus.TextColor3 = C.ACCENT
+local itemExit = button("Dừng & thoát", 12, 0, 128, shutdown, itemCard)
+local function layoutItems()
+    local y = 468
+    for _, group in ipairs(itemTracker.groups) do
+        local widgets = groupWidgets[group.id]
+        local bodyHeight = 80 + math.ceil(#group.items / 2) * 30
+        local height = widgets.expanded and bodyHeight or 44
+        widgets.frame.Position, widgets.frame.Size = UDim2.fromOffset(12, y), UDim2.fromOffset(524, height)
+        widgets.body.Visible = widgets.expanded
+        y = y + height + 8
+    end
+    itemExit.Position = UDim2.fromOffset(12, y)
+    itemCard.Size = UDim2.fromOffset(548, y + 40)
+    fitContent()
+end
+for _, group in ipairs(itemTracker.groups) do
+    local color = Color3.fromRGB(group.rgb[1], group.rgb[2], group.rgb[3])
+    local frame = new("Frame", {Name = "ItemGroup_" .. group.id, BackgroundColor3 = C.SURFACE2,
+        BorderSizePixel = 0}, itemCard)
+    corner(frame, 7); stroke(frame, color)
+    local body = new("Frame", {Name = "GroupItems", Position = UDim2.fromOffset(0, 44),
+        Size = UDim2.fromOffset(524, 40 + math.ceil(#group.items / 2) * 30),
+        BackgroundTransparency = 1, BorderSizePixel = 0, Visible = false}, frame)
+    local widgets = {frame = frame, body = body, expanded = false, color = color, items = {}}
+    groupWidgets[group.id] = widgets
+    widgets.title = button("", 4, 4, 310, function()
+        widgets.expanded = not widgets.expanded
+        paintItemControls(); layoutItems()
+    end, frame)
+    widgets.title.Name, widgets.title.Size = "ExpandGroup", UDim2.fromOffset(310, 34)
+    widgets.title.TextWrapped, widgets.title.TextColor3 = true, color
+    widgets.toggle = button("", 322, 6, 196, function()
+        if not group.enabled and next(group.selected) == nil then itemTracker:selectGroup(group.id, true)
+        else itemTracker:setGroupEnabled(group.id, not group.enabled) end
+        paintItemControls()
+    end, frame)
+    widgets.toggle.Name = "ToggleGroup"
+    button("Chọn cả nhóm", 4, 0, 244, function() itemTracker:selectGroup(group.id, true); paintItemControls() end, body).Name = "SelectGroup"
+    button("Bỏ chọn cả nhóm", 256, 0, 244, function() itemTracker:selectGroup(group.id, false); paintItemControls() end, body).Name = "ClearGroup"
+    for i, name in ipairs(group.items) do
+        local b = button("", 4 + ((i - 1) % 2) * 252, 36 + math.floor((i - 1) / 2) * 30, 244, function()
+            itemTracker:setItem(group.id, name, not group.selected[name]); paintItemControls()
+        end, body)
+        b.Name, b.TextWrapped = "Item_" .. name, true
+        widgets.items[name] = b
+    end
+end
+paintItemControls(); layoutItems()
+button("Vật phẩm ↓", 200, 8, 140, function()
+    page.CanvasPosition = Vector2.new(0, itemCard.Position.Y.Offset)
+end)
+local function renderItems()
+    local engine, changed = itemTracker.engine, #itemView ~= #itemTracker.engine.list
+    for i, hit in ipairs(engine.list) do if itemView[i] ~= hit.inst then changed = true end end
+    if changed then
+        cleanupItemRows()
+        itemView = {}
+        for i, hit in ipairs(engine.list) do
+            itemView[i] = hit.inst
+            local inst = hit.inst
+            local b = new("TextButton", {Size = UDim2.new(1, -76, 0, 26), Position = UDim2.fromOffset(4, (i - 1) * 28),
+                TextColor3 = C.DARK, BackgroundColor3 = C.BG, TextSize = 11, Font = Enum.Font.Gotham,
+                TextXAlignment = Enum.TextXAlignment.Left, RichText = false, BorderSizePixel = 0}, itemList)
+            local c = b.Activated:Connect(function() itemSelected = inst end)
+            local toggle = new("TextButton", {Name = "ToggleItemResult", Position = UDim2.new(1, -68, 0, (i - 1) * 28),
+                Size = UDim2.fromOffset(56, 26), BackgroundColor3 = C.SURFACE3, TextColor3 = C.ACCENT,
+                TextSize = 10, BorderSizePixel = 0}, itemList)
+            local tc = toggle.Activated:Connect(function() engine:setObjectEnabled(inst, engine.disabledObjects[inst] == true) end)
+            itemRows[#itemRows + 1] = {button = b, connection = c, toggle = toggle, toggleConnection = tc}
+        end
+        itemList.CanvasSize = UDim2.fromOffset(0, #itemRows * 28)
+    end
+    local selectedHit
+    for i, hit in ipairs(engine.list) do
+        local row = itemRows[i]
+        row.button.Text = "VP " .. hit.inst.Name .. " | " .. (hit.distance and string.format("%.1f", hit.distance) or "?") .. " stud"
+        row.button.TextColor3 = engine.markerColorFor(hit.inst)
+        row.toggle.Text = engine.disabledObjects[hit.inst] and "VP Bật" or "VP Tắt"
+        if hit.inst == itemSelected then selectedHit = hit end
+    end
+    if selectedHit then
+        local p = selectedHit.part.Position
+        itemDetail.Text = selectedHit.inst.Name .. " · " .. selectedHit.inst.ClassName
+        itemCopy.Text = string.format("%s | X %.3f, Y %.3f, Z %.3f", selectedHit.path, p.X, p.Y, p.Z)
+    else itemSelected = nil; itemDetail.Text = "Chọn một vật phẩm để xem path và XYZ."; itemCopy.Text = "" end
+    itemStatus.Text = string.format("Vật phẩm: %s · %d/%d vật · tối đa %d · nhóm/màu riêng",
+        engine.enabled and "BẬT" or "TẮT", #engine.list, engine.found, engine.maxItems)
+    paintItemControls()
+end
+cleanupItemRows = function()
+    for _, row in ipairs(itemRows) do
+        row.connection:Disconnect(); row.toggleConnection:Disconnect()
+        row.button:Destroy(); row.toggle:Destroy()
+    end
+    itemRows = {}
+end
+
 local dragging, dragInput, dragStart, startPosition
 local resizing, resizeInput, resizeStart, resizeSize, resizePosition
 for _, spec in ipairs({
@@ -1001,6 +1330,7 @@ connect(UserInputService.InputBegan, function(i, processed)
 end)
 local uiElapsed = 0
 connect(RunService.Heartbeat, function(dt)
+    local refreshItemUi = false
     local ok, err = pcall(function()
         tracker:step(dt)
         renderAlerts()
@@ -1009,6 +1339,7 @@ connect(RunService.Heartbeat, function(dt)
         if uiElapsed >= 0.10 then
             uiElapsed = 0
             fit(); fitContent(); renderList(); paintToggle()
+            refreshItemUi = true
             status.Text = string.format("%s | %d/%d vật | tối đa %d | %s",
                 tracker.enabled and "BẬT" or "TẮT", #tracker.list, tracker.found, tracker.maxItems,
                 tracker.stack and "đang quét..." or "nhanh: sự kiện + quét dự phòng")
@@ -1019,6 +1350,17 @@ connect(RunService.Heartbeat, function(dt)
         tracker:setEnabled(false)
         status.Text = "Lỗi: " .. tostring(err)
         warn("[ObjectTracker] " .. tostring(err))
+    end
+    -- A failure in the new item module must not disable the existing tracker or alerts.
+    local itemOk, itemError = pcall(function()
+        itemTracker.engine:step(dt)
+        if refreshItemUi then renderItems() end
+    end)
+    if not itemOk then
+        itemTracker:setEnabled(false)
+        paintItemControls()
+        itemStatus.Text = "Lỗi vật phẩm: " .. tostring(itemError)
+        warn("[ItemTracker] " .. tostring(itemError))
     end
 end)
 fit(); fitContent()
