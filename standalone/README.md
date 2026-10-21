@@ -66,9 +66,9 @@ Không mang theo bay tới vật, teleport, noclip, AntiBan, phân tích trang p
 chạy script ngoài hoặc lưu preset xuống file. Từ khóa/cấu hình chỉ tồn tại trong
 phiên chạy; đây là bản chỉ định vị.
 
-## Cảnh báo đang hiện diện — một ô cố định, chỉ 5 loại
+## Cảnh báo đang hiện diện — một ô cố định, chỉ 4 loại
 
-**Rush, Ambush, Seek, Screech và Sally** có cảnh báo hiện diện. Whitelist cảnh báo
+**Rush, Ambush, Seek và Screech** có cảnh báo hiện diện. Whitelist cảnh báo
 độc lập với 23 preset định vị cũ: Eyes/Figure và các vật thể khác không được đưa
 vào ô cảnh báo này.
 
@@ -101,8 +101,9 @@ vào ô cảnh báo này.
 - “Biến mất” được xác định bằng dữ liệu client: rời Workspace, bị Destroy hoặc
   mất toàn bộ part có thể định vị. Không có nghĩa là rời màn hình/đứng sau tường;
   script không suy đoán việc game chỉ làm trong suốt hay giấu một Model còn tồn tại.
-- Alias vẫn là gợi ý theo tên; `Window` có thể trùng cảnh vật không phải Sally.
-  Chưa xác minh tên/đường dẫn thực tế trong game đích bằng Roblox thật.
+- Sally và toàn bộ alias `Sally`, `Window`, `WindowEntity`, `Sally (Window)`
+  đã được bỏ khỏi cảnh báo. Preset ESP Sally (Window) vẫn giữ nguyên.
+- Alias vẫn là gợi ý theo tên, chưa xác minh tên/đường dẫn thực tế trong game đích bằng Roblox thật.
 - Chỉ nhận các sự kiện xuất hiện sau khi listener hoạt động, không quét toàn map
   riêng để báo lại mọi thực thể có sẵn. Thực thể chỉ ở server hoặc hiệu ứng không
   có BasePart phía client không thể đo khoảng cách bằng cách này.
@@ -175,7 +176,7 @@ Bộ test mới lấy **nguyên core từ file bàn giao**, không chép một b
 Kết quả trong sandbox:
 
 - Kiểm tra cú pháp toàn file: đạt trên parser Lua 5.3 (mã dùng tập con tương thích Luau).
-- **72 test core: đạt.** Tên/path/tiếng Việt, query chỉ có path, path xuất hiện trễ,
+- **73 test core: đạt.** Tên/path/tiếng Việt, query chỉ có path, path xuất hiện trễ,
   query rỗng, đổi query giữa vòng quét, người chơi respawn, xóa/reparent vật,
   PrimaryPart bị xóa, khoảng cách không hợp lệ, mất vị trí gốc, gộp Model,
   ngân sách quét, giữ 50 vật gần nhất trong fixture 1.000 vật, dừng/idempotent destroy.
@@ -185,10 +186,11 @@ Kết quả trong sandbox:
   Model nhận part trễ, chống event trùng, giới hạn queue/quota/thời gian/tạo marker,
   không mất event khi kết thúc quét, xóa queue khi tắt, cache nhân vật và tên,
   và bảo toàn loại trừ nhân vật/effect trong đường xử lý nhanh.
-  Có 17 ca cảnh báo: whitelist đúng năm loại, ESP tắt vẫn cảnh báo, còn hiện diện
+  Có 18 ca cảnh báo: whitelist đúng bốn loại, ESP tắt vẫn cảnh báo, còn hiện diện
   sau 5/60 giây, chống trùng part con, hai instance cùng loại, loại bỏ từng thực thể,
   khoảng cách/mất nhân vật, despawn, Model nhận part trễ, công tắc/queue/loại trừ nhân vật,
-  cùng instance rời rồi trở lại, mất toàn bộ part/thay part và đổi tên ngoài whitelist.
+  cùng instance rời rồi trở lại, mất toàn bộ part/thay part, đổi tên ngoài whitelist,
+  và loại trừ mọi alias Sally khỏi cảnh báo nhưng vẫn giữ preset ESP Sally.
 - **31 test tích hợp GUI/mock: đạt.** Boot không có executor, Enter, marker,
   switch hiển thị, chọn kết quả, vật trùng tên được thay mới, X/nút nổi, bật/tắt,
   khóa kéo/co GUI, chỉ một tab/card, palette/header NOIR, cả bốn góc resize,
@@ -198,7 +200,7 @@ Kết quả trong sandbox:
   Có kiểm tra listener DescendantAdded không bị nhân đôi và được ngắt khi thoát.
   Có 9 ca GUI cảnh báo: ô cố định góc phải, hai/ba thực thể chung ô và chỉ thu nhỏ chữ,
   không hết hạn sau 5 giây, xóa từng dòng/lớn chữ lại, ẩn sau khi thực thể cuối rời đi,
-  whitelist/công tắc riêng, năm loại trên màn hình nhỏ, Head/root/mất nhân vật,
+  whitelist/công tắc riêng, bốn loại trên màn hình nhỏ, Head/root/mất nhân vật,
   và hai instance cùng loại có khoảng cách riêng. Reload kiểm tra ô cũ bị hủy.
 - **115 test cũ của dự án: đạt**, không bị thay thế bởi bộ test mới.
 
@@ -238,7 +240,7 @@ cho hàng đợi nhỏ, không phải cam kết tốc độ trên thiết bị/g
 Tắt ESP, giữ Cảnh báo BẬT. Tạo một Part `Rush`, sau đó thêm `Ambush` và `Seek`;
 xác nhận vẫn chỉ một ô, kích thước không đổi, có đủ tên/khoảng cách và chữ nhỏ lại.
 Chờ hơn 5 giây: ô vẫn phải hiện. Xóa từng Part: chỉ dòng tương ứng biến mất;
-xóa Part cuối: ô ẩn. Thử hai Rush, Sally/Screech, Eyes (không cảnh báo), Model
+xóa Part cuối: ô ẩn. Thử hai Rush, Screech, Sally/Window/Eyes (không cảnh báo), Model
 rỗng nhận part trễ, di chuyển Head, mất nhân vật, màn hình nhỏ và thoát/nạp lại.
 Test mock kiểm tra logic/cấu hình layout, không thay thế đo text rendering hoặc
 xác minh thực thể thật trong Roblox Studio.

@@ -223,6 +223,7 @@ assert(not alerts.Visible and body.Text=='')
 assert(combined.Size==originalSize and alerts.Size==originalLayerSize)
 pass('notification hides only after the last entity leaves')
 Mock.node('Part','Eyes',workspace,3); Mock.node('Part','Figure',workspace,3)
+for _,name in ipairs({'Sally','Window','WindowEntity','Sally (Window)'}) do Mock.node('Part',name,workspace,3) end
 Mock.run.Heartbeat:Fire(0.01); assert(not alerts.Visible)
 Mock.findText('Cảnh báo: BẬT').Activated:Fire()
 Mock.node('Part','Screech',workspace,3); Mock.run.Heartbeat:Fire(0.01)
@@ -230,16 +231,17 @@ assert(not alerts.Visible)
 Mock.findText('Cảnh báo: TẮT').Activated:Fire()
 pass('unsupported types never alert and the independent toggle hides the combined notification')
 local entities={}
-for i,name in ipairs({'RushMoving','AmbushMoving','SeekRig','Screech','Sally'}) do
+for i,name in ipairs({'RushMoving','AmbushMoving','SeekRig','Screech'}) do
     entities[#entities+1]=Mock.node('Part',name,workspace,10+i)
 end
 workspace.CurrentCamera.ViewportSize=Vector2.new(320,240)
 Mock.run.Heartbeat:Fire(0.01)
-for _,name in ipairs({'Rush','Ambush','Seek','Screech','Sally'}) do assert(body.Text:find(name,1,true)) end
+for _,name in ipairs({'Rush','Ambush','Seek','Screech'}) do assert(body.Text:find(name,1,true)) end
 assert(alerts.Visible and combined.Size==originalSize and alerts.Size==originalLayerSize)
-assert(alerts.Size.Y.Offset*scale.Scale<=216 and body.TextSize==8)
+assert(not body.Text:find('Sally',1,true) and not body.Text:find('Window',1,true))
+assert(alerts.Size.Y.Offset*scale.Scale<=216 and body.TextSize==10)
 workspace.CurrentCamera.ViewportSize=Vector2.new(1280,720)
-pass('all five supported names and distances stay inside one fixed-size small-screen notification')
+pass('all four supported names and distances stay inside one fixed-size small-screen notification')
 head.Parent=nil
 Mock.run.Heartbeat:Fire(0.01)
 assert(body.Text:find('Rush: 89.0 stud',1,true))

@@ -32,11 +32,11 @@ local function createTracker(deps)
         {name = "Fallen Chandeliers", aliases = {"Fallen Chandeliers", "FallenChandeliers", "FallenChandelier", "ChandelierFallen"}},
     }
     local alertNames = {}
-    local supportedAlerts = {Rush = true, Ambush = true, Seek = true, Screech = true, ["Sally (Window)"] = true}
+    local supportedAlerts = {Rush = true, Ambush = true, Seek = true, Screech = true}
     for _, preset in ipairs(presets) do
         if supportedAlerts[preset.name] then
             for _, alias in ipairs(preset.aliases) do
-                alertNames[alias:lower()] = preset.name == "Sally (Window)" and "Sally" or preset.name
+                alertNames[alias:lower()] = preset.name
             end
         end
     end

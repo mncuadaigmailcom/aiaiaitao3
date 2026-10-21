@@ -318,19 +318,29 @@ test('fast events still exclude player characters and effect roots',function()
     tracker:notifyAdded(char); tracker:step(1/60); eq(#tracker.list,0)
     local own=Mock.node('Folder','OwnEffects',root); eq(tracker:notifyAdded(own),false)
 end)
-test('alerts whitelist only Rush Ambush Seek Screech Sally, independent of ESP',function()
+test('alerts whitelist only Rush Ambush Seek Screech, independent of ESP',function()
     setup()
-    for _, name in ipairs({'RushMoving','AmbushMoving','SeekRig','Screech','WindowEntity'}) do
+    for _, name in ipairs({'RushMoving','AmbushMoving','SeekRig','Screech'}) do
         local inst=Mock.node('Part',name,root,10); assert(tracker:notifyAlert(inst))
     end
     for _, name in ipairs({'Eyes','Figure','Dread','Snare','Chest','RushMovingSound'}) do
         eq(tracker:notifyAlert(Mock.node('Part',name,root,10)),false)
     end
     tracker:step(1/60)
-    eq(tracker.enabled,false); eq(#tracker.alerts.active,5)
+    eq(tracker.enabled,false); eq(#tracker.alerts.active,4)
     local names={}
     for _, entry in ipairs(tracker.alerts.active) do names[entry.name]=true; eq(entry.distance,10) end
-    for _, name in ipairs({'Rush','Ambush','Seek','Screech','Sally'}) do assert(names[name]) end
+    for _, name in ipairs({'Rush','Ambush','Seek','Screech'}) do assert(names[name]) end
+end)
+test('all Sally aliases are excluded from alerts but remain selectable for ESP',function()
+    setup()
+    for _, alias in ipairs({'Sally','Window','WindowEntity','Sally (Window)'}) do
+        eq(tracker:notifyAlert(Mock.node('Part',alias,root,10)),false)
+    end
+    tracker:step(0.01); eq(#tracker.alerts.active,0); eq(tracker.alerts.tail,0)
+    assert(tracker:setPreset('Sally (Window)',true)); assert(tracker:setEnabled(true))
+    while tracker.stack do tracker:scanSlice() end
+    eq(#tracker.list,4)
 end)
 test('alert stays beyond five seconds and hides only after the entity disappears',function()
     setup(); local entity=Mock.node('Part','Rush',root,10)
@@ -382,10 +392,10 @@ test('despawn removes its entry on the next heartbeat without leaving a stale di
     eq(#tracker.alerts.active,0); eq(tracker.alerts.seen[inst],nil)
 end)
 test('empty alert Model can be recognized when its part arrives later',function()
-    setup(); local entity=Mock.node('Model','Sally',root)
+    setup(); local entity=Mock.node('Model','Screech',root)
     tracker:notifyAlert(entity); tracker:step(0.01); eq(#tracker.alerts.active,0)
     local child=Mock.node('Part','Root',entity,3); tracker:notifyAlert(child); tracker:step(0.01)
-    eq(#tracker.alerts.active,1); eq(tracker.alerts.active[1].name,'Sally')
+    eq(#tracker.alerts.active,1); eq(tracker.alerts.active[1].name,'Screech')
 end)
 test('alert toggle clears active and queued alerts, and blocks notifications while off',function()
     setup(); local inst=Mock.node('Part','Rush',root,4); tracker:notifyAlert(inst)
@@ -397,7 +407,7 @@ end)
 test('alert work has a quota and ignores non-whitelisted scenery bursts',function()
     setup(); tracker.alerts.budget=1
     for i=1,100 do eq(tracker:notifyAlert(Mock.node('Part','Decoration',root,i)),false) end
-    for _, name in ipairs({'Rush','Seek','Sally'}) do tracker:notifyAlert(Mock.node('Part',name,root,4)) end
+    for _, name in ipairs({'Rush','Seek','Ambush'}) do tracker:notifyAlert(Mock.node('Part',name,root,4)) end
     tracker:step(0.01); eq(#tracker.alerts.active,1)
     tracker:step(0.01); eq(#tracker.alerts.active,2)
     tracker:step(0.01); eq(#tracker.alerts.active,3)
@@ -425,7 +435,7 @@ test('same instance can re-enter Workspace and alert again after leaving',functi
     eq(#tracker.alerts.active,1)
 end)
 test('entity with no remaining part is removed and can alert when a new part arrives',function()
-    setup(); local entity=Mock.node('Model','Sally',root)
+    setup(); local entity=Mock.node('Model','Screech',root)
     local part=Mock.node('Part','Root',entity,3)
     tracker:notifyAlert(entity); tracker:step(0.01); part:Destroy(); tracker:step(0.01)
     eq(#tracker.alerts.active,0)
