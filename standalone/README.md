@@ -225,14 +225,25 @@ thực thể để cuộn tới nhanh, sau đó bấm **Cửa: TẮT** để b�
 
 ### Cách hoạt động
 
-- Nhận tên `doors 1` đến `doors 2000`, không phân biệt hoa/thường; chấp nhận
-  `Door1`, `Doors_001`, `Door-1`. Không bắt nhầm `trapdoor1`, số thập phân hay
-  các tên có hậu tố khác; số nằm ngoài 1–2000 bị bỏ qua.
-- Hỗ trợ Part hoặc Model/Folder có BasePart bên trong. Model có PrimaryPart
-  hợp lệ dùng part đó; không tạo marker riêng cho mỗi tấm/part con của cửa.
-- Hỗ trợ Model tên `Door`/`Doors` nằm trực tiếp trong phòng tên `40`, `0040`,
-  `Room40`, `Room_40`: coi đó là cửa 40 **theo ID phòng**. Không tự suy đoán độ
-  lệch giữa biển số cửa và ID phòng nếu game đánh số khác; khi ấy cần sửa mapping.
+- **Chỉ nhận đúng đường dẫn** `Workspace.CurrentRooms.<số>.Door.Door`, ví dụ:
+  ```text
+  Workspace.CurrentRooms.1.Door.Door
+  Workspace.CurrentRooms.2.Door.Door
+  Workspace.CurrentRooms.40.Door.Door
+  Workspace.CurrentRooms.2000.Door.Door
+  ```
+  Chỉ thay đoạn số từ **1 đến 2000**; `CurrentRooms` và hai đoạn `Door` phải
+  giữ nguyên tên/chữ hoa và đúng quan hệ cha–con. Số phòng phải là tên chuẩn
+  `1`, `40`, `2000`, không phải `001`, `Room40`, số thập phân hay số ngoài biên.
+- Không còn tìm theo tên rời `doors 1`, `Door1`, `Doors_001` hoặc `Door` nằm
+  ngoài cấu trúc trên. Ví dụ `Workspace.40.Door` và
+  `Workspace.Map.CurrentRooms.40.Door.Door` đều không hợp lệ.
+- Đánh dấu **đối tượng Door cuối cùng** trong đường dẫn, không phải Model Door
+  ngoài hay cả phòng. Leaf là BasePart thì dùng chính part đó. Nếu leaf là
+  Model/Folder có BasePart bên trong, dùng part đại diện/PrimaryPart hợp lệ
+  và vẫn chỉ tạo một marker cho leaf, không vẽ riêng từng panel con.
+- Số mốc lấy trực tiếp từ tên phòng trong `CurrentRooms`, không cộng/trừ độ lệch
+  theo biển số cửa trong game.
 - Khởi đầu từ mốc 1. Nếu không có cửa 1, tìm số tiếp theo đang tồn tại. Khi đã
   có nhân vật, đồng bộ với cửa gần vị trí nhân vật, nên bật giữa map hoặc quay
   lại khu vực cũ không bị buộc phải đi lại từ cửa 1.
@@ -268,8 +279,13 @@ thực thể để cuộn tới nhanh, sau đó bấm **Cửa: TẮT** để b�
 - Xét cửa lân cận mỗi Heartbeat để đi tiến/lùi nhanh; đồng bộ toàn chỉ mục được
   chia nhiều nhịp. Với 2.000 slot, cần tối thiểu 16 nhịp để xem đủ slot ở quota
   128, có thể lâu hơn vì deadline/tải native. **Đây không phải số đo độ trễ/FPS.**
-- Quét dự phòng mỗi 2 giây (không khởi động lại vòng đang chạy), bắt đổi tên,
-  di chuyển/reparent và dữ liệu bị bỏ sót. Không `GetDescendants()` toàn map mỗi frame.
+- Quét dự phòng mỗi 2 giây (không khởi động lại vòng đang chạy), chỉ trong
+  `Workspace.CurrentRooms` và đi thẳng từ phòng số đến `Door.Door`; bỏ qua
+  cây Workspace khác và đồ trang trí ngoài nhánh cửa. Event ngoài CurrentRooms
+  không chiếm hàng đợi cửa. Không `GetDescendants()` toàn map mỗi frame.
+- Khi CurrentRooms/nhánh Door/part xuất hiện trễ, nhận qua event hoặc lượt quét
+  tiếp theo; khi đổi tên/sai đường dẫn/xóa CurrentRooms, marker cũ bị loại bỏ.
+  Đổi số tên phòng sẽ cập nhật lại số mốc sau khi nhánh được phân tích lại.
 - Tắt hoặc lỗi xử lý cửa chỉ dừng marker cửa. Reload/thoát/hủy GUI dọn cả
   `DoorTrackerLocalEffects`; giữ nguyên định vị thực thể, vật phẩm và cảnh báo cũ.
 
@@ -360,18 +376,22 @@ Kết quả trong sandbox:
   Tool mới spawn, path/XYZ, ẩn riêng, khoảng cách, bộ lọc thủ công, 6 màu đồng
   thời, chủ động gây lỗi vật phẩm mà không làm mất thực thể/cảnh báo, và
   reload/thoát/hủy GUI dọn cả khung lẫn effect folder.
-- **31 test logic cửa: đạt.** Parser và giới hạn 1–2000; thiếu cửa đầu, stream
+- **37 test logic cửa: đạt.** Đường dẫn chính xác và giới hạn 1–2000; thiếu cửa đầu, stream
   thêm số thấp, mốc 40/đi lùi 39, xuyên mặt phẳng tiến/lùi, đi liên tục qua 40
   cửa rồi quay lại, cửa kế chưa stream, hướng dự phòng khi chỉ có một cửa,
   số bị khuyết, biên 2000, nhảy xa trong fixture 2.000 cửa, quota/deadline,
   event nhanh, Model/PrimaryPart/gộp panel, part tới trễ, xóa/thay/đổi tên,
   trùng số, loại trừ nhân vật/effect, mất origin, queue/overflow, dữ liệu lỗi,
-  không sửa engine thực thể và tắt/nạp lại/destroy không rò marker.
-- **16 test GUI cửa: đạt.** Khung thứ ba riêng, nút cuộn/canvas, fallback cửa
+  không sửa engine thực thể và tắt/nạp lại/destroy không rò marker. Kiểm tra
+  path cache chính xác, loại trừ alias/nhánh sai, CurrentRooms tới trễ hoặc bị
+  thay thế, leaf đổi tên, bỏ qua đồ trang trí/Workspace ngoài nhánh và child event
+  không làm sai part đại diện khi leaf chính là một BasePart.
+- **18 test GUI cửa: đạt.** Khung thứ ba riêng, nút cuộn/canvas, fallback cửa
   2 khi không có 1, màu đen/viền chữ trắng, cửa 1 xuất hiện sau, mốc 40/tiến/lùi,
   path/XYZ, các công tắc riêng, Door trong phòng số, không chạy theo camera,
   pause/resume/quét lại, cố ý gây lỗi cửa mà hai tính năng cũ/cảnh báo vẫn chạy,
-  và reload/thoát/hủy GUI dọn tài nguyên cửa.
+  và reload/thoát/hủy GUI dọn tài nguyên cửa. GUI hiển thị đường dẫn mới,
+  path/XYZ trỏ đúng leaf, các alias cũ ngoài CurrentRooms không ảnh hưởng mốc.
 - **115 test cũ của dự án: đạt**, không bị thay thế bởi bộ test mới.
 
 **Chưa chạy trong Roblox Studio/game thật.** Fengari + mock chỉ kiểm chứng logic
@@ -426,11 +446,16 @@ Dừng & thoát, kiểm tra cả hai effect folder đã được xóa.
 
 ### Kiểm tra cửa trong Studio
 
-Tạo các Part `doors 1` ... `doors 42` theo thứ tự dọc hành lang; tạo thêm cửa
-1999/2000, một Model `Door` trong phòng `0040` và một Model nhiều panel có
-PrimaryPart. Bật **Cửa ↓ → Cửa: TẮT**, đi tới đúng cửa 40 rồi qua lại hai chiều,
-xác nhận cửa sổ 39/40/41 rồi 38/39/40 khi lùi. Xóa cửa 1/40, spawn cửa mới,
-thử khi chưa có cửa tiếp theo, respawn, xoay camera và nhảy xa về khu vực cũ.
-Kiểm tra hướng dự phòng khi chỉ có một cửa, đặc biệt nếu LookVector bị đảo.
-Đo MicroProfiler trong map lớn; kiểm tra chỉ có tối đa 3 marker cửa, không
-rò listener khi reload và `DoorTrackerLocalEffects` bị xóa khi thoát.
+Tạo `Workspace.CurrentRooms` (Folder); bên trong tạo các Model phòng tên
+`1` ... `42`, `1999`, `2000`. Mỗi phòng chứa Model `Door`, Model này chứa Part
+`Door` đặt đúng vị trí cánh cửa: `Workspace.CurrentRooms.40.Door.Door`.
+Thử thêm một leaf Door dạng Model nhiều panel có PrimaryPart. Các Part tên
+`doors 1` đặt trực tiếp trong Workspace phải bị bỏ qua.
+
+Bật **Cửa ↓ → Cửa: TẮT**, đi tới đúng cửa 40 rồi qua lại hai chiều, xác nhận
+cửa sổ 39/40/41 rồi 38/39/40 khi lùi. Xóa/thay/đổi số tên phòng 1/40, spawn
+nhánh Door.Door sau, thử khi thiếu CurrentRooms hoặc cửa tiếp theo, respawn,
+xoay camera và nhảy xa về khu vực cũ. Kiểm tra hướng dự phòng khi chỉ có một
+cửa, đặc biệt nếu LookVector bị đảo. Đo MicroProfiler trong map lớn; kiểm tra
+chỉ có tối đa 3 marker cửa, không rò listener khi reload và
+`DoorTrackerLocalEffects` bị xóa khi thoát.

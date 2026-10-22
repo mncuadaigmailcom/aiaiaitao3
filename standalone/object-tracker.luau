@@ -656,14 +656,16 @@ local function createDoorTracker(deps)
         return n and n >= 1 and n <= 2000 and n == math.floor(n) and n or nil
     end
     local function numberOf(inst)
-        local text = tostring(inst.Name):lower()
-        local n = text:match('^%s*doors?[%s_]*(%d+)%s*$') or text:match('^%s*doors?%-(%d+)%s*$')
-        if n then return integer(n) end
-        if text == 'door' or text == 'doors' then
-            local parent = inst.Parent
-            local name = parent and tostring(parent.Name):lower() or ''
-            return integer(name:match('^(%d+)$') or name:match('^room[%s_%-]*(%d+)$'))
-        end
+        -- Exact identity chain: Workspace.CurrentRooms.<1..2000>.Door.Door.
+        -- Only the numeric room segment varies; legacy name aliases no longer match.
+        if inst.Name ~= "Door" then return nil end
+        local outer = inst.Parent
+        local room = outer and outer.Parent
+        local rooms = room and room.Parent
+        if not outer or outer.Name ~= "Door" or not rooms or rooms.Name ~= "CurrentRooms"
+            or rooms.Parent ~= deps.root then return nil end
+        local n = integer(room.Name)
+        return n and tostring(n) == room.Name and n or nil
     end
     self.numberOf = numberOf
     local function pointOK(p)
@@ -710,6 +712,7 @@ local function createDoorTracker(deps)
             ancestor, depth = ancestor.Parent, depth + 1
         end
         if not inst then return end
+        if inst:IsA('BasePart') then part = inst end -- The exact leaf itself is the physical target.
         local representative = inst:IsA('Model') and inst.PrimaryPart or nil
         if representative and representative:IsA('BasePart') and representative:IsDescendantOf(inst) then part = representative end
         if not pointOK(part.Position) then return end
@@ -722,13 +725,15 @@ local function createDoorTracker(deps)
             local p = self.origin
             if not p or distance(previous, p) <= (part.Position - p).Magnitude then return end
         end
-        self.byNumber[number] = {inst = inst, part = part, number = number, path = ''}
+        self.byNumber[number] = {inst = inst, part = part, number = number,
+            path = "Workspace.CurrentRooms." .. number .. ".Door.Door"}
         -- Newly streamed nearby doors can be considered without waiting for the global cursor.
         self.newCandidate = number
     end
     function self:beginScan()
         if not self.enabled or self.destroyed then return end
-        self.stack = {{children = deps.root:GetChildren(), index = 1}}
+        local rooms = deps.root:FindFirstChild("CurrentRooms")
+        self.stack = {{children = rooms and rooms:GetChildren() or {}, index = 1}}
         self.elapsed = 0
     end
     function self:scanSlice()
@@ -743,7 +748,15 @@ local function createDoorTracker(deps)
                 count, self.visited = count + 1, self.visited + 1
                 if not skip(node) then
                     self:inspect(node)
-                    local children = node:GetChildren()
+                    local children
+                    local parent = node.Parent
+                    if parent and parent.Name == "CurrentRooms" and parent.Parent == deps.root then
+                        -- Jump directly from each canonical numbered room to its exact leaf.
+                        local n = integer(node.Name)
+                        local outer = n and tostring(n) == node.Name and node:FindFirstChild("Door")
+                        local leaf = outer and outer:FindFirstChild("Door")
+                        children = leaf and {leaf} or {}
+                    else children = node:GetChildren() end
                     if #children > 0 then self.stack[#self.stack + 1] = {children = children, index = 1} end
                 end
             end
@@ -751,6 +764,12 @@ local function createDoorTracker(deps)
     end
     function self:notifyAdded(inst)
         if not self.enabled or self.destroyed or self.queued[inst] or (deps.ignore and deps.ignore(inst)) then return end
+        local ancestor, depth = inst, 0
+        while ancestor and ancestor ~= deps.root and depth < 32 do
+            if ancestor.Name == "CurrentRooms" and ancestor.Parent == deps.root then break end
+            ancestor, depth = ancestor.Parent, depth + 1
+        end
+        if not ancestor or ancestor == deps.root or depth >= 32 then return end
         if self.tail - self.head + 1 >= self.queueLimit then self.rescan = true; return end
         self.tail = self.tail + 1; self.queue[self.tail] = inst; self.queued[inst] = true
     end
@@ -1562,8 +1581,8 @@ local function createDoorPanel()
     local heading = label("⬛ Định vị cửa · tính năng riêng", 12, 8, 524, 32, doorCard)
     heading.TextColor3, heading.BackgroundColor3, heading.BackgroundTransparency = Color3.fromRGB(0, 0, 0), Color3.fromRGB(215, 215, 215), 0
     corner(heading)
-    label("Từ khóa: doors 1 → doors 2000 (Door 1 / Doors_001 cũng được).", 12, 48, 524, 26, doorCard)
-    label("Chỉ hiện cửa trước – hiện tại – kế tiếp. Ví dụ 39 / 40 / 41; đi lùi: 38 / 39 / 40.", 12, 76, 524, 34, doorCard)
+    label("Đường dẫn: Workspace.CurrentRooms.1.Door.Door", 12, 48, 524, 26, doorCard)
+    label("Chỉ thay số 1–2000. Đứng ở 40: 39 / 40 / 41; đi lùi 39: 38 / 39 / 40.", 12, 76, 524, 34, doorCard)
     local master
     local function paint()
         master.Text = doorTracker.enabled and "Cửa: BẬT" or "Cửa: TẮT"

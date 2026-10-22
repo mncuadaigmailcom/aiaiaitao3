@@ -12,7 +12,13 @@ local function setup()
         updateMarker=function(m,hit,state) m.hit=hit; m.state=state end}
     doors=createDoorTracker(deps)
 end
-local function door(n,x,parent,name) return Mock.node('Part',name or 'doors '..n,parent or root,x or n*20) end
+local function door(n,x,parent,name,class)
+    local workspaceRoot=parent or root
+    local rooms=workspaceRoot:FindFirstChild('CurrentRooms') or Mock.node('Folder','CurrentRooms',workspaceRoot)
+    local room=Mock.node('Model',tostring(n),rooms)
+    local outer=Mock.node('Model','Door',room)
+    return Mock.node(class or 'Part',name or 'Door',outer,x or n*20)
+end
 local function settle(n) for _=1,n or 24 do doors:step(1/60) end end
 local function numbers()
     local out={}; for _,h in ipairs(doors.list) do out[#out+1]=h.number end
@@ -23,19 +29,23 @@ test('disabled by default with an independent numbered index',function()
     eq(doors.enabled,false); eq(doors.current,1); eq(#doors.list,0)
     eq(doors.showBox,true); eq(doors.showLabel,true); eq(doors.throughWalls,true)
 end)
-test('strict door names accept spaced compact underscored dashed and zero-padded aliases',function()
-    for _,s in ipairs({'doors 1','Doors001','DOOR_0001','Door-1',' door 1 '}) do
-        eq(doors.numberOf(Mock.node('Part',s,root,0)),1)
-    end
-    for _,s in ipairs({'doors 0','doors 2001','doors -1','doors 1.5','trapdoor1','doors 1 fake','1','doors 1e2'}) do
-        eq(doors.numberOf(Mock.node('Part',s,root,0)),nil)
-    end
+test('exact CurrentRooms room-number Door Door path accepts 1 through 2000',function()
+    for _,n in ipairs({1,40,2000}) do eq(doors.numberOf(door(n)),n) end
+    for _,n in ipairs({0,2001,-1,1.5}) do eq(doors.numberOf(door(n)),nil) end
+    local leaf=door(1)
+    leaf.Parent.Parent.Name='001'; eq(doors.numberOf(leaf),nil)
+    leaf.Parent.Parent.Name='Room_1'; eq(doors.numberOf(leaf),nil)
 end)
-test('generic Door under numbered room is supported, unrelated numeric objects are not',function()
-    local room=Mock.node('Model','0040',root)
-    eq(doors.numberOf(Mock.node('Model','Door',room)),40)
-    room.Name='Room_40'; eq(doors.numberOf(room:FindFirstChild('Door')),40)
-    room.Name='Storage'; eq(doors.numberOf(room:FindFirstChild('Door')),nil)
+test('legacy aliases and every incorrect hierarchy segment are rejected',function()
+    for _,name in ipairs({'doors 1','Door1','Doors001','DOOR_0001','Door-1'}) do
+        eq(doors.numberOf(Mock.node('Part',name,root,0)),nil)
+    end
+    local leaf=door(40)
+    leaf.Name='Doors'; eq(doors.numberOf(leaf),nil); leaf.Name='Door'
+    leaf.Parent.Name='Doors'; eq(doors.numberOf(leaf),nil); leaf.Parent.Name='Door'
+    local rooms=leaf.Parent.Parent.Parent
+    rooms.Name='currentrooms'; eq(doors.numberOf(leaf),nil); rooms.Name='CurrentRooms'
+    rooms.Parent=Mock.node('Folder','Map',root); eq(doors.numberOf(leaf),nil)
 end)
 test('starts at door 1 and renders only the initial numeric neighbourhood',function()
     setup(); for n=1,6 do door(n) end
@@ -125,19 +135,20 @@ test('door index traversal is capped rather than scanning 2000 candidates per ti
     eq(doors.visited,5); assert(doors.stack); eq(doors.cursor,8); assert(#doors.list<=3)
 end)
 test('newly spawned numbered door uses bounded event path before a slow scan reaches it',function()
-    setup(); for n=1,100 do Mock.node('Part','Decoration',root,n) end
+    setup(); local rooms=Mock.node('Folder','CurrentRooms',root)
+    for n=1,100 do Mock.node('Part','Decoration',rooms,n) end
     doors.scanBudget=1; doors:setEnabled(true)
     local target=door(40,0); doors:notifyAdded(target); doors:step(1/60)
     eq(doors.current,40); eq(doors.list[1].inst,target); eq(doors.visited,1)
 end)
 test('Model door with nested panels produces one marker and prefers PrimaryPart',function()
-    setup(); local m=Mock.node('Model','doors 1',root)
+    setup(); local m=door(1,0,nil,nil,'Model')
     local primary=Mock.node('Part','Panel',m,20); m.PrimaryPart=primary
-    Mock.node('Part','doors 1',m,21)
+    Mock.node('Part','Door',m,21)
     doors:setEnabled(true); settle(); eq(#doors.list,1); eq(doors.list[1].inst,m); eq(doors.list[1].part,primary)
 end)
 test('door Model without a part becomes locatable after its panel arrives',function()
-    setup(); local m=Mock.node('Model','Doors 3',root)
+    setup(); local m=door(3,0,nil,nil,'Model')
     doors:setEnabled(true); settle(); eq(#doors.list,0)
     local part=Mock.node('Part','Panel',m,3); doors:notifyAdded(part); doors:step(1/60)
     eq(doors.current,3); eq(#doors.list,1)
@@ -148,18 +159,19 @@ test('removal clears obsolete marker; same-number replacement rebinds safely',fu
     local replacement=door(1); doors:notifyAdded(replacement); settle()
     eq(doors.items[1].hit.inst,replacement)
 end)
-test('renaming a door invalidates old number and periodic scan discovers the new name',function()
-    setup(); local target=door(1); doors:setEnabled(true); settle(); target.Name='doors 10'
+test('renaming the numeric room invalidates the old index and updates the exact path',function()
+    setup(); local target=door(1); doors:setEnabled(true); settle(); target.Parent.Parent.Name='10'
     settle(180); eq(doors.current,10); eq(numbers(),'10'); eq(doors.byNumber[1],nil)
 end)
 test('closest same-number duplicate wins while keeping the index bounded to 2000 slots',function()
     setup(); door(1,200); local nearby=door(1,20)
     doors:setEnabled(true); settle(); eq(#doors.list,1); eq(doors.list[1].inst,nearby)
 end)
-test('character-owned doors and effect descendants are excluded',function()
-    setup(); local char=Mock.node('Model','Character',root); players.list={{Character=char}}
-    door(1,0,char); local effects=Mock.node('Folder','Effects',root); door(2,0,effects)
-    deps.ignore=function(inst) return inst==effects or inst:IsDescendantOf(effects) end
+test('character-owned exact-path doors and ignored leaf descendants are excluded',function()
+    setup(); local char=door(1,0,nil,nil,'Model'); Mock.node('Part','Panel',char,0)
+    players.list={{Character=char}}
+    local ignored=door(2,0,nil,nil,'Model'); Mock.node('Part','Panel',ignored,0)
+    deps.ignore=function(inst) return inst==ignored or inst:IsDescendantOf(ignored) end
     door(3); doors:setEnabled(true); settle(); eq(doors.current,3); eq(numbers(),'3')
 end)
 test('losing character origin freezes the current door instead of following the camera',function()
@@ -197,5 +209,41 @@ test('disable, resume, destroy and repeated destroy clean all door resources onl
     doors:setEnabled(true); settle(); eq(numbers(),'1,2')
     doors:destroy(); doors:destroy(); eq(created,removed); eq(next(doors.byNumber),nil)
     eq(doors:setEnabled(true),false)
+end)
+test('cached and exposed paths match the exact requested leaf rather than the outer model',function()
+    setup(); local target=door(40); doors:setEnabled(true); settle()
+    eq(#doors.list,1); eq(doors.list[1].inst,target)
+    eq(doors.list[1].path,'Workspace.CurrentRooms.40.Door.Door')
+end)
+test('missing CurrentRooms is harmless and a late matching leaf uses the event path',function()
+    setup(); doors:setEnabled(true); settle(); eq(#doors.list,0)
+    local target=door(1); doors:notifyAdded(target); doors:step(1/60)
+    eq(doors.current,1); eq(doors.list[1].inst,target)
+end)
+test('leaf renamed away from Door loses its marker, and renaming back is rediscovered',function()
+    setup(); local target=door(1); doors:setEnabled(true); settle()
+    target.Name='NotDoor'; doors:step(1/60); eq(#doors.list,0)
+    target.Name='Door'; settle(180); eq(doors.list[1].inst,target)
+end)
+test('fallback scans skip unrelated Workspace and non-Door room contents',function()
+    setup(); local decoy=Mock.node('Folder','UnrelatedMap',root)
+    for n=1,500 do Mock.node('Part','doors '..n,decoy,n) end
+    local target=door(1)
+    local room=target.Parent.Parent
+    for n=1,500 do Mock.node('Part','Decoration',room,n) end
+    doors:setEnabled(true); doors:step(1/60)
+    eq(doors.visited,2); eq(doors.list[1].inst,target); eq(doors.stack,nil)
+    doors:notifyAdded(Mock.node('Part','doors 2',decoy,0)); eq(doors.tail,0)
+end)
+test('replacement of the CurrentRooms container invalidates old cached door references',function()
+    setup(); local old=door(1); doors:setEnabled(true); settle()
+    old.Parent.Parent.Parent:Destroy(); doors:step(1/60); eq(#doors.list,0)
+    local replacement=door(1); doors:notifyAdded(replacement); doors:step(1/60)
+    eq(doors.list[1].inst,replacement)
+end)
+test('a nested child event cannot replace the exact BasePart leaf as the physical target',function()
+    setup(); local leaf=door(40,800); local child=Mock.node('Part','Decoration',leaf,0)
+    doors:setEnabled(true); doors:notifyAdded(child); doors:step(1/60)
+    eq(doors.list[1].inst,leaf); eq(doors.list[1].part,leaf)
 end)
 print(passed..' numbered-door core tests passed')

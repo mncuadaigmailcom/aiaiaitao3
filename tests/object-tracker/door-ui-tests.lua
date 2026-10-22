@@ -17,7 +17,13 @@ local char=Mock.node('Model','DoorTestCharacter',workspace)
 local root=Mock.node('Part','HumanoidRootPart',char,0)
 Mock.players.LocalPlayer.Character=char
 local fixtures={}
-for n=2,44 do fixtures[n]=Mock.node('Part','doors '..n,workspace,n*20) end
+local rooms=Mock.node('Folder','CurrentRooms',workspace)
+local function makeDoor(n,x)
+    local room=Mock.node('Model',tostring(n),rooms)
+    local outer=Mock.node('Model','Door',room)
+    return Mock.node('Part','Door',outer,x or n*20)
+end
+for n=2,44 do fixtures[n]=makeDoor(n) end
 Mock.frames(3)
 test('door locator is a third independent sibling card in the same player tab and starts disabled',function()
     assert(panel.Parent==items.Parent and panel.Parent==page:FindFirstChild('HubObjTrack_Panel').Parent)
@@ -46,7 +52,7 @@ test('door highlight, outline, box and text are black; text has white stroke for
     end
 end)
 test('door 1 arriving after enable is indexed in one heartbeat and becomes the current door',function()
-    fixtures[1]=Mock.node('Part','Doors_0001',workspace,20)
+    fixtures[1]=makeDoor(1)
     Mock.run.Heartbeat:Fire(1/60)
     assert(numbers()=='1,2',numbers())
 end)
@@ -68,7 +74,7 @@ test('clicking a door result exposes a read-only Workspace path and XYZ',functio
     panel:FindFirstChild('DoorResult_2').Activated:Fire()
     local box
     for _,node in ipairs(panel:GetChildren()) do if node.PlaceholderText=='Cửa: path và XYZ' then box=node end end
-    assert(box and box.TextEditable==false and box.Text:find('Workspace.doors 39',1,true))
+    assert(box and box.TextEditable==false and box.Text:find('Workspace.CurrentRooms.39.Door.Door',1,true))
     assert(box.Text:find('X 780.000',1,true))
 end)
 test('door box, label, XYZ and wall switches affect only the door engine',function()
@@ -85,10 +91,11 @@ test('door box, label, XYZ and wall switches affect only the door engine',functi
     Mock.findText('Cửa Hộp: TẮT').Activated:Fire(); Mock.findText('Cửa Nhãn: TẮT').Activated:Fire()
     Mock.findText('Cửa Xuyên: TẮT').Activated:Fire(); Mock.frames(3)
 end)
-test('numbered-room Door Model with late panel arrival is discovered through the shared listener',function()
+test('exact CurrentRooms numbered Door Door Model with late panel uses the shared listener',function()
     root.Position=Vector3.new(900,0,0)
-    local room=Mock.node('Model','0045',workspace)
-    local door=Mock.node('Model','Door',room)
+    local room=Mock.node('Model','45',rooms)
+    local outer=Mock.node('Model','Door',room)
+    local door=Mock.node('Model','Door',outer)
     local part=Mock.node('Part','Panel',door,900)
     Mock.run.Heartbeat:Fire(1/60)
     assert(numbers()=='44,45',numbers())
@@ -119,6 +126,19 @@ test('injected door-only rendering failure cannot disable entity ESP, items or a
     assert(#Mock.markers()==originalCount and itemCount()==originalItems and gui:FindFirstChild('EntityAlerts').Visible)
     Mock.findText('Cửa: TẮT').Activated:Fire(); Mock.frames(25)
     assert(#markers()>0)
+end)
+test('UI shows the new exact path template and never advertises legacy door aliases',function()
+    Mock.findText('Đường dẫn: Workspace.CurrentRooms.1.Door.Door')
+    for _,node in ipairs(panel:GetChildren()) do
+        assert(not (node.Text or ''):find('Doors_001',1,true))
+    end
+end)
+test('legacy doors elsewhere in Workspace cannot change the current door or create a marker',function()
+    Mock.node('Part','doors 46',workspace,900)
+    local outside=Mock.node('Model','46',workspace)
+    local outer=Mock.node('Model','Door',outside)
+    Mock.node('Part','Door',outer,900)
+    Mock.frames(25); assert(numbers()=='44,45',numbers())
 end)
 Mock.oldDoorPanel=panel; Mock.oldDoorFolder=folder()
 local previousReload=testReloaded
