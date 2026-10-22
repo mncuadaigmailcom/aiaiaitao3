@@ -134,10 +134,17 @@ local player = Mock.node('Player','LocalPlayer',nil)
 playerGui.Parent = player
 Mock.players = {LocalPlayer=player, list={player}}
 function Mock.players:GetPlayers() return self.list end
+Mock.lighting = Mock.node('Lighting','Lighting',nil)
+Mock.lighting.Ambient=Color3.fromRGB(15,15,20)
+Mock.lighting.OutdoorAmbient=Color3.fromRGB(25,25,30)
+Mock.lighting.Brightness=0.5; Mock.lighting.ExposureCompensation=-0.5
+Mock.lighting.GlobalShadows=true; Mock.lighting.EnvironmentDiffuseScale=0.1
+Mock.lighting.EnvironmentSpecularScale=1
+Mock.lighting.ClockTime=0; Mock.lighting.FogEnd=400
 Mock.run = {Heartbeat=signal()}
 Mock.input = {InputBegan=signal(),InputChanged=signal(),InputEnded=signal()}
 game = {GetService = function(_,name)
-    return assert(({Players=Mock.players,RunService=Mock.run,UserInputService=Mock.input})[name], 'unexpected service '..name)
+    return assert(({Players=Mock.players,RunService=Mock.run,UserInputService=Mock.input,Lighting=Mock.lighting})[name], 'unexpected service '..name)
 end}
 warn = function(text) Mock.lastWarning = text end
 function Mock.findText(text)

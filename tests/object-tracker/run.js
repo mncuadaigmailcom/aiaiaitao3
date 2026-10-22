@@ -29,10 +29,12 @@ run(fs.readFileSync(path.join(__dirname, 'mock.lua'), 'utf8'), 'Roblox mock');
 run(core + '\n' + fs.readFileSync(path.join(__dirname, 'core-tests.lua'), 'utf8'), 'core tests');
 run(core + '\n' + fs.readFileSync(path.join(__dirname, 'item-tests.lua'), 'utf8'), 'item core tests');
 run(core + '\n' + fs.readFileSync(path.join(__dirname, 'door-tests.lua'), 'utf8'), 'door core tests');
+run(core + '\n' + fs.readFileSync(path.join(__dirname, 'night-tests.lua'), 'utf8'), 'night vision core tests');
 run(source, 'full standalone boot');
 run(fs.readFileSync(path.join(__dirname, 'ui-tests.lua'), 'utf8'), 'UI integration');
 run(fs.readFileSync(path.join(__dirname, 'item-ui-tests.lua'), 'utf8'), 'item UI integration');
 run(fs.readFileSync(path.join(__dirname, 'door-ui-tests.lua'), 'utf8'), 'door UI integration');
+run(fs.readFileSync(path.join(__dirname, 'night-ui-tests.lua'), 'utf8'), 'night vision UI integration');
 // Re-run while active: verify the BindableEvent teardown of the previous instance.
 run(source, 'standalone reload');
 run('testReloaded()', 'reload assertions');

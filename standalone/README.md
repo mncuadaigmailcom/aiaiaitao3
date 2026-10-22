@@ -1,4 +1,4 @@
-# Định vị thực thể, vật phẩm và cửa — bản độc lập
+# Định vị và nhìn trong bóng tối — bản độc lập
 
 **File dùng trực tiếp:** [`object-tracker.luau`](object-tracker.luau).
 
@@ -15,6 +15,8 @@ của `script.js`. Không cần nạp hub gốc. Không sửa `script.js`.
 6. Bấm **Vật phẩm ↓** để đến khung vật phẩm riêng. Mở một nhóm rồi chọn món,
    hoặc bấm công tắc nhóm/Chọn cả nhóm để định vị nhiều món.
 7. Bấm **Cửa ↓** rồi **Định vị cửa: TẮT** để bật khung cửa riêng.
+8. Bấm **Bóng tối ↓** (ô trống cuối danh sách preset thực thể), hoặc cuộn tới khung
+   **Nhìn trong bóng tối**, rồi bấm **Nhìn bóng tối: TẮT** để bật ánh sáng dịu.
 
 Không cần executor, `loadstring`, HTTP, hook, remote hoặc script server.
 Rojo mapping hiện tại của repo không tự cài file này; hãy cài thủ công như trên.
@@ -23,9 +25,9 @@ Rojo mapping hiện tại của repo không tự cài file này; hãy cài thủ
 
 Menu dùng bảng màu nền tối/vàng của bản chính `script.js`, thanh tiêu đề
 `taodepzai v5.0 NOIR`, nhãn phiên bản, thanh tab trái và header trang.
-**Chỉ có một tab `Người Chơi`, với ba khung độc lập:**
-`Định vị vật thể` (các thực thể hỗ trợ cũ), `Định vị vật phẩm` (6 nhóm màu)
-và `Định vị cửa` (màu đen, theo số 1–2000).
+**Chỉ có một tab `Người Chơi`, với bốn khung độc lập:**
+`Định vị vật thể` (các thực thể hỗ trợ cũ), `Định vị vật phẩm` (6 nhóm màu),
+`Định vị cửa` (màu đen, theo số 1–2000) và `Nhìn trong bóng tối` (ánh sáng dịu).
 Không nạp hoặc ẩn các chức năng khác của hub: chúng không được đưa vào file này.
 
 Kích thước mặc định 620 × 380; nội dung tab cuộn dọc để xem danh sách và chi tiết.
@@ -70,7 +72,7 @@ Bốn góc cho phép đổi kích thước trong khoảng 560–900 × 280–700
 
 Không mang theo bay tới vật, teleport, noclip, AntiBan, phân tích trang phục,
 chạy script ngoài hoặc lưu preset xuống file. Từ khóa/cấu hình chỉ tồn tại trong
-phiên chạy; đây là bản chỉ định vị.
+phiên chạy; chỉ có các tính năng định vị và ánh sáng dịu đã nêu.
 
 ## Cảnh báo đang hiện diện — một ô cố định, chỉ 4 loại
 
@@ -308,6 +310,54 @@ mapping. Cửa chưa stream tới client hoặc không có BasePart không thể
 Không vượt quyền server, không mở cửa/teleport, không cam kết nhận diện mọi
 cấu trúc cửa của mọi game. **Chưa kiểm chứng trong Roblox Studio/game thật.**
 
+## Nhìn trong bóng tối — ánh sáng dịu, một nút bật/tắt
+
+Đây là khung riêng `NightVisionPanel`, **không trộn vào định vị cửa** và không
+thêm tab mới. Bấm **Bóng tối ↓** ở cuối danh sách preset thực thể, hoặc cuộn xuống
+sau khung cửa, rồi bấm **Nhìn bóng tối: TẮT**. Mặc định tắt, không thay đổi Lighting
+cho tới khi bạn bật. X/nút nổi/RightControl chỉ ẩn menu, không tắt nhìn tối.
+
+### Mức sáng và giảm chói
+
+- Tăng ánh sáng nền vừa phải để nhìn được vùng tối thay vì fullbright trắng gắt:
+  Ambient RGB **100/105/115**, OutdoorAmbient **110/115/125**, Brightness **1,2**.
+- ExposureCompensation **−0,15**, EnvironmentSpecularScale **0,15** để hạn chế
+  phơi sáng và phản xạ; EnvironmentDiffuseScale **0,5** và tạm tắt GlobalShadows.
+- Một ColorCorrectionEffect do công cụ sở hữu (`TrackerSoftNightVision`),
+  Brightness **0,01**, Contrast **−0,06**, Saturation **−0,08**, tint hơi lạnh nhẹ.
+  Không tự tạo Bloom/đèn công suất lớn hoặc đổi thời gian sang giữa trưa.
+- Tạm ngưng BloomEffect/SunRaysEffect và ColorCorrectionEffect có sẵn trực tiếp
+  trong Lighting/Camera khi đang bật; giữ nguyên đối tượng và trạng thái gốc để
+  trả lại, không xóa effect của game. DepthOfField/Atmosphere/đèn của game không bị sửa.
+- **Không đổi ClockTime, FogEnd hay sương mù**, không thay đổi nhân vật, camera
+  CFrame, vật phẩm, cửa, marker hoặc trạng thái cảnh báo. Chỉ chỉnh hiển thị local.
+
+### Khôi phục và tài nguyên
+
+- Tắt nút, Dừng & thoát, hủy GUI/script hoặc nạp lại đều khôi phục ánh sáng và
+  effect đã quản lý, xóa **chỉ** ColorCorrectionEffect do tính năng này tạo.
+- Nếu game đổi Lighting khi tính năng đang bật, giá trị thay đổi quan sát được
+  sẽ được ghi nhớ để khôi phục. Nếu game vừa đổi ngay trước lúc tắt và giá trị
+  đó khác mức tính năng đang áp dụng, không ghi đè thay đổi ấy.
+- Không thể phân biệt game ghi lại **cùng đúng giá trị** mà tính năng đang đặt;
+  việc khôi phục chỉ bảo toàn các thay đổi quan sát được, không phải khóa ánh sáng server.
+- Dùng Heartbeat có sẵn, cập nhật tối đa mỗi **0,25 giây**; không quét Workspace,
+  không thêm listener từng effect. Phân tích tối đa 64 child mỗi root Lighting/Camera
+  trong một lượt, lưu tối đa 128 effect của game để kiểm soát chi phí/bộ nhớ.
+  Game có rất nhiều effect có thể cần nhiều lượt hoặc còn effect ngoài giới hạn.
+- Khi đổi Camera, trả lại effect Camera cũ rồi xử lý Camera mới. Camera thiếu
+  không làm lỗi. Lỗi riêng của ánh sáng sẽ tắt và khôi phục phần nhìn tối,
+  **không tắt định vị thực thể, vật phẩm, cửa hay cảnh báo**.
+
+### Giới hạn
+
+Đây là cấu hình ánh sáng dịu, **không bảo đảm hết mọi chói/flash**: GUI chớp sáng,
+texture/emissive, overlay đen, effect đặc thù hay script game liên tục ghi Lighting
+có thể vẫn ảnh hưởng. Không thể làm xuất hiện đối tượng chưa stream tới client,
+nhìn xuyên vật thể thật hoặc bỏ qua cơ chế gameplay. Mức sáng dễ chịu tùy màn hình,
+HDR, đồ họa và mắt người dùng; **chưa đo/kiểm chứng trong Studio hoặc game thật**.
+Nếu thấy khó chịu, tắt tính năng; test mock không xác nhận độ chói bằng mắt.
+
 ## Chi tiết và giới hạn
 
 - Chỉ đọc các đối tượng client nhìn thấy trong Workspace. Với StreamingEnabled,
@@ -366,7 +416,7 @@ Kết quả trong sandbox:
 - **33 test tích hợp GUI/mock: đạt.** Boot không có executor, Enter, marker,
   switch hiển thị, chọn kết quả, vật trùng tên được thay mới, X/nút nổi, bật/tắt,
   nút nổi góc trên phải ở nhiều viewport, không chồng lên cảnh báo đang hiện,
-  khóa kéo/co GUI, một tab với ba khung riêng, palette/header NOIR, cả bốn góc resize,
+  khóa kéo/co GUI, một tab với bốn khung riêng, palette/header NOIR, cả bốn góc resize,
   RightControl, nút Tắt/Bật từng dòng, nhảy tới danh sách hỗ trợ, các công tắc preset,
   batch bật/tắt, phối hợp manual/preset, xóa hết, marker từ sự kiện spawn thật của mock
   xuất hiện sau một Heartbeat mô phỏng, nạp lại, Dừng & thoát và GUI bị hủy từ bên ngoài.
@@ -403,6 +453,17 @@ Kết quả trong sandbox:
   dọn tài nguyên cửa. GUI hiển thị đường dẫn chính xác, các alias cũ ngoài
   CurrentRooms không ảnh hưởng mốc; đổi số phòng được quét lại tự động mà không
   cần nút quét lại.
+- **22 test logic nhìn tối: đạt.** Mặc định tắt, mức sáng/exposure dịu, thông số
+  correction, giữ ClockTime/fog, bật/tắt và bật lặp không tạo trùng, bảo toàn
+  trạng thái effect, effect xuất hiện trễ, đổi/mất camera, effect rời root,
+  khôi phục thay đổi của game, giới hạn batch/128 effect, nhịp 0,25 giây,
+  dt không hợp lệ, rollback khi tạo effect lỗi, tái tạo effect bị xóa, cảnh sáng
+  sẵn không cộng sáng vô hạn, destroy/idempotent và không khởi động lại sau destroy.
+- **12 test GUI nhìn tối: đạt.** Khung thứ tư một công tắc, shortcut/canvas không
+  chồng control cũ, ánh sáng dịu và giảm chói, cả ba định vị/cảnh báo tiếp tục chạy,
+  ẩn menu, đổi camera, tắt khôi phục chính xác, chủ động gây lỗi ánh sáng mà
+  không tắt các phần cũ, phục hồi bật lại không trùng effect, reload/thoát/hủy GUI
+  trong lúc đang bật đều khôi phục Lighting và giữ nguyên effect của game.
 - **115 test cũ của dự án: đạt**, không bị thay thế bởi bộ test mới.
 
 **Chưa chạy trong Roblox Studio/game thật.** Fengari + mock chỉ kiểm chứng logic
@@ -470,3 +531,14 @@ xoay camera và nhảy xa về khu vực cũ. Kiểm tra hướng dự phòng kh
 cửa, đặc biệt nếu LookVector bị đảo. Đo MicroProfiler trong map lớn; kiểm tra
 chỉ có tối đa 3 marker cửa, không rò listener khi reload và
 `DoorTrackerLocalEffects` bị xóa khi thoát.
+
+### Kiểm tra nhìn trong bóng tối trong Studio
+
+Tạo phòng kín tối, một khu sáng có Part phản xạ, Bloom/SunRays/ColorCorrection
+trong Lighting và Camera (cả trạng thái bật lẫn tắt). Bật Nhìn bóng tối để kiểm
+tra bằng mắt mức sáng và bloom, đảm bảo chữ/marker đen của cửa vẫn đọc được.
+Kiểm tra ClockTime/fog không đổi, thử đổi Camera, spawn effect mới, respawn,
+ẩn menu và chạy đồng thời mọi định vị/cảnh báo. Tắt/nạp lại/Dừng & thoát trong
+lúc đang bật: xác nhận ánh sáng và effect cũ được trả lại, chỉ correction do
+công cụ tạo bị xóa. Thử nhiều graphics quality/HDR/thiết bị để đánh giá chói;
+không dùng kết quả mock thay cho kiểm tra hình ảnh thực tế.

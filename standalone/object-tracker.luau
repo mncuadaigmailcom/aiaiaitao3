@@ -1,4 +1,4 @@
--- Object Tracker standalone: only local object discovery and visualization.
+-- Standalone local object discovery, visualization and soft night vision.
 -- Paste into a LocalScript in StarterPlayerScripts, then Play.
 -- No executor, HTTP, hooks, loadstring, teleport, or server remotes required.
 -- BEGIN TRACKER CORE (also loaded verbatim by the automated tests)
@@ -904,11 +904,109 @@ local function createDoorTracker(deps)
     return self
 end
 
+-- Soft, local night vision. No sun/time/fog changes or per-frame world traversal.
+local function createNightVision(deps)
+    local self = {enabled = false, destroyed = false, elapsed = 0, effects = {}, effectCount = 0,
+        saved = {}, applied = {}, cursors = {}, lastError = nil}
+    local targets = {Ambient = Color3.fromRGB(100, 105, 115), OutdoorAmbient = Color3.fromRGB(110, 115, 125),
+        Brightness = 1.2, ExposureCompensation = -0.15, GlobalShadows = false,
+        EnvironmentDiffuseScale = 0.5, EnvironmentSpecularScale = 0.15}
+    local function same(a, b)
+        if a == b then return true end
+        local kind = type(a)
+        if (kind == 'table' or kind == 'userdata') and type(b) == kind then
+            local ok, equal = pcall(function() return a.R == b.R and a.G == b.G and a.B == b.B end)
+            return ok and equal
+        end
+        return false
+    end
+    local function restoreEffect(effect, entry)
+        pcall(function() if effect.Enabled == false then effect.Enabled = entry.enabled end end)
+    end
+    function self:restore()
+        for key, value in pairs(self.saved) do
+            pcall(function()
+                if same(deps.lighting[key], self.applied[key]) then deps.lighting[key] = value end
+            end)
+        end
+        for effect, entry in pairs(self.effects) do restoreEffect(effect, entry) end
+        if self.correction then pcall(function() self.correction:Destroy() end) end
+        self.correction, self.effects, self.effectCount, self.saved, self.applied, self.cursors = nil, {}, 0, {}, {}, {}
+    end
+    function self:apply()
+        for key, value in pairs(targets) do
+            local current = deps.lighting[key]
+            if self.applied[key] ~= nil and not same(current, self.applied[key]) then self.saved[key] = current end
+            if not same(current, value) then deps.lighting[key] = value end
+            self.applied[key] = value
+        end
+        if not self.correction or self.correction.Parent ~= deps.lighting then
+            if self.correction then self.correction:Destroy() end
+            self.correction = deps.createCorrection()
+        end
+        local correction = self.correction
+        correction.Enabled, correction.Brightness, correction.Contrast, correction.Saturation = true, 0.01, -0.06, -0.08
+        correction.TintColor = Color3.fromRGB(235, 242, 255)
+        local camera = deps.getCamera()
+        -- Only direct Lighting/Camera post-effects affect this view. Leave other instances alone.
+        for effect, entry in pairs(self.effects) do
+            if not effect.Parent or (effect.Parent ~= deps.lighting and effect.Parent ~= camera) then
+                restoreEffect(effect, entry); self.effects[effect] = nil; self.effectCount = self.effectCount - 1
+            elseif effect.Enabled ~= false then
+                entry.enabled = effect.Enabled; effect.Enabled = false
+            end
+        end
+        local roots, cursors = {deps.lighting}, {}
+        if camera and camera.GetChildren then roots[#roots + 1] = camera end
+        for _, root in ipairs(roots) do
+            local children, cursor = root:GetChildren(), self.cursors[root] or 1
+            for _ = 1, math.min(64, #children) do
+                cursor = (cursor - 1) % #children + 1
+                local effect = children[cursor]
+                if effect ~= correction and (effect:IsA('BloomEffect') or effect:IsA('SunRaysEffect') or effect:IsA('ColorCorrectionEffect')) then
+                    if not self.effects[effect] and self.effectCount < 128 then
+                        self.effects[effect] = {enabled = effect.Enabled}; self.effectCount = self.effectCount + 1
+                    end
+                    if self.effects[effect] then effect.Enabled = false end
+                end
+                cursor = cursor + 1
+            end
+            cursors[root] = cursor
+        end
+        self.cursors = cursors
+    end
+    function self:setEnabled(value)
+        if self.destroyed then return false, 'Night vision was destroyed' end
+        if value ~= true then self.enabled = false; self:restore(); return false end
+        if self.enabled then return true end
+        self.lastError, self.elapsed = nil, 0
+        for key in pairs(targets) do self.saved[key] = deps.lighting[key] end
+        self.enabled = true
+        local ok, err = pcall(function() self:apply() end)
+        if not ok then
+            self.enabled = false; self:restore(); self.lastError = tostring(err)
+            return false, self.lastError
+        end
+        return true
+    end
+    function self:step(dt)
+        if not self.enabled or self.destroyed or type(dt) ~= 'number' or dt ~= dt or dt < 0 or dt == math.huge then return end
+        self.elapsed = self.elapsed + dt
+        if self.elapsed >= 0.25 then self.elapsed = 0; self:apply() end
+    end
+    function self:destroy()
+        if self.destroyed then return end
+        self:setEnabled(false); self.destroyed = true
+    end
+    return self
+end
+
 -- END TRACKER CORE
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
+local Lighting = game:GetService("Lighting")
 local player = Players.LocalPlayer
 assert(player, "Object Tracker phải chạy phía client (LocalScript).")
 local playerGui = player:WaitForChild("PlayerGui")
@@ -1029,6 +1127,12 @@ doorDeps.updateMarker = function(marker, hit, state, visible)
 end
 local doorTracker = createDoorTracker(doorDeps)
 doorTracker.markerColorFor = function() return Color3.fromRGB(0, 0, 0) end
+local nightVision = createNightVision({lighting = Lighting,
+    getCamera = function() return workspace.CurrentCamera end,
+    createCorrection = function()
+        return new("ColorCorrectionEffect", {Name = "TrackerSoftNightVision"}, Lighting)
+    end,
+})
 local function connect(signal, fn)
     local connection = signal:Connect(fn)
     connections[#connections + 1] = connection
@@ -1041,6 +1145,7 @@ local function shutdown()
     tracker:destroy()
     itemTracker:destroy()
     doorTracker:destroy()
+    nightVision:destroy()
     cleanupRows(); cleanupItemRows()
     effects:Destroy(); itemEffects:Destroy(); doorEffects:Destroy()
     gui:Destroy()
@@ -1054,7 +1159,7 @@ end)
 connect(stopEvent.Event, shutdown)
 connect(gui.Destroying, shutdown)
 if script and script.Destroying then connect(script.Destroying, shutdown) end
--- NOIR shell: one player tab with three independent entity/item/door cards.
+-- NOIR shell: one player tab with independent tracking and soft night-vision cards.
 local C = {
     BG = Color3.fromRGB(11, 12, 17), SURFACE = Color3.fromRGB(20, 22, 30),
     SURFACE2 = Color3.fromRGB(29, 32, 43), SURFACE3 = Color3.fromRGB(44, 49, 64),
@@ -1115,6 +1220,7 @@ corner(card, 10); stroke(card); gradient(card, C.SURFACE2, C.SURFACE)
 local cardScale = new("UIScale", {Scale = 1}, card)
 local itemCard, itemCardScale
 local doorCard, doorCardScale
+local nightCard, nightCardScale
 local function fitContent()
     cardScale.Scale = math.min(1, (panel.Size.X.Offset - 72) / 548)
     local bottom = 16 + 1000 * cardScale.Scale
@@ -1127,6 +1233,11 @@ local function fitContent()
         doorCardScale.Scale = cardScale.Scale
         doorCard.Position = UDim2.fromOffset(8, bottom)
         bottom = bottom + 8 + doorCard.Size.Y.Offset * cardScale.Scale
+    end
+    if nightCard then
+        nightCardScale.Scale = cardScale.Scale
+        nightCard.Position = UDim2.fromOffset(8, bottom)
+        bottom = bottom + 8 + nightCard.Size.Y.Offset * cardScale.Scale
     end
     page.CanvasSize = UDim2.fromOffset(0, bottom)
 end
@@ -1255,7 +1366,7 @@ local copyBox = input("", "Thông tin vật được chọn", 12, 428, 496)
 copyBox.TextEditable = false
 local exitButton = button("Dừng & thoát", 12, 960, 128, shutdown)
 exitButton.TextColor3 = C.RED
-label("Chỉ định vị · không bay / không chạy script ngoài", 150, 960, 364, 28)
+label("Định vị & nhìn tối · không bay / không chạy script ngoài", 150, 960, 364, 28)
 local selected, rows, toggle, viewObjects = nil, {}, nil, {}
 local paintPresets = function() end
 local function paintToggle()
@@ -1615,6 +1726,36 @@ local function createDoorPanel()
 end
 local renderDoors, doorStatus = createDoorPanel()
 
+-- A single independent, soft night-vision switch; no extra Player tab.
+local function createNightPanel()
+    nightCard = new("Frame", {Name = "NightVisionPanel", Size = UDim2.fromOffset(548, 190),
+        BackgroundColor3 = C.SURFACE, BorderSizePixel = 0}, page)
+    corner(nightCard, 10); stroke(nightCard)
+    nightCardScale = new("UIScale", {Scale = 1}, nightCard)
+    label("🌙 Nhìn trong bóng tối · ánh sáng dịu", 12, 8, 524, 30, nightCard)
+    label("Tăng sáng vùng tối vừa phải, giảm bloom/chói. Không đổi giờ hay xóa sương mù.", 12, 44, 524, 34, nightCard)
+    local master, statusLabel
+    local function render()
+        master.Text = nightVision.enabled and "Nhìn bóng tối: BẬT" or "Nhìn bóng tối: TẮT"
+        statusLabel.Text = nightVision.lastError and ("Lỗi ánh sáng: " .. nightVision.lastError)
+            or (nightVision.enabled and "Ánh sáng dịu đang bật · tắt để khôi phục ánh sáng game."
+                or "Đang tắt · không thay đổi ánh sáng của game.")
+    end
+    master = button("Nhìn bóng tối: TẮT", 12, 86, 524, function()
+        nightVision:setEnabled(not nightVision.enabled); render()
+    end, nightCard)
+    master.Name = "ToggleNightVision"
+    statusLabel = label("", 12, 124, 524, 50, nightCard)
+    statusLabel.Name = "NightVisionStatus"
+    -- The last (23rd) entity preset leaves the right-hand grid cell free.
+    button("Bóng tối ↓", 264, 914, 244, function()
+        page.CanvasPosition = Vector2.new(0, nightCard.Position.Y.Offset)
+    end).Name = "NightVisionShortcut"
+    render()
+    return render
+end
+local renderNightVision = createNightPanel()
+
 local dragging, dragInput, dragStart, startPosition
 local resizing, resizeInput, resizeStart, resizeSize, resizePosition
 for _, spec in ipairs({
@@ -1712,6 +1853,16 @@ connect(RunService.Heartbeat, function(dt)
         renderDoors()
         doorStatus.Text = "Lỗi định vị cửa: " .. tostring(doorError)
         warn("[DoorTracker] " .. tostring(doorError))
+    end
+    local nightOk, nightError = pcall(function()
+        nightVision:step(dt)
+        if refreshItemUi then renderNightVision() end
+    end)
+    if not nightOk then
+        nightVision:setEnabled(false)
+        nightVision.lastError = tostring(nightError)
+        renderNightVision()
+        warn("[NightVision] " .. tostring(nightError))
     end
 end)
 fit(); fitContent()
