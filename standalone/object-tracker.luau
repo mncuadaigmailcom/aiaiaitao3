@@ -1165,7 +1165,7 @@ local onlyFeature = label("🌳 Định vị vật thể", 190, 0, 150, 24, head
 onlyFeature.TextColor3 = C.MUTED
 -- One fixed-size notification, independent of menu visibility and entity count.
 local alertLayer = new("Frame", {Name = "EntityAlerts", AnchorPoint = Vector2.new(1, 0),
-    Position = UDim2.new(1, -12, 0, 12), Size = UDim2.fromOffset(280, 66),
+    Position = UDim2.new(1, -56, 0, 12), Size = UDim2.fromOffset(280, 66),
     BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = 2000, Visible = false}, gui)
 local alertScale = new("UIScale", {Scale = 1}, alertLayer)
 local alertCard = new("Frame", {Name = "CombinedAlert", Size = UDim2.fromOffset(280, 66),
@@ -1197,8 +1197,9 @@ local function renderAlerts()
     local camera = workspace.CurrentCamera
     if camera then
         local view = camera.ViewportSize
-        -- Viewport-only scaling: adding a second or third entity cannot resize the panel.
-        alertScale.Scale = math.max(0.1, math.min(1, (view.X - 24) / 280, (view.Y - 24) / 66))
+        -- Reserve the rightmost 36px button plus an 8px gap and 12px screen margin.
+        -- Viewport-only scaling: entity count cannot resize the notification.
+        alertScale.Scale = math.max(0.1, math.min(1, (view.X - 68) / 280, (view.Y - 24) / 66))
     end
 end
 local alertToggle
@@ -1218,7 +1219,7 @@ corner(playerTab, 6); stroke(playerTab, C.ACCENT2)
 new("Frame", {Name = "ActiveTabBar", Position = UDim2.fromOffset(0, 8),
     Size = UDim2.new(0, 2, 1, -16), BackgroundColor3 = C.ACCENT, BorderSizePixel = 0}, playerTab)
 connect(playerTab.Activated, function() page.Visible = true end)
-local restore = new("TextButton", {Name = "MenuToggle", Position = UDim2.new(1, -48, 1, -48),
+local restore = new("TextButton", {Name = "MenuToggle", Position = UDim2.new(1, -48, 0, 12),
     Size = UDim2.fromOffset(36, 36), Text = "✕", BackgroundColor3 = C.BG,
     TextColor3 = C.ACCENT3, Font = Enum.Font.GothamBold, TextSize = 18,
     BorderSizePixel = 0, ZIndex = 1000}, gui)

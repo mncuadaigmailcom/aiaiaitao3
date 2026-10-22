@@ -40,6 +40,21 @@ gui:FindFirstChild('MenuToggle').Activated:Fire()
 assert(gui:FindFirstChild('Main').Visible)
 assert(#Mock.markers()==1)
 pass('NOIR X hides menu; floating toggle restores without stopping tracking')
+local restore=assert(gui:FindFirstChild('MenuToggle'))
+local savedViewport=workspace.CurrentCamera.ViewportSize
+for _,size in ipairs({Vector2.new(1920,1080),Vector2.new(800,600),Vector2.new(320,240)}) do
+    workspace.CurrentCamera.ViewportSize=size; Mock.frames(2)
+    local x=size.X*restore.Position.X.Scale+restore.Position.X.Offset
+    local y=size.Y*restore.Position.Y.Scale+restore.Position.Y.Offset
+    assert(x==size.X-48 and y==12)
+    assert(x>=0 and y>=0 and x+restore.Size.X.Offset<=size.X and y+restore.Size.Y.Offset<=size.Y)
+    restore.Activated:Fire(); assert(not gui:FindFirstChild('Main').Visible and restore.Text=='☰')
+    assert(restore.Visible~=false and #Mock.markers()==1)
+    restore.Activated:Fire(); assert(gui:FindFirstChild('Main').Visible and restore.Text=='✕')
+end
+workspace.CurrentCamera.ViewportSize=savedViewport; Mock.frames(2)
+pass('floating menu toggle stays top-right on desktop and small screens, hiding only the menu')
+
 Mock.findText('Định vị: BẬT').Activated:Fire(); Mock.frames(3)
 assert(#Mock.markers()==0)
 Mock.findText('Định vị: TẮT').Activated:Fire(); Mock.frames()
@@ -191,6 +206,17 @@ local originalSize,originalLayerSize=combined.Size,alerts.Size
 local scale=assert(alerts:FindFirstChildWhichIsA('UIScale'))
 local originalScale=scale.Scale
 pass('one fixed top-right notification shows entity name and Head distance with ESP off')
+for _,size in ipairs({Vector2.new(1280,720),Vector2.new(320,240)}) do
+    workspace.CurrentCamera.ViewportSize=size; Mock.run.Heartbeat:Fire(0.01)
+    local alertRight=size.X*alerts.Position.X.Scale+alerts.Position.X.Offset
+    local alertLeft=alertRight-alerts.Size.X.Offset*scale.Scale
+    local toggleLeft=size.X*restore.Position.X.Scale+restore.Position.X.Offset
+    assert(alerts.Visible and alertLeft>=12-0.001 and alertRight+8<=toggleLeft)
+    assert(alerts.Position.Y.Offset==restore.Position.Y.Offset and restore.Visible~=false)
+end
+workspace.CurrentCamera.ViewportSize=savedViewport; Mock.run.Heartbeat:Fire(0.01)
+pass('top-right menu toggle and persistent notification never overlap, including on small screens')
+
 local seek=Mock.node('Part','Seek',workspace,30)
 Mock.run.Heartbeat:Fire(0.01)
 assert(body.Text:find('Rush: 10.0 stud',1,true) and body.Text:find('Seek: 20.0 stud',1,true))

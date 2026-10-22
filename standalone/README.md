@@ -62,7 +62,8 @@ Bốn góc cho phép đổi kích thước trong khoảng 560–900 × 280–700
   theo nhịp cập nhật, không gọi GetPlayers cho từng nút của map.
 - Bấm **🔒** để mở khóa kéo thanh tiêu đề (**🔓**); mặc định khóa như bản chính.
 - Bốn nút góc để resize; tự co theo viewport nhỏ, chặn menu bị kéo mất khỏi màn hình.
-- **X**: chỉ ẩn menu, vẫn định vị, giống bản chính. Nút nổi góc dưới phải để mở lại.
+- **X**: chỉ ẩn menu, vẫn định vị, giống bản chính. Nút nổi ở **góc trên bên phải** để bật/ẩn menu.
+  Nút cách mép trên/phải 12 px và luôn hiện, kể cả khi menu đang ẩn.
 - **RightControl**: ẩn/hiện (bỏ qua nếu input đã được game xử lý).
 - **Dừng & thoát** ở cuối card: dừng hoàn toàn, ngắt kết nối và xóa GUI/marker.
 - Nạp lại cùng file sẽ dừng bản cũ qua BindableEvent trước khi tạo bản mới.
@@ -78,7 +79,8 @@ phiên chạy; đây là bản chỉ định vị.
 vào ô cảnh báo này.
 
 - Mặc định **Cảnh báo: BẬT** ở header tab Người Chơi; có thể tắt/bật riêng.
-- Chỉ có **một hình chữ nhật 280 × 66** ở góc trên bên phải. Kích thước ô và layer
+- Chỉ có **một hình chữ nhật 280 × 66** ở góc trên bên phải, nằm bên trái nút
+  bật/ẩn menu với khoảng cách 8 px để không che nút. Kích thước ô và layer
   không đổi theo số thực thể. Không còn nhiều ô xếp dọc hoặc thanh đếm ngược.
 - Ví dụ hai thực thể cùng xuất hiện, phần nội dung chung sẽ có hai dòng:
 
@@ -361,8 +363,9 @@ Kết quả trong sandbox:
   khoảng cách/mất nhân vật, despawn, Model nhận part trễ, công tắc/queue/loại trừ nhân vật,
   cùng instance rời rồi trở lại, mất toàn bộ part/thay part, đổi tên ngoài whitelist,
   và loại trừ mọi alias Sally khỏi cảnh báo nhưng vẫn giữ preset ESP Sally.
-- **31 test tích hợp GUI/mock: đạt.** Boot không có executor, Enter, marker,
+- **33 test tích hợp GUI/mock: đạt.** Boot không có executor, Enter, marker,
   switch hiển thị, chọn kết quả, vật trùng tên được thay mới, X/nút nổi, bật/tắt,
+  nút nổi góc trên phải ở nhiều viewport, không chồng lên cảnh báo đang hiện,
   khóa kéo/co GUI, một tab với ba khung riêng, palette/header NOIR, cả bốn góc resize,
   RightControl, nút Tắt/Bật từng dòng, nhảy tới danh sách hỗ trợ, các công tắc preset,
   batch bật/tắt, phối hợp manual/preset, xóa hết, marker từ sự kiện spawn thật của mock
