@@ -643,6 +643,248 @@ local function createItemTracker(deps)
     end
     return controller
 end
+-- Bounded numbered-door index, independent of entity/item filtering and alerts.
+local function createDoorTracker(deps)
+    local self = {enabled = false, destroyed = false, current = 1, byNumber = {}, list = {}, items = {},
+        queue = {}, queued = {}, head = 1, tail = 0, cursor = 1, elapsed = 0, characters = {},
+        scanBudget = 180, eventBudget = 24, nearestBudget = 128, sliceSeconds = 0.001,
+        queueLimit = 512, showBox = true, showLabel = true, showXYZ = false, throughWalls = true,
+        colorIndex = 1, visited = 0}
+    local clock = deps.now or os.clock
+    local function integer(text)
+        local n = tonumber(text)
+        return n and n >= 1 and n <= 2000 and n == math.floor(n) and n or nil
+    end
+    local function numberOf(inst)
+        local text = tostring(inst.Name):lower()
+        local n = text:match('^%s*doors?[%s_]*(%d+)%s*$') or text:match('^%s*doors?%-(%d+)%s*$')
+        if n then return integer(n) end
+        if text == 'door' or text == 'doors' then
+            local parent = inst.Parent
+            local name = parent and tostring(parent.Name):lower() or ''
+            return integer(name:match('^(%d+)$') or name:match('^room[%s_%-]*(%d+)$'))
+        end
+    end
+    self.numberOf = numberOf
+    local function pointOK(p)
+        return p and p.X == p.X and p.Y == p.Y and p.Z == p.Z
+            and math.abs(p.X) < math.huge and math.abs(p.Y) < math.huge and math.abs(p.Z) < math.huge
+    end
+    local function skip(inst)
+        if deps.ignore and deps.ignore(inst) then return true end
+        local ancestor, depth = inst, 0
+        while ancestor and ancestor ~= deps.root do
+            if self.characters[ancestor] then return true end
+            ancestor, depth = ancestor.Parent, depth + 1
+            if depth > 32 then return true end
+        end
+        return ancestor ~= deps.root
+    end
+    local function valid(hit)
+        return hit and hit.inst:IsDescendantOf(deps.root) and hit.part:IsDescendantOf(deps.root)
+            and (hit.inst == hit.part or hit.part:IsDescendantOf(hit.inst))
+            and numberOf(hit.inst) == hit.number and not skip(hit.inst) and pointOK(hit.part.Position)
+    end
+    local function get(n)
+        local hit = self.byNumber[n]
+        if hit and not valid(hit) then self.byNumber[n] = nil; return nil end
+        return hit
+    end
+    local function distance(hit, origin)
+        return (hit.part.Position - origin).Magnitude
+    end
+    function self:refreshCharacters()
+        self.characters = {}
+        for _, p in ipairs(deps.players:GetPlayers()) do
+            if p.Character then self.characters[p.Character] = true end
+        end
+    end
+    function self:inspect(part)
+        if not part:IsA('BasePart') or skip(part) then return end
+        local ancestor, inst, number, depth = part, nil, nil, 0
+        while ancestor and ancestor ~= deps.root and depth < 8 do
+            local n = numberOf(ancestor)
+            if n and (ancestor:IsA('BasePart') or ancestor:IsA('Model') or ancestor:IsA('Folder')) then
+                inst, number = ancestor, n
+            end
+            ancestor, depth = ancestor.Parent, depth + 1
+        end
+        if not inst then return end
+        local representative = inst:IsA('Model') and inst.PrimaryPart or nil
+        if representative and representative:IsA('BasePart') and representative:IsDescendantOf(inst) then part = representative end
+        if not pointOK(part.Position) then return end
+        local previous = get(number)
+        if previous and previous.inst == inst then
+            -- Keep a stable door plane: visiting another panel must not move the anchor.
+            return
+        end
+        if previous then
+            local p = self.origin
+            if not p or distance(previous, p) <= (part.Position - p).Magnitude then return end
+        end
+        self.byNumber[number] = {inst = inst, part = part, number = number, path = ''}
+        -- Newly streamed nearby doors can be considered without waiting for the global cursor.
+        self.newCandidate = number
+    end
+    function self:beginScan()
+        if not self.enabled or self.destroyed then return end
+        self.stack = {{children = deps.root:GetChildren(), index = 1}}
+        self.elapsed = 0
+    end
+    function self:scanSlice()
+        local deadline, count = clock() + self.sliceSeconds, 0
+        while self.stack and count < self.scanBudget and clock() < deadline do
+            local frame = self.stack[#self.stack]
+            if frame.index > #frame.children then
+                table.remove(self.stack)
+                if #self.stack == 0 then self.stack = nil end
+            else
+                local node = frame.children[frame.index]; frame.index = frame.index + 1
+                count, self.visited = count + 1, self.visited + 1
+                if not skip(node) then
+                    self:inspect(node)
+                    local children = node:GetChildren()
+                    if #children > 0 then self.stack[#self.stack + 1] = {children = children, index = 1} end
+                end
+            end
+        end
+    end
+    function self:notifyAdded(inst)
+        if not self.enabled or self.destroyed or self.queued[inst] or (deps.ignore and deps.ignore(inst)) then return end
+        if self.tail - self.head + 1 >= self.queueLimit then self.rescan = true; return end
+        self.tail = self.tail + 1; self.queue[self.tail] = inst; self.queued[inst] = true
+    end
+    local function nextAvailable(n, direction)
+        for i = n + direction, direction > 0 and 2000 or 1, direction do
+            if get(i) then return i end
+        end
+    end
+    function self:chooseCurrent()
+        local origin = self.origin
+        if not origin then
+            -- Respawning/spectating must not let the camera move the tracked door.
+            if not self.hasOrigin or not get(self.current) then
+                for n = 1, 2000 do if get(n) then self.current = n; break end end
+            end
+            self.lastOrigin, self.lock, self.newCandidate = nil, nil, nil
+            return
+        end
+        self.hasOrigin = true
+        local best, bestDistance
+        local function consider(n)
+            local hit = get(n)
+            if not hit then return end
+            local d = origin and distance(hit, origin) or n
+            if not bestDistance or d < bestDistance - 0.001 or (math.abs(d-bestDistance) <= 0.001 and n == self.current) then
+                best, bestDistance = n, d
+            end
+        end
+        consider(self.current)
+        for n = math.max(1, self.current - 2), math.min(2000, self.current + 2) do consider(n) end
+        if self.newCandidate then consider(self.newCandidate); self.newCandidate = nil end
+        local deadline = clock() + self.sliceSeconds
+        for _ = 1, self.nearestBudget do
+            if clock() >= deadline then break end
+            consider(self.cursor)
+            self.cursor = self.cursor % 2000 + 1
+        end
+        if not best then
+            -- Numeric lookup only; no Workspace traversal or part search in this fallback.
+            for n = 1, 2000 do if get(n) then best = n; break end end
+        end
+        if not best then self.lastOrigin, self.lock = nil, nil; return end
+        local crossed = false
+        if origin and self.lastOrigin then
+            local hit = get(best)
+            local nextN, prevN = nextAvailable(best, 1), nextAvailable(best, -1)
+            local ahead, behind = nextN and get(nextN), prevN and get(prevN)
+            local direction = ahead and (ahead.part.Position - hit.part.Position)
+                or behind and (hit.part.Position - behind.part.Position)
+                or (hit.part.CFrame and hit.part.CFrame.LookVector)
+            local movement = (origin - self.lastOrigin).Magnitude
+            -- Derive forward from numbered neighbours, not a possibly reversed door CFrame.
+            -- Reject large teleports and crossings far from the physical door plane.
+            if direction and direction.Magnitude > 0.01 and movement > 0.01 and movement <= 64 then
+                local a, b = self.lastOrigin - hit.part.Position, origin - hit.part.Position
+                local before = a.X*direction.X + a.Y*direction.Y + a.Z*direction.Z
+                local after = b.X*direction.X + b.Y*direction.Y + b.Z*direction.Z
+                local sign = before <= 0 and after > 0 and 1 or before >= 0 and after < 0 and -1 or nil
+                local nearPlane = math.min(a.Magnitude, b.Magnitude) <= 12
+                local target = sign and (nextAvailable(best, sign) or integer(best + sign))
+                if sign and nearPlane then
+                    if target then
+                        self.lock = {source = best, target = target, direction = sign}
+                        best, crossed = target, true
+                    else self.lock = nil end
+                end
+            end
+        end
+        if not crossed and self.lock then
+            if best == self.lock.source and bestDistance and bestDistance > 0.05 then
+                -- Keep the next numeric slot while streaming, then skip to the next available door.
+                local available = get(self.lock.target) and self.lock.target or nextAvailable(self.lock.source, self.lock.direction)
+                self.lock.target = available or self.lock.target
+                best = self.lock.target
+            else self.lock = nil end
+        end
+        self.current, self.lastOrigin = best, origin
+    end
+    function self:refreshMarkers()
+        local wanted, list = {}, {}
+        for n = math.max(1, self.current - 1), math.min(2000, self.current + 1) do
+            local hit = get(n)
+            if hit then
+                hit.distance = self.origin and distance(hit, self.origin) or nil
+                wanted[n] = hit; list[#list + 1] = hit
+            end
+        end
+        for n, entry in pairs(self.items) do
+            if not wanted[n] or wanted[n].inst ~= entry.hit.inst or wanted[n].part ~= entry.hit.part then
+                deps.removeMarker(entry.marker); self.items[n] = nil
+            end
+        end
+        for n, hit in pairs(wanted) do
+            local entry = self.items[n]
+            if not entry then entry = {hit = hit, marker = deps.createMarker(hit)}; self.items[n] = entry end
+            deps.updateMarker(entry.marker, hit, self, true)
+        end
+        self.list = list
+    end
+    function self:setEnabled(value)
+        if self.destroyed then return false end
+        self.enabled = value == true
+        self.lastOrigin, self.lock = nil, nil
+        if self.enabled then self:refreshCharacters(); self:beginScan()
+        else
+            for _, entry in pairs(self.items) do deps.removeMarker(entry.marker) end
+            self.items, self.list, self.queue, self.queued = {}, {}, {}, {}
+            self.head, self.tail, self.stack = 1, 0, nil
+        end
+        return self.enabled
+    end
+    function self:step(dt)
+        if not self.enabled or self.destroyed or type(dt) ~= 'number' or dt ~= dt or dt < 0 or dt == math.huge then return end
+        self:refreshCharacters()
+        local origin = deps.getOrigin()
+        self.origin = pointOK(origin) and origin or nil
+        self.elapsed = self.elapsed + dt
+        if not self.stack and (self.rescan or self.elapsed >= 2) then self.rescan = false; self:beginScan() end
+        local deadline, processed = clock() + self.sliceSeconds, 0
+        while self.head <= self.tail and processed < self.eventBudget and clock() < deadline do
+            local inst = self.queue[self.head]; self.queue[self.head] = nil; self.queued[inst] = nil
+            self.head, processed = self.head + 1, processed + 1
+            self:inspect(inst)
+        end
+        if self.head > self.tail then self.head, self.tail = 1, 0 end
+        self:scanSlice(); self:chooseCurrent(); self:refreshMarkers()
+    end
+    function self:destroy()
+        if self.destroyed then return end
+        self:setEnabled(false); self.byNumber = {}; self.destroyed = true
+    end
+    return self
+end
+
 -- END TRACKER CORE
 
 local Players = game:GetService("Players")
@@ -669,6 +911,7 @@ local gui = new("ScreenGui", {Name = GUI_NAME, ResetOnSpawn = false,
 local stopEvent = new("BindableEvent", {Name = "StopTracker"}, gui)
 local effects = new("Folder", {Name = "ObjectTrackerLocalEffects"}, workspace)
 local itemEffects = new("Folder", {Name = "ItemTrackerLocalEffects"}, workspace)
+local doorEffects = new("Folder", {Name = "DoorTrackerLocalEffects"}, workspace)
 local connections, stopped = {}, false
 local cleanupRows = function() end
 local cleanupItemRows = function() end
@@ -692,6 +935,7 @@ local trackerDeps = {
     end,
     ignore = function(inst)
         return inst == effects or inst:IsDescendantOf(effects) or inst == itemEffects or inst:IsDescendantOf(itemEffects)
+            or inst == doorEffects or inst:IsDescendantOf(doorEffects)
     end,
     createMarker = function(hit)
         local container = new("Folder", {Name = "Marker"}, effects)
@@ -741,6 +985,31 @@ itemTracker.engine.markerColorFor = function(inst)
     local rgb = itemTracker:colorFor(inst) or {240, 201, 122}
     return Color3.fromRGB(rgb[1], rgb[2], rgb[3])
 end
+local doorDeps = {}
+for key, value in pairs(trackerDeps) do doorDeps[key] = value end
+doorDeps.getOrigin = function()
+    local char = player.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    return root and root:IsA("BasePart") and root.Position or nil
+end
+doorDeps.createMarker = function(hit)
+    local marker = trackerDeps.createMarker(hit)
+    marker.container.Name, marker.container.Parent = "DoorMarker", doorEffects
+    marker.label.TextStrokeColor3 = Color3.fromRGB(255, 255, 255)
+    marker.label.TextStrokeTransparency = 0
+    return marker
+end
+doorDeps.updateMarker = function(marker, hit, state, visible)
+    trackerDeps.updateMarker(marker, hit, state, visible)
+    local text = "doors " .. hit.number .. " | " .. (hit.distance and string.format("%.1f stud", hit.distance) or "? stud")
+    if state.showXYZ then
+        local p = hit.part.Position
+        text = text .. string.format("\nX %.1f  Y %.1f  Z %.1f", p.X, p.Y, p.Z)
+    end
+    marker.label.Text = text
+end
+local doorTracker = createDoorTracker(doorDeps)
+doorTracker.markerColorFor = function() return Color3.fromRGB(0, 0, 0) end
 local function connect(signal, fn)
     local connection = signal:Connect(fn)
     connections[#connections + 1] = connection
@@ -752,19 +1021,21 @@ local function shutdown()
     for _, connection in ipairs(connections) do connection:Disconnect() end
     tracker:destroy()
     itemTracker:destroy()
+    doorTracker:destroy()
     cleanupRows(); cleanupItemRows()
-    effects:Destroy(); itemEffects:Destroy()
+    effects:Destroy(); itemEffects:Destroy(); doorEffects:Destroy()
     gui:Destroy()
 end
 connect(workspace.DescendantAdded, function(inst)
     tracker:notifyAdded(inst)
     itemTracker.engine:notifyAdded(inst)
+    doorTracker:notifyAdded(inst)
     tracker:notifyAlert(inst)
 end)
 connect(stopEvent.Event, shutdown)
 connect(gui.Destroying, shutdown)
 if script and script.Destroying then connect(script.Destroying, shutdown) end
--- NOIR shell: one player tab with separate entity and item tracker cards.
+-- NOIR shell: one player tab with three independent entity/item/door cards.
 local C = {
     BG = Color3.fromRGB(11, 12, 17), SURFACE = Color3.fromRGB(20, 22, 30),
     SURFACE2 = Color3.fromRGB(29, 32, 43), SURFACE3 = Color3.fromRGB(44, 49, 64),
@@ -824,13 +1095,21 @@ local card = new("Frame", {Name = "HubObjTrack_Panel", Position = UDim2.fromOffs
 corner(card, 10); stroke(card); gradient(card, C.SURFACE2, C.SURFACE)
 local cardScale = new("UIScale", {Scale = 1}, card)
 local itemCard, itemCardScale
+local doorCard, doorCardScale
 local function fitContent()
     cardScale.Scale = math.min(1, (panel.Size.X.Offset - 72) / 548)
+    local bottom = 16 + 1000 * cardScale.Scale
     if itemCard then
         itemCardScale.Scale = cardScale.Scale
-        itemCard.Position = UDim2.fromOffset(8, 16 + 1000 * cardScale.Scale)
-        page.CanvasSize = UDim2.fromOffset(0, 24 + (1000 + itemCard.Size.Y.Offset) * cardScale.Scale)
-    else page.CanvasSize = UDim2.fromOffset(0, 16 + 1000 * cardScale.Scale) end
+        itemCard.Position = UDim2.fromOffset(8, bottom)
+        bottom = bottom + 8 + itemCard.Size.Y.Offset * cardScale.Scale
+    end
+    if doorCard then
+        doorCardScale.Scale = cardScale.Scale
+        doorCard.Position = UDim2.fromOffset(8, bottom)
+        bottom = bottom + 8 + doorCard.Size.Y.Offset * cardScale.Scale
+    end
+    page.CanvasSize = UDim2.fromOffset(0, bottom)
 end
 local function label(text, x, y, w, h, parent)
     return new("TextLabel", {Position = UDim2.fromOffset(x, y), Size = UDim2.fromOffset(w, h),
@@ -1274,6 +1553,91 @@ cleanupItemRows = function()
     itemRows = {}
 end
 
+-- Third sibling card: never reuses entity presets or item groups.
+local function createDoorPanel()
+    doorCard = new("Frame", {Name = "DoorTrackerPanel", Size = UDim2.fromOffset(548, 484),
+        BackgroundColor3 = C.SURFACE, BorderSizePixel = 0}, page)
+    corner(doorCard, 10); stroke(doorCard, Color3.fromRGB(0, 0, 0), 2)
+    doorCardScale = new("UIScale", {Scale = 1}, doorCard)
+    local heading = label("⬛ Định vị cửa · tính năng riêng", 12, 8, 524, 32, doorCard)
+    heading.TextColor3, heading.BackgroundColor3, heading.BackgroundTransparency = Color3.fromRGB(0, 0, 0), Color3.fromRGB(215, 215, 215), 0
+    corner(heading)
+    label("Từ khóa: doors 1 → doors 2000 (Door 1 / Doors_001 cũng được).", 12, 48, 524, 26, doorCard)
+    label("Chỉ hiện cửa trước – hiện tại – kế tiếp. Ví dụ 39 / 40 / 41; đi lùi: 38 / 39 / 40.", 12, 76, 524, 34, doorCard)
+    local master
+    local function paint()
+        master.Text = doorTracker.enabled and "Cửa: BẬT" or "Cửa: TẮT"
+    end
+    master = button("Cửa: TẮT", 12, 118, 156, function()
+        doorTracker:setEnabled(not doorTracker.enabled); paint()
+    end, doorCard)
+    button("Cửa: Quét lại", 176, 118, 156, function()
+        if doorTracker.enabled then doorTracker:beginScan() end
+    end, doorCard)
+    button("Cửa ↑ đầu trang", 340, 118, 168, function() page.CanvasPosition = Vector2.new(0, 0) end, doorCard)
+    local function option(text, key, x, w)
+        local b
+        local function refresh() b.Text = "Cửa " .. text .. (doorTracker[key] and ": BẬT" or ": TẮT") end
+        b = button("", x, 154, w, function() doorTracker[key] = not doorTracker[key]; refresh() end, doorCard)
+        refresh()
+    end
+    option("Hộp", "showBox", 12, 118)
+    option("Nhãn", "showLabel", 138, 118)
+    option("Xuyên", "throughWalls", 264, 148)
+    option("XYZ", "showXYZ", 420, 116)
+    local statusLabel = label("Cửa: TẮT · mốc ban đầu doors 1", 12, 190, 524, 40, doorCard)
+    local copy = input("", "Cửa: path và XYZ", 12, 336, 524, doorCard)
+    copy.TextEditable = false
+    local rows, selectedNumber = {}, nil
+    local function showDoorInfo(hit)
+        local names, node = {}, hit.inst
+        while node and node ~= workspace do table.insert(names, 1, node.Name); node = node.Parent end
+        local p = hit.part.Position
+        copy.Text = string.format("Workspace.%s | X %.3f, Y %.3f, Z %.3f", table.concat(names, '.'), p.X, p.Y, p.Z)
+    end
+    for i = 1, 3 do
+        local index = i
+        local row = button("", 12, 236 + (i - 1)*30, 524, function()
+            local hit = doorTracker.list[index]
+            if hit then
+                selectedNumber = hit.number
+                showDoorInfo(hit)
+            end
+        end, doorCard)
+        row.Name, row.TextColor3, row.BackgroundColor3 = "DoorResult_" .. i, Color3.fromRGB(0, 0, 0), Color3.fromRGB(215, 215, 215)
+        row.Visible = false; rows[i] = row
+    end
+    label("Không tìm thấy cửa 1: tự tìm số kế tiếp đang tồn tại. Màu đen, viền chữ trắng để dễ đọc.", 12, 374, 524, 34, doorCard)
+    label("Dùng vị trí nhân vật, không dùng camera. Cửa chưa stream về client sẽ chưa định vị được.", 12, 410, 524, 28, doorCard)
+    button("Dừng & thoát", 12, 446, 128, shutdown, doorCard)
+    button("Cửa ↓", 348, 8, 160, function()
+        page.CanvasPosition = Vector2.new(0, doorCard.Position.Y.Offset)
+    end)
+    local function render()
+        paint()
+        if not doorTracker.enabled then
+            statusLabel.Text = "Cửa: TẮT · độc lập với thực thể và vật phẩm"
+        elseif #doorTracker.list == 0 then
+            statusLabel.Text = "Đang tìm doors 1–2000 trong Workspace trên client..."
+        else
+            statusLabel.Text = "Mốc: doors " .. doorTracker.current .. " · chỉ hiện ±1 cửa · " ..
+                (doorTracker.origin and "tiến/lùi tự động" or "chờ nhân vật để theo dõi di chuyển")
+        end
+        local selectedHit
+        for i, row in ipairs(rows) do
+            local hit = doorTracker.list[i]
+            if hit and hit.number == selectedNumber then selectedHit = hit end
+            row.Visible = hit ~= nil
+            row.Text = hit and ("doors " .. hit.number .. " | " .. (hit.distance and string.format("%.1f stud", hit.distance) or "? stud") ..
+                (hit.number == doorTracker.current and " · HIỆN TẠI" or "")) or ""
+        end
+        if selectedHit then showDoorInfo(selectedHit)
+        else selectedNumber, copy.Text = nil, "" end
+    end
+    return render, statusLabel
+end
+local renderDoors, doorStatus = createDoorPanel()
+
 local dragging, dragInput, dragStart, startPosition
 local resizing, resizeInput, resizeStart, resizeSize, resizePosition
 for _, spec in ipairs({
@@ -1361,6 +1725,16 @@ connect(RunService.Heartbeat, function(dt)
         paintItemControls()
         itemStatus.Text = "Lỗi vật phẩm: " .. tostring(itemError)
         warn("[ItemTracker] " .. tostring(itemError))
+    end
+    local doorOk, doorError = pcall(function()
+        doorTracker:step(dt)
+        if refreshItemUi then renderDoors() end
+    end)
+    if not doorOk then
+        doorTracker:setEnabled(false)
+        renderDoors()
+        doorStatus.Text = "Lỗi định vị cửa: " .. tostring(doorError)
+        warn("[DoorTracker] " .. tostring(doorError))
     end
 end)
 fit(); fitContent()

@@ -1,4 +1,4 @@
-# Định vị thực thể và vật phẩm — bản độc lập
+# Định vị thực thể, vật phẩm và cửa — bản độc lập
 
 **File dùng trực tiếp:** [`object-tracker.luau`](object-tracker.luau).
 
@@ -14,6 +14,7 @@ của `script.js`. Không cần nạp hub gốc. Không sửa `script.js`.
 5. Nhập tên vật rồi Enter hoặc bấm **Định vị: TẮT** để bật.
 6. Bấm **Vật phẩm ↓** để đến khung vật phẩm riêng. Mở một nhóm rồi chọn món,
    hoặc bấm công tắc nhóm/Chọn cả nhóm để định vị nhiều món.
+7. Bấm **Cửa ↓** rồi **Cửa: TẮT** để bật khung cửa riêng.
 
 Không cần executor, `loadstring`, HTTP, hook, remote hoặc script server.
 Rojo mapping hiện tại của repo không tự cài file này; hãy cài thủ công như trên.
@@ -22,8 +23,9 @@ Rojo mapping hiện tại của repo không tự cài file này; hãy cài thủ
 
 Menu dùng bảng màu nền tối/vàng của bản chính `script.js`, thanh tiêu đề
 `taodepzai v5.0 NOIR`, nhãn phiên bản, thanh tab trái và header trang.
-**Chỉ có một tab `Người Chơi`, với hai khung độc lập:**
-`Định vị vật thể` (các thực thể hỗ trợ cũ) và `Định vị vật phẩm` (6 nhóm mới).
+**Chỉ có một tab `Người Chơi`, với ba khung độc lập:**
+`Định vị vật thể` (các thực thể hỗ trợ cũ), `Định vị vật phẩm` (6 nhóm màu)
+và `Định vị cửa` (màu đen, theo số 1–2000).
 Không nạp hoặc ẩn các chức năng khác của hub: chúng không được đưa vào file này.
 
 Kích thước mặc định 620 × 380; nội dung tab cuộn dọc để xem danh sách và chi tiết.
@@ -215,13 +217,81 @@ Salvage Scrap vẫn xuất hiện trong từng nhóm tương ứng như yêu c�
 - Tên/alias và hiển thị được test bằng mock, **chưa xác minh toàn bộ vật phẩm trong
   game thật**. Đây không phải cơ chế spawn/nhặt/mua vật phẩm hay can thiệp server.
 
+## Định vị cửa — màu đen, từ 1 đến 2000
+
+Khung **Định vị cửa** (`DoorTrackerPanel`) nằm ngang hàng với hai khung cũ,
+không nằm trong preset thực thể hay nhóm vật phẩm. Bấm **Cửa ↓** ở đầu khung
+thực thể để cuộn tới nhanh, sau đó bấm **Cửa: TẮT** để bật.
+
+### Cách hoạt động
+
+- Nhận tên `doors 1` đến `doors 2000`, không phân biệt hoa/thường; chấp nhận
+  `Door1`, `Doors_001`, `Door-1`. Không bắt nhầm `trapdoor1`, số thập phân hay
+  các tên có hậu tố khác; số nằm ngoài 1–2000 bị bỏ qua.
+- Hỗ trợ Part hoặc Model/Folder có BasePart bên trong. Model có PrimaryPart
+  hợp lệ dùng part đó; không tạo marker riêng cho mỗi tấm/part con của cửa.
+- Hỗ trợ Model tên `Door`/`Doors` nằm trực tiếp trong phòng tên `40`, `0040`,
+  `Room40`, `Room_40`: coi đó là cửa 40 **theo ID phòng**. Không tự suy đoán độ
+  lệch giữa biển số cửa và ID phòng nếu game đánh số khác; khi ấy cần sửa mapping.
+- Khởi đầu từ mốc 1. Nếu không có cửa 1, tìm số tiếp theo đang tồn tại. Khi đã
+  có nhân vật, đồng bộ với cửa gần vị trí nhân vật, nên bật giữa map hoặc quay
+  lại khu vực cũ không bị buộc phải đi lại từ cửa 1.
+- Chỉ vẽ **cửa trước – hiện tại – tiếp theo**, tức mốc ±1; không giữ marker
+  cho tất cả các cửa đã đi qua:
+  - Đứng ở cửa 40: **39 / 40 / 41**.
+  - Đứng ở cửa 39 sau khi đi lùi: **38 / 39 / 40**.
+  - Vừa bước xuyên mặt phẳng cửa 40 theo chiều tiến: mốc 41, hiện **40 / 41 / 42**.
+  - Đi lùi qua mặt phẳng cửa 40: mốc 39, hiện **38 / 39 / 40**.
+- Cửa thiếu trong cửa sổ ±1 không tạo marker giả. Khi đi qua cửa mà số tiếp
+  theo không tồn tại, nhảy đến số đang tồn tại tiếp theo theo chiều đi. Nếu chưa
+  có cửa tiếp theo trên client, giữ mốc số kế tiếp và chờ cửa được stream tới.
+- Biên đầu chỉ hiện 1/2, biên cuối chỉ hiện 1999/2000, không vượt quá 2000.
+- Đi tiến/lùi không dùng một bộ đếm chỉ tăng: quay lại cửa cũ sẽ định vị lại
+  theo cửa đó. Chuyển xa/teleport được đồng bộ lại bằng chỉ mục gần nhất.
+- Dùng **HumanoidRootPart của nhân vật**, không lấy vị trí camera để quyết định
+  qua cửa. Khi mất nhân vật/respawn, giữ mốc cũ và chờ vị trí mới.
+
+### Hiển thị riêng và hiệu năng
+
+- Highlight, viền, hộp và chữ marker đều **đen**. Chữ có viền trắng; danh sách
+  kết quả chữ đen/nền sáng để dễ đọc trên giao diện tối.
+- Công tắc **Cửa Hộp / Nhãn / Xuyên / XYZ**, quét lại và bật/tắt tổng của cửa
+  độc lập với hai tính năng cũ. Bấm một kết quả để xem/copy path và XYZ.
+- Chỉ giữ **tối đa 3 marker cửa**, không tạo 2.000 Highlight.
+- Lập chỉ mục tối đa 2.000 số; cửa trùng số chỉ giữ đại diện gần nhân vật hơn
+  trong các bản đã được phân tích. Không xác định được cửa thật/giả chỉ từ số.
+- Dùng chung **một** DescendantAdded và **một** Heartbeat với tính năng cũ,
+  không thêm listener lên từng cửa. Callback chỉ đưa vào hàng đợi có chống trùng.
+- Worker có giới hạn 180 nút quét, 24 event và 128 slot chỉ mục tìm gần nhất
+  mỗi Heartbeat, với deadline hợp tác khoảng 1 ms cho từng pha. Hàng đợi tối đa
+  512 mục; tràn sẽ yêu cầu quét bổ sung, không tăng bộ nhớ vô hạn.
+- Xét cửa lân cận mỗi Heartbeat để đi tiến/lùi nhanh; đồng bộ toàn chỉ mục được
+  chia nhiều nhịp. Với 2.000 slot, cần tối thiểu 16 nhịp để xem đủ slot ở quota
+  128, có thể lâu hơn vì deadline/tải native. **Đây không phải số đo độ trễ/FPS.**
+- Quét dự phòng mỗi 2 giây (không khởi động lại vòng đang chạy), bắt đổi tên,
+  di chuyển/reparent và dữ liệu bị bỏ sót. Không `GetDescendants()` toàn map mỗi frame.
+- Tắt hoặc lỗi xử lý cửa chỉ dừng marker cửa. Reload/thoát/hủy GUI dọn cả
+  `DoorTrackerLocalEffects`; giữ nguyên định vị thực thể, vật phẩm và cảnh báo cũ.
+
+### Giới hạn cần kiểm tra trong game
+
+Phát hiện đi qua dựa trên hình học giữa các cửa đã đánh số, khoảng cách tới
+mặt phẳng cửa và vị trí nhân vật, **không đọc trạng thái qua cửa từ server**.
+Nếu chỉ có một cửa, dùng hướng LookVector của part làm dự phòng; hướng này có
+thể bị đảo trong game đích. Map gấp khúc, cửa đang xoay/di chuyển, nhiều cửa
+cùng số, PrimaryPart đặt xa cánh cửa hoặc cách đánh số khác cần kiểm tra/chỉnh
+mapping. Cửa chưa stream tới client hoặc không có BasePart không thể vẽ được.
+Không vượt quyền server, không mở cửa/teleport, không cam kết nhận diện mọi
+cấu trúc cửa của mọi game. **Chưa kiểm chứng trong Roblox Studio/game thật.**
+
 ## Chi tiết và giới hạn
 
 - Chỉ đọc các đối tượng client nhìn thấy trong Workspace. Với StreamingEnabled,
   đối tượng chưa stream tới client không thể được script tìm thấy.
 - Khoảng cách của Model/Folder tính tới PrimaryPart hợp lệ hoặc part đại diện,
-  không phải tâm hình học. Khi không có nhân vật, dùng vị trí camera; nếu không
-  có cả camera, hiển thị `?`, không giả khoảng cách bằng 0.
+  không phải tâm hình học. Với thực thể/vật phẩm, khi không có nhân vật thì dùng
+  camera; nếu không có cả camera, hiển thị `?`, không giả khoảng cách bằng 0.
+  Riêng định vị cửa không dùng camera để thay thế vị trí nhân vật.
 - Path dùng dấu chấm/slash làm phân cách; tên vật có các dấu này nên được đổi
   tên hoặc tìm bằng một từ khóa tên không chứa dấu phân cách.
 - Highlight/hộp có thể chịu giới hạn render của Roblox; test mock không chứng
@@ -230,11 +300,12 @@ Salvage Scrap vẫn xuất hiện trong từng nhóm tương ứng như yêu c�
   chừng; cây rất rộng/model rất lớn vẫn cần đo trong Studio. Không công bố FPS/RAM.
 - Kết quả đầu tiên hiện dần khi tìm thấy; nhóm gần nhất hoàn thiện sau mỗi vòng quét.
   Mục đã thấy không bị xóa nhấp nháy chỉ vì vòng quét kế tiếp chưa đi tới nó.
-- Khoảng cách/XYZ cập nhật khoảng 0,05 giây; GUI danh sách khoảng 0,10 giây.
+- Khoảng cách/XYZ thực thể/vật phẩm cập nhật khoảng 0,05 giây; cửa mỗi Heartbeat;
+  GUI danh sách khoảng 0,10 giây.
   Đây là nhịp lập lịch, không phải số đo độ trễ hay FPS trong Roblox thật.
 - Thực thể spawn trong hàng đợi nhẹ có thể được nhận ở Heartbeat kế tiếp;
   khi spawn hàng loạt hoặc map lớn, xử lý vẫn được chia ra nhiều nhịp để giảm giật.
-- Quét dự phòng vẫn chạy theo chu kỳ 1 giây (mỗi vòng có thể kéo dài nhiều frame),
+- Quét dự phòng thực thể/vật phẩm vẫn chạy theo chu kỳ 1 giây (mỗi vòng có thể kéo dài nhiều frame),
   để bắt đổi tên, sửa path, dịch chuyển vào vùng khoảng cách hoặc sự kiện bị bỏ lỡ.
   Đổi tên tổ tiên của path được sửa ở vòng quét sau; không gắn listener lên mọi instance.
 
@@ -270,7 +341,7 @@ Kết quả trong sandbox:
   và loại trừ mọi alias Sally khỏi cảnh báo nhưng vẫn giữ preset ESP Sally.
 - **31 test tích hợp GUI/mock: đạt.** Boot không có executor, Enter, marker,
   switch hiển thị, chọn kết quả, vật trùng tên được thay mới, X/nút nổi, bật/tắt,
-  khóa kéo/co GUI, một tab với hai khung riêng, palette/header NOIR, cả bốn góc resize,
+  khóa kéo/co GUI, một tab với ba khung riêng, palette/header NOIR, cả bốn góc resize,
   RightControl, nút Tắt/Bật từng dòng, nhảy tới danh sách hỗ trợ, các công tắc preset,
   batch bật/tắt, phối hợp manual/preset, xóa hết, marker từ sự kiện spawn thật của mock
   xuất hiện sau một Heartbeat mô phỏng, nạp lại, Dừng & thoát và GUI bị hủy từ bên ngoài.
@@ -289,6 +360,18 @@ Kết quả trong sandbox:
   Tool mới spawn, path/XYZ, ẩn riêng, khoảng cách, bộ lọc thủ công, 6 màu đồng
   thời, chủ động gây lỗi vật phẩm mà không làm mất thực thể/cảnh báo, và
   reload/thoát/hủy GUI dọn cả khung lẫn effect folder.
+- **31 test logic cửa: đạt.** Parser và giới hạn 1–2000; thiếu cửa đầu, stream
+  thêm số thấp, mốc 40/đi lùi 39, xuyên mặt phẳng tiến/lùi, đi liên tục qua 40
+  cửa rồi quay lại, cửa kế chưa stream, hướng dự phòng khi chỉ có một cửa,
+  số bị khuyết, biên 2000, nhảy xa trong fixture 2.000 cửa, quota/deadline,
+  event nhanh, Model/PrimaryPart/gộp panel, part tới trễ, xóa/thay/đổi tên,
+  trùng số, loại trừ nhân vật/effect, mất origin, queue/overflow, dữ liệu lỗi,
+  không sửa engine thực thể và tắt/nạp lại/destroy không rò marker.
+- **16 test GUI cửa: đạt.** Khung thứ ba riêng, nút cuộn/canvas, fallback cửa
+  2 khi không có 1, màu đen/viền chữ trắng, cửa 1 xuất hiện sau, mốc 40/tiến/lùi,
+  path/XYZ, các công tắc riêng, Door trong phòng số, không chạy theo camera,
+  pause/resume/quét lại, cố ý gây lỗi cửa mà hai tính năng cũ/cảnh báo vẫn chạy,
+  và reload/thoát/hủy GUI dọn tài nguyên cửa.
 - **115 test cũ của dự án: đạt**, không bị thay thế bởi bộ test mới.
 
 **Chưa chạy trong Roblox Studio/game thật.** Fengari + mock chỉ kiểm chứng logic
@@ -340,3 +423,14 @@ và một Tool Flashlight có Handle. Chọn từng món, bật/tắt cả nhóm
 Kiểm tra tên nội bộ trong game đích nếu không tìm được món. Bật định vị Rush và
 cảnh báo cùng lúc để xác nhận tính năng cũ vẫn hoạt động. Cuối cùng reload và
 Dừng & thoát, kiểm tra cả hai effect folder đã được xóa.
+
+### Kiểm tra cửa trong Studio
+
+Tạo các Part `doors 1` ... `doors 42` theo thứ tự dọc hành lang; tạo thêm cửa
+1999/2000, một Model `Door` trong phòng `0040` và một Model nhiều panel có
+PrimaryPart. Bật **Cửa ↓ → Cửa: TẮT**, đi tới đúng cửa 40 rồi qua lại hai chiều,
+xác nhận cửa sổ 39/40/41 rồi 38/39/40 khi lùi. Xóa cửa 1/40, spawn cửa mới,
+thử khi chưa có cửa tiếp theo, respawn, xoay camera và nhảy xa về khu vực cũ.
+Kiểm tra hướng dự phòng khi chỉ có một cửa, đặc biệt nếu LookVector bị đảo.
+Đo MicroProfiler trong map lớn; kiểm tra chỉ có tối đa 3 marker cửa, không
+rò listener khi reload và `DoorTrackerLocalEffects` bị xóa khi thoát.
