@@ -1572,86 +1572,43 @@ cleanupItemRows = function()
     itemRows = {}
 end
 
--- Third sibling card: never reuses entity presets or item groups.
+-- One door feature, one switch. Display and rescanning are automatic.
 local function createDoorPanel()
-    doorCard = new("Frame", {Name = "DoorTrackerPanel", Size = UDim2.fromOffset(548, 484),
+    doorCard = new("Frame", {Name = "DoorTrackerPanel", Size = UDim2.fromOffset(548, 212),
         BackgroundColor3 = C.SURFACE, BorderSizePixel = 0}, page)
     corner(doorCard, 10); stroke(doorCard, Color3.fromRGB(0, 0, 0), 2)
     doorCardScale = new("UIScale", {Scale = 1}, doorCard)
-    local heading = label("⬛ Định vị cửa · tính năng riêng", 12, 8, 524, 32, doorCard)
+    local heading = label("⬛ Định vị cửa", 12, 8, 524, 32, doorCard)
     heading.TextColor3, heading.BackgroundColor3, heading.BackgroundTransparency = Color3.fromRGB(0, 0, 0), Color3.fromRGB(215, 215, 215), 0
     corner(heading)
     label("Đường dẫn: Workspace.CurrentRooms.1.Door.Door", 12, 48, 524, 26, doorCard)
-    label("Chỉ thay số 1–2000. Đứng ở 40: 39 / 40 / 41; đi lùi 39: 38 / 39 / 40.", 12, 76, 524, 34, doorCard)
     local master
     local function paint()
-        master.Text = doorTracker.enabled and "Cửa: BẬT" or "Cửa: TẮT"
+        master.Text = doorTracker.enabled and "Định vị cửa: BẬT" or "Định vị cửa: TẮT"
     end
-    master = button("Cửa: TẮT", 12, 118, 156, function()
+    master = button("Định vị cửa: TẮT", 12, 84, 524, function()
         doorTracker:setEnabled(not doorTracker.enabled); paint()
     end, doorCard)
-    button("Cửa: Quét lại", 176, 118, 156, function()
-        if doorTracker.enabled then doorTracker:beginScan() end
-    end, doorCard)
-    button("Cửa ↑ đầu trang", 340, 118, 168, function() page.CanvasPosition = Vector2.new(0, 0) end, doorCard)
-    local function option(text, key, x, w)
-        local b
-        local function refresh() b.Text = "Cửa " .. text .. (doorTracker[key] and ": BẬT" or ": TẮT") end
-        b = button("", x, 154, w, function() doorTracker[key] = not doorTracker[key]; refresh() end, doorCard)
-        refresh()
-    end
-    option("Hộp", "showBox", 12, 118)
-    option("Nhãn", "showLabel", 138, 118)
-    option("Xuyên", "throughWalls", 264, 148)
-    option("XYZ", "showXYZ", 420, 116)
-    local statusLabel = label("Cửa: TẮT · mốc ban đầu doors 1", 12, 190, 524, 40, doorCard)
-    local copy = input("", "Cửa: path và XYZ", 12, 336, 524, doorCard)
-    copy.TextEditable = false
-    local rows, selectedNumber = {}, nil
-    local function showDoorInfo(hit)
-        local names, node = {}, hit.inst
-        while node and node ~= workspace do table.insert(names, 1, node.Name); node = node.Parent end
-        local p = hit.part.Position
-        copy.Text = string.format("Workspace.%s | X %.3f, Y %.3f, Z %.3f", table.concat(names, '.'), p.X, p.Y, p.Z)
-    end
-    for i = 1, 3 do
-        local index = i
-        local row = button("", 12, 236 + (i - 1)*30, 524, function()
-            local hit = doorTracker.list[index]
-            if hit then
-                selectedNumber = hit.number
-                showDoorInfo(hit)
-            end
-        end, doorCard)
-        row.Name, row.TextColor3, row.BackgroundColor3 = "DoorResult_" .. i, Color3.fromRGB(0, 0, 0), Color3.fromRGB(215, 215, 215)
-        row.Visible = false; rows[i] = row
-    end
-    label("Không tìm thấy cửa 1: tự tìm số kế tiếp đang tồn tại. Màu đen, viền chữ trắng để dễ đọc.", 12, 374, 524, 34, doorCard)
-    label("Dùng vị trí nhân vật, không dùng camera. Cửa chưa stream về client sẽ chưa định vị được.", 12, 410, 524, 28, doorCard)
-    button("Dừng & thoát", 12, 446, 128, shutdown, doorCard)
+    master.Name = "ToggleDoorTracker"
+    label("Tự tìm cửa 1–2000, hiện màu đen và theo dõi tiến/lùi. Chỉ giữ 3 cửa lân cận.", 12, 120, 524, 32, doorCard)
+    local statusLabel = label("Định vị cửa đang tắt.", 12, 158, 524, 40, doorCard)
+    statusLabel.Name = "DoorStatus"
+    -- Navigation only; no second switch or duplicate feature in the original card.
     button("Cửa ↓", 348, 8, 160, function()
         page.CanvasPosition = Vector2.new(0, doorCard.Position.Y.Offset)
     end)
     local function render()
         paint()
         if not doorTracker.enabled then
-            statusLabel.Text = "Cửa: TẮT · độc lập với thực thể và vật phẩm"
+            statusLabel.Text = "Định vị cửa đang tắt."
         elseif #doorTracker.list == 0 then
-            statusLabel.Text = "Đang tìm doors 1–2000 trong Workspace trên client..."
+            statusLabel.Text = "Đang tự tìm Workspace.CurrentRooms.<1–2000>.Door.Door..."
         else
-            statusLabel.Text = "Mốc: doors " .. doorTracker.current .. " · chỉ hiện ±1 cửa · " ..
-                (doorTracker.origin and "tiến/lùi tự động" or "chờ nhân vật để theo dõi di chuyển")
+            local numbers = {}
+            for _, hit in ipairs(doorTracker.list) do numbers[#numbers + 1] = tostring(hit.number) end
+            statusLabel.Text = "Cửa hiện tại: " .. doorTracker.current .. " · Đang định vị: " .. table.concat(numbers, " / ")
+                .. (doorTracker.origin and "" or " · Chờ nhân vật")
         end
-        local selectedHit
-        for i, row in ipairs(rows) do
-            local hit = doorTracker.list[i]
-            if hit and hit.number == selectedNumber then selectedHit = hit end
-            row.Visible = hit ~= nil
-            row.Text = hit and ("doors " .. hit.number .. " | " .. (hit.distance and string.format("%.1f stud", hit.distance) or "? stud") ..
-                (hit.number == doorTracker.current and " · HIỆN TẠI" or "")) or ""
-        end
-        if selectedHit then showDoorInfo(selectedHit)
-        else selectedNumber, copy.Text = nil, "" end
     end
     return render, statusLabel
 end

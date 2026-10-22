@@ -14,7 +14,7 @@ của `script.js`. Không cần nạp hub gốc. Không sửa `script.js`.
 5. Nhập tên vật rồi Enter hoặc bấm **Định vị: TẮT** để bật.
 6. Bấm **Vật phẩm ↓** để đến khung vật phẩm riêng. Mở một nhóm rồi chọn món,
    hoặc bấm công tắc nhóm/Chọn cả nhóm để định vị nhiều món.
-7. Bấm **Cửa ↓** rồi **Cửa: TẮT** để bật khung cửa riêng.
+7. Bấm **Cửa ↓** rồi **Định vị cửa: TẮT** để bật khung cửa riêng.
 
 Không cần executor, `loadstring`, HTTP, hook, remote hoặc script server.
 Rojo mapping hiện tại của repo không tự cài file này; hãy cài thủ công như trên.
@@ -221,7 +221,7 @@ Salvage Scrap vẫn xuất hiện trong từng nhóm tương ứng như yêu c�
 
 Khung **Định vị cửa** (`DoorTrackerPanel`) nằm ngang hàng với hai khung cũ,
 không nằm trong preset thực thể hay nhóm vật phẩm. Bấm **Cửa ↓** ở đầu khung
-thực thể để cuộn tới nhanh, sau đó bấm **Cửa: TẮT** để bật.
+thực thể để cuộn tới nhanh, sau đó bấm **Định vị cửa: TẮT** để bật.
 
 ### Cách hoạt động
 
@@ -264,10 +264,16 @@ thực thể để cuộn tới nhanh, sau đó bấm **Cửa: TẮT** để b�
 
 ### Hiển thị riêng và hiệu năng
 
-- Highlight, viền, hộp và chữ marker đều **đen**. Chữ có viền trắng; danh sách
-  kết quả chữ đen/nền sáng để dễ đọc trên giao diện tối.
-- Công tắc **Cửa Hộp / Nhãn / Xuyên / XYZ**, quét lại và bật/tắt tổng của cửa
-  độc lập với hai tính năng cũ. Bấm một kết quả để xem/copy path và XYZ.
+- **Một tính năng, một công tắc duy nhất: Định vị cửa: BẬT/TẮT.** Khung đã
+  thu gọn, không còn các nút Hộp/Nhãn/Xuyên/XYZ, quét lại, đầu trang hay thoát
+  riêng; cũng không còn danh sách kết quả bấm được và ô copy path/XYZ.
+- Bật một lần sẽ tự tìm/quét lại cửa, bật highlight/hộp/nhãn khoảng cách và nhìn
+  xuyên tường. Highlight, viền, hộp và chữ marker đều **đen**; chữ có viền trắng.
+  XYZ không hiển thị. Không cần thiết lập nhiều mục con.
+- Chỉ có một dòng trạng thái đọc: cửa hiện tại và các số cửa đang định vị.
+  Nút **Cửa ↓** ở khung cũ chỉ là lối cuộn tới tính năng, không phải công tắc thứ hai.
+- Tắt một công tắc sẽ dọn toàn bộ marker cửa; không tắt định vị thực thể/vật phẩm
+  hay cảnh báo. Để thoát toàn bộ công cụ, dùng Dừng & thoát ở khung thực thể/vật phẩm.
 - Chỉ giữ **tối đa 3 marker cửa**, không tạo 2.000 Highlight.
 - Lập chỉ mục tối đa 2.000 số; cửa trùng số chỉ giữ đại diện gần nhân vật hơn
   trong các bản đã được phân tích. Không xác định được cửa thật/giả chỉ từ số.
@@ -386,12 +392,14 @@ Kết quả trong sandbox:
   path cache chính xác, loại trừ alias/nhánh sai, CurrentRooms tới trễ hoặc bị
   thay thế, leaf đổi tên, bỏ qua đồ trang trí/Workspace ngoài nhánh và child event
   không làm sai part đại diện khi leaf chính là một BasePart.
-- **18 test GUI cửa: đạt.** Khung thứ ba riêng, nút cuộn/canvas, fallback cửa
+- **19 test GUI cửa: đạt.** Khung thứ ba riêng, nút cuộn/canvas, fallback cửa
   2 khi không có 1, màu đen/viền chữ trắng, cửa 1 xuất hiện sau, mốc 40/tiến/lùi,
-  path/XYZ, các công tắc riêng, Door trong phòng số, không chạy theo camera,
-  pause/resume/quét lại, cố ý gây lỗi cửa mà hai tính năng cũ/cảnh báo vẫn chạy,
-  và reload/thoát/hủy GUI dọn tài nguyên cửa. GUI hiển thị đường dẫn mới,
-  path/XYZ trỏ đúng leaf, các alias cũ ngoài CurrentRooms không ảnh hưởng mốc.
+  chỉ một công tắc và không còn control/ô nhập phụ, hiển thị hộp/nhãn/xuyên tường
+  tự động, Door trong phòng số, không chạy theo camera, pause/resume tự động,
+  cố ý gây lỗi cửa mà hai tính năng cũ/cảnh báo vẫn chạy, và reload/thoát/hủy GUI
+  dọn tài nguyên cửa. GUI hiển thị đường dẫn chính xác, các alias cũ ngoài
+  CurrentRooms không ảnh hưởng mốc; đổi số phòng được quét lại tự động mà không
+  cần nút quét lại.
 - **115 test cũ của dự án: đạt**, không bị thay thế bởi bộ test mới.
 
 **Chưa chạy trong Roblox Studio/game thật.** Fengari + mock chỉ kiểm chứng logic
@@ -452,7 +460,7 @@ Tạo `Workspace.CurrentRooms` (Folder); bên trong tạo các Model phòng tên
 Thử thêm một leaf Door dạng Model nhiều panel có PrimaryPart. Các Part tên
 `doors 1` đặt trực tiếp trong Workspace phải bị bỏ qua.
 
-Bật **Cửa ↓ → Cửa: TẮT**, đi tới đúng cửa 40 rồi qua lại hai chiều, xác nhận
+Bật **Cửa ↓ → Định vị cửa: TẮT**, đi tới đúng cửa 40 rồi qua lại hai chiều, xác nhận
 cửa sổ 39/40/41 rồi 38/39/40 khi lùi. Xóa/thay/đổi số tên phòng 1/40, spawn
 nhánh Door.Door sau, thử khi thiếu CurrentRooms hoặc cửa tiếp theo, respawn,
 xoay camera và nhảy xa về khu vực cũ. Kiểm tra hướng dự phòng khi chỉ có một
