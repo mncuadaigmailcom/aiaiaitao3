@@ -16,6 +16,11 @@ không dùng executor, không dùng `setrbxsetting`, không can thiệp anti-che
 >   [docs/07-do-luong-hoan-tac.md](docs/07-do-luong-hoan-tac.md).
 > - API Roblox **chưa được đối chiếu với tài liệu chính thức** trong quá trình làm việc.
 
+
+> **Dự án thứ hai trong repo này:** [`secure-script/`](secure-script/README.md) — web mã hoá
+> script thành tệp `.aia` + key script, chạy trong trình duyệt, miễn phí.
+> Mở nhanh: `python3 -m http.server 8080 --directory secure-script` → http://localhost:8080
+
 ---
 
 ## 1. Cài đặt
@@ -168,3 +173,35 @@ npm run build     # tạo dist/roblox-anti-lag-optimizer.luau
 4. Hệ thống **không bao giờ** xoá map, nhân vật, vật phẩm hay hiệu ứng quan trọng;
    chỉ tắt tạm thời ở khoảng cách xa và bật lại khi lại gần.
 5. Hệ thống **không bao giờ** đổi tham số gameplay để lấy FPS.
+
+---
+
+## Phụ lục — Dự án AIA Secure Script
+
+Repo có thêm một dự án độc lập trong [`secure-script/`](secure-script/README.md):
+
+- **Mã hoá** code script (nhập tệp hoặc dán code, tối đa 5 GiB) thành `.aia` + `key.js`.
+- **Key script là chìa khoá thật**: khoá tệp ngẫu nhiên chỉ nằm trong key script,
+  thiếu nó thì không mở được dù biết mật khẩu và đọc được header.
+- **Khoá** sinh từ thời gian tạo (đến mili giây) + link key script + mật khẩu, qua
+  PBKDF2-SHA256 600.000 vòng; dữ liệu mã hoá bằng AES-256-GCM theo từng khối.
+- **Header** chứa thời gian và link key ở dạng đọc được (không mã hoá) để nhận biết.
+- **Chạy**: key script giải mã rồi chạy trong Web Worker; kèm trang `run.html`.
+- **Dịch ngược**: làm đẹp, rút gọn, tách chuỗi, đổi tên biến, giải base64/hex/URL, phân tích.
+- **Miễn phí**: trang tĩnh, không backend; có workflow GitHub Pages sẵn.
+
+Kiểm thử: 80 kiểm thử lõi + 47 kiểm thử DOM (gồm cả gói demo) + 43 kiểm tra tĩnh.
+
+```bash
+cd secure-script
+node tests/run-node.mjs     # lõi mã hoá
+npm install                 # chỉ để chạy test DOM (jsdom)
+node tests/run-dom.mjs      # giao diện trên DOM ả
+```
+
+Tài liệu: [ghi chú dự án](secure-script/docs/00-ghi-chu-du-an.md) ·
+[kiến trúc & định dạng](secure-script/docs/01-kien-truc-va-dinh-dang.md) ·
+[bảo mật & giới hạn](secure-script/docs/02-bao-mat-gioi-han.md) ·
+[hướng dẫn](secure-script/docs/03-huong-dan-su-dung.md) ·
+[triển khai miễn phí](secure-script/docs/04-trien-khai-mien-phi.md) ·
+[kiểm thử](secure-script/docs/05-kiem-thu-va-ket-qua.md).

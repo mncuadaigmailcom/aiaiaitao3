@@ -1,0 +1,20 @@
+{
+  "name": "aia-secure-script",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Mã hoá script bằng AES-256-GCM + key script, chạy hoàn toàn trong trình duyệt. Miễn phí, không backend.",
+  "scripts": {
+    "start": "python3 -m http.server 8080",
+    "test": "node tests/run-node.mjs",
+    "test:dom": "node tests/run-dom.mjs",
+    "test:static": "node tools/check-static.mjs",
+    "check": "node tests/run-node.mjs && node tools/check-static.mjs && node tests/run-dom.mjs",
+    "cli": "node tools/cli.mjs"
+  },
+  "devDependencies": {
+    "jsdom": "^24.0.0"
+  },
+  "engines": { "node": ">=18" },
+  "license": "MIT"
+}

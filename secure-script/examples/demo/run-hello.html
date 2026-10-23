@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AIA Runner — hello.js</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif;
+         background: #070b14; color: #e6edf7; min-height: 100vh; }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 28px 18px 60px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .sub { color: #8fa3c0; font-size: 13px; margin-bottom: 20px; }
+  .card { background: #0e1727; border: 1px solid #1d2c44; border-radius: 14px; padding: 18px; margin-bottom: 16px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+  .k { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: #7f93b3; }
+  .v { font-size: 14px; word-break: break-all; margin-top: 3px; }
+  label { display: block; font-size: 12px; color: #9fb2c9; margin-bottom: 6px; }
+  input[type=password] { width: 100%; padding: 11px 12px; border-radius: 10px; border: 1px solid #24344e;
+                         background: #0a1220; color: #e6edf7; font-size: 14px; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+  button { border: 0; border-radius: 10px; padding: 11px 16px; font-size: 14px; font-weight: 600;
+           cursor: pointer; background: #2563eb; color: white; }
+  button.ghost { background: #17233a; color: #c6d4e6; border: 1px solid #24344e; }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  #log { background: #060a12; border: 1px solid #1b2940; border-radius: 10px; padding: 12px;
+         font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12.5px; height: 300px;
+         overflow: auto; white-space: pre-wrap; line-height: 1.55; }
+  .l-log { color: #cbd8ea; } .l-warn { color: #fbbf24; } .l-error { color: #ff7b72; } .l-info { color: #7dd3fc; }
+  .badge { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 11px; background: #17233a; color: #9fb2c9; }
+  .ok { background: #052e1a; color: #6ee7a8; } .bad { background: #3a0d12; color: #ff9ca3; }
+  .hint { color: #7f93b3; font-size: 12px; margin-top: 8px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Trình chạy bản mã</h1>
+  <div class="sub">Trang này dùng <code>hello.key.js</code> để mở tệp dữ liệu đã mã hoá. Cần chạy qua HTTP(S) — mở trực tiếp bằng <code>file://</code> sẽ bị chặn.</div>
+
+  <div class="card">
+    <div class="grid">
+      <div><div class="k">Tệp gốc</div><div class="v">hello.js</div></div>
+      <div><div class="k">Kích thước</div><div class="v">549 B</div></div>
+      <div><div class="k">Thời gian tạo (không mã hoá)</div><div class="v">2026-10-23 16:57:40.986</div></div>
+      <div><div class="k">Link key</div><div class="v">./hello.key.js</div></div>
+      <div><div class="k">Mã hoá</div><div class="v">AES-256-GCM · PBKDF2 600000 vòng</div></div>
+      <div><div class="k">Hết hạn</div><div class="v">không đặt</div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <label for="pass">Mật khẩu (nếu có)</label>
+    <input id="pass" type="password" placeholder="Nhập mật khẩu dùng lúc mã hoá..." autocomplete="off">
+    <div class="row">
+      <button id="run">Giải mã &amp; chạy</button>
+      <button id="verify" class="ghost">Chỉ kiểm tra</button>
+      <button id="dl" class="ghost">Tải bản rõ</button>
+      <span id="status" class="badge">sẵn sàng</span>
+    </div>
+    <div class="hint">Script được chạy trong Web Worker (không treo trang). Muốn chạy trên trang chính, dùng <code>AIA_UNLOCK.run({execute:true, mode:'main'})</code>.</div>
+  </div>
+
+  <div class="card">
+    <div class="k" style="margin-bottom:8px">Nhật ký</div>
+    <div id="log"></div>
+  </div>
+</div>
+
+<script src="./hello.key.js"></script>
+<script>
+(function () {
+  var META = {"format":"AIA1","v":1,"id":"31fee04e7c345f09","createdAt":"2026-10-23T16:57:40.986Z","time":{"raw":"20261023165740986","readable":"2026-10-23 16:57:40.986","year":2026,"month":10,"day":23,"hour":16,"minute":57,"second":40,"ms":986,"unixMs":1792774660986,"iso":"2026-10-23T16:57:40.986Z","timezoneOffset":0},"keyUrl":"./hello.key.js","alg":"AES-256-GCM","kdf":{"name":"PBKDF2-HMAC-SHA256","iterations":600000,"salt":"FqX8TJNw2tWp8UVtmugtwg==","kid":"6412f3a153227ec7"},"chunk":{"size":1048576,"total":1,"ivPrefix":"ZGlmLNFk7mM=","tagBytes":16},"file":{"name":"hello.js","type":"","size":549,"sha256":"9499d78820a99718e6479fe6b793369e5c23bd84bb7680ca713e3b25c5bbcfa2","lang":"javascript"},"payload":{"file":"hello.aia"},"expiry":null,"note":"gói demo công khai","keyWrapIn":"key-script","encryptionSeconds":0,"keyWrap":{"alg":"AES-256-GCM","iv":"a6KQaA8CGVQwG7wM","ct":"+JSPKu6EJmXltW44rx4m/JJek9/EN7un+EohB920u4HDcbWSGiQsTMbfuXV/mIsh"}};
+  var log = document.getElementById('log');
+  var statusEl = document.getElementById('status');
+  var passEl = document.getElementById('pass');
+  var busy = false;
+
+  function setStatus(text, cls) {
+    statusEl.textContent = text;
+    statusEl.className = 'badge' + (cls ? ' ' + cls : '');
+  }
+  function print(level, args) {
+    var line = document.createElement('div');
+    line.className = 'l-' + (level || 'log');
+    line.textContent = (Array.isArray(args) ? args.join(' ') : String(args));
+    log.appendChild(line);
+    log.scrollTop = log.scrollHeight;
+  }
+  function getPass() {
+    return passEl.value.length ? passEl.value : undefined;
+  }
+  function fail(e) {
+    print('error', '[AIA] ' + (e && e.message ? e.message : e));
+    setStatus('lỗi', 'bad');
+  }
+
+  document.getElementById('run').addEventListener('click', async function () {
+    if (busy) return;
+    busy = true; log.innerHTML = '';
+    if (AIA_UNLOCK.checkExpiry()) { print('error', '[AIA] Bản mã đã hết hạn dùng.'); busy = false; return; }
+    setStatus('đang giải mã…');
+    try {
+      await AIA_UNLOCK.run({
+        passphrase: getPass(),
+        execute: true,
+        mode: 'worker',
+        onLog: function (level, args) { print(level, args); },
+        onError: function (msg) { print('error', '[runtime] ' + msg); },
+        onDone: function () { print('info', '[AIA] script đã chạy xong.'); setStatus('đã chạy', 'ok'); },
+        onFetchProgress: function (loaded, total) {
+          if (total) setStatus('đang tải ' + Math.round(loaded / total * 100) + '%');
+        },
+        onProgress: function (done, total) {
+          setStatus('giải mã ' + Math.round(done / total * 100) + '%');
+        },
+      });
+    } catch (e) { fail(e); }
+    busy = false;
+  });
+
+  document.getElementById('verify').addEventListener('click', async function () {
+    if (busy) return;
+    busy = true; log.innerHTML = '';
+    setStatus('đang kiểm tra…');
+    try {
+      var bytes = await AIA_UNLOCK.decrypt({ passphrase: getPass() });
+      print('info', '[AIA] OK — giải mã thành công ' + bytes.length + ' byte, toàn vẹn AES-GCM hợp lệ.');
+      setStatus('toàn vẹn OK', 'ok');
+    } catch (e) { fail(e); }
+    busy = false;
+  });
+
+  document.getElementById('dl').addEventListener('click', async function () {
+    if (busy) return;
+    busy = true;
+    setStatus('đang giải mã để tải…');
+    try {
+      await AIA_UNLOCK.download({ passphrase: getPass() });
+      setStatus('đã tải', 'ok');
+    } catch (e) { fail(e); }
+    busy = false;
+  });
+})();
+</script>
+</body>
+</html>

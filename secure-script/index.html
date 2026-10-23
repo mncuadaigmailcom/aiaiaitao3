@@ -1,0 +1,451 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AIA Secure Script — Mã hoá &amp; giải mã script</title>
+<meta name="description" content="Mã hoá script bằng AES-256-GCM + key script, chạy giải mã ngay trên trình duyệt. Miễn phí, không cần máy chủ.">
+<link rel="stylesheet" href="./assets/style.css">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+</head>
+<body>
+<a class="skip" href="#main">Bỏ qua điều hướng</a>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="logo" aria-hidden="true">
+      <svg viewBox="0 0 64 64" width="30" height="30"><path d="M20 24v-4a12 12 0 0 1 24 0v4" stroke="#38bdf8" stroke-width="5" fill="none" stroke-linecap="round"/><rect x="14" y="24" width="36" height="26" rx="7" fill="#2563eb"/></svg>
+    </span>
+    <div>
+      <strong>AIA Secure Script</strong>
+      <span class="tag">mã hoá script · key script · chạy trong trình duyệt</span>
+    </div>
+  </div>
+  <nav class="tabs" role="tablist" aria-label="Chức năng">
+    <button role="tab" aria-selected="true" data-view="encrypt" class="active">Mã hoá</button>
+    <button role="tab" aria-selected="false" data-view="decrypt">Giải mã &amp; chạy</button>
+    <button role="tab" aria-selected="false" data-view="reverse">Dịch ngược code</button>
+    <button role="tab" aria-selected="false" data-view="docs">Ghi chú</button>
+  </nav>
+  <button class="ghost small" id="helpBtn" type="button">Cách dùng</button>
+</header>
+
+<main id="main">
+  <!-- ============================ MÃ HOÁ ============================ -->
+  <section class="view active" id="view-encrypt">
+    <div class="hero">
+      <div>
+        <h1>Mã hoá script thành <em>tệp .aia</em> + <em>key script</em></h1>
+        <p>
+          AES-256-GCM theo từng khối, khoá sinh bằng PBKDF2-SHA256 từ
+          <b>thời gian tạo (năm/tháng/ngày/giờ/phút/giây/mili-giây)</b> + <b>link key script</b> + <b>mật khẩu</b>.
+          Header giữ thời gian và link key ở dạng đọc được để nhận biết. Tối đa <b>5 GiB</b>, tăng kích thước chỉ ~0,002%.
+        </p>
+      </div>
+      <div class="pill-row">
+        <span class="pill">chạy 100% trong máy bạn</span>
+        <span class="pill">không upload lên máy chủ</span>
+        <span class="pill">miễn phí</span>
+      </div>
+    </div>
+
+    <div class="cols">
+      <div class="col-main">
+        <div class="card">
+          <div class="card-head">
+            <h2>1. Chọn script cần mã hoá</h2>
+            <span class="muted" id="limitNote">tối đa 5 GiB / tệp</span>
+          </div>
+
+          <div class="drop" id="drop" tabindex="0" role="button" aria-describedby="dropHint">
+            <svg viewBox="0 0 24 24" width="34" height="34" aria-hidden="true"><path d="M12 16V4m0 0 4 4m-4-4L8 8M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <p><b>Kéo &amp; thả</b> tệp vào đây, hoặc bấm để chọn</p>
+            <p class="muted" id="dropHint">.js .lua .luau .py .ts .txt … · giữ nguyên định dạng gốc</p>
+            <input type="file" id="fileInput" hidden>
+          </div>
+
+          <div class="row">
+            <button class="ghost" id="pasteBtn" type="button">Dán code trực tiếp</button>
+            <span class="muted" id="fileInfo">chưa chọn tệp</span>
+          </div>
+
+          <div class="paste-box" id="pasteBox" hidden>
+            <label for="pasteText">Nội dung code (lưu thành <code class="js-name">script.js</code>)</label>
+            <textarea id="pasteText" spellcheck="false" placeholder="// dán code của bạn vào đây…"></textarea>
+            <div class="row">
+              <button class="ghost small" id="pasteUse" type="button">Dùng nội dung này</button>
+              <button class="link small" id="pasteCancel" type="button">đóng</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h2>2. Tuỳ chọn mã hoá</h2>
+            <details class="inline-help">
+              <summary>Giải thích</summary>
+              <p>Link key script là chuỗi tham gia tạo khoá, nên nếu đổi link thì không giải mã được. Hạn dùng chỉ kiểm tra phía client. Bật “nhúng mật khẩu” sẽ tiện nhưng ai có key script là chạy được.</p>
+            </details>
+          </div>
+
+          <div class="grid2">
+            <div class="field">
+              <label for="keyUrl">Link key script <span class="req">bắt buộc trong khoá</span></label>
+              <input type="text" id="keyUrl" value="./key.js" spellcheck="false">
+              <p class="help">Đường dẫn tới script chứa key (tệp khoá sinh ra). VD <code>https://cdn.example.com/key.js</code> hoặc <code>./keys/abc.js</code>.</p>
+            </div>
+
+            <div class="field">
+              <label for="pass">Mật khẩu <span class="muted">(nên đặt)</span></label>
+              <div class="with-btn">
+                <input type="password" id="pass" placeholder="để trống = không mật khẩu" autocomplete="new-password">
+                <button class="ghost small" id="togglePass" type="button">hiện</button>
+                <button class="ghost small" id="genPass" type="button">tạo</button>
+              </div>
+              <div class="strength"><div class="bar"><i id="passBar"></i></div><span id="passLabel" class="muted">chưa đặt</span></div>
+            </div>
+
+            <div class="field">
+              <label for="iter">Độ mạnh KDF</label>
+              <select id="iter">
+                <option value="100000">Nhanh — 100.000 vòng</option>
+                <option value="600000" selected>Chuẩn OWASP — 600.000 vòng</option>
+                <option value="1200000">Mạnh — 1.200.000 vòng</option>
+              </select>
+              <p class="help">Nhiều vòng = chống dò mật khẩu tốt hơn, nhưng chậm hơn khi mở khoá (mỗi lần vài phần trăm giây).</p>
+            </div>
+
+            <div class="field">
+              <label for="chunk">Kích thước khối</label>
+              <select id="chunk">
+                <option value="262144">256 KiB — ít RAM nhất</option>
+                <option value="1048576" selected>1 MiB — khuyến nghị</option>
+                <option value="4194304">4 MiB — nhanh hơn trên máy mạnh</option>
+              </select>
+              <p class="help">Chỉ ảnh hưởng RAM/CPU khi chạy, không làm tăng đáng kể kích thước.</p>
+            </div>
+
+            <div class="field">
+              <label for="expiry">Hạn dùng <span class="muted">(tuỳ chọn)</span></label>
+              <input type="datetime-local" id="expiry">
+              <p class="help">Sau mốc này, key script sẽ từ chối giải mã.</p>
+            </div>
+
+            <div class="field">
+              <label for="note">Ghi chú trong header</label>
+              <input type="text" id="note" maxlength="200" placeholder="VD: bản giao khách A, v1.2">
+            </div>
+          </div>
+
+          <div class="checks">
+            <label class="check"><input type="checkbox" id="hashChk" checked> Băm SHA-256 bản rõ <span class="muted">(chỉ tệp ≤ 64 MiB)</span></label>
+            <label class="check"><input type="checkbox" id="requireKeyChk" checked> <b>Bắt buộc phải có key script</b> <span class="muted">— khoá tệp ngẫu nhiên chỉ nằm trong key script</span></label>
+            <label class="check"><input type="checkbox" id="embedPassChk"> Nhúng mật khẩu vào key script</label>
+            <label class="check"><input type="checkbox" id="runnerChk" checked> Tạo trang <code>run.html</code> để mở &amp; chạy</label>
+            <label class="check"><input type="checkbox" id="zipChk" checked> Đóng gói ZIP <span class="muted">(≤ 256 MiB)</span></label>
+          </div>
+
+          <div class="row run-row">
+            <button class="primary" id="encryptBtn" type="button">Mã hoá ngay</button>
+            <button class="ghost" id="cancelBtn" type="button" hidden>Dừng</button>
+            <button class="link" id="resetBtn" type="button">xoá lựa chọn</button>
+          </div>
+
+          <div class="progress-wrap" id="progressWrap" hidden>
+            <div class="progress"><i id="progBar"></i></div>
+            <div class="progress-meta">
+              <span id="progText">đang chuẩn bị…</span>
+              <span id="progStats" class="muted"></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" id="resultCard" hidden>
+          <div class="card-head">
+            <h2>3. Kết quả</h2>
+            <span class="badge ok" id="resultBadge">xong</span>
+          </div>
+          <div class="result-grid">
+            <div class="file-chip"><b id="resContainerName">payload.aia.bin</b><span id="resContainerSize" class="muted">—</span></div>
+            <div class="file-chip"><b id="resKeyName">key.js</b><span id="resKeySize" class="muted">—</span></div>
+            <div class="file-chip"><b id="resRunnerName">run.html</b><span id="resRunnerSize" class="muted">—</span></div>
+            <div class="file-chip"><b id="resReadmeName">README.txt</b><span id="resReadmeSize" class="muted">—</span></div>
+          </div>
+          <div class="row">
+            <button class="primary" id="dlZip" type="button">Tải gói ZIP</button>
+            <button class="ghost" id="dlContainer" type="button">Tải .aia</button>
+            <button class="ghost" id="dlKey" type="button">Tải key script</button>
+            <button class="ghost" id="dlRunner" type="button">Tải run.html</button>
+            <button class="ghost" id="dlReadme" type="button">Tải README</button>
+            <button class="ghost" id="testRunBtn" type="button">Chạy thử ngay</button>
+          </div>
+          <div class="stat-row" id="resStats"></div>
+          <pre id="testLog" class="console" hidden style="margin-top:14px"></pre>
+          <details class="kbd">
+            <summary>Xem key script (có thể sửa thành tệp .js)</summary>
+            <pre id="keyPreview"></pre>
+          </details>
+          <details class="kbd">
+            <summary>Xem header (không mã hoá — để nhận biết)</summary>
+            <p class="help" id="metaNote"></p>
+            <pre id="metaPreview"></pre>
+          </details>
+          <div class="callout" id="okCallout">
+            <b>Lưu ý:</b> đặt tất cả tệp trong <b>cùng một thư mục</b> và mở qua HTTP
+            (<code>python3 -m http.server</code>). Nhúng vào trang khác bằng
+            <code>&lt;script src="./key.js"&gt;&lt;/script&gt;</code> rồi gọi <code>AIA_UNLOCK.run({execute:true})</code>.
+          </div>
+        </div>
+      </div>
+
+      <aside class="col-side">
+        <div class="card compact">
+          <h3>Luồng hoạt động</h3>
+          <ol class="flow">
+            <li><b>Thời gian</b> năm-tháng-ngày-giờ-phút-giây-mili giây</li>
+            <li><b>Link key script</b> (chuỗi trong khoá)</li>
+            <li><b>Mật khẩu</b> của bạn</li>
+            <li>→ PBKDF2-SHA256 → khoá AES-256</li>
+            <li>→ AES-GCM từng khối → <code>.aia</code></li>
+          </ol>
+          <p class="muted small">Header giữ thời gian + link key dạng đọc được. Toàn bộ nội dung code thì được mã hoá.</p>
+        </div>
+        <div class="card compact">
+          <h3>Kích thước tăng bao nhiêu?</h3>
+          <p class="muted small">Chỉ 16 byte tag cho mỗi khối + header ~1 KB. Với tệp 1 MB dùng khối 1 MiB: tăng <b>17 byte</b> (~0,002%). Không dùng base64.</p>
+          <h3 style="margin-top:14px">Không treo máy</h3>
+          <p class="muted small">Mã hoá theo luồng, mỗi lúc chỉ giữ 1 khối trong RAM. Script chạy trong Web Worker nên giao diện vẫn mượt.</p>
+        </div>
+        <div class="card compact warn">
+          <h3>Nhớ kỹ</h3>
+          <ul class="flow">
+            <li>Mất mật khẩu = mất dữ liệu.</li>
+            <li>Không có bảo vệ tuyệt đối trước người sở hữu máy.</li>
+            <li>Hạn dùng chỉ là kiểm tra phía client.</li>
+          </ul>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ============================ GIẢI MÃ ============================ -->
+  <section class="view" id="view-decrypt">
+    <div class="hero">
+      <div>
+        <h1>Giải mã &amp; chạy thử</h1>
+        <p>Chọn tệp <code>.aia</code> và key script tương ứng. Mọi thứ chạy trong trình duyệt của bạn — không có máy chủ nào nhận được code.</p>
+      </div>
+    </div>
+
+    <div class="cols">
+      <div class="col-main">
+        <div class="card">
+          <div class="card-head"><h2>1. Chọn tệp</h2></div>
+          <div class="grid2">
+            <div class="field">
+              <label for="decFile">Tệp dữ liệu <code>.aia</code></label>
+              <input type="file" id="decFile" accept=".aia,.bin,application/octet-stream">
+              <p class="help">Chưa có tệp? <a href="./examples/demo/run-hello.html" target="_blank" rel="noopener">mở gói demo</a> (mật khẩu <code>aia-demo-2026</code>).</p>
+            </div>
+            <div class="field">
+              <label for="keyFile">Key script <code>.js</code> <span class="muted">(bắt buộc với bản mã có khoá riêng)</span></label>
+              <input type="file" id="keyFile" accept=".js,text/javascript">
+              <p class="help">Bản mã tạo với tuỳ chọn “Bắt buộc key script” sẽ <b>không mở được</b> nếu thiếu tệp này.</p>
+            </div>
+            <div class="field">
+              <label for="decPass">Mật khẩu</label>
+              <input type="password" id="decPass" autocomplete="current-password" placeholder="mật khẩu dùng lúc mã hoá">
+            </div>
+            <div class="field">
+              <label>Header đọc được</label>
+              <div class="meta-box" id="decMeta">chưa có tệp</div>
+            </div>
+          </div>
+          <div class="row run-row">
+            <button class="primary" id="runBtn" type="button">Giải mã &amp; chạy</button>
+            <button class="ghost" id="verifyBtn" type="button">Chỉ kiểm tra toàn vẹn</button>
+            <button class="ghost" id="dlPlainBtn" type="button">Tải bản rõ</button>
+            <button class="link" id="stopRunBtn" type="button">dừng script</button>
+          </div>
+          <div class="progress-wrap" id="decProgressWrap" hidden>
+            <div class="progress"><i id="decBar"></i></div>
+            <div class="progress-meta"><span id="decText">…</span><span id="decStats" class="muted"></span></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h2>2. Nhật ký &amp; bản rõ</h2>
+            <div class="row tight">
+              <button class="ghost small" id="copyCode" type="button">chép code</button>
+              <button class="ghost small" id="saveCode" type="button">tải code</button>
+            </div>
+          </div>
+          <pre id="consoleOut" class="console" aria-live="polite"></pre>
+          <details class="kbd">
+            <summary>Bản rõ sau khi giải mã</summary>
+            <pre id="plainPreview" class="code"></pre>
+          </details>
+        </div>
+      </div>
+
+      <aside class="col-side">
+        <div class="card compact">
+          <h3>Chạy ở đâu?</h3>
+          <p class="muted small">
+            Script được chạy trong <b>Web Worker</b>: không chạm được DOM, không treo trang.
+            Nếu script cần DOM, hãy tự gắn key script vào trang của bạn và dùng
+            <code>mode:'main'</code>.
+          </p>
+          <h3 style="margin-top:14px">Bản mã có an toàn?</h3>
+          <p class="muted small">Mỗi khối AES-GCM có tag xác thực + AAD chứa số thứ tự. Sửa 1 bit cũng hỏng, đổi thứ tự khối cũng hỏng.</p>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ========================= DỊCH NGƯỢC ========================= -->
+  <section class="view" id="view-reverse">
+    <div class="hero">
+      <div>
+        <h1>Dịch ngược &amp; phân tích code</h1>
+        <p>Công cụ hỗ trợ đọc script bị làm rối (của bạn) trước khi mã hoá: làm đẹp, rút gọn, bỏ chú thích,
+        tách chuỗi, đổi tên biến, gỡ escape, giải base64/hex/URL. Tất cả chạy cục bộ.</p>
+      </div>
+    </div>
+
+    <div class="split">
+      <div class="card">
+        <div class="card-head">
+          <h2>Đầu vào</h2>
+          <button class="ghost small" id="revLoad" type="button">nạp tệp</button>
+          <input type="file" id="revFile" hidden>
+        </div>
+        <textarea id="revInput" class="editor" spellcheck="false" placeholder="dán code JS/Lua/… vào đây"></textarea>
+        <div class="row tight">
+          <button class="ghost small" data-rev="beautify">Làm đẹp</button>
+          <button class="ghost small" data-rev="minify">Rút gọn</button>
+          <button class="ghost small" data-rev="strip">Bỏ chú thích</button>
+          <button class="ghost small" data-rev="strings">Tách chuỗi</button>
+          <button class="ghost small" data-rev="rename">Đổi tên biến</button>
+          <button class="ghost small" data-rev="unescape">Gỡ escape</button>
+          <button class="ghost small" data-rev="decode">Giải base64/hex/URL</button>
+          <button class="ghost small" data-rev="analyze">Phân tích</button>
+        </div>
+        <p class="help">Đổi tên biến chỉ áp dụng cho JavaScript và có thể làm hỏng code phụ thuộc tên chuỗi — luôn giữ bản gốc.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h2>Kết quả</h2>
+          <div class="row tight">
+            <button class="ghost small" id="revCopy" type="button">chép</button>
+            <button class="ghost small" id="revDownload" type="button">tải</button>
+            <button class="ghost small" id="revToEncrypt" type="button">đưa sang mã hoá</button>
+          </div>
+        </div>
+        <textarea id="revOutput" class="editor" spellcheck="false" readonly placeholder="kết quả…"></textarea>
+        <div class="stat-row" id="revStats"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================ GHI CHÚ ============================ -->
+  <section class="view" id="view-docs">
+    <div class="hero">
+      <div>
+        <h1>Ghi chú dự án</h1>
+        <p>Toàn bộ quyết định thiết kế, giới hạn đã kiểm chứng và hướng dẫn triển khai miễn phí. Bản đầy đủ nằm trong <code>secure-script/docs/</code>.</p>
+      </div>
+      <div class="row tight">
+        <a class="button ghost small" href="./docs/00-ghi-chu-du-an.md" target="_blank" rel="noopener">Bản .md</a>
+        <a class="button ghost small" href="./README.md" target="_blank" rel="noopener">README</a>
+      </div>
+    </div>
+
+    <div class="docs-grid">
+      <article class="card">
+        <h3>Mục tiêu</h3>
+        <ul>
+          <li>Nhập code hoặc tệp script, tối đa <b>5 GiB</b>.</li>
+          <li>Mã hoá ra <b>tệp .aia</b> + <b>key script</b> riêng.</li>
+          <li>Khoá tệp ngẫu nhiên <b>chỉ nằm trong key script</b> → thiếu key là không mở được.</li>
+          <li>Khoá gắn với <b>thời gian tạo</b> (đến mili giây) + <b>link key</b> + mật khẩu.</li>
+          <li>Header giữ thời gian/link key <b>không mã hoá</b> để nhận biết.</li>
+          <li>Tăng kích thước gần như bằng 0; không treo máy; script vẫn chạy bình thường.</li>
+        </ul>
+      </article>
+      <article class="card">
+        <h3>Kiến trúc</h3>
+        <ul>
+          <li><code>assets/core.js</code> — lõi mã hoá, không phụ thuộc thư viện.</li>
+          <li><code>assets/app.js</code> — giao diện.</li>
+          <li><code>assets/reverse.js</code> — bộ phân tích/dịch ngược.</li>
+          <li><code>tools/cli.mjs</code> — mã hoá/giải mã bằng dòng lệnh.</li>
+          <li><code>tests/</code> — kiểm thử trên Node bằng WebCrypto thật.</li>
+        </ul>
+      </article>
+      <article class="card">
+        <h3>Bảo mật — nói thật</h3>
+        <ul>
+          <li>AES-256-GCM + PBKDF2 600k vòng (OWASP).</li>
+          <li>Dữ liệu không thể sửa mà không bị phát hiện.</li>
+          <li>Nhưng khi người khác chạy được code trên máy họ, họ luôn có thể đọc bộ nhớ. Không có “bảo vệ tuyệt đối”.</li>
+          <li>Nếu nhúng mật khẩu vào key script hoặc không đặt mật khẩu, key script trở thành “chìa khoá” thật sự.</li>
+        </ul>
+      </article>
+      <article class="card">
+        <h3>Chi phí 0 đồng</h3>
+        <ul>
+          <li>GitHub Pages: 1 GB site, 100 GB băng thông/tháng (mềm).</li>
+          <li>Cloudflare Pages: 20.000 tệp, 25 MiB/tệp, static không giới hạn.</li>
+          <li>Netlify Drop / Vercel: kéo-thả là xong.</li>
+          <li>Không có backend, không database, không hoá đơn.</li>
+        </ul>
+      </article>
+      <article class="card">
+        <h3>Giới hạn cần biết</h3>
+        <ul>
+          <li>5 GiB chỉ khả thi nếu máy đủ RAM/CPU; trình duyệt phải hỗ trợ WebCrypto (HTTPS/localhost).</li>
+          <li>Giới hạn file của hệ điều hành và ổ đĩa vẫn áp dụng.</li>
+          <li>Key script chỉ tự giải mã JavaScript/TypeScript; ngôn ngữ khác thì tải bản rõ về.</li>
+          <li>Script dùng <code>import</code> ES module cần chạy ở chế độ <code>module</code>.</li>
+        </ul>
+      </article>
+      <article class="card">
+        <h3>Kiểm thử</h3>
+        <ul>
+          <li><code>node tests/run-node.mjs</code> — mã hoá/giải mã, cắt khối, sửa bit, sai mật khẩu, sai link key, giới hạn dung lượng.</li>
+          <li><code>node tools/cli.mjs --help</code> — dùng ngay trên máy.</li>
+        </ul>
+      </article>
+    </div>
+  </section>
+</main>
+
+<footer class="foot">
+  <div>
+    <b>AIA Secure Script</b> · mã nguồn mở trong <code>secure-script/</code> · không gửi dữ liệu đi đâu.
+  </div>
+  <div class="muted small">Nếu trang này mở bằng <code>file://</code>, hãy chạy <code>python3 -m http.server</code> trong thư mục dự án rồi mở <code>http://localhost:8000</code>.</div>
+</footer>
+
+<!-- Hộp thoại trợ giúp -->
+<div class="modal" id="helpModal" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+    <h2 id="helpTitle">Cách dùng trong 60 giây</h2>
+    <ol class="flow">
+      <li>Tab <b>Mã hoá</b>: chọn tệp script hoặc dán code.</li>
+      <li>Đặt <b>mật khẩu</b> (nhớ kỹ!) và để nguyên link key <code>./key.js</code> nếu bạn để mọi tệp cùng thư mục.</li>
+      <li>Bấm <b>Mã hoá ngay</b> → tải gói ZIP gồm <code>.aia</code>, <code>key.js</code>, <code>run.html</code>, <code>README.txt</code>.</li>
+      <li>Đưa các tệp cho người khác, họ mở <code>run.html</code> qua HTTP, nhập mật khẩu là chạy.</li>
+      <li>Muốn nhúng vào web: thêm <code>&lt;script src="./key.js"&gt;&lt;/script&gt;</code> rồi gọi <code>AIA_UNLOCK.run({execute:true})</code>.</li>
+    </ol>
+    <div class="callout small">Không mở được? Kiểm tra: đang dùng <code>https://</code> hoặc <code>localhost</code>, tệp cùng thư mục, mật khẩu đúng.</div>
+    <div class="row"><button class="primary" id="helpClose" type="button">Đã hiểu</button></div>
+  </div>
+</div>
+
+<script type="module" src="./assets/app.js"></script>
+</body>
+</html>
