@@ -783,13 +783,26 @@ objResultPanel:SetAttribute("LastPath", GetFullPath(inst)) objResultPanel:SetAtt
 objResultPanel:SetAttribute("LastMaterial", tostring(hitMat)) S.AnaLast.ok = true S.AnaLast.name = tostring(inst.Name) S.AnaLast.how = tostring(how or "") if not quiet then
 S.AnaSay(tostring(how or "🎯 tia bắn trúng") .. ": " .. inst.Name .. " (" .. inst.ClassName .. ")" .. (S.AnaNote and (" · " .. S.AnaNote) or "")) end return true end
 S.RefreshDevLabel()
-local function PickObjectAt(mousePos, isRightClick, ignoreHubGui) local x, y = mousePos.X, mousePos.Y S.AnaLast.ok = false S.AnaNote = nil
+function S.GetGuiInset2() local x, y = 0, 0 pcall(function() local ins = game:GetService("GuiService"):GetGuiInset() x, y = ins.X, ins.Y end) pcall(function() local gs = game:GetService("GuiService") local t = gs.TopbarInset if t and type(t.Height) == "number" then y = math.max(y, t.Height) end end) return x, y end
+function S.ScreenToViewport(absX, absY, insetX, insetY, guiW, guiH, vpW, vpH) absX, absY = tonumber(absX) or 0, tonumber(absY) or 0 insetX, insetY = tonumber(insetX) or 0, tonumber(insetY) or 0
+guiW, guiH = tonumber(guiW) or 0, tonumber(guiH) or 0 vpW, vpH = tonumber(vpW) or 0, tonumber(vpH) or 0 local sx, sy = 1, 1
+if guiW > 1 and vpW > 1 then sx = vpW / guiW end if guiH > 1 and vpH > 1 then sy = vpH / guiH end
+local useScale = (sx > 1.2 and sy > 1.2 and math.abs(sx - sy) < 0.2) or (sx < 0.85 and sy < 0.85 and math.abs(sx - sy) < 0.2)
+if not useScale then sx, sy = 1, 1 end return absX * sx - insetX * sx, absY * sy - insetY * sy end
+function S.AimScreenPoint() local dot = S.AnaUi and S.AnaUi.aimDot if dot and dot.Parent then local ok, x, y = pcall(function() local p, s = dot.AbsolutePosition, dot.AbsoluteSize return p.X + s.X * 0.5, p.Y + s.Y * 0.5 end)
+if ok and type(x) == "number" and type(y) == "number" then return x, y, "screen" end end local cam = S.AnaCam and S.AnaCam() or nil local vp = cam and cam.ViewportSize
+local fbX = (vp and vp.X or 1280) * 0.5 local fbY = (vp and vp.Y or 720) * 0.5 return fbX, fbY, "viewport" end
+function S.RayFromScreenOrViewport(cam, x, y, space) if not cam then return nil end local ray = nil
+if space == "screen" then pcall(function() ray = cam:ScreenPointToRay(x, y) end) if ray then return ray end local ix, iy = S.GetGuiInset2()
+pcall(function() ray = cam:ViewportPointToRay(x - ix, y - iy) end) if ray then return ray end end
+pcall(function() ray = cam:ViewportPointToRay(x, y) end) if ray then return ray end pcall(function() ray = cam:ScreenPointToRay(x, y) end) return ray end
+local function PickObjectAt(mousePos, isRightClick, ignoreHubGui, coordSpace) local x, y = mousePos.X, mousePos.Y S.AnaLast.ok = false S.AnaNote = nil
 S.AnaWhyScan = nil if not ignoreHubGui and Hit.onHub(x, y) then S.AnaSay("⏭️ Điểm chạm nằm trên menu của hub — bấm ra ngoài game rồi thử lại")
 return end local hardGui, softGui = S.GuiBlockAt(x, y) if hardGui then S.AnaSay("🚫 Điểm chạm là NÚT của game (" .. hardGui .. ") — dời ra chỗ khác để không hit xuyên nút") return end
 if softGui and not S.AnaCfg.skipGameGui then S.AnaSay("🚫 HUD của game (" .. softGui .. ") đang chặn — BẬT '🛡 Phân tích xuyên HUD game' là dùng được")
 return end if softGui then S.AnaNote = "🛡 phân tích xuyên HUD của game (" .. softGui .. ")" end
 local cam2 = S.AnaCam() if not cam2 then S.AnaSay("⚠️ Game chưa có camera (Workspace.CurrentCamera = nil) — vào lại game rồi thử") return
-end local unitRay = cam2:ViewportPointToRay(x, y) local params = RaycastParams.new() params.FilterType = Enum.RaycastFilterType.Exclude local filterList = {}
+end local unitRay = S.RayFromScreenOrViewport(cam2, x, y, coordSpace) if not unitRay then S.AnaSay("⚠️ Không tạo được tia ngắm từ camera") return end local params = RaycastParams.new() params.FilterType = Enum.RaycastFilterType.Exclude local filterList = {}
 if player.Character then table.insert(filterList, player.Character) end if gui then table.insert(filterList, gui) end params.FilterDescendantsInstances = filterList
 params.IgnoreWater = S.AnaCfg.ignoreWater pcall(function() params.RespectCanCollide = false end)
 local result = workspace:Raycast(unitRay.Origin, unitRay.Direction * S.AnaCfg.maxDist, params) if result and result.Material == Enum.Material.Water then
@@ -807,7 +820,7 @@ else local prevName = objNameLbl.Text objNameLbl.Text = "⚠️ Không hit gì �
 task.delay(1.0, function() if objNameLbl and objNameLbl.Parent and objNameLbl.Text == "⚠️ Không hit gì — giữ vật đang chọn" then objNameLbl.Text = prevName end end) end end
 function S.AnaAimEnsureDot() if S.AnaUi.aimGui and S.AnaUi.aimGui.Parent then return S.AnaUi.aimGui end
 local aimGui = New("ScreenGui", { Name = "BananaCatHub_AnaAimDot", IgnoreGuiInset = true, ResetOnSpawn = false, ZIndexBehavior = Enum.ZIndexBehavior.Global, DisplayOrder = 10000, }, targetGui)
-S.AnaUi.aimGui = aimGui aimGui:SetAttribute("BCHub_External", true) local dot = New("Frame", { Name = "CenterAimDot", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0),
+S.AnaUi.aimGui = aimGui aimGui:SetAttribute("BCHub_External", true) pcall(function() aimGui.IgnoreGuiInset = true end) pcall(function() aimGui.ClipToDeviceSafeArea = false end) pcall(function() aimGui.ScreenInsets = Enum.ScreenInsets.None end) local dot = New("Frame", { Name = "CenterAimDot", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0),
 Size = UDim2.new(0, 8, 0, 8), BackgroundColor3 = Color3.fromRGB(255, 35, 35), BorderSizePixel = 0, Active = false, Selectable = false,
 ZIndex = 10000, }, aimGui) Corner(dot, UDim.new(1, 0)) New("UIStroke", { Color = Color3.fromRGB(8, 8, 8), Thickness = 1.5, Transparency = 0, ApplyStrokeMode = Enum.ApplyStrokeMode.Border, }, dot)
 local actionBtn = New("TextButton", { Name = "CenterAimAnalyzeButton", AnchorPoint = Vector2.new(0.5, 0.5), Position = S.AnaUi.aimButtonPosition or UDim2.new(1, -28, 0.55, 0),
@@ -847,7 +860,7 @@ S.AnaUi.aimButtonDragging = false S.AnaUi.aimButtonDragInput = nil S.AnaUi.aimBu
 trackConn(UserInputService.InputChanged:Connect(function(input) pcall(S.AnaAimDragMove, input)
 end)) trackConn(UserInputService.InputEnded:Connect(function(input) pcall(S.AnaAimEndButtonDrag, input) end))
 function S.AnaAimAnalyzeOnce() if not S.AnaUi.centerAimOn then return false end S.AnaLast.ok = false local cam = S.AnaCam() if not cam then
-S.AnaSay("⚠️ Camera chưa sẵn sàng để phân tích điểm giữa màn hình") else local viewport = cam.ViewportSize PickObjectAt(Vector2.new(viewport.X * 0.5, viewport.Y * 0.5), false, true) end
+S.AnaSay("⚠️ Camera chưa sẵn sàng để phân tích điểm giữa màn hình") else local ax, ay, space = S.AimScreenPoint() PickObjectAt(Vector2.new(ax, ay), false, true, space) end
 if S.AnaUi.supportTabIndex then SwitchTab(S.AnaUi.supportTabIndex) end if main then main.Visible = true end
 if S.AnaLast and S.AnaLast.ok then supportTab.CanvasPosition = Vector2.new(0, math.max(0, objResultPanel.Position.Y.Offset - 24))
 elseif S.AnaUi.whyLbl then supportTab.CanvasPosition = Vector2.new(0, math.max(0, S.AnaUi.whyLbl.Position.Y.Offset - 24))
@@ -885,7 +898,7 @@ highlightToggleBtn.Text = "💜 Highlight Tím: TẮT" D.SetBg(highlightToggleBt
 S.AnaUi.centerBtn.Activated:Connect(function() local vpx, vpy = 1280, 720 pcall(function() local cam2 = S.AnaCam() if cam2 then vpx, vpy = cam2.ViewportSize.X, cam2.ViewportSize.Y end end)
 S.AnaSay("⊕ Đang ẩn menu 0.35s để lấy vật ở GIỮA màn hình...") local prevEnabled = true pcall(function() prevEnabled = gui.Enabled end)
 pcall(function() gui.Enabled = false end)
-task.wait(0.12) PickObjectAt(Vector2.new(vpx / 2, vpy / 2), true, true) task.wait(0.25) pcall(function() gui.Enabled = prevEnabled end)
+task.wait(0.12) do local px, py, sp = vpx / 2, vpy / 2, "viewport" pcall(function() if S.AnaUi.centerAimOn then px, py, sp = S.AimScreenPoint() end end) PickObjectAt(Vector2.new(px, py), true, true, sp) end task.wait(0.25) pcall(function() gui.Enabled = prevEnabled end)
 end) S.AnaUi.nearBtn.Activated:Connect(function() local part, info, total = S.NearestParts(5)
 if not part then S.AnaSay("⚠️ Không tìm được vật gần bạn: " .. tostring(info)) return end local hp = nil
 pcall(function() hp = part.Position end) S.FillObjPanel(part, hp, nil, nil, "🧭 vật gần bạn nhất (trong " .. tostring(total) .. " vật quét được)")

@@ -42,6 +42,22 @@ function loadPicker() {
   return h;
 }
 
+function loadAim() {
+  const src = fs.readFileSync(SCRIPT, 'utf8');
+  const inset = extractFn(src, 'S.GetGuiInset2', 'S.ScreenToViewport');
+  const conv = extractFn(src, 'S.ScreenToViewport', 'S.AimScreenPoint');
+  const aim = extractFn(src, 'S.AimScreenPoint', 'S.RayFromScreenOrViewport');
+  const h = createRuntime({}, { bundle: true });
+  h.eval(`
+    _G.__ANA = {}
+    local S = _G.__ANA
+    ${inset}
+    ${conv}
+    ${aim}
+  `);
+  return h;
+}
+
 module.exports = function anaPickSuite(suite) {
   suite.test('script.js: ngắm tâm có mã xuyên tường / tường đi xuyên', (_t, A) => {
     const src = fs.readFileSync(SCRIPT, 'utf8');
@@ -179,5 +195,101 @@ module.exports = function anaPickSuite(suite) {
       return S.ChooseCloserPick(a, 10, b, 9.98)
     `)[0];
     A.equal(out, 'ray', 'cần hơn 0.05 stud mới chuyển sang scan');
+  });
+
+  suite.test('script.js: nút 🔎 ngắm tâm bắn tia từ chấm đỏ, không lấy giữa viewport', (_t, A) => {
+    const src = fs.readFileSync(SCRIPT, 'utf8');
+    A.ok(src.includes('function S.AimScreenPoint'), 'phải có AimScreenPoint');
+    A.ok(src.includes('function S.ScreenToViewport'), 'phải có ScreenToViewport');
+    A.ok(src.includes('ScreenPointToRay'), 'điện thoại: AbsolutePosition khớp ScreenPointToRay');
+    A.ok(src.includes('ClipToDeviceSafeArea'), 'tắt safe-area để tâm không bị đẩy');
+    A.ok(src.includes('ScreenInsets'), 'ScreenInsets = None trên overlay ngắm tâm');
+    A.ok(
+      src.includes('PickObjectAt(Vector2.new(ax, ay), false, true, space)'),
+      'AnalyzeOnce phải dùng tọa độ chấm đỏ, không ViewportSize/2',
+    );
+    A.ok(
+      !/AnaAimAnalyzeOnce[\s\S]{0,400}viewport\.X \* 0\.5/.test(src),
+      'BUG cũ: AnalyzeOnce lấy giữa viewport — lệch tâm trên điện thoại',
+    );
+    A.ok(src.includes('function S.AnaAimSet'), 'không mất bật/tắt Ngắm tâm');
+    A.ok(src.includes('function S.AnaAimBeginButtonDrag'), 'không mất kéo nút 🔎');
+  });
+
+  suite.test('ScreenToViewport: trừ inset topbar — tâm GUI khớp tia 3D trên điện thoại', (_t, A) => {
+    const h = loadAim();
+    const out = h.eval(`
+      local S = _G.__ANA
+      local vx, vy = S.ScreenToViewport(400, 400, 0, 36, 800, 800, 800, 800)
+      return string.format("%.1f|%.1f", vx, vy)
+    `)[0];
+    const [vx, vy] = out.split('|').map(Number);
+    A.near(vx, 400, 0.01, 'X giữ nguyên khi inset chỉ trên Y');
+    A.near(vy, 364, 0.01, 'Y trừ 36px topbar — nếu không trừ thì tia lệch dưới chấm đỏ');
+  });
+
+  suite.test('ScreenToViewport: safe-area crop (tỷ lệ ~1.1) KHÔNG scale — 1:1 với chấm đỏ', (_t, A) => {
+    const h = loadAim();
+    const out = h.eval(`
+      local S = _G.__ANA
+      -- iPhone: GUI 800x719 trong viewport 800x800 (notch), tâm visual Y=406.5
+      local vx, vy = S.ScreenToViewport(400, 406.5, 0, 0, 800, 719, 800, 800)
+      return string.format("%.1f|%.1f", vx, vy)
+    `)[0];
+    const [vx, vy] = out.split('|').map(Number);
+    A.near(vx, 400, 0.01, 'X 1:1');
+    A.near(vy, 406.5, 0.01, 'không kéo tâm safe-area về giữa viewport (sẽ lệch cây)');
+  });
+
+  suite.test('ScreenToViewport: DPI 2x (điện thoại scale UI) nhân đúng', (_t, A) => {
+    const h = loadAim();
+    const out = h.eval(`
+      local S = _G.__ANA
+      local vx, vy = S.ScreenToViewport(180, 320, 0, 0, 360, 640, 720, 1280)
+      return string.format("%.1f|%.1f", vx, vy)
+    `)[0];
+    const [vx, vy] = out.split('|').map(Number);
+    A.near(vx, 360, 0.01, '180 * 2 = tâm viewport X');
+    A.near(vy, 640, 0.01, '320 * 2 = tâm viewport Y');
+  });
+
+  suite.test('AimScreenPoint: lấy đúng tâm chấm đỏ, không lấy nút 🔎 bên phải', (_t, A) => {
+    const h = loadAim();
+    const out = h.eval(`
+      local S = _G.__ANA
+      S.AnaUi = {
+        aimDot = {
+          Parent = {},
+          AbsolutePosition = Vector2.new(196, 402),
+          AbsoluteSize = Vector2.new(8, 8),
+        },
+        aimActionBtn = {
+          Parent = {},
+          AbsolutePosition = Vector2.new(340, 480),
+          AbsoluteSize = Vector2.new(36, 36),
+        },
+      }
+      local x, y, space = S.AimScreenPoint()
+      return string.format("%.1f|%.1f|%s", x, y, tostring(space))
+    `)[0];
+    const [x, y, space] = out.split('|');
+    A.near(Number(x), 200, 0.01, 'tâm chấm = AbsolutePosition + size/2');
+    A.near(Number(y), 406, 0.01, 'phải theo chấm đỏ, không theo nút 🔎 (358)');
+    A.equal(space, 'screen', 'tọa độ chấm đỏ là screen — ScreenPointToRay');
+  });
+
+  suite.test('AimScreenPoint: không có chấm thì fallback giữa viewport (không crash)', (_t, A) => {
+    const h = loadAim();
+    const out = h.eval(`
+      local S = _G.__ANA
+      S.AnaUi = {}
+      S.AnaCam = function() return { ViewportSize = Vector2.new(800, 600) } end
+      local x, y, space = S.AimScreenPoint()
+      return string.format("%.1f|%.1f|%s", x, y, tostring(space))
+    `)[0];
+    const [x, y, space] = out.split('|');
+    A.near(Number(x), 400, 0.01);
+    A.near(Number(y), 300, 0.01);
+    A.equal(space, 'viewport');
   });
 };
