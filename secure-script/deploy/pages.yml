@@ -1,0 +1,70 @@
+name: Deploy AIA Secure Script (GitHub Pages)
+
+# MẪU WORKFLOW — chép tệp này thành .github/workflows/pages.yml rồi commit.
+#   mkdir -p .github/workflows && cp secure-script/deploy/pages.yml .github/workflows/pages.yml
+# Sau đó: Settings → Pages → Source: GitHub Actions
+# (Nếu tài khoản/CI token không có quyền `workflows`, hãy tạo tệp bằng giao diện GitHub.)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'secure-script/**'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Kiểm thử & đóng gói
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Cài devDependencies (jsdom cho test DOM)
+        working-directory: secure-script
+        run: npm install --no-audit --no-fund
+
+      - name: Kiểm thử lõi mã hoá
+        working-directory: secure-script
+        run: node tests/run-node.mjs
+
+      - name: Kiểm tra tĩnh giao diện
+        working-directory: secure-script
+        run: node tools/check-static.mjs
+
+      - name: Kiểm thử DOM (jsdom)
+        working-directory: secure-script
+        run: node tests/run-dom.mjs
+
+      - name: Dọn node_modules trước khi đóng gói
+        run: rm -rf secure-script/node_modules
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: secure-script
+
+  deploy:
+    name: Xuất bản
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

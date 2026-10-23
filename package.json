@@ -11,7 +11,11 @@
     "test": "node tools/test-harness/run.js",
     "test:file": "node tools/test-harness/run.js",
     "check": "node tools/lint-conventions.js && node tools/verify-catalog.js && node tools/syntax-check.js && node tools/test-harness/run.js",
-    "smoke": "node tools/test-harness/smoke.js"
+    "smoke": "node tools/test-harness/smoke.js",
+    "web:serve": "python3 -m http.server 8080 --directory secure-script",
+    "web:test": "node secure-script/tests/run-node.mjs",
+    "web:check": "node secure-script/tests/run-node.mjs && node secure-script/tools/check-static.mjs",
+    "web:cli": "node secure-script/tools/cli.mjs"
   },
   "devDependencies": {
     "fengari": "^0.1.4"

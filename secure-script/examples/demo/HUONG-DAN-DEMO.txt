@@ -1,0 +1,21 @@
+GÓI DEMO CÔNG KHAI — AIA Secure Script
+======================================
+
+Mật khẩu demo: aia-demo-2026
+
+Cách xem:
+1. Chạy `python3 -m http.server 8080` tại thư mục secure-script.
+2. Mở http://localhost:8080/examples/demo/run-hello.html
+3. Nhập mật khẩu ở trên → bấm "Giải mã & chạy".
+
+Tệp trong thư mục:
+  hello.aia        dữ liệu đã mã hoá (header đọc được + AES-256-GCM)
+  hello.key.js     key script: META + khoá tệp đã bọc + bộ giải mã
+  run-hello.html   trang chạy (dùng ở bước 2)
+  README-hello.txt hướng dẫn tự sinh
+
+Gói này dùng chế độ "bắt buộc key script": thiếu hello.key.js thì KHÔNG mở được
+hello.aia, dù biết mật khẩu và đọc được header.
+
+Gói này KHÔNG bí mật (mật khẩu công khai). Nó chỉ để chứng minh luồng chạy.
+Với code thật: hãy tự mã hoá ở tab "Mã hoá" bằng mật khẩu riêng.
