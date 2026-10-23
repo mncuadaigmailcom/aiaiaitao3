@@ -205,7 +205,12 @@ module.exports = function anaPickSuite(suite) {
     A.ok(src.includes('ClipToDeviceSafeArea'), 'tắt safe-area để overlay không bị đẩy');
     A.ok(src.includes('ScreenInsets'), 'ScreenInsets = None trên overlay ngắm tâm');
     A.ok(src.includes('function S.LaserBeamSpan'), 'phải có LaserBeamSpan');
-    A.ok(src.includes('function S.AnaAimTraceLook'), 'phải dò vật theo hướng nhìn');
+    A.ok(src.includes('function S.PointerScreenPoint'), 'tia phải lấy tọa độ nút nhỏ 🔎, không tâm giữa màn');
+    A.ok(src.includes('function S.AnaAimTraceLook'), 'phải dò vật theo tia từ nút');
+    A.ok(
+      /function S\.AnaAimLookOriginDir[\s\S]{0,500}PointerScreenPoint/.test(src),
+      'LookOriginDir phải chiếu từ nút 🔎, không LookVector giữa màn',
+    );
     A.ok(src.includes('BC_AnaLaser'), 'phải có folder tia laser');
     A.ok(src.includes('BC_LaserBeam'), 'phải có part tia laser');
     A.ok(
@@ -349,5 +354,47 @@ module.exports = function anaPickSuite(suite) {
     const [ex, len] = out.split('|').map(Number);
     A.near(ex, 500.65, 0.2, 'cắt ở visMax, không 8000');
     A.near(len, 500, 0.2);
+  });
+
+  suite.test('PointerScreenPoint: tâm tia = nút nhỏ 🔎, không phải giữa màn hình', (_t, A) => {
+    const src = fs.readFileSync(SCRIPT, 'utf8');
+    const fn = extractFn(src, 'S.PointerScreenPoint', 'S.AnaAimLookOriginDir');
+    const h = createRuntime({}, { bundle: true });
+    const out = h.eval(`
+      local S = {}
+      ${fn}
+      S.AnaUi = {
+        aimDot = {
+          Parent = {},
+          AbsolutePosition = Vector2.new(396, 296),
+          AbsoluteSize = Vector2.new(8, 8),
+        },
+        aimActionBtn = {
+          Parent = {},
+          AbsolutePosition = Vector2.new(340, 480),
+          AbsoluteSize = Vector2.new(36, 36),
+        },
+      }
+      local x, y, space = S.PointerScreenPoint()
+      return string.format("%.1f|%.1f|%s", x, y, tostring(space))
+    `)[0];
+    const [x, y, space] = out.split('|');
+    A.near(Number(x), 358, 0.01, 'tâm nút 36px tại x=340 → 358, không 400 giữa màn');
+    A.near(Number(y), 498, 0.01, 'tâm nút tại y=480 → 498, không 300 giữa màn');
+    A.equal(space, 'screen');
+  });
+
+  suite.test('PointerScreenPoint: không có nút thì nil (không bịa tâm ảo giữa màn)', (_t, A) => {
+    const src = fs.readFileSync(SCRIPT, 'utf8');
+    const fn = extractFn(src, 'S.PointerScreenPoint', 'S.AnaAimLookOriginDir');
+    const h = createRuntime({}, { bundle: true });
+    const out = h.eval(`
+      local S = {}
+      ${fn}
+      S.AnaUi = {}
+      local x, y, space = S.PointerScreenPoint()
+      return tostring(x) .. "|" .. tostring(y) .. "|" .. tostring(space)
+    `)[0];
+    A.equal(out, 'nil|nil|nil', 'thiếu nút 🔎 thì không invent tâm giữa màn');
   });
 };

@@ -572,14 +572,14 @@ posY = posY + 24 S.AnaUi = S.AnaUi or {} S.AnaUi.devLbl = Label(supportTab, "�
 S.AnaUi.devLbl.TextSize = 9 S.AnaUi.devLbl.TextColor3 = C.ACCENT posY = posY + 16 S.AnaUi.centerBtn = Button(supportTab, "⊕ Vật thể ở GIỮA màn hình", 8, posY, 180, 20, C.BLUE)
 S.AnaUi.nearBtn   = Button(supportTab, "🧭 Vật thể GẦN nhất", 194, posY, 156, 20, C.ORANGE) posY = posY + 24
 S.AnaUi.skipGuiBtn = Button(supportTab, "🛡 Phân tích xuyên HUD game: BẬT", 8, posY, 206, 18, C.GREEN) S.AnaUi.scanFbBtn  = Button(supportTab, "🧭 Quét dự phòng: BẬT", 220, posY, 130, 18, C.GREEN) posY = posY + 22
-S.AnaUi.centerAimBtn = Button(supportTab, "🔴 Ngắm tâm: TẮT", 8, posY, 170, 18, C.GRAY) S.AnaUi.aimButtonMoveEnabled = false
-S.AnaUi.aimMoveBtn = Button(supportTab, "🔒 Kéo nút: TẮT", 184, posY, 166, 18, C.GRAY) posY = posY + 22
+S.AnaUi.centerAimBtn = Button(supportTab, "🔴 Ngắm tâm: TẮT", 8, posY, 170, 18, C.GRAY) S.AnaUi.aimButtonMoveEnabled = true
+S.AnaUi.aimMoveBtn = Button(supportTab, "🔓 Kéo nút: BẬT", 184, posY, 166, 18, C.ORANGE) posY = posY + 22
 S.AnaUi.aimMoveBtn.Activated:Connect(function() local moveEnabled = not (S.AnaUi.aimButtonMoveEnabled == true) S.AnaUi.aimButtonMoveEnabled = moveEnabled if not moveEnabled then
 S.AnaUi.aimButtonDragging = false S.AnaUi.aimButtonDragInput = nil S.AnaUi.aimButtonDragMoved = false S.AnaUi.aimButtonSuppressUntil = 0 end
 S.AnaUi.aimMoveBtn.Text = moveEnabled and "🔓 Kéo nút: BẬT" or "🔒 Kéo nút: TẮT" D.SetBg(S.AnaUi.aimMoveBtn, moveEnabled and C.ORANGE or C.GRAY)
 S.AnaSay(moveEnabled and "🔓 Đã mở khóa: kéo nút 🔎 để đổi vị trí" or "🔒 Đã khóa vị trí nút 🔎") end)
 S.AnaUi.whyLbl = Label(supportTab, "🔎 Lý do: — (bật 🎯 Phân Tích Vật Thể rồi chạm/chuột phải vào vật)", posY) S.AnaUi.whyLbl.TextSize = 9 posY = posY + 16
-Label(supportTab, "💡 Bật “Kéo nút” cạnh Ngắm tâm, đóng menu rồi kéo nút 🔎 đến chỗ muốn.", posY) Label(supportTab, "    Tắt “Kéo nút” để khóa; chạm 🔎 để phân tích vật tia laser đang trúng.", posY+14)
+Label(supportTab, "💡 Không có tâm giữa màn: kéo nút 🔎 nhỏ, tia laser chiếu từ nút vào vật.", posY) Label(supportTab, "    Chạm 🔎 khi tia đang trúng vật để định vị vật đó.", posY+14)
 Label(supportTab, "    Ngắm tâm định vị cả tường đi xuyên được (chợ/map CanCollide=false) — không cần tia vật lý.", posY+28) Label(supportTab, "    Nút HUD/menu của game vẫn theo tùy chọn phân tích xuyên HUD ở trên.", posY+42) posY = posY + 58
 local objResultPanel = New("Frame", { Size=UDim2.new(1,-16,0,190), Position=UDim2.new(0,8,0,posY), BackgroundColor3=Color3.fromRGB(20, 25, 35),
 BackgroundTransparency=0, BorderSizePixel=0, ZIndex=6, Visible=false, }, supportTab) Corner(objResultPanel, UDim.new(0,6)) Stroke(objResultPanel, C.PURPLE, 1.5)
@@ -825,8 +825,12 @@ local sx, sy, sz = ox + dx * visStart, oy + dy * visStart, oz + dz * visStart lo
 if hx ~= nil and hy ~= nil and hz ~= nil then ex, ey, ez = tonumber(hx), tonumber(hy), tonumber(hz) else ex, ey, ez = ox + dx * visMax, oy + dy * visMax, oz + dz * visMax end
 local lx, ly, lz = ex - sx, ey - sy, ez - sz local len = math.sqrt(lx * lx + ly * ly + lz * lz) if len > visMax then ex, ey, ez = sx + dx * visMax, sy + dy * visMax, sz + dz * visMax len = visMax end
 if len < 0.08 then len = 0.08 end return sx, sy, sz, ex, ey, ez, len end
-function S.AnaAimLookOriginDir() local cam = S.AnaCam and S.AnaCam() or nil if not cam then return nil end local cf = cam.CFrame if not cf then return nil end
-local origin = cf.Position local dir = cf.LookVector if not origin or not dir then return nil end local mag = dir.Magnitude if not mag or mag < 0.001 then return nil end
+function S.PointerScreenPoint() local btn = S.AnaUi and S.AnaUi.aimActionBtn if btn and btn.Parent then local ok, x, y = pcall(function() local p, s = btn.AbsolutePosition, btn.AbsoluteSize return p.X + s.X * 0.5, p.Y + s.Y * 0.5 end)
+if ok and type(x) == "number" and type(y) == "number" then return x, y, "screen" end end return nil end
+function S.AnaAimLookOriginDir() local cam = S.AnaCam and S.AnaCam() or nil if not cam then return nil end
+local px, py, space = S.PointerScreenPoint() if px then local ray = S.RayFromScreenOrViewport(cam, px, py, space or "screen")
+if ray and ray.Origin and ray.Direction then local o, d = ray.Origin, ray.Direction local mag = d.Magnitude if mag and mag >= 0.001 then return o, Vector3.new(d.X / mag, d.Y / mag, d.Z / mag) end end end
+local cf = cam.CFrame if not cf then return nil end local origin = cf.Position local dir = cf.LookVector if not origin or not dir then return nil end local mag = dir.Magnitude if not mag or mag < 0.001 then return nil end
 return origin, Vector3.new(dir.X / mag, dir.Y / mag, dir.Z / mag) end
 function S.AnaAimTraceLook() local origin, dir = S.AnaAimLookOriginDir() if not origin then S.AnaUi.laserHit = nil return nil end
 local maxD = tonumber(S.AnaCfg and S.AnaCfg.maxDist) or 10000 local filterList = {} pcall(function() if player.Character then filterList[#filterList + 1] = player.Character end end)
@@ -920,7 +924,7 @@ S.AnaUi.aimGui, S.AnaUi.aimDot, S.AnaUi.aimActionBtn = nil, nil, nil S.AnaUi.aim
 S.AnaUi.aimButtonDragOrigin, S.AnaUi.aimButtonDragCenter = nil, nil S.AnaUi.aimButtonDragMoved, S.AnaUi.aimButtonSuppressUntil = false, 0 end
 local active = (S.AnaUi.centerAimOn == true) local btn = S.AnaUi.centerAimBtn
 if btn and btn.Parent then btn.Text = active and "🔴 Ngắm tâm: BẬT" or "🔴 Ngắm tâm: TẮT" D.SetBg(btn, active and C.RED or C.GRAY) end
-if active then S.AnaSay("🔴 Laser đã bật · chĩa tia đỏ vào vật rồi nhấn 🔎 để phân tích") end return active end
+if active then S.AnaSay("🔴 Laser đã bật · kéo nút 🔎 lên vật (tia chiếu từ nút) rồi chạm 🔎 để định vị") end return active end
 S.AnaUi.centerAimBtn.Activated:Connect(function() local requested = not (S.AnaUi.centerAimOn == true) local active = S.AnaAimSet(requested) if requested and not active then
 S.AnaSay("⚠️ Không bật được chế độ ngắm tâm — không tạo được tia laser/nút phân tích") end end) trackConn(UserInputService.InputBegan:Connect(function(input, gp)
 if gp then return end
