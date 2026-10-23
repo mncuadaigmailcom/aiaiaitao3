@@ -197,20 +197,28 @@ module.exports = function anaPickSuite(suite) {
     A.equal(out, 'ray', 'cần hơn 0.05 stud mới chuyển sang scan');
   });
 
-  suite.test('script.js: nút 🔎 ngắm tâm bắn tia từ chấm đỏ, không lấy giữa viewport', (_t, A) => {
+  suite.test('script.js: ngắm tâm dùng laser, không còn chấm giữa màn', (_t, A) => {
     const src = fs.readFileSync(SCRIPT, 'utf8');
-    A.ok(src.includes('function S.AimScreenPoint'), 'phải có AimScreenPoint');
+    A.ok(src.includes('function S.AimScreenPoint'), 'giữ AimScreenPoint cho nút ⊕');
     A.ok(src.includes('function S.ScreenToViewport'), 'phải có ScreenToViewport');
     A.ok(src.includes('ScreenPointToRay'), 'điện thoại: AbsolutePosition khớp ScreenPointToRay');
-    A.ok(src.includes('ClipToDeviceSafeArea'), 'tắt safe-area để tâm không bị đẩy');
+    A.ok(src.includes('ClipToDeviceSafeArea'), 'tắt safe-area để overlay không bị đẩy');
     A.ok(src.includes('ScreenInsets'), 'ScreenInsets = None trên overlay ngắm tâm');
+    A.ok(src.includes('function S.LaserBeamSpan'), 'phải có LaserBeamSpan');
+    A.ok(src.includes('function S.AnaAimTraceLook'), 'phải dò vật theo hướng nhìn');
+    A.ok(src.includes('BC_AnaLaser'), 'phải có folder tia laser');
+    A.ok(src.includes('BC_LaserBeam'), 'phải có part tia laser');
     A.ok(
-      src.includes('PickObjectAt(Vector2.new(ax, ay), false, true, space)'),
-      'AnalyzeOnce phải dùng tọa độ chấm đỏ, không ViewportSize/2',
+      /Name = "CenterAimDot"[\s\S]{0,280}Visible = false/.test(src),
+      'chấm tâm giữa màn phải ẨN khi bật ngắm tâm',
     );
     A.ok(
-      !/AnaAimAnalyzeOnce[\s\S]{0,400}viewport\.X \* 0\.5/.test(src),
-      'BUG cũ: AnalyzeOnce lấy giữa viewport — lệch tâm trên điện thoại',
+      src.includes('S.AnaAimTraceLook()') && src.includes('S.FillObjPanel(hit.inst'),
+      'nút 🔎 phải phân tích vật laser đang trúng',
+    );
+    A.ok(
+      !/AnaAimAnalyzeOnce[\s\S]{0,500}AimScreenPoint\(\)/.test(src),
+      'AnalyzeOnce không còn lấy điểm giữa màn / chấm GUI',
     );
     A.ok(src.includes('function S.AnaAimSet'), 'không mất bật/tắt Ngắm tâm');
     A.ok(src.includes('function S.AnaAimBeginButtonDrag'), 'không mất kéo nút 🔎');
@@ -291,5 +299,55 @@ module.exports = function anaPickSuite(suite) {
     A.near(Number(x), 400, 0.01);
     A.near(Number(y), 300, 0.01);
     A.equal(space, 'viewport');
+  });
+
+  suite.test('LaserBeamSpan: tia dừng đúng điểm trúng vật (nút đỏ phân tích điểm này)', (_t, A) => {
+    const src = fs.readFileSync(SCRIPT, 'utf8');
+    const span = extractFn(src, 'S.LaserBeamSpan', 'S.AnaAimLookOriginDir');
+    const h = createRuntime({}, { bundle: true });
+    const out = h.eval(`
+      local S = {}
+      ${span}
+      -- camera (0,5,0) nhìn -Z, vật ở z=-20
+      local sx, sy, sz, ex, ey, ez, len = S.LaserBeamSpan(0, 5, 0, 0, 0, -1, 0, 5, -20, 0.65, 500)
+      return string.format("%.2f|%.2f|%.2f|%.2f|%.2f", sx, sz, ex, ez, len)
+    `)[0];
+    const [sx, sz, ex, ez, len] = out.split('|').map(Number);
+    A.near(sx, 0, 0.01, 'bắt đầu trên trục nhìn');
+    A.near(sz, -0.65, 0.02, 'nhích ra trước camera để thấy tia (FPS)');
+    A.near(ex, 0, 0.01, 'điểm cuối X = vật');
+    A.near(ez, -20, 0.01, 'điểm cuối Z = vật laser đang trúng');
+    A.near(len, 19.35, 0.05, 'độ dài tia = khoảng cách tới vật trừ đoạn ẩn');
+  });
+
+  suite.test('LaserBeamSpan: không trúng gì thì tia đi xa theo hướng nhìn, không bịa vật', (_t, A) => {
+    const src = fs.readFileSync(SCRIPT, 'utf8');
+    const span = extractFn(src, 'S.LaserBeamSpan', 'S.AnaAimLookOriginDir');
+    const h = createRuntime({}, { bundle: true });
+    const out = h.eval(`
+      local S = {}
+      ${span}
+      local sx, sy, sz, ex, ey, ez, len = S.LaserBeamSpan(0, 5, 0, 0, 0, -1, nil, nil, nil, 0.65, 500)
+      return string.format("%.1f|%.1f|%.1f", ex, ez, len)
+    `)[0];
+    const [ex, ez, len] = out.split('|').map(Number);
+    A.near(ex, 0, 0.01);
+    A.near(ez, -500, 0.2, 'không hit → tia theo hướng nhìn đến visMax từ camera');
+    A.near(Number(len), 499.35, 0.3);
+  });
+
+  suite.test('LaserBeamSpan: vật quá xa thì cắt tia (không kéo part 10000 stud)', (_t, A) => {
+    const src = fs.readFileSync(SCRIPT, 'utf8');
+    const span = extractFn(src, 'S.LaserBeamSpan', 'S.AnaAimLookOriginDir');
+    const h = createRuntime({}, { bundle: true });
+    const out = h.eval(`
+      local S = {}
+      ${span}
+      local sx, sy, sz, ex, ey, ez, len = S.LaserBeamSpan(0, 0, 0, 1, 0, 0, 8000, 0, 0, 0.65, 500)
+      return string.format("%.1f|%.1f", ex, len)
+    `)[0];
+    const [ex, len] = out.split('|').map(Number);
+    A.near(ex, 500.65, 0.2, 'cắt ở visMax, không 8000');
+    A.near(len, 500, 0.2);
   });
 };

@@ -20,8 +20,8 @@ for _, parent in ipairs({targetGui, playerGui, game:GetService("CoreGui")}) do p
 pcall(function() local old = parent:FindFirstChild("BC_FlyHud") if old then old:Destroy() end end)
 pcall(function()
 local old = parent:FindFirstChild("BC_ObjTrackESP") if old then old:Destroy() end end) pcall(function()
-local old = parent:FindFirstChild("BananaCatHub_AnaAimDot") if old then old:Destroy() end end) end
-pcall(function() for _, d in ipairs(workspace:GetDescendants()) do local n = d.Name if n == "BC_OT_HL" or n == "BC_OT_BB" or n == "BC_OT_BOX" then
+local old = parent:FindFirstChild("BananaCatHub_AnaAimDot") if old then old:Destroy() end end) end pcall(function() local cam = workspace.CurrentCamera if cam then local oldL = cam:FindFirstChild("BC_AnaLaser") if oldL then oldL:Destroy() end end local oldW = workspace:FindFirstChild("BC_AnaLaser") if oldW then oldW:Destroy() end end)
+pcall(function() for _, d in ipairs(workspace:GetDescendants()) do local n = d.Name if n == "BC_OT_HL" or n == "BC_OT_BB" or n == "BC_OT_BOX" or n == "BC_AnaLaser" or n == "BC_LaserBeam" or n == "BC_LaserTip" then
 pcall(function() d:Destroy() end) end end end) local function trackConn(conn) local t = _G.BananaCatHub_Connections if #t > 300 then local alive, n = {}, 0
 for i = 1, #t do local c = t[i] if c ~= nil and c.Connected ~= false then n = n + 1; alive[n] = c end end for i = 1, #t do t[i] = alive[i] end
 end table.insert(t, conn) return conn end pcall(function() RunService:UnbindFromRenderStep("Fly") end) pcall(function() RunService:UnbindFromRenderStep("Carpet") end)
@@ -579,7 +579,7 @@ S.AnaUi.aimButtonDragging = false S.AnaUi.aimButtonDragInput = nil S.AnaUi.aimBu
 S.AnaUi.aimMoveBtn.Text = moveEnabled and "🔓 Kéo nút: BẬT" or "🔒 Kéo nút: TẮT" D.SetBg(S.AnaUi.aimMoveBtn, moveEnabled and C.ORANGE or C.GRAY)
 S.AnaSay(moveEnabled and "🔓 Đã mở khóa: kéo nút 🔎 để đổi vị trí" or "🔒 Đã khóa vị trí nút 🔎") end)
 S.AnaUi.whyLbl = Label(supportTab, "🔎 Lý do: — (bật 🎯 Phân Tích Vật Thể rồi chạm/chuột phải vào vật)", posY) S.AnaUi.whyLbl.TextSize = 9 posY = posY + 16
-Label(supportTab, "💡 Bật “Kéo nút” cạnh Ngắm tâm, đóng menu rồi kéo nút 🔎 đến chỗ muốn.", posY) Label(supportTab, "    Tắt “Kéo nút” để khóa; chạm 🔎 để phân tích vật đang ở tâm.", posY+14)
+Label(supportTab, "💡 Bật “Kéo nút” cạnh Ngắm tâm, đóng menu rồi kéo nút 🔎 đến chỗ muốn.", posY) Label(supportTab, "    Tắt “Kéo nút” để khóa; chạm 🔎 để phân tích vật tia laser đang trúng.", posY+14)
 Label(supportTab, "    Ngắm tâm định vị cả tường đi xuyên được (chợ/map CanCollide=false) — không cần tia vật lý.", posY+28) Label(supportTab, "    Nút HUD/menu của game vẫn theo tùy chọn phân tích xuyên HUD ở trên.", posY+42) posY = posY + 58
 local objResultPanel = New("Frame", { Size=UDim2.new(1,-16,0,190), Position=UDim2.new(0,8,0,posY), BackgroundColor3=Color3.fromRGB(20, 25, 35),
 BackgroundTransparency=0, BorderSizePixel=0, ZIndex=6, Visible=false, }, supportTab) Corner(objResultPanel, UDim.new(0,6)) Stroke(objResultPanel, C.PURPLE, 1.5)
@@ -818,10 +818,52 @@ elseif not inst then S.AnaWhyScan = why2 end end objResultPanel.Visible = true i
 else local prevName = objNameLbl.Text objNameLbl.Text = "⚠️ Không hit gì — giữ vật đang chọn" S.AnaSay("⚠️ Không thấy vật ở điểm chạm"
 .. (S.AnaWhyScan and (" (" .. S.AnaWhyScan .. ")") or " (tia đi vào khoảng không)") .. " — thử ⊕ Giữa màn hình, 🧭 Gần nhất, hoặc lại gần vật hơn")
 task.delay(1.0, function() if objNameLbl and objNameLbl.Parent and objNameLbl.Text == "⚠️ Không hit gì — giữ vật đang chọn" then objNameLbl.Text = prevName end end) end end
+function S.LaserBeamSpan(ox, oy, oz, dx, dy, dz, hx, hy, hz, visStart, visMax) visStart = tonumber(visStart) or 0.65 visMax = tonumber(visMax) or 500
+ox, oy, oz = tonumber(ox) or 0, tonumber(oy) or 0, tonumber(oz) or 0 dx, dy, dz = tonumber(dx) or 0, tonumber(dy) or 0, tonumber(dz) or 0
+local mag = math.sqrt(dx * dx + dy * dy + dz * dz) if mag < 1e-6 then return nil end dx, dy, dz = dx / mag, dy / mag, dz / mag
+local sx, sy, sz = ox + dx * visStart, oy + dy * visStart, oz + dz * visStart local ex, ey, ez
+if hx ~= nil and hy ~= nil and hz ~= nil then ex, ey, ez = tonumber(hx), tonumber(hy), tonumber(hz) else ex, ey, ez = ox + dx * visMax, oy + dy * visMax, oz + dz * visMax end
+local lx, ly, lz = ex - sx, ey - sy, ez - sz local len = math.sqrt(lx * lx + ly * ly + lz * lz) if len > visMax then ex, ey, ez = sx + dx * visMax, sy + dy * visMax, sz + dz * visMax len = visMax end
+if len < 0.08 then len = 0.08 end return sx, sy, sz, ex, ey, ez, len end
+function S.AnaAimLookOriginDir() local cam = S.AnaCam and S.AnaCam() or nil if not cam then return nil end local cf = cam.CFrame if not cf then return nil end
+local origin = cf.Position local dir = cf.LookVector if not origin or not dir then return nil end local mag = dir.Magnitude if not mag or mag < 0.001 then return nil end
+return origin, Vector3.new(dir.X / mag, dir.Y / mag, dir.Z / mag) end
+function S.AnaAimTraceLook() local origin, dir = S.AnaAimLookOriginDir() if not origin then S.AnaUi.laserHit = nil return nil end
+local maxD = tonumber(S.AnaCfg and S.AnaCfg.maxDist) or 10000 local filterList = {} pcall(function() if player.Character then filterList[#filterList + 1] = player.Character end end)
+pcall(function() if gui then filterList[#filterList + 1] = gui end end) pcall(function() if S.AnaUi.laserFolder then filterList[#filterList + 1] = S.AnaUi.laserFolder end end)
+local params = RaycastParams.new() params.FilterType = Enum.RaycastFilterType.Exclude params.FilterDescendantsInstances = filterList
+pcall(function() params.IgnoreWater = S.AnaCfg and S.AnaCfg.ignoreWater end) pcall(function() params.RespectCanCollide = false end)
+local result = workspace:Raycast(origin, Vector3.new(dir.X * maxD, dir.Y * maxD, dir.Z * maxD), params)
+if result and result.Material == Enum.Material.Water then local pw = RaycastParams.new() pw.FilterType = Enum.RaycastFilterType.Exclude pw.FilterDescendantsInstances = filterList pw.IgnoreWater = true
+pcall(function() pw.RespectCanCollide = false end) local rw = workspace:Raycast(origin, Vector3.new(dir.X * maxD, dir.Y * maxD, dir.Z * maxD), pw) if rw and rw.Instance then result = rw end end
+local inst, hitPos, hitNormal, hitMat, how local rayDist = math.huge
+if result and result.Instance then inst, hitPos, hitNormal, hitMat = result.Instance, result.Position, result.Normal, result.Material how = "🎯 laser trúng"
+pcall(function() rayDist = (hitPos - origin).Magnitude end) end local unitRay = { Origin = origin, Direction = dir }
+if S.AnaCfg and S.AnaCfg.scanFallback then local part, why2, scanPos, scanT = S.PickByRayScan(unitRay, filterList)
+local pick = S.ChooseCloserPick(inst, rayDist, part, scanT) if pick == "scan" and part then inst, how = part, "🧭 " .. tostring(why2) hitPos = scanPos or part.Position
+pcall(function() hitNormal = part.CFrame.LookVector end) pcall(function() hitMat = part.Material end) end end
+if not hitPos then hitPos = Vector3.new(origin.X + dir.X * 250, origin.Y + dir.Y * 250, origin.Z + dir.Z * 250) end
+S.AnaUi.laserHit = { inst = inst, pos = hitPos, normal = hitNormal, mat = hitMat, how = how, origin = origin, dir = dir, hasHit = inst ~= nil } return S.AnaUi.laserHit end
+function S.AnaAimDestroyLaser() pcall(function() if S.AnaUi.laserFolder then S.AnaUi.laserFolder:Destroy() end end)
+S.AnaUi.laserFolder, S.AnaUi.laserPart, S.AnaUi.laserTip, S.AnaUi.laserHit = nil, nil, nil, nil end
+function S.AnaAimEnsureLaser() local cam = S.AnaCam and S.AnaCam() or nil local folder = S.AnaUi.laserFolder
+if folder and folder.Parent then pcall(function() if cam and folder.Parent ~= cam then folder.Parent = cam end end) return folder end
+S.AnaAimDestroyLaser() folder = Instance.new("Folder") folder.Name = "BC_AnaLaser" pcall(function() folder.Parent = cam or workspace end)
+local function ghost(name, size, color) local pr = Instance.new("Part") pr.Name = name pr.Anchored = true pr.CanCollide = false pr.CastShadow = false pcall(function() pr.CanQuery = false end)
+pcall(function() pr.CanTouch = false end) pr.Massless = true pr.Size = size pr.Color = color pr.Material = Enum.Material.Neon pr.Transparency = 0.12 pr.Parent = folder return pr end
+S.AnaUi.laserPart = ghost("BC_LaserBeam", Vector3.new(0.07, 0.07, 2), Color3.fromRGB(255, 40, 40))
+S.AnaUi.laserTip = ghost("BC_LaserTip", Vector3.new(0.3, 0.3, 0.3), Color3.fromRGB(255, 75, 75)) pcall(function() S.AnaUi.laserTip.Shape = Enum.PartType.Ball end)
+S.AnaUi.laserFolder = folder return folder end
+function S.AnaAimUpdateLaser() if not S.AnaUi.centerAimOn then return end pcall(S.AnaAimEnsureLaser) local hit = S.AnaAimTraceLook() local part, tip = S.AnaUi.laserPart, S.AnaUi.laserTip
+if not (hit and hit.origin and hit.dir and part and tip) then return end local o, d, dest = hit.origin, hit.dir, hit.pos
+local sx, sy, sz, ex, ey, ez, len = S.LaserBeamSpan(o.X, o.Y, o.Z, d.X, d.Y, d.Z, dest and dest.X, dest and dest.Y, dest and dest.Z, 0.65, 500)
+if not sx then return end local mid = Vector3.new((sx + ex) * 0.5, (sy + ey) * 0.5, (sz + ez) * 0.5) local destV = Vector3.new(ex, ey, ez)
+pcall(function() part.CFrame = CFrame.lookAt(mid, destV) part.Size = Vector3.new(0.06, 0.06, len) part.Transparency = 0.08
+tip.CFrame = CFrame.new(destV) tip.Transparency = hit.hasHit and 0 or 0.4 tip.Color = hit.hasHit and Color3.fromRGB(255, 70, 70) or Color3.fromRGB(255, 190, 80) end) end
 function S.AnaAimEnsureDot() if S.AnaUi.aimGui and S.AnaUi.aimGui.Parent then return S.AnaUi.aimGui end
 local aimGui = New("ScreenGui", { Name = "BananaCatHub_AnaAimDot", IgnoreGuiInset = true, ResetOnSpawn = false, ZIndexBehavior = Enum.ZIndexBehavior.Global, DisplayOrder = 10000, }, targetGui)
 S.AnaUi.aimGui = aimGui aimGui:SetAttribute("BCHub_External", true) pcall(function() aimGui.IgnoreGuiInset = true end) pcall(function() aimGui.ClipToDeviceSafeArea = false end) pcall(function() aimGui.ScreenInsets = Enum.ScreenInsets.None end) local dot = New("Frame", { Name = "CenterAimDot", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0),
-Size = UDim2.new(0, 8, 0, 8), BackgroundColor3 = Color3.fromRGB(255, 35, 35), BorderSizePixel = 0, Active = false, Selectable = false,
+Size = UDim2.new(0, 8, 0, 8), BackgroundColor3 = Color3.fromRGB(255, 35, 35), BackgroundTransparency = 1, Visible = false, BorderSizePixel = 0, Active = false, Selectable = false,
 ZIndex = 10000, }, aimGui) Corner(dot, UDim.new(1, 0)) New("UIStroke", { Color = Color3.fromRGB(8, 8, 8), Thickness = 1.5, Transparency = 0, ApplyStrokeMode = Enum.ApplyStrokeMode.Border, }, dot)
 local actionBtn = New("TextButton", { Name = "CenterAimAnalyzeButton", AnchorPoint = Vector2.new(0.5, 0.5), Position = S.AnaUi.aimButtonPosition or UDim2.new(1, -28, 0.55, 0),
 Size = UDim2.new(0, 36, 0, 36), Text = "🔎", BackgroundColor3 = Color3.fromRGB(220, 55, 55),
@@ -839,7 +881,7 @@ local ok = pcall(S.AnaAimAnalyzeOnce) if not ok then pcall(function() if S.AnaUi
 if main then main.Visible = true end if togBtn then togBtn.Text = "✕" end S.AnaSay("⚠️ Không phân tích được điểm ngắm") end) end end end) S.AnaUi.aimGui = aimGui S.AnaUi.aimDot = dot
 S.AnaUi.aimActionBtn = actionBtn return aimGui end function S.AnaAimStep() if not S.AnaUi.centerAimOn or not S.AnaUi.aimGui then return end
 local showOverlay = not (main and main.Visible) if S.AnaUi.aimGui.Enabled ~= showOverlay then S.AnaUi.aimGui.Enabled = showOverlay end
-if not showOverlay then S.AnaUi.aimButtonDragging = false S.AnaUi.aimButtonDragInput = nil end end function S.AnaAimBeginButtonDrag(input) if not S.AnaUi.aimButtonMoveEnabled then return end
+if not showOverlay then S.AnaUi.aimButtonDragging = false S.AnaUi.aimButtonDragInput = nil pcall(function() if S.AnaUi.laserPart then S.AnaUi.laserPart.Transparency = 1 end if S.AnaUi.laserTip then S.AnaUi.laserTip.Transparency = 1 end end) return end pcall(S.AnaAimUpdateLaser) end function S.AnaAimBeginButtonDrag(input) if not S.AnaUi.aimButtonMoveEnabled then return end
 local inputType = input.UserInputType if inputType ~= Enum.UserInputType.MouseButton1 and inputType ~= Enum.UserInputType.Touch then return end
 local btn = S.AnaUi.aimActionBtn if not btn then return end local inputPos = input.Position S.AnaUi.aimButtonDragging = true S.AnaUi.aimButtonDragInput = input
 S.AnaUi.aimButtonDragOrigin = Vector2.new(inputPos.X, inputPos.Y) S.AnaUi.aimButtonDragCenter = btn.AbsolutePosition + btn.AbsoluteSize / 2
@@ -860,27 +902,27 @@ S.AnaUi.aimButtonDragging = false S.AnaUi.aimButtonDragInput = nil S.AnaUi.aimBu
 trackConn(UserInputService.InputChanged:Connect(function(input) pcall(S.AnaAimDragMove, input)
 end)) trackConn(UserInputService.InputEnded:Connect(function(input) pcall(S.AnaAimEndButtonDrag, input) end))
 function S.AnaAimAnalyzeOnce() if not S.AnaUi.centerAimOn then return false end S.AnaLast.ok = false local cam = S.AnaCam() if not cam then
-S.AnaSay("⚠️ Camera chưa sẵn sàng để phân tích điểm giữa màn hình") else local ax, ay, space = S.AimScreenPoint() PickObjectAt(Vector2.new(ax, ay), false, true, space) end
+S.AnaSay("⚠️ Camera chưa sẵn sàng để phân tích tia laser") else local hit = S.AnaAimTraceLook() if hit and hit.inst then S.FillObjPanel(hit.inst, hit.pos, hit.normal, hit.mat, hit.how or "🎯 laser trúng") else S.AnaSay("⚠️ Laser chưa trúng vật thể — chĩa tia vào vật rồi nhấn 🔎") end end
 if S.AnaUi.supportTabIndex then SwitchTab(S.AnaUi.supportTabIndex) end if main then main.Visible = true end
 if S.AnaLast and S.AnaLast.ok then supportTab.CanvasPosition = Vector2.new(0, math.max(0, objResultPanel.Position.Y.Offset - 24))
 elseif S.AnaUi.whyLbl then supportTab.CanvasPosition = Vector2.new(0, math.max(0, S.AnaUi.whyLbl.Position.Y.Offset - 24))
 end if togBtn then togBtn.Text = "✕" end ReleaseHubFocus() return S.AnaLast and S.AnaLast.ok == true end
 function S.AnaAimSet(on) on = (on == true) if on == (S.AnaUi.centerAimOn == true) then return on end S.AnaUi.centerAimOn = on
-if on then local okDot = pcall(S.AnaAimEnsureDot) local okBind = false if okDot then okBind = pcall(function() RunService:UnbindFromRenderStep("BC_AnaAim")
+if on then local okDot = pcall(S.AnaAimEnsureDot) pcall(S.AnaAimEnsureLaser) local okBind = false if okDot then okBind = pcall(function() RunService:UnbindFromRenderStep("BC_AnaAim")
 RunService:BindToRenderStep("BC_AnaAim", Enum.RenderPriority.Camera.Value + 1, function() pcall(S.AnaAimStep) end) end) end if not okDot or not okBind then S.AnaUi.centerAimOn = false
-pcall(function() RunService:UnbindFromRenderStep("BC_AnaAim") end) pcall(function() if S.AnaUi.aimGui then S.AnaUi.aimGui:Destroy() end end)
+pcall(function() RunService:UnbindFromRenderStep("BC_AnaAim") end) pcall(function() if S.AnaUi.aimGui then S.AnaUi.aimGui:Destroy() end end) pcall(S.AnaAimDestroyLaser)
 S.AnaUi.aimGui, S.AnaUi.aimDot, S.AnaUi.aimActionBtn = nil, nil, nil S.AnaUi.aimButtonDragging, S.AnaUi.aimButtonDragInput = false, nil
 S.AnaUi.aimButtonDragOrigin, S.AnaUi.aimButtonDragCenter = nil, nil S.AnaUi.aimButtonDragMoved, S.AnaUi.aimButtonSuppressUntil = false, 0 else
 if main then main.Visible = false end
 if togBtn then togBtn.Text = "" end ReleaseHubFocus() end else
-pcall(function() RunService:UnbindFromRenderStep("BC_AnaAim") end) pcall(function() if S.AnaUi.aimGui then S.AnaUi.aimGui:Destroy() end end)
+pcall(function() RunService:UnbindFromRenderStep("BC_AnaAim") end) pcall(function() if S.AnaUi.aimGui then S.AnaUi.aimGui:Destroy() end end) pcall(S.AnaAimDestroyLaser)
 S.AnaUi.aimGui, S.AnaUi.aimDot, S.AnaUi.aimActionBtn = nil, nil, nil S.AnaUi.aimButtonDragging, S.AnaUi.aimButtonDragInput = false, nil
 S.AnaUi.aimButtonDragOrigin, S.AnaUi.aimButtonDragCenter = nil, nil S.AnaUi.aimButtonDragMoved, S.AnaUi.aimButtonSuppressUntil = false, 0 end
 local active = (S.AnaUi.centerAimOn == true) local btn = S.AnaUi.centerAimBtn
 if btn and btn.Parent then btn.Text = active and "🔴 Ngắm tâm: BẬT" or "🔴 Ngắm tâm: TẮT" D.SetBg(btn, active and C.RED or C.GRAY) end
-if active then S.AnaSay("🔴 Ngắm tâm đã bật · canh vật ở chấm đỏ rồi nhấn nút 🔎 để phân tích") end return active end
+if active then S.AnaSay("🔴 Laser đã bật · chĩa tia đỏ vào vật rồi nhấn 🔎 để phân tích") end return active end
 S.AnaUi.centerAimBtn.Activated:Connect(function() local requested = not (S.AnaUi.centerAimOn == true) local active = S.AnaAimSet(requested) if requested and not active then
-S.AnaSay("⚠️ Không bật được chế độ ngắm tâm — không tạo được chấm đỏ/nút phân tích") end end) trackConn(UserInputService.InputBegan:Connect(function(input, gp)
+S.AnaSay("⚠️ Không bật được chế độ ngắm tâm — không tạo được tia laser/nút phân tích") end end) trackConn(UserInputService.InputBegan:Connect(function(input, gp)
 if gp then return end
 if not analyzeObjectEnabled then return end if input.UserInputType == Enum.UserInputType.MouseButton2 then PickObjectAt(input.Position, true)
 return end if input.UserInputType == Enum.UserInputType.Touch then local startTick = tick()
