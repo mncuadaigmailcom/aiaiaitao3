@@ -580,7 +580,7 @@ S.AnaUi.aimMoveBtn.Text = moveEnabled and "🔓 Kéo nút: BẬT" or "🔒 Kéo 
 S.AnaSay(moveEnabled and "🔓 Đã mở khóa: kéo nút 🔎 để đổi vị trí" or "🔒 Đã khóa vị trí nút 🔎") end)
 S.AnaUi.whyLbl = Label(supportTab, "🔎 Lý do: — (bật 🎯 Phân Tích Vật Thể rồi chạm/chuột phải vào vật)", posY) S.AnaUi.whyLbl.TextSize = 9 posY = posY + 16
 Label(supportTab, "💡 Bật “Kéo nút” cạnh Ngắm tâm, đóng menu rồi kéo nút 🔎 đến chỗ muốn.", posY) Label(supportTab, "    Tắt “Kéo nút” để khóa; chạm 🔎 để phân tích vật đang ở tâm.", posY+14)
-Label(supportTab, "    Nút HUD/menu của game vẫn theo tùy chọn phân tích xuyên HUD ở trên.", posY+28) posY = posY + 44
+Label(supportTab, "    Ngắm tâm định vị cả tường đi xuyên được (chợ/map CanCollide=false) — không cần tia vật lý.", posY+28) Label(supportTab, "    Nút HUD/menu của game vẫn theo tùy chọn phân tích xuyên HUD ở trên.", posY+42) posY = posY + 58
 local objResultPanel = New("Frame", { Size=UDim2.new(1,-16,0,190), Position=UDim2.new(0,8,0,posY), BackgroundColor3=Color3.fromRGB(20, 25, 35),
 BackgroundTransparency=0, BorderSizePixel=0, ZIndex=6, Visible=false, }, supportTab) Corner(objResultPanel, UDim.new(0,6)) Stroke(objResultPanel, C.PURPLE, 1.5)
 New("TextLabel", {
@@ -712,27 +712,54 @@ pcall(function() area = o.AbsoluteSize.X * o.AbsoluteSize.Y end) pcall(function(
 pcall(function() isAct = (o.Active == true) end) local interactive = (o:IsA("GuiButton") or o:IsA("TextBox"))
 local tag = tostring(o.Name) .. " (" .. tostring(o.ClassName) .. ")" if interactive and area < bigArea then hard = hard or tag
 elseif interactive or isAct or trans < 0.5 then soft = soft or tag end end end end end return hard, soft end
+function S.RayObbHit(origin, dir, part, maxD) if not origin or not dir or not part then return nil end maxD = tonumber(maxD) or 10000
+local ok, tHit, hitPos = pcall(function() local size = part.Size if not size then return nil end local ox, oy, oz, dx, dy, dz local cf = part.CFrame
+if cf and type(cf.PointToObjectSpace) == "function" and type(cf.VectorToObjectSpace) == "function" then local lo = cf:PointToObjectSpace(origin) local ld = cf:VectorToObjectSpace(dir)
+ox, oy, oz, dx, dy, dz = lo.X, lo.Y, lo.Z, ld.X, ld.Y, ld.Z else local p = (cf and cf.Position) or part.Position if not p then return nil end
+ox, oy, oz = origin.X - p.X, origin.Y - p.Y, origin.Z - p.Z dx, dy, dz = dir.X, dir.Y, dir.Z end
+local hx, hy, hz = size.X * 0.5, size.Y * 0.5, size.Z * 0.5 local tmin, tmax = 0, maxD
+local function slab(o, d, h) if math.abs(d) < 1e-8 then return o >= -h and o <= h end local inv = 1 / d local t1, t2 = (-h - o) * inv, (h - o) * inv
+if t1 > t2 then t1, t2 = t2, t1 end if t1 > tmin then tmin = t1 end if t2 < tmax then tmax = t2 end return tmin <= tmax end
+if not slab(ox, dx, hx) then return nil end if not slab(oy, dy, hy) then return nil end if not slab(oz, dz, hz) then return nil end
+if tmax < 0 or tmin > maxD then return nil end local t = tmin if t < 0 then t = 0 end if t > maxD then return nil end
+return t, Vector3.new(origin.X + dir.X * t, origin.Y + dir.Y * t, origin.Z + dir.Z * t) end) if ok then return tHit, hitPos end return nil end
+function S.ChooseCloserPick(rayInst, rayDist, scanPart, scanT) local hasRay = rayInst ~= nil local hasScan = scanPart ~= nil local rt, st = tonumber(rayDist), tonumber(scanT)
+if hasScan and ((not hasRay) or (st ~= nil and rt ~= nil and st + 0.05 < rt) or (st ~= nil and rt == nil)) then return "scan" end if hasRay then return "ray" end return nil end
 function S.PickByRayScan(ray, filterList) if not ray or not ray.Origin or not ray.Direction then return nil, "không có tia ngắm hợp lệ" end
-local dir = ray.Direction local dirMagnitude = dir.Magnitude if dirMagnitude < 0.001 then return nil, "tia ngắm không có hướng hợp lệ" end dir = dir / dirMagnitude
+local dir = ray.Direction local dirMagnitude = dir.Magnitude if dirMagnitude < 0.001 then return nil, "tia ngắm không có hướng hợp lệ" end
+dir = Vector3.new(dir.X / dirMagnitude, dir.Y / dirMagnitude, dir.Z / dirMagnitude)
 local maxD = tonumber(S.AnaCfg and S.AnaCfg.maxDist) or 10000 if maxD ~= maxD or maxD == math.huge or maxD <= 0 then maxD = 10000 end maxD = math.clamp(maxD, 1, 10000)
-local corridor = 6
-local okParams, op = pcall(function() local overlap = OverlapParams.new()
-overlap.FilterType = Enum.RaycastFilterType.Exclude overlap.FilterDescendantsInstances = filterList or {} overlap.MaxParts = 512 return overlap
-end) if not okParams or not op then return nil, "không tạo được bộ lọc quét vật thể" end local parts, seen = {}, {} local center = ray.Origin + dir * (maxD / 2)
-local up = (math.abs(dir.Y) > 0.98) and Vector3.new(0, 0, 1) or Vector3.new(0, 1, 0) local boxCFrame = CFrame.lookAt(center, center + dir, up)
-local okBox, boxParts = pcall(function() return workspace:GetPartBoundsInBox(boxCFrame, Vector3.new(corridor * 2, corridor * 2, maxD), op)
-end) if okBox and type(boxParts) == "table" then for _, pt in ipairs(boxParts) do if pt and not seen[pt] then seen[pt] = true parts[#parts + 1] = pt end end else
-local stepLen = 180 for startD = 0, maxD, stepLen do local length = math.min(stepLen, maxD - startD) if length > 0 then
-local sample = ray.Origin + dir * (startD + length / 2) local okRadius, around = pcall(function() return workspace:GetPartBoundsInRadius(sample, length / 2 + corridor, op) end)
-if okRadius and type(around) == "table" then for _, pt in ipairs(around) do if pt and not seen[pt] then seen[pt] = true parts[#parts + 1] = pt
-end end end end end end if #parts == 0 then return nil, string.format("không tìm thấy vật quanh tia trong %.0f studs", maxD) end
-local best, bestSurfaceD, bestOffset = nil, math.huge, math.huge for _, pt in ipairs(parts) do
-local okV, along, offset, radius = pcall(function() local rel = pt.Position - ray.Origin local t = rel:Dot(dir) if t <= 0.5 or t > maxD then return nil end
-local closest = ray.Origin + dir * t local lateral = (pt.Position - closest).Magnitude
-local half = math.max(pt.Size.X, pt.Size.Y, pt.Size.Z) / 2 if lateral > math.max(corridor, half + 2) then return nil end
-return t, lateral, half end) if okV and along then local surfaceD = math.max(0, along - radius) if surfaceD < bestSurfaceD then best, bestSurfaceD, bestOffset = pt, surfaceD, offset end end end
-if not best then return nil, "quét " .. #parts .. " vật nhưng không vật nào nằm trên tia trong " .. string.format("%.0f", maxD) .. " studs"
-end return best, string.format("quét xa dự phòng · %.0f studs · lệch tâm %.1f studs", bestSurfaceD, bestOffset) end function S.NearestParts(n) local char = player.Character
+local corridor = 10 local function makeOp() local overlap = OverlapParams.new() overlap.FilterType = Enum.RaycastFilterType.Exclude
+overlap.FilterDescendantsInstances = filterList or {} pcall(function() overlap.MaxParts = 1024 end) pcall(function() overlap.RespectCanCollide = false end)
+pcall(function() overlap.BruteForceAllSlow = true end) return overlap end local okParams, op = pcall(makeOp)
+if not okParams or not op then return nil, "không tạo được bộ lọc quét vật thể" end local seen = {} local up = (math.abs(dir.Y) > 0.98) and Vector3.new(0, 0, 1) or Vector3.new(0, 1, 0)
+local best, bestT, bestPos, bestOff = nil, math.huge, nil, math.huge local scanned = 0
+local function skipFiltered(pt) if not filterList then return false end for _, f in ipairs(filterList) do if f and (pt == f or (type(pt.IsDescendantOf) == "function" and pt:IsDescendantOf(f))) then return true end end return false end
+local function consider(pt) if not pt or seen[pt] or skipFiltered(pt) then return end seen[pt] = true scanned = scanned + 1
+local t, pos = S.RayObbHit(ray.Origin, dir, pt, maxD) if type(t) == "number" and t < bestT then best, bestT, bestPos = pt, t, pos
+local okO, off = pcall(function() return (pt.Position - Vector3.new(ray.Origin.X + dir.X * t, ray.Origin.Y + dir.Y * t, ray.Origin.Z + dir.Z * t)).Magnitude end) bestOff = (okO and off) or 0
+else local okV, along, offset = pcall(function() local relX, relY, relZ = pt.Position.X - ray.Origin.X, pt.Position.Y - ray.Origin.Y, pt.Position.Z - ray.Origin.Z
+local tt = relX * dir.X + relY * dir.Y + relZ * dir.Z if tt <= 0.5 or tt > maxD then return nil end
+local cx, cy, cz = ray.Origin.X + dir.X * tt, ray.Origin.Y + dir.Y * tt, ray.Origin.Z + dir.Z * tt
+local lateral = math.sqrt((pt.Position.X - cx)^2 + (pt.Position.Y - cy)^2 + (pt.Position.Z - cz)^2)
+local half = math.max(pt.Size.X, pt.Size.Y, pt.Size.Z) / 2 if lateral > math.max(corridor, half + 2) then return nil end return tt, lateral end)
+if okV and along and along < bestT then best, bestT, bestOff = pt, along, offset bestPos = Vector3.new(ray.Origin.X + dir.X * along, ray.Origin.Y + dir.Y * along, ray.Origin.Z + dir.Z * along) end end end
+local stepLen = 80 for startD = 0, maxD, stepLen do local length = math.min(stepLen, maxD - startD) if length > 0 then
+local sample = Vector3.new(ray.Origin.X + dir.X * (startD + length / 2), ray.Origin.Y + dir.Y * (startD + length / 2), ray.Origin.Z + dir.Z * (startD + length / 2))
+local boxCFrame = CFrame.lookAt(sample, Vector3.new(sample.X + dir.X, sample.Y + dir.Y, sample.Z + dir.Z), up)
+local okBox, boxParts = pcall(function() return workspace:GetPartBoundsInBox(boxCFrame, Vector3.new(corridor * 2, corridor * 2, length + corridor), op) end)
+if okBox and type(boxParts) == "table" then for _, pt in ipairs(boxParts) do consider(pt) end else
+local okRadius, around = pcall(function() return workspace:GetPartBoundsInRadius(sample, length / 2 + corridor, op) end)
+if okRadius and type(around) == "table" then for _, pt in ipairs(around) do consider(pt) end end end
+if bestT <= startD + length then break end end end
+if not best then local okDesc, desc = pcall(function() return workspace:GetDescendants() end) if okDesc and type(desc) == "table" then local n = 0
+for _, d in ipairs(desc) do if n >= 1500 then break end local okP, isPart = pcall(function() return d:IsA("BasePart") end) if okP and isPart then n = n + 1 consider(d) if bestT <= 120 then break end end end end end
+if not best then if scanned == 0 then return nil, string.format("không tìm thấy vật quanh tia trong %.0f studs", maxD) end
+return nil, "quét " .. scanned .. " vật nhưng không vật nào nằm trên tia trong " .. string.format("%.0f", maxD) .. " studs" end
+local note = string.format("quét xuyên tường · %.0f studs · lệch tâm %.1f studs", bestT, bestOff or 0)
+pcall(function() local cc, cq = best.CanCollide, best.CanQuery if cc == false or cq == false then
+note = note .. " · đi xuyên được (CanCollide=" .. tostring(cc) .. ", CanQuery=" .. tostring(cq) .. ")" end end)
+return best, note, bestPos, bestT end function S.NearestParts(n) local char = player.Character
 local root = char and char:FindFirstChild("HumanoidRootPart") if not root then return nil, "chưa có nhân vật (đang ở lobby/menu?)" end
 local ok, parts = pcall(function() local op = OverlapParams.new() op.FilterType = Enum.RaycastFilterType.Exclude op.FilterDescendantsInstances = {char, gui}
 op.MaxParts = 120 return workspace:GetPartBoundsInRadius(root.Position, 60, op)
@@ -764,15 +791,17 @@ return end if softGui then S.AnaNote = "🛡 phân tích xuyên HUD của game (
 local cam2 = S.AnaCam() if not cam2 then S.AnaSay("⚠️ Game chưa có camera (Workspace.CurrentCamera = nil) — vào lại game rồi thử") return
 end local unitRay = cam2:ViewportPointToRay(x, y) local params = RaycastParams.new() params.FilterType = Enum.RaycastFilterType.Exclude local filterList = {}
 if player.Character then table.insert(filterList, player.Character) end if gui then table.insert(filterList, gui) end params.FilterDescendantsInstances = filterList
-params.IgnoreWater = S.AnaCfg.ignoreWater
+params.IgnoreWater = S.AnaCfg.ignoreWater pcall(function() params.RespectCanCollide = false end)
 local result = workspace:Raycast(unitRay.Origin, unitRay.Direction * S.AnaCfg.maxDist, params) if result and result.Material == Enum.Material.Water then
 local pw = RaycastParams.new() pw.FilterType = Enum.RaycastFilterType.Exclude
-pw.FilterDescendantsInstances = filterList pw.IgnoreWater = true local rw = workspace:Raycast(unitRay.Origin, unitRay.Direction * S.AnaCfg.maxDist, pw)
-if rw and rw.Instance then result = rw S.AnaNote = "🌊 đã xuyên qua mặt nước để lấy vật bên dưới" end end local inst, hitPos, hitNormal, hitMat, how if result and result.Instance then
-inst, hitPos, hitNormal, hitMat = result.Instance, result.Position, result.Normal, result.Material how = "🎯 tia bắn trúng"
-elseif S.AnaCfg.scanFallback then local part, why2 = S.PickByRayScan(unitRay, filterList) if part then inst, hitPos, how = part, part.Position, "🧭 " .. tostring(why2)
-pcall(function() hitNormal = part.CFrame.LookVector end) pcall(function() hitMat = part.Material end) else S.AnaWhyScan = why2
-end end objResultPanel.Visible = true if inst then S.FillObjPanel(inst, hitPos, hitNormal, hitMat, how)
+pw.FilterDescendantsInstances = filterList pw.IgnoreWater = true pcall(function() pw.RespectCanCollide = false end) local rw = workspace:Raycast(unitRay.Origin, unitRay.Direction * S.AnaCfg.maxDist, pw)
+if rw and rw.Instance then result = rw S.AnaNote = "🌊 đã xuyên qua mặt nước để lấy vật bên dưới" end end local inst, hitPos, hitNormal, hitMat, how local rayDist = math.huge
+if result and result.Instance then inst, hitPos, hitNormal, hitMat = result.Instance, result.Position, result.Normal, result.Material how = "🎯 tia bắn trúng"
+pcall(function() rayDist = (hitPos - unitRay.Origin).Magnitude end) end
+if S.AnaCfg.scanFallback then local part, why2, scanPos, scanT = S.PickByRayScan(unitRay, filterList)
+local pick = S.ChooseCloserPick(inst, rayDist, part, scanT) if pick == "scan" and part then inst, how = part, "🧭 " .. tostring(why2)
+hitPos = scanPos or part.Position pcall(function() hitNormal = part.CFrame.LookVector end) pcall(function() hitMat = part.Material end)
+elseif not inst then S.AnaWhyScan = why2 end end objResultPanel.Visible = true if inst then S.FillObjPanel(inst, hitPos, hitNormal, hitMat, how)
 else local prevName = objNameLbl.Text objNameLbl.Text = "⚠️ Không hit gì — giữ vật đang chọn" S.AnaSay("⚠️ Không thấy vật ở điểm chạm"
 .. (S.AnaWhyScan and (" (" .. S.AnaWhyScan .. ")") or " (tia đi vào khoảng không)") .. " — thử ⊕ Giữa màn hình, 🧭 Gần nhất, hoặc lại gần vật hơn")
 task.delay(1.0, function() if objNameLbl and objNameLbl.Parent and objNameLbl.Text == "⚠️ Không hit gì — giữ vật đang chọn" then objNameLbl.Text = prevName end end) end end
@@ -866,7 +895,7 @@ or "🛡 Xuyên HUD game: TẮT (như bản cũ)" D.SetBg(S.AnaUi.skipGuiBtn, on
 S.AnaSay(on and "🛡 BẬT: bỏ qua HUD/nền bán trong suốt của game (khuyên dùng, nhất là 📱 mobile)" or "🛡 TẮT: quay lại kiểu cũ — HUD của game sẽ CHẶN phân tích ở điểm chạm")
 end) S.AnaUi.scanFbBtn.Activated:Connect(function() S.AnaCfg.scanFallback = not S.AnaCfg.scanFallback local on = S.AnaCfg.scanFallback
 S.AnaUi.scanFbBtn.Text = on and "🧭 Quét dự phòng: BẬT" or "🧭 Quét dự phòng: TẮT" D.SetBg(S.AnaUi.scanFbBtn, on and C.GREEN or C.GRAY)
-S.AnaSay(on and "🧭 BẬT: tia trượt sẽ tự quét vật gần tia — game đặt CanQuery=false vẫn phân tích được" or "🧭 TẮT: chỉ dùng tia raycast (nhanh hơn, nhưng game khó sẽ không ra kết quả)") end)
+S.AnaSay(on and "🧭 BẬT: tia trượt quét cả tường đi xuyên (CanCollide/CanQuery=false) và lấy vật GẦN tâm hơn tia thường" or "🧭 TẮT: chỉ dùng tia raycast (bỏ qua tường đi xuyên được)") end)
 clearObjectBtn.Activated:Connect(function() objResultPanel.Visible = false RemoveCurrentHighlight() end)
 copyObjBtn.Activated:Connect(function() local pos = objResultPanel:GetAttribute("LastHitPos") if pos and pos ~= "" then S.CopyToClipboard(pos) flash(copyObjBtn, "✅ Đã Copy!", 1.2) end end)
 copyPathBtn.Activated:Connect(function() local path = objResultPanel:GetAttribute("LastPath") if path and path ~= "" then S.CopyToClipboard(path)
