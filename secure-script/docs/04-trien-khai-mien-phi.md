@@ -14,7 +14,13 @@ node tools/check-static.mjs
 
 Cần có: `index.html`, `assets/`, `examples/`, `docs/`, `.nojekyll`.
 
-## 1. GitHub Pages (khuyến nghị — đang dùng repo này)
+## 1. GitHub Pages (khuyến nghị — repo này đang dùng)
+
+**Link đang chạy:** <https://mncuadaigmailcom.github.io/aiaiaitao3/>
+(`index.html` ở gốc repo tự chuyển sang `/secure-script/`).
+
+Site được xuất bản theo kiểu **legacy**: nguồn = nhánh `main`, thư mục `/`,
+nên mỗi lần push lên `main` là GitHub tự build lại (không cần Actions).
 
 ### 1.1 Bật Pages
 

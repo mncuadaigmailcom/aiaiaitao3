@@ -60,6 +60,7 @@ for (const f of [
   'deploy/pages.yml',
   'deploy/netlify.toml',
   'deploy/vercel.json',
+  'favicon.svg',
 ]) {
   check(exists(f), f);
 }
