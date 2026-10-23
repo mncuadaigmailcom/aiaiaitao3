@@ -17,9 +17,10 @@ không dùng executor, không dùng `setrbxsetting`, không can thiệp anti-che
 > - API Roblox **chưa được đối chiếu với tài liệu chính thức** trong quá trình làm việc.
 
 
-> **Dự án thứ hai trong repo này:** [`secure-script/`](secure-script/README.md) — web mã hoá
-> script thành tệp `.aia` + key script, chạy trong trình duyệt, miễn phí.
-> Mở nhanh: `python3 -m http.server 8080 --directory secure-script` → http://localhost:8080
+> **Dự án thứ hai trong repo này:** 🌐 **[https://mncuadaigmailcom.github.io/aiaiaitao3/](https://mncuadaigmailcom.github.io/aiaiaitao3/)**
+> — web mã hoá script thành tệp `.aia` + key script, chạy trong trình duyệt, miễn phí.
+> Mã nguồn: [`secure-script/`](secure-script/README.md) · chạy trên máy:
+> `python3 -m http.server 8080 --directory secure-script` → http://localhost:8080
 
 ---
 

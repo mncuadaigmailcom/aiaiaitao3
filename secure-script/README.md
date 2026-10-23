@@ -1,5 +1,8 @@
 # AIA Secure Script
 
+🌐 **Dùng ngay: [https://mncuadaigmailcom.github.io/aiaiaitao3/](https://mncuadaigmailcom.github.io/aiaiaitao3/)**
+(gói demo: [run-hello.html](https://mncuadaigmailcom.github.io/aiaiaitao3/examples/demo/run-hello.html) — mật khẩu `aia-demo-2026`)
+
 Mã hoá code script thành **một tệp `.aia`** + **một key script** `.key.js`, mở khoá và
 chạy ngay trong trình duyệt. Không máy chủ, không đăng ký, không tốn tiền.
 
