@@ -579,7 +579,7 @@ S.AnaUi.aimButtonDragging = false S.AnaUi.aimButtonDragInput = nil S.AnaUi.aimBu
 S.AnaUi.aimMoveBtn.Text = moveEnabled and "🔓 Kéo nút: BẬT" or "🔒 Kéo nút: TẮT" D.SetBg(S.AnaUi.aimMoveBtn, moveEnabled and C.ORANGE or C.GRAY)
 S.AnaSay(moveEnabled and "🔓 Đã mở khóa: kéo nút 🔎 để đổi vị trí" or "🔒 Đã khóa vị trí nút 🔎") end)
 S.AnaUi.whyLbl = Label(supportTab, "🔎 Lý do: — (bật 🎯 Phân Tích Vật Thể rồi chạm/chuột phải vào vật)", posY) S.AnaUi.whyLbl.TextSize = 9 posY = posY + 16
-Label(supportTab, "💡 Không có tâm giữa màn: kéo nút 🔎 nhỏ, tia laser chiếu từ nút vào vật.", posY) Label(supportTab, "    Chạm 🔎 khi tia đang trúng vật để định vị vật đó.", posY+14)
+Label(supportTab, "💡 Không tâm ảo giữa màn: nhìn vào vật, tia đỏ từ nút 🔎 chiếu tới vật.", posY) Label(supportTab, "    Thấy tia dính cây/tường thì chạm 🔎 để định vị.", posY+14)
 Label(supportTab, "    Ngắm tâm định vị cả tường đi xuyên được (chợ/map CanCollide=false) — không cần tia vật lý.", posY+28) Label(supportTab, "    Nút HUD/menu của game vẫn theo tùy chọn phân tích xuyên HUD ở trên.", posY+42) posY = posY + 58
 local objResultPanel = New("Frame", { Size=UDim2.new(1,-16,0,190), Position=UDim2.new(0,8,0,posY), BackgroundColor3=Color3.fromRGB(20, 25, 35),
 BackgroundTransparency=0, BorderSizePixel=0, ZIndex=6, Visible=false, }, supportTab) Corner(objResultPanel, UDim.new(0,6)) Stroke(objResultPanel, C.PURPLE, 1.5)
@@ -825,13 +825,16 @@ local sx, sy, sz = ox + dx * visStart, oy + dy * visStart, oz + dz * visStart lo
 if hx ~= nil and hy ~= nil and hz ~= nil then ex, ey, ez = tonumber(hx), tonumber(hy), tonumber(hz) else ex, ey, ez = ox + dx * visMax, oy + dy * visMax, oz + dz * visMax end
 local lx, ly, lz = ex - sx, ey - sy, ez - sz local len = math.sqrt(lx * lx + ly * ly + lz * lz) if len > visMax then ex, ey, ez = sx + dx * visMax, sy + dy * visMax, sz + dz * visMax len = visMax end
 if len < 0.08 then len = 0.08 end return sx, sy, sz, ex, ey, ez, len end
+function S.PlaceScreenLaser(x1, y1, x2, y2) x1, y1, x2, y2 = tonumber(x1) or 0, tonumber(y1) or 0, tonumber(x2) or 0, tonumber(y2) or 0
+local dx, dy = x2 - x1, y2 - y1 local len = math.sqrt(dx * dx + dy * dy) if len < 4 then len = 4 end local ang = 0
+pcall(function() if math.atan2 then ang = math.deg(math.atan2(dy, dx)) else ang = math.deg(math.atan(dy, dx)) end end)
+return (x1 + x2) * 0.5, (y1 + y2) * 0.5, len, ang end
 function S.PointerScreenPoint() local btn = S.AnaUi and S.AnaUi.aimActionBtn if btn and btn.Parent then local ok, x, y = pcall(function() local p, s = btn.AbsolutePosition, btn.AbsoluteSize return p.X + s.X * 0.5, p.Y + s.Y * 0.5 end)
 if ok and type(x) == "number" and type(y) == "number" then return x, y, "screen" end end return nil end
 function S.AnaAimLookOriginDir() local cam = S.AnaCam and S.AnaCam() or nil if not cam then return nil end
+local cf = cam.CFrame if cf then local origin = cf.Position local dir = cf.LookVector if origin and dir then local mag = dir.Magnitude if mag and mag >= 0.001 then return origin, Vector3.new(dir.X / mag, dir.Y / mag, dir.Z / mag) end end end
 local px, py, space = S.PointerScreenPoint() if px then local ray = S.RayFromScreenOrViewport(cam, px, py, space or "screen")
-if ray and ray.Origin and ray.Direction then local o, d = ray.Origin, ray.Direction local mag = d.Magnitude if mag and mag >= 0.001 then return o, Vector3.new(d.X / mag, d.Y / mag, d.Z / mag) end end end
-local cf = cam.CFrame if not cf then return nil end local origin = cf.Position local dir = cf.LookVector if not origin or not dir then return nil end local mag = dir.Magnitude if not mag or mag < 0.001 then return nil end
-return origin, Vector3.new(dir.X / mag, dir.Y / mag, dir.Z / mag) end
+if ray and ray.Origin and ray.Direction then local o, d = ray.Origin, ray.Direction local mag = d.Magnitude if mag and mag >= 0.001 then return o, Vector3.new(d.X / mag, d.Y / mag, d.Z / mag) end end end return nil end
 function S.AnaAimTraceLook() local origin, dir = S.AnaAimLookOriginDir() if not origin then S.AnaUi.laserHit = nil return nil end
 local maxD = tonumber(S.AnaCfg and S.AnaCfg.maxDist) or 10000 local filterList = {} pcall(function() if player.Character then filterList[#filterList + 1] = player.Character end end)
 pcall(function() if gui then filterList[#filterList + 1] = gui end end) pcall(function() if S.AnaUi.laserFolder then filterList[#filterList + 1] = S.AnaUi.laserFolder end end)
@@ -849,22 +852,50 @@ pcall(function() hitNormal = part.CFrame.LookVector end) pcall(function() hitMat
 if not hitPos then hitPos = Vector3.new(origin.X + dir.X * 250, origin.Y + dir.Y * 250, origin.Z + dir.Z * 250) end
 S.AnaUi.laserHit = { inst = inst, pos = hitPos, normal = hitNormal, mat = hitMat, how = how, origin = origin, dir = dir, hasHit = inst ~= nil } return S.AnaUi.laserHit end
 function S.AnaAimDestroyLaser() pcall(function() if S.AnaUi.laserFolder then S.AnaUi.laserFolder:Destroy() end end)
-S.AnaUi.laserFolder, S.AnaUi.laserPart, S.AnaUi.laserTip, S.AnaUi.laserHit = nil, nil, nil, nil end
+S.AnaUi.laserFolder, S.AnaUi.laserPart, S.AnaUi.laserTip, S.AnaUi.laserHit, S.AnaUi.laserA, S.AnaUi.laserB, S.AnaUi.laserBeam = nil, nil, nil, nil, nil, nil, nil end
 function S.AnaAimEnsureLaser() local cam = S.AnaCam and S.AnaCam() or nil local folder = S.AnaUi.laserFolder
-if folder and folder.Parent then pcall(function() if cam and folder.Parent ~= cam then folder.Parent = cam end end) return folder end
-S.AnaAimDestroyLaser() folder = Instance.new("Folder") folder.Name = "BC_AnaLaser" pcall(function() folder.Parent = cam or workspace end)
+if folder and folder.Parent then return folder end
+S.AnaAimDestroyLaser() folder = Instance.new("Folder") folder.Name = "BC_AnaLaser" pcall(function() folder.Parent = workspace end)
+if not folder.Parent then pcall(function() folder.Parent = cam end) end
 local function ghost(name, size, color) local pr = Instance.new("Part") pr.Name = name pr.Anchored = true pr.CanCollide = false pr.CastShadow = false pcall(function() pr.CanQuery = false end)
-pcall(function() pr.CanTouch = false end) pr.Massless = true pr.Size = size pr.Color = color pr.Material = Enum.Material.Neon pr.Transparency = 0.12 pr.Parent = folder return pr end
-S.AnaUi.laserPart = ghost("BC_LaserBeam", Vector3.new(0.07, 0.07, 2), Color3.fromRGB(255, 40, 40))
-S.AnaUi.laserTip = ghost("BC_LaserTip", Vector3.new(0.3, 0.3, 0.3), Color3.fromRGB(255, 75, 75)) pcall(function() S.AnaUi.laserTip.Shape = Enum.PartType.Ball end)
+pcall(function() pr.CanTouch = false end) pcall(function() pr.LocalTransparencyModifier = 0 end) pr.Massless = true pr.Size = size pr.Color = color pr.Material = Enum.Material.Neon pr.Transparency = 0 pr.Parent = folder return pr end
+S.AnaUi.laserPart = ghost("BC_LaserBeam", Vector3.new(0.2, 0.2, 4), Color3.fromRGB(255, 32, 32))
+S.AnaUi.laserTip = ghost("BC_LaserTip", Vector3.new(0.85, 0.85, 0.85), Color3.fromRGB(255, 70, 70)) pcall(function() S.AnaUi.laserTip.Shape = Enum.PartType.Ball end)
+S.AnaUi.laserA = ghost("BC_LaserA", Vector3.new(0.12, 0.12, 0.12), Color3.fromRGB(255, 40, 40)) S.AnaUi.laserA.Transparency = 1
+S.AnaUi.laserB = ghost("BC_LaserB", Vector3.new(0.12, 0.12, 0.12), Color3.fromRGB(255, 40, 40)) S.AnaUi.laserB.Transparency = 1
+pcall(function() local a0 = Instance.new("Attachment") a0.Parent = S.AnaUi.laserA local a1 = Instance.new("Attachment") a1.Parent = S.AnaUi.laserB
+local bm = Instance.new("Beam") bm.Name = "BC_LaserFace" bm.Attachment0 = a0 bm.Attachment1 = a1 bm.FaceCamera = true bm.Width0 = 0.28 bm.Width1 = 0.5
+bm.LightEmission = 1 bm.LightInfluence = 0 bm.Color = ColorSequence.new(Color3.fromRGB(255, 30, 30)) pcall(function() bm.Transparency = NumberSequence.new(0.05) end)
+bm.Segments = 6 bm.Parent = S.AnaUi.laserA S.AnaUi.laserBeam = bm end)
 S.AnaUi.laserFolder = folder return folder end
-function S.AnaAimUpdateLaser() if not S.AnaUi.centerAimOn then return end pcall(S.AnaAimEnsureLaser) local hit = S.AnaAimTraceLook() local part, tip = S.AnaUi.laserPart, S.AnaUi.laserTip
-if not (hit and hit.origin and hit.dir and part and tip) then return end local o, d, dest = hit.origin, hit.dir, hit.pos
-local sx, sy, sz, ex, ey, ez, len = S.LaserBeamSpan(o.X, o.Y, o.Z, d.X, d.Y, d.Z, dest and dest.X, dest and dest.Y, dest and dest.Z, 0.65, 500)
-if not sx then return end local mid = Vector3.new((sx + ex) * 0.5, (sy + ey) * 0.5, (sz + ez) * 0.5) local destV = Vector3.new(ex, ey, ez)
-pcall(function() part.CFrame = CFrame.lookAt(mid, destV) part.Size = Vector3.new(0.06, 0.06, len) part.Transparency = 0.08
-tip.CFrame = CFrame.new(destV) tip.Transparency = hit.hasHit and 0 or 0.4 tip.Color = hit.hasHit and Color3.fromRGB(255, 70, 70) or Color3.fromRGB(255, 190, 80) end) end
-function S.AnaAimEnsureDot() if S.AnaUi.aimGui and S.AnaUi.aimGui.Parent then return S.AnaUi.aimGui end
+function S.AnaAimUpdateLaser() if not S.AnaUi.centerAimOn then return end pcall(S.AnaAimEnsureLaser) pcall(S.AnaAimEnsureLaser2D) local hit = S.AnaAimTraceLook()
+local cam = S.AnaCam and S.AnaCam() or nil
+if hit and hit.pos then local destV = hit.pos local startV = nil
+pcall(function() if cam and cam.CFrame then startV = cam.CFrame * Vector3.new(0.28, -0.55, -2.4) end end)
+if not startV and hit.origin and hit.dir then startV = Vector3.new(hit.origin.X + hit.dir.X * 2.2, hit.origin.Y + hit.dir.Y * 2.2 - 0.5, hit.origin.Z + hit.dir.Z * 2.2) end
+if startV then local dx, dy, dz = destV.X - startV.X, destV.Y - startV.Y, destV.Z - startV.Z local len = math.sqrt(dx * dx + dy * dy + dz * dz) if len < 0.2 then len = 0.2 end
+if len > 400 then local inv = 400 / len destV = Vector3.new(startV.X + dx * inv, startV.Y + dy * inv, startV.Z + dz * inv) len = 400 end
+local mid = Vector3.new((startV.X + destV.X) * 0.5, (startV.Y + destV.Y) * 0.5, (startV.Z + destV.Z) * 0.5)
+pcall(function() local part, tip = S.AnaUi.laserPart, S.AnaUi.laserTip if part then part.CFrame = CFrame.lookAt(mid, destV) part.Size = Vector3.new(0.2, 0.2, len) part.Transparency = 0 pcall(function() part.LocalTransparencyModifier = 0 end) end
+if tip then tip.CFrame = CFrame.new(destV) tip.Size = hit.hasHit and Vector3.new(0.9, 0.9, 0.9) or Vector3.new(0.45, 0.45, 0.45) tip.Transparency = hit.hasHit and 0 or 0.2 tip.Color = hit.hasHit and Color3.fromRGB(255, 55, 55) or Color3.fromRGB(255, 190, 70) pcall(function() tip.LocalTransparencyModifier = 0 end) end
+if S.AnaUi.laserA then S.AnaUi.laserA.CFrame = CFrame.new(startV) end if S.AnaUi.laserB then S.AnaUi.laserB.CFrame = CFrame.new(destV) end if S.AnaUi.laserBeam then S.AnaUi.laserBeam.Enabled = true end end) end end
+local line, glow = S.AnaUi.laser2D, S.AnaUi.laser2DGlow local fx, fy = S.PointerScreenPoint() local tx, ty, depth = nil, nil, nil
+pcall(function() if cam and hit and hit.pos then local sp = cam:WorldToViewportPoint(hit.pos) tx, ty, depth = sp.X, sp.Y, sp.Z end end)
+if not tx then pcall(function() if cam and cam.ViewportSize then tx, ty, depth = cam.ViewportSize.X * 0.5, cam.ViewportSize.Y * 0.5, 1 end end) end
+if line and fx and tx and (depth == nil or depth > 0) then local mx, my, ln, ang = S.PlaceScreenLaser(fx, fy, tx, ty) local gx, gy = 0, 0
+pcall(function() local g = S.AnaUi.aimGui if g then gx, gy = g.AbsolutePosition.X, g.AbsolutePosition.Y end end)
+pcall(function() line.Visible = true line.AnchorPoint = Vector2.new(0.5, 0.5) line.Position = UDim2.new(0, mx - gx, 0, my - gy) line.Size = UDim2.new(0, math.max(ln, 12), 0, 8) line.Rotation = ang end)
+pcall(function() if glow then glow.Visible = true glow.AnchorPoint = Vector2.new(0.5, 0.5) glow.Position = UDim2.new(0, mx - gx, 0, my - gy) glow.Size = UDim2.new(0, math.max(ln, 12), 0, 18) glow.Rotation = ang end end)
+elseif line then pcall(function() line.Visible = false end) pcall(function() if glow then glow.Visible = false end end) end end
+function S.AnaAimEnsureLaser2D() local g = S.AnaUi and S.AnaUi.aimGui if not g then return end
+if S.AnaUi.laser2D and S.AnaUi.laser2D.Parent and S.AnaUi.laser2DGlow and S.AnaUi.laser2DGlow.Parent then return end
+pcall(function() local old = g:FindFirstChild("BC_Laser2D") if old then old:Destroy() end local oldG = g:FindFirstChild("BC_Laser2DGlow") if oldG then oldG:Destroy() end end)
+S.AnaUi.laser2DGlow = New("Frame", { Name = "BC_Laser2DGlow", AnchorPoint = Vector2.new(0.5, 0.5), Size = UDim2.new(0, 12, 0, 18), Position = UDim2.new(0, 0, 0, 0), BackgroundColor3 = Color3.fromRGB(255, 70, 70), BackgroundTransparency = 0.5, BorderSizePixel = 0, Visible = false, Active = false, ZIndex = 9997, }, g)
+pcall(function() Corner(S.AnaUi.laser2DGlow, UDim.new(1, 0)) end)
+S.AnaUi.laser2D = New("Frame", { Name = "BC_Laser2D", AnchorPoint = Vector2.new(0.5, 0.5), Size = UDim2.new(0, 12, 0, 8), Position = UDim2.new(0, 0, 0, 0), BackgroundColor3 = Color3.fromRGB(255, 25, 25), BackgroundTransparency = 0, BorderSizePixel = 0, Visible = false, Active = false, ZIndex = 9998, }, g)
+pcall(function() Corner(S.AnaUi.laser2D, UDim.new(1, 0)) end)
+pcall(function() New("UIStroke", { Color = Color3.fromRGB(255, 180, 180), Thickness = 1, Transparency = 0.2, ApplyStrokeMode = Enum.ApplyStrokeMode.Border, }, S.AnaUi.laser2D) end) end
+function S.AnaAimEnsureDot() if S.AnaUi.aimGui and S.AnaUi.aimGui.Parent then pcall(S.AnaAimEnsureLaser2D) return S.AnaUi.aimGui end
 local aimGui = New("ScreenGui", { Name = "BananaCatHub_AnaAimDot", IgnoreGuiInset = true, ResetOnSpawn = false, ZIndexBehavior = Enum.ZIndexBehavior.Global, DisplayOrder = 10000, }, targetGui)
 S.AnaUi.aimGui = aimGui aimGui:SetAttribute("BCHub_External", true) pcall(function() aimGui.IgnoreGuiInset = true end) pcall(function() aimGui.ClipToDeviceSafeArea = false end) pcall(function() aimGui.ScreenInsets = Enum.ScreenInsets.None end) local dot = New("Frame", { Name = "CenterAimDot", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0),
 Size = UDim2.new(0, 8, 0, 8), BackgroundColor3 = Color3.fromRGB(255, 35, 35), BackgroundTransparency = 1, Visible = false, BorderSizePixel = 0, Active = false, Selectable = false,
@@ -883,9 +914,11 @@ local dragged = S.AnaUi.aimButtonDragMoved == true local suppressUntil = S.AnaUi
 if dragged or os.clock() < suppressUntil then return end if type(S.AnaAimAnalyzeOnce) == "function" then
 local ok = pcall(S.AnaAimAnalyzeOnce) if not ok then pcall(function() if S.AnaUi.supportTabIndex then SwitchTab(S.AnaUi.supportTabIndex) end
 if main then main.Visible = true end if togBtn then togBtn.Text = "✕" end S.AnaSay("⚠️ Không phân tích được điểm ngắm") end) end end end) S.AnaUi.aimGui = aimGui S.AnaUi.aimDot = dot
-S.AnaUi.aimActionBtn = actionBtn return aimGui end function S.AnaAimStep() if not S.AnaUi.centerAimOn or not S.AnaUi.aimGui then return end
+S.AnaUi.aimActionBtn = actionBtn
+pcall(S.AnaAimEnsureLaser2D)
+return aimGui end function S.AnaAimStep() if not S.AnaUi.centerAimOn or not S.AnaUi.aimGui then return end
 local showOverlay = not (main and main.Visible) if S.AnaUi.aimGui.Enabled ~= showOverlay then S.AnaUi.aimGui.Enabled = showOverlay end
-if not showOverlay then S.AnaUi.aimButtonDragging = false S.AnaUi.aimButtonDragInput = nil pcall(function() if S.AnaUi.laserPart then S.AnaUi.laserPart.Transparency = 1 end if S.AnaUi.laserTip then S.AnaUi.laserTip.Transparency = 1 end end) return end pcall(S.AnaAimUpdateLaser) end function S.AnaAimBeginButtonDrag(input) if not S.AnaUi.aimButtonMoveEnabled then return end
+if not showOverlay then S.AnaUi.aimButtonDragging = false S.AnaUi.aimButtonDragInput = nil pcall(function() if S.AnaUi.laserPart then S.AnaUi.laserPart.Transparency = 1 end if S.AnaUi.laserTip then S.AnaUi.laserTip.Transparency = 1 end if S.AnaUi.laser2D then S.AnaUi.laser2D.Visible = false end if S.AnaUi.laser2DGlow then S.AnaUi.laser2DGlow.Visible = false end if S.AnaUi.laserBeam then S.AnaUi.laserBeam.Enabled = false end end) return end pcall(S.AnaAimUpdateLaser) end function S.AnaAimBeginButtonDrag(input) if not S.AnaUi.aimButtonMoveEnabled then return end
 local inputType = input.UserInputType if inputType ~= Enum.UserInputType.MouseButton1 and inputType ~= Enum.UserInputType.Touch then return end
 local btn = S.AnaUi.aimActionBtn if not btn then return end local inputPos = input.Position S.AnaUi.aimButtonDragging = true S.AnaUi.aimButtonDragInput = input
 S.AnaUi.aimButtonDragOrigin = Vector2.new(inputPos.X, inputPos.Y) S.AnaUi.aimButtonDragCenter = btn.AbsolutePosition + btn.AbsoluteSize / 2
@@ -924,7 +957,7 @@ S.AnaUi.aimGui, S.AnaUi.aimDot, S.AnaUi.aimActionBtn = nil, nil, nil S.AnaUi.aim
 S.AnaUi.aimButtonDragOrigin, S.AnaUi.aimButtonDragCenter = nil, nil S.AnaUi.aimButtonDragMoved, S.AnaUi.aimButtonSuppressUntil = false, 0 end
 local active = (S.AnaUi.centerAimOn == true) local btn = S.AnaUi.centerAimBtn
 if btn and btn.Parent then btn.Text = active and "🔴 Ngắm tâm: BẬT" or "🔴 Ngắm tâm: TẮT" D.SetBg(btn, active and C.RED or C.GRAY) end
-if active then S.AnaSay("🔴 Laser đã bật · kéo nút 🔎 lên vật (tia chiếu từ nút) rồi chạm 🔎 để định vị") end return active end
+if active then S.AnaSay("🔴 Laser đã bật · đóng menu, nhìn vào vật (thấy tia đỏ) rồi chạm 🔎") end return active end
 S.AnaUi.centerAimBtn.Activated:Connect(function() local requested = not (S.AnaUi.centerAimOn == true) local active = S.AnaAimSet(requested) if requested and not active then
 S.AnaSay("⚠️ Không bật được chế độ ngắm tâm — không tạo được tia laser/nút phân tích") end end) trackConn(UserInputService.InputBegan:Connect(function(input, gp)
 if gp then return end

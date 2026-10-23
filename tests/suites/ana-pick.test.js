@@ -205,11 +205,15 @@ module.exports = function anaPickSuite(suite) {
     A.ok(src.includes('ClipToDeviceSafeArea'), 'tắt safe-area để overlay không bị đẩy');
     A.ok(src.includes('ScreenInsets'), 'ScreenInsets = None trên overlay ngắm tâm');
     A.ok(src.includes('function S.LaserBeamSpan'), 'phải có LaserBeamSpan');
-    A.ok(src.includes('function S.PointerScreenPoint'), 'tia phải lấy tọa độ nút nhỏ 🔎, không tâm giữa màn');
-    A.ok(src.includes('function S.AnaAimTraceLook'), 'phải dò vật theo tia từ nút');
+    A.ok(src.includes('function S.PointerScreenPoint'), 'giữ tọa độ nút 🔎 để vẽ tia 2D');
+    A.ok(src.includes('function S.PlaceScreenLaser'), 'phải có PlaceScreenLaser (tia trên màn hình)');
+    A.ok(src.includes('function S.AnaAimEnsureLaser2D'), 'GUI cũ (đã bật ngắm) vẫn phải gắn tia 2D, không return sớm bỏ tia');
+    A.ok(src.includes('BC_Laser2D'), 'phải có tia đỏ 2D — nếu chỉ part 3D trùng hướng nhìn thì không thấy');
+    A.ok(src.includes('WorldToViewportPoint'), 'chiếu điểm chạm cây lên màn hình');
+    A.ok(src.includes('function S.AnaAimTraceLook'), 'phải dò vật theo hướng nhìn');
     A.ok(
-      /function S\.AnaAimLookOriginDir[\s\S]{0,500}PointerScreenPoint/.test(src),
-      'LookOriginDir phải chiếu từ nút 🔎, không LookVector giữa màn',
+      /function S\.AnaAimLookOriginDir[\s\S]{0,350}LookVector/.test(src),
+      'nhìn vào cây thì tia theo LookVector — không bắn lệch sang nút bên phải',
     );
     A.ok(src.includes('BC_AnaLaser'), 'phải có folder tia laser');
     A.ok(src.includes('BC_LaserBeam'), 'phải có part tia laser');
@@ -396,5 +400,40 @@ module.exports = function anaPickSuite(suite) {
       return tostring(x) .. "|" .. tostring(y) .. "|" .. tostring(space)
     `)[0];
     A.equal(out, 'nil|nil|nil', 'thiếu nút 🔎 thì không invent tâm giữa màn');
+  });
+
+  suite.test('PlaceScreenLaser: tia 2D từ nút 🔎 tới cây trên màn (nhìn thấy được)', (_t, A) => {
+    const src = fs.readFileSync(SCRIPT, 'utf8');
+    const fn = extractFn(src, 'S.PlaceScreenLaser', 'S.PointerScreenPoint');
+    const h = createRuntime({}, { bundle: true });
+    const out = h.eval(`
+      local S = {}
+      ${fn}
+      -- nút 🔎 góc phải (358,498) → cây giữa màn (400, 280)
+      local mx, my, len, ang = S.PlaceScreenLaser(358, 498, 400, 280)
+      return string.format("%.1f|%.1f|%.1f|%.1f", mx, my, len, ang)
+    `)[0];
+    const [mx, my, len, ang] = out.split('|').map(Number);
+    A.near(mx, 379, 0.2, 'trung điểm X của tia');
+    A.near(my, 389, 0.2, 'trung điểm Y của tia');
+    A.ok(len > 200, 'tia phải đủ dài để nhìn thấy từ nút tới cây, nhận ' + len);
+    A.ok(ang < 0, 'cây cao hơn nút → góc âm (lên trên)');
+  });
+
+  suite.test('PlaceScreenLaser: tia ngang không gãy góc', (_t, A) => {
+    const src = fs.readFileSync(SCRIPT, 'utf8');
+    const fn = extractFn(src, 'S.PlaceScreenLaser', 'S.PointerScreenPoint');
+    const h = createRuntime({}, { bundle: true });
+    const out = h.eval(`
+      local S = {}
+      ${fn}
+      local mx, my, len, ang = S.PlaceScreenLaser(10, 100, 110, 100)
+      return string.format("%.1f|%.1f|%.1f|%.1f", mx, my, len, ang)
+    `)[0];
+    const [mx, my, len, ang] = out.split('|').map(Number);
+    A.near(mx, 60, 0.01);
+    A.near(my, 100, 0.01);
+    A.near(len, 100, 0.01);
+    A.near(ang, 0, 0.01);
   });
 };
