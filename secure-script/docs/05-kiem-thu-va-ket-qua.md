@@ -12,7 +12,7 @@ node tools/check-static.mjs  # 310 kiểm tra tĩnh HTML ↔ app.js/program.js/g
 node tools/cli.mjs selftest  # kiểm tra nhanh CLI
 
 npm install                  # chỉ cần cho test DOM (jsdom)
-node tests/run-dom.mjs       # 345 kiểm thử giao diện + gói demo + Lập trình + GitHub + xuất bản + loader Luau
+node tests/run-dom.mjs       # 348 kiểm thử giao diện + gói demo + Lập trình + GitHub + xuất bản + loader Luau
 node tests/run-lua.mjs       # 31 kiểm thử chạy THẬT loader Luau trong fengari
 node tests/stress.mjs --quick   # 80 bài kiểm thử cường độ cao (~20 s)
 ```
@@ -46,11 +46,11 @@ Chỉ JavaScript + xem trước (tests/run-js.mjs): 53 đạt · 0 lỗi
 Gói xuất bản (tests/run-publish.mjs)  : 103 đạt · 0 lỗi
 Loader Luau (tests/run-lua.mjs)       : 67 đạt · 0 lỗi (chạy thật trong fengari, gồm loader tự chứa)
 Kiểm tra tĩnh (tools/check-static.mjs): 310 đạt · 0 lỗi
-Kiểm thử DOM  (tests/run-dom.mjs)     : 345 đạt · 0 lỗi
+Kiểm thử DOM  (tests/run-dom.mjs)     : 348 đạt · 0 lỗi
 Kiểm thử cường độ cao (stress.mjs --quick): 93/93 đạt · 0 lỗi · ~25 s
 ```
 
-Tổng: **1519 điểm kiểm tra đạt** (244 + 75 + 101 + 104 + 53 + 103 + 67 + 24 + 310 + 345 + 93).
+Tổng: **1522 điểm kiểm tra đạt** (244 + 75 + 101 + 104 + 53 + 103 + 67 + 24 + 310 + 348 + 93).
 
 `tests/run-e2e-lua.mjs` (24 điểm) đi trọn chuỗi mà người dùng làm: `buildPublishPlan` sinh
 gói → lấy đúng tệp `s/l-<id>.lua` + `s/k-<id>.txt` → chạy `l-<id>.lua` trong fengari với
