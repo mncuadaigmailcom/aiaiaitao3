@@ -1,7 +1,7 @@
 # AIA Secure Script
 
 🌐 **Dùng ngay: [https://mncuadaigmailcom.github.io/aiaiaitao3/](https://mncuadaigmailcom.github.io/aiaiaitao3/)**
-(gói demo: [run-hello.html](https://mncuadaigmailcom.github.io/aiaiaitao3/examples/demo/run-hello.html) — mật khẩu `aia-demo-2026`)
+(gói demo: [run-hello.html](https://mncuadaigmailcom.github.io/aiaiaitao3/secure-script/examples/demo/run-hello.html) — mật khẩu `aia-demo-2026`)
 
 Mã hoá code script thành **một tệp `.aia`** + **một key script** `.key.js`, mở khoá và
 chạy ngay trong trình duyệt. Không máy chủ, không đăng ký, không tốn tiền.
@@ -22,12 +22,15 @@ chạy ngay trong trình duyệt. Không máy chủ, không đăng ký, không t
 
 | | |
 |---|---|
+| ⚡ **Dán là mã hoá** | Dán code hoặc thả tệp → tự mã hoá, không bấm thêm bước nào |
+| 📋 **Code chép được** | Hiện bản mã dạng **Base64 / Hex** kèm nút **Chép** |
+| 🔗 **1 link key cho mọi lần** | Key script dùng chung `aia.key.js` (hoặc chế độ riêng từng tệp) |
 | 🔒 **Mã hoá thật** | AES-256-GCM, mỗi khối có tag xác thực; sửa 1 bit là hỏng |
 | 🗝️ **Key script là chìa khoá thật** | Khoá tệp ngẫu nhiên chỉ nằm trong `key.js`: thiếu nó là không mở được |
 | ⏱️ **Khoá gắn thời gian** | Mili giây + link key + mật khẩu → mỗi lần mã hoá một khoá khác |
 | 👁️ **Header đọc được** | Thời gian, link key, tên tệp hiện rõ để nhận biết (đúng yêu cầu) |
-| 📦 **Tăng kích thước không đáng kể** | +16 byte/khối (0,0015 %) + header ~0,7 KB. Đo thật: 8 MiB → +844 B |
-| ⚡ **Không treo máy** | Xử lý theo luồng 1 MiB, chạy code trong Web Worker |
+| 📦 **Tăng kích thước không đáng kể** | +16 byte/khối (0,0015 %) + header ~0,8 KB. Đo thật: 8 MiB → +962 B |
+| ⚡ **Không treo máy** | Xử lý theo luồng 1 MiB; đo thật 1 GiB: 464 MiB/s, RAM gần như không tăng |
 | 🧩 **Kèm dịch ngược** | Làm đẹp, rút gọn, tách chuỗi, đổi tên biến, giải base64/hex/URL, phân tích |
 | 🆓 **Miễn phí** | Tệp tĩnh: GitHub Pages / Cloudflare Pages / Netlify / Vercel |
 | 🚫 **Không upload** | Code không rời khỏi máy bạn; không có backend |
@@ -40,9 +43,9 @@ python3 -m http.server 8080
 # mở http://localhost:8080
 ```
 
-1. Kéo tệp script vào ô, hoặc dán code.
-2. Đặt **mật khẩu** (bấm "tạo" nếu lười nghĩ).
-3. Bấm **Mã hoá ngay** → tải **ZIP**.
+1. Đặt **mật khẩu** (bấm "tạo" nếu lười nghĩ) — nên đặt, vì key script dùng chung là công khai.
+2. Kéo tệp vào ô **hoặc** dán code — web **tự mã hoá** ngay.
+3. Xem **Code đã mã hoá** (Base64/Hex, bấm **Chép**) và tải **`.aia`** / **ZIP**.
 4. Người nhận giải nén, mở `run-*.html` qua HTTP, nhập mật khẩu → chạy.
 
 ### Nhúng vào trang của bạn

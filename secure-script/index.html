@@ -211,7 +211,7 @@
           <div class="stat-row" id="resStats"></div>
           <pre id="testLog" class="console" hidden style="margin-top:14px"></pre>
           <details class="kbd">
-            <summary>Xem key script (có thể sửa thành tệp .js)</summary>
+            <summary>Xem key script (tải về đặt cạnh tệp .aia)</summary>
             <pre id="keyPreview"></pre>
           </details>
           <details class="kbd">
@@ -398,8 +398,11 @@
         <h3>Mục tiêu</h3>
         <ul>
           <li>Nhập code hoặc tệp script, tối đa <b>5 GiB</b>.</li>
-          <li>Mã hoá ra <b>tệp .aia</b> + <b>key script</b> riêng.</li>
-          <li>Khoá tệp ngẫu nhiên <b>chỉ nằm trong key script</b> → thiếu key là không mở được.</li>
+          <li>Dán code hoặc thả tệp là <b>tự mã hoá</b> — không bấm thêm bước nào.</li>
+          <li>Mã hoá ra <b>tệp .aia</b>, kèm <b>khung code Base64/Hex chép được</b> ngay trên trang.</li>
+          <li>Mặc định dùng <b>một key script chung <code>aia.key.js</code></b> — 1 link cho mọi lần mã hoá,
+            mọi người; vẫn có chế độ <b>riêng từng tệp</b> nếu cần tách biệt.</li>
+          <li>Khoá tệp ngẫu nhiên <b>chỉ nằm trong key script / header đã bọc</b> → thiếu key là không mở được.</li>
           <li>Khoá gắn với <b>thời gian tạo</b> (đến mili giây) + <b>link key</b> + mật khẩu.</li>
           <li>Header giữ thời gian/link key <b>không mã hoá</b> để nhận biết.</li>
           <li>Tăng kích thước gần như bằng 0; không treo máy; script vẫn chạy bình thường.</li>
