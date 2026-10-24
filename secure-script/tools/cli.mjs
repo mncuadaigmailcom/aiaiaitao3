@@ -30,6 +30,7 @@ const USAGE = `AIA Secure Script CLI
     --no-require-key              Không bắt buộc key script (mặc định: BẮT BUỘC)
     --shared                      Dùng key script DÙNG CHUNG (aia.key.js) cho mọi tệp
     --shared-key <aia.key.js>     Tệp key script chung (mặc định: ./aia.key.js cạnh CLI)
+    --lang <tên>                  Ghi đè ngôn ngữ (mặc định: dò theo đuôi + NỘI DUNG 64 KiB đầu)
 
   decrypt <tệp.aia> [tuỳ chọn]    Giải mã (dùng header của .aia, không cần key script)
     --pass <mật khẩu>             Mật khẩu
@@ -199,7 +200,7 @@ async function cmdEncrypt(args) {
     note: args.note || '',
     fileName: path.basename(input),
     fileType: '',
-    lang: C.detectLang(path.basename(input)),
+    lang: args.lang || C.resolveLang(path.basename(input), readHeadText(input, C.LANG_SNIFF_BYTES)),
     hashPlaintext: !args['no-hash'],
     requireKeyScript: !args['no-require-key'],
     payloadFile: payloadName,
@@ -305,6 +306,23 @@ async function cmdDecrypt(args) {
   console.log(`  Thời gian tạo: ${meta.time.readable} · key: ${meta.keyUrl}`);
   if (meta.file.lang !== 'javascript' && meta.file.lang !== 'typescript') {
     console.log(`  (${meta.file.lang}: tệp này không chạy trực tiếp trong trình duyệt.)`);
+  }
+}
+
+/**
+ * Đọc `n` byte đầu của tệp thành text — dùng để dò ngôn ngữ theo nội dung
+ * (nhiều người đặt tên `.js` cho tệp Lua của Roblox).
+ */
+function readHeadText(filePath, n = 65536) {
+  const fd = fs.openSync(filePath, 'r');
+  try {
+    const buf = Buffer.alloc(Math.min(n, fs.fstatSync(fd).size));
+    fs.readSync(fd, buf, 0, buf.length, 0);
+    return buf.toString('utf8');
+  } catch {
+    return '';
+  } finally {
+    fs.closeSync(fd);
   }
 }
 

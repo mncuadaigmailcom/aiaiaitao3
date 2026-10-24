@@ -458,6 +458,86 @@ $('linkPassMode').value = 'none';
 $('linkPassMode').dispatchEvent(new window.Event('change'));
 $('linkPass').value = '';
 
+
+/* ------------------------------- 6b. đuôi tệp SAI: .js nhưng nội dung là Lua --- */
+
+console.log('\n[6b] Đuôi tệp sai (tệp .js nhưng nội dung là Luau)');
+
+const LUAU_TEXT = [
+  'local Players = game:GetService("Players")',
+  'local RunService = game:GetService("RunService")',
+  'local player = Players.LocalPlayer',
+  'local playerGui = player:WaitForChild("PlayerGui")',
+  'local function makeFrame(parent)',
+  '  local f = Instance.new("Frame")',
+  '  f.Size = UDim2.new(0, 120, 0, 40)',
+  '  f.Parent = parent',
+  '  f.MouseButton1Click:Connect(function() print("hi") end)',
+  '  return f',
+  'end',
+  'RunService.RenderStepped:Connect(function(dt) local x = 1 if x ~= 2 then print(dt) end end)',
+  'for _, v in ipairs({1, 2, 3}) do print(v) end',
+].join('\n');
+
+// (a) trước tiên: lỗi cú pháp trong Worker phải được dịch thành câu dễ hiểu
+{
+  const jsFile = new File(['globalThis.__ok = 1; console.log("chay duoc");'], 'fine.js', { type: 'text/javascript' });
+  Object.defineProperty($('fileInput'), 'files', { value: [jsFile], configurable: true });
+  $('fileInput').dispatchEvent(new window.Event('change'));
+  await waitFor(() => $('fileInfo').textContent.includes('fine.js'), 'nạp tệp JS');
+  // chờ mã hoá XONG cho tệp mới (không dựa vào trạng thái cũ của lần mã hoá trước)
+  await waitFor(() => ($('metaPreview').textContent || '').includes('fine.js') && $('testRunBtn').disabled === false, 'nút chạy thử bật cho tệp JS');
+  check($('testRunBtn').title.includes('Web Worker'), 'nút chạy thử có tooltip giải thích', $('testRunBtn').title);
+
+  const RealWorker = globalThis.Worker;
+  class SyntaxErrWorker {
+    constructor() {
+      setTimeout(() => this.onerror && this.onerror({ message: "Unexpected identifier 'Players'" }), 5);
+    }
+    terminate() {}
+    postMessage() {}
+  }
+  globalThis.Worker = SyntaxErrWorker;
+  window.Worker = SyntaxErrWorker;
+  $('testLog').textContent = '';
+  $('testRunBtn').click();
+  await waitFor(() => $('testLog').textContent.includes('Unexpected identifier'), 'worker báo lỗi cú pháp');
+  check($('testLog').textContent.includes('không phải lỗi mã hoá'), 'lỗi cú pháp được giải thích bằng tiếng Việt', $('testLog').textContent.slice(0, 120));
+  check($('testLog').textContent.includes('Tải bản rõ'), 'gợi ý đúng cách lấy lại code');
+  globalThis.Worker = RealWorker;
+  window.Worker = RealWorker;
+}
+
+// (b) tệp .js nhưng nội dung Luau → nhận ra Lua, không chạy thử
+{
+  const luaFile = new File([LUAU_TEXT], 'script.js', { type: 'text/javascript' });
+  Object.defineProperty($('fileInput'), 'files', { value: [luaFile], configurable: true });
+  $('fileInput').dispatchEvent(new window.Event('change'));
+  await waitFor(() => $('fileInfo').textContent.includes('script.js'), 'nạp tệp .js có nội dung Lua');
+  await waitFor(() => /Lua/.test($('fileInfo').textContent), 'giao diện nhận ra nội dung là Lua');
+  check($('fileInfo').textContent.includes('Lua/Luau'), 'hiện đúng nhãn Lua/Luau', $('fileInfo').textContent);
+  check($('fileInfo').textContent.includes('đuôi tệp là JavaScript'), 'nói rõ đuôi tệp lệch nội dung', $('fileInfo').textContent);
+  check($('fileInfo').classList.contains('warn'), 'cảnh báo có màu/kiểu riêng');
+  check($('fileInfo').title.includes('không chạy thử'), 'tooltip giải thích vì sao không chạy thử');
+
+  await waitFor(() => !$('resultCard').hidden && $('resStats').textContent.includes('Tự kiểm tra') && ($('metaPreview').textContent || '').includes('"lua"'), 'vẫn mã hoá bình thường');
+  const meta = JSON.parse($('metaPreview').textContent);
+  check(meta.file.lang === 'lua', 'header ghi lang = lua (dù tên .js)', meta.file.lang);
+  check($('resStats').textContent.includes('khớp 100%'), 'mã hoá/giải mã vẫn khớp 100%');
+  check($('testRunBtn').disabled === true, 'nút "Chạy thử ngay" bị khoá');
+  check($('testRunBtn').title.includes('Lua'), 'tooltip nói rõ lý do khoá', $('testRunBtn').title);
+
+  // snippet: kiểu "có chú thích" phải để EXEC = false
+  $('encStyle').value = 'labeled';
+  $('encStyle').dispatchEvent(new window.Event('change'));
+  check(/var EXEC = false;/.test($('encCode').textContent), 'snippet cho tệp Lua: EXEC = false');
+  check(!/var EXEC = true;/.test($('encCode').textContent), 'snippet không cố chạy Lua');
+  $('encStyle').value = 'stealth';
+  $('encStyle').dispatchEvent(new window.Event('change'));
+  check($('encCode').textContent.trim().startsWith('(function'), 'quay lại snippet ẩn dấu vết');
+  check(!$('encCode').textContent.includes('https://'), 'snippet ẩn vẫn không lộ link');
+}
+
 /* --------------------------------------------------------------- 7. lỗi --- */
 
 console.log('\n[7] Lỗi runtime');

@@ -168,6 +168,29 @@ check(sharedKeyText.includes('openLink'), 'aia.key.js phát hành kèm site có 
 check(/keyId:\s*"[0-9a-f]{16}"/.test(sharedKeyText), 'aia.key.js có keyId 16 hex');
 check(htmlText.includes('data-view="link"'), 'thanh tab có mục Mã hoá link');
 
+
+/* ------------------------------------------- 7. nhận diện ngôn ngữ (đuôi sai) --- */
+
+console.log('\n[7] Nhận diện ngôn ngữ: ưu tiên đuôi, dò thêm nội dung');
+for (const fn of ['export function sniffContentLang', 'export function resolveLang', 'LANG_SNIFF_BYTES']) {
+  check(coreText.includes(fn), 'core.js có ' + fn.replace('export ', ''));
+}
+const appText = read('assets/app.js');
+check(appText.includes('async function refineSourceLang'), 'app.js có refineSourceLang()');
+check(appText.includes('src.readSample'), 'app.js đọc mẫu đầu tệp để dò nội dung');
+check(appText.includes('canExecute(meta.file, code)'), 'app.js dùng canExecute() khi quyết định chạy');
+check(appText.includes('function explainRuntimeError'), 'app.js có explainRuntimeError()');
+check(/explainRuntimeError\(d\.message\)/.test(appText), 'lỗi từ Worker được giải thích');
+check(/explainRuntimeError\(e && e\.message/.test(appText), 'lỗi worker.onerror được giải thích');
+check(appText.includes('lang: src.lang || C.detectLang(src.name)'), 'header dùng ngôn ngữ đã dò');
+check(coreText.includes('var RUNNABLE = '), 'run.html có cờ RUNNABLE');
+check(coreText.includes('chỉ giải mã và cho'), 'run.html cảnh báo khi tệp không chạy được');
+check(/isRunnableLang\(meta\.file\.lang\)/.test(coreText), 'snippet quyết định EXEC theo lang trong header');
+const cliText2 = read('tools/cli.mjs');
+check(cliText2.includes('readHeadText'), 'CLI đọc mẫu đầu tệp để dò ngôn ngữ');
+check(cliText2.includes("args.lang || C.resolveLang"), 'CLI có --lang và tự dò nội dung');
+check(read('index.html').includes('id="testRunBtn"'), 'index.html có nút chạy thử');
+
 /* ------------------------------------------------------------------ tổng --- */
 
 console.log('\n' + '─'.repeat(56));

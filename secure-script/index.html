@@ -589,6 +589,8 @@
           <li>Dán code hoặc thả tệp là <b>tự mã hoá</b> — không cần nhập ngày giờ, không bấm thêm.</li>
           <li>Kết quả gồm <b>snippet "chép là chạy"</b> (tự chứa <b>link key script</b> + bản mã Base64),
             cùng hai tab <b>Base64 / Hex</b> và tệp <b>.aia</b>.</li>
+          <li><b>Dò ngôn ngữ theo nội dung</b>: tệp <code>.js</code> chứa Lua/Luau/Python vẫn được nhận đúng —
+            trang hiện cảnh báo, khoá nút "Chạy thử" và cho tải bản rõ (không còn lỗi <code>Unexpected identifier</code>).</li>
           <li><b>Mã hoá link</b>: dán link trang web hoặc link script → token <code>AIALNK1.…</code>
             (kèm snippet tự mở link, tự nạp script hoặc chỉ in link). Không mật khẩu thì ai có token + key script là mở được.</li>
           <li>Snippet mặc định ở kiểu <b>ẩn dấu vết</b>: không tiêu đề, không lộ link/tên API,
@@ -644,10 +646,10 @@
       <article class="card">
         <h3>Kiểm thử</h3>
         <ul>
-          <li><code>node tests/run-node.mjs</code> — 189 kiểm thử: mã hoá/giải mã, cắt khối, sửa bit, sai mật khẩu,
-            sai link key, snippet, <b>mã hoá link</b>, giới hạn dung lượng.</li>
+          <li><code>node tests/run-node.mjs</code> — 219 kiểm thử: mã hoá/giải mã, cắt khối, sửa bit, sai mật khẩu,
+            sai link key, snippet, <b>mã hoá link</b>, <b>nhận diện ngôn ngữ</b>, giới hạn dung lượng.</li>
           <li><code>node tools/check-static.mjs</code> · <code>node tests/run-dom.mjs</code> ·
-            <code>node tests/stress.mjs --quick</code> — tổng <b>410 điểm</b> kiểm tra.</li>
+            <code>node tests/stress.mjs --quick</code> — tổng <b>482 điểm</b> kiểm tra.</li>
           <li><code>node tools/cli.mjs --help</code> — dùng ngay trên máy.</li>
         </ul>
       </article>
@@ -668,6 +670,7 @@
     <h2 id="helpTitle">Cách dùng trong 60 giây</h2>
     <ol class="flow">
       <li>Tab <b>Mã hoá</b>: chọn tệp script hoặc dán code.</li>
+      <li>Tệp Lua/Luau/Python vẫn mã hoá được, nhưng trình duyệt chỉ <b>chạy</b> JavaScript — trang tự nhận ra và khoá nút "Chạy thử" (hãy dùng "Tải bản rõ").</li>
       <li>Tab <b>Mã hoá link</b>: dán link trang web / link script → nhận token <code>AIALNK1.…</code> hoặc snippet tự mở link.</li>
       <li>Đặt <b>mật khẩu</b> (nhớ kỹ!) và để nguyên link key <code>./key.js</code> nếu bạn để mọi tệp cùng thư mục.</li>
       <li>Bấm <b>Mã hoá ngay</b> → tải gói ZIP gồm <code>.aia</code>, <code>key.js</code>, <code>run.html</code>, <code>README.txt</code>.</li>

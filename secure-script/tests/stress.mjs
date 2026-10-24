@@ -925,9 +925,13 @@ async function testLinks() {
       const chars = one.token.split('');
       for (let k = 0; k < 3; k++) {
         const pos = 8 + Math.floor(Math.random() * (chars.length - 8));
-        chars[pos] = alphabet[Math.floor(Math.random() * alphabet.length)];
+        // phải đổi sang ký tự KHÁC (nếu trùng thì token không đổi → mở được là đúng)
+        let c = chars[pos];
+        while (c === chars[pos]) c = alphabet[Math.floor(Math.random() * alphabet.length)];
+        chars[pos] = c;
       }
       token = chars.join('');
+      if (token === one.token) continue; // an toàn: bỏ qua nếu không đổi được
     }
     try {
       await C.decryptLink(token, base);
@@ -981,6 +985,99 @@ async function testLinks() {
   record('link', '500 token có độ dài ổn định (lệch ≤ 8 ký tự)', Math.max(...keep) - Math.min(...keep) <= 8, `${Math.min(...keep)}–${Math.max(...keep)} ký tự`);
 }
 
+
+/* =====================================================================
+ * 13. Nhận diện ngôn ngữ theo nội dung (đuôi tệp có thể sai)
+ * ===================================================================== */
+
+async function testLangSniff() {
+  section('13. Nhận diện ngôn ngữ theo nội dung — độ chính xác & tốc độ');
+  const ssDir = path.resolve(import.meta.dirname, '..');
+  const repoRoot = path.resolve(ssDir, '..');
+
+  // (a) tệp thật của người dùng (nếu có trong repo)
+  const realFiles = ['script.js', 'script.js1.js', 'script.js2.js']
+    .map((f) => path.join(repoRoot, f))
+    .filter((f) => fs.existsSync(f));
+  for (const f of realFiles) {
+    const text = fs.readFileSync(f, 'utf8');
+    const t0 = nowMs();
+    const lang = C.sniffContentLang(text);
+    const ms = nowMs() - t0;
+    record('ngôn ngữ', `${path.basename(f)} (${(text.length / 1024).toFixed(0)} KB, đuôi .js) → ${lang}`, lang === 'lua', `${ms.toFixed(0)} ms`);
+  }
+
+  // (b) không nhận nhầm mã nguồn JS của chính dự án
+  const walk = (dir, acc = []) => {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (['node_modules', '.git', 'dist', 'build'].includes(e.name)) continue;
+      const p = path.join(dir, e.name);
+      if (e.isDirectory()) walk(p, acc);
+      else if (/\.(m?js|cjs)$/.test(e.name)) acc.push(p);
+    }
+    return acc;
+  };
+  const jsFiles = walk(ssDir);
+  const wrong = [];
+  for (const p of jsFiles) {
+    const got = C.sniffContentLang(fs.readFileSync(p, 'utf8'));
+    if (got && got !== 'javascript') wrong.push(path.relative(ssDir, p) + '→' + got);
+  }
+  record('ngôn ngữ', `${jsFiles.length} tệp JS của dự án không bị nhận nhầm`, wrong.length === 0, wrong.join(', '));
+
+  // (c) tốc độ: quét 780 KB nhiều lần
+  const big = fs.existsSync(path.join(repoRoot, 'script.js'))
+    ? fs.readFileSync(path.join(repoRoot, 'script.js'), 'utf8')
+    : 'local x = 1\n'.repeat(80000);
+  const rounds = QUICK ? 200 : 1000;
+  const t1 = nowMs();
+  for (let i = 0; i < rounds; i++) C.resolveLang('script.js', big);
+  const per = (nowMs() - t1) / rounds;
+  record('ngôn ngữ', `${rounds} lần dò trên ${(big.length / 1024).toFixed(0)} KB`, per < 5, `${per.toFixed(2)} ms/lần`);
+
+  // (d) fuzz: chuỗi rác không được làm sập, không được "đoán bừa"
+  const alphabet = 'abcdefghijklmnopqrstuvwxyz0123456789 \n\t{}()[]<>$#@!&*+-=/\\\'";:,.';
+  let crashes = 0;
+  let guesses = 0;
+  const t2 = nowMs();
+  const N = Math.max(200, FUZZ_ROUNDS * 3);
+  for (let i = 0; i < N; i++) {
+    const len = Math.floor(Math.random() * 4000);
+    let s = '';
+    for (let k = 0; k < len; k++) s += alphabet[Math.floor(Math.random() * alphabet.length)];
+    try {
+      const got = C.sniffContentLang(s);
+      if (got) guesses++;
+    } catch {
+      crashes++;
+    }
+  }
+  record('ngôn ngữ', `${N} chuỗi rác: không lần nào ném lỗi`, crashes === 0, crashes + ' lỗi');
+  record('ngôn ngữ', 'chuỗi rác hầu như không bị "đoán bừa"', guesses <= N * 0.02, `${guesses}/${N} lần đoán`);
+
+  // (e) tệp có gạch trang trí dài (====) không bị hiểu là `===` của JS
+  const bar = '-- ' + '='.repeat(200);
+  const deco = [bar,
+    'local Players = game:GetService("Players")',
+    'local RunService = game:GetService("RunService")',
+    'local UIS = game:GetService("UserInputService")',
+    'local function f() local p = Instance.new("Part") return p end',
+    'local a = 1 if a ~= 2 then print(a) end',
+    bar].join('\n');
+  record('ngôn ngữ', 'gạch trang trí ==== không làm sai kết quả', C.sniffContentLang(deco) === 'lua', String(C.sniffContentLang(deco)));
+
+  // (f) resolveLang ổn định & đúng bảng
+  const cases = [
+    ['script.js', 'local function f() game:GetService("Players") Instance.new("Part") UDim2.new(0,1,0,1) Enum.Font end local x = 1 if x ~= 2 then end', 'lua'],
+    ['script.js', 'const a = 1;\nfunction f(){ return a => a; }\ndocument.body.appendChild(x);\nconsole.log(f());\nwindow.alert("x");\nmodule.exports = f;\n"use strict";', 'javascript'],
+    ['a.lua', '', 'lua'],
+  ];
+  for (const [name, text, want] of cases) {
+    const got = C.resolveLang(name, text);
+    record('ngôn ngữ', `resolveLang(${name}, …) = ${want}`, got === want, got);
+  }
+}
+
 /* =====================================================================
  * CHẠY
  * ===================================================================== */
@@ -1003,6 +1100,7 @@ const suites = [
   ['ram', testMemoryScaling],
   ['snippet', testRunSnippet],
   ['link', testLinks],
+  ['ngôn ngữ', testLangSniff],
   ['tệp lớn', testLargeFile],
 ];
 
