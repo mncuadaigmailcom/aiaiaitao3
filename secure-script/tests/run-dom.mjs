@@ -400,6 +400,29 @@ console.log('\n[5b] Mã hoá code Lua → loader Luau (không cần GitHub)');
   check(downloads.length === dlBefore2 + 2, 'tải .lua kèm tệp khoá .txt', downloads.slice(dlBefore2).join(', '));
   check(/^k-[0-9a-f]{8}\.txt$/.test(downloads[downloads.length - 1]), 'tên tệp khoá đúng dạng', downloads[downloads.length - 1]);
 
+  // gói ZIP phải kèm luôn tệp .lua (để tải một lần là đủ)
+  {
+    await new Promise((r) => setTimeout(r, 200));
+    const origCreate = globalThis.URL.createObjectURL;
+    let captured = null;
+    globalThis.URL.createObjectURL = (blob) => {
+      captured = blob;
+      return 'blob:zip-capture';
+    };
+    $('dlZip').click();
+    await new Promise((r) => setTimeout(r, 100));
+    globalThis.URL.createObjectURL = origCreate;
+    let zipText = '';
+    try {
+      zipText = Buffer.from(await captured.arrayBuffer()).toString('latin1');
+    } catch {
+      zipText = '';
+    }
+    check(/l-[0-9a-f]{8}\.lua/.test(zipText), 'ZIP có kèm tệp loader .lua', zipText.length + ' B');
+    check(zipText.includes('script.aia'), 'ZIP vẫn có tệp .aia');
+    check(zipText.includes('README-script.txt'), 'ZIP vẫn có README');
+  }
+
   // code JavaScript thì không hiện thẻ Luau
   $('pasteLang').value = 'javascript';
   $('pasteLang').dispatchEvent(new window.Event('change'));

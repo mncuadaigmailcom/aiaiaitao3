@@ -761,21 +761,30 @@ async function runEncryption(runOpts = {}) {
   state.artifacts.set(runnerFileName, { name: runnerFileName, size: new TextEncoder().encode(runnerHtml).length, data: runnerHtml });
   state.artifacts.set(readmeFileName, { name: readmeFileName, size: new TextEncoder().encode(readmeText).length, data: readmeText });
 
-  // ZIP chỉ khi mọi thứ nằm trong bộ nhớ và tổng dung lượng vừa phải
-  let zipSize = 0;
-  if ($('zipChk').checked && containerBytes) {
-    const total = containerBytes.length + state.artifacts.get(keyFileName).size + state.artifacts.get(runnerFileName).size + state.artifacts.get(readmeFileName).size;
-    if (total <= C.ZIP_LIMIT) {
-      const zip = C.createZip([
-        { name: payloadFile, data: containerBytes },
-        { name: keyFileName, data: keyText },
-        { name: runnerFileName, data: runnerHtml },
-        { name: readmeFileName, data: readmeText },
-      ]);
-      zipSize = zip.length;
-      state.artifacts.set(`aia-${slug}.zip`, { name: `aia-${slug}.zip`, size: zip.length, data: zip });
+  // ZIP chỉ khi mọi thứ nằm trong bộ nhớ và tổng dung lượng vừa phải.
+  // Tệp loader Luau (nếu có) được thêm sau, nên ZIP được dựng lại ở dưới.
+  const zipName = `aia-${slug}.zip`;
+  const buildZip = () => {
+    if (!$('zipChk').checked || !containerBytes) return 0;
+    const entries = [
+      { name: payloadFile, data: containerBytes },
+      { name: keyFileName, data: keyText },
+      { name: runnerFileName, data: runnerHtml },
+      { name: readmeFileName, data: readmeText },
+    ];
+    // Kèm luôn tệp .lua / .txt của loader Luau để gói ZIP là "một phát là đủ"
+    for (const [name, art] of state.artifacts) {
+      if (art && art.data && (/^l-[0-9a-f]{8}\.lua$/.test(name) || /^k-[0-9a-f]{8}\.txt$/.test(name))) {
+        entries.push({ name, data: typeof art.data === 'string' ? new TextEncoder().encode(art.data) : art.data });
+      }
     }
-  }
+    const total = entries.reduce((sum, e) => sum + (e.data.length || 0), 0);
+    if (total > C.ZIP_LIMIT) return 0;
+    const zip = C.createZip(entries);
+    state.artifacts.set(zipName, { name: zipName, size: zip.length, data: zip });
+    return zip.length;
+  };
+  let zipSize = buildZip();
 
   state.lastCipher = { bytes: containerBytes, meta, options, keyText };
 
@@ -795,9 +804,19 @@ async function runEncryption(runOpts = {}) {
   }
 
   renderResult({ meta, options, elapsed, verified, keyText, zipSize, sink, keyMode, passphrase });
-  // Bản chạy trong game: dựng loader Luau nếu code là Lua (không cần GitHub)
-  refreshLuaBundle().catch((err) => console.warn('Lua bundle:', err));
   $('progressWrap').hidden = true;
+  // Bản chạy trong game: dựng loader Luau nếu code là Lua (không cần GitHub),
+  // rồi đóng gói lại ZIP để gói tải về có luôn tệp .lua.
+  refreshLuaBundle()
+    .then((luaRes) => {
+      if (!luaRes) return;
+      const newSize = buildZip();
+      if (newSize && newSize !== zipSize) {
+        const zipArt = state.artifacts.get(zipName);
+        if (zipArt && $('dlZip')) $('dlZip').title = 'ZIP đã kèm ' + luaRes.loaderName;
+      }
+    })
+    .catch((err) => console.warn('Lua bundle:', err));
   $('progBar').style.width = '100%';
   toast(verified === false ? 'Đã mã hoá nhưng tự kiểm tra KHÔNG khớp — hãy thử lại.' : 'Mã hoá xong.', verified === false ? 'bad' : 'ok', 6000);
   if (meta.keyWrapIn === 'shared-key-script' && !passphrase) {

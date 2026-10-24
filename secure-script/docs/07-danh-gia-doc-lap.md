@@ -86,11 +86,11 @@ Môi trường: Node v22.22.3, `npm i jsdom fengari` (chỉ để chạy test DO
 | `tests/run-publish.mjs` | **103 / 103** | ~2 s |
 | `tests/run-js.mjs` | **53 / 53** | ~1 s |
 | `tools/check-static.mjs` | **310 / 310** | ~1 s |
-| `tests/run-dom.mjs` (jsdom) | **345 / 345** | ~9 s |
+| `tests/run-dom.mjs` (jsdom) | **348 / 348** | ~9 s |
 | `tests/run-lua.mjs` (fengari, loader Luau thật) | **67 / 67** | ~22 s |
 | `tests/stress.mjs --quick` | **93 / 93** | ~25 s |
 
-Tổng: **1.519 / 1.519** trong môi trường này (244+75+101+104+103+53+310+345+67+24+93).
+Tổng: **1.522 / 1.522** trong môi trường này (244+75+101+104+103+53+310+348+67+24+93).
 
 > Ghi chú cập nhật 2026-10-24: báo cáo ban đầu ghi 1.371/1.372 vì một test DOM trượt do
 > lỗi cascade của `jsdom` (xem NOTE-2). Test đó đã được xử lý bằng cách đặt luật CSS

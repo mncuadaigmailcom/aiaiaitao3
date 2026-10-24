@@ -114,13 +114,13 @@ Chạy `node tests/run-node.mjs` (Node 22, WebCrypto thật):
 - **244/244** kiểm thử lõi + **75/75** lõi soạn thảo + **101/101** client GitHub +
   **104/104** lõi tab Lập trình (`run-ide.mjs`) + **53/53** phần **chỉ JavaScript**
   và **khung xem trước** (`run-js.mjs`).
-- **345/345** kiểm thử giao diện trên DOM ả (jsdom) — gồm cả **gói demo phát hành kèm**,
+- **348/348** kiểm thử giao diện trên DOM ả (jsdom) — gồm cả **gói demo phát hành kèm**,
   tab **Lập trình** (nhiều tệp, tìm/thay, định dạng, chạy ra kết quả bên phải, console,
   tự chạy, 5 ô lưu, ZIP), **trang trắng chống soi**, **hộp thoại GitHub** và **luồng
   xuất bản một nút** (mã hoá + chống soi + đẩy tệp + link script) —
   **310/310** kiểm tra tĩnh, **103/103** kiểm thử gói xuất bản,
   **67/67** kiểm thử chạy thật loader Luau trong fengari, và **93/93** bài
-  **kiểm thử cường độ cao**. Tổng **1519 điểm kiểm tra**.
+  **kiểm thử cường độ cao**. Tổng **1522 điểm kiểm tra**.
 - Vòng lặp đúng với khối 64 KiB / 256 KiB / 1 MiB; tệp rỗng; tệp chia hết khối.
 - Sai mật khẩu, sửa link key, sửa 1 bit, cắt tệp, ghép thêm, đảo khối, sai magic →
   đều bị chặn.

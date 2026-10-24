@@ -130,7 +130,7 @@ node tests/run-publish.mjs   # 103/103 — gói xuất bản: trang 404 + loader
 node tests/run-js.mjs        # 53/53  — chỉ JavaScript + khung xem trước (buildPreviewDocument)
 node tools/check-static.mjs   # 310/310 — id/đường dẫn/cú pháp HTML + link + ngôn ngữ + tab mới
 npm install                   # chỉ để chạy test DOM
-node tests/run-dom.mjs        # 345/345 — giao diện + gói demo + Lập trình + GitHub + xuất bản + loader Luau
+node tests/run-dom.mjs        # 348/348 — giao diện + gói demo + Lập trình + GitHub + xuất bản + loader Luau
 node tests/run-lua.mjs        # 67/67  — chạy THẬT loader Luau trong fengari (cần npm i fengari)
 node tests/run-e2e-lua.mjs    # 24/24  — end-to-end: gói xuất bản → tệp .lua → chạy trong máy ảo Lua
                               #          với môi trường kiểu Roblox (_G rỗng, request/HttpGet)
@@ -138,14 +138,14 @@ node tests/stress.mjs --quick # 93/93 — cường độ cao (~25 s)
 node tests/stress.mjs --max   # như trên + tệp 1 GiB (~90 s)
 ```
 
-Tổng **1519 điểm kiểm tra**.
+Tổng **1522 điểm kiểm tra**.
 
 Kết quả mới nhất và chi tiết: [`docs/05-kiem-thu-va-ket-qua.md`](docs/05-kiem-thu-va-ket-qua.md).
 
 ## Giới hạn — nói thẳng
 
 - **Chưa kiểm thử bằng trình duyệt thật** trong môi trường tạo ra dự án này; đã có
-  1519 điểm kiểm tra (lõi, giao diện DOM ả, iframe xem trước chạy thật, loader Luau chạy trong máy ảo Lua,
+  1522 điểm kiểm tra (lõi, giao diện DOM ả, iframe xem trước chạy thật, loader Luau chạy trong máy ảo Lua,
   kiểm tra tĩnh, cường độ cao).
   Hãy bấm thử một lần.
 - **5 GiB là giới hạn đã chặn trong code**, khả thi thực tế còn phụ thuộc RAM/CPU/trình duyệt.
@@ -166,7 +166,7 @@ Chi tiết: [`docs/02-bao-mat-gioi-han.md`](docs/02-bao-mat-gioi-han.md).
 | [03-huong-dan-su-dung.md](docs/03-huong-dan-su-dung.md) | Hướng dẫn từng bước + xử lý sự cố |
 | [04-trien-khai-mien-phi.md](docs/04-trien-khai-mien-phi.md) | GitHub Pages, Cloudflare, Netlify, Vercel |
 | [06-phan-tich-index.html.1.js.md](docs/06-phan-tich-index.html.1.js.md) | Phân tích file tham chiếu `index.html.1.js`: đã port gì, bỏ gì, vì sao |
-| [05-kiem-thu-va-ket-qua.md](docs/05-kiem-thu-va-ket-qua.md) | 1519 điểm kiểm tra, số đo thật, test cường độ cao |
+| [05-kiem-thu-va-ket-qua.md](docs/05-kiem-thu-va-ket-qua.md) | 1522 điểm kiểm tra, số đo thật, test cường độ cao |
 
 ## Giấy phép
 
