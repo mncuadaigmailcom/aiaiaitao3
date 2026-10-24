@@ -73,11 +73,21 @@
           </div>
 
           <div class="paste-box" id="pasteBox" hidden>
-            <label for="pasteText">Nội dung code (lưu thành <code class="js-name">script.js</code>)</label>
-            <textarea id="pasteText" spellcheck="false" placeholder="// dán code của bạn vào đây…"></textarea>
+            <label for="pasteText">Nội dung code</label>
+            <textarea id="pasteText" spellcheck="false" placeholder="-- dán code Lua, hoặc // code JavaScript vào đây…"></textarea>
+            <div class="row tight" style="margin-top:8px">
+              <label class="muted small" for="pasteLang">Ngôn ngữ</label>
+              <select id="pasteLang" class="mini" title="Chọn tay khi code ngắn khiến việc dò ngôn ngữ không chắc">
+                <option value="auto" selected>Tự dò</option>
+                <option value="lua">Lua / Luau (Roblox)</option>
+                <option value="javascript">JavaScript</option>
+                <option value="python">Python</option>
+              </select>
+              <span class="muted small">Tên tệp theo ngôn ngữ: <code id="pasteNameHint">script.js</code></span>
+            </div>
             <p class="help" id="pasteAutoNote">
-              Dán vào là <b>tự động mã hoá ngay</b> — không cần bấm thêm. Nội dung được lưu thành
-              <code class="js-name">script.js</code>.
+              Dán vào là <b>tự động mã hoá ngay</b> — không cần bấm thêm. Code Lua/Luau sẽ được đặt tên
+              <code>script.lua</code> và có thêm <b>loader Luau</b> để dán vào game.
             </p>
             <div class="row">
               <button class="link small" id="pasteCancel" type="button">đóng</button>
@@ -175,6 +185,7 @@
             <label class="check"><input type="checkbox" id="embedPassChk"> Nhúng mật khẩu vào key script</label>
             <label class="check"><input type="checkbox" id="runnerChk" checked> Tạo trang <code>run.html</code> để mở &amp; chạy</label>
             <label class="check"><input type="checkbox" id="zipChk" checked> Đóng gói ZIP <span class="muted">(≤ 256 MiB)</span></label>
+            <label class="check"><input type="checkbox" id="luaChk" checked> Tạo <b>loader Luau</b> để dán vào game <span class="muted">(tự hiện khi code là Lua)</span></label>
           </div>
 
           <div class="row run-row">
@@ -256,6 +267,70 @@
             <b>Lưu ý:</b> đặt tất cả tệp trong <b>cùng một thư mục</b> và mở qua HTTP
             (<code>python3 -m http.server</code>). Nhúng vào trang khác bằng
             <code>&lt;script src="./key.js"&gt;&lt;/script&gt;</code> rồi gọi <code>AIA_UNLOCK.run({execute:true})</code>.
+          </div>
+        </div>
+
+        <!-- Bản chạy trong game: Luau / Roblox (không cần GitHub) -->
+        <div class="card" id="luaCard" hidden>
+          <div class="card-head">
+            <h2>4. Bản chạy trong game (Luau)</h2>
+            <span class="badge ok" id="luaBadge">sẵn sàng</span>
+          </div>
+          <p class="help" style="margin-top:0">
+            Code Lua của bạn được mã hoá AES-256-GCM ngay trên máy này, rồi bọc trong một
+            <b>script Luau tự giải mã</b>. Dán vào <b>Delta / executor</b> hoặc tải tệp <code>.lua</code>
+            lên đâu đó rồi gọi <code>loadstring(game:HttpGet(link))()</code>.
+            <b>Không cần GitHub, không cần máy chủ.</b>
+          </p>
+
+          <div class="row tight" style="margin-bottom:8px">
+            <select id="luaKeyMode" class="mini" title="Cách giữ khoá giải mã">
+              <option value="embedded" selected>Tự chứa — khoá nằm trong tệp .lua (chạy ngay)</option>
+              <option value="remote">Tách rời — tải tệp khoá .txt lên host (an toàn hơn)</option>
+            </select>
+            <button class="ghost small" id="luaRebuild" type="button">Tạo lại</button>
+          </div>
+
+          <div class="field" id="luaKeyUrlRow" hidden style="margin-top:0">
+            <label for="luaKeyUrl">Link tệp khoá <code>.txt</code> bạn sẽ tải lên</label>
+            <input type="text" id="luaKeyUrl" spellcheck="false" placeholder="https://example.com/k-abc.txt">
+            <p class="help">Loader sẽ tải base64 của khoá 32 byte từ link này lúc chạy. Phải là link công khai (raw.githubusercontent.com hoặc host của bạn).</p>
+          </div>
+
+          <p class="help" id="luaNote"></p>
+
+          <div class="codebox" style="margin-top:6px">
+            <div class="card-head">
+              <h3>Script Luau hoàn chỉnh <span class="muted">(dán vào game là chạy)</span></h3>
+              <div class="tabs2">
+                <button class="ghost small" id="luaCopy" type="button">Chép code</button>
+                <button class="ghost small" id="luaDl" type="button">Tải .lua</button>
+              </div>
+            </div>
+            <pre id="luaCode" class="codeout" style="max-height:280px"></pre>
+          </div>
+
+          <div class="field" style="margin-top:8px">
+            <label for="luaScriptUrl">Link tệp <code>.lua</code> của bạn <span class="muted">(tuỳ chọn — để sinh dòng lệnh)</span></label>
+            <input type="text" id="luaScriptUrl" spellcheck="false" placeholder="https://raw.githubusercontent.com/…/l-abc.lua">
+            <p class="help">Dán link nơi bạn sẽ tải tệp <code>.lua</code> lên. Để trống nếu bạn dán thẳng toàn bộ script vào executor.</p>
+          </div>
+
+          <div class="field" id="luaCmdRow" hidden style="margin-top:8px">
+            <label for="luaCmd">Dòng lệnh dán vào Delta / executor</label>
+            <div class="with-btn">
+              <input type="text" id="luaCmd" readonly spellcheck="false">
+              <button class="ghost small" id="luaCmdCopy" type="button">Chép</button>
+            </div>
+          </div>
+
+          <div class="stat-row" id="luaStats"></div>
+
+          <div class="callout" id="luaWarn">
+            <b>Chọn kiểu khoá:</b> <b>Tự chứa</b> tiện nhất (một tệp, không cần host, dán là chạy)
+            nhưng <b>khoá nằm ngay trong tệp</b> ⇒ ai có tệp <code>.lua</code> cũng giải mã được —
+            dùng khi mục tiêu là “không đọc trực tiếp được”, không phải bảo mật tuyệt đối.
+            <b>Tách rời</b> an toàn hơn: giữ tệp khoá ở chỗ riêng, đổi khoá/thu hồi dễ hơn.
           </div>
         </div>
       </div>
@@ -888,12 +963,12 @@
         <ul>
           <li><code>node tests/run-node.mjs</code> — 244 kiểm thử: mã hoá/giải mã, cắt khối, sửa bit, sai mật khẩu,
             sai link key, snippet, <b>mã hoá link</b>, <b>nhận diện ngôn ngữ</b>, <b>trang trắng</b>, giới hạn dung lượng.</li>
-          <li><code>node tests/run-editor.mjs</code> (75) · <code>node tests/run-github.mjs</code> (94, GitHub giả) ·
+          <li><code>node tests/run-editor.mjs</code> (75) · <code>node tests/run-github.mjs</code> (101, GitHub giả) ·
             <code>node tests/run-ide.mjs</code> (104) · <code>node tests/run-js.mjs</code> (53, chỉ JS + xem trước) ·
             <code>node tests/run-publish.mjs</code> (103, gói mã hoá + chống soi + đẩy GitHub) ·
-            <code>node tests/run-lua.mjs</code> (31, chạy thật loader Luau trong máy ảo Lua) ·
-            <code>node tools/check-static.mjs</code> (281) · <code>node tests/run-dom.mjs</code> (307) ·
-            <code>node tests/stress.mjs --quick</code> (80) — tổng <b>1463 điểm</b> kiểm tra.</li>
+            <code>node tests/run-lua.mjs</code> (67, chạy thật loader Luau trong máy ảo Lua) ·
+            <code>node tools/check-static.mjs</code> (310) · <code>node tests/run-dom.mjs</code> (345) ·
+            <code>node tests/stress.mjs --quick</code> (93) — tổng <b>1519 điểm</b> kiểm tra.</li>
           <li><code>node tools/cli.mjs --help</code> — dùng ngay trên máy.</li>
         </ul>
       </article>

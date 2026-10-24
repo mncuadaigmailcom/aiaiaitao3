@@ -301,6 +301,136 @@ const down = runLoader(loader, keyB64, { shim: downShim, envMode: 'roblox' });
 ok(!down.ok && down.err.includes('https://example.test/s/k-abc.txt'), 'lỗi tải nêu rõ URL khoá', down.err);
 ok(/warn/i.test('warn') && down.warns.length > 0, 'lỗi được in ra warn/print để người dùng thấy', down.warns);
 
+/* ------------------------------------- 6. bản "tự chứa" (khoá nhúng, KHÔNG mạng) --- */
+
+console.log('\n[6] Loader tự chứa — khoá nhúng trong tệp, không cần host gì');
+
+const inlineSrc = 'AIA_TEST = "tu chua khong can mang"\n';
+const inlineEnc = encryptForGame(inlineSrc);
+const inlineLoader = buildLuaLoader({
+  ...opts(inlineEnc),
+  embeddedKeyB64: inlineEnc.key.toString('base64'),
+  suffix: 'in',
+});
+ok(inlineLoader.length > 3500, 'dựng được loader tự chứa', String(inlineLoader.length));
+ok(!inlineLoader.includes('khong tai duoc khoa'), 'loader tự chứa KHÔNG có nhánh tải khoá qua mạng');
+ok(!inlineLoader.includes('tu chua khong can mang'), 'loader tự chứa KHÔNG chứa bản rõ');
+ok(!inlineLoader.includes(inlineEnc.key.toString('base64')), 'khoá được cắt thành nhiều mảnh, không lộ nguyên chuỗi base64');
+ok(/getgenv\(\)/.test(inlineLoader), 'loader tự chứa vẫn dò biến toàn cục như bản thường');
+
+// (a) chạy thật với môi trường "câm": không HttpGet, không request, không fetch
+const NO_NET = makeShim({
+  gameLine: 'game = {}',
+  extra: 'request = nil\nhttp_request = nil\nsyn = nil\n',
+});
+const inlineRun = runLoader(inlineLoader, '', { shim: NO_NET, envMode: 'roblox' });
+ok(inlineRun.ok, 'không có mạng gì cả → loader tự chứa vẫn chạy', inlineRun.err);
+ok(inlineRun.test === 'tu chua khong can mang', 'không cần mạng → script gốc vẫn chạy', JSON.stringify(inlineRun.test));
+ok(inlineRun.fetchedCount === 0, 'không thực hiện lần tải mạng nào', String(inlineRun.fetchedCount));
+
+// (b) thiếu cả loadstring lẫn load vẫn phải báo lỗi rõ (không im lặng)
+const inlineNoLs = runLoader(inlineLoader, '', { shim: NO_NET + '\nloadstring = nil\nload = nil\n', envMode: 'roblox' });
+ok(!inlineNoLs.ok && /loadstring/.test(inlineNoLs.err), 'tự chứa: thiếu loadstring/load → báo lỗi rõ', inlineNoLs.err);
+
+// (c) bản mã bị cắt cụt → báo lỗi, không chạy rác
+{
+  const cut = inlineLoader.replace(/(\]\]\)\)\n?)$/, '');
+  const truncated = inlineLoader.slice(0, Math.floor(inlineLoader.length * 0.93));
+  ok(cut.length !== inlineLoader.length || truncated.length < inlineLoader.length, 'tạo được bản loader bị cắt cụt');
+  const runTrunc = runLoader(truncated, '', { shim: NO_NET, envMode: 'roblox' });
+  ok(!runTrunc.ok || runTrunc.test === '', 'loader bị cắt cụt → KHÔNG chạy script gốc', runTrunc.err || 'test=' + runTrunc.test);
+}
+
+// (d) sai 1 ký tự trong bản mã → GCM phát hiện, báo lỗi xác thực
+{
+  const badCipher = inlineEnc.cipherB64.replace(/^./, (c) => (c === 'A' ? 'B' : 'A'));
+  const badLoader = buildLuaLoader({
+    cipherB64: badCipher,
+    nonceB64: inlineEnc.nonce,
+    tagHex: inlineEnc.tagHex,
+    embeddedKeyB64: inlineEnc.key.toString('base64'),
+    suffix: 'bd',
+  });
+  const runBad = runLoader(badLoader, '', { shim: NO_NET, envMode: 'roblox' });
+  ok(!runBad.ok, 'bản mã bị sửa → không chạy', runBad.err);
+  ok(/AIA:/.test(runBad.err) || /xac thuc|tag/i.test(runBad.err), 'bản mã bị sửa → báo lỗi xác thực bằng tiếng Việt', runBad.err);
+}
+
+// (e) sai tag (16 byte) → không chạy
+{
+  const badTag = (inlineEnc.tagHex[0] === '0' ? '1' : '0') + inlineEnc.tagHex.slice(1);
+  const badTagLoader = buildLuaLoader({
+    cipherB64: inlineEnc.cipherB64,
+    nonceB64: inlineEnc.nonce,
+    tagHex: badTag,
+    embeddedKeyB64: inlineEnc.key.toString('base64'),
+    suffix: 'bt',
+  });
+  const runBadTag = runLoader(badTagLoader, '', { shim: NO_NET, envMode: 'roblox' });
+  ok(!runBadTag.ok, 'tag sai → không chạy', runBadTag.err);
+}
+
+// (f) sai khoá (khoá khác 32 byte) → không chạy
+{
+  const wrongKey = crypto.randomBytes(32);
+  const wrongLoader = buildLuaLoader({
+    ...opts(inlineEnc),
+    embeddedKeyB64: wrongKey.toString('base64'),
+    suffix: 'wk',
+  });
+  const runWrong = runLoader(wrongLoader, '', { shim: NO_NET, envMode: 'roblox' });
+  ok(!runWrong.ok, 'sai khoá → không chạy', runWrong.err);
+}
+
+// (g) khoá nhúng sai định dạng base64 → báo lỗi ngay khi dựng loader
+threw = false;
+try {
+  buildLuaLoader({ ...opts(inlineEnc), embeddedKeyB64: 'abc' });
+} catch {
+  threw = true;
+}
+ok(threw, 'khoá nhúng không phải base64 hợp lệ → báo lỗi khi dựng');
+
+// (h) không truyền cả keyUrl lẫn embeddedKeyB64 → báo lỗi
+threw = false;
+try {
+  buildLuaLoader({ ...opts(inlineEnc) });
+} catch {
+  threw = true;
+}
+ok(threw, 'thiếu cả keyUrl và embeddedKeyB64 → báo lỗi');
+
+// (i) code Lua rỗng vẫn tạo loader hợp lệ (không treo)
+{
+  const emptyEnc = encryptForGame('');
+  const emptyLoader = buildLuaLoader({ ...opts(emptyEnc), embeddedKeyB64: emptyEnc.key.toString('base64'), suffix: 'em' });
+  const runEmpty = runLoader(emptyLoader, '', { shim: NO_NET, envMode: 'roblox' });
+  ok(runEmpty.ok, 'code rỗng → loader vẫn chạy (không làm gì)', runEmpty.err);
+}
+
+// (j) code lớn: ~16 KB Luau giải mã đúng trong máy ảo (kèm đo tốc độ)
+{
+  // Lưu ý: mỗi `local` là một biến — Lua chỉ cho 200 biến local/chunk, nên dùng biến toàn cục
+  // để kiểm tra đúng khả năng của LOADER, không phải giới hạn của script mẫu.
+  const big = [];
+  big.push('AIA_SUM = 0');
+  for (let i = 0; i < 260; i++) big.push(`AIA_SUM = AIA_SUM + ${i} -- dong ${i} -- chu thich dai cho du byte`);
+  big.push('AIA_TEST = "to " .. AIA_SUM');
+  const bigSrc = big.join('\n') + '\n';
+  const bigEnc = encryptForGame(bigSrc);
+  const bigLoader = buildLuaLoader({ ...opts(bigEnc), embeddedKeyB64: bigEnc.key.toString('base64'), suffix: 'bg' });
+  const t0 = Date.now();
+  const runBig = runLoader(bigLoader, '', { shim: NO_NET, envMode: 'roblox' });
+  const ms = Date.now() - t0;
+  ok(runBig.ok, `code ${(bigSrc.length / 1024).toFixed(0)} KB → chạy được trong máy ảo`, runBig.err);
+  const expectSum = (259 * 260) / 2;
+  ok(runBig.test === 'to ' + expectSum, 'code lớn giải mã đúng nội dung', JSON.stringify(runBig.test));
+  console.log(`    · ${(bigSrc.length / 1024).toFixed(0)} KB giải mã trong ${ms} ms (máy ảo JS; Luau thật nhanh hơn nhiều)`);
+  const kbps = (bigSrc.length / 1024 / (ms / 1000)).toFixed(1);
+  ok(ms < 30000, 'code lớn giải mã trong thời gian chấp nhận được (máy ảo)', ms + ' ms');
+  console.log(`    · tốc độ giải mã trong máy ảo JS: ${kbps} KB/s (Luau thật trong Delta nhanh hơn nhiều lần)`);
+}
+
 console.log('\n────────────────────────────────────────────────────────');
 console.log(`Kết quả Luau: ${pass} đạt · ${fails.length} lỗi`);
 if (fails.length) {

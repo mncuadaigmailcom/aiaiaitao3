@@ -86,11 +86,11 @@ Môi trường: Node v22.22.3, `npm i jsdom fengari` (chỉ để chạy test DO
 | `tests/run-publish.mjs` | **103 / 103** | ~2 s |
 | `tests/run-js.mjs` | **53 / 53** | ~1 s |
 | `tools/check-static.mjs` | **310 / 310** | ~1 s |
-| `tests/run-dom.mjs` (jsdom) | **323 / 323** | ~6,5 s |
-| `tests/run-lua.mjs` (fengari, loader Luau thật) | **46 / 46** | ~5 s |
-| `tests/stress.mjs --quick` | **80 / 80** | 15,4 s |
+| `tests/run-dom.mjs` (jsdom) | **345 / 345** | ~9 s |
+| `tests/run-lua.mjs` (fengari, loader Luau thật) | **67 / 67** | ~22 s |
+| `tests/stress.mjs --quick` | **93 / 93** | ~25 s |
 
-Tổng: **1.437 / 1.437** trong môi trường này (244+75+101+104+103+53+308+323+46+80).
+Tổng: **1.519 / 1.519** trong môi trường này (244+75+101+104+103+53+310+345+67+24+93).
 
 > Ghi chú cập nhật 2026-10-24: báo cáo ban đầu ghi 1.371/1.372 vì một test DOM trượt do
 > lỗi cascade của `jsdom` (xem NOTE-2). Test đó đã được xử lý bằng cách đặt luật CSS
@@ -206,6 +206,38 @@ tách khỏi env) cùng 4 kịch bản executor khác — 46/46 đạt.
 
 **Bài học phụ:** dán **URL trần** (`https://…/l-<id>.lua`) vào executor thì không có gì chạy —
 phải dán `loadstring(game:HttpGet("…"))()`. UI nay sinh sẵn dòng lệnh này.
+
+### BUG-3 · Dán/chọn nguồn mới trong lúc đang mã hoá → **không có gì xảy ra** (mức: cao — ĐÃ SỬA)
+
+`startEncryption()` mở đầu bằng `if (state.busy) return;` — tức là **bỏ im lặng** yêu cầu mới.
+Tình huống thật: người dùng thả một tệp lớn, sốt ruột nên dán code Lua vào ô dán; trang cập nhật
+tên tệp (`script.lua`) nhưng **không mã hoá**, và khung kết quả vẫn là của tệp trước. Rất dễ hiểu
+nhầm là “trang treo/lỗi”.
+
+Phát hiện nhờ test DOM mới (§5b) chờ thẻ **Bản chạy trong game** mà không thấy xuất hiện.
+Sửa: khi bận thì ghi nhớ yêu cầu (`state.pendingEncrypt`) và **chạy tiếp** ngay sau khi xong,
+thay vì bỏ.
+
+### BUG-4 · Ô chọn ngôn ngữ áp cho cả tệp tải lên (mức: trung bình — ĐÃ SỬA)
+
+Khi thêm ô **Ngôn ngữ** cho code dán, lựa chọn tay được đọc toàn cục trong `refineSourceLang()`,
+nên sau khi chọn “JavaScript” thì mọi tệp `.js` chứa Lua tải lên sau đó bị dán nhãn sai
+(bug cũ “đuôi tệp lệch nội dung” quay lại). Sửa: lựa chọn tay chỉ lưu trên nguồn dán
+(`src.langOverride`).
+
+### BUG-5 · `buildLuaLoader` từ chối bản mã rỗng; khoá nhúng nằm liền mạch (mức: thấp — ĐÃ SỬA)
+
+- `if (!cipherB64 …) throw` ⇒ script Lua rỗng (bản mã 0 byte — hợp lệ với AES-GCM) không dựng
+  được loader. Nay chỉ chặn `null`/`undefined`.
+- Ở chế độ tự chứa, khoá 32 byte được nhúng thành **một chuỗi base64 44 ký tự** — mở tệp `.lua`
+  là thấy nguyên khoá. Nay khoá bị cắt thành mảnh **8 ký tự** (vẫn ghép lại khi chạy).
+
+### NOTE-6 · Tốc độ giải mã trong game: AES-GCM thuần Luau là điểm nghẽn (mức: cần biết)
+
+Đo trong máy ảo Lua (fengari, JS): **~2,5 KB/s** cho code Lua thường và giảm dần với file lớn
+(16 KB ≈ 6,6 s). Luau thật trong Delta nhanh hơn nhiều lần nhưng **vẫn tuyến tính theo kích thước**.
+Vì vậy: script vài trăm KB sẽ mất vài giây đến vài chục giây trước khi chạy. Trang đã cảnh báo
+khi code Lua vượt **128 KB**; khuyến nghị giữ script game dưới ~100 KB hoặc chia nhỏ.
 
 ### RISK-1 · Code sau giải mã chạy cùng origin với trang (mức: cao)
 
@@ -346,7 +378,7 @@ cd secure-script
 npm i jsdom fengari      # chỉ để chạy test DOM + máy ảo Lua
 
 # chạy toàn bộ kiểm thử
-for t in run-node run-editor run-github run-ide run-publish run-js; do node tests/$t.mjs; done
+for t in run-node run-editor run-github run-ide run-publish run-js run-lua run-e2e-lua; do node tests/$t.mjs; done
 node tools/check-static.mjs
 node tests/run-dom.mjs
 node tests/run-lua.mjs

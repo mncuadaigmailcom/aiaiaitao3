@@ -8,11 +8,11 @@ node tests/run-node.mjs      # 244 kiểm thử lõi (không cần cài gì)
 node tests/run-editor.mjs    # 75 kiểm thử lõi trình soạn thảo (không cần cài gì)
 node tests/run-github.mjs    # 94 kiểm thử client GitHub với GitHub giả (không gọi mạng)
 node tests/run-publish.mjs   # 103 kiểm thử gói xuất bản: trang 404 + loader + đẩy GitHub
-node tools/check-static.mjs  # 281 kiểm tra tĩnh HTML ↔ app.js/program.js/github-ui.js/publish.js
+node tools/check-static.mjs  # 310 kiểm tra tĩnh HTML ↔ app.js/program.js/github-ui.js/publish.js
 node tools/cli.mjs selftest  # kiểm tra nhanh CLI
 
 npm install                  # chỉ cần cho test DOM (jsdom)
-node tests/run-dom.mjs       # 307 kiểm thử giao diện + gói demo + Lập trình + GitHub + xuất bản
+node tests/run-dom.mjs       # 345 kiểm thử giao diện + gói demo + Lập trình + GitHub + xuất bản + loader Luau
 node tests/run-lua.mjs       # 31 kiểm thử chạy THẬT loader Luau trong fengari
 node tests/stress.mjs --quick   # 80 bài kiểm thử cường độ cao (~20 s)
 ```
@@ -39,23 +39,34 @@ Node v22.22.3 · WebCrypto: true
 ─────────────────────────────────────────────
 Kết quả: 244 đạt · 0 lỗi · ~12,4 s
 Editor : 75 đạt · 0 lỗi
-GitHub : 94 đạt · 0 lỗi
+GitHub : 101 đạt · 0 lỗi
 
 Lõi không gian làm việc (tests/run-ide.mjs): 104 đạt · 0 lỗi
 Chỉ JavaScript + xem trước (tests/run-js.mjs): 53 đạt · 0 lỗi
 Gói xuất bản (tests/run-publish.mjs)  : 103 đạt · 0 lỗi
-Loader Luau (tests/run-lua.mjs)       : 31 đạt · 0 lỗi (chạy thật trong fengari)
-Kiểm tra tĩnh (tools/check-static.mjs): 281 đạt · 0 lỗi
-Kiểm thử DOM  (tests/run-dom.mjs)     : 307 đạt · 0 lỗi
-Kiểm thử cường độ cao (stress.mjs --quick): 80/80 đạt · 0 lỗi · ~18 s
+Loader Luau (tests/run-lua.mjs)       : 67 đạt · 0 lỗi (chạy thật trong fengari, gồm loader tự chứa)
+Kiểm tra tĩnh (tools/check-static.mjs): 310 đạt · 0 lỗi
+Kiểm thử DOM  (tests/run-dom.mjs)     : 345 đạt · 0 lỗi
+Kiểm thử cường độ cao (stress.mjs --quick): 93/93 đạt · 0 lỗi · ~25 s
 ```
 
-Tổng: **1463 điểm kiểm tra đạt** (244 + 75 + 101 + 104 + 53 + 103 + 46 + 24 + 310 + 323 + 80).
+Tổng: **1519 điểm kiểm tra đạt** (244 + 75 + 101 + 104 + 53 + 103 + 67 + 24 + 310 + 345 + 93).
 
 `tests/run-e2e-lua.mjs` (24 điểm) đi trọn chuỗi mà người dùng làm: `buildPublishPlan` sinh
 gói → lấy đúng tệp `s/l-<id>.lua` + `s/k-<id>.txt` → chạy `l-<id>.lua` trong fengari với
 `_G` rỗng (kiểu Luau) và 4 kiểu executor khác nhau (`game:HttpGet`, `request`, `getgenv().request`,
 `HttpGet` toàn cục), kèm các ca lỗi: link HTML, tệp khoá ngắn, sai khoá, sửa bản mã.
+
+`tests/run-lua.mjs` mục **[6]** kiểm thử **loader tự chứa** (khoá nhúng trong tệp, không cần host):
+chạy thật trong máy ảo Lua với môi trường **câm** (`game = {}`, không `request`, không `http_request`),
+kèm các ca hỏng: bản mã cắt cụt, sửa 1 byte bản mã, sai tag, sai khoá, khoá nhúng sai base64,
+thiếu cả `keyUrl` lẫn `embeddedKeyB64`, code rỗng, code 16 KB (có đo tốc độ giải mã).
+
+`tests/stress.mjs` mục **14** là phần **fuzz cường độ cao** cho đường Lua: hàng trăm loader sinh
+ngẫu nhiên (không lộ mã nguồn, không lộ khoá liền mạch), đầu vào rác cho `buildLuaLoader`
+(chỉ được trả chuỗi hoặc báo lỗi rõ ràng, không crash), chạy thật trong máy ảo Lua với các bản
+bị sửa/cắt cụt (phải **không** chạy được), tỉ lệ phình dung lượng, và 100 lượt `encryptForGame`
+đối chiếu ngược bằng OpenSSL.
 
 `tests/run-lua.mjs` mục **[5]** chạy loader trong môi trường **giống Roblox/executor thật**:
 `_G` là bảng rỗng (đúng như Luau sandbox), `game:HttpGet` bị chặn nhưng có `request` (UNC),

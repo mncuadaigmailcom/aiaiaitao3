@@ -7,6 +7,8 @@ import * as C from './core.js';
 import { applyReverseAction, detectLanguage } from './reverse.js';
 import { initProgram } from './program.js';
 import { initGithub } from './github-ui.js';
+import { buildLuaLoader } from './lua-loader.js';
+import { encryptForGame } from './publish.js';
 
 const $ = (id) => document.getElementById(id);
 const BIG_MEMORY_LIMIT = 256 * 1024 * 1024; // trên mức này, ghi thẳng ra tệp nếu trình duyệt cho phép
@@ -22,6 +24,9 @@ const state = {
   encSnippet: '',
   lastCodeExtra: null, // name -> {name, size, data (Uint8Array|string)|handle}
   lastCipher: null, // { bytes, meta, options }
+  plainBytes: null, // bản rõ gần nhất (để dựng loader Luau mà không đọc lại nguồn)
+  lua: null, // { loader, loaderName, keyName, keyText, id, mode }
+  pendingEncrypt: null, // yêu cầu mã hoá đến trong lúc đang chạy (chạy tiếp khi xong)
   decrypted: null, // { bytes, meta }
   worker: null,
   runStartedAt: 0,
@@ -279,8 +284,27 @@ function autoEncryptFromPaste(delay) {
   }, delay);
 }
 
+function updatePasteNameHint() {
+  const hint = $('pasteNameHint');
+  if (!hint) return;
+  const chosen = pastedLangOverride();
+  const sniffed = chosen || C.sniffContentLang($('pasteText').value || '');
+  hint.textContent = nameForLang(sniffed);
+}
+
+if ($('pasteLang')) {
+  $('pasteLang').addEventListener('change', () => {
+    updatePasteNameHint();
+    const text = $('pasteText').value;
+    if (text.trim()) setSourceFromText(text, { silent: true });
+  });
+}
+
 $('pasteText').addEventListener('paste', () => autoEncryptFromPaste(60));
-$('pasteText').addEventListener('input', () => autoEncryptFromPaste(800));
+$('pasteText').addEventListener('input', () => {
+  updatePasteNameHint();
+  autoEncryptFromPaste(800);
+});
 ['drop', 'dragover'].forEach((ev) =>
   $('pasteText').addEventListener(ev, (e) => {
     e.preventDefault();
@@ -319,15 +343,37 @@ async function setSourceFromFile(file, opts = {}) {
   if (opts.auto !== false) startEncryption({ auto: true });
 }
 
+/**
+ * Ngôn ngữ người dùng chọn tay ở ô "Ngôn ngữ" (auto = để trang tự dò).
+ * Chọn tay thắng cả đuôi tệp lẫn nội dung; dùng khi code quá ngắn để dò chắc chắn.
+ */
+function pastedLangOverride() {
+  const el = $('pasteLang');
+  const v = el && el.value;
+  return v && v !== 'auto' ? v : '';
+}
+
+function nameForLang(lang) {
+  if (lang === 'lua' || lang === 'luau') return 'script.lua';
+  if (lang === 'python') return 'script.py';
+  return 'script.js';
+}
+
 async function setSourceFromText(text, opts = {}) {
   state.lastCipher = null;
   const bytes = new TextEncoder().encode(text);
+  // Đặt tên theo NGÔN NGỮ: chọn tay → dò nội dung → mặc định JS. Dán code Lua thì tệp là
+  // `script.lua` (đúng nhãn + tải về đúng đuôi), không phải lúc nào cũng `script.js`.
+  const chosen = pastedLangOverride();
+  const sniffed = C.sniffContentLang(text);
+  const defaultName = nameForLang(chosen || sniffed);
   state.source = {
-    name: opts.name || 'script.js',
+    name: opts.name || defaultName,
     size: bytes.length,
     type: 'text/javascript',
     bytes,
     textSample: text,
+    langOverride: chosen,
     openStream: () =>
       new ReadableStream({
         start(c) {
@@ -361,8 +407,11 @@ async function refineSourceLang() {
   } catch {
     sample = '';
   }
+  // Lựa chọn tay CHỈ áp dụng cho code dán vào ô dán (src.langOverride); tệp tải lên
+  // phải dò theo đuôi + nội dung như trước, nếu không sẽ đổi nhãn sai cho mọi tệp sau đó.
+  const override = src.langOverride || '';
   const byName = C.detectLang(src.name);
-  const lang = C.resolveLang(src.name, sample);
+  const lang = override || C.resolveLang(src.name, sample);
   src.nameLang = byName;
   src.lang = lang;
   src.langMismatch = lang !== byName;
@@ -530,7 +579,12 @@ async function fileSink(suggestedName) {
 /* ------------------------------------------------------------- mã hoá --- */
 
 function startEncryption({ auto = false } = {}) {
-  if (state.busy) return;
+  // Đang mã hoá mà người dùng dán/chọn nguồn mới: ĐỪNG bỏ im lặng (bug cũ: dán code
+  // trong lúc tệp trước còn đang chạy thì không có gì xảy ra). Ghi nhớ và chạy tiếp.
+  if (state.busy) {
+    state.pendingEncrypt = { auto };
+    return;
+  }
   if (!state.source) {
     if (!auto) {
       toast('Hãy chọn một tệp hoặc dán code trước.', 'warn');
@@ -538,16 +592,22 @@ function startEncryption({ auto = false } = {}) {
     }
     return;
   }
-  runEncryption({ auto }).catch((err) => {
-    setBusy(false);
-    $('progressWrap').hidden = true;
-    if (err && err.code === 'CANCELLED') {
-      toast('Đã dừng mã hoá.', 'warn');
-      return;
-    }
-    console.error(err);
-    toast('Mã hoá thất bại: ' + (err && err.message ? err.message : err), 'bad', 8000);
-  });
+  runEncryption({ auto })
+    .catch((err) => {
+      setBusy(false);
+      $('progressWrap').hidden = true;
+      if (err && err.code === 'CANCELLED') {
+        toast('Đã dừng mã hoá.', 'warn');
+        return;
+      }
+      console.error(err);
+      toast('Mã hoá thất bại: ' + (err && err.message ? err.message : err), 'bad', 8000);
+    })
+    .finally(() => {
+      const pending = state.pendingEncrypt;
+      state.pendingEncrypt = null;
+      if (pending) startEncryption(pending);
+    });
 }
 
 $('encryptBtn').addEventListener('click', () => startEncryption({ auto: false }));
@@ -558,6 +618,9 @@ $('cancelBtn').addEventListener('click', () => {
 
 function resetResult() {
   $('resultCard').hidden = true;
+  if ($('luaCard')) $('luaCard').hidden = true;
+  state.lua = null;
+  state.plainBytes = null;
   $('progressWrap').hidden = true;
   $('progBar').style.width = '0%';
   state.artifacts.clear();
@@ -722,6 +785,7 @@ async function runEncryption(runOpts = {}) {
     try {
       let original = src.bytes;
       if (!original) original = await readAllBytes(src.openStream());
+      state.plainBytes = original;
       const check = await C.decryptBytes(containerBytes, passphrase, null, meta.keyWrap || null, sharedKey);
       verified = (await C.sha256Hex(check.plaintext)) === (await C.sha256Hex(original));
     } catch (err) {
@@ -731,6 +795,8 @@ async function runEncryption(runOpts = {}) {
   }
 
   renderResult({ meta, options, elapsed, verified, keyText, zipSize, sink, keyMode, passphrase });
+  // Bản chạy trong game: dựng loader Luau nếu code là Lua (không cần GitHub)
+  refreshLuaBundle().catch((err) => console.warn('Lua bundle:', err));
   $('progressWrap').hidden = true;
   $('progBar').style.width = '100%';
   toast(verified === false ? 'Đã mã hoá nhưng tự kiểm tra KHÔNG khớp — hãy thử lại.' : 'Mã hoá xong.', verified === false ? 'bad' : 'ok', 6000);
@@ -1049,6 +1115,200 @@ $('dlContainer').addEventListener('click', () => downloadByName(state.lastCipher
 $('dlKey').addEventListener('click', () => downloadByName([...state.artifacts.keys()].find((n) => n.endsWith('.key.js'))));
 $('dlRunner').addEventListener('click', () => downloadByName([...state.artifacts.keys()].find((n) => n.startsWith('run-'))));
 $('dlReadme').addEventListener('click', () => downloadByName([...state.artifacts.keys()].find((n) => n.startsWith('README-'))));
+
+/* ------------------------------------------------ loader Luau (Roblox) --- */
+
+// Chỉ dựng loader khi code đủ nhỏ để dán vào game (script Lua thực tế thường < 1 MB).
+const LUA_BUNDLE_LIMIT = 2 * 1024 * 1024;
+
+function luaMode() {
+  return $('luaKeyMode') && $('luaKeyMode').value === 'remote' ? 'remote' : 'embedded';
+}
+
+function isLuaLang(lang) {
+  return lang === 'lua' || lang === 'luau';
+}
+
+/** Dòng lệnh dán vào executor — dán URL trần thì không có gì chạy. */
+export function buildLoadstringCommand(url) {
+  const u = String(url || '').trim().replace(/"/g, '%22');
+  if (!u) return '';
+  return 'loadstring(game:HttpGet("' + u + '"))()';
+}
+
+/**
+ * Dựng tệp .lua tự giải mã từ bản rõ.
+ *  · embedded: khoá nhúng trong tệp → không cần mạng, dán là chạy (đánh đổi: ai có tệp là mở được)
+ *  · remote  : khoá nằm ở tệp .txt riêng, loader tải bằng HttpGet/request lúc chạy
+ */
+async function buildLuaArtifacts(code, mode = 'embedded', keyUrl = '') {
+  const text = String(code == null ? '' : code);
+  if (!text.trim()) throw new C.AIAError('NO_CODE', 'Chưa có code để dựng loader Luau.');
+  const sealed = await encryptForGame(text);
+  const id = C.bytesToHex(C.randomBytes(4));
+  const loader = buildLuaLoader({
+    cipherB64: sealed.cipherB64,
+    nonceB64: sealed.nonceB64,
+    tagHex: sealed.tagHex,
+    keyUrl: mode === 'remote' ? keyUrl : undefined,
+    embeddedKeyB64: mode === 'remote' ? undefined : sealed.keyB64,
+  });
+  return {
+    id,
+    mode,
+    loader,
+    loaderName: `l-${id}.lua`,
+    keyName: `k-${id}.txt`,
+    keyText: sealed.keyB64,
+    keyUrl,
+    codeBytes: new TextEncoder().encode(text).length,
+  };
+}
+
+function renderLua(res) {
+  const card = $('luaCard');
+  if (!card) return;
+  state.lua = res;
+  if (!res) {
+    card.hidden = true;
+    return;
+  }
+  card.hidden = false;
+  if ($('luaCode')) $('luaCode').textContent = res.loader;
+  if ($('luaKeyMode')) $('luaKeyMode').value = res.mode;
+  if ($('luaKeyUrlRow')) $('luaKeyUrlRow').hidden = res.mode !== 'remote';
+  if ($('luaKeyUrl') && res.mode === 'remote' && !$('luaKeyUrl').value) $('luaKeyUrl').value = res.keyUrl || '';
+  if ($('luaBadge')) $('luaBadge').textContent = res.mode === 'remote' ? 'khoá tách rời' : 'tự chứa';
+
+  const loaderBytes = new TextEncoder().encode(res.loader).length;
+  const increase = res.codeBytes ? ((loaderBytes / res.codeBytes) * 100).toFixed(1) : '—';
+  if ($('luaStats')) {
+    $('luaStats').innerHTML = [
+      stat('Bản rõ', C.formatBytes(res.codeBytes)),
+      stat('Script Luau', C.formatBytes(loaderBytes)),
+      stat('Tỉ lệ', increase === '—' ? '—' : '+' + increase + '%'),
+      stat('Khoá', res.mode === 'remote' ? '32 byte (tệp .txt riêng)' : '32 byte (nhúng trong tệp)'),
+      stat('Mã', 'AES-256-GCM · tag 128 bit'),
+      stat('Tên tệp', res.loaderName),
+    ].join('');
+  }
+  if ($('luaNote')) {
+    const slow = res.codeBytes > 128 * 1024
+      ? ' Lưu ý: script ' + C.formatBytes(res.codeBytes) + ' — giải mã AES trong game mất ' +
+        'vài giây tuỳ máy; script càng lớn chạy càng chậm, nên chia nhỏ nếu thấy treo.'
+      : '';
+    $('luaNote').textContent = (
+      res.mode === 'remote'
+        ? 'Tải tệp ' + res.keyName + ' lên host công khai, dán link của nó vào ô trên rồi bấm “Tạo lại”. ' +
+          'Thiếu tệp khoá thì script không chạy — đó là lớp bảo vệ thật.'
+        : 'Không cần host gì cả: chép toàn bộ script dưới đây (hoặc tải .lua) rồi dán vào Delta/executor. ' +
+          'Khoá nằm trong tệp nên chỉ nên dùng khi mục tiêu là “không đọc trực tiếp được”.') + slow;
+  }
+  renderLuaCommand();
+}
+
+function renderLuaCommand() {
+  const url = ($('luaScriptUrl') && $('luaScriptUrl').value.trim()) || '';
+  const cmd = buildLoadstringCommand(url);
+  if ($('luaCmdRow')) $('luaCmdRow').hidden = !cmd;
+  if ($('luaCmd')) $('luaCmd').value = cmd;
+}
+
+/** Dựng loader cho bản rõ hiện tại (gọi sau khi mã hoá xong). */
+async function refreshLuaBundle() {
+  const meta = state.lastCipher && state.lastCipher.meta;
+  if (!meta) return null;
+  const wantLua = $('luaChk') ? $('luaChk').checked : true;
+  const isLua = isLuaLang(meta.file.lang);
+  if (!wantLua || !isLua) {
+    renderLua(null);
+    return null;
+  }
+  if (meta.file.size > LUA_BUNDLE_LIMIT) {
+    renderLua(null);
+    toast(
+      'Code Lua ' + C.formatBytes(meta.file.size) + ' vượt ' + C.formatBytes(LUA_BUNDLE_LIMIT) +
+        ' — không dựng loader trong trình duyệt (hãy chia nhỏ script).',
+      'warn',
+      8000,
+    );
+    return null;
+  }
+  let bytes = state.plainBytes;
+  if (!bytes && state.source) {
+    bytes = state.source.bytes || (await readAllBytes(state.source.openStream()));
+    state.plainBytes = bytes;
+  }
+  if (!bytes) return null;
+  const text = new TextDecoder().decode(bytes);
+  const mode = luaMode();
+  const keyUrl = ($('luaKeyUrl') && $('luaKeyUrl').value.trim()) || '';
+  if (mode === 'remote' && !keyUrl) {
+    renderLua(null);
+    if ($('luaKeyUrlRow')) $('luaKeyUrlRow').hidden = false;
+    return null;
+  }
+  try {
+    const res = await buildLuaArtifacts(text, mode, keyUrl);
+    state.artifacts.set(res.loaderName, {
+      name: res.loaderName,
+      size: new TextEncoder().encode(res.loader).length,
+      data: res.loader,
+    });
+    if (res.mode === 'remote') {
+      state.artifacts.set(res.keyName, {
+        name: res.keyName,
+        size: new TextEncoder().encode(res.keyText).length,
+        data: res.keyText,
+      });
+    }
+    renderLua(res);
+    return res;
+  } catch (err) {
+    renderLua(null);
+    toast('Không dựng được loader Luau: ' + (err && err.message ? err.message : err), 'bad', 8000);
+    return null;
+  }
+}
+
+if ($('luaCopy')) {
+  $('luaCopy').addEventListener('click', () => {
+    if (!state.lua) return toast('Chưa có script Luau — mã hoá code Lua trước.', 'warn');
+    copyToClipboard(state.lua.loader, 'Đã chép script Luau — dán vào game là chạy.');
+  });
+}
+if ($('luaDl')) {
+  $('luaDl').addEventListener('click', () => {
+    if (!state.lua) return toast('Chưa có script Luau — mã hoá code Lua trước.', 'warn');
+    downloadArtifact(state.lua.loaderName, state.lua.loader);
+    if (state.lua.mode === 'remote') downloadArtifact(state.lua.keyName, state.lua.keyText);
+  });
+}
+if ($('luaCmdCopy')) {
+  $('luaCmdCopy').addEventListener('click', () => {
+    const v = $('luaCmd') && $('luaCmd').value;
+    if (!v) return toast('Chưa có dòng lệnh — dán link tệp .lua của bạn trước.', 'warn');
+    copyToClipboard(v, 'Đã chép dòng lệnh.');
+  });
+}
+if ($('luaScriptUrl')) $('luaScriptUrl').addEventListener('input', renderLuaCommand);
+if ($('luaKeyMode')) {
+  $('luaKeyMode').addEventListener('change', () => {
+    const remote = luaMode() === 'remote';
+    if ($('luaKeyUrlRow')) $('luaKeyUrlRow').hidden = !remote;
+    if (remote && $('luaKeyUrl') && !$('luaKeyUrl').value.trim()) {
+      toast('Dán link nơi bạn sẽ tải tệp khoá .txt lên, rồi bấm “Tạo lại”.', 'warn', 7000);
+      return;
+    }
+    refreshLuaBundle();
+  });
+}
+if ($('luaKeyUrl')) {
+  $('luaKeyUrl').addEventListener('change', () => {
+    if (luaMode() === 'remote') refreshLuaBundle();
+  });
+}
+if ($('luaRebuild')) $('luaRebuild').addEventListener('click', () => refreshLuaBundle());
 
 /* --------------------------------------------------------- chạy thử ngay --- */
 

@@ -263,24 +263,39 @@ function luaArray(list) {
  * @param {string} opts.cipherB64  bản mã (base64, KHÔNG gồm 16 byte tag)
  * @param {string} opts.nonceB64   12 byte nonce (base64)
  * @param {string} opts.tagHex     16 byte tag GCM (hex) để kiểm tra toàn vẹn
- * @param {string} opts.keyUrl     link tệp khoá (base64 key) đã xuất bản
+ * @param {string} [opts.keyUrl]   link tệp khoá (base64 key) đã xuất bản
+ * @param {string} [opts.embeddedKeyB64] khoá nhúng sẵn trong tệp (base64 32 byte).
+ *        Có khoá nhúng thì loader KHÔNG cần mạng, KHÔNG cần host tệp khoá — nhưng
+ *        ai có tệp .lua cũng giải mã được. Chỉ dùng khi tiện lợi quan trọng hơn bảo mật.
  * @param {string} [opts.suffix]   hậu tố ngẫu nhiên cho tên biến
  * @returns {string} mã Luau
  */
-export function buildLuaLoader({ cipherB64, nonceB64, tagHex, keyUrl, suffix } = {}) {
-  if (!cipherB64 || !nonceB64 || !tagHex || !keyUrl) {
-    throw new Error('buildLuaLoader: thiếu cipherB64 / nonceB64 / tagHex / keyUrl');
+export function buildLuaLoader({ cipherB64, nonceB64, tagHex, keyUrl, embeddedKeyB64, suffix } = {}) {
+  const embedded = embeddedKeyB64 ? String(embeddedKeyB64).trim() : '';
+  // '' là hợp lệ cho bản mã của một script rỗng (AES-GCM mã hoá chuỗi 0 byte).
+  if (cipherB64 == null || nonceB64 == null || tagHex == null) {
+    throw new Error('buildLuaLoader: thiếu cipherB64 / nonceB64 / tagHex');
+  }
+  if (!embedded && !keyUrl) {
+    throw new Error('buildLuaLoader: cần keyUrl hoặc embeddedKeyB64');
+  }
+  if (embedded && embedded.length % 4 !== 0) {
+    throw new Error('buildLuaLoader: embeddedKeyB64 không phải base64 hợp lệ');
   }
   const tag = String(suffix || Math.random().toString(36).slice(2, 8));
   const n = (name) => '_' + name + tag;
-  const urlChunks = luaArray(chunks(b64EncodeAscii(keyUrl), 53));
+  const urlChunks = luaArray(chunks(b64EncodeAscii(keyUrl || ''), 53));
   const dataChunks = luaArray(chunks(String(cipherB64), 397));
+  // Khoá nhúng bị cắt thành mảnh 8 ký tự: ai mở tệp cũng KHÔNG đọc được khoá như một
+  // chuỗi liền (vẫn ghép lại được khi chạy — đây là che giấu, không phải bảo mật).
+  const embChunks = embedded ? luaArray(chunks(embedded, 8)) : null;
 
   return [
     LUA_RUNTIME.trim(),
     '',
     'local ' + n('u') + ' = ' + urlChunks,
     'local ' + n('d') + ' = ' + dataChunks,
+    ...(embChunks ? ['local ' + n('emb') + ' = ' + embChunks] : []),
     // --- Tìm biến toàn cục: getgenv() → getfenv(0) → _G. ---
     // Roblox KHÔNG đặt `game`/`warn`… vào bảng _G (Luau sandbox: _G chỉ là bảng chia sẻ
     // giữa các script), nên chỉ đọc _G là hỏng trong game thật. fengari thì _G = môi trường
@@ -359,17 +374,24 @@ export function buildLuaLoader({ cipherB64, nonceB64, tagHex, keyUrl, suffix } =
     '  end',
     '  return nil, reason',
     'end',
-    'local ' + n('kurl') + ' = bytes_to_string(b64decode(table.concat(' + n('u') + ')))',
-    'local ' + n('body') + ', ' + n('why') + ' = ' + n('f') + '(' + n('kurl') + ')',
-    'if not ' + n('body') + ' or #' + n('body') + ' == 0 then',
-    "  " + n('bad') + "('AIA: khong tai duoc khoa: ' .. " + n('kurl') + " .. ' (' .. tostring(" + n('why') + ') .. \')\')',
-    'end',
-    // Bắt lỗi dán nhầm "link công khai" (trang trắng HTML) thay vì link tệp khoá.
-    'local ' + n('head') + ' = string.lower(string.sub(' + n('body') + ', 1, 400))',
-    "if string.find(" + n('head') + ", '<!doctype', 1, true) or string.find(" + n('head') + ", '<html', 1, true) then",
-    "  " + n('bad') + "('AIA: link khoa tra ve trang web (HTML) chu khong phai tep khoa - kiem tra lai link da xuat ban')",
-    'end',
-    'local ' + n('k') + ' = b64decode(' + n('body') + ')',
+    ...(embChunks
+      ? [
+          // Chế độ nhúng: khoá nằm ngay trong tệp, không gọi mạng.
+          'local ' + n('k') + ' = b64decode(table.concat(' + n('emb') + '))',
+        ]
+      : [
+          'local ' + n('kurl') + ' = bytes_to_string(b64decode(table.concat(' + n('u') + ')))',
+          'local ' + n('body') + ', ' + n('why') + ' = ' + n('f') + '(' + n('kurl') + ')',
+          'if not ' + n('body') + ' or #' + n('body') + ' == 0 then',
+          "  " + n('bad') + "('AIA: khong tai duoc khoa: ' .. " + n('kurl') + " .. ' (' .. tostring(" + n('why') + ') .. \')\')',
+          'end',
+          // Bắt lỗi dán nhầm "link công khai" (trang trắng HTML) thay vì link tệp khoá.
+          'local ' + n('head') + ' = string.lower(string.sub(' + n('body') + ', 1, 400))',
+          "if string.find(" + n('head') + ", '<!doctype', 1, true) or string.find(" + n('head') + ", '<html', 1, true) then",
+          "  " + n('bad') + "('AIA: link khoa tra ve trang web (HTML) chu khong phai tep khoa - kiem tra lai link da xuat ban')",
+          'end',
+          'local ' + n('k') + ' = b64decode(' + n('body') + ')',
+        ]),
     'if #' + n('k') + ' ~= 32 then',
     "  " + n('bad') + "('AIA: tep khoa sai (' .. tostring(#" + n('k') + ") .. ' byte, can 32) - link tep khoa khong dung')",
     'end',
