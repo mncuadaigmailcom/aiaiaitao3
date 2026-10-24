@@ -44,11 +44,16 @@ export class AIAError extends Error {
 /* -------------------------------------------------------------- Tiện ích --- */
 
 export function randomBytes(n) {
+  if (!Number.isFinite(n) || n < 0) throw new AIAError('BAD_LENGTH', 'Số byte ngẫu nhiên không hợp lệ.');
   const out = new Uint8Array(n);
-  if (globalThis.crypto && globalThis.crypto.getRandomValues) {
-    globalThis.crypto.getRandomValues(out);
-  } else {
+  const c = globalThis.crypto;
+  if (!c || typeof c.getRandomValues !== 'function') {
     throw new AIAError('NO_CRYPTO', 'Môi trường không có crypto.getRandomValues');
+  }
+  // getRandomValues giới hạn 65.536 byte mỗi lần ⇒ chia nhỏ để dùng được cả với khối lớn.
+  const MAX = 65536;
+  for (let off = 0; off < n; off += MAX) {
+    c.getRandomValues(out.subarray(off, Math.min(off + MAX, n)));
   }
   return out;
 }
@@ -97,7 +102,7 @@ export function fromUtf8(bytes) {
 
 export function formatBytes(n) {
   if (!Number.isFinite(n)) return '—';
-  if (n < 1024) return n + ' B';
+  if (n < 1024) return Math.round(n) + ' B';
   const units = ['KB', 'MB', 'GB', 'TB'];
   let v = n / 1024;
   let i = 0;
@@ -155,15 +160,26 @@ export function timestampFromMeta(meta) {
 
 /* ------------------------------------------------------------ Khoá (KDF) --- */
 
-export function buildKeyMaterial({ timeRaw, unixMs, keyUrl, passphrase }) {
+export function buildKeyMaterial({ timeRaw, unixMs, keyUrl, passphrase, sharedKey }) {
   // JSON để tránh nhập nhằng dấu phân cách nếu URL có ký tự lạ.
-  return JSON.stringify([1, String(timeRaw), Number(unixMs), String(keyUrl || ''), String(passphrase || '')]);
+  // Chỉ nối thêm khoá dùng chung khi có ⇒ tệp cũ (không dùng khoá chung) giữ nguyên khoá.
+  const parts = [1, String(timeRaw), Number(unixMs), String(keyUrl || ''), String(passphrase || '')];
+  const shared = sharedKeyToString(sharedKey);
+  if (shared) parts.push(shared);
+  return JSON.stringify(parts);
 }
 
-async function deriveBits({ timeRaw, unixMs, keyUrl, passphrase, salt, iterations }) {
+export function sharedKeyToString(sharedKey) {
+  if (!sharedKey) return '';
+  const bytes = typeof sharedKey === 'string' ? base64ToBytes(sharedKey) : new Uint8Array(sharedKey);
+  if (bytes.length !== 32) throw new AIAError('BAD_SHARED_KEY', 'Khoá dùng chung phải đúng 32 byte.');
+  return bytesToBase64(bytes);
+}
+
+async function deriveBits({ timeRaw, unixMs, keyUrl, passphrase, salt, iterations, sharedKey }) {
   const subtle = globalThis.crypto && globalThis.crypto.subtle;
   if (!subtle) throw new AIAError('NO_CRYPTO', 'Môi trường không hỗ trợ WebCrypto (cần HTTPS hoặc localhost)');
-  const material = buildKeyMaterial({ timeRaw, unixMs, keyUrl, passphrase });
+  const material = buildKeyMaterial({ timeRaw, unixMs, keyUrl, passphrase, sharedKey });
   const baseKey = await subtle.importKey('raw', utf8(material), 'PBKDF2', false, ['deriveBits']);
   const bits = await subtle.deriveBits(
     { name: 'PBKDF2', salt, iterations: iterations || DEFAULT_ITERATIONS, hash: 'SHA-256' },
@@ -185,8 +201,8 @@ function asyncSubtle() {
   return subtle;
 }
 
-export async function deriveAesKey({ timeRaw, unixMs, keyUrl, passphrase, salt, iterations }, usages = ['decrypt']) {
-  const bits = await deriveBits({ timeRaw, unixMs, keyUrl, passphrase, salt, iterations });
+export async function deriveAesKey({ timeRaw, unixMs, keyUrl, passphrase, salt, iterations, sharedKey }, usages = ['decrypt']) {
+  const bits = await deriveBits({ timeRaw, unixMs, keyUrl, passphrase, salt, iterations, sharedKey });
   const kid = await keyIdFromBits(bits);
   const key = await asyncSubtle().importKey('raw', bits, { name: 'AES-GCM' }, false, usages);
   return { key, kid };
@@ -194,14 +210,20 @@ export async function deriveAesKey({ timeRaw, unixMs, keyUrl, passphrase, salt, 
 
 /* ---------------------------------------------------------- Khối AES-GCM --- */
 
-export function buildAad(index, isLast, totalChunks) {
-  const aad = new Uint8Array(18);
+/**
+ * AAD = magic(8) ‖ version(1) ‖ index(4) ‖ cờ-cuối(1) ‖ tổng-khối(4) [‖ SHA-256 header(32)]
+ * Có header digest ⇒ mọi thay đổi trong header (kể cả ghi chú, tên tệp, thời gian đọc được)
+ * đều làm hỏng việc giải mã. Bản cũ không có digest vẫn giải mã được (AAD 18 byte).
+ */
+export function buildAad(index, isLast, totalChunks, headerDigest = null) {
+  const aad = new Uint8Array(headerDigest ? 50 : 18);
   aad.set(MAGIC, 0); // 0..7
   aad[8] = VERSION; // 8
   const dv = new DataView(aad.buffer);
   dv.setUint32(9, index >>> 0, false); // 9..12
   aad[13] = isLast ? 1 : 0; // 13
   dv.setUint32(14, totalChunks >>> 0, false); // 14..17
+  if (headerDigest) aad.set(headerDigest, 18); // 18..49
   return aad;
 }
 
@@ -212,21 +234,31 @@ export function buildIv(ivPrefix, index) {
   return iv;
 }
 
-export async function sealChunk(key, { index, isLast, total, ivPrefix, bytes }) {
+export async function sealChunk(key, { index, isLast, total, ivPrefix, bytes, headerDigest = null }) {
   return new Uint8Array(
     await asyncSubtle().encrypt(
-      { name: 'AES-GCM', iv: buildIv(ivPrefix, index), additionalData: buildAad(index, isLast, total), tagLength: 128 },
+      {
+        name: 'AES-GCM',
+        iv: buildIv(ivPrefix, index),
+        additionalData: buildAad(index, isLast, total, headerDigest),
+        tagLength: 128,
+      },
       key,
       bytes,
     ),
   );
 }
 
-export async function openChunk(key, { index, isLast, total, ivPrefix, bytes }) {
+export async function openChunk(key, { index, isLast, total, ivPrefix, bytes, headerDigest = null }) {
   try {
     return new Uint8Array(
       await asyncSubtle().decrypt(
-        { name: 'AES-GCM', iv: buildIv(ivPrefix, index), additionalData: buildAad(index, isLast, total), tagLength: 128 },
+        {
+          name: 'AES-GCM',
+          iv: buildIv(ivPrefix, index),
+          additionalData: buildAad(index, isLast, total, headerDigest),
+          tagLength: 128,
+        },
         key,
         bytes,
       ),
@@ -238,6 +270,35 @@ export async function openChunk(key, { index, isLast, total, ivPrefix, bytes }) 
       err,
     );
   }
+}
+
+/* ------------------------------------------------ Băm toàn vẹn header --- */
+
+export const HEADER_DIGEST_PLACEHOLDER = '0'.repeat(64);
+
+function hexToBytes(hex) {
+  const out = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < out.length; i++) out[i] = parseInt(hex.substr(i * 2, 2), 16);
+  return out;
+}
+
+/**
+ * Băm header: SHA-256 của JSON header với trường headerHash tạm đặt bằng 64 số 0.
+ * Nhờ vậy digest có thể nằm trong chính header mà vẫn tính được (độ dài cố định),
+ * và được đưa vào AAD của mọi khối + AAD bọc khoá tệp.
+ */
+export async function computeHeaderDigest(meta) {
+  const clone = { ...meta, headerHash: HEADER_DIGEST_PLACEHOLDER };
+  delete clone.keyWrap; // khoá tệp chỉ nằm trong key script, không thuộc header
+  delete clone.encryptionSeconds;
+  return sha256Hex(utf8(JSON.stringify(clone)));
+}
+
+export async function verifyHeaderDigest(meta) {
+  if (!meta || !meta.headerHash) return { ok: true, legacy: true, digest: null };
+  const actual = await computeHeaderDigest(meta);
+  if (actual !== meta.headerHash) return { ok: false, legacy: false, digest: null };
+  return { ok: true, legacy: false, digest: hexToBytes(actual) };
 }
 
 /* --------------------------------------------------------------- Header --- */
@@ -346,8 +407,8 @@ export class StreamReader {
  * không nằm trong header tệp .aia. Vì vậy thiếu key script là không thể giải mã,
  * dù biết mật khẩu và đọc được header.
  */
-export function wrapAad({ id, timeRaw, unixMs, keyUrl }) {
-  return utf8(JSON.stringify(['AIA1-WRAP', String(id), String(timeRaw), Number(unixMs), String(keyUrl)]));
+export function wrapAad({ id, timeRaw, unixMs, keyUrl, headerHash = null }) {
+  return utf8(JSON.stringify(['AIA1-WRAP', String(id), String(timeRaw), Number(unixMs), String(keyUrl), headerHash || '']));
 }
 
 async function wrapFileKey(wrapKey, fileKey, aad) {
@@ -389,8 +450,23 @@ export function normalizeOptions(options = {}) {
     note: options.note ? String(options.note) : '',
     payloadFile: options.payloadFile || 'payload.aia.bin',
     hashPlaintext: options.hashPlaintext !== false,
+    // 'per-file': mỗi tệp một key script chứa khoá tệp
+    // 'shared'  : MỘT key script dùng chung cho mọi bản mã và mọi người
+    // 'none'    : khoá dẫn xuất trực tiếp (chế độ cũ, tương thích)
+    // Không truyền keyMode ⇒ giữ nguyên hành vi cũ theo requireKeyScript.
+    keyMode:
+      options.keyMode === 'shared'
+        ? 'shared'
+        : options.keyMode === 'none'
+          ? 'none'
+          : options.keyMode === 'per-file'
+            ? 'per-file'
+            : options.requireKeyScript === true
+              ? 'per-file'
+              : 'none',
     // true = khoá tệp ngẫu nhiên được bọc trong key script ⇒ thiếu key script là không mở được
-    requireKeyScript: options.requireKeyScript === true,
+    requireKeyScript: options.keyMode === 'shared' || options.keyMode === 'per-file' || options.requireKeyScript === true,
+    sharedKey: options.sharedKey ? sharedKeyToString(options.sharedKey) : null,
   };
 }
 
@@ -433,21 +509,22 @@ export async function encryptStream({ openStream, size, options, onProgress, sin
   const total = Math.ceil(size / opt.chunkSize);
   const id = bytesToHex(randomBytes(8));
 
+  if (opt.keyMode === 'shared' && !opt.sharedKey) {
+    throw new AIAError('SHARED_KEY_REQUIRED', 'Chế độ khoá dùng chung cần khoá chung (hãy tạo hoặc nạp key script dùng chung).');
+  }
+
   const { key: wrapKey, kid } = await deriveAesKey(
-    { timeRaw: time.raw, unixMs: time.unixMs, keyUrl: opt.keyUrl, passphrase: opt.passphrase, salt, iterations: opt.iterations },
+    {
+      timeRaw: time.raw,
+      unixMs: time.unixMs,
+      keyUrl: opt.keyUrl,
+      passphrase: opt.passphrase,
+      salt,
+      iterations: opt.iterations,
+      sharedKey: opt.keyMode === 'shared' ? opt.sharedKey : null,
+    },
     ['encrypt'],
   );
-
-  // Chế độ thường: dùng trực tiếp khoá dẫn xuất. Chế độ "bắt buộc key script":
-  // sinh khoá tệp ngẫu nhiên, bọc nó bằng khoá dẫn xuất, và chỉ để bản đã bọc
-  // trong META của key script (KHÔNG ghi vào header .aia).
-  let key = wrapKey;
-  let keyWrap = null;
-  if (opt.requireKeyScript) {
-    const fileKey = randomBytes(32);
-    key = await asyncSubtle().importKey('raw', fileKey, { name: 'AES-GCM' }, false, ['encrypt']);
-    keyWrap = await wrapFileKey(wrapKey, fileKey, wrapAad({ id, timeRaw: time.raw, unixMs: time.unixMs, keyUrl: opt.keyUrl }));
-  }
 
   // SHA-256 bản rõ: chỉ với tệp nhỏ (tránh đọc lại 5 GB và tránh tốn RAM).
   let sha256 = null;
@@ -473,13 +550,38 @@ export async function encryptStream({ openStream, size, options, onProgress, sin
     payload: { file: opt.payloadFile },
     expiry: opt.expiry || null,
     note: opt.note || '',
-    keyWrapIn: opt.requireKeyScript ? 'key-script' : 'header',
+    keyWrapIn: opt.keyMode === 'shared' ? 'shared-key-script' : opt.keyMode === 'per-file' ? 'key-script' : 'header',
+    keyMode: opt.keyMode,
     encryptionSeconds: null,
+    headerHash: '', // sẽ tính ngay dưới đây
   };
-  if (keyWrap) meta.keyWrap = keyWrap; // chỉ dùng cho key script
+  if (opt.keyMode === 'shared') meta.sharedKeyId = await sharedKeyId(opt.sharedKey);
+  meta.headerHash = await computeHeaderDigest(meta);
+  const headerDigest = hexToBytes(meta.headerHash);
+
+  // Chế độ thường: dùng trực tiếp khoá dẫn xuất. Chế độ "bắt buộc key script":
+  // sinh khoá tệp ngẫu nhiên, bọc nó bằng khoá dẫn xuất, và chỉ để bản đã bọc
+  // trong META của key script (KHÔNG ghi vào header .aia).
+  let key = wrapKey;
+  let keyWrap = null;
+  if (opt.keyMode !== 'none') {
+    const fileKey = randomBytes(32);
+    key = await asyncSubtle().importKey('raw', fileKey, { name: 'AES-GCM' }, false, ['encrypt']);
+    keyWrap = await wrapFileKey(
+      wrapKey,
+      fileKey,
+      wrapAad({ id, timeRaw: time.raw, unixMs: time.unixMs, keyUrl: opt.keyUrl, headerHash: meta.headerHash }),
+    );
+    // per-file: khoá tệp đã bọc nằm trong key script riêng.
+    // shared  : khoá tệp đã bọc nằm ngay trong header, nhưng mở được chỉ khi có khoá chung trong key script.
+    if (opt.keyMode === 'shared') meta.keyWrap = keyWrap;
+    else meta.keyWrap = keyWrap; // giữ trong META (sẽ bị loại khỏi header ở dưới)
+  }
 
   const headerMeta = { ...meta };
-  delete headerMeta.keyWrap;
+  // per-file: keyWrap chỉ nằm trong key script. shared: keyWrap nằm trong header
+  // (bản thân keyWrap đã được AES-GCM xác thực bằng khoá phụ thuộc khoá chung).
+  if (meta.keyWrapIn !== 'shared-key-script') delete headerMeta.keyWrap;
   const headerBytes = buildContainerHeader(headerMeta);
   await sink.write(headerBytes);
 
@@ -491,7 +593,7 @@ export async function encryptStream({ openStream, size, options, onProgress, sin
 
   const flush = async (isLast) => {
     const bytes = isLast ? pending.subarray(0, pendingLen) : pending;
-    const sealed = await sealChunk(key, { index, isLast, total, ivPrefix, bytes });
+    const sealed = await sealChunk(key, { index, isLast, total, ivPrefix, bytes, headerDigest });
     await sink.write(sealed);
     index++;
     pending = new Uint8Array(opt.chunkSize);
@@ -558,11 +660,33 @@ export async function readContainerHeaderFromSource(source) {
  * - Nếu không, bản rõ được gom vào `plaintext` trong bộ nhớ.
  * @returns {Promise<{meta:object, plaintext:Uint8Array|null, hashVerified:boolean|null}>}
  */
-export async function decryptStream({ source, passphrase = '', sink, onProgress, keyWrap = null }) {
+export async function decryptStream({ source, passphrase = '', sink, onProgress, keyWrap = null, sharedKey = null }) {
   const { meta, reader } = await readContainerHeaderFromSource(source);
   if (!meta || meta.format !== 'AIA1') throw new AIAError('BAD_FORMAT', 'Header không đúng định dạng AIA1.');
+
+  // 1) Toàn vẹn header: mọi thay đổi (kể cả ghi chú, tên tệp, thời gian đọc được) đều bị chặn.
+  const headerCheck = await verifyHeaderDigest(meta);
+  if (!headerCheck.ok) {
+    throw new AIAError('HEADER_TAMPERED', 'Header đã bị sửa — SHA-256 header không khớp (tệp có thể đã bị chỉnh).');
+  }
+  const headerDigest = headerCheck.digest; // null với tệp cũ (tương thích ngược)
+
   const salt = base64ToBytes(meta.kdf.salt);
   const ivPrefix = base64ToBytes(meta.chunk.ivPrefix);
+  const isShared = meta.keyWrapIn === 'shared-key-script' || meta.keyMode === 'shared';
+  if (isShared && !sharedKey) {
+    throw new AIAError(
+      'KEY_REQUIRED',
+      'Bản mã dùng khoá dùng chung: cần tệp key script chung (aia.key.js) chứa khoá gốc.',
+    );
+  }
+  const sharedForKey = isShared ? sharedKeyToString(sharedKey) : null;
+  if (isShared && meta.sharedKeyId) {
+    const givenId = await sharedKeyId(sharedForKey);
+    if (givenId !== meta.sharedKeyId) {
+      throw new AIAError('WRONG_SHARED_KEY', 'Key script dùng chung không khớp bản mã này (sharedKeyId khác).');
+    }
+  }
   const { key: wrapKey, kid } = await deriveAesKey({
     timeRaw: meta.time.raw,
     unixMs: meta.time.unixMs,
@@ -570,19 +694,29 @@ export async function decryptStream({ source, passphrase = '', sink, onProgress,
     passphrase,
     salt,
     iterations: meta.kdf.iterations,
+    sharedKey: sharedForKey,
   });
   if (meta.kdf.kid && kid !== meta.kdf.kid) {
     throw new AIAError('WRONG_PASSPHRASE', 'Sai mật khẩu (hoặc link key script / thời gian trong header đã bị sửa).');
   }
 
-  // Khoá tệp: ưu tiên bản trong key script; nếu header có (chế độ cũ) thì dùng header.
-  const wrapInfo = keyWrap || meta.keyWrap || null;
+  // Khoá tệp: per-file lấy từ key script; shared lấy từ header (mở được nhờ khoá chung).
+  const wrapInfo = isShared ? meta.keyWrap || null : keyWrap || meta.keyWrap || null;
+  if (isShared && !wrapInfo) {
+    throw new AIAError('BAD_FORMAT', 'Bản mã dùng khoá chung nhưng thiếu keyWrap trong header.');
+  }
   let key = wrapKey;
   if (wrapInfo) {
     const fileKey = await unwrapFileKey(
       wrapKey,
       wrapInfo,
-      wrapAad({ id: meta.id, timeRaw: meta.time.raw, unixMs: meta.time.unixMs, keyUrl: meta.keyUrl }),
+      wrapAad({
+        id: meta.id,
+        timeRaw: meta.time.raw,
+        unixMs: meta.time.unixMs,
+        keyUrl: meta.keyUrl,
+        headerHash: meta.headerHash || null,
+      }),
     );
     key = await asyncSubtle().importKey('raw', fileKey, { name: 'AES-GCM' }, false, ['decrypt']);
   } else if (meta.keyWrapIn === 'key-script') {
@@ -599,7 +733,7 @@ export async function decryptStream({ source, passphrase = '', sink, onProgress,
   for (let i = 0; i < total; i++) {
     const plainLen = Math.min(chunkSize, size - i * chunkSize);
     const enc = await reader.readExact(plainLen + TAG_BYTES);
-    const pt = await openChunk(key, { index: i, isLast: i === total - 1, total, ivPrefix, bytes: enc });
+    const pt = await openChunk(key, { index: i, isLast: i === total - 1, total, ivPrefix, bytes: enc, headerDigest });
     if (pt.length !== plainLen) {
       throw new AIAError('SIZE_MISMATCH', `Khối #${i} có ${pt.length} byte, dự kiến ${plainLen}.`);
     }
@@ -624,14 +758,14 @@ export async function decryptStream({ source, passphrase = '', sink, onProgress,
   return { meta, plaintext, hashVerified };
 }
 
-export async function decryptBytes(bytes, passphrase = '', onProgress, keyWrap = null) {
+export async function decryptBytes(bytes, passphrase = '', onProgress, keyWrap = null, sharedKey = null) {
   const source = new ReadableStream({
     start(controller) {
       controller.enqueue(bytes);
       controller.close();
     },
   });
-  return decryptStream({ source, passphrase, onProgress, keyWrap });
+  return decryptStream({ source, passphrase, onProgress, keyWrap, sharedKey });
 }
 
 export async function sha256Hex(bytes) {
@@ -641,6 +775,228 @@ export async function sha256Hex(bytes) {
 
 export function nowMs() {
   return typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
+}
+
+/* ------------------------------------------- Khoá dùng chung (shared key) --- */
+
+/** Sinh khoá gốc dùng chung 32 byte (base64). Chỉ nằm trong key script chung. */
+export function generateSharedKeyBase64() {
+  return bytesToBase64(randomBytes(32));
+}
+
+/** 8 byte hex đầu của SHA-256(khoá gốc) — dùng để đối chiếu key script có đúng không. */
+export async function sharedKeyId(sharedKey) {
+  const digest = await asyncSubtle().digest('SHA-256', utf8(sharedKeyToString(sharedKey)));
+  return bytesToHex(new Uint8Array(digest).subarray(0, 8));
+}
+
+/**
+ * Sinh MỘT key script dùng chung cho mọi bản mã và mọi người.
+ * Tệp này chứa khoá gốc ⇒ ai có nó + mật khẩu là mở được mọi tệp .aia cùng bộ.
+ */
+export function buildSharedKeyScript({ sharedKey, keyUrl = './aia.key.js', keyId = '', note = '' }) {
+  const master = sharedKeyToString(sharedKey);
+  return `/*!
+ * AIA Secure Script — KEY SCRIPT DÙNG CHUNG
+ * ---------------------------------------------------------------------------
+ * Tạo lúc   : ${makeTimestamp().readable}
+ * Key ID    : ${keyId || '(chưa tính)'}
+ * Link key  : ${keyUrl}
+ * Ghi chú   : ${note || 'dùng cho nhiều bản mã .aia cùng bộ'}
+ *
+ * Dùng được cho MỌI tệp .aia được mã hoá ở chế độ "khoá dùng chung" với cùng
+ * key script này. Cần thêm MẬT KHẨU đã đặt lúc mã hoá.
+ * KHÔNG gửi tệp này cho người không tin cậy nếu không đặt mật khẩu.
+ */
+(function (global) {
+  'use strict';
+
+  var SHARED = {
+    v: 1,
+    keyId: ${JSON.stringify(keyId || '')},
+    masterKey: ${JSON.stringify(master)},
+    keyUrl: ${JSON.stringify(keyUrl)},
+  };
+
+  var MAGIC = new Uint8Array([0x41, 0x49, 0x41, 0x53, 0x43, 0x52, 0x31, 0x0a]);
+  var VERSION = 1;
+  var TAG = 16;
+
+  function utf8(s) { return new TextEncoder().encode(s); }
+  function hex(u8) { var s = ''; for (var i = 0; i < u8.length; i++) s += ('0' + u8[i].toString(16)).slice(-2); return s; }
+  function u8(hexStr) { var o = new Uint8Array(hexStr.length / 2); for (var i = 0; i < o.length; i++) o[i] = parseInt(hexStr.substr(i * 2, 2), 16); return o; }
+  function b64d(s) { var b = atob(s), o = new Uint8Array(b.length); for (var i = 0; i < b.length; i++) o[i] = b.charCodeAt(i); return o; }
+
+  async function derive(pass, header) {
+    var material = JSON.stringify([1, header.time.raw, header.time.unixMs, header.keyUrl, pass || '', SHARED.masterKey]);
+    var base = await crypto.subtle.importKey('raw', utf8(material), 'PBKDF2', false, ['deriveBits']);
+    var bits = new Uint8Array(await crypto.subtle.deriveBits(
+      { name: 'PBKDF2', salt: b64d(header.kdf.salt), iterations: header.kdf.iterations, hash: 'SHA-256' }, base, 256));
+    var kid = hex(new Uint8Array(await crypto.subtle.digest('SHA-256', bits)).slice(0, 8));
+    return { key: await crypto.subtle.importKey('raw', bits, { name: 'AES-GCM' }, false, ['decrypt']), kid: kid, bits: bits };
+  }
+
+  function aadFor(index, last, total, headerHash) {
+    var digest = headerHash ? u8(headerHash) : null;
+    var a = new Uint8Array(digest ? 50 : 18), dv = new DataView(a.buffer);
+    a.set(MAGIC, 0); a[8] = VERSION;
+    dv.setUint32(9, index >>> 0, false);
+    a[13] = last ? 1 : 0;
+    dv.setUint32(14, total >>> 0, false);
+    if (digest) a.set(digest, 18);
+    return a;
+  }
+
+  function iv(prefix, i) {
+    var v = new Uint8Array(12);
+    v.set(prefix, 0);
+    new DataView(v.buffer).setUint32(8, i >>> 0, false);
+    return v;
+  }
+
+  async function sha256Hex(text) {
+    return hex(new Uint8Array(await crypto.subtle.digest('SHA-256', utf8(text))));
+  }
+
+  function Reader(stream) { this.r = stream.getReader(); this.buf = new Uint8Array(0); this.done = false; }
+  Reader.prototype._pull = async function () {
+    if (this.done) return false;
+    var r = await this.r.read();
+    if (r.done) { this.done = true; return false; }
+    if (!r.value || !r.value.length) return true;
+    var merged = new Uint8Array(this.buf.length + r.value.length);
+    merged.set(this.buf, 0); merged.set(r.value, this.buf.length);
+    this.buf = merged;
+    return true;
+  };
+  Reader.prototype.exact = async function (n) {
+    while (this.buf.length < n) if (!(await this._pull())) throw new Error('Tệp .aia bị cắt cụt.');
+    var o = this.buf.subarray(0, n); this.buf = this.buf.subarray(n); return o;
+  };
+  Reader.prototype.more = async function () { if (this.buf.length) return true; return await this._pull(); };
+
+  async function loadStream(options) {
+    if (options.source) return options.source;
+    if (!options.url) throw new Error('Cần options.url hoặc options.source');
+    var res = await fetch(options.url, { cache: 'no-store' });
+    if (!res.ok) throw new Error('Không tải được ' + options.url + ' (HTTP ' + res.status + ')');
+    return res.body;
+  }
+
+  async function verifyHeader(header) {
+    if (!header.headerHash) return;
+    var clone = {};
+    for (var k in header) if (Object.prototype.hasOwnProperty.call(header, k)) clone[k] = header[k];
+    clone.headerHash = new Array(65).join('0');
+    delete clone.keyWrap;
+    delete clone.encryptionSeconds;
+    var actual = await sha256Hex(JSON.stringify(clone));
+    if (actual !== header.headerHash) throw new Error('Header của tệp .aia đã bị sửa (SHA-256 không khớp).');
+  }
+
+  async function open(options) {
+    options = options || {};
+    if (!SHARED.masterKey) throw new Error('Key script chung này không có khoá gốc.');
+    var stream = await loadStream(options);
+    var r = new Reader(stream);
+    var prefix = await r.exact(12);
+    var len = new DataView(prefix.buffer, prefix.byteOffset + 8, 4).getUint32(0, true);
+    var header = JSON.parse(new TextDecoder().decode(await r.exact(len)));
+    if (header.format !== 'AIA1') throw new Error('Không phải tệp .aia.');
+    await verifyHeader(header);
+    if (header.keyWrapIn !== 'shared-key-script') {
+      throw new Error('Tệp này không được mã hoá ở chế độ khoá dùng chung — hãy dùng key script riêng của nó.');
+    }
+    if (header.expiry && Date.now() > Date.parse(header.expiry)) {
+      throw new Error('Bản mã đã hết hạn dùng.');
+    }
+    var info = await derive(options.passphrase || '', header);
+    if (SHARED.keyId && info.kid && header.kdf.kid !== info.kid) throw new Error('Sai mật khẩu.');
+    if (header.sharedKeyId) {
+      var myId = hex(new Uint8Array(await crypto.subtle.digest('SHA-256', utf8(SHARED.masterKey))).slice(0, 8));
+      if (myId !== header.sharedKeyId) throw new Error('Key script chung không khớp bản mã này.');
+    }
+
+    // mở khoá tệp
+    var kw = header.keyWrap;
+    if (!kw) throw new Error('Bản mã thiếu keyWrap.');
+    var wrapAad = utf8(JSON.stringify(['AIA1-WRAP', header.id, header.time.raw, header.time.unixMs, header.keyUrl, header.headerHash || '']));
+    var fileKeyRaw;
+    try {
+      fileKeyRaw = await crypto.subtle.decrypt(
+        { name: 'AES-GCM', iv: b64d(kw.iv), additionalData: wrapAad, tagLength: 128 }, info.key, b64d(kw.ct));
+    } catch (e) {
+      throw new Error('Không mở được khoá tệp — sai mật khẩu hoặc key script không đúng.');
+    }
+    var dataKey = await crypto.subtle.importKey('raw', fileKeyRaw, { name: 'AES-GCM' }, false, ['decrypt']);
+
+    var ivPrefix = b64d(header.chunk.ivPrefix);
+    var size = header.file.size, cs = header.chunk.size, total = header.chunk.total;
+    var parts = [], done = 0;
+    for (var i = 0; i < total; i++) {
+      var plainLen = Math.min(cs, size - i * cs);
+      var enc = await r.exact(plainLen + TAG);
+      var pt;
+      try {
+        pt = new Uint8Array(await crypto.subtle.decrypt(
+          { name: 'AES-GCM', iv: iv(ivPrefix, i), additionalData: aadFor(i, i === total - 1, total, header.headerHash), tagLength: 128 },
+          dataKey, enc));
+      } catch (e) {
+        throw new Error('Không giải mã được khối #' + i + ' — tệp đã bị sửa hoặc sai khoá.');
+      }
+      parts.push(pt); done += pt.length;
+      if (options.onProgress) options.onProgress(done, size);
+    }
+    if (await r.more()) throw new Error('Tệp có dữ liệu thừa sau khối cuối.');
+    var out = new Uint8Array(done), off = 0;
+    for (var j = 0; j < parts.length; j++) { out.set(parts[j], off); off += parts[j].length; }
+    return { bytes: out, header: header };
+  }
+
+  async function run(options) {
+    options = options || {};
+    var res = await open(options);
+    var code = new TextDecoder().decode(res.bytes);
+    if (options.download) {
+      var blob = new Blob([res.bytes], { type: 'application/octet-stream' });
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = res.header.file.name || 'decrypted.bin';
+      document.body.appendChild(a); a.click(); a.remove();
+      return res;
+    }
+    var head = "var L=function(t){return function(){var a=[].slice.call(arguments).map(function(x){try{return typeof x==='object'?JSON.stringify(x):String(x)}catch(e){return String(x)}});postMessage({type:'log',level:t,args:a})}};" +
+      "self.console={log:L('log'),info:L('info'),warn:L('warn'),error:L('error'),debug:L('log')};" +
+      "self.addEventListener('error',function(e){postMessage({type:'error',message:String(e.message||e)})});" +
+      "self.addEventListener('unhandledrejection',function(e){postMessage({type:'error',message:String(e.reason)})});try{";
+    var tail = "}catch(e){postMessage({type:'error',message:String(e&&(e.stack||e.message)||e)});}postMessage({type:'done'});";
+    var worker = new Worker(URL.createObjectURL(new Blob([head + code + tail], { type: 'text/javascript' })));
+    if (options.onLog || options.onError || options.onDone) {
+      worker.onmessage = function (ev) {
+        var d = ev.data || {};
+        if (d.type === 'log' && options.onLog) options.onLog(d.level, d.args);
+        else if (d.type === 'error' && options.onError) options.onError(d.message);
+        else if (d.type === 'done' && options.onDone) options.onDone();
+      };
+    }
+    return { bytes: res.bytes, header: res.header, worker: worker };
+  }
+
+  var API = {
+    version: '1.0.0',
+    kind: 'shared',
+    masterKey: SHARED.masterKey,
+    keyId: SHARED.keyId,
+    keyUrl: SHARED.keyUrl,
+    open: open,
+    run: run,
+    generateInfo: function () { return { keyMode: 'shared', keyUrl: SHARED.keyUrl, sharedKeyId: SHARED.keyId }; },
+  };
+
+  global.AIA_KEY = API;
+  global.AIA_UNLOCK_SHARED = API;
+  if (typeof module !== 'undefined' && module.exports) module.exports = API;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+`;
 }
 
 /* ------------------------------------------------ Nguồn Web Worker (chạy) --- */
@@ -738,7 +1094,39 @@ export function buildKeyScript(meta, opts = {}) {
     return v;
   }
   function wrapAad() {
-    return utf8(JSON.stringify(['AIA1-WRAP', META.id, META.time.raw, META.time.unixMs, META.keyUrl]));
+    return utf8(JSON.stringify(['AIA1-WRAP', META.id, META.time.raw, META.time.unixMs, META.keyUrl, META.headerHash || '']));
+  }
+
+  function hexToU8(hex) {
+    var out = new Uint8Array(hex.length / 2);
+    for (var i = 0; i < out.length; i++) out[i] = parseInt(hex.substr(i * 2, 2), 16);
+    return out;
+  }
+
+  // AAD khối: 18 byte như bản cũ, hoặc 50 byte (kèm SHA-256 header) với tệp mới.
+  function chunkAad(headerHash) {
+    var digest = headerHash ? hexToU8(headerHash) : null;
+    var buf = new Uint8Array(digest ? 50 : 18);
+    var dv = new DataView(buf.buffer);
+    buf.set(MAGIC, 0);
+    buf[8] = VERSION;
+    buf[13] = 0;
+    if (digest) buf.set(digest, 18);
+    return buf;
+  }
+
+  function aadFor(index, last, total, headerHash) {
+    var a = chunkAad(headerHash);
+    var dv = new DataView(a.buffer);
+    dv.setUint32(9, index >>> 0, false);
+    a[13] = last ? 1 : 0;
+    dv.setUint32(14, total >>> 0, false);
+    return a;
+  }
+
+  async function sha256HexOf(text) {
+    var d = new Uint8Array(await crypto.subtle.digest('SHA-256', utf8(text)));
+    return hex(d);
   }
 
   async function openFileKey(wrapKey) {
@@ -843,6 +1231,19 @@ export function buildKeyScript(meta, opts = {}) {
     var header = JSON.parse(new TextDecoder().decode(headerBytes));
     if (header.id !== META.id) throw new Error('Key script không khớp với tệp dữ liệu (id khác nhau).');
 
+    // Toàn vẹn header: nếu header bị sửa thì SHA-256 sẽ lệch.
+    if (header.headerHash) {
+      var clone = {};
+      for (var kk in header) if (Object.prototype.hasOwnProperty.call(header, kk)) clone[kk] = header[kk];
+      clone.headerHash = new Array(65).join('0');
+      delete clone.keyWrap;
+      delete clone.encryptionSeconds;
+      var actual = await sha256HexOf(JSON.stringify(clone));
+      if (actual !== header.headerHash) {
+        throw new Error('Header của tệp .aia đã bị sửa (SHA-256 không khớp) — từ chối giải mã.');
+      }
+    }
+
     var ivPrefix = b64d(META.chunk.ivPrefix);
     var size = META.file.size, cs = META.chunk.size, total = META.chunk.total;
     var parts = [], done = 0;
@@ -851,7 +1252,7 @@ export function buildKeyScript(meta, opts = {}) {
       var enc = await reader.exact(plainLen + TAG_BYTES);
       try {
         var pt = new Uint8Array(await crypto.subtle.decrypt(
-          { name: 'AES-GCM', iv: iv(ivPrefix, i), additionalData: aad(i, i === total - 1, total), tagLength: 128 },
+          { name: 'AES-GCM', iv: iv(ivPrefix, i), additionalData: aadFor(i, i === total - 1, total, header.headerHash), tagLength: 128 },
           dataKey, enc));
       } catch (e) {
         throw new Error('Không giải mã được khối #' + i + ': sai mật khẩu hoặc tệp đã bị sửa.');
@@ -997,6 +1398,8 @@ export function buildRunnerHtml(meta, opts = {}) {
   const title = `AIA Runner — ${escapeHtml(meta.file.name)}`;
   const metaJson = JSON.stringify(meta).replace(/</g, '\\u003c');
   const keyName = opts.keyFileName || 'key.js';
+  const shared = meta.keyWrapIn === 'shared-key-script';
+  const payloadUrl = './' + (meta.payload.file || 'payload.aia');
   return `<!doctype html>
 <html lang="vi">
 <head>
@@ -1070,6 +1473,8 @@ export function buildRunnerHtml(meta, opts = {}) {
 <script>
 (function () {
   var META = ${metaJson};
+  var SHARED = ${shared ? 'true' : 'false'};
+  var PAYLOAD = ${JSON.stringify(payloadUrl)};
   var log = document.getElementById('log');
   var statusEl = document.getElementById('status');
   var passEl = document.getElementById('pass');
@@ -1094,12 +1499,37 @@ export function buildRunnerHtml(meta, opts = {}) {
     setStatus('lỗi', 'bad');
   }
 
+  // Lớp tương thích: chế độ riêng từng tệp dùng AIA_UNLOCK của key script riêng;
+  // chế độ dùng chung dùng AIA_KEY của aia.key.js (không biết trước tệp payload).
+  function sharedOpen(pass) {
+    return AIA_KEY.open({ url: PAYLOAD, passphrase: pass });
+  }
+  function checkExpiry() {
+    if (SHARED) { return META.expiry && Date.now() > Date.parse(META.expiry); }
+    return AIA_UNLOCK.checkExpiry();
+  }
+
   document.getElementById('run').addEventListener('click', async function () {
     if (busy) return;
     busy = true; log.innerHTML = '';
-    if (AIA_UNLOCK.checkExpiry()) { print('error', '[AIA] Bản mã đã hết hạn dùng.'); busy = false; return; }
+    if (checkExpiry()) { print('error', '[AIA] Bản mã đã hết hạn dùng.'); busy = false; return; }
     setStatus('đang giải mã…');
     try {
+      if (SHARED) {
+        var res = await sharedOpen(getPass());
+        var code = new TextDecoder().decode(res.bytes);
+        var head = "var L=function(t){return function(){var a=[].slice.call(arguments).map(function(x){try{return typeof x==='object'?JSON.stringify(x):String(x)}catch(e){return String(x)}});postMessage({type:'log',level:t,args:a})}};self.console={log:L('log'),info:L('info'),warn:L('warn'),error:L('error'),debug:L('log')};self.addEventListener('error',function(e){postMessage({type:'error',message:String(e.message||e)})});self.addEventListener('unhandledrejection',function(e){postMessage({type:'error',message:String(e.reason)})});try{";
+        var tail = "}catch(e){postMessage({type:'error',message:String(e&&(e.stack||e.message)||e)});}postMessage({type:'done'});";
+        var worker = new Worker(URL.createObjectURL(new Blob([head + code + tail], { type: 'text/javascript' })));
+        worker.onmessage = function (ev) {
+          var d = ev.data || {};
+          if (d.type === 'log') print(d.level, d.args);
+          else if (d.type === 'error') print('error', '[runtime] ' + d.message);
+          else if (d.type === 'done') { print('info', '[AIA] script đã chạy xong.'); setStatus('đã chạy', 'ok'); }
+        };
+        busy = false;
+        return;
+      }
       await AIA_UNLOCK.run({
         passphrase: getPass(),
         execute: true,
@@ -1123,7 +1553,7 @@ export function buildRunnerHtml(meta, opts = {}) {
     busy = true; log.innerHTML = '';
     setStatus('đang kiểm tra…');
     try {
-      var bytes = await AIA_UNLOCK.decrypt({ passphrase: getPass() });
+      var bytes = SHARED ? (await sharedOpen(getPass())).bytes : await AIA_UNLOCK.decrypt({ passphrase: getPass() });
       print('info', '[AIA] OK — giải mã thành công ' + bytes.length + ' byte, toàn vẹn AES-GCM hợp lệ.');
       setStatus('toàn vẹn OK', 'ok');
     } catch (e) { fail(e); }
@@ -1135,7 +1565,16 @@ export function buildRunnerHtml(meta, opts = {}) {
     busy = true;
     setStatus('đang giải mã để tải…');
     try {
-      await AIA_UNLOCK.download({ passphrase: getPass() });
+      if (SHARED) {
+        var r2 = await sharedOpen(getPass());
+        var blob = new Blob([r2.bytes], { type: 'application/octet-stream' });
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = r2.header.file.name || META.file.name;
+        document.body.appendChild(a); a.click(); a.remove();
+      } else {
+        await AIA_UNLOCK.download({ passphrase: getPass() });
+      }
       setStatus('đã tải', 'ok');
     } catch (e) { fail(e); }
     busy = false;
@@ -1159,7 +1598,13 @@ Thời gian tạo: ${meta.time.readable}  (raw=${meta.time.raw}, unixMs=${meta.t
 Link key     : ${meta.keyUrl}
 Mã hoá       : ${meta.alg}, PBKDF2-HMAC-SHA256 ${meta.kdf.iterations} vòng
 Tệp dữ liệu  : ${meta.payload.file}
-Bắt buộc key : ${meta.keyWrapIn === 'key-script' ? 'CÓ — khoá tệp chỉ nằm trong key script, thiếu là không mở được' : 'không (khoá dẫn xuất trực tiếp từ header + mật khẩu)'}
+Bắt buộc key : ${
+    meta.keyWrapIn === 'shared-key-script'
+      ? 'CÓ — dùng key script DÙNG CHUNG aia.key.js (một link cho mọi tệp, mọi người) + mật khẩu'
+      : meta.keyWrapIn === 'key-script'
+        ? 'CÓ — khoá tệp chỉ nằm trong key script, thiếu là không mở được'
+        : 'không (khoá dẫn xuất trực tiếp từ header + mật khẩu)'
+  }
 Hạn dùng     : ${meta.expiry ? new Date(meta.expiry).toLocaleString('vi-VN') : 'không đặt'}
 
 CÁCH CHẠY (QUAN TRỌNG)

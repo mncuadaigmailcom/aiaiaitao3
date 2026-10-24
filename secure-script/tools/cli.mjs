@@ -28,10 +28,13 @@ const USAGE = `AIA Secure Script CLI
     --embed                       Nhúng mật khẩu vào key script (tiện nhưng kém an toàn)
     --no-hash                     Không băm SHA-256 bản rõ (dùng cho tệp > 64 MiB)
     --no-require-key              Không bắt buộc key script (mặc định: BẮT BUỘC)
+    --shared                      Dùng key script DÙNG CHUNG (aia.key.js) cho mọi tệp
+    --shared-key <aia.key.js>     Tệp key script chung (mặc định: ./aia.key.js cạnh CLI)
 
   decrypt <tệp.aia> [tuỳ chọn]    Giải mã (dùng header của .aia, không cần key script)
     --pass <mật khẩu>             Mật khẩu
     --key <key.js>                Key script (bắt buộc nếu bản mã có khoá riêng)
+    --shared-key <aia.key.js>     Key script chung (bắt buộc nếu bản mã dùng khoá chung)
     --out <tệp>                   Tệp đầu ra (mặc định: tên gốc + .plain)
 
   info <tệp.aia>                  In header (không cần mật khẩu)
@@ -49,7 +52,7 @@ function parseArgs(argv) {
     const a = argv[i];
     if (a.startsWith('--')) {
       const key = a.slice(2);
-      if (['embed', 'no-hash', 'help', 'no-require-key'].includes(key)) args[key] = true;
+      if (['embed', 'no-hash', 'help', 'no-require-key', 'shared'].includes(key)) args[key] = true;
       else {
         args[key] = argv[i + 1];
         i++;
@@ -61,6 +64,14 @@ function parseArgs(argv) {
 
 function human(bytes) {
   return C.formatBytes(bytes);
+}
+
+function pctText(pct) {
+  if (!Number.isFinite(pct) || pct === 0) return '0%';
+  if (pct < 0.01) return pct.toPrecision(2) + '%';
+  if (pct < 1) return pct.toFixed(3) + '%';
+  if (pct < 100) return pct.toFixed(2) + '%';
+  return Math.round(pct).toLocaleString('vi-VN') + '%';
 }
 
 async function readPassword(args, promptText) {
@@ -110,15 +121,17 @@ function fileSink(targetPath) {
 }
 
 function fileStream(filePath) {
-  const nodeStream = fs.createReadStream(filePath, { highWaterMark: 1 << 20 });
+  const file = filePath;
+  // pull-based: chỉ đọc khối tiếp theo khi phía nhận yêu cầu ⇒ RAM không phình theo kích thước tệp
+  const it = fs.createReadStream(file, { highWaterMark: 1 << 20 })[Symbol.asyncIterator]();
   return new ReadableStream({
-    start(controller) {
-      nodeStream.on('data', (chunk) => controller.enqueue(new Uint8Array(chunk.buffer, chunk.byteOffset, chunk.byteLength)));
-      nodeStream.on('end', () => controller.close());
-      nodeStream.on('error', (err) => controller.error(err));
+    async pull(c) {
+      const { value, done } = await it.next();
+      if (done) c.close();
+      else c.enqueue(new Uint8Array(value.buffer, value.byteOffset, value.byteLength));
     },
     cancel() {
-      nodeStream.destroy();
+      it.return?.();
     },
   });
 }
@@ -147,10 +160,21 @@ async function cmdEncrypt(args) {
   const slug = C.slugify(path.basename(input));
   const payloadName = slug + '.aia';
   const passphrase = await readPassword(args, 'Mật khẩu (Enter = không đặt): ');
-  const keyUrl = args['key-url'] || './' + slug + '.key.js';
+  const sharedPath = args['shared-key'] || (args.shared ? path.resolve(import.meta.dirname, '..', 'aia.key.js') : null);
+  let sharedKey = null;
+  if (sharedPath) {
+    const text = fs.readFileSync(sharedPath, 'utf8');
+    const m = /masterKey:\s*"([^"]+)"/.exec(text);
+    if (!m) throw new Error('Tệp key script chung không có masterKey: ' + sharedPath);
+    sharedKey = m[1];
+  }
+  const shared = !!sharedKey;
+  const keyUrl = args['key-url'] || (shared ? './aia.key.js' : './' + slug + '.key.js');
   const embed = !!args.embed;
 
   const options = {
+    keyMode: shared ? 'shared' : undefined,
+    sharedKey,
     keyUrl,
     passphrase,
     iterations: Number(args.iter || C.DEFAULT_ITERATIONS),
@@ -178,10 +202,15 @@ async function cmdEncrypt(args) {
   });
   const written = fs.statSync(payloadPath).size;
 
-  const keyName = slug + '.key.js';
+  const keyName = shared ? 'aia.key.js' : slug + '.key.js';
   const runnerName = 'run-' + slug + '.html';
   const readmeName = 'README-' + slug + '.txt';
-  fs.writeFileSync(path.join(outDir, keyName), C.buildKeyScript(meta, { embeddedPassphrase: embed ? passphrase : null }));
+  fs.writeFileSync(
+    path.join(outDir, keyName),
+    shared
+      ? fs.readFileSync(sharedPath, 'utf8')
+      : C.buildKeyScript(meta, { embeddedPassphrase: embed ? passphrase : null }),
+  );
   fs.writeFileSync(path.join(outDir, runnerName), C.buildRunnerHtml(meta, { keyFileName: keyName, runnerFileName: runnerName }));
   fs.writeFileSync(path.join(outDir, readmeName), C.buildReadme(meta, { keyFileName: keyName, runnerFileName: runnerName }));
 
@@ -193,14 +222,21 @@ async function cmdEncrypt(args) {
   console.log(`  ${path.join(outDir, keyName)}`);
   console.log(`  ${path.join(outDir, runnerName)}`);
   console.log(`  ${path.join(outDir, readmeName)}`);
-  console.log(`  Tăng thêm: ${overhead} byte (${((overhead / stat.size) * 100).toFixed(4)}%) · ${meta.chunk.total} khối`);
+  console.log(`  Tăng thêm: ${overhead} byte (${pctText((overhead / stat.size) * 100)}) · ${meta.chunk.total} khối`);
   console.log(
-    meta.keyWrapIn === 'key-script'
-      ? '  Khoá tệp: BẮT BUỘC key script (chỉ nằm trong ' + keyName + ')'
-      : '  Khoá tệp: dẫn xuất trực tiếp (không bắt buộc key script)',
+    meta.keyWrapIn === 'shared-key-script'
+      ? '  Khoá tệp: DÙNG CHUNG ' + keyName + ' (một link cho mọi tệp) + mật khẩu'
+      : meta.keyWrapIn === 'key-script'
+        ? '  Khoá tệp: BẮT BUỘC key script (chỉ nằm trong ' + keyName + ')'
+        : '  Khoá tệp: dẫn xuất trực tiếp (không bắt buộc key script)',
   );
   console.log(`  Thời gian trong header: ${meta.time.readable} (raw ${meta.time.raw})`);
-  if (!passphrase) console.log('  ⚠ Không đặt mật khẩu: ai có tệp .aia + key script là mở được.');
+  if (!passphrase && shared) {
+    console.log('  ⚠ DÙNG CHUNG + KHÔNG mật khẩu: aia.key.js là công khai, ai có tệp .aia là mở được.');
+    console.log('    Hãy đặt --pass, hoặc dùng chế độ riêng từng tệp.');
+  } else if (!passphrase) {
+    console.log('  ⚠ Không đặt mật khẩu: ai có tệp .aia + key script là mở được.');
+  }
 }
 
 async function cmdDecrypt(args) {
@@ -225,12 +261,22 @@ async function cmdDecrypt(args) {
     throw new Error('Bản mã này bắt buộc phải có key script. Thêm --key <tệp.key.js>.');
   }
 
+  let sharedKey = null;
+  if (headerInfo.meta.keyWrapIn === 'shared-key-script') {
+    const sharedPath = args['shared-key'] || path.resolve(import.meta.dirname, '..', 'aia.key.js');
+    const text = fs.readFileSync(sharedPath, 'utf8');
+    const m = /masterKey:\s*"([^"]+)"/.exec(text);
+    if (!m) throw new Error('Tệp key script chung không có masterKey: ' + sharedPath);
+    sharedKey = m[1];
+  }
+
   const { meta, hashVerified } = await C.decryptStream({
     source: fileStream(input),
     passphrase,
     sink,
     onProgress,
     keyWrap,
+    sharedKey,
   });
   const secs = (Date.now() - started) / 1000;
   console.log('');

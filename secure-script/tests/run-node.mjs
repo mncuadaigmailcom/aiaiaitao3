@@ -15,6 +15,8 @@
  *    giải base64, phân tích phát hiện eval
  * ========================================================================== */
 
+import fs from 'node:fs';
+import path from 'node:path';
 import process from 'node:process';
 import * as C from '../assets/core.js';
 import * as R from '../assets/reverse.js';
@@ -35,11 +37,12 @@ function ok(cond, name, detail = '') {
 }
 
 async function expectError(fn, code, name) {
+  const codes = Array.isArray(code) ? code : [code];
   try {
     await fn();
     ok(false, name, 'không ném lỗi');
   } catch (err) {
-    ok(err && err.code === code, name, `nhận ${err && err.code}: ${err && err.message}`);
+    ok(codes.includes(err && err.code), name, `nhận ${err && err.code}: ${err && err.message}`);
   }
 }
 
@@ -156,7 +159,11 @@ async function testSecurity() {
   metaWrong.keyUrl = 'https://evil.example.com/k.js';
   const headerWrong = C.buildContainerHeader(metaWrong);
   const spliced = C.concatBytes([headerWrong, enc.bytes.subarray(enc.bytes.length - (message.length + enc.meta.chunk.total * 16))]);
-  await expectError(() => decryptBytesAll(spliced, 'đúng-mật-khẩu'), 'WRONG_PASSPHRASE', 'sửa link key trong header bị chặn');
+  await expectError(
+    () => decryptBytesAll(spliced, 'đúng-mật-khẩu'),
+    ['HEADER_TAMPERED', 'WRONG_PASSPHRASE'],
+    'sửa link key trong header bị chặn',
+  );
 
   // sửa 1 byte trong khối đầu
   const tampered = enc.bytes.slice();
@@ -220,6 +227,24 @@ async function testHeader() {
   // đọc header từ luồng
   const fromStream = await C.readContainerHeaderFromSource(streamOf(bytes, 7));
   ok(fromStream.meta.id === meta.id, 'đọc header từ luồng nhỏ từng mảnh');
+
+  // toàn vẹn header: mọi trường đều được bảo vệ bằng SHA-256
+  ok(/^[0-9a-f]{64}$/.test(meta.headerHash || ''), 'header có SHA-256 (headerHash)');
+  {
+    const enc = await encryptBytes(utf8('noi dung'), { passphrase: 'hdr' });
+    for (const [field, mutate] of [
+      ['note', (m) => (m.note = 'bị sửa')],
+      ['tên tệp', (m) => (m.file.name = 'khac.js')],
+      ['thời gian đọc được', (m) => (m.time.readable = '1999-01-01 00:00:00.000')],
+      ['link key', (m) => (m.keyUrl = './evil.js')],
+      ['số khối', (m) => (m.chunk.total = 99)],
+    ]) {
+      const bad = JSON.parse(JSON.stringify(enc.meta));
+      mutate(bad);
+      const spliced = C.concatBytes([C.buildContainerHeader(bad), enc.bytes.subarray(C.parseContainerHeader(enc.bytes).headerLength)]);
+      await expectError(() => decryptBytesAll(spliced, 'hdr'), 'HEADER_TAMPERED', `sửa ${field} trong header bị chặn`);
+    }
+  }
 
   // thời gian không bị mã hoá: chuỗi raw xuất hiện nguyên văn trong tệp
   const asText = new TextDecoder('latin1').decode(bytes.subarray(0, 2000));
@@ -460,12 +485,100 @@ async function testThroughput() {
   console.log(`     mã hoá ${((t1 - t0) / 1000).toFixed(2)} s · giải mã ${((t2 - t1) / 1000).toFixed(2)} s`);
 }
 
+
+/* ================================================================= khoá chung */
+
+async function testSharedKey() {
+  console.log('\n[4c] Key script DÙNG CHUNG (một link cho mọi lần mã hoá, mọi người)');
+  const master = C.generateSharedKeyBase64();
+  const master2 = C.generateSharedKeyBase64();
+  ok(C.base64ToBytes(master).length === 32, 'khoá chung 32 byte');
+  const id = await C.sharedKeyId(master);
+  ok(/^[0-9a-f]{16}$/.test(id), 'sharedKeyId = 8 byte hex', id);
+
+  const mk = async (text, opts = {}) =>
+    encryptBytes(utf8(text), {
+      keyMode: 'shared',
+      sharedKey: master,
+      passphrase: 'mat-khau-chung',
+      keyUrl: './aia.key.js',
+      iterations: 10000,
+      ...opts,
+    });
+
+  const a = await mk('ban ma thu nhat');
+  const b = await mk('ban ma thu hai');
+
+  ok(a.meta.keyWrapIn === 'shared-key-script', 'META ghi keyWrapIn = shared-key-script');
+  ok(a.meta.keyUrl === './aia.key.js', 'link key cố định ./aia.key.js');
+  ok(a.meta.sharedKeyId === id, 'META có sharedKeyId khớp khoá chung');
+  ok(a.meta.keyUrl === b.meta.keyUrl && a.meta.sharedKeyId === b.meta.sharedKeyId, 'hai lần mã hoá dùng CÙNG một link key');
+  ok(!!C.parseContainerHeader(a.bytes).meta.keyWrap, 'keyWrap nằm trong header (tệp tự chứa)');
+
+  const open = (bytes, sharedKey, passphrase = 'mat-khau-chung') =>
+    C.decryptStream({ source: streamOf(bytes, 4096), passphrase, sharedKey });
+
+  const o1 = await open(a.bytes, master);
+  ok(new TextDecoder().decode(o1.plaintext) === 'ban ma thu nhat', 'mở tệp 1 bằng khoá chung');
+  const o2 = await open(b.bytes, master);
+  ok(new TextDecoder().decode(o2.plaintext) === 'ban ma thu hai', 'CÙNG khoá chung mở được tệp 2 (mọi tệp cùng bộ)');
+
+  await expectError(() => open(a.bytes, null), 'KEY_REQUIRED', 'thiếu key script chung → không mở được');
+  await expectError(() => open(a.bytes, master2), 'WRONG_SHARED_KEY', 'khoá chung khác → bị chặn');
+  await expectError(() => open(a.bytes, master, 'sai-mat-khau'), 'WRONG_PASSPHRASE', 'sai mật khẩu → bị chặn');
+
+  // sửa header (ghi chú) vẫn bị phát hiện
+  const bad = JSON.parse(JSON.stringify(a.meta));
+  bad.note = 'bị sửa';
+  bad.keyWrap = a.meta.keyWrap;
+  const spliced = C.concatBytes([
+    C.buildContainerHeader(bad),
+    a.bytes.subarray(C.parseContainerHeader(a.bytes).headerLength),
+  ]);
+  await expectError(() => open(spliced, master), 'HEADER_TAMPERED', 'sửa header bản mã dùng chung bị phát hiện');
+
+  // key script phát hành kèm site
+  const shipped = fs.readFileSync(path.resolve(import.meta.dirname, '..', 'aia.key.js'), 'utf8');
+  ok(shipped.includes('AIA_KEY'), 'aia.key.js phát hành kèm site có AIA_KEY');
+  const shippedKey = /masterKey:\s*"([^"]+)"/.exec(shipped);
+  ok(!!shippedKey, 'aia.key.js có khoá gốc');
+  ok((await C.sharedKeyId(shippedKey[1])) === (/keyId:\s*"([0-9a-f]+)"/.exec(shipped) || [])[1], 'keyId trong aia.key.js khớp khoá gốc');
+
+  // chạy key script chung trong sandbox: mở đúng tệp đã mã hoá bằng khoá của site
+  const withSiteKey = await encryptBytes(utf8('noi dung dung khoa site'), {
+    keyMode: 'shared',
+    sharedKey: shippedKey[1],
+    passphrase: 'pw-site',
+    keyUrl: './aia.key.js',
+    iterations: 10000,
+  });
+  const sandbox = { crypto: globalThis.crypto, TextEncoder, TextDecoder, atob, btoa, Uint8Array, DataView, JSON, Date };
+  const fn = new Function('globalThis', shipped + '\nreturn globalThis.AIA_KEY;');
+  const holder = {};
+  const api = fn(holder);
+  ok(!!api && typeof api.open === 'function', 'key script chung nạp được trong sandbox');
+  const src = new ReadableStream({ start(c) { c.enqueue(withSiteKey.bytes); c.close(); } });
+  const res = await api.open({ source: src, passphrase: 'pw-site' });
+  ok(new TextDecoder().decode(res.bytes) === 'noi dung dung khoa site', 'key script chung mở đúng bản mã (độc lập với core)');
+  const src2 = new ReadableStream({ start(c) { c.enqueue(withSiteKey.bytes); c.close(); } });
+  await api.open({ source: src2, passphrase: 'sai' }).then(
+    () => ok(false, 'key script chung từ chối mật khẩu sai'),
+    (err) => ok(/mật khẩu|Sai/i.test(err.message), 'key script chung từ chối mật khẩu sai', err.message),
+  );
+
+  // key script sinh ra phải khớp keyId
+  const built = C.buildSharedKeyScript({ sharedKey: master, keyUrl: './aia.key.js', keyId: id });
+  ok(built.includes(master) && built.includes(id), 'buildSharedKeyScript nhúng khoá gốc + keyId');
+  ok(built.includes("kind: 'shared'"), 'key script chung khai báo kind = shared');
+  ok(!/\/\*<AIA:META>\*\//.test(built), 'key script chung KHÔNG chứa META của tệp nào (dùng cho mọi tệp)');
+}
+
 /* -------------------------------------------------------------- chạy tất cả --- */
 
 console.log('AIA Secure Script — kiểm thử');
 console.log('Node', process.version, '· WebCrypto:', !!(globalThis.crypto && globalThis.crypto.subtle));
 
-const suites = [testRoundtrip, testSecurity, testHeader, testKeyScript, testKeyScriptRequired, testZip, testReverse, testThroughput];
+const suites = [testRoundtrip, testSecurity, testHeader, testKeyScript, testKeyScriptRequired, testSharedKey, testZip, testReverse, testThroughput];
 const started = Date.now();
 for (const suite of suites) {
   try {

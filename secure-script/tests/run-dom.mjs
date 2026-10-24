@@ -106,6 +106,10 @@ window.Worker = FakeWorker;
 
 console.log('AIA Secure Script — kiểm thử DOM (jsdom)\n');
 
+// Trang nạp ./aia.key.js bằng <script src>; jsdom không tự chạy nên nạp thủ công.
+new Function(fs.readFileSync(path.join(root, 'aia.key.js'), 'utf8'))();
+console.log('  · đã nạp aia.key.js (keyId ' + (globalThis.AIA_KEY && globalThis.AIA_KEY.keyId) + ')');
+
 await import('../assets/app.js');
 await new Promise((r) => setTimeout(r, 50));
 
@@ -130,12 +134,13 @@ $('pass').value = 'mat-khau-dom-test';
 $('pass').dispatchEvent(new window.Event('input'));
 check($('passLabel').textContent.includes('ký tự'), 'hiển thị độ mạnh mật khẩu', $('passLabel').textContent);
 
-$('pasteUse').click();
-check($('fileInfo').textContent.includes('script.js'), 'đã nạp code đã dán', $('fileInfo').textContent);
+check(!$('pasteUse'), 'đã bỏ nút "Dùng nội dung này"');
+$('pasteText').dispatchEvent(new window.Event('paste'));
+await waitFor(() => $('fileInfo').textContent.includes('script.js'), 'dán là tự nạp code');
 check($('fileInfo').textContent.includes('B'), 'hiển thị dung lượng');
 
-$('encryptBtn').click();
-await waitFor(() => $('resultCard') && !$('resultCard').hidden, 'mã hoá xong');
+// Không bấm gì thêm: phải tự mã hoá
+await waitFor(() => $('resultCard') && !$('resultCard').hidden, 'tự động mã hoá sau khi dán');
 await waitFor(() => $('resStats').textContent.includes('Tự kiểm tra'), 'có thống kê');
 
 const stats = $('resStats').textContent;
@@ -144,16 +149,27 @@ check(stats.includes('Tự kiểm tra: khớp 100%'), 'tự kiểm tra giải m�
 check($('resultBadge').textContent.includes('hoàn tất'), 'trạng thái hoàn tất');
 
 const keyPreview = $('keyPreview').textContent;
-check(keyPreview.includes('AIA_UNLOCK'), 'key script có AIA_UNLOCK');
-check(keyPreview.includes('/*<AIA:META>*/'), 'key script có META');
+check(keyPreview.includes('AIA_KEY'), 'key script dùng chung có AIA_KEY');
+check(keyPreview.includes('masterKey'), 'key script dùng chung chứa khoá gốc');
 const metaPreview = JSON.parse($('metaPreview').textContent);
 check(/^\d{17}$/.test(metaPreview.time.raw), 'header có thời gian 17 chữ số', metaPreview.time.raw);
-check(metaPreview.keyUrl === './script.key.js', 'header có link key (tự gợi ý theo tên tệp)', metaPreview.keyUrl);
+check(metaPreview.keyUrl === './aia.key.js', 'link key dùng chung cố định ./aia.key.js', metaPreview.keyUrl);
 check(metaPreview.alg === 'AES-256-GCM', 'dùng AES-256-GCM');
 check(metaPreview.kdf.iterations === 600000, 'PBKDF2 600.000 vòng');
-check(metaPreview.keyWrapIn === 'key-script', 'bật chế độ bắt buộc key script');
-check(!metaPreview.keyWrap, 'header công khai KHÔNG chứa khoá tệp');
-check(keyPreview.includes('keyWrap'), 'key script có chứa khoá tệp đã bọc');
+check(metaPreview.keyWrapIn === 'shared-key-script', 'mặc định dùng key script chung');
+check(!!metaPreview.sharedKeyId, 'header có sharedKeyId để đối chiếu key script');
+check(!metaPreview.keyWrap, 'header công khai KHÔNG chứa khoá tệp (chế độ chung: keyWrap trong header, không hiện ở meta công khai)');
+check(/^[0-9a-f]{64}$/.test(metaPreview.headerHash), 'header có SHA-256 toàn vẹn (headerHash)');
+
+// khung code đã mã hoá, chép được
+const encCodeText = $('encCode').textContent;
+check(encCodeText.startsWith('QUlBU0NSMQ'), 'code đã mã hoá hiện dạng Base64 (bắt đầu QUlBU0NSMQ)', encCodeText.slice(0, 16));
+check(!$('encCodeBox').hidden && encCodeText.length > 100, 'khung code đã mã hoá có nội dung', String(encCodeText.length));
+$('encFmtHex').click();
+check(/^[0-9a-f]+$/.test($('encCode').textContent.slice(0, 64)), 'chuyển sang Hex được');
+check($('encCode').textContent.startsWith('414941534352310a'), 'Hex đúng magic AIASCR1\n');
+$('encFmtB64').click();
+check($('encCode').textContent.startsWith('QUlBU0NSMQ'), 'chuyển lại Base64 được');
 
 /* --------------------------------------------------------- 3. tải & chạy --- */
 
@@ -161,7 +177,7 @@ console.log('\n[3] Tải gói & chạy thử');
 $('dlZip').click();
 check(downloads.some((n) => n && n.endsWith('.zip')), 'tải được ZIP', downloads.join(', '));
 $('dlKey').click();
-check(downloads.some((n) => n && n.includes('.key.js')), 'tải được key script');
+check(downloads.some((n) => n === 'aia.key.js'), 'tải được key script dùng chung aia.key.js', downloads.join(', '));
 
 $('testRunBtn').click();
 await waitFor(() => $('testLog').textContent.includes('giải mã OK'), 'chạy thử giải mã');
