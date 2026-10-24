@@ -24,6 +24,7 @@
   <nav class="tabs" role="tablist" aria-label="Chức năng">
     <button role="tab" aria-selected="true" data-view="encrypt" class="active">Mã hoá</button>
     <button role="tab" aria-selected="false" data-view="decrypt">Giải mã &amp; chạy</button>
+    <button role="tab" aria-selected="false" data-view="link">Mã hoá link</button>
     <button role="tab" aria-selected="false" data-view="reverse">Dịch ngược code</button>
     <button role="tab" aria-selected="false" data-view="docs">Ghi chú</button>
   </nav>
@@ -364,6 +365,163 @@
   </section>
 
   <!-- ========================= DỊCH NGƯỢC ========================= -->
+
+  <!-- ============================ MÃ HOÁ LINK ============================ -->
+  <section class="view" id="view-link">
+    <div class="hero">
+      <div>
+        <h1>Mã hoá <em>link</em> thành một chuỗi khoá</h1>
+        <p>
+          Dán <b>link trang web</b> hoặc <b>link script</b> → nhận một token ngắn
+          <code>AIALNK1.…</code>. Người nhận chỉ mở được khi có <b>key script</b>
+          (và mật khẩu, nếu bạn đặt). Khoá sinh từ <b>thời gian tạo</b> + <b>link key script</b> + <b>mật khẩu</b>.
+        </p>
+      </div>
+      <div class="pill-row">
+        <span class="pill">token ngắn, dễ gửi</span>
+        <span class="pill">không lộ link gốc</span>
+        <span class="pill">kèm snippet tự mở link</span>
+      </div>
+    </div>
+
+    <div class="cols">
+      <div class="col-main">
+        <div class="card">
+          <div class="card-head">
+            <h2>1. Link cần mã hoá</h2>
+            <span class="muted" id="linkLimitNote">chỉ nhận http:// hoặc https://</span>
+          </div>
+
+          <div class="field">
+            <label for="linkInput">Link gốc</label>
+            <input type="text" id="linkInput" spellcheck="false" autocomplete="off"
+                   placeholder="https://example.com/script.js hoặc https://example.com/trang">
+          </div>
+          <p class="help" id="linkInputNote">
+            Link được mã hoá bằng AES-256-GCM cùng cơ chế khoá của tệp <code>.aia</code>:
+            thời gian tạo (tới mili-giây) + link key script + mật khẩu. Token không đọc được link bên trong.
+          </p>
+
+          <div class="grid2" style="margin-top:14px">
+            <div class="field">
+              <label for="linkPassMode">Cách bảo vệ</label>
+              <select id="linkPassMode">
+                <option value="none" selected>Không mật khẩu — ai có token + key script là mở được</option>
+                <option value="embed">Có mật khẩu, nhúng sẵn trong snippet</option>
+                <option value="ask">Có mật khẩu, hỏi khi chạy</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="linkPass">Mật khẩu</label>
+              <input type="password" id="linkPass" autocomplete="new-password" placeholder="để trống nếu không dùng">
+            </div>
+            <div class="field">
+              <label for="linkAction">Snippet làm gì khi chạy?</label>
+              <select id="linkAction">
+                <option value="open" selected>Mở link ở tab mới</option>
+                <option value="load">Nạp link như một script</option>
+                <option value="text">Chỉ in link ra console</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="linkStyle">Kiểu snippet</label>
+              <select id="linkStyle">
+                <option value="stealth" selected>Ẩn dấu vết (không lộ link/tên API)</option>
+                <option value="labeled">Có chú thích (dễ đọc)</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="linkIter">Độ mạnh KDF</label>
+              <select id="linkIter">
+                <option value="100000">Nhanh — 100.000 vòng</option>
+                <option value="600000" selected>Chuẩn OWASP — 600.000 vòng</option>
+                <option value="1200000">Mạnh — 1.200.000 vòng</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="row">
+            <button class="primary" id="linkEncrypt" type="button">Mã hoá link</button>
+            <span class="muted" id="linkStatus"></span>
+          </div>
+          <p class="help" id="linkPassNote">
+            Không mật khẩu: ai có token <b>và</b> key script là mở được — phù hợp để che link cho gọn mắt.
+          </p>
+        </div>
+
+        <div class="card" id="linkResultCard" hidden>
+          <div class="card-head">
+            <h2>2. Kết quả</h2>
+            <span class="badge ok" id="linkBadge">xong</span>
+          </div>
+
+          <div class="codebox">
+            <div class="card-head">
+              <h3>Token link <span class="muted">(gửi nguyên chuỗi này)</span></h3>
+              <button class="ghost small" id="linkCopy" type="button">Chép</button>
+            </div>
+            <p class="help" id="linkTokenNote"></p>
+            <pre id="linkToken" class="codeout"></pre>
+          </div>
+
+          <div class="codebox">
+            <div class="card-head">
+              <h3>Snippet "chép là chạy"</h3>
+              <button class="ghost small" id="linkSnippetCopy" type="button">Chép</button>
+            </div>
+            <p class="help" id="linkSnippetNote">Dán vào Console (F12) hoặc một tệp <code>.js</code> — tự nạp key script, tự mở khoá rồi mở link.</p>
+            <pre id="linkSnippet" class="codeout"></pre>
+          </div>
+
+          <div class="stat-row" id="linkStats"></div>
+        </div>
+      </div>
+
+      <aside class="col-side">
+        <div class="card">
+          <div class="card-head"><h2>Mở khoá link</h2></div>
+          <div class="field">
+            <label for="linkDecodeInput">Dán token nhận được</label>
+            <textarea id="linkDecodeInput" class="editor" spellcheck="false" style="min-height:110px"
+                      placeholder="AIALNK1.…"></textarea>
+          </div>
+          <div class="field" style="margin-top:10px">
+            <label for="linkDecodePass">Mật khẩu (nếu có)</label>
+            <input type="password" id="linkDecodePass" autocomplete="off" placeholder="để trống nếu không có">
+          </div>
+          <div class="row">
+            <button class="primary" id="linkDecodeBtn" type="button">Mở khoá</button>
+          </div>
+          <p class="help" id="linkDecodeNote">Cần nạp <code>aia.key.js</code> (trang này đã tự nạp sẵn).</p>
+          <div id="linkDecodeOut" hidden>
+            <div class="keylink">
+              <div class="keylink-top"><b>Link gốc</b><span class="muted" id="linkDecodeMeta"></span></div>
+              <div class="keylink-line">
+                <code id="linkDecodeUrl">—</code>
+              </div>
+              <div class="row tight" style="margin-top:8px">
+                <button class="ghost small" id="linkDecodeCopy" type="button">Chép link</button>
+                <a class="ghost small" id="linkDecodeOpen" href="#" target="_blank" rel="noopener noreferrer">Mở</a>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Nói thật về độ an toàn</h3>
+          <p class="help">
+            Token là <b>bản mã thật</b> (AES-256-GCM): không có key script + mật khẩu thì không đọc được link bên trong,
+            và sửa 1 ký tự là hỏng ngay. Nhưng khi người nhận <b>mở được</b> link thì họ thấy link —
+            mã hoá chỉ bảo vệ <b>lúc đang truyền</b>, không giấu được sau khi mở.
+          </p>
+          <p class="help" style="margin-top:8px">
+            Đặt <b>mật khẩu</b> nếu token được gửi qua kênh công khai, vì <code>aia.key.js</code> là tệp công khai.
+          </p>
+        </div>
+      </aside>
+    </div>
+  </section>
+
   <section class="view" id="view-reverse">
     <div class="hero">
       <div>
@@ -431,6 +589,8 @@
           <li>Dán code hoặc thả tệp là <b>tự mã hoá</b> — không cần nhập ngày giờ, không bấm thêm.</li>
           <li>Kết quả gồm <b>snippet "chép là chạy"</b> (tự chứa <b>link key script</b> + bản mã Base64),
             cùng hai tab <b>Base64 / Hex</b> và tệp <b>.aia</b>.</li>
+          <li><b>Mã hoá link</b>: dán link trang web hoặc link script → token <code>AIALNK1.…</code>
+            (kèm snippet tự mở link, tự nạp script hoặc chỉ in link). Không mật khẩu thì ai có token + key script là mở được.</li>
           <li>Snippet mặc định ở kiểu <b>ẩn dấu vết</b>: không tiêu đề, không lộ link/tên API,
             tên biến ngẫu nhiên, chuỗi cắt nhỏ + Base64 — chỉ là <b>làm khó đọc</b>,
             không thay thế mật khẩu.</li>
@@ -484,7 +644,10 @@
       <article class="card">
         <h3>Kiểm thử</h3>
         <ul>
-          <li><code>node tests/run-node.mjs</code> — mã hoá/giải mã, cắt khối, sửa bit, sai mật khẩu, sai link key, giới hạn dung lượng.</li>
+          <li><code>node tests/run-node.mjs</code> — 189 kiểm thử: mã hoá/giải mã, cắt khối, sửa bit, sai mật khẩu,
+            sai link key, snippet, <b>mã hoá link</b>, giới hạn dung lượng.</li>
+          <li><code>node tools/check-static.mjs</code> · <code>node tests/run-dom.mjs</code> ·
+            <code>node tests/stress.mjs --quick</code> — tổng <b>410 điểm</b> kiểm tra.</li>
           <li><code>node tools/cli.mjs --help</code> — dùng ngay trên máy.</li>
         </ul>
       </article>
@@ -505,6 +668,7 @@
     <h2 id="helpTitle">Cách dùng trong 60 giây</h2>
     <ol class="flow">
       <li>Tab <b>Mã hoá</b>: chọn tệp script hoặc dán code.</li>
+      <li>Tab <b>Mã hoá link</b>: dán link trang web / link script → nhận token <code>AIALNK1.…</code> hoặc snippet tự mở link.</li>
       <li>Đặt <b>mật khẩu</b> (nhớ kỹ!) và để nguyên link key <code>./key.js</code> nếu bạn để mọi tệp cùng thư mục.</li>
       <li>Bấm <b>Mã hoá ngay</b> → tải gói ZIP gồm <code>.aia</code>, <code>key.js</code>, <code>run.html</code>, <code>README.txt</code>.</li>
       <li>Đưa các tệp cho người khác, họ mở <code>run.html</code> qua HTTP, nhập mật khẩu là chạy.</li>

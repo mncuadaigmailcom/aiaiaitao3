@@ -245,6 +245,33 @@ Ngoài tệp `.aia`, trang sinh thêm một **đoạn code tự chứa**:
 dẫn xuất từ `[thời gian, link key, mật khẩu, S]`. Thiếu `aia.key.js` là **không mở được**,
 kể cả khi biết mật khẩu.
 
+## 7e. Token link (`AIALNK1.…`)
+
+Ngoài tệp `.aia`, site mã hoá được **một link** (link trang web hoặc link script):
+
+```
+AIALNK1.<base64url( [2 byte BE: độ dài header][header JSON][IV 12 byte][ciphertext + tag 16 byte] )>
+```
+
+Header **đọc được** (đúng nguyên tắc "thời gian không mã hoá"):
+
+```json
+{ "v": 1, "t": "20261024153012123", "x": 1761300000000,
+  "u": "./aia.key.js", "s": "<salt base64>", "n": 600000, "k": "<keyId>" }
+```
+
+- Bản rõ chỉ là `{"u":"<link gốc>"}`, mã hoá AES-256-GCM với
+  AAD = `["AIA-LINK1", thời gian, link key]`.
+- Khoá = PBKDF2-SHA256(1 ‖ thời gian raw ‖ unixMs ‖ link key ‖ mật khẩu ‖ khoá gốc trong `aia.key.js`).
+- Mọi trường header (trừ `k`) đều tham gia tạo khoá ⇒ sửa header là không mở được.
+- Kích thước: token ≈ 1,33 × độ dài URL (do Base64) + ~250 ký tự cố định.
+- Chỉ nhận `http://` / `https://`; `javascript:`, `data:`, `file:`… bị chặn ngay từ lúc mã hoá
+  và kiểm tra lại lúc mở.
+- `aia.key.js` có `AIA_KEY.openLink(token, {passphrase})` → `{ url, keyUrl, createdAt }`.
+
+Snippet cho link có 3 hành động: `open` (mở tab mới), `load` (nạp link thành `<script>`),
+`text` (chỉ in link ra console); mặc định kiểu **ẩn dấu vết** (không lộ token/link/tên API).
+
 ## 8. Định dạng đầu ra của gói
 
 | Tệp | Vai trò |

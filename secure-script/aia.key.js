@@ -183,13 +183,71 @@
     return { bytes: res.bytes, header: res.header, worker: worker };
   }
 
+  function b64u(s2) {
+    var t = String(s2 || '').replace(/-/g, '+').replace(/_/g, '/');
+    while (t.length % 4) t += '=';
+    return b64d(t);
+  }
+
+  /**
+   * Mở token link (AIALNK1.…) → { url, keyUrl, createdAt }.
+   * options.passphrase: mật khẩu đã dùng lúc mã hoá link (nếu có).
+   */
+  async function openLink(token, options) {
+    options = options || {};
+    if (!SHARED.masterKey) throw new Error('Key script chung này không có khoá gốc.');
+    var s = String(token || '').trim();
+    if (s.slice(0, 8).toUpperCase() === 'AIALNK1.') s = s.slice(8);
+    s = s.replace(/[^A-Za-z0-9_-]+/g, '');
+    if (!s) throw new Error('Thiếu token link.');
+    var raw;
+    try { raw = b64u(s); } catch (e) { throw new Error('Token link không hợp lệ.'); }
+    if (raw.length < 30) throw new Error('Token link bị cắt cụt.');
+    var hlen = (raw[0] << 8) | raw[1];
+    if (!hlen || 2 + hlen + 28 > raw.length) throw new Error('Token link không hợp lệ.');
+    var header;
+    try { header = JSON.parse(new TextDecoder().decode(raw.subarray(2, 2 + hlen))); }
+    catch (e) { throw new Error('Token link không hợp lệ.'); }
+    if (!header || !header.t || !header.x || !header.u || !header.s || !header.n) {
+      throw new Error('Token link thiếu thông tin khoá.');
+    }
+    var iv = raw.subarray(2 + hlen, 2 + hlen + 12);
+    var ct = raw.subarray(2 + hlen + 12);
+    var iterations = Number(header.n);
+    if (!isFinite(iterations) || iterations < 1000 || iterations > 5000000) {
+      throw new Error('Token link có số vòng KDF không hợp lệ.');
+    }
+    var salt;
+    try { salt = b64d(header.s); } catch (e) { throw new Error('Token link có salt hỏng.'); }
+    if (salt.length < 8) throw new Error('Token link có salt hỏng.');
+    var material = JSON.stringify([1, header.t, header.x, header.u, options.passphrase || '', SHARED.masterKey]);
+    var base = await crypto.subtle.importKey('raw', utf8(material), 'PBKDF2', false, ['deriveBits']);
+    var bits = new Uint8Array(await crypto.subtle.deriveBits(
+      { name: 'PBKDF2', salt: salt, iterations: iterations, hash: 'SHA-256' }, base, 256));
+    var kid = hex(new Uint8Array(await crypto.subtle.digest('SHA-256', bits)).slice(0, 8));
+    if (header.k && header.k !== kid) throw new Error('Sai mật khẩu hoặc sai key script.');
+    var key = await crypto.subtle.importKey('raw', bits, { name: 'AES-GCM' }, false, ['decrypt']);
+    var aad = utf8(JSON.stringify(['AIA-LINK1', header.t, header.u]));
+    var pt;
+    try {
+      pt = new Uint8Array(await crypto.subtle.decrypt(
+        { name: 'AES-GCM', iv: iv, additionalData: aad, tagLength: 128 }, key, ct));
+    } catch (e) {
+      throw new Error('Không mở được link: sai mật khẩu, sai key script hoặc token đã bị sửa.');
+    }
+    var obj = JSON.parse(new TextDecoder().decode(pt));
+    if (!obj || !obj.u) throw new Error('Nội dung token hỏng.');
+    return { url: String(obj.u), keyUrl: header.u, createdAt: header.t };
+  }
+
   var API = {
-    version: '1.0.0',
+    version: '1.1.0',
     kind: 'shared',
     masterKey: SHARED.masterKey,
     keyId: SHARED.keyId,
     keyUrl: SHARED.keyUrl,
     open: open,
+    openLink: openLink,
     run: run,
     generateInfo: function () { return { keyMode: 'shared', keyUrl: SHARED.keyUrl, sharedKeyId: SHARED.keyId }; },
   };

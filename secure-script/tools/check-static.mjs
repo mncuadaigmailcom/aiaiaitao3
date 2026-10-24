@@ -147,6 +147,27 @@ if (metaMatch) {
   }
 }
 
+
+/* ------------------------------------------------------- 6. tính năng link --- */
+
+console.log('\n[6] Mã hoá link & key script dùng chung');
+const htmlText = read('index.html');
+const coreText = read('assets/core.js');
+const cliText = read('tools/cli.mjs');
+const sharedKeyText = read('aia.key.js');
+for (const id of ['view-link', 'linkInput', 'linkEncrypt', 'linkToken', 'linkSnippet', 'linkDecodeBtn', 'linkDecodeInput']) {
+  check(htmlText.includes('id="' + id + '"'), 'index.html có #' + id);
+}
+for (const fn of ['export async function encryptLink', 'export async function decryptLink', 'export function buildLinkSnippet', 'export function normalizeLink']) {
+  check(coreText.includes(fn), 'core.js có ' + fn.replace('export ', ''));
+}
+check(coreText.includes("'AIA-LINK1'"), 'token link dùng AAD riêng');
+check(!/https?:\/\//.test(/export function buildLinkSnippet[\s\S]{0,1200}/.exec(coreText)[0]), 'snippet link không hard-code URL');
+check(cliText.includes("case 'link'") && cliText.includes("case 'unlink'"), 'CLI có lệnh link/unlink');
+check(sharedKeyText.includes('openLink'), 'aia.key.js phát hành kèm site có openLink');
+check(/keyId:\s*"[0-9a-f]{16}"/.test(sharedKeyText), 'aia.key.js có keyId 16 hex');
+check(htmlText.includes('data-view="link"'), 'thanh tab có mục Mã hoá link');
+
 /* ------------------------------------------------------------------ tổng --- */
 
 console.log('\n' + '─'.repeat(56));

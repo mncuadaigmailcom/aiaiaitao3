@@ -86,9 +86,9 @@ secure-script/
 │   ├── cli.mjs              # mã hoá/giải mã bằng dòng lệnh
 │   └── check-static.mjs     # kiểm tra id/đường dẫn trong HTML
 ├── aia.key.js               # KEY SCRIPT DÙNG CHUNG (1 link cho mọi lần mã hoá)
-├── tests/run-dom.mjs        # 71 kiểm thử giao diện (jsdom)
-├── tests/run-node.mjs       # 135 kiểm thử lõi
-├── tests/stress.mjs         # 52 bài kiểm thử cường độ cao
+├── tests/run-dom.mjs        # 91 kiểm thử giao diện (jsdom)
+├── tests/run-node.mjs       # 189 kiểm thử lõi
+├── tests/stress.mjs         # 69 bài kiểm thử cường độ cao
 ├── examples/                # script mẫu + gói demo
 ├── docs/                    # 6 tài liệu
 └── deploy/                  # pages.yml (mẫu workflow), netlify.toml, vercel.json
@@ -98,10 +98,10 @@ secure-script/
 
 Chạy `node tests/run-node.mjs` (Node 22, WebCrypto thật):
 
-- **135/135** kiểm thử lõi đạt, ~7,4 giây.
-- **71/71** kiểm thử giao diện trên DOM ả (jsdom) — gồm cả **gói demo phát hành kèm** —
-  **44/44** kiểm tra tĩnh, và **52/52** bài **kiểm thử cường độ cao**.
-  Tổng **302 điểm kiểm tra**.
+- **189/189** kiểm thử lõi đạt, ~10,2 giây.
+- **91/91** kiểm thử giao diện trên DOM ả (jsdom) — gồm cả **gói demo phát hành kèm** —
+  **61/61** kiểm tra tĩnh, và **69/69** bài **kiểm thử cường độ cao**.
+  Tổng **410 điểm kiểm tra**.
 - Vòng lặp đúng với khối 64 KiB / 256 KiB / 1 MiB; tệp rỗng; tệp chia hết khối.
 - Sai mật khẩu, sửa link key, sửa 1 bit, cắt tệp, ghép thêm, đảo khối, sai magic →
   đều bị chặn.
@@ -116,6 +116,10 @@ Chạy `node tests/run-node.mjs` (Node 22, WebCrypto thật):
 - Dịch ngược: làm đẹp/rút gọn **không đổi token**, giải base64, gỡ escape, phân tích.
 - 8 MiB: mã hoá ~0,14 s, giải mã ~0,15 s trên máy ảo này; tăng 962 byte (0,0115 %).
 - **Snippet "chép là chạy"**: tự nạp link key, tự giải mã, chạy đúng code gốc (đã thử trong sandbox).
+- **Mã hoá link** (`AIALNK1.…`): 54 kiểm thử riêng — vòng cơ bản, mật khẩu, sai key script,
+  sửa token/header, 5 kiểu token hỏng, 7 kiểu link xấu (`javascript:`/`data:`/`file:`…),
+  URL tiếng Việt/emoji, URL 8 KiB, snippet mở đúng link trong sandbox.
+  Test cường độ cao: 17 bài (200 vòng, song song, fuzz token rác, RAM, KDF 600k).
 - Kiểm thử cường độ cao: fuzz **600/600** ca bị phát hiện; tệp **1 GiB** mã hoá
   464 MiB/s, giải mã 365 MiB/s, **RAM không tăng theo kích thước tệp**; 30/30 mật khẩu
   sai bị chặn trong 0,07 s.

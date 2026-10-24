@@ -37,6 +37,20 @@ const USAGE = `AIA Secure Script CLI
     --shared-key <aia.key.js>     Key script chung (bắt buộc nếu bản mã dùng khoá chung)
     --out <tệp>                   Tệp đầu ra (mặc định: tên gốc + .plain)
 
+  link <url> [tuỳ chọn]           Mã hoá MỘT LINK (trang web / script) thành token
+    --pass <mật khẩu>             Mật khẩu cho token (tuỳ chọn)
+    --key-url <chuỗi>             Link key script tham gia khoá (mặc định ./aia.key.js)
+    --iter <số>                   Số vòng PBKDF2 (mặc định 600000)
+    --shared-key <aia.key.js>     Key script chung (mặc định: ./aia.key.js cạnh CLI)
+    --snippet                     In kèm snippet "chép là chạy" thay vì chỉ token
+    --style <stealth|labeled>     Kiểu snippet (mặc định stealth)
+    --action <open|load|text>     Snippet làm gì (mặc định open)
+    --out <tệp>                   Ghi token (hoặc snippet) ra tệp
+
+  unlink <token> [tuỳ chọn]       Mở khoá token link → in URL
+    --pass <mật khẩu>             Mật khẩu (nếu token có)
+    --shared-key <aia.key.js>     Key script chung
+
   info <tệp.aia>                  In header (không cần mật khẩu)
   keycheck <tệp.aia> <key.js>     So khớp ID giữa .aia và key script
   selftest                        Chạy kiểm tra nhanh mã hoá/giải mã
@@ -44,6 +58,8 @@ const USAGE = `AIA Secure Script CLI
 Ví dụ:
   node tools/cli.mjs encrypt my-script.lua --out ./out --pass "S3cret!2026"
   node tools/cli.mjs decrypt ./out/my-script.aia --pass "S3cret!2026" --out ./my-script.lua
+  node tools/cli.mjs link https://example.com/script.js --pass "S3cret!2026"
+  node tools/cli.mjs unlink "AIALNK1.…" --pass "S3cret!2026"
 `;
 
 function parseArgs(argv) {
@@ -330,6 +346,64 @@ async function cmdKeycheck(args) {
   process.exitCode = sameId && sameTime && sameSalt ? 0 : 1;
 }
 
+
+/* ------------------------------------------------------------- mã hoá LINK --- */
+
+function sharedMasterFromFile(args) {
+  const file = args['shared-key'] || path.resolve(import.meta.dirname, '..', 'aia.key.js');
+  const text = fs.readFileSync(file, 'utf8');
+  const m = /masterKey:\s*"([^"]+)"/.exec(text);
+  if (!m) throw new Error('Tệp key script chung không có masterKey: ' + file);
+  const id = (/keyId:\s*"([0-9a-f]+)"/.exec(text) || [])[1] || '';
+  return { masterKey: m[1], keyId: id, file };
+}
+
+async function cmdLink(args) {
+  const url = args._[0];
+  if (!url) throw new Error('Thiếu link cần mã hoá.');
+  const { masterKey } = sharedMasterFromFile(args);
+  const passphrase = args.pass || '';
+  const iterations = Number(args.iter) || C.DEFAULT_ITERATIONS;
+  const keyUrl = args['key-url'] || './aia.key.js';
+  const result = await C.encryptLink(url, { keyUrl, sharedKey: masterKey, passphrase, iterations });
+  const style = args.style === 'labeled' ? 'labeled' : 'stealth';
+  const action = ['open', 'load', 'text'].includes(args.action) ? args.action : 'open';
+  const snippet = C.buildLinkSnippet({
+    token: result.token,
+    keyUrl,
+    style,
+    action,
+    passphrase,
+    askPassphrase: false,
+  });
+  const out = args.snippet ? snippet : result.token;
+  if (args.out) {
+    fs.writeFileSync(args.out, out);
+    console.log(`✔ Đã ghi ${args.snippet ? 'snippet' : 'token'} → ${args.out}`);
+  } else {
+    console.log(out);
+  }
+  console.error('');
+  console.error(`  Link gốc : ${C.normalizeLink(url)}`);
+  console.error(`  Token    : ${result.token.length} ký tự · thời gian ${result.header.t}`);
+  console.error(`  Bảo vệ   : ${passphrase ? 'có mật khẩu' : 'KHÔNG mật khẩu'} · KDF ${iterations} vòng`);
+  if (!passphrase) console.error('  ⚠ Không mật khẩu: ai có token + aia.key.js là mở được.');
+}
+
+async function cmdUnlink(args) {
+  const token = args._[0];
+  if (!token) throw new Error('Thiếu token link.');
+  const { masterKey } = sharedMasterFromFile(args);
+  const res = await C.decryptLink(token, { sharedKey: masterKey, passphrase: args.pass || '' });
+  if (args.out) {
+    fs.writeFileSync(args.out, res.url + '\n');
+    console.log(`✔ Đã ghi link → ${args.out}`);
+  } else {
+    console.log(res.url);
+  }
+  console.error(`  Tạo lúc: ${res.createdAt} · key: ${res.keyUrl}`);
+}
+
 async function cmdSelftest() {
   const code = utf8('function hello(){ console.log("xin chào " + new Date().getFullYear()); }\n hello();\n');
   const results = [];
@@ -359,6 +433,17 @@ async function cmdSelftest() {
     results.push(['bắt buộc key script: thiếu key bị chặn', blocked, '']);
     const ok2 = await C.decryptBytes(bytes, 'khoa-rieng', null, meta.keyWrap);
     results.push(['bắt buộc key script: có key giải mã đúng', bytesEqual(ok2.plaintext, code), '']);
+  }
+
+  // link
+  {
+    const { masterKey } = sharedMasterFromFile({});
+    const enc = await C.encryptLink('https://example.com/cli-test', { sharedKey: masterKey, keyUrl: './aia.key.js', iterations: 10000 });
+    const dec = await C.decryptLink(enc.token, { sharedKey: masterKey });
+    results.push(['link: mã hoá/giải mã đúng', dec.url === 'https://example.com/cli-test', `${enc.token.length} ký tự`]);
+    let blocked = false;
+    try { await C.decryptLink(enc.token, { sharedKey: C.generateSharedKeyBase64() }); } catch { blocked = true; }
+    results.push(['link: sai key script bị chặn', blocked, '']);
   }
 
   for (const [name, ok, extra] of results) console.log(`${ok ? '✔' : '✘'} ${name} ${extra}`);
@@ -393,6 +478,8 @@ async function main() {
     case 'decrypt': return cmdDecrypt(args);
     case 'info': return cmdInfo(args);
     case 'keycheck': return cmdKeycheck(args);
+    case 'link': return cmdLink(args);
+    case 'unlink': return cmdUnlink(args);
     case 'selftest': return cmdSelftest();
     default:
       console.error('Lệnh không rõ: ' + cmd + '\n');

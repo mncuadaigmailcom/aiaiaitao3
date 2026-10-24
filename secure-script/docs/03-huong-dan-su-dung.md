@@ -132,6 +132,18 @@ AIA_UNLOCK.run({ execute: true, mode: 'main' })
 Mặc định `run()` dùng **Web Worker** (không treo trang, không chạm DOM). Dùng
 `mode:'main'` khi script cần DOM; khi đó code được chèn bằng thẻ `<script>`.
 
+## 3b. Mã hoá một LINK (trang web / link script)
+
+1. Mở tab **Mã hoá link**.
+2. Dán link (`https://…`) vào ô **Link gốc**.
+3. Chọn **Cách bảo vệ** (không mật khẩu / nhúng sẵn / hỏi khi chạy), **Hành động của snippet**
+   (mở tab mới / nạp thành script / chỉ in ra) và **Kiểu snippet** (ẩn dấu vết / có chú thích).
+4. Bấm **Mã hoá link** → nhận:
+   - **Token** `AIALNK1.…` (~270 ký tự): gửi nguyên chuỗi này, không lộ link gốc;
+   - **Snippet "chép là chạy"**: dán vào Console là tự nạp key script, tự mở khoá rồi mở link.
+5. Người nhận dán token vào ô **Mở khoá link** (cùng trang) hoặc chạy snippet.
+6. Dòng lệnh: `node tools/cli.mjs link <url> --pass "…"` và `node tools/cli.mjs unlink "<token>" --pass "…"`.
+
 ## 4. Giải mã trên web
 
 Tab **Giải mã & chạy**:
