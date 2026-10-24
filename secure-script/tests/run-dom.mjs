@@ -334,6 +334,82 @@ $('revToEncrypt').click();
 check($('view-encrypt').classList.contains('active'), '"đưa sang mã hoá" chuyển tab');
 check($('fileInfo').textContent.includes('script.js'), 'đã nạp kết quả làm đầu vào mã hoá');
 
+/* ------------------------------------------- 5b. loader Luau trên tab Mã hoá --- */
+
+console.log('\n[5b] Mã hoá code Lua → loader Luau (không cần GitHub)');
+{
+  const LUA_CODE = [
+    "local Players = game:GetService('Players')",
+    'for i = 1, 3 do print("lan " .. i) end',
+    'AIA_TEST = "lua-tren-web"',
+    '',
+  ].join('\n');
+
+  // dán code Lua + chọn ngôn ngữ Lua (code ngắn nên dò tự động có thể không chắc)
+  $('pasteBtn').click();
+  check(!!$('pasteLang'), 'có ô chọn ngôn ngữ cho code dán');
+  check($('pasteLang').value === 'auto', 'mặc định: tự dò ngôn ngữ');
+  check($('pasteNameHint').textContent === 'script.js', 'gợi ý tên tệp ban đầu là script.js', $('pasteNameHint').textContent);
+  $('pasteText').value = LUA_CODE;
+  $('pasteText').dispatchEvent(new window.Event('paste'));
+  await waitFor(() => $('pasteStatus').textContent.includes('tự mã hoá') || !$('resultCard').hidden, 'code dán vào được xử lý', 10000);
+  $('pasteLang').value = 'lua';
+  $('pasteLang').dispatchEvent(new window.Event('change'));
+  check($('pasteNameHint').textContent === 'script.lua', 'chọn Lua → gợi ý tên tệp script.lua', $('pasteNameHint').textContent);
+  await waitFor(() => $('fileInfo').textContent.includes('script.lua'), 'nhận đúng code Lua + đặt tên script.lua', 10000);
+  await waitFor(() => $('luaCard') && !$('luaCard').hidden, 'tự hiện thẻ Bản chạy trong game (Luau)', 15000);
+
+  const loader = $('luaCode').textContent;
+  check(loader.includes('aes_gcm_decrypt'), 'loader Luau có hàm giải mã AES-GCM');
+  check(loader.includes("'=aia'"), 'loader Luau dùng loadstring');
+  check(!loader.includes('lua-tren-web'), 'loader KHÔNG chứa bản rõ');
+  check(!loader.includes('GetService'), 'loader KHÔNG lộ code gốc');
+  check($('luaBadge').textContent.includes('tự chứa'), 'mặc định: khoá nhúng trong tệp', $('luaBadge').textContent);
+  check(!loader.includes('khong tai duoc khoa'), 'chế độ tự chứa: KHÔNG gọi mạng');
+  check($('luaStats').textContent.includes('AES-256-GCM'), 'có thống kê mã hoá');
+  check($('luaKeyUrlRow').hidden === true, 'chế độ tự chứa: ẩn ô link khoá');
+
+  // dòng lệnh: chỉ hiện khi có link tệp .lua
+  check($('luaCmdRow').hidden === true, 'chưa có link .lua → ẩn dòng lệnh');
+  $('luaScriptUrl').value = 'https://raw.githubusercontent.com/u/r/main/l-abcd.lua';
+  $('luaScriptUrl').dispatchEvent(new window.Event('input'));
+  check($('luaCmdRow').hidden === false, 'có link .lua → hiện dòng lệnh');
+  check(
+    $('luaCmd').value === 'loadstring(game:HttpGet("https://raw.githubusercontent.com/u/r/main/l-abcd.lua"))()',
+    'dòng lệnh đúng cú pháp executor',
+    $('luaCmd').value,
+  );
+
+  // tải .lua
+  const dlBefore = downloads.length;
+  $('luaDl').click();
+  check(downloads.length > dlBefore && /^l-[0-9a-f]{8}\.lua$/.test(downloads[downloads.length - 1]), 'tải được tệp .lua', downloads[downloads.length - 1]);
+
+  // chuyển sang khoá tách rời: cần link khoá, và loader phải có nhánh tải mạng
+  $('luaKeyMode').value = 'remote';
+  $('luaKeyMode').dispatchEvent(new window.Event('change'));
+  check($('luaKeyUrlRow').hidden === false, 'chọn tách rời → hiện ô link tệp khoá');
+  $('luaKeyUrl').value = 'https://example.test/k-abcd.txt';
+  $('luaKeyUrl').dispatchEvent(new window.Event('change'));
+  await waitFor(() => $('luaBadge').textContent.includes('tách rời'), 'dựng lại loader ở chế độ tách rời', 20000);
+  const remoteLoader = $('luaCode').textContent;
+  check(remoteLoader.includes('khong tai duoc khoa'), 'chế độ tách rời: loader có nhánh tải khoá');
+  check(!remoteLoader.includes('example.test'), 'chế độ tách rời: link khoá không lộ dạng chữ thường');
+  const dlBefore2 = downloads.length;
+  $('luaDl').click();
+  check(downloads.length === dlBefore2 + 2, 'tải .lua kèm tệp khoá .txt', downloads.slice(dlBefore2).join(', '));
+  check(/^k-[0-9a-f]{8}\.txt$/.test(downloads[downloads.length - 1]), 'tên tệp khoá đúng dạng', downloads[downloads.length - 1]);
+
+  // code JavaScript thì không hiện thẻ Luau
+  $('pasteLang').value = 'javascript';
+  $('pasteLang').dispatchEvent(new window.Event('change'));
+  $('pasteText').value = 'function hien(n){ console.log("hi " + n); }\nhien(1);\n';
+  $('pasteText').dispatchEvent(new window.Event('paste'));
+  await waitFor(() => $('fileInfo').textContent.includes('script.js'), 'nạp lại code JS', 10000);
+  await waitFor(() => $('luaCard').hidden === true, 'code JS → ẩn thẻ Luau', 15000);
+  check($('luaCard').hidden === true, 'code JS không sinh loader Luau');
+}
+
 /* ---------------------------------------------------------- 6. gói demo --- */
 
 console.log('\n[6] Gói demo phát hành kèm repo');

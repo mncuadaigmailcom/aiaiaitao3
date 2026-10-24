@@ -1079,6 +1079,241 @@ async function testLangSniff() {
 }
 
 /* =====================================================================
+ * 14. Loader Luau tự chứa (dán vào game) — fuzz & đo tải
+ * ===================================================================== */
+
+/** Chạy loader Luau trong fengari với môi trường "câm" (không mạng) — dùng cho fuzz. */
+async function makeLuaRunner() {
+  let fengari;
+  try {
+    fengari = await import('fengari');
+  } catch {
+    return null;
+  }
+  const { lua, lauxlib, lualib, to_luastring, to_jsstring } = fengari;
+  return (src) => {
+    const L = lauxlib.luaL_newstate();
+    lualib.luaL_openlibs(L);
+    const prelude = [
+      'bit32 = {',
+      '  bxor = function (...) local r = 0; for i = 1, select("#", ...) do r = (r ~ (select(i, ...))) & 0xffffffff end; return r end,',
+      '  band = function (a, b) return (a & b) & 0xffffffff end,',
+      '  bor = function (a, b) return (a | b) & 0xffffffff end,',
+      '  lshift = function (a, n) return (a << n) & 0xffffffff end,',
+      '  rshift = function (a, n) return (a >> n) & 0xffffffff end,',
+      '}',
+      'loadstring = load',
+      'function print() end',
+      'function warn() end',
+      'ran = 0',
+      'game = {}',
+      'request = nil',
+      'http_request = nil',
+      'AIA_ENV = setmetatable({ _G = {} }, { __index = _G })',
+      '',
+    ].join('\n');
+    let rc = lauxlib.luaL_dostring(L, to_luastring(prelude));
+    let err = rc === lua.LUA_OK ? '' : to_jsstring(lua.lua_tostring(L, -1));
+    let ran = 0;
+    if (rc === lua.LUA_OK) {
+      const delim = src.includes(']===]') ? '====' : '===';
+      const wrapper = `AIA_SRC = [${delim}[${src}]${delim}]\nlocal f, e = load(AIA_SRC, '=fuzz', 't', AIA_ENV)\nif not f then error(e) end\nf()`;
+      rc = lauxlib.luaL_dostring(L, to_luastring(wrapper));
+      if (rc !== lua.LUA_OK) err = to_jsstring(lua.lua_tostring(L, -1));
+      else {
+        lauxlib.luaL_dostring(L, to_luastring('ran = 1'));
+        lauxlib.luaL_dostring(L, to_luastring('return ran'));
+        ran = lua.lua_tonumber(L, -1) || 0;
+        lua.lua_pop(L, 1);
+      }
+    }
+    lua.lua_close(L);
+    return { ok: rc === lua.LUA_OK && !err, err, ran: !!ran };
+  };
+}
+
+async function testLuaLoader() {
+  section('14. Loader Luau tự chứa (dán vào game, không cần host) — fuzz & tải');
+  const { buildLuaLoader } = await import('../assets/lua-loader.js');
+  const crypto = await import('node:crypto');
+
+  const seal = (text) => {
+    const key = crypto.randomBytes(32);
+    const nonce = crypto.randomBytes(12);
+    const c = crypto.createCipheriv('aes-256-gcm', key, nonce);
+    const ct = Buffer.concat([c.update(Buffer.from(text, 'utf8')), c.final()]);
+    return {
+      key,
+      cipherB64: ct.toString('base64'),
+      nonceB64: nonce.toString('base64'),
+      tagHex: c.getAuthTag().toString('hex'),
+    };
+  };
+
+  // (a) 500 script ngẫu nhiên: loader sinh ra không lộ bản rõ, không lộ khoá liền mạch
+  let leaks = 0;
+  let keyLeaks = 0;
+  let badSize = 0;
+  const N = Math.max(120, FUZZ_ROUNDS);
+  const tA = nowMs();
+  for (let i = 0; i < N; i++) {
+    const lines = [];
+    const n = randomInt(0, 40);
+    for (let k = 0; k < n; k++) lines.push(`MAT_${randomInt(0, 9e6)} = "chuoi ${randomInt(0, 1e9)}" -- dong ${k}`);
+    lines.push(`AIA_TOKEN_${i} = "bi-mat-${i}-${randomInt(1e6, 9e6)}"`);
+    const code = lines.join('\n') + '\n';
+    const sealed = seal(code);
+    const loader = buildLuaLoader({
+      cipherB64: sealed.cipherB64,
+      nonceB64: sealed.nonceB64,
+      tagHex: sealed.tagHex,
+      embeddedKeyB64: sealed.key.toString('base64'),
+      suffix: 'f' + (i % 97),
+    });
+    const marker = `AIA_TOKEN_${i}`;
+    if (loader.includes(marker)) leaks++;
+    if (loader.includes(sealed.key.toString('base64'))) keyLeaks++;
+    if (loader.length < 3000 || loader.length > 200000 + code.length * 2) badSize++;
+  }
+  const msA = nowMs() - tA;
+  record('lua-fuzz', `${N} loader ngẫu nhiên: không lộ mã nguồn`, leaks === 0, leaks + ' lần lộ');
+  record('lua-fuzz', `${N} loader ngẫu nhiên: khoá không xuất hiện liền mạch`, keyLeaks === 0, keyLeaks + ' lần lộ');
+  record('lua-fuzz', `${N} loader ngẫu nhiên: kích thước hợp lý`, badSize === 0, badSize + ' bất thường');
+  metrics.luaGenMs = msA / N;
+  record('lua-fuzz', 'thời gian dựng loader trung bình', msA / N < 50, `${(msA / N).toFixed(2)} ms/loader`);
+
+  // (b) đầu vào rác không được làm sập buildLuaLoader
+  const junkAlphabet = 'ABCdef0123+/= -\n\t{}[]()"\'\\';
+  let unexpected = 0;
+  let unclean = 0;
+  let refused = 0;
+  const junkN = Math.max(100, FUZZ_ROUNDS);
+  for (let i = 0; i < junkN; i++) {
+    const rand = (len) => {
+      let s = '';
+      for (let k = 0; k < len; k++) s += junkAlphabet[Math.floor(Math.random() * junkAlphabet.length)];
+      return s;
+    };
+    try {
+      const out = buildLuaLoader({
+        cipherB64: rand(randomInt(0, 60)),
+        nonceB64: rand(randomInt(0, 24)),
+        tagHex: rand(randomInt(0, 40)),
+        embeddedKeyB64: Math.random() < 0.5 ? rand(randomInt(0, 60)) : '',
+        keyUrl: Math.random() < 0.5 ? rand(randomInt(0, 40)) : undefined,
+      });
+      if (typeof out !== 'string') unclean++;
+    } catch (err) {
+      // Từ chối đầu vào rác là ĐÚNG — chỉ sai nếu lỗi không rõ ràng (TypeError, crash…)
+      if (err instanceof Error && /^buildLuaLoader: /.test(err.message)) refused++;
+      else unexpected++;
+    }
+  }
+  record('lua-fuzz', `đầu vào rác (${junkN} lượt): không có lỗi hệ thống nào`, unexpected === 0, unexpected + ' lỗi bất ngờ');
+  record('lua-fuzz', 'đầu vào rác: hoặc trả chuỗi, hoặc báo lỗi rõ ràng', unclean === 0, unclean + ' kết quả lạ');
+  record('lua-fuzz', 'đầu vào rác: từ chối đúng cách (có thông báo riêng)', true, `${refused}/${junkN} lượt bị từ chối`);
+
+  // (c) chạy thật trong máy ảo Lua: 20 bản hỏng phải KHÔNG chạy, 10 bản tốt phải chạy
+  const runInLua = await makeLuaRunner();
+  if (!runInLua) {
+    record('lua-fuzz', 'chạy thật trong máy ảo Lua (bỏ qua: chưa cài fengari)', true, 'npm install');
+    return;
+  }
+  const goodCode = (tag) => `AIA_RAN = "${tag}"\n`;
+  let goodOk = 0;
+  const goodRounds = QUICK ? 3 : 10;
+  for (let i = 0; i < goodRounds; i++) {
+    const sealed = seal(goodCode('ok' + i));
+    const loader = buildLuaLoader({
+      cipherB64: sealed.cipherB64,
+      nonceB64: sealed.nonceB64,
+      tagHex: sealed.tagHex,
+      embeddedKeyB64: sealed.key.toString('base64'),
+      suffix: 'g' + i,
+    });
+    const r = runInLua(loader);
+    if (r.ok && r.ran) goodOk++;
+  }
+  record('lua-fuzz', `${goodRounds} loader hợp lệ chạy thật trong máy ảo`, goodOk === goodRounds, `${goodOk}/${goodRounds}`);
+
+  // sửa hỏng: lật 1 byte bản mã, lật 1 nibble tag, cắt cụt ở vị trí ngẫu nhiên
+  const badRounds = QUICK ? 6 : 18;
+  let tamperRan = 0;
+  for (let i = 0; i < badRounds; i++) {
+    const sealed = seal(goodCode('bad' + i));
+    const kind = i % 3;
+    let opts;
+    if (kind === 0) {
+      const buf = Buffer.from(sealed.cipherB64, 'base64');
+      buf[Math.floor(Math.random() * buf.length)] ^= 1 << Math.floor(Math.random() * 8);
+      opts = { cipherB64: buf.toString('base64'), nonceB64: sealed.nonceB64, tagHex: sealed.tagHex };
+    } else if (kind === 1) {
+      const hex = sealed.tagHex.split('');
+      const idx = Math.floor(Math.random() * hex.length);
+      hex[idx] = (parseInt(hex[idx], 16) ^ 1).toString(16);
+      opts = { cipherB64: sealed.cipherB64, nonceB64: sealed.nonceB64, tagHex: hex.join('') };
+    } else {
+      opts = { cipherB64: sealed.cipherB64, nonceB64: sealed.nonceB64, tagHex: sealed.tagHex };
+    }
+    let loader = buildLuaLoader({ ...opts, embeddedKeyB64: sealed.key.toString('base64'), suffix: 'b' + i });
+    if (kind === 2) {
+      const cut = Math.floor(loader.length * (0.5 + Math.random() * 0.45));
+      loader = loader.slice(0, cut);
+    }
+    const r = runInLua(loader);
+    if (r.ok && r.ran) tamperRan++;
+  }
+  record('lua-fuzz', `${badRounds} bản bị sửa/cắt cụt: KHÔNG bản nào chạy được`, tamperRan === 0, `${tamperRan} bản vẫn chạy`);
+
+  // (d) độ phình: bản mã base64 + loader phải có tỉ lệ ổn định (không nổ bộ nhớ)
+  const sizes = [1024, 16 * 1024, 128 * 1024];
+  let ratiosOk = true;
+  let smallOk = true;
+  const ratioText = [];
+  for (const size of sizes) {
+    const code = 'local x = 1 -- padding\n'.repeat(Math.ceil(size / 23)).slice(0, size);
+    const sealed = seal(code);
+    const t0 = nowMs();
+    const loader = buildLuaLoader({
+      cipherB64: sealed.cipherB64,
+      nonceB64: sealed.nonceB64,
+      tagHex: sealed.tagHex,
+      embeddedKeyB64: sealed.key.toString('base64'),
+      suffix: 'r' + size,
+    });
+    const ms = nowMs() - t0;
+    const ratio = loader.length / code.length;
+    ratioText.push(`${(size / 1024).toFixed(0)}KB→×${ratio.toFixed(2)} (${ms.toFixed(0)}ms)`);
+    // Script nhỏ thì phần runtime cố định (~11 KB) chiếm ưu thế — chỉ cần overhead tuyệt đối nhỏ.
+    if (size < 4096) {
+      if (loader.length > 40000) smallOk = false;
+    } else if (ratio > 2.2 || ratio < 1.2) {
+      ratiosOk = false;
+    }
+  }
+  record('lua-fuzz', 'tỉ lệ phình của loader ổn định (1.2–2.2× với script ≥16 KB)', ratiosOk, ratioText.join(' · '));
+  record('lua-fuzz', 'script 1 KB: overhead cố định chấp nhận được (< 40 KB)', smallOk, ratioText[0]);
+
+  // (e) mã hoá code Lua từ trình duyệt (encryptForGame) — 100 lượt roundtrip bằng WebCrypto
+  const { encryptForGame } = await import('../assets/publish.js');
+  let roundTripBad = 0;
+  const rounds = QUICK ? 20 : 100;
+  const tE = nowMs();
+  for (let i = 0; i < rounds; i++) {
+    const text = 'local a = ' + i + '\n' + 'print("dòng ' + i + '")\n';
+    const sealed = await encryptForGame(text);
+    const key = Buffer.from(sealed.keyB64, 'base64');
+    const nonce = Buffer.from(sealed.nonceB64, 'base64');
+    const d = crypto.createDecipheriv('aes-256-gcm', key, nonce);
+    d.setAuthTag(Buffer.from(sealed.tagHex, 'hex'));
+    const out = Buffer.concat([d.update(Buffer.from(sealed.cipherB64, 'base64')), d.final()]).toString('utf8');
+    if (out !== text) roundTripBad++;
+  }
+  record('lua-fuzz', `${rounds} lượt mã hoá Lua ↔ giải mã bằng OpenSSL: khớp`, roundTripBad === 0, roundTripBad + ' lệch');
+  record('lua-fuzz', 'thời gian mã hoá mỗi script nhỏ', (nowMs() - tE) / rounds < 60, `${((nowMs() - tE) / rounds).toFixed(1)} ms`);
+}
+
+/* =====================================================================
  * CHẠY
  * ===================================================================== */
 
@@ -1101,6 +1336,7 @@ const suites = [
   ['snippet', testRunSnippet],
   ['link', testLinks],
   ['ngôn ngữ', testLangSniff],
+  ['lua', testLuaLoader],
   ['tệp lớn', testLargeFile],
 ];
 

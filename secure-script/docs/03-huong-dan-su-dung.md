@@ -268,7 +268,31 @@ Chi tiết trong hộp thoại **GitHub → tab 5 · Mã hoá + chống soi**:
 Đẩy lại lần sau **không tạo repo mới** và **link không đổi** — chỉ nội dung được cập nhật,
 nên link đã phát cho người khác vẫn dùng tiếp.
 
-## 3g. Dán link vào Delta / executor mà script không chạy?
+## 3g. Mã hoá code Lua cho game — KHÔNG cần GitHub
+
+Từ bản này, tab **Mã hoá** tự lo trọn việc cho Lua/Luau: mã hoá xong là có ngay
+**script Luau tự giải mã** để dán vào game.
+
+1. Tab **Mã hoá** → **Dán code trực tiếp** → chọn **Ngôn ngữ: Lua / Luau**
+   (để *Tự dò* cũng được, nhưng code ngắn thì chọn tay cho chắc). Tên tệp tự thành `script.lua`.
+2. Trang tự mã hoá và hiện thẻ **4. Bản chạy trong game (Luau)**.
+3. Bấm **Chép code** rồi dán **toàn bộ** vào Delta/executor → chạy. Hoặc **Tải .lua**.
+
+Hai kiểu khoá (đổi bằng ô chọn trong thẻ đó, rồi bấm **Tạo lại**):
+
+| Kiểu | Cần gì để chạy | Ưu / nhược |
+| --- | --- | --- |
+| **Tự chứa** (mặc định) | Chỉ tệp `.lua` — không mạng, không host | Tiện nhất; nhưng khoá nằm trong tệp ⇒ ai có tệp cũng mở được. Khoá bị cắt thành mảnh 8 ký tự để không đọc được liền mạch |
+| **Tách rời** | `.lua` + tệp `k-<id>.txt` ở một host công khai | An toàn hơn: thiếu tệp khoá là không chạy; đổi/thu hồi khoá dễ. Cần dán link khoá trước khi **Tạo lại** |
+
+Nếu bạn tải `.lua` lên host, dán link vào ô **Link tệp .lua của bạn** — trang sinh đúng dòng
+`loadstring(game:HttpGet("<link>"))()` để chép (dán URL trần thì không có gì chạy).
+
+> Lưu ý thật: **không có cách nào “không thể dịch ngược”** khi script chạy trên máy người khác.
+> Tự chứa chỉ làm cho việc đọc code khó hơn nhiều. Script rất lớn (hàng trăm KB) sẽ giải mã
+> chậm trong game — trang cảnh báo khi vượt 128 KB; hãy chia nhỏ.
+
+## 3h. Dán link vào Delta / executor mà script không chạy?
 
 Hộp thoại xuất bản giờ có sẵn ô **“Dán vào Delta / executor — một dòng là chạy”**
 (`loadstring(game:HttpGet("<link script>"))()`). Cứ **chép cả dòng đó**, đừng chép mỗi URL.
