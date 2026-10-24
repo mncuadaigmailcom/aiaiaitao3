@@ -2395,6 +2395,104 @@ ${body}
 `;
 }
 
+
+/* ------------------------------------------- Trang "chống soi" (trang trắng) --- */
+
+/**
+ * Sinh một trang HTML **trắng hoàn toàn**: không chữ, không tiêu đề, không logo.
+ *
+ * Người mở link bình thường chỉ thấy nền trắng — không biết bên trong là gì.
+ * Người có "khoá mở" mở `trang-trang.html#k=<mật-khẩu>` (hoặc `?k=`) thì trang
+ * tự giải mã token link (AIALNK1.…) bằng `aia.key.js` rồi chuyển tới địa chỉ thật.
+ *
+ * Nói thật: đây là **che giấu**, không phải bảo vệ tuyệt đối. Ai mở DevTools vẫn
+ * thấy mã HTML và token; token là bản mã nên **không lộ link đích**, nhưng nếu
+ * không đặt mật khẩu thì `aia.key.js` công khai ⇒ vẫn mở được.
+ *
+ * @param {{token:string, keyUrl?:string, title?:string, white?:string}} opts
+ */
+export function buildCloakPage(opts = {}) {
+  const token = String(opts.token || '');
+  if (!token) throw new AIAError('LINK_EMPTY', 'Cần token link để tạo trang trắng.');
+  const keyUrl = String(opts.keyUrl || './aia.key.js');
+  const white = String(opts.white || '#ffffff');
+  const title = String(opts.title == null ? '' : opts.title); // mặc định: tiêu đề rỗng
+
+  const cut = (str, size) => (String(str).match(new RegExp('.{1,' + size + '}', 'g')) || []);
+  const body = token.replace(/^AIALNK1\./i, '');
+  const tokChunks = cut(body, 197);
+  const urlChunks = cut(bytesToBase64(utf8(keyUrl)), 53);
+  const tag = bytesToHex(randomBytes(3));
+  const id = (name) => '_' + name + tag;
+
+  return `<!doctype html>
+<html lang="vi" data-${id('x')}="">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>${escapeHtml(title)}</title>
+<style>
+html, body { margin: 0; padding: 0; height: 100%; background: ${escapeHtml(white)}; }
+body { overflow: hidden; }
+</style>
+</head>
+<body>
+<script>
+(function () {
+  'use strict';
+  var ${id('t')} = ${JSON.stringify(tokChunks)};
+  var ${id('u')} = ${JSON.stringify(urlChunks)};
+
+  function ${id('d')}(s) {
+    var b = atob(s), o = new Uint8Array(b.length);
+    for (var i = 0; i < b.length; i++) o[i] = b.charCodeAt(i);
+    return new TextDecoder().decode(o);
+  }
+  function ${id('key')}() {
+    var h = String(location.hash || '').replace(/^#/, '');
+    var q = String(location.search || '').replace(/^\\?/, '');
+    var pick = function (str) {
+      var out = '';
+      str.split('&').forEach(function (part) {
+        var kv = part.split('=');
+        if (kv[0] === 'k' && kv.length > 1) out = decodeURIComponent(kv.slice(1).join('='));
+      });
+      return out;
+    };
+    var fromHash = pick(h);
+    var fromQuery = pick(q);
+    return fromHash || fromQuery || '';
+  }
+  function ${id('load')}() {
+    return new Promise(function (ok, no) {
+      var api = globalThis[atob('QUlBX0tFWQ==')];
+      if (api && typeof api[atob('b3Blbkxpbms=')] === 'function') { ok(); return; }
+      var s = document.createElement('script');
+      s.src = ${id('d')}(${id('u')}.join(''));
+      s.async = true;
+      s.onload = function () { ok(); };
+      s.onerror = function () { no(new Error('load')); };
+      (document.head || document.documentElement).appendChild(s);
+    });
+  }
+  function ${id('go')}(pass) {
+    var api = globalThis[atob('QUlBX0tFWQ==')];
+    if (!api) return;
+    return api[atob('b3Blbkxpbms=')](${id('t')}.join(''), { passphrase: pass }).then(function (info) {
+      if (info && info.url) location.replace(info.url);
+    });
+  }
+  var ${id('p')} = ${id('key')}();
+  if (!${id('p')}) return; // không có khoá ⇒ ở lại trang trắng, không gọi mạng
+  ${id('load')}().then(function () { return ${id('go')}(${id('p')}); }).then(null, function () {});
+})();
+</script>
+</body>
+</html>
+`;
+}
+
 const CRC_TABLE = (() => {
   const table = new Uint32Array(256);
   for (let n = 0; n < 256; n++) {

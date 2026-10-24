@@ -1128,12 +1128,164 @@ async function testLink() {
   ok(rs.ctx.__pwok === 1, 'snippet ẩn dấu vết: gõ mật khẩu thường (không phải Base64) vẫn chạy', rs.logs.join(' | '));
 }
 
+async function testCloakPage() {
+  console.log('\n[4g] Trang trắng "chống soi" (buildCloakPage)');
+  const keySrc = fs.readFileSync(path.resolve(import.meta.dirname, '..', 'aia.key.js'), 'utf8');
+  const master = /masterKey:\s*"([^"]+)"/.exec(keySrc)[1];
+  const KEY_URL = 'https://mncuadaigmailcom.github.io/aiaiaitao3/secure-script/aia.key.js';
+  const target = 'https://example.com/secret/app.html?x=1&y=2';
+  const PASS = 'khoa-mo-123';
+  const enc = await C.encryptLink(target, {
+    keyUrl: KEY_URL,
+    sharedKey: master,
+    passphrase: PASS,
+    iterations: 10000,
+  });
+  const html = C.buildCloakPage({ token: enc.token, keyUrl: KEY_URL });
+
+  ok(/^<!doctype html>/i.test(html), 'trả về một trang HTML đầy đủ');
+  ok(/<title><\/title>/.test(html), 'tiêu đề rỗng — không lộ chữ');
+  ok(html.length < 5000, 'trang rất nhẹ (' + html.length + ' B)');
+  ok(!html.includes('AIALNK1.'), 'token không lộ nguyên dạng');
+  ok(!html.includes('example.com'), 'không lộ link đích');
+  ok(!html.includes(KEY_URL) && !html.includes('aia.key.js'), 'không lộ link/tên key script dạng thường');
+  ok(html.includes('#ffffff'), 'nền trắng');
+  ok(/noindex/.test(html), 'chặn công cụ tìm kiếm đánh chỉ mục');
+
+  const visible = html
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<[^>]+>/g, '')
+    .replace(/\s+/g, '')
+    .trim();
+  ok(visible === '', 'không có một chữ nào hiển thị trên trang', JSON.stringify(visible));
+
+  // script bên trong phải là JS hợp lệ (lỗi escape trong template sẽ lộ ở đây)
+  const inlineScript = (/<script>([\s\S]*?)<\/script>/.exec(html) || [])[1] || '';
+  ok(!!inlineScript, 'trang trắng có script nội tuyến');
+  let parses = true;
+  try {
+    new vm.Script(inlineScript);
+  } catch (err) {
+    parses = false;
+    ok(false, 'script trong trang trắng phải hợp lệ', err.message);
+  }
+  if (parses) ok(true, 'script trong trang trắng là JavaScript hợp lệ');
+
+  // chạy trang trong sandbox giống trình duyệt
+  const runPage = (pageUrl) =>
+    new Promise((resolve, reject) => {
+      const ctx = {
+        atob,
+        TextDecoder,
+        TextEncoder,
+        Uint8Array,
+        Promise,
+        JSON,
+        Error,
+        String,
+        Object,
+        Array,
+        Number,
+        Boolean,
+        Date,
+        Map,
+        Set,
+        Math,
+        setTimeout,
+        clearTimeout,
+        crypto: globalThis.crypto,
+        __appended: [],
+        __replaced: [],
+        location: {
+          href: pageUrl,
+          hash: pageUrl.includes('#') ? '#' + pageUrl.split('#')[1] : '',
+          search: pageUrl.includes('?') ? '?' + pageUrl.split('?')[1].split('#')[0] : '',
+          replace(u) {
+            ctx.__replaced.push(u);
+          },
+        },
+      };
+      ctx.window = ctx;
+      ctx.self = ctx;
+      ctx.document = {
+        head: {
+          appendChild(el) {
+            ctx.__appended.push(el.src);
+            const text = el.src === KEY_URL ? keySrc : '';
+            if (!text) {
+              setTimeout(() => el.onerror && el.onerror(new Error('404')), 0);
+              return;
+            }
+            try {
+              vm.runInContext(text, ctx);
+              if (el.onload) el.onload();
+            } catch (err) {
+              if (el.onerror) el.onerror(err);
+            }
+          },
+        },
+        documentElement: { appendChild() {} },
+        createElement(tag) {
+          const el = { tag };
+          Object.defineProperty(el, 'src', {
+            set(v) {
+              el._src = v;
+            },
+            get() {
+              return el._src;
+            },
+          });
+          return el;
+        },
+      };
+      vm.createContext(ctx);
+      const script = /<script>([\s\S]*?)<\/script>/.exec(html);
+      if (!script) return reject(new Error('trang trắng không có script'));
+      try {
+        vm.runInContext(script[1], ctx);
+      } catch (err) {
+        return reject(err);
+      }
+      setTimeout(() => resolve(ctx), 900);
+    });
+
+  // 1) không có khoá ⇒ ở lại trắng, KHÔNG gọi mạng
+  const cold = await runPage('https://host/trang-trang.html');
+  ok(cold.__appended.length === 0, 'không có #k= ⇒ không tải key script (không gọi mạng)', String(cold.__appended.length));
+  ok(cold.__replaced.length === 0, 'không có khoá ⇒ không chuyển trang');
+  ok(!cold.AIA_KEY, 'không nạp key script khi thiếu khoá');
+
+  // 2) có khoá đúng trong #k= ⇒ nạp key script và chuyển tới link thật
+  const warm = await runPage('https://host/trang-trang.html#k=' + encodeURIComponent(PASS));
+  ok(warm.__appended.length === 1, 'có khoá ⇒ tải đúng 1 key script', warm.__appended.join(','));
+  ok(warm.__appended[0] === KEY_URL, 'tải key script từ URL đã giấu (giải base64 đúng)', warm.__appended[0]);
+  ok(warm.AIA_KEY && typeof warm.AIA_KEY.openLink === 'function', 'key script dùng chung hoạt động trong trang');
+  ok(warm.__replaced.length === 1 && warm.__replaced[0] === target, 'creator mở được ĐẦY ĐỦ link thật', warm.__replaced.join(','));
+
+  // 3) khoá trong ?k= cũng mở được
+  const query = await runPage('https://host/trang-trang.html?k=' + encodeURIComponent(PASS));
+  ok(query.__replaced[0] === target, 'khoá đặt ở ?k= cũng mở được');
+
+  // 4) sai khoá ⇒ vẫn ở trang trắng
+  const bad = await runPage('https://host/trang-trang.html#k=sai-khoa');
+  ok(bad.__appended.length === 1, 'sai khoá vẫn tải key script (không lỗi)');
+  ok(bad.__replaced.length === 0, 'sai khoá ⇒ KHÔNG chuyển trang');
+  ok(!bad.__threw, 'sai khoá không làm nổ trang');
+
+  // 5) thiếu token ⇒ báo lỗi rõ
+  await expectError(() => C.buildCloakPage({}), 'LINK_EMPTY', 'thiếu token ⇒ LINK_EMPTY');
+  const custom = C.buildCloakPage({ token: enc.token, title: 'x', white: '#fafafa' });
+  ok(custom.includes('#fafafa'), 'đổi được màu nền');
+  ok(/<title>x<\/title>/.test(custom), 'đổi được tiêu đề khi được yêu cầu');
+}
+
 /* -------------------------------------------------------------- chạy tất cả --- */
 
 console.log('AIA Secure Script — kiểm thử');
 console.log('Node', process.version, '· WebCrypto:', !!(globalThis.crypto && globalThis.crypto.subtle));
 
-const suites = [testRoundtrip, testSecurity, testHeader, testKeyScript, testKeyScriptRequired, testSharedKey, testRunSnippet, testLangDetect, testLink, testZip, testReverse, testThroughput];
+const suites = [testRoundtrip, testSecurity, testHeader, testKeyScript, testKeyScriptRequired, testSharedKey, testRunSnippet, testLangDetect, testLink, testCloakPage, testZip, testReverse, testThroughput];
 const started = Date.now();
 for (const suite of suites) {
   try {

@@ -5,6 +5,8 @@
 
 import * as C from './core.js';
 import { applyReverseAction, detectLanguage } from './reverse.js';
+import { initProgram } from './program.js';
+import { initGithub } from './github-ui.js';
 
 const $ = (id) => document.getElementById(id);
 const BIG_MEMORY_LIMIT = 256 * 1024 * 1024; // trên mức này, ghi thẳng ra tệp nếu trình duyệt cho phép
@@ -1542,6 +1544,36 @@ if ($('linkDecodeCopy')) {
     copyToClipboard(url, 'Đã chép link.');
   });
 }
+
+/* ------------------------------------------- tab Lập trình + GitHub --- */
+
+const uiBridge = {
+  toast,
+  showView,
+  copy: copyToClipboard,
+  /**
+   * Nhận code từ tab Lập trình rồi chuyển sang tab Mã hoá.
+   * Dán vào ô là mã hoá luôn (giữ đúng hành vi cũ), nhưng vẫn hiện code cho người dùng thấy.
+   */
+  useSource: async (text, name) => {
+    const box = $('pasteText');
+    if (box) box.value = text;
+    lastAutoText = text;
+    showView('encrypt');
+    await setSourceFromText(text, { name: name || 'script.js' });
+  },
+  editor: () =>
+    globalThis.AIA_EDITOR && typeof globalThis.AIA_EDITOR.content === 'function'
+      ? globalThis.AIA_EDITOR.content()
+      : { content: '', name: 'script.js' },
+  openGithub: (payload) => {
+    if (globalThis.AIA_GH) globalThis.AIA_GH.open('new', payload || null);
+    else toast('Chưa nạp được hộp thoại GitHub.', 'bad');
+  },
+};
+
+initGithub(uiBridge);
+initProgram(uiBridge);
 
 /* --------------------------------------------------------------- khởi động --- */
 

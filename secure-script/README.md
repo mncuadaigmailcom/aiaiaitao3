@@ -36,6 +36,9 @@ chạy ngay trong trình duyệt. Không máy chủ, không đăng ký, không t
 | 👁️ **Header đọc được** | Thời gian, link key, tên tệp hiện rõ để nhận biết (đúng yêu cầu) |
 | 📦 **Tăng kích thước không đáng kể** | +16 byte/khối (0,0015 %) + header ~0,8 KB. Đo thật: 8 MiB → +962 B |
 | ⚡ **Không treo máy** | Xử lý theo luồng 1 MiB; đo thật 1 GiB: 464 MiB/s, RAM gần như không tăng |
+| 🖥️ **Tab Lập trình** | Trình soạn thảo có **số dòng**, **zoom 10–28px**, **KB/MB/GB**, panel **tìm lỗi** (bấm là nhảy tới dòng), **chia đôi màn hình** |
+| 🕶️ **Chống soi** | Sinh **trang trắng không chữ**; chỉ link có `#k=<khoá>` mới mở ra đầy đủ tính năng |
+| 🐙 **Đăng lên GitHub** | Hộp thoại 4 tab: **API key** · **tạo dự án** · **sửa file** · **kết quả** (tự đẩy code + hiện link) |
 | 🧩 **Kèm dịch ngược** | Làm đẹp, rút gọn, tách chuỗi, đổi tên biến, giải base64/hex/URL, phân tích |
 | 🆓 **Miễn phí** | Tệp tĩnh: GitHub Pages / Cloudflare Pages / Netlify / Vercel |
 | 🚫 **Không upload** | Code không rời khỏi máy bạn; không có backend |
@@ -86,7 +89,9 @@ assets/core.js      lõi mã hoá, không phụ thuộc thư viện
 assets/app.js       giao diện
 assets/reverse.js   công cụ đọc/dịch ngược code
 tools/cli.mjs       CLI
-tests/run-node.mjs  219 kiểm thử lõi (Node 18+)
+tests/run-node.mjs  244 kiểm thử lõi (Node 18+)
+tests/run-editor.mjs 75 kiểm thử trình soạn thảo
+tests/run-github.mjs 94 kiểm thử client GitHub (GitHub giả)
 tests/stress.mjs    80 bài kiểm thử cường độ cao
 docs/               tài liệu chi tiết
 deploy/             mẫu workflow GitHub Pages, Netlify, Vercel
@@ -96,15 +101,17 @@ examples/           script mẫu + gói demo
 ## Kiểm thử
 
 ```bash
-node tests/run-node.mjs       # 219/219 đạt — lõi mã hoá + snippet + link + ngôn ngữ
-node tools/check-static.mjs   # 77/77 — id/đường dẫn/cú pháp HTML + link + ngôn ngữ
+node tests/run-node.mjs       # 244/244 đạt — lõi mã hoá + snippet + link + ngôn ngữ + trang trắng
+node tests/run-editor.mjs     # 75/75  — số dòng, zoom, dò lỗi, thống kê
+node tests/run-github.mjs     # 94/94  — GitHub REST client (không gọi mạng thật)
+node tools/check-static.mjs   # 155/155 — id/đường dẫn/cú pháp HTML + link + ngôn ngữ + tab mới
 npm install                   # chỉ để chạy test DOM
-node tests/run-dom.mjs        # 106/106 — giao diện + gói demo (jsdom)
+node tests/run-dom.mjs        # 186/186 — giao diện + gói demo + Lập trình + GitHub (jsdom)
 node tests/stress.mjs --quick # 80/80 — cường độ cao (~20 s)
 node tests/stress.mjs --max   # như trên + tệp 1 GiB (~90 s)
 ```
 
-Tổng **482 điểm kiểm tra**.
+Tổng **834 điểm kiểm tra**.
 
 Kết quả mới nhất và chi tiết: [`docs/05-kiem-thu-va-ket-qua.md`](docs/05-kiem-thu-va-ket-qua.md).
 
@@ -129,7 +136,7 @@ Chi tiết: [`docs/02-bao-mat-gioi-han.md`](docs/02-bao-mat-gioi-han.md).
 | [02-bao-mat-gioi-han.md](docs/02-bao-mat-gioi-han.md) | Bảo mật, điểm yếu bản chất, cách dùng an toàn |
 | [03-huong-dan-su-dung.md](docs/03-huong-dan-su-dung.md) | Hướng dẫn từng bước + xử lý sự cố |
 | [04-trien-khai-mien-phi.md](docs/04-trien-khai-mien-phi.md) | GitHub Pages, Cloudflare, Netlify, Vercel |
-| [05-kiem-thu-va-ket-qua.md](docs/05-kiem-thu-va-ket-qua.md) | 482 điểm kiểm tra, số đo thật, test cường độ cao |
+| [05-kiem-thu-va-ket-qua.md](docs/05-kiem-thu-va-ket-qua.md) | 834 điểm kiểm tra, số đo thật, test cường độ cao |
 
 ## Giấy phép
 

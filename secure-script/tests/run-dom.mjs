@@ -120,7 +120,7 @@ const sampleCode = 'function hien(n){ console.log("Xin chào " + n); }\nhien("AI
 
 console.log('[1] Khởi động giao diện');
 check(!!$('encryptBtn'), 'có nút mã hoá');
-check(window.document.querySelectorAll('.view').length === 5, 'có 5 tab nội dung');
+check(window.document.querySelectorAll('.view').length === 6, 'có 6 tab nội dung');
 check(window.document.querySelector('.tabs button.active').dataset.view === 'encrypt', 'tab mặc định là Mã hoá');
 check(!!$('view-link') && !!$('linkEncrypt'), 'có tab Mã hoá link');
 check($('fileInfo').textContent.includes('chưa chọn'), 'chưa chọn tệp');
@@ -538,9 +538,339 @@ const LUAU_TEXT = [
   check(!$('encCode').textContent.includes('https://'), 'snippet ẩn vẫn không lộ link');
 }
 
-/* --------------------------------------------------------------- 7. lỗi --- */
+/* ------------------------------------------------- 7b. tab Lập trình --- */
 
-console.log('\n[7] Lỗi runtime');
+console.log('\n[7b] Tab Lập trình (số dòng · zoom · lỗi · chia đôi)');
+{
+  // jsdom không tự tải <link rel=stylesheet> ⇒ nhúng CSS thật vào để kiểm tra cả giao diện
+  const styleEl = window.document.createElement('style');
+  styleEl.textContent = fs.readFileSync(path.join(root, 'assets/style.css'), 'utf8');
+  window.document.head.appendChild(styleEl);
+
+  const tab = window.document.querySelector('[data-view="editor"]');
+  check(!!tab, 'thanh tab có mục Lập trình');
+  tab.click();
+  check($('view-editor').classList.contains('active'), 'mở được tab Lập trình');
+  check(!!globalThis.AIA_EDITOR, 'program.js đã khởi tạo (AIA_EDITOR)');
+
+  $('edName').value = 'demo.js';
+  $('edCode').value = 'function loi(a, b) {\n  if (a > b {\n    console.log("lon hon");\n  }\n}\nconsole.log(x);\n';
+  $('edCode').dispatchEvent(new window.Event('input'));
+
+  const gutter = $('edNums').textContent.split('\n');
+  check(gutter.length === 7, 'gutter có đúng 7 số dòng', String(gutter.length));
+  check(gutter[0] === '1' && gutter[6] === '7', 'gutter đánh số từ 1', gutter.join(','));
+  check($('edStats').textContent.includes('Số dòng: 7'), 'thống kê số dòng', $('edStats').textContent);
+  check($('edStats').textContent.includes('Kích thước'), 'thống kê kích thước');
+  check(/\d+(\.\d+)? (B|KB|MB)/.test($('edStats').textContent), 'kích thước có đơn vị B/KB/MB', $('edStats').textContent);
+  check(/Kích thước: \d+(\.\d+)? (B|KB|MB)/.test($('edStats').textContent), 'kích thước có số + đơn vị', $('edStats').textContent);
+
+  await waitFor(() => $('edIssues').querySelector('.issue') || $('edIssues').textContent.includes('Không thấy lỗi'), 'tự kiểm tra sau khi gõ');
+  const errCards = $('edIssues').querySelectorAll('.issue.err');
+  check(errCards.length >= 1, 'phát hiện lỗi cú pháp (thiếu ngoặc)', 'cards=' + errCards.length);
+  check($('edIssues').textContent.includes('LỖI'), 'panel lỗi ghi rõ "LỖI"');
+  check($('edSummary').textContent.includes('lỗi'), 'có dòng tổng kết lỗi', $('edSummary').textContent);
+
+  // bấm vào lỗi → nhảy tới dòng
+  const withLine = [...errCards].find((c) => c.dataset.line);
+  if (withLine) {
+    const line = Number(withLine.dataset.line);
+    withLine.click();
+    const before = $('edCode').value.slice(0, $('edCode').selectionStart);
+    check(before.split('\n').length === line, 'bấm lỗi nhảy đúng dòng ' + line, String(before.split('\n').length));
+  } else {
+    check(false, 'có lỗi kèm số dòng để bấm');
+  }
+
+  // sửa lại code đúng → hết lỗi
+  $('edCode').value = 'function ok(a, b) {\n  if (a > b) {\n    console.log("lon hon");\n  }\n}\nok(1, 2);\n';
+  $('edCode').dispatchEvent(new window.Event('input'));
+  await waitFor(() => /Không thấy lỗi/.test($('edIssues').textContent), 'sửa xong thì hết lỗi');
+  check($('edSummary').textContent.includes('0 lỗi'), 'tổng kết 0 lỗi', $('edSummary').textContent);
+
+  // zoom
+  const startFont = $('edCode').style.fontSize;
+  $('edZoomIn').click();
+  check($('edCode').style.fontSize === '14px', 'nút A+ tăng cỡ chữ', $('edCode').style.fontSize + ' (trước ' + startFont + ')');
+  check($('edZoomLabel').textContent === '108%', 'nhãn zoom cập nhật', $('edZoomLabel').textContent);
+  $('edZoomOut').click();
+  check($('edCode').style.fontSize === '13px', 'nút A− giảm cỡ chữ', $('edCode').style.fontSize);
+  document.dispatchEvent(new window.KeyboardEvent('keydown', { key: '=', ctrlKey: true, bubbles: true }));
+  check($('edCode').style.fontSize === '14px', 'Ctrl + phóng to', $('edCode').style.fontSize);
+  document.dispatchEvent(new window.KeyboardEvent('keydown', { key: '-', ctrlKey: true, bubbles: true }));
+  check($('edCode').style.fontSize === '13px', 'Ctrl − thu nhỏ', $('edCode').style.fontSize);
+  for (let i = 0; i < 40; i++) $('edZoomIn').click();
+  check($('edCode').style.fontSize === '28px', 'zoom dừng ở 28px (không phóng vô hạn)', $('edCode').style.fontSize);
+  for (let i = 0; i < 40; i++) $('edZoomOut').click();
+  check($('edCode').style.fontSize === '10px', 'zoom dừng ở 10px', $('edCode').style.fontSize);
+  $('edZoomReset').click();
+  check($('edCode').style.fontSize === '13px', 'nút 100% đưa về mặc định');
+
+  // chia đôi màn hình
+  $('edLayout').value = 'code';
+  $('edLayout').dispatchEvent(new window.Event('change'));
+  check($('edSplit').classList.contains('mode-code'), 'chọn "chỉ code"');
+  check(window.getComputedStyle($('edErrorPane')).display === 'none', 'panel lỗi bị ẩn khi chỉ xem code');
+  $('edLayout').value = 'errors';
+  $('edLayout').dispatchEvent(new window.Event('change'));
+  check($('edSplit').classList.contains('mode-errors'), 'chọn "chỉ lỗi"');
+  $('edLayout').value = 'split';
+  $('edLayout').dispatchEvent(new window.Event('change'));
+  check(!$('edSplit').classList.contains('mode-code') && !$('edSplit').classList.contains('mode-errors'), 'quay lại chia đôi');
+
+  // ẩn/hiện số dòng
+  $('edLineToggle').checked = false;
+  $('edLineToggle').dispatchEvent(new window.Event('change'));
+  check($('edGutter').hidden === true, 'tắt được số dòng');
+  $('edLineToggle').checked = true;
+  $('edLineToggle').dispatchEvent(new window.Event('change'));
+  check($('edGutter').hidden === false, 'bật lại số dòng');
+
+  // tab + phím Tab chèn 2 dấu cách
+  const ta = $('edCode');
+  ta.value = 'a';
+  ta.setSelectionRange(1, 1);
+  const tabEvt = new window.KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
+  ta.dispatchEvent(tabEvt);
+  check(ta.value === 'a  ', 'phím Tab chèn 2 dấu cách', JSON.stringify(ta.value));
+
+  // kích thước lớn: 5.000 dòng vẫn nhanh
+  const many = [];
+  for (let i = 0; i < 5000; i++) many.push('const v' + i + ' = ' + i + ';');
+  const t0 = Date.now();
+  ta.value = many.join('\n');
+  ta.dispatchEvent(new window.Event('input'));
+  const buildMs = Date.now() - t0;
+  const nums = $('edNums').textContent.split('\n');
+  check(nums.length === 5000, 'gutter 5.000 dòng', String(nums.length));
+  check(buildMs < 3000, 'dựng 5.000 dòng dưới 3 giây (' + buildMs + ' ms)');
+  check($('edStats').textContent.includes('Số dòng: 5000'), 'thống kê 5.000 dòng', $('edStats').textContent);
+  check(/Kích thước: \d+(\.\d+)? (KB|MB)/.test($('edStats').textContent), 'tệp 5.000 dòng hiện KB', $('edStats').textContent);
+
+  // "Mã hoá code này" → chuyển sang tab Mã hoá và mã hoá luôn
+  $('edCode').value = sampleCode;
+  $('edName').value = 'tu-editor.js';
+  $('edToEncrypt').click();
+  check($('view-encrypt').classList.contains('active'), 'nút "Mã hoá code này" mở tab Mã hoá');
+  check($('pasteText').value === sampleCode, 'code được đưa sang ô dán');
+  await waitFor(() => !$('resultCard').hidden && $('resStats').textContent.includes('Tự kiểm tra'), 'mã hoá ngay từ tab Lập trình');
+  check($('fileInfo').textContent.includes('tu-editor.js'), 'giữ tên tệp từ trình soạn thảo', $('fileInfo').textContent);
+
+  // quay lại tab Lập trình
+  window.document.querySelector('[data-view="editor"]').click();
+}
+
+/* ---------------------------------------- 7c. chống soi: trang trắng --- */
+
+console.log('\n[7c] Chống soi — trang trắng');
+{
+  $('cloakLink').value = 'https://mncuadaigmailcom.github.io/aiaiaitao3/secure-script/';
+  $('cloakPass').value = 'khoa-mo-test';
+  check($('cloakOut').hidden === true, 'chưa tạo thì chưa hiện kết quả');
+  $('cloakMake').click();
+  await waitFor(() => $('cloakOut').hidden === false, 'tạo được trang trắng', 30000);
+
+  const cloak = globalThis.AIA_EDITOR && globalThis.AIA_EDITOR.state.cloak;
+  check(!!cloak && !!cloak.html, 'có nội dung trang HTML');
+  check(/^<!doctype html>/i.test(cloak.html), 'là trang HTML hoàn chỉnh');
+  check(/<title><\/title>/.test(cloak.html), 'tiêu đề rỗng (không lộ chữ)');
+  check(!/>[^<]*[A-Za-zÀ-ỹ]{4,}[^<]*</.test(cloak.html.replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<style[\s\S]*?<\/style>/gi, '')), 'không có chữ hiển thị trên trang');
+  check(cloak.html.includes('#ffffff'), 'nền trắng');
+  check(!cloak.html.includes('AIALNK1.'), 'token không lộ nguyên dạng');
+  check(cloak.html.includes('aia.key.js') === false, 'không lộ tên key script dạng thường');
+  check(cloak.html.includes('https://mncuadaigmailcom.github.io') === false, 'không lộ link đích');
+  check(cloak.unlock.includes('#k='), 'có link mở kèm khoá');
+  check(cloak.unlock.includes(encodeURIComponent('khoa-mo-test')), 'khoá mở nằm trong link', cloak.unlock);
+  check($('cloakUnlock').value === cloak.unlock, 'ô link mở hiển thị đúng');
+  check($('cloakDownload').hidden === false, 'có nút tải .html');
+  check(cloak.name.endsWith('-trang-trang.html'), 'tên tệp .html', cloak.name);
+
+  // khoá trống ⇒ tự sinh khoá (không để trang trắng "câm")
+  $('cloakPass').value = '';
+  $('cloakMake').click();
+  await waitFor(() => /tự sinh/.test($('cloakStatus').textContent), 'để trống khoá thì tự sinh', 30000);
+  const auto = globalThis.AIA_EDITOR.state.cloak;
+  check(auto.unlock.length > cloak.unlock.length - 20 && auto.unlock.includes('#k='), 'vẫn có link mở khi tự sinh khoá', auto.unlock);
+}
+
+/* ------------------------------------------------- 8. hộp thoại GitHub --- */
+
+console.log('\n[8] Hộp thoại GitHub (API key · tạo dự án · sửa file · kết quả)');
+{
+  // --- GitHub giả trong RAM: không gọi mạng thật ---
+  const ghRepos = new Map();
+  const ghFiles = new Map();
+  const ghCalls = [];
+  let seq = 0;
+  const sha = () => (++seq).toString(16).padStart(40, 'b').slice(0, 40);
+  const send = (status, body) => ({ ok: status < 400, status, text: async () => (body === undefined ? '' : JSON.stringify(body)) });
+  const addRepo = (fullName, extra = {}) => {
+    const [owner, name] = fullName.split('/');
+    ghRepos.set(fullName, { name, full_name: fullName, private: true, default_branch: 'main', has_pages: false, owner: { login: owner }, ...extra });
+  };
+  addRepo('tester/da-co');
+
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init = {}) => {
+    ghCalls.push(String(url));
+    if (!String(url).startsWith('https://api.github.com')) throw new Error('gọi mạng ngoài GitHub: ' + url);
+    const method = init.method || 'GET';
+    const auth = String((init.headers || {}).Authorization || '');
+    if (auth !== 'Bearer ghp_test_token_1234567890') return send(401, { message: 'Bad credentials' });
+    const u = new URL(url);
+    const path = u.pathname.replace(/^\//, '');
+    const body = init.body ? JSON.parse(init.body) : null;
+    if (path === 'user') return send(200, { login: 'tester' });
+    if (path === 'rate_limit') return send(200, { resources: { core: { remaining: 4999 } } });
+    if (path === 'user/repos' && method === 'GET') return send(200, [...ghRepos.values()]);
+    if (path === 'user/repos' && method === 'POST') {
+      const full = 'tester/' + body.name;
+      if (ghRepos.has(full)) return send(422, { message: 'exists' });
+      addRepo(full);
+      return send(201, ghRepos.get(full));
+    }
+    const m = /^repos\/([^/]+)\/([^/]+)(?:\/(.*))?$/.exec(path);
+    if (!m) return send(404, { message: 'Not Found' });
+    const [, owner, name, rest = ''] = m;
+    const full = owner + '/' + name;
+    const repo = ghRepos.get(full);
+    if (!repo) return send(404, { message: 'Not Found' });
+    if (!rest && method === 'GET') return send(200, repo);
+    if (/^git\/trees/.test(rest)) {
+      const tree = [];
+      for (const [k, v] of ghFiles) {
+        if (!k.startsWith(full + ':')) continue;
+        tree.push({ path: k.slice(full.length + 1), type: 'blob', size: v.text.length, sha: v.sha });
+      }
+      return send(200, { tree, truncated: false });
+    }
+    if (/^contents\//.test(rest)) {
+      const filePath = decodeURIComponent(rest.slice('contents/'.length));
+      const key = full + ':' + filePath;
+      const entry = ghFiles.get(key);
+      if (method === 'GET') {
+        if (!entry) return send(404, { message: 'Not Found' });
+        let bin = '';
+        const bytes = new TextEncoder().encode(entry.text);
+        for (const b of bytes) bin += String.fromCharCode(b);
+        return send(200, { sha: entry.sha, encoding: 'base64', content: btoa(bin) });
+      }
+      if (method === 'PUT') {
+        if (entry && !body.sha) return send(422, { message: 'sha required' });
+        let text = '';
+        if (body.content) {
+          const bin = atob(body.content);
+          const bytes = new Uint8Array(bin.length);
+          for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+          text = new TextDecoder().decode(bytes);
+        }
+        const next = { text, sha: sha() };
+        ghFiles.set(key, next);
+        return send(200, { content: { sha: next.sha } });
+      }
+      if (method === 'DELETE') {
+        if (!entry) return send(404, { message: 'Not Found' });
+        ghFiles.delete(key);
+        return send(200, { commit: { sha: sha() } });
+      }
+    }
+    return send(404, { message: 'Not Found' });
+  };
+  window.confirm = () => true;
+  globalThis.confirm = () => true;
+
+  check(!!$('ghOpenBtn'), 'có nút GitHub trên thanh đầu trang');
+  $('ghOpenBtn').click();
+  check($('ghModal').hidden === false, 'mở được hộp thoại GitHub');
+  check(!$('ghPaneKey').hidden, 'tab đầu tiên là API key');
+  check(window.document.querySelector('[data-gh="key"]').classList.contains('active'), 'tab API key được chọn sẵn');
+
+  // 1 · API key
+  $('ghToken').value = 'ghp_test_token_1234567890';
+  $('ghTest').click();
+  await waitFor(() => /OK · đăng nhập tester/.test($('ghKeyStatus').textContent), 'kiểm tra token thành công', 15000);
+  check($('ghKeyStatus').textContent.includes('4999'), 'hiện hạn mức API còn lại', $('ghKeyStatus').textContent);
+  await waitFor(() => $('ghRepoSelect').options.length >= 1, 'tự tải danh sách dự án', 15000);
+  check([...$('ghRepoSelect').options].some((o) => o.value === 'tester/da-co'), 'danh sách có dự án sẵn có');
+
+  // 2 · tạo dự án mới (cấy tên mã nguồn) — tự đẩy code JS lên
+  globalThis.AIA_EDITOR.setCode('console.log("tu-github");\n', 'script.js');
+  window.document.querySelector('[data-gh="new"]').click();
+  check(!$('ghPaneNew').hidden && $('ghPaneKey').hidden, 'chuyển sang tab dự án mới');
+  $('ghNewName').value = 'editor-demo';
+  $('ghCreate').click();
+  await waitFor(() => $('ghResultOut').hidden === false, 'tạo dự án + tự đăng code', 20000);
+  check($('ghResultLink').value.includes('tester/editor-demo/blob/main/script.js'), 'link GitHub vừa tạo', $('ghResultLink').value);
+  check($('ghResultRaw').value.startsWith('https://raw.githubusercontent.com/tester/editor-demo/'), 'có link raw', $('ghResultRaw').value);
+  check($('ghResultOpen').getAttribute('href') === $('ghResultLink').value, 'nút mở trỏ đúng link');
+  check($('ghPublishStatus').textContent.includes('Đã đăng'), 'báo đã đăng', $('ghPublishStatus').textContent);
+  check(ghFiles.get('tester/editor-demo:script.js').text.includes('tu-github'), 'nội dung file trên GitHub đúng');
+  check($('ghNewStatus').textContent.includes('editor-demo') || $('ghPublishStatus').textContent.includes('editor-demo'), 'tab dự án mới báo kết quả');
+
+  // 3 · sửa file: xem bao nhiêu file, mở, sửa, thêm, xoá
+  window.document.querySelector('[data-gh="edit"]').click();
+  check(!$('ghPaneEdit').hidden, 'mở tab sửa file');
+  $('ghRepoSelect').value = 'tester/editor-demo';
+  $('ghRepoSelect').dispatchEvent(new window.Event('change'));
+  $('ghLoadFiles').click();
+  await waitFor(() => /có \d+ file/.test($('ghFileInfo').textContent), 'hiện số file của dự án', 15000);
+  check($('ghFileInfo').textContent.includes('1 file'), 'dự án có 1 file', $('ghFileInfo').textContent);
+  check([...$('ghFileSelect').options].some((o) => o.value === 'script.js'), 'liệt kê tên file');
+
+  $('ghFileSelect').value = 'script.js';
+  $('ghFileSelect').dispatchEvent(new window.Event('change'));
+  await waitFor(() => $('ghFileContent').value.includes('tu-github'), 'mở được nội dung file', 15000);
+  check($('ghFilePath').textContent === 'script.js', 'hiện đường dẫn file đang mở');
+
+  $('ghFileContent').value = 'console.log("da-sua");\n';
+  $('ghSaveFile').click();
+  await waitFor(() => /Đã lưu/.test($('ghFileStatus').textContent), 'lưu thay đổi lên GitHub', 15000);
+  check(ghFiles.get('tester/editor-demo:script.js').text.includes('da-sua'), 'nội dung mới đã ghi lên GitHub');
+
+  $('ghNewPath').value = 'assets/extra.js';
+  $('ghFileContent').value = '// extra\n';
+  $('ghAddFile').click();
+  await waitFor(() => /có 2 file/.test($('ghFileInfo').textContent), 'thêm file mới', 15000);
+  check(ghFiles.has('tester/editor-demo:assets/extra.js'), 'file mới nằm trong thư mục con');
+
+  $('ghFileSelect').value = 'assets/extra.js';
+  $('ghDeleteFile').click();
+  await waitFor(() => /có 1 file/.test($('ghFileInfo').textContent), 'xoá file', 15000);
+  check(!ghFiles.has('tester/editor-demo:assets/extra.js'), 'file đã bị xoá khỏi GitHub');
+
+  // 4 · kết quả: đăng lại từ nội dung ở tab Sửa file
+  window.document.querySelector('[data-gh="result"]').click();
+  check(!$('ghPaneResult').hidden, 'mở tab kết quả');
+  $('ghPublishPath').value = 'ban-moi.js';
+  $('ghPublish').click();
+  await waitFor(() => $('ghResultLink').value.includes('ban-moi.js'), 'đăng code lần nữa', 15000);
+  check(ghFiles.has('tester/editor-demo:ban-moi.js'), 'file mới có trên GitHub');
+  check($('ghResultLink').value.startsWith('https://github.com/tester/editor-demo/'), 'link đúng dự án');
+
+  // lỗi: chưa có token
+  $('ghToken').value = '';
+  $('ghTest').click();
+  await waitFor(() => /Chưa nhập token/.test($('ghKeyStatus').textContent), 'báo lỗi khi thiếu token', 8000);
+  check($('ghKeyStatus').textContent.includes('Chưa nhập token'), 'thông báo lỗi rõ ràng');
+
+  // tên dự án có dấu → chặn ngay, không gọi API
+  const callsBefore = ghCalls.length;
+  $('ghNewName').value = 'dự án có dấu';
+  window.document.querySelector('[data-gh="new"]').click();
+  $('ghCreate').click();
+  check(/chỉ dùng chữ/.test($('ghNewStatus').textContent), 'chặn tên dự án không hợp lệ', $('ghNewStatus').textContent);
+  check(ghCalls.length === callsBefore, 'không gọi API khi tên sai');
+
+  check(ghCalls.every((u) => u.startsWith('https://api.github.com')), 'chỉ gọi api.github.com (' + ghCalls.length + ' lần)');
+  check(!ghCalls.some((u) => u.includes('ghp_test_token')), 'token không nằm trong URL');
+  $('ghClose').click();
+  check($('ghModal').hidden === true, 'đóng được hộp thoại');
+  globalThis.fetch = realFetch;
+}
+
+/* --------------------------------------------------------------- 9. lỗi --- */
+
+console.log('\n[9] Lỗi runtime');
 const realErrors = errors.filter((e) => !/lỗi thử \(cố ý\)/.test(e));
 check(realErrors.length === 0, 'không có lỗi runtime', realErrors.join(' | '));
 
