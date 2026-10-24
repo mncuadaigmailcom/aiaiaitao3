@@ -154,3 +154,21 @@ không phải lỗi code:
 
 Đừng hứa với khách hàng rằng "không ai giải được". Hãy nói: "cần mật khẩu, và mọi
 sửa đổi đều bị phát hiện".
+
+
+## 12. "Chống soi 404" thật sự chặn được gì
+
+- **Người mở link thường** chỉ thấy trang trắng có dòng `404: Not Found`; không có
+  script, không có link, không có dấu vết sản phẩm.
+- **Người mở DevTools** vẫn thấy đúng đoạn HTML đó — nhưng trong đó **không có gì**:
+  code, khoá và địa chỉ tệp khoá đều không nằm trên trang.
+- **Khoá vẫn công khai** ở `k-<id>.txt` (đúng thiết kế: loader trong game phải tải được).
+  Ai đoán ra tên tệp và tải được nó thì có khoá — nhưng vẫn cần bản mã trong loader,
+  và với script rất lớn thì việc giải mã thủ công là bất khả thi trong thực tế.
+- **Không phải HTTP 404 thật**: GitHub Pages luôn trả 200 cho tệp có thật; chữ "404" là
+  nội dung trang. Muốn 404 thật thì phải có máy chủ riêng.
+- **Roblox/Luau**: loader cần `game:HttpGet` (executor có HTTP) và `loadstring`. Môi
+  trường không cấp hai hàm này thì loader báo lỗi rõ ràng chứ không chạy bừa.
+- **Token GitHub** nằm trong máy người dùng (`localStorage` nếu chọn nhớ). Chỉ cần
+  quyền *Contents: read/write* + *Pages: read/write* + *Administration: read/write*
+  (tạo repo). Đừng dùng token của tài khoản chính.

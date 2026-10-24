@@ -1273,13 +1273,39 @@ function useInEncrypt() {
   }
 }
 
+/** Tuỳ chọn xuất bản đang bật trên thẻ “Mã hoá + chống soi”. */
+function shipOptions() {
+  return {
+    encrypt: !$('edShipEncrypt') || $('edShipEncrypt').checked,
+    cloak: !$('edShipCloak') || $('edShipCloak').checked,
+    target: ($('edShipTarget') && $('edShipTarget').value) === 'js' ? 'js' : 'luau',
+  };
+}
+
 function openGithub() {
   const ta = editor();
   syncNameFromInput();
   commitActive();
-  if (state.bridge && typeof state.bridge.openGithub === 'function') {
-    state.bridge.openGithub({ content: ta ? ta.value : '', name: active().name });
+  const content = ta ? ta.value : '';
+  if (!content.trim()) {
+    toast('Chưa có code để đưa lên GitHub.', 'warn');
+    return;
   }
+  if (state.bridge && typeof state.bridge.openGithub === 'function') {
+    state.bridge.openGithub({ content, name: active().name, ship: shipOptions() }, 'ship');
+  }
+}
+
+/** Nhận link script từ hộp thoại GitHub rồi hiện ngay trong tab Lập trình. */
+function onShipResult(detail) {
+  const link = detail && detail.links && detail.links.scriptUrl;
+  if (!link) return;
+  if ($('edShipLink')) $('edShipLink').value = link;
+  if ($('edShipStatus')) {
+    const where = detail.owner && detail.repo ? ' · ' + detail.owner + '/' + detail.repo : '';
+    $('edShipStatus').textContent = 'đã xuất bản' + where + ' — chép link ở trên, dán vào game là chạy.';
+  }
+  toast('Đã có link script — bấm “Chép link script”.', 'ok', 6000);
 }
 
 export function editorContent() {
@@ -1536,6 +1562,25 @@ export function initProgram(bridge) {
 
   if ($('edToEncrypt')) $('edToEncrypt').addEventListener('click', useInEncrypt);
   if ($('edToGithub')) $('edToGithub').addEventListener('click', openGithub);
+  if ($('edShipGo')) $('edShipGo').addEventListener('click', openGithub);
+  if ($('edShipCopy')) {
+    $('edShipCopy').addEventListener('click', () => {
+      const value = $('edShipLink') && $('edShipLink').value;
+      if (!value) return toast('Chưa có link — bấm “Đưa lên GitHub” trước.', 'warn');
+      copy(value, 'Đã chép link script — dán vào game là chạy.');
+    });
+  }
+  if ($('edShipOpen')) {
+    $('edShipOpen').addEventListener('click', () => {
+      const value = $('edShipLink') && $('edShipLink').value;
+      if (!value) return toast('Chưa có link — bấm “Đưa lên GitHub” trước.', 'warn');
+      if (globalThis.AIA_GH) globalThis.AIA_GH.showTab('ship');
+      if (state.bridge && typeof state.bridge.openGithub === 'function') {
+        state.bridge.openGithub({ content: editor() ? editor().value : '', name: active().name, ship: shipOptions() }, 'ship');
+      }
+    });
+  }
+  document.addEventListener('aia:ship', (ev) => onShipResult(ev.detail));
   if ($('edCopy')) {
     $('edCopy').addEventListener('click', () => {
       const value = editor() ? editor().value : '';

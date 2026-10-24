@@ -379,7 +379,8 @@
           <b>kích thước tệp (B · KB · MB · GB)</b>, <b>tìm &amp; thay thế</b>, <b>định dạng code</b>,
           <b>chạy thử</b> rồi xem <b>kết quả ngay bên phải</b> + <b>console</b>, <b>tìm lỗi code</b>,
           chế độ <b>chia đôi màn hình</b> (code | kết quả/lỗi) và <b>5 ô lưu dự án</b>. Soạn xong có thể
-          <b>mã hoá ngay</b>, tạo <b>trang trắng chống soi</b>, hoặc <b>đăng lên GitHub</b>.
+          <b>mã hoá ngay</b>, tạo <b>trang trắng chống soi</b>, hoặc bật cả hai rồi bấm <b>một nút</b>:
+          trang tự đẩy lên GitHub và trả <b>link script</b> để dán vào game.
         </p>
       </div>
       <div class="pill-row">
@@ -388,6 +389,7 @@
         <span class="pill">chạy → kết quả bên phải + console</span>
         <span class="pill">tìm/thay · định dạng · 4 giao diện màu</span>
         <span class="pill">5 ô lưu dự án</span>
+        <span class="pill">mã hoá + chống soi 404 + GitHub: một nút</span>
       </div>
     </div>
 
@@ -553,6 +555,33 @@
             </div>
             <pre id="cloakPreview" class="codeout" style="max-height:120px"></pre>
           </div>
+        </div>
+
+        <div class="card" id="edShipCard">
+          <h3>Mã hoá + chống soi (một nút)</h3>
+          <p class="help">
+            Bật hai ô dưới đây rồi bấm <b>Đưa lên GitHub</b>: trang tự mã hoá code, tạo trang trắng
+            <code>404: Not Found</code>, đẩy tất cả lên GitHub và hiện <b>link script</b> để bạn sao chép.
+            Người khác mở link chỉ thấy trang trắng; dán link đó vào game thì script chạy.
+          </p>
+          <label class="check"><input type="checkbox" id="edShipEncrypt" checked> Mã hoá code (AES-256-GCM)</label>
+          <label class="check"><input type="checkbox" id="edShipCloak" checked> Chống soi (trang trắng 404)</label>
+          <div class="row tight" style="margin-top:10px">
+            <select id="edShipTarget" class="mini" title="Nơi script sẽ chạy">
+              <option value="luau" selected>Game Roblox / Luau</option>
+              <option value="js">Web / JavaScript</option>
+            </select>
+            <button class="primary small" id="edShipGo" type="button">Đưa lên GitHub</button>
+          </div>
+          <div class="field" style="margin-top:8px">
+            <label for="edShipLink">Link script vừa tạo</label>
+            <input type="text" id="edShipLink" readonly spellcheck="false" placeholder="bấm “Đưa lên GitHub” để lấy link">
+          </div>
+          <div class="row tight" style="margin-top:8px">
+            <button class="ghost small" id="edShipCopy" type="button">Chép link script</button>
+            <button class="ghost small" id="edShipOpen" type="button">Xem chi tiết</button>
+          </div>
+          <p class="help" id="edShipStatus">chưa xuất bản</p>
         </div>
 
         <div class="card">
@@ -861,8 +890,10 @@
             sai link key, snippet, <b>mã hoá link</b>, <b>nhận diện ngôn ngữ</b>, <b>trang trắng</b>, giới hạn dung lượng.</li>
           <li><code>node tests/run-editor.mjs</code> (75) · <code>node tests/run-github.mjs</code> (94, GitHub giả) ·
             <code>node tests/run-ide.mjs</code> (104) · <code>node tests/run-js.mjs</code> (53, chỉ JS + xem trước) ·
-            <code>node tools/check-static.mjs</code> (227) · <code>node tests/run-dom.mjs</code> (278) ·
-            <code>node tests/stress.mjs --quick</code> (80) — tổng <b>1155 điểm</b> kiểm tra.</li>
+            <code>node tests/run-publish.mjs</code> (103, gói mã hoá + chống soi + đẩy GitHub) ·
+            <code>node tests/run-lua.mjs</code> (31, chạy thật loader Luau trong máy ảo Lua) ·
+            <code>node tools/check-static.mjs</code> (281) · <code>node tests/run-dom.mjs</code> (307) ·
+            <code>node tests/stress.mjs --quick</code> (80) — tổng <b>1372 điểm</b> kiểm tra.</li>
           <li><code>node tools/cli.mjs --help</code> — dùng ngay trên máy.</li>
         </ul>
       </article>
@@ -909,6 +940,7 @@
       <button role="tab" data-gh="new" id="ghTabNew" type="button" aria-selected="false">2 · Mã nguồn</button>
       <button role="tab" data-gh="edit" id="ghTabEdit" type="button" aria-selected="false">3 · Sửa file</button>
       <button role="tab" data-gh="result" id="ghTabResult" type="button" aria-selected="false">4 · Kết quả</button>
+      <button role="tab" data-gh="ship" id="ghTabShip" type="button" aria-selected="false">5 · Mã hoá + chống soi</button>
     </div>
 
     <!-- 1. API key -->
@@ -1003,6 +1035,65 @@
           <button class="ghost small" id="ghResultCopy" type="button">Chép link</button>
           <a class="ghost small" id="ghResultOpen" href="#" target="_blank" rel="noopener noreferrer">Mở trên GitHub</a>
         </div>
+      </div>
+    </div>
+
+    <!-- 5. Xuất bản một nút: mã hoá + chống soi + GitHub -->
+    <div class="gh-pane" id="ghPaneShip" hidden>
+      <p class="help" style="margin-top:0">
+        Bật hai tính năng dưới đây rồi bấm <b>một nút</b>: trang tự mã hoá code, tạo trang trắng
+        <code>404: Not Found</code>, đẩy toàn bộ lên GitHub và trả về <b>link script để sao chép</b>.
+        Người khác mở link chỉ thấy trang trắng; dán chính link đó vào game thì script chạy bình thường.
+      </p>
+
+      <label class="check"><input type="checkbox" id="ghShipEncrypt" checked> <b>Mã hoá code</b> — AES-256-GCM, chỉ loader giữ khoá</label>
+      <label class="check"><input type="checkbox" id="ghShipCloak" checked> <b>Chống soi</b> — link mở ra trang trắng <code>404: Not Found</code></label>
+      <label class="check" id="ghShipWhiteTextRow"><input type="checkbox" id="ghShipWhiteText" checked> Hiện dòng chữ “404: Not Found” trên trang trắng</label>
+
+      <div class="row tight" style="margin-top:10px">
+        <select id="ghShipTarget" class="mini" title="Nơi script sẽ chạy">
+          <option value="luau" selected>Game Roblox / Luau (.lua)</option>
+          <option value="js">Web / JavaScript (.js)</option>
+        </select>
+        <input type="text" id="ghShipRepo" spellcheck="false" placeholder="tên dự án trên GitHub" style="max-width:240px" aria-label="Tên dự án">
+        <input type="text" id="ghShipDir" value="s" spellcheck="false" placeholder="thư mục" style="max-width:110px" aria-label="Thư mục">
+      </div>
+      <div class="field" style="margin-top:8px">
+        <label for="ghShipFile">Tên tệp gốc (chỉ để ghi nhớ)</label>
+        <input type="text" id="ghShipFile" value="script.lua" spellcheck="false">
+      </div>
+      <label class="check" style="margin-top:8px"><input type="checkbox" id="ghShipPublic" checked> Dự án công khai (bắt buộc để có link GitHub Pages miễn phí)</label>
+
+      <div class="row">
+        <button class="primary" id="ghShipGo" type="button">Đưa lên GitHub &amp; lấy link</button>
+        <button class="ghost small" id="ghShipWait" type="button" title="Hỏi GitHub xem trang đã build xong chưa">Kiểm tra trang đã sống</button>
+      </div>
+      <p class="help" id="ghShipStatus">chưa xuất bản</p>
+
+      <div id="ghShipOut" hidden>
+        <div class="field">
+          <label for="ghShipScriptLink">Link script — dán vào game là chạy</label>
+          <input type="text" id="ghShipScriptLink" readonly spellcheck="false">
+        </div>
+        <div class="row tight" style="margin-top:8px">
+          <button class="primary small" id="ghShipCopyScript" type="button">Chép link script</button>
+          <a class="ghost small" id="ghShipOpen" href="#" target="_blank" rel="noopener noreferrer">Mở thử link</a>
+        </div>
+        <div class="field" style="margin-top:8px">
+          <label for="ghShipPublicLink">Link công khai (người khác chỉ thấy 404)</label>
+          <input type="text" id="ghShipPublicLink" readonly spellcheck="false">
+        </div>
+        <div class="field" style="margin-top:8px">
+          <label for="ghShipKeyLink">Tệp khoá (loader tự tải, đừng chia sẻ)</label>
+          <input type="text" id="ghShipKeyLink" readonly spellcheck="false">
+        </div>
+        <div class="row tight" style="margin-top:8px">
+          <button class="ghost small" id="ghShipCopyPublic" type="button">Chép link công khai</button>
+          <button class="ghost small" id="ghShipCopyKey" type="button">Chép link khoá</button>
+          <span class="muted small" id="ghShipSummary"></span>
+        </div>
+        <pre id="ghShipFiles" class="codeout" style="max-height:140px"></pre>
+        <p class="help" id="ghShipNote"></p>
       </div>
     </div>
   </div>

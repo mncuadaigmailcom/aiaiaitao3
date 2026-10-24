@@ -296,3 +296,37 @@ Nhờ vậy `script.js` chứa Luau → `lua` → `EXEC=false` trong snippet, `R
 | `run-ten.html` | trang mở & chạy, nhập mật khẩu |
 | `README-ten.txt` | hướng dẫn ngắn cho người nhận |
 | `aia-ten.zip` | gói tất cả (nếu ≤ 256 MiB) |
+
+
+## 9. Gói xuất bản lên GitHub (mã hoá + chống soi)
+
+`assets/publish.js` biến code đang mở trong tab Lập trình thành **một thư mục** trên repo.
+Link Pages của thư mục đó là thứ duy nhất người nhận nhìn thấy.
+
+```
+<dir>/index.html      ← trang trắng: <h1>404: Not Found</h1>, không script, không link
+<dir>/k-<id>.txt      ← 32 byte khoá (base64), CHỈ loader biết địa chỉ
+<dir>/l-<id>.lua      ← loader Luau: HttpGet khoá → AES-256-GCM → loadstring
+```
+
+- `id` = 4 byte ngẫu nhiên (8 ký tự hex), sinh mỗi lần xuất bản nếu không truyền.
+- Trang trắng có `background:#fff`, `noindex,nofollow,noarchive,nosnippet`, không
+  tham chiếu tới bất kỳ tài nguyên ngoài nào.
+- Loader Lua gồm: bảng S-box, `expand_key` (Nk = 8, Nr = 14), `encrypt_block` chỉ dùng để
+  kiểm tra, `gf_mul`/GHASH, `aes_gcm_decrypt`, `b64decode`, `bytes_to_string`; URL khoá
+  được **base64** trong nguồn nên mắt thường không đọc được địa chỉ tệp khoá.
+- Với mục tiêu `js`: gói gồm `key-<id>.js` (key script `.aia`, khoá tệp bọc trong
+  `keyWrap`) và `run-<id>.js` (snippet chép-là-chạy, link khoá base64 sẵn trong snippet).
+
+`publishPlanToGithub()` tạo repo nếu chưa có (công khai, `auto_init`), ghi từng tệp
+(tự lấy `sha` khi tệp đã tồn tại), bật Pages nếu chưa bật, rồi trả link:
+
+| Trường | Ý nghĩa |
+| --- | --- |
+| `links.publicUrl` | thư mục công khai — người khác mở chỉ thấy 404 |
+| `links.scriptUrl` | link dán vào game (`…/l-<id>.lua`) |
+| `links.keyUrl` | tệp khoá (loader tự tải) |
+| `links.rawUrl` | `raw.githubusercontent.com` — dự phòng khi Pages chưa build |
+
+Giới hạn: GitHub contents API 5 MB/tệp nên `buildPublishPlan` chặn ở **4,5 MB/tệp**
+(tương đương script gốc ~2,8 MB vì base64 làm phình ~1,58×).

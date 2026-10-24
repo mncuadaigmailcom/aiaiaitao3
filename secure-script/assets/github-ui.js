@@ -23,6 +23,13 @@ import {
   fileHtmlUrl,
   fileRawUrl,
 } from './github.js';
+import {
+  buildPublishPlan,
+  publishPlanToGithub,
+  pagesBuildStatus,
+  waitForPagesBuild,
+  sanitizeDir,
+} from './publish.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -35,6 +42,9 @@ const state = {
   file: null, // { path, sha }
   published: null,
   tab: 'key',
+  ship: null, // kết quả xuất bản gần nhất
+  payload: null, // code đẩy từ tab Lập trình
+  shipOwner: '',
 };
 
 function toast(message, kind = 'info', ms) {
@@ -67,17 +77,19 @@ function showTab(name) {
     b.classList.toggle('active', on);
     b.setAttribute('aria-selected', on ? 'true' : 'false');
   });
-  const panes = { key: 'ghPaneKey', new: 'ghPaneNew', edit: 'ghPaneEdit', result: 'ghPaneResult' };
+  const panes = { key: 'ghPaneKey', new: 'ghPaneNew', edit: 'ghPaneEdit', result: 'ghPaneResult', ship: 'ghPaneShip' };
   for (const [k, id] of Object.entries(panes)) {
     const el = $(id);
     if (el) el.hidden = k !== name;
   }
   if (name === 'edit' && !state.repos.length) loadRepos();
+  if (name === 'ship') hydrateShip();
 }
 
 function openModal(tab = 'key', payload = null) {
   const modal = $('ghModal');
   if (!modal) return;
+  if (payload) state.payload = payload;
   if (payload && payload.content != null) {
     // đẩy code từ tab Lập trình sang phần nội dung file
     if ($('ghFileContent') && !$('ghFileContent').value) $('ghFileContent').value = payload.content;
@@ -85,6 +97,11 @@ function openModal(tab = 'key', payload = null) {
     if (payload.name && $('ghNewName') && !$('ghNewName').value) {
       $('ghNewName').value = payload.name.replace(/\.[a-z0-9]+$/i, '');
     }
+  }
+  if (payload && payload.ship) {
+    if ($('ghShipEncrypt')) $('ghShipEncrypt').checked = payload.ship.encrypt !== false;
+    if ($('ghShipCloak')) $('ghShipCloak').checked = payload.ship.cloak !== false;
+    if (payload.ship.target && $('ghShipTarget')) $('ghShipTarget').value = payload.ship.target === 'js' ? 'js' : 'luau';
   }
   modal.hidden = false;
   showTab(tab);
@@ -516,6 +533,204 @@ async function publish() {
   }
 }
 
+
+/* ================================================== xuất bản một nút --- */
+
+/** Điền sẵn thư mục / tên dự án / loại tệp cho tab xuất bản. */
+function hydrateShip() {
+  const payload = state.payload || publishContent();
+  const name = (payload && payload.name) || 'script.lua';
+  if ($('ghShipFile') && !$('ghShipFile').value.trim()) $('ghShipFile').value = name;
+  if ($('ghShipTarget') && /\.(lua|luau|rbxlx?)$/i.test(name)) $('ghShipTarget').value = 'luau';
+  if ($('ghShipRepo') && !$('ghShipRepo').value.trim()) {
+    const fallback = (state.repo && state.repo.name) || name.replace(/\.[a-z0-9]+$/i, '') || 'aia-script';
+    $('ghShipRepo').value = fallback.replace(/[^A-Za-z0-9._-]/g, '-').slice(0, 100) || 'aia-script';
+  }
+  if ($('ghShipDir') && !$('ghShipDir').value.trim()) $('ghShipDir').value = 's';
+  syncShipCloakUi();
+  if (state.ship) renderShip(state.ship);
+}
+
+/** Ẩn/hiện phần phụ thuộc khi bật/tắt chống soi. */
+function syncShipCloakUi() {
+  const on = !!(($('ghShipCloak') && $('ghShipCloak').checked));
+  if ($('ghShipWhiteTextRow')) $('ghShipWhiteTextRow').hidden = !on;
+  if ($('ghShipWhiteText')) $('ghShipWhiteText').disabled = !on;
+  const enc = !!($('ghShipEncrypt') && $('ghShipEncrypt').checked);
+  if ($('ghShipKeyLink') && $('ghShipKeyLink').closest('.field')) {
+    $('ghShipKeyLink').closest('.field').hidden = !enc;
+  }
+}
+
+/** Chủ repo: ưu tiên dự án đang chọn, nếu chưa có thì hỏi GitHub (/user). */
+async function resolveShipOwner() {
+  if (state.shipOwner) return state.shipOwner;
+  if (state.repo && state.repo.owner) {
+    state.shipOwner = state.repo.owner;
+    return state.shipOwner;
+  }
+  const me = await client().me();
+  state.shipOwner = (me && me.login) || '';
+  return state.shipOwner;
+}
+
+
+/** Báo cho tab Lập trình biết link vừa có (CustomEvent có thể vắng ở môi trường test). */
+function notifyShip(detail) {
+  if (typeof document === 'undefined' || !document.dispatchEvent) return;
+  const view = document.defaultView;
+  const CE = (view && view.CustomEvent) || (typeof CustomEvent === 'function' ? CustomEvent : null);
+  try {
+    if (CE) document.dispatchEvent(new CE('aia:ship', { detail }));
+    else if (typeof document.createEvent === 'function') {
+      const ev = document.createEvent('CustomEvent');
+      ev.initCustomEvent('aia:ship', false, false, detail);
+      document.dispatchEvent(ev);
+    }
+  } catch {
+    /* môi trường không hỗ trợ sự kiện — bỏ qua, link vẫn hiện trong hộp thoại */
+  }
+}
+
+function renderShip(res) {
+  state.ship = res;
+  const out = $('ghShipOut');
+  if (out) out.hidden = false;
+  const links = res.links || {};
+  if ($('ghShipScriptLink')) $('ghShipScriptLink').value = links.scriptUrl || '';
+  if ($('ghShipPublicLink')) $('ghShipPublicLink').value = links.publicUrl || '(chưa bật chống soi)';
+  if ($('ghShipKeyLink')) $('ghShipKeyLink').value = links.keyUrl || '(không dùng khoá)';
+  if ($('ghShipOpen')) $('ghShipOpen').href = links.scriptUrl || '#';
+  if ($('ghShipSummary')) {
+    const total = (res.files || []).reduce((n, f) => n + (f.size || 0), 0);
+    $('ghShipSummary').textContent =
+      (res.files || []).length + ' tệp · ' + fmtSize(total) + ' · ' + res.owner + '/' + res.repo;
+  }
+  if ($('ghShipFiles')) {
+    $('ghShipFiles').textContent = (res.files || [])
+      .map((f) => (f.updated ? '↻ ' : '+ ') + f.path + '  (' + fmtSize(f.size || 0) + ')')
+      .join('\n');
+  }
+  if ($('ghShipNote')) $('ghShipNote').textContent = res.note || '';
+  syncShipCloakUi();
+
+  // đẩy kết quả về tab Lập trình
+  const detail = { links, files: res.files, note: res.note, owner: res.owner, repo: res.repo };
+  if ($('edShipLink')) $('edShipLink').value = links.scriptUrl || '';
+  notifyShip(detail);
+  return res;
+}
+
+/** Nút chính: mã hoá + chống soi + đẩy lên GitHub + trả link. */
+async function shipToGithub() {
+  const status = $('ghShipStatus');
+  const btn = $('ghShipGo');
+  const payload = state.payload && state.payload.content ? state.payload : publishContent();
+  const code = (payload && payload.content) || '';
+  if (!code.trim()) {
+    setStatus(status, 'Chưa có code — mở tab Lập trình và dán code trước.', 'bad');
+    toast('Chưa có code để xuất bản.', 'warn');
+    return null;
+  }
+  if (!currentToken()) {
+    showTab('key');
+    setStatus(status, 'Cần API key trước (tab 1).', 'bad');
+    return null;
+  }
+  const repoName = (($('ghShipRepo') && $('ghShipRepo').value.trim()) || '').replace(/^\/+|\/+$/g, '');
+  const check = validateRepoName(repoName);
+  if (!check.ok) {
+    setStatus(status, check.message, 'bad');
+    return null;
+  }
+  const encrypt = !$('ghShipEncrypt') || $('ghShipEncrypt').checked;
+  const cloak = !$('ghShipCloak') || $('ghShipCloak').checked;
+  const whiteText = !$('ghShipWhiteText') || $('ghShipWhiteText').checked;
+  const target = ($('ghShipTarget') && $('ghShipTarget').value) === 'js' ? 'js' : 'luau';
+  const dir = sanitizeDir(($('ghShipDir') && $('ghShipDir').value) || 's', 's');
+  const rawName = ($('ghShipFile') && $('ghShipFile').value.trim()) || '';
+  // tên tệp phải khớp đích: .js cho web, .lua cho game (để header ghi đúng ngôn ngữ)
+  const stem = rawName.replace(/\.[a-z0-9]+$/i, '') || (target === 'js' ? 'script' : 'script');
+  const fileName =
+    target === 'js'
+      ? /\.(m?js|cjs)$/i.test(rawName) ? rawName : stem + '.js'
+      : /\.(lua|luau)$/i.test(rawName) ? rawName : stem + '.lua';
+  const publicRepo = !$('ghShipPublic') || $('ghShipPublic').checked;
+
+  if (btn) btn.disabled = true;
+  setStatus(status, 'đang mã hoá…');
+  try {
+    const owner = await resolveShipOwner();
+    if (!owner) throw new GithubError('Không đọc được tài khoản GitHub từ token.', { code: 'GH_NO_USER' });
+
+    const plan = await buildPublishPlan({
+      code,
+      target,
+      owner,
+      repo: repoName,
+      branch: 'main',
+      dir,
+      whiteText,
+      cloak,
+      encrypt,
+      fileName,
+      passphrase: '',
+    });
+
+    const res = await publishPlanToGithub({
+      plan,
+      client: client(),
+      publicRepo,
+      onProgress: (m) => setStatus(status, m),
+    });
+
+    setStatus(
+      status,
+      'Xong · ' + res.files.length + ' tệp đã lên ' + res.owner + '/' + res.repo + '. Link ở dưới — bấm “Chép link script”.',
+      'ok',
+    );
+    renderShip(res);
+    saveLastRepo({ owner: res.owner, name: res.repo, fullName: res.owner + '/' + res.repo, branch: res.branch });
+    toast('Đã đưa lên GitHub · link script đã sẵn sàng để chép.', 'ok', 6000);
+
+    // kiểm tra trang đã build chưa (không chặn nút)
+    if (res.pages && res.pages.enabled) {
+      waitForPagesBuild(client(), res.owner, res.repo, {
+        timeoutMs: 36000,
+        intervalMs: 6000,
+        onTick: (b) => {
+          if (b.status === 'built') setStatus(status, 'GitHub Pages đã build xong — link sống ngay bây giờ.', 'ok');
+        },
+      }).then((b) => {
+        if (b.status === 'errored') setStatus(status, 'Pages build lỗi — kiểm tra repo, link raw vẫn dùng được: ' + res.links.rawUrl, 'bad');
+        else if (b.status !== 'built') setStatus(status, 'Đã đẩy xong. Pages còn đang build (thường 30–90 giây), link vẫn đúng.', 'ok');
+      });
+    }
+    return res;
+  } catch (err) {
+    setStatus(status, errText(err), 'bad');
+    toast(errText(err), 'bad', 9000);
+    return null;
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+/** Nút “Kiểm tra trang đã sống”. */
+async function checkShipPages() {
+  const res = state.ship;
+  if (!res) {
+    setStatus($('ghShipStatus'), 'Chưa xuất bản lần nào.', 'warn');
+    return null;
+  }
+  setStatus($('ghShipStatus'), 'đang hỏi GitHub…');
+  const st = await pagesBuildStatus(client(), res.owner, res.repo);
+  if (st.status === 'built') setStatus($('ghShipStatus'), 'Trang đã build xong — mở link là chạy.', 'ok');
+  else if (st.status === 'building') setStatus($('ghShipStatus'), 'GitHub vẫn đang build (thường 30–90 giây).', 'warn');
+  else setStatus($('ghShipStatus'), 'Chưa có thông tin build: ' + (st.error || st.status), 'warn');
+  return st;
+}
+
 /* ------------------------------------------------------------- nối nút --- */
 
 export function initGithub(bridge) {
@@ -572,6 +787,31 @@ export function initGithub(bridge) {
       publish();
     });
   }
+  if ($('ghShipGo')) $('ghShipGo').addEventListener('click', () => shipToGithub());
+  if ($('ghShipWait')) $('ghShipWait').addEventListener('click', () => checkShipPages());
+  if ($('ghShipCloak')) $('ghShipCloak').addEventListener('change', syncShipCloakUi);
+  if ($('ghShipEncrypt')) $('ghShipEncrypt').addEventListener('change', syncShipCloakUi);
+  if ($('ghShipCopyScript')) {
+    $('ghShipCopyScript').addEventListener('click', () => {
+      const v = $('ghShipScriptLink') && $('ghShipScriptLink').value;
+      if (!v) return toast('Chưa có link script.', 'warn');
+      copy(v, 'Đã chép link script — dán vào game là chạy.');
+    });
+  }
+  if ($('ghShipCopyPublic')) {
+    $('ghShipCopyPublic').addEventListener('click', () => {
+      const v = $('ghShipPublicLink') && $('ghShipPublicLink').value;
+      if (!v) return toast('Chưa có link công khai.', 'warn');
+      copy(v, 'Đã chép link công khai.');
+    });
+  }
+  if ($('ghShipCopyKey')) {
+    $('ghShipCopyKey').addEventListener('click', () => {
+      const v = $('ghShipKeyLink') && $('ghShipKeyLink').value;
+      if (!v) return toast('Không có tệp khoá.', 'warn');
+      copy(v, 'Đã chép link tệp khoá (đừng chia sẻ).');
+    });
+  }
   if ($('ghResultCopy')) {
     $('ghResultCopy').addEventListener('click', () => {
       const value = $('ghResultLink') && $('ghResultLink').value;
@@ -597,6 +837,9 @@ export function initGithub(bridge) {
     addFile,
     deleteFile,
     publish,
+    ship: shipToGithub,
+    checkShipPages,
+    renderShip,
     state,
     helpers: { GithubError, explainStatus },
   };

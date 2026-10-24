@@ -7,11 +7,13 @@ cd secure-script
 node tests/run-node.mjs      # 244 kiểm thử lõi (không cần cài gì)
 node tests/run-editor.mjs    # 75 kiểm thử lõi trình soạn thảo (không cần cài gì)
 node tests/run-github.mjs    # 94 kiểm thử client GitHub với GitHub giả (không gọi mạng)
-node tools/check-static.mjs  # 155 kiểm tra tĩnh HTML ↔ app.js/program.js/github-ui.js
+node tests/run-publish.mjs   # 103 kiểm thử gói xuất bản: trang 404 + loader + đẩy GitHub
+node tools/check-static.mjs  # 281 kiểm tra tĩnh HTML ↔ app.js/program.js/github-ui.js/publish.js
 node tools/cli.mjs selftest  # kiểm tra nhanh CLI
 
 npm install                  # chỉ cần cho test DOM (jsdom)
-node tests/run-dom.mjs       # 186 kiểm thử giao diện + gói demo + Lập trình + GitHub
+node tests/run-dom.mjs       # 307 kiểm thử giao diện + gói demo + Lập trình + GitHub + xuất bản
+node tests/run-lua.mjs       # 31 kiểm thử chạy THẬT loader Luau trong fengari
 node tests/stress.mjs --quick   # 80 bài kiểm thử cường độ cao (~20 s)
 ```
 
@@ -41,12 +43,14 @@ GitHub : 94 đạt · 0 lỗi
 
 Lõi không gian làm việc (tests/run-ide.mjs): 104 đạt · 0 lỗi
 Chỉ JavaScript + xem trước (tests/run-js.mjs): 53 đạt · 0 lỗi
-Kiểm tra tĩnh (tools/check-static.mjs): 227 đạt · 0 lỗi
-Kiểm thử DOM  (tests/run-dom.mjs)     : 278 đạt · 0 lỗi
+Gói xuất bản (tests/run-publish.mjs)  : 103 đạt · 0 lỗi
+Loader Luau (tests/run-lua.mjs)       : 31 đạt · 0 lỗi (chạy thật trong fengari)
+Kiểm tra tĩnh (tools/check-static.mjs): 281 đạt · 0 lỗi
+Kiểm thử DOM  (tests/run-dom.mjs)     : 307 đạt · 0 lỗi
 Kiểm thử cường độ cao (stress.mjs --quick): 80/80 đạt · 0 lỗi · ~18 s
 ```
 
-Tổng: **1155 điểm kiểm tra đạt** (244 + 75 + 94 + 104 + 53 + 227 + 278 + 80).
+Tổng: **1372 điểm kiểm tra đạt** (244 + 75 + 94 + 104 + 53 + 103 + 31 + 281 + 307 + 80).
 
 ## 3. Chi tiết từng nhóm
 
@@ -232,6 +236,37 @@ Chỉ riêng tag: 128 B = **0,0015 %**.
 Worker được thay bằng lớp giả (jsdom không có Worker), nên bước này kiểm tra **dây nối
 giao diện**, không kiểm tra việc thực thi code thật trong Worker — phần đó do test lõi
 và key script đảm nhiệm.
+
+
+
+### [7g] Gói xuất bản "một nút" (`tests/run-publish.mjs`, 103)
+
+- Trang trắng: có `404: Not Found`, nền `#fff`, **không** script, **không** link ra ngoài,
+  escape tiêu đề; tuỳ chọn ẩn chữ 404.
+- `encryptForGame()`: khoá 32 B, nonce 12 B, tag 16 B, `Node:crypto` giải mã lại đúng từng
+  ký tự; mỗi lần xuất bản một khoá mới; 1,5 MB code mã hoá xong < 5 s.
+- Gói Luau: đúng tên `k-<id>.txt` + `l-<id>.lua`, loader **không** chứa bản rõ, **không**
+  chứa link khoá đọc được, **không** chứa khoá, không lẫn cú pháp JavaScript.
+- Gói JS: `key-<id>.js` + `run-<id>.js`, cả hai **hợp lệ cú pháp** (`node --check`),
+  snippet gọi `AIA_UNLOCK` (tên bị base64), link khoá được base64 trong snippet.
+- `publishPlanToGithub()` với GitHub giả: tự tạo repo công khai, ghi 3 tệp, lần 2 là
+  **cập nhật** (gửi `sha`) chứ không tạo trùng, bật Pages, link đúng, Pages bị chặn 403
+  → vẫn trả link raw + ghi chú, `createIfMissing=false` → lỗi 404.
+- Giới hạn: 4,5 MB/tệp → báo lỗi kèm cách xử lý (script gốc ~2,8 MB).
+
+### [7h] Loader Luau chạy thật (`tests/run-lua.mjs`, 31)
+
+Loader do `buildLuaLoader()` sinh ra được **chạy trong máy ảo Lua thật** (fengari), với
+`game:HttpGet` giả lập Roblox:
+
+- giải mã đúng AES-256-GCM, `print` của script gốc vẫn ra đúng;
+- Unicode và script ~25 KB giải mã chính xác;
+- chỉ tải khoá **1 lần**, đúng URL (đã base64 trong nguồn);
+- sai khoá / sửa 1 byte bản mã → chặn trước khi chạy, không `loadstring` bản rác;
+- thiếu `HttpGet` → báo `AIA: khong tai duoc khoa`.
+
+Con số này đo trong máy ảo JavaScript (chậm hơn Luau thật nhiều lần), nên chỉ dùng để
+chứng minh **tính đúng**, không dùng để suy ra tốc độ trong Roblox.
 
 ## 4. Kiểm tra tĩnh giao diện
 

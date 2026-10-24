@@ -83,17 +83,24 @@ secure-script/
 │   ├── program.js           # tab Lập trình: số dòng, zoom, panel lỗi, trang trắng
 │   ├── editor.js            # lõi soạn thảo: phân tích lỗi, thống kê, dò ngoặc (thuần JS)
 │   ├── github.js            # GitHub REST client + base64 + kiểm tra tên/đường dẫn
-│   ├── github-ui.js         # hộp thoại GitHub 4 tab (API key · dự án · sửa file · kết quả)
+│   ├── github-ui.js         # hộp thoại GitHub 5 tab (API key · dự án · sửa file · kết quả · xuất bản)
+│   ├── ide.js               # lõi tab Lập trình: nhiều tệp, tìm/thay, ô lưu, ZIP (chỉ JS)
+│   ├── publish.js           # gói xuất bản: trang trắng 404 + khoá + loader + đẩy GitHub
+│   ├── lua-loader.js        # loader Luau: AES-256-GCM thuần Lua, HttpGet khoá, loadstring
 │   ├── reverse.js           # dịch ngược / phân tích
 │   └── style.css
 ├── tools/
 │   ├── cli.mjs              # mã hoá/giải mã bằng dòng lệnh
 │   └── check-static.mjs     # kiểm tra id/đường dẫn trong HTML
 ├── aia.key.js               # KEY SCRIPT DÙNG CHUNG (1 link cho mọi lần mã hoá)
-├── tests/run-dom.mjs        # 186 kiểm thử giao diện (jsdom)
+├── tests/run-dom.mjs        # 307 kiểm thử giao diện (jsdom)
 ├── tests/run-node.mjs       # 244 kiểm thử lõi
 ├── tests/run-editor.mjs     # 75 kiểm thử lõi trình soạn thảo
+├── tests/run-ide.mjs        # 104 kiểm thử lõi tab Lập trình
+├── tests/run-js.mjs         # 53 kiểm thử chỉ-JS + khung xem trước
 ├── tests/run-github.mjs     # 94 kiểm thử client GitHub (GitHub giả)
+├── tests/run-publish.mjs    # 103 kiểm thử gói xuất bản (mã hoá + 404 + GitHub)
+├── tests/run-lua.mjs        # 31 kiểm thử chạy thật loader Luau (fengari)
 ├── tests/stress.mjs         # 80 bài kiểm thử cường độ cao
 ├── examples/                # script mẫu + gói demo
 ├── docs/                    # 6 tài liệu
@@ -107,11 +114,13 @@ Chạy `node tests/run-node.mjs` (Node 22, WebCrypto thật):
 - **244/244** kiểm thử lõi + **75/75** lõi soạn thảo + **94/94** client GitHub +
   **104/104** lõi tab Lập trình (`run-ide.mjs`) + **53/53** phần **chỉ JavaScript**
   và **khung xem trước** (`run-js.mjs`).
-- **278/278** kiểm thử giao diện trên DOM ả (jsdom) — gồm cả **gói demo phát hành kèm**,
+- **307/307** kiểm thử giao diện trên DOM ả (jsdom) — gồm cả **gói demo phát hành kèm**,
   tab **Lập trình** (nhiều tệp, tìm/thay, định dạng, chạy ra kết quả bên phải, console,
-  tự chạy, 5 ô lưu, ZIP), **trang trắng chống soi** và **hộp thoại GitHub** —
-  **227/227** kiểm tra tĩnh, và **80/80** bài **kiểm thử cường độ cao**.
-  Tổng **1155 điểm kiểm tra**.
+  tự chạy, 5 ô lưu, ZIP), **trang trắng chống soi**, **hộp thoại GitHub** và **luồng
+  xuất bản một nút** (mã hoá + chống soi + đẩy tệp + link script) —
+  **281/281** kiểm tra tĩnh, **103/103** kiểm thử gói xuất bản,
+  **31/31** kiểm thử chạy thật loader Luau trong fengari, và **80/80** bài
+  **kiểm thử cường độ cao**. Tổng **1372 điểm kiểm tra**.
 - Vòng lặp đúng với khối 64 KiB / 256 KiB / 1 MiB; tệp rỗng; tệp chia hết khối.
 - Sai mật khẩu, sửa link key, sửa 1 bit, cắt tệp, ghép thêm, đảo khối, sai magic →
   đều bị chặn.
@@ -175,3 +184,29 @@ Chạy `node tests/run-node.mjs` (Node 22, WebCrypto thật):
 - MDN `AesGcmParams` — IV phải duy nhất cho mỗi lần mã hoá.
 - GitHub Docs — GitHub Pages: site ≤ 1 GB, băng thông mềm 100 GB/tháng, 10 build/giờ.
 - Cloudflare Pages — 20.000 tệp, 25 MiB/tệp, static request miễn phí.
+
+
+## 9. Bản bổ sung: xuất bản một nút (mã hoá + chống soi + GitHub)
+
+Yêu cầu: *"trong phần lập trình có thêm mã hoá code và chống soi code; người khác mở link
+chỉ thấy trang trắng 404; lấy link đó dán vào game thì script chạy; bật hai tính năng rồi
+đưa lên GitHub thì tự động làm hết, chỉ cần sao chép link"*.
+
+Đã làm:
+
+1. `assets/publish.js` — lõi mới: `buildWhitePage` (trang trắng 404), `encryptForGame`
+   (AES-256-GCM bằng WebCrypto), `buildLuauBundle` (tệp khoá + loader Lua),
+   `buildJsBundle` (dùng lại `.aia` + key script cũ), `buildPublishPlan` (gói tệp + link),
+   `publishPlanToGithub` (tự tạo repo, ghi tệp, bật Pages), `waitForPagesBuild`.
+2. `assets/lua-loader.js` — loader Luau tự chứa: giải mã AES-256-GCM bằng thuật toán
+   thuần Luau, tải khoá bằng `game:HttpGet`, `loadstring` bản rõ. Không phụ thuộc thư viện.
+3. Hộp thoại GitHub thêm **tab 5 · Mã hoá + chống soi**: hai ô bật/tắt + nút duy nhất
+   “Đưa lên GitHub & lấy link”, hiện link script / link công khai / link khoá để sao chép.
+4. Tab Lập trình thêm thẻ **Mã hoá + chống soi (một nút)** ngay cột phải: cùng hai ô,
+   cùng một nút; xuất bản xong link hiện luôn trong tab.
+5. Chống phình: bản mã AES-GCM **không tăng byte nào**; base64 của loader làm phình
+   ~1,58×; chặn ở 4,5 MB/tệp (giới hạn GitHub contents API).
+
+Điều **không** làm được (và đã ghi rõ trong tài liệu 02): GitHub Pages luôn trả HTTP 200
+cho tệp có thật, nên “404” là **nội dung trang**, không phải mã trạng thái thật; và
+người mở DevTools vẫn thấy đúng đoạn HTML trắng đó (nhưng trong đó không có gì).

@@ -1124,9 +1124,168 @@ console.log('\n[8] Hộp thoại GitHub (API key · tạo dự án · sửa file
   globalThis.fetch = realFetch;
 }
 
-/* --------------------------------------------------------------- 9. lỗi --- */
+/* ------------------------- 9. xuất bản một nút: mã hoá + chống soi --- */
 
-console.log('\n[9] Lỗi runtime');
+console.log('\n[9] Xuất bản một nút: mã hoá + chống soi + GitHub');
+{
+  const files = new Map(); // 'owner/repo/path' -> text
+  const pages = new Map(); // 'owner/repo' -> {html_url}
+  const calls = [];
+  let repoExists = false;
+  const TOKEN = 'ghp_ship_token_1234567890';
+  const send = (status, body) =>
+    ({ ok: status < 400, status, text: async () => (body === undefined ? '' : JSON.stringify(body)) });
+
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init = {}) => {
+    calls.push({ url: String(url), method: init.method || 'GET' });
+    if (!String(url).startsWith('https://api.github.com')) throw new Error('gọi mạng ngoài GitHub: ' + url);
+    const auth = String((init.headers || {}).Authorization || '');
+    if (auth !== 'Bearer ' + TOKEN) return send(401, { message: 'Bad credentials' });
+    const u = new URL(url);
+    const path = u.pathname.replace(/^\//, '');
+    const body = init.body ? JSON.parse(init.body) : null;
+    const method = init.method || 'GET';
+
+    if (path === 'user') return send(200, { login: 'tester' });
+    if (path === 'user/repos' && method === 'POST') {
+      repoExists = true;
+      return send(201, { name: body.name, full_name: 'tester/' + body.name, owner: { login: 'tester' }, default_branch: 'main', private: !!body.private, has_pages: false });
+    }
+    const m = /^repos\/([^/]+)\/([^/]+)(?:\/(.*))?$/.exec(path);
+    if (!m) return send(404, { message: 'Not Found' });
+    const [, owner, name, rest = ''] = m;
+    const full = owner + '/' + name;
+    const repo = {
+      name,
+      full_name: full,
+      owner: { login: owner },
+      default_branch: 'main',
+      private: false,
+      has_pages: pages.has(full),
+    };
+    if (!repoExists) return send(404, { message: 'Not Found' });
+    if (!rest && method === 'GET') return send(200, repo);
+
+    if (rest === 'pages' && method === 'GET') {
+      if (!pages.has(full)) return send(404, { message: 'Not Found' });
+      return send(200, pages.get(full));
+    }
+    if (rest === 'pages' && method === 'POST') {
+      if (body.source.branch !== 'main' || body.source.path !== '/') return send(422, { message: 'bad source' });
+      pages.set(full, { html_url: 'https://' + owner + '.github.io/' + name + '/', status: 'building' });
+      return send(201, pages.get(full));
+    }
+    if (rest === 'pages/builds/latest') {
+      return send(200, { status: pages.has(full) ? 'built' : 'errored', updated_at: '2026-01-01T00:00:00Z' });
+    }
+    if (/^contents\//.test(rest)) {
+      const filePath = decodeURIComponent(rest.slice('contents/'.length));
+      const key = full + '/' + filePath;
+      if (method === 'GET') {
+        if (!files.has(key)) return send(404, { message: 'Not Found' });
+        return send(200, { sha: 'sha-' + key.length, content: Buffer.from(files.get(key), 'utf8').toString('base64'), encoding: 'base64', type: 'file' });
+      }
+      if (method === 'PUT') {
+        const text = Buffer.from(body.content, 'base64').toString('utf8');
+        files.set(key, text);
+        return send(201, { content: { sha: 'sha-' + key.length }, commit: { sha: 'c1' } });
+      }
+    }
+    return send(404, { message: 'Not Found' });
+  };
+
+  try {
+    $('ghToken').value = TOKEN;
+    $('edCode').value = 'local Players = game:GetService("Players")\nprint("xin chào")';
+    $('edToGithub').click();
+    await waitFor(() => !$('ghModal').hidden, 'mở hộp thoại GitHub', 8000);
+    check(!$('ghPaneShip').hidden, 'mở thẳng tab “Mã hoá + chống soi”');
+    check($('ghShipEncrypt').checked && $('ghShipCloak').checked, 'hai tính năng bật sẵn');
+
+    $('ghShipRepo').value = 'game-hub';
+    $('ghShipDir').value = 's';
+    $('ghShipTarget').value = 'luau';
+    $('ghShipFile').value = 'script.lua';
+
+    $('ghShipCloak').checked = false;
+    $('ghShipCloak').dispatchEvent(new window.Event('change'));
+    check($('ghShipWhiteTextRow').hidden === true, 'tắt chống soi → ẩn tuỳ chọn chữ 404');
+    $('ghShipCloak').checked = true;
+    $('ghShipCloak').dispatchEvent(new window.Event('change'));
+    check($('ghShipWhiteTextRow').hidden === false, 'bật chống soi → hiện tuỳ chọn chữ 404');
+
+    let shipEvents = 0;
+    window.document.addEventListener('aia:ship', () => { shipEvents++; });
+    $('ghShipGo').click();
+    await waitFor(() => $('ghShipScriptLink').value.includes('.lua'), 'xuất bản xong', 20000);
+    check(shipEvents >= 1, 'bắn sự kiện aia:ship cho tab Lập trình', String(shipEvents));
+
+    const scriptLink = $('ghShipScriptLink').value;
+    check(/^https:\/\/tester\.github\.io\/game-hub\/s\/l-[0-9a-f]{8}\.lua$/.test(scriptLink), 'link script đúng dạng', scriptLink);
+    check(pages.has('tester/game-hub'), 'đã bật GitHub Pages cho dự án');
+    check(calls.some((c) => c.method === 'POST' && c.url.endsWith('/user/repos')), 'tự tạo dự án trên GitHub');
+    const repoFiles = [...files.keys()].filter((k) => k.startsWith('tester/game-hub/')).map((k) => k.split('/').slice(2).join('/'));
+    check(repoFiles.length === 3, 'đẩy đủ 3 tệp', repoFiles.join(', '));
+    check(repoFiles.includes('s/index.html'), 'có trang trắng index.html');
+    check(files.get('tester/game-hub/s/index.html').includes('404: Not Found'), 'trang công khai hiện 404');
+    check(!/aes_gcm|xin chào/.test(files.get('tester/game-hub/s/index.html')), 'trang công khai không lộ gì');
+    const keyName = repoFiles.find((f) => /^s\/k-[0-9a-f]{8}\.txt$/.test(f));
+    check(!!keyName, 'có tệp khoá k-<id>.txt', repoFiles.join(', '));
+    check(Buffer.from(files.get('tester/game-hub/' + keyName), 'base64').length === 32, 'tệp khoá đúng 32 byte');
+    const loaderName = repoFiles.find((f) => /^s\/l-[0-9a-f]{8}\.lua$/.test(f));
+    const loaderText = files.get('tester/game-hub/' + loaderName);
+    check(loaderText.includes('aes_gcm_decrypt'), 'loader giải mã trong game');
+    check(!loaderText.includes('xin chào'), 'loader không chứa bản rõ');
+    check(!loaderText.includes(files.get('tester/game-hub/' + keyName)), 'loader không chứa khoá');
+    check(scriptLink.endsWith('/' + loaderName.split('/').pop()), 'link script trỏ đúng loader');
+
+    check($('ghShipPublicLink').value === 'https://tester.github.io/game-hub/s/', 'hiện link công khai', $('ghShipPublicLink').value);
+    check($('ghShipKeyLink').value.endsWith('/' + keyName.split('/').pop()), 'hiện link tệp khoá');
+    check($('ghShipOut').hidden === false, 'hiện khung kết quả để sao chép');
+    check($('ghShipSummary').textContent.includes('3 tệp'), 'ghi rõ số tệp đã đẩy', $('ghShipSummary').textContent);
+    check($('edShipLink').value === scriptLink, 'link cũng hiện ngay trong tab Lập trình');
+    check(/đã xuất bản/.test($('edShipStatus').textContent), 'tab Lập trình báo đã xuất bản', JSON.stringify($('edShipStatus').textContent));
+
+    // đẩy lần 2: cập nhật, không tạo trùng
+    const postsBefore = calls.filter((c) => c.method === 'POST' && c.url.endsWith('/user/repos')).length;
+    $('ghShipGo').click();
+    await waitFor(() => calls.filter((c) => c.method === 'PUT').length >= 6, 'xuất bản lần 2', 20000);
+    const postsAfter = calls.filter((c) => c.method === 'POST' && c.url.endsWith('/user/repos')).length;
+    check(postsAfter === postsBefore, 'lần 2 không tạo lại dự án');
+
+    // tắt mã hoá: chỉ đẩy script gốc + trang 404
+    $('ghShipEncrypt').checked = false;
+    $('ghShipEncrypt').dispatchEvent(new window.Event('change'));
+    $('ghShipRepo').value = 'plain-demo';
+    repoExists = true;
+    $('ghShipGo').click();
+    await waitFor(
+      () => [...files.keys()].some((k) => k.startsWith('tester/plain-demo/s/script-')),
+      'xuất bản không mã hoá',
+      20000,
+    );
+    const plainKey = [...files.keys()].find((k) => k.startsWith('tester/plain-demo/s/script-'));
+    check(files.get(plainKey).includes('xin chào'), 'tắt mã hoá → đẩy nguyên code');
+    check(![...files.keys()].some((k) => k.startsWith('tester/plain-demo/s/k-')), 'tắt mã hoá → không có tệp khoá');
+
+    // thiếu token → báo lỗi rõ, không gọi mạng
+    const before = calls.length;
+    $('ghToken').value = '';
+    $('ghShipGo').click();
+    await waitFor(() => /API key/.test($('ghShipStatus').textContent), 'báo lỗi khi thiếu token', 8000);
+    check(!$('ghPaneKey').hidden, 'tự mở tab API key');
+    check(calls.length === before, 'không gọi GitHub khi thiếu token');
+  } finally {
+    globalThis.fetch = realFetch;
+    $('ghToken').value = '';
+    if (!$('ghModal').hidden) $('ghClose').click();
+  }
+}
+
+/* ------------------------------------------------------------- 10. lỗi --- */
+
+console.log('\n[10] Lỗi runtime');
 const realErrors = errors.filter((e) => !/lỗi thử \(cố ý\)/.test(e));
 check(realErrors.length === 0, 'không có lỗi runtime', realErrors.join(' | '));
 
