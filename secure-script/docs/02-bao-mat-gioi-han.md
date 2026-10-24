@@ -40,6 +40,7 @@ hạn dùng thật, phải có máy chủ cấp khoá theo thời gian — trái
 | Lựa chọn | Được | Mất |
 |---|---|---|
 | **Khoá dùng chung** `aia.key.js` (mặc định trên web) | Chỉ **một link** cho mọi tệp, mọi người; người nhận chỉ cần `.aia` + mật khẩu | `aia.key.js` công khai ⇒ **mật khẩu là lớp bảo vệ duy nhất**; một khoá dùng cho mọi tệp trong bộ |
+| **Snippet chép-là-chạy** | Người nhận chỉ cần dán là xong | Code chứa sẵn link + bản mã (và mật khẩu nếu chọn nhúng) ⇒ rất dễ phát tán |
 | **Riêng từng tệp** | Mỗi tệp một khoá; mất/ lộ một key không ảnh hưởng tệp khác | Mỗi tệp phải gửi kèm key script riêng |
 | Bắt buộc key script | `.aia` một mình vô dụng; đúng ý "key script là chìa khoá" | Mất key script = mất dữ liệu; người nhận cần đủ 2 tệp |
 | Nhúng mật khẩu vào key script | Người nhận không cần nhập gì | Ai có key script là mở được; mật khẩu nằm trong tệp |
@@ -47,6 +48,17 @@ hạn dùng thật, phải có máy chủ cấp khoá theo thời gian — trái
 | Header đọc được | Đúng yêu cầu, dễ hỗ trợ, dễ kiểm tra | Lộ thời gian/tên tệp/link key |
 | 600.000 vòng PBKDF2 | Chống dò tốt | Mở khoá chậm hơn (~0,15 s trên máy thử) |
 | Khoá phụ thuộc `keyUrl` | Đổi link là không mở được | Đổi tên/thư mục tệp key cũng làm hỏng (phải giữ đúng link) |
+
+## 3a. Snippet "chép là chạy" — tiện nhưng lộ
+
+Snippet chứa **link key script + toàn bộ bản mã Base64** ngay trong một đoạn code.
+Ai nhận được đoạn code đó là có **tất cả những gì cần** để chạy:
+
+- **Không mật khẩu** (mặc định): mở được ngay, không cần biết gì. Coi như **không khoá**.
+- **Nhúng sẵn mật khẩu**: mật khẩu nằm ngay trong snippet ⇒ người đọc thấy luôn.
+- **Hỏi mật khẩu**: chỉ kiểu này mới thật sự chặn người không biết mật khẩu.
+
+Snippet cũng làm tăng kích thước ~1,34 lần và chỉ dùng cho tệp ≤ 1,5 MiB.
 
 ## 3b. Chế độ khoá dùng chung — nói thẳng
 

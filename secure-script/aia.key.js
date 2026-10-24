@@ -1,7 +1,7 @@
 /*!
  * AIA Secure Script — KEY SCRIPT DÙNG CHUNG
  * ---------------------------------------------------------------------------
- * Tạo lúc   : 2026-10-24 02:48:51.485
+ * Tạo lúc   : cố định (dùng cho mọi lần mã hoá)
  * Key ID    : f9bc0bb6b9f6511b
  * Link key  : ./aia.key.js
  * Ghi chú   : khoá dùng chung cố định của site — 1 link cho mọi lần mã hoá và mọi người

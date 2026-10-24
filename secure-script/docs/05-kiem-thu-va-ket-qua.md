@@ -4,13 +4,13 @@
 
 ```bash
 cd secure-script
-node tests/run-node.mjs      # 108 kiểm thử lõi (không cần cài gì)
+node tests/run-node.mjs      # 127 kiểm thử lõi (không cần cài gì)
 node tools/check-static.mjs  # 44 kiểm tra tĩnh HTML ↔ app.js
 node tools/cli.mjs selftest  # kiểm tra nhanh CLI
 
 npm install                  # chỉ cần cho test DOM (jsdom)
-node tests/run-dom.mjs       # 53 kiểm thử giao diện + gói demo trên DOM ả
-node tests/stress.mjs --quick   # 36 bài kiểm thử cường độ cao (~21 s)
+node tests/run-dom.mjs       # 65 kiểm thử giao diện + gói demo trên DOM ả
+node tests/stress.mjs --quick   # 45 bài kiểm thử cường độ cao (~19 s)
 ```
 
 Yêu cầu: Node 18+ (đã chạy trên Node 22.22.3). Test lõi và test tĩnh không cần
@@ -26,18 +26,19 @@ Node v22.22.3 · WebCrypto: true
 [4] Key script sinh ra chạy thật     10/10
 [4b] Bắt buộc phải có key script     11/11
 [4c] Key script DÙNG CHUNG           22/22
+[4d] Snippet "chép là chạy"          19/19
 [5] ZIP & tiện ích                    7/7
 [6] Công cụ dịch ngược               15/15
 [7] Thông lượng                       4/4
 ─────────────────────────────────────────────
-Kết quả: 108 đạt · 0 lỗi · ~4,7 s
+Kết quả: 127 đạt · 0 lỗi · ~6,0 s
 
 Kiểm tra tĩnh (tools/check-static.mjs): 44 đạt · 0 lỗi
-Kiểm thử DOM  (tests/run-dom.mjs)     : 53 đạt · 0 lỗi
-Kiểm thử cường độ cao (stress.mjs --quick): 36/36 đạt · 0 lỗi · ~21 s
+Kiểm thử DOM  (tests/run-dom.mjs)     : 65 đạt · 0 lỗi
+Kiểm thử cường độ cao (stress.mjs --quick): 45/45 đạt · 0 lỗi · ~19 s
 ```
 
-Tổng: **241 điểm kiểm tra đạt** (108 + 44 + 53 + 36).
+Tổng: **281 điểm kiểm tra đạt** (127 + 44 + 65 + 45).
 
 ## 3. Chi tiết từng nhóm
 
@@ -102,6 +103,15 @@ Ngoài ra: `iterations` < 10.000 bị kẹp; `chunkSize` < 64 KiB bị kẹp.
   khoá phụ thuộc **khoá chung + mật khẩu**. Sửa header → `HEADER_TAMPERED`.
 - `aia.key.js` phát hành kèm site được nạp trong sandbox và **tự mở đúng** bản mã
   (không dùng mã nguồn core ⇒ chứng minh script độc lập chạy được).
+
+### [4d] Snippet "chép là chạy" (mới)
+
+- Snippet nhúng **link key script tuyệt đối** + **bản mã Base64**; `DATA` giải mã ra **đúng từng byte** tệp `.aia`.
+- Chạy thật trong sandbox có `<script src>`: tự nạp `aia.key.js`, tự giải mã, **chạy code gốc** (log `TONG = 55`, biến toàn cục do code gốc tạo ra tồn tại).
+- 3 chế độ mật khẩu: không mật khẩu (`PASS = ""`), nhúng sẵn (`PASS = "…"`), hỏi khi chạy (`PASS = null` + `prompt`).
+- Sai mật khẩu / link hỏng → `console.error` rõ ràng, **không ném lỗi văng ra ngoài**.
+- Chế độ **riêng từng tệp**: snippet nhúng thẳng mã nguồn key script ⇒ chạy được **không cần mạng**.
+- Tệp `.lua`: `EXEC = false` → tải bản rõ thay vì chạy.
 
 ### [5] ZIP
 
@@ -211,6 +221,7 @@ Nếu bạn chạy thử và gặp lỗi, gửi lại thông báo trong tab "Nh�
 | 8. Giới hạn | > 5 GiB, chunk/iterations quá nhỏ/lớn | ✔ |
 | 9. Huỷ | dừng giữa đường, không ghi tiếp | ✔ |
 | 10. Tệp lớn | 64 MiB (1 GiB với `--max`), so SHA-256 từng byte | ✔ |
+| 11. Snippet | 0 B/1 B/1 KiB/64 KiB/1,5 MiB, chi phí Base64 ×1,34, 3 chế độ mật khẩu | ✔ |
 
 Số đo thật (`--max`, máy 2 CPU):
 

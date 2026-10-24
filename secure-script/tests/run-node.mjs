@@ -16,6 +16,7 @@
  * ========================================================================== */
 
 import fs from 'node:fs';
+import vm from 'node:vm';
 import path from 'node:path';
 import process from 'node:process';
 import * as C from '../assets/core.js';
@@ -103,6 +104,8 @@ function loadKeyScript(text) {
   )(g, g, { exports: {} }, {}, undefined, undefined, undefined, undefined, undefined, undefined);
   return g.AIA_UNLOCK;
 }
+
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function equalBytes(a, b) {
   if (a.length !== b.length) return false;
@@ -573,12 +576,187 @@ async function testSharedKey() {
   ok(!/\/\*<AIA:META>\*\//.test(built), 'key script chung KHÔNG chứa META của tệp nào (dùng cho mọi tệp)');
 }
 
+
+/* ====================================== snippet "chép là chạy" (tự chứa) === */
+
+/** Chạy snippet trong sandbox giả lập trình duyệt (có <script src> tải key thật). */
+function runSnippetInSandbox(snippet, { keyFiles = {}, promptAnswer = '' } = {}) {
+  const logs = [];
+  const ctx = {
+    console: {
+      log: (...a) => logs.push(a.join(' ')),
+      info: (...a) => logs.push(a.join(' ')),
+      warn: (...a) => logs.push(a.join(' ')),
+      error: (...a) => logs.push('ERR ' + a.join(' ')),
+    },
+    atob,
+    TextDecoder,
+    TextEncoder,
+    Uint8Array,
+    Blob,
+    ReadableStream,
+    Promise,
+    setTimeout,
+    clearTimeout,
+    Math,
+    JSON,
+    Error,
+    String,
+    Object,
+    Array,
+    Number,
+    Boolean,
+    Date,
+    Map,
+    Set,
+    crypto: globalThis.crypto,
+    prompt: () => promptAnswer,
+    URL: { createObjectURL: () => 'blob:fake', revokeObjectURL: () => {} },
+    __downloads: [],
+  };
+  ctx.document = {
+    head: {
+      appendChild(el) {
+        const text = keyFiles[el.src];
+        if (!text) {
+          setTimeout(() => el.onerror && el.onerror(new Error('404')), 0);
+          return;
+        }
+        try {
+          vm.runInContext(text, ctx);
+          if (el.onload) el.onload();
+        } catch (err) {
+          if (el.onerror) el.onerror(err);
+        }
+      },
+    },
+    createElement(tag) {
+      if (tag === 'script') {
+        const el = {};
+        Object.defineProperty(el, 'src', { set(v) { el._src = v; }, get() { return el._src; } });
+        return el;
+      }
+      return {
+        set href(v) { this._href = v; },
+        get href() { return this._href; },
+        click() { ctx.__downloads.push(this.download); },
+        remove() {},
+      };
+    },
+    body: { appendChild() {} },
+    documentElement: { appendChild() {} },
+  };
+  ctx.globalThis = ctx;
+  ctx.self = ctx;
+  vm.createContext(ctx);
+  vm.runInContext(snippet, ctx);
+  return { logs, ctx };
+}
+
+async function testRunSnippet() {
+  console.log('\n[4d] Snippet "chép là chạy" (tự nạp link key + tự chạy)');
+  const keySrc = fs.readFileSync(path.resolve(import.meta.dirname, '..', 'aia.key.js'), 'utf8');
+  const master = /masterKey:\s*"([^"]+)"/.exec(keySrc)[1];
+  const KEY_URL = 'https://mncuadagmailcom.github.io/aiaiaitao3/secure-script/aia.key.js';
+
+  const buildShared = async (code, extra = {}) =>
+    encryptBytes(utf8(code), {
+      keyMode: 'shared',
+      sharedKey: master,
+      keyUrl: './aia.key.js',
+      iterations: 10000,
+      fileName: 'script.js',
+      ...extra,
+    });
+
+  // 1) không mật khẩu → chép là chạy
+  const code = 'var kq = 0; for (var i = 1; i <= 10; i++) kq += i; console.log("TONG =", kq); globalThis.__kq = kq;';
+  const enc = await buildShared(code);
+  const snippet = C.buildRunSnippet({ meta: enc.meta, containerBytes: enc.bytes, keyUrl: KEY_URL });
+
+  ok(snippet.includes(KEY_URL), 'snippet nhúng đúng link key script');
+  ok(snippet.includes('QUlBU0NSMQ'), 'snippet nhúng bản mã Base64');
+  ok(/var PASS = "";/.test(snippet), 'mặc định không mật khẩu');
+  ok(snippet.includes('AIA_KEY.open('), 'snippet dùng API AIA_KEY của key script chung');
+
+  // bản mã trong snippet phải là đúng từng byte của tệp .aia
+  const b64 = /var DATA = "([^"]+)";/.exec(snippet)[1];
+  ok(equalBytes(C.base64ToBytes(b64), enc.bytes), 'DATA trong snippet = đúng byte tệp .aia');
+
+  const r1 = runSnippetInSandbox(snippet, { keyFiles: { [KEY_URL]: keySrc } });
+  await wait(250);
+  ok(r1.logs.some((l) => l.includes('TONG = 55')), 'chạy được: log của code gốc hiện ra', r1.logs.join(' | '));
+  ok(r1.ctx.__kq === 55, 'chạy được: biến toàn cục do code gốc tạo ra tồn tại');
+  ok(r1.logs.some((l) => l.includes('đã chạy')), 'snippet báo đã chạy xong');
+
+  // 2) sai mật khẩu / link hỏng: báo lỗi rõ, không ném ra ngoài
+  const encPw = await buildShared('console.log("can mat khau");', { passphrase: 'pw-snippet' });
+  const askSnippet = C.buildRunSnippet({
+    meta: encPw.meta,
+    containerBytes: encPw.bytes,
+    keyUrl: KEY_URL,
+    askPassphrase: true,
+  });
+  ok(/var PASS = null;/.test(askSnippet), 'chế độ hỏi mật khẩu: PASS = null');
+  const rWrong = runSnippetInSandbox(askSnippet, { keyFiles: { [KEY_URL]: keySrc }, promptAnswer: 'sai' });
+  await wait(250);
+  ok(rWrong.logs.some((l) => l.startsWith('ERR') && /mật khẩu/i.test(l)), 'sai mật khẩu → báo lỗi rõ ràng', rWrong.logs.join(' | '));
+  const rRight = runSnippetInSandbox(askSnippet, { keyFiles: { [KEY_URL]: keySrc }, promptAnswer: 'pw-snippet' });
+  await wait(250);
+  ok(rRight.logs.some((l) => l.includes('can mat khau')), 'nhập đúng mật khẩu → chạy được');
+
+  const embedSnippet = C.buildRunSnippet({
+    meta: encPw.meta,
+    containerBytes: encPw.bytes,
+    keyUrl: KEY_URL,
+    passphrase: 'pw-snippet',
+  });
+  ok(/var PASS = "pw-snippet";/.test(embedSnippet), 'mật khẩu nhúng sẵn trong snippet');
+  const rEmbed = runSnippetInSandbox(embedSnippet, { keyFiles: { [KEY_URL]: keySrc } });
+  await wait(250);
+  ok(rEmbed.logs.some((l) => l.includes('can mat khau')), 'nhúng sẵn: chạy không cần nhập');
+
+  const rNoKey = runSnippetInSandbox(snippet, { keyFiles: {} });
+  await wait(250);
+  ok(rNoKey.logs.some((l) => l.startsWith('ERR') && /key script/i.test(l)), 'link hỏng → báo không tải được key script');
+
+  // 3) chế độ riêng từng tệp: key script nhúng thẳng vào snippet
+  const perFile = await encryptBytes(utf8('console.log("rieng tung tep");'), {
+    passphrase: 'pw-rieng',
+    keyUrl: './script.key.js',
+    requireKeyScript: true,
+    iterations: 10000,
+    fileName: 'script.js',
+  });
+  const keyText = C.buildKeyScript(perFile.meta, {});
+  const perSnippet = C.buildRunSnippet({
+    meta: perFile.meta,
+    containerBytes: perFile.bytes,
+    keyUrl: 'https://x/script.key.js',
+    keyScriptText: keyText,
+    passphrase: 'pw-rieng',
+  });
+  ok(perSnippet.includes('AIA_UNLOCK'), 'chế độ riêng: snippet nhúng mã nguồn key script');
+  const rPer = runSnippetInSandbox(perSnippet, { keyFiles: {} });
+  await wait(250);
+  ok(rPer.logs.some((l) => l.includes('rieng tung tep')), 'chế độ riêng: chạy được không cần mạng', rPer.logs.join(' | '));
+
+  // 4) tệp không phải JS: không tự chạy, chỉ tải bản rõ
+  const lua = await buildShared('print("xin chao")', { fileName: 'script.lua' });
+  const luaSnippet = C.buildRunSnippet({ meta: lua.meta, containerBytes: lua.bytes, keyUrl: KEY_URL });
+  ok(/var EXEC = false;/.test(luaSnippet), 'tệp .lua: EXEC = false (không tự chạy)');
+  const rLua = runSnippetInSandbox(luaSnippet, { keyFiles: { [KEY_URL]: keySrc } });
+  await wait(250);
+  ok(rLua.ctx.__downloads.includes('script.lua'), 'tệp .lua: tải bản rõ thay vì chạy', rLua.ctx.__downloads.join(','));
+  ok(rLua.logs.some((l) => l.includes('đã tải bản rõ')), 'tệp .lua: báo đã tải bản rõ');
+}
+
 /* -------------------------------------------------------------- chạy tất cả --- */
 
 console.log('AIA Secure Script — kiểm thử');
 console.log('Node', process.version, '· WebCrypto:', !!(globalThis.crypto && globalThis.crypto.subtle));
 
-const suites = [testRoundtrip, testSecurity, testHeader, testKeyScript, testKeyScriptRequired, testSharedKey, testZip, testReverse, testThroughput];
+const suites = [testRoundtrip, testSecurity, testHeader, testKeyScript, testKeyScriptRequired, testSharedKey, testRunSnippet, testZip, testReverse, testThroughput];
 const started = Date.now();
 for (const suite of suites) {
   try {

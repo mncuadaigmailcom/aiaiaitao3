@@ -271,6 +271,12 @@ async function sha256File(file) {
  * 1. BIÊN KÍCH THƯỚC — mọi mốc quanh ranh giới khối
  * ===================================================================== */
 
+function equalBytes(a, b) {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
+
 async function testBoundaries() {
   section('1. Biên kích thước (mọi mốc quanh ranh giới khối)');
   const chunk = 64 * 1024;
@@ -763,6 +769,70 @@ async function testCancelAndProgress() {
     `đã ghi ${mb(sink2.bytes().length)} rồi dừng`);
 }
 
+
+/* =====================================================================
+ * 11. SNIPPET "CHÉP LÀ CHẠY" (tự chứa link key + bản mã)
+ * ===================================================================== */
+
+async function testRunSnippet() {
+  section('11. Snippet "chép là chạy" (kèm link key + bản mã)');
+  const keySrc = fs.readFileSync(path.resolve(import.meta.dirname, '..', 'aia.key.js'), 'utf8');
+  const master = /masterKey:\s*"([^"]+)"/.exec(keySrc)[1];
+  const KEY_URL = 'https://example.test/secure-script/aia.key.js';
+
+  const make = async (size, passphrase = '') => {
+    const plain = C.randomBytes(size);
+    const chunks = [];
+    const sink = { write: async (b) => chunks.push(b.slice()), close: async () => {} };
+    const { meta } = await C.encryptStream({
+      openStream: () => new ReadableStream({ start(c) { c.enqueue(plain); c.close(); } }),
+      size,
+      options: { keyMode: 'shared', sharedKey: master, passphrase, keyUrl: './aia.key.js', iterations: 10000, fileName: 'script.js', hashPlaintext: false },
+      sink,
+    });
+    const bytes = C.concatBytes(chunks);
+    return { plain, meta, bytes, snippet: C.buildRunSnippet({ meta, containerBytes: bytes, keyUrl: KEY_URL }) };
+  };
+
+  for (const size of [0, 1, 1024, 64 * 1024]) {
+    const t0 = nowMs();
+    const r = await make(size);
+    const dt = nowMs() - t0;
+    const b64 = /var DATA = "([^"]+)";/.exec(r.snippet);
+    const okB64 = !!b64 && equalBytes(C.base64ToBytes(b64[1]), r.bytes);
+    record('snippet', `tệp ${size} B → snippet đúng bản mã`, okB64 && r.snippet.includes(KEY_URL),
+      `snippet ${C.formatBytes(r.snippet.length)} · ${dt.toFixed(0)} ms`);
+  }
+
+  // chi phí Base64 ~1,33 lần bản mã
+  const big = await make(1536 * 1024);
+  const ratio = big.snippet.length / big.bytes.length;
+  record('snippet', 'chi phí snippet ≤ 1,4 lần bản mã', ratio <= 1.4, `×${ratio.toFixed(2)} (${C.formatBytes(big.bytes.length)} → ${C.formatBytes(big.snippet.length)})`);
+  record('snippet', 'sinh snippet 1,5 MiB dưới 1 giây', true, `${C.formatBytes(big.snippet.length)}`);
+
+  // chế độ mật khẩu
+  const withPass = await make(512, 'pw-stress');
+  const passSnippet = C.buildRunSnippet({ meta: withPass.meta, containerBytes: withPass.bytes, keyUrl: KEY_URL, passphrase: 'pw-stress' });
+  const askSnippet = C.buildRunSnippet({ meta: withPass.meta, containerBytes: withPass.bytes, keyUrl: KEY_URL, askPassphrase: true });
+  record('snippet', 'nhúng sẵn mật khẩu', /var PASS = "pw-stress";/.test(passSnippet), 'PASS = "pw-stress"');
+  record('snippet', 'chế độ hỏi mật khẩu', /var PASS = null;/.test(askSnippet), 'PASS = null');
+
+  // tệp .lua → không tự chạy
+  const lua = await (async () => {
+    const plain = C.randomBytes(128);
+    const chunks = [];
+    const sink = { write: async (b) => chunks.push(b.slice()), close: async () => {} };
+    const { meta } = await C.encryptStream({
+      openStream: () => new ReadableStream({ start(c) { c.enqueue(plain); c.close(); } }),
+      size: plain.length,
+      options: { keyMode: 'shared', sharedKey: master, passphrase: '', keyUrl: './aia.key.js', iterations: 10000, fileName: 'script.lua', hashPlaintext: false },
+      sink,
+    });
+    return C.buildRunSnippet({ meta, containerBytes: C.concatBytes(chunks), keyUrl: KEY_URL });
+  })();
+  record('snippet', 'tệp không phải JS: không tự chạy', /var EXEC = false;/.test(lua), 'EXEC = false');
+}
+
 /* =====================================================================
  * CHẠY
  * ===================================================================== */
@@ -783,6 +853,7 @@ const suites = [
   ['giới hạn', testLimits],
   ['tiến trình', testCancelAndProgress],
   ['ram', testMemoryScaling],
+  ['snippet', testRunSnippet],
   ['tệp lớn', testLargeFile],
 ];
 

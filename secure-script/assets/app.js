@@ -16,7 +16,9 @@ const state = {
   busy: false,
   artifacts: new Map(),
   encCodeText: '',
-  encCodeFull: false, // name -> {name, size, data (Uint8Array|string)|handle}
+  encCodeFull: false,
+  encSnippet: '',
+  lastCodeExtra: null, // name -> {name, size, data (Uint8Array|string)|handle}
   lastCipher: null, // { bytes, meta, options }
   decrypted: null, // { bytes, meta }
   worker: null,
@@ -47,6 +49,43 @@ function setBusy(flag) {
 
 const SHARED_KEY_FILE = 'aia.key.js';
 const SHARED_KEY_URL = './' + SHARED_KEY_FILE;
+// Snippet "chép là chạy" phình ~1,33 lần vì Base64 ⇒ chỉ sinh cho tệp vừa phải.
+const SNIPPET_MAX_BYTES = 1536 * 1024;
+
+function absoluteUrl(relative) {
+  try {
+    return new URL(relative, window.location.href).href;
+  } catch {
+    return relative;
+  }
+}
+
+function passMode() {
+  return ($('passMode') && $('passMode').value) || 'none';
+}
+
+function effectivePassphrase() {
+  const mode = passMode();
+  const typed = $('pass').value;
+  if (mode === 'none') return '';
+  return typed;
+}
+
+function syncPassModeUi() {
+  const mode = passMode();
+  const note = $('passModeHelp');
+  const pass = $('pass');
+  pass.disabled = mode === 'none';
+  pass.style.opacity = mode === 'none' ? '0.55' : '';
+  if (note) {
+    note.textContent =
+      mode === 'none'
+        ? 'Đang KHÔNG dùng mật khẩu: ai có đoạn code đã mã hoá cũng mở/chạy được. Chỉ nên dùng khi chỉ cần che cho gọn mắt.'
+        : mode === 'embed'
+          ? 'Mật khẩu được nhúng sẵn vào code: người nhận không phải nhập, nhưng ai đọc code cũng thấy mật khẩu.'
+          : 'Người nhận phải nhập mật khẩu khi chạy. An toàn hơn hai kiểu trên.';
+  }
+}
 
 function sharedMasterKey() {
   return (globalThis.AIA_KEY && globalThis.AIA_KEY.masterKey) || null;
@@ -320,6 +359,14 @@ if ($('keyMode')) {
   syncKeyModeUi();
 }
 
+if ($('passMode')) {
+  $('passMode').addEventListener('change', () => {
+    syncPassModeUi();
+    if (state.source && !state.busy) startEncryption({ auto: true });
+  });
+  syncPassModeUi();
+}
+
 $('resetBtn').addEventListener('click', () => {
   state.source = null;
   state.lastCipher = null;
@@ -347,6 +394,7 @@ $('genPass').addEventListener('click', () => {
   $('togglePass').textContent = 'ẩn';
   $('pass').value = pass;
   updateStrength();
+  autoReencryptOnPass();
   toast('Đã tạo mật khẩu mạnh — hãy lưu lại ở nơi an toàn.', 'ok', 6000);
 });
 
@@ -371,7 +419,17 @@ function updateStrength() {
   bar.style.background = score < 35 ? '#fb7185' : score < 60 ? '#fbbf24' : score < 80 ? '#38bdf8' : '#34d399';
   $('passLabel').textContent = $('pass').value ? `${label} · ${$('pass').value.length} ký tự` : 'chưa đặt';
 }
-$('pass').addEventListener('input', updateStrength);
+let passTimer = 0;
+function autoReencryptOnPass() {
+  if (!state.source || state.busy || passMode() === 'none') return;
+  clearTimeout(passTimer);
+  passTimer = setTimeout(() => startEncryption({ auto: true }), 900);
+}
+
+$('pass').addEventListener('input', () => {
+  updateStrength();
+  autoReencryptOnPass();
+});
 
 /* ---------------------------------------------------------------- sink --- */
 
@@ -441,7 +499,12 @@ function resetResult() {
 
 async function runEncryption(runOpts = {}) {
   const src = state.source;
-  const passphrase = $('pass').value;
+  const mode = passMode();
+  const passphrase = effectivePassphrase();
+  if (mode !== 'none' && !passphrase) {
+    toast('Bạn chọn kiểu có mật khẩu nhưng ô mật khẩu đang trống — hãy nhập hoặc bấm "tạo".', 'warn', 6000);
+    throw new C.AIAError('NO_PASSPHRASE', 'Thiếu mật khẩu cho chế độ đã chọn.');
+  }
   const slug = C.slugify(src.name);
   const payloadFile = slug + '.aia';
   const keyMode = isSharedMode() ? 'shared' : 'per-file';
@@ -601,7 +664,7 @@ async function runEncryption(runOpts = {}) {
     }
   }
 
-  renderResult({ meta, options, elapsed, verified, keyText, zipSize, sink });
+  renderResult({ meta, options, elapsed, verified, keyText, zipSize, sink, keyMode, passphrase });
   $('progressWrap').hidden = true;
   $('progBar').style.width = '100%';
   toast(verified === false ? 'Đã mã hoá nhưng tự kiểm tra KHÔNG khớp — hãy thử lại.' : 'Mã hoá xong.', verified === false ? 'bad' : 'ok', 6000);
@@ -614,7 +677,7 @@ async function runEncryption(runOpts = {}) {
   }
 }
 
-function renderResult({ meta, options, elapsed, verified, keyText, zipSize, sink }) {
+function renderResult({ meta, options, elapsed, verified, keyText, zipSize, sink, keyMode, passphrase }) {
   const payloadName = meta.payload.file;
   const keyName = [...state.artifacts.keys()].find((n) => n.endsWith('.key.js'));
   const runnerName = [...state.artifacts.keys()].find((n) => n.startsWith('run-'));
@@ -659,7 +722,17 @@ function renderResult({ meta, options, elapsed, verified, keyText, zipSize, sink
   $('dlContainer').disabled = !state.artifacts.get(payloadName).data;
   $('testRunBtn').disabled = !state.lastCipher.bytes || plain > PREVIEW_LIMIT || !isRunnable(meta.file);
 
-  renderEncryptedCode(state.lastCipher ? state.lastCipher.bytes : null, meta);
+  const keyNameForLink = [...state.artifacts.keys()].find((n) => n.endsWith('.key.js')) || SHARED_KEY_FILE;
+  state.lastCodeExtra = {
+    passphrase: passphrase || '',
+    passMode: passMode(),
+    keyText,
+    keyName: keyNameForLink,
+    keyMode,
+  };
+  encFmt = 'run';
+  renderKeyLink(meta, { keyName: keyNameForLink });
+  renderEncryptedCode(state.lastCipher ? state.lastCipher.bytes : null, meta, state.lastCodeExtra);
 
   $('keyPreview').textContent = keyText;
   const publicMeta = { ...meta };
@@ -712,41 +785,95 @@ function bytesToBase64All(bytes) {
   return out;
 }
 
-function renderEncryptedCode(bytes, meta) {
+function renderEncryptedCode(bytes, meta, extra = {}) {
+  state.encSnippet = '';
   if (!bytes) {
     $('encCode').textContent = '—';
     $('encCodeNote').textContent = '';
     return;
   }
+
+  // Sinh snippet "chép là chạy" (kèm link key script + bản mã Base64).
+  const snippetTooBig = bytes.length > SNIPPET_MAX_BYTES;
+  if (!snippetTooBig) {
+    try {
+      const keyUrl = absoluteUrl(meta.keyWrapIn === 'shared-key-script' ? SHARED_KEY_FILE : extra.keyName || meta.keyUrl);
+      state.encSnippet = C.buildRunSnippet({
+        meta,
+        containerBytes: bytes,
+        keyUrl,
+        keyScriptText: meta.keyWrapIn === 'shared-key-script' ? null : extra.keyText || null,
+        passphrase: extra.passphrase || '',
+        askPassphrase: extra.passMode === 'ask',
+        execute: isRunnable(meta.file),
+      });
+    } catch (err) {
+      console.warn('Không sinh được snippet', err);
+      state.encSnippet = '';
+    }
+  }
+
+  if (!state.encSnippet && encFmt === 'run') encFmt = 'b64';
+
   const full = bytes.length <= ENC_CODE_FULL_LIMIT;
   const view = full ? bytes : bytes.subarray(0, ENC_CODE_FULL_LIMIT);
-  const text = encFmt === 'b64' ? bytesToBase64All(view) : bytesToHexAll(view);
-  $('encCode').textContent = full ? text : text + '\n\n… (còn ' + C.formatBytes(bytes.length - view.length) + ', hãy tải tệp .aia)';
-  $('encCodeNote').textContent =
-    (full
-      ? `Toàn bộ tệp ${C.formatBytes(bytes.length)} ở dạng ${encFmt === 'b64' ? 'Base64' : 'Hex'} — chép và dán được ngay.`
-      : `Tệp lớn: chỉ hiện ${C.formatBytes(view.length)} đầu tiên ở dạng ${encFmt === 'b64' ? 'Base64' : 'Hex'}; phần còn lại nằm trong tệp .aia.`) +
-    ' Khi dán lại, dùng tab Giải mã và chọn đúng định dạng.';
+  let text;
+  if (encFmt === 'run') {
+    text = state.encSnippet;
+  } else {
+    text = encFmt === 'b64' ? bytesToBase64All(view) : bytesToHexAll(view);
+    if (!full) text += '\n\n… (còn ' + C.formatBytes(bytes.length - view.length) + ', hãy tải tệp .aia)';
+  }
+  $('encCode').textContent = text;
+  state.encCodeText = text;
+
+  const fmtName = encFmt === 'run' ? 'snippet' : encFmt === 'b64' ? 'Base64' : 'Hex';
+  let note;
+  if (encFmt === 'run') {
+    note =
+      'Chép toàn bộ đoạn này → dán vào Console (F12) hoặc tệp .js là chạy: nó tự nạp key script từ link, tự giải mã' +
+      (isRunnable(meta.file) ? ', tự chạy code gốc.' : ' rồi tải bản rõ về (định dạng này không tự chạy trong trình duyệt).') +
+      (extra.passphrase ? ' Có mật khẩu bên trong.' : ' KHÔNG cần mật khẩu.');
+  } else if (snippetTooBig && encFmt === 'b64') {
+    note =
+      `Tệp lớn (${C.formatBytes(bytes.length)}): chỉ hiện ${C.formatBytes(view.length)} đầu ở dạng ${fmtName}. ` +
+      'Snippet không sinh cho tệp lớn — hãy dùng tệp .aia.';
+  } else {
+    note = `Toàn bộ tệp ${C.formatBytes(bytes.length)} ở dạng ${fmtName} — chép và dán được ngay.`;
+  }
+  if (snippetTooBig && encFmt === 'run') note = 'Tệp quá lớn để nhúng vào snippet — hãy dùng tệp .aia.';
+  $('encCodeNote').textContent = note;
+  $('encFmtRun').classList.toggle('on', encFmt === 'run');
   $('encFmtB64').classList.toggle('on', encFmt === 'b64');
   $('encFmtHex').classList.toggle('on', encFmt === 'hex');
-  state.encCodeText = text;
+  $('encFmtRun').disabled = !state.encSnippet;
   state.encCodeFull = full;
 }
 
+function rerenderCode() {
+  if (!state.lastCipher || !state.lastCipher.bytes) return;
+  renderEncryptedCode(state.lastCipher.bytes, state.lastCipher.meta, state.lastCodeExtra || {});
+}
+
+$('encFmtRun').addEventListener('click', () => {
+  encFmt = 'run';
+  rerenderCode();
+});
 $('encFmtB64').addEventListener('click', () => {
   encFmt = 'b64';
-  if (state.lastCipher) renderEncryptedCode(state.lastCipher.bytes, state.lastCipher.meta);
+  rerenderCode();
 });
 $('encFmtHex').addEventListener('click', () => {
   encFmt = 'hex';
-  if (state.lastCipher) renderEncryptedCode(state.lastCipher.bytes, state.lastCipher.meta);
+  rerenderCode();
 });
 $('encCopy').addEventListener('click', async () => {
   const text = state.encCodeText || '';
   if (!text) return toast('Chưa có bản mã để chép.', 'warn');
+  const fmtName = encFmt === 'run' ? 'snippet chép-là-chạy' : encFmt === 'b64' ? 'Base64' : 'Hex';
   try {
     await navigator.clipboard.writeText(text);
-    toast(`Đã chép ${C.formatBytes(text.length)} code đã mã hoá (${encFmt === 'b64' ? 'Base64' : 'Hex'}).`, 'ok', 5000);
+    toast(`Đã chép ${fmtName} (${C.formatBytes(text.length)}).`, 'ok', 5000);
   } catch {
     const range = document.createRange();
     range.selectNodeContents($('encCode'));
@@ -754,6 +881,29 @@ $('encCopy').addEventListener('click', async () => {
     sel.removeAllRanges();
     sel.addRange(range);
     toast('Trình duyệt chặn clipboard — đã bôi đen sẵn, bấm Ctrl/Cmd+C.', 'warn', 6000);
+  }
+});
+
+/* --------------------------------------------- dòng link key script -------- */
+
+function renderKeyLink(meta, extra = {}) {
+  const shared = meta.keyWrapIn === 'shared-key-script';
+  const url = absoluteUrl(shared ? SHARED_KEY_FILE : extra.keyName || meta.keyUrl || SHARED_KEY_FILE);
+  $('keyLinkText').textContent = url;
+  $('keyLinkOpen').href = url;
+  $('keyLinkNote').textContent = shared
+    ? 'ai mã hoá trên trang này cũng dùng đúng link này — chỉ cần gửi tệp .aia + mật khẩu'
+    : 'gửi kèm tệp key script này cho người nhận (thiếu là không mở được)';
+}
+
+$('keyLinkCopy').addEventListener('click', async () => {
+  const text = $('keyLinkText').textContent || '';
+  if (!text || text === '—') return toast('Chưa có link key script.', 'warn');
+  try {
+    await navigator.clipboard.writeText(text);
+    toast('Đã chép link key script.', 'ok', 4000);
+  } catch {
+    toast('Trình duyệt chặn clipboard — hãy bôi đen và chép tay.', 'warn', 5000);
   }
 });
 

@@ -23,7 +23,9 @@ chạy ngay trong trình duyệt. Không máy chủ, không đăng ký, không t
 | | |
 |---|---|
 | ⚡ **Dán là mã hoá** | Dán code hoặc thả tệp → tự mã hoá, không bấm thêm bước nào |
-| 📋 **Code chép được** | Hiện bản mã dạng **Base64 / Hex** kèm nút **Chép** |
+| 📋 **Snippet chép là chạy** | Đoạn code tự chứa **link key + bản mã** — dán vào Console là chạy |
+| 🔗 **Link key rõ ràng** | Dòng "Link key script mở khoá" có URL đầy đủ + nút **Chép link** |
+| 🎚️ **3 kiểu bảo vệ** | Không mật khẩu · mật khẩu nhúng sẵn · mật khẩu hỏi khi chạy |
 | 🔗 **1 link key cho mọi lần** | Key script dùng chung `aia.key.js` (hoặc chế độ riêng từng tệp) |
 | 🔒 **Mã hoá thật** | AES-256-GCM, mỗi khối có tag xác thực; sửa 1 bit là hỏng |
 | 🗝️ **Key script là chìa khoá thật** | Khoá tệp ngẫu nhiên chỉ nằm trong `key.js`: thiếu nó là không mở được |
@@ -45,7 +47,8 @@ python3 -m http.server 8080
 
 1. Đặt **mật khẩu** (bấm "tạo" nếu lười nghĩ) — nên đặt, vì key script dùng chung là công khai.
 2. Kéo tệp vào ô **hoặc** dán code — web **tự mã hoá** ngay.
-3. Xem **Code đã mã hoá** (Base64/Hex, bấm **Chép**) và tải **`.aia`** / **ZIP**.
+3. Bấm **Chép** ở tab **Snippet (kèm link)** → dán vào Console là chạy; hoặc chép **Base64/Hex**;
+   hoặc tải **`.aia`** / **ZIP**.
 4. Người nhận giải nén, mở `run-*.html` qua HTTP, nhập mật khẩu → chạy.
 
 ### Nhúng vào trang của bạn
@@ -80,8 +83,8 @@ assets/core.js      lõi mã hoá, không phụ thuộc thư viện
 assets/app.js       giao diện
 assets/reverse.js   công cụ đọc/dịch ngược code
 tools/cli.mjs       CLI
-tests/run-node.mjs  108 kiểm thử lõi (Node 18+)
-tests/stress.mjs    36 bài kiểm thử cường độ cao
+tests/run-node.mjs  127 kiểm thử lõi (Node 18+)
+tests/stress.mjs    45 bài kiểm thử cường độ cao
 docs/               tài liệu chi tiết
 deploy/             mẫu workflow GitHub Pages, Netlify, Vercel
 examples/           script mẫu + gói demo
@@ -90,15 +93,15 @@ examples/           script mẫu + gói demo
 ## Kiểm thử
 
 ```bash
-node tests/run-node.mjs       # 108/108 đạt — lõi mã hoá
+node tests/run-node.mjs       # 127/127 đạt — lõi mã hoá + snippet
 node tools/check-static.mjs   # 44/44 — id/đường dẫn/cú pháp HTML
 npm install                   # chỉ để chạy test DOM
-node tests/run-dom.mjs        # 53/53 — giao diện + gói demo (jsdom)
-node tests/stress.mjs --quick # 36/36 — cường độ cao (~21 s)
+node tests/run-dom.mjs        # 65/65 — giao diện + gói demo (jsdom)
+node tests/stress.mjs --quick # 45/45 — cường độ cao (~19 s)
 node tests/stress.mjs --max   # như trên + tệp 1 GiB (~90 s)
 ```
 
-Tổng **241 điểm kiểm tra**.
+Tổng **281 điểm kiểm tra**.
 
 Kết quả mới nhất và chi tiết: [`docs/05-kiem-thu-va-ket-qua.md`](docs/05-kiem-thu-va-ket-qua.md).
 
@@ -123,7 +126,7 @@ Chi tiết: [`docs/02-bao-mat-gioi-han.md`](docs/02-bao-mat-gioi-han.md).
 | [02-bao-mat-gioi-han.md](docs/02-bao-mat-gioi-han.md) | Bảo mật, điểm yếu bản chất, cách dùng an toàn |
 | [03-huong-dan-su-dung.md](docs/03-huong-dan-su-dung.md) | Hướng dẫn từng bước + xử lý sự cố |
 | [04-trien-khai-mien-phi.md](docs/04-trien-khai-mien-phi.md) | GitHub Pages, Cloudflare, Netlify, Vercel |
-| [05-kiem-thu-va-ket-qua.md](docs/05-kiem-thu-va-ket-qua.md) | 241 điểm kiểm tra, số đo thật, test cường độ cao |
+| [05-kiem-thu-va-ket-qua.md](docs/05-kiem-thu-va-ket-qua.md) | 281 điểm kiểm tra, số đo thật, test cường độ cao |
 
 ## Giấy phép
 

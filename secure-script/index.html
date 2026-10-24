@@ -122,6 +122,19 @@
             </div>
 
             <div class="field">
+              <label for="passMode">Cách bảo vệ khi chép code</label>
+              <select id="passMode">
+                <option value="none" selected>Không mật khẩu — chép là chạy ngay</option>
+                <option value="embed">Có mật khẩu, nhúng sẵn (người nhận không phải nhập)</option>
+                <option value="ask">Có mật khẩu, hỏi khi chạy</option>
+              </select>
+              <p class="help" id="passModeHelp">
+                Mặc định bỏ qua mật khẩu cho tiện nhận biết — ai có đoạn code cũng mở được.
+                Muốn bảo vệ thật thì chọn kiểu có mật khẩu.
+              </p>
+            </div>
+
+            <div class="field">
               <label for="iter">Độ mạnh KDF</label>
               <select id="iter">
                 <option value="100000">Nhanh — 100.000 vòng</option>
@@ -181,11 +194,24 @@
             <h2>3. Kết quả</h2>
             <span class="badge ok" id="resultBadge">xong</span>
           </div>
+          <div class="keylink" id="keyLinkRow">
+            <div class="keylink-top">
+              <b>Link key script mở khoá</b>
+              <span class="muted" id="keyLinkNote">ai mã hoá cũng dùng đúng link này</span>
+            </div>
+            <div class="keylink-line">
+              <code id="keyLinkText">—</code>
+              <button class="ghost small" id="keyLinkCopy" type="button">Chép link</button>
+              <a class="ghost small" id="keyLinkOpen" href="./aia.key.js" target="_blank" rel="noopener">Mở</a>
+            </div>
+          </div>
+
           <div class="codebox" id="encCodeBox">
             <div class="card-head">
-              <h3>Code đã mã hoá <span class="muted">(chép được)</span></h3>
+              <h3>Code đã mã hoá <span class="muted">(chép là chạy)</span></h3>
               <div class="tabs2">
-                <button class="seg on" id="encFmtB64" type="button">Base64</button>
+                <button class="seg on" id="encFmtRun" type="button">Snippet (kèm link)</button>
+                <button class="seg" id="encFmtB64" type="button">Base64</button>
                 <button class="seg" id="encFmtHex" type="button">Hex</button>
                 <button class="ghost small" id="encCopy" type="button">Chép</button>
               </div>
@@ -398,10 +424,13 @@
         <h3>Mục tiêu</h3>
         <ul>
           <li>Nhập code hoặc tệp script, tối đa <b>5 GiB</b>.</li>
-          <li>Dán code hoặc thả tệp là <b>tự mã hoá</b> — không bấm thêm bước nào.</li>
-          <li>Mã hoá ra <b>tệp .aia</b>, kèm <b>khung code Base64/Hex chép được</b> ngay trên trang.</li>
-          <li>Mặc định dùng <b>một key script chung <code>aia.key.js</code></b> — 1 link cho mọi lần mã hoá,
-            mọi người; vẫn có chế độ <b>riêng từng tệp</b> nếu cần tách biệt.</li>
+          <li>Dán code hoặc thả tệp là <b>tự mã hoá</b> — không cần nhập ngày giờ, không bấm thêm.</li>
+          <li>Kết quả gồm <b>snippet "chép là chạy"</b> (tự chứa <b>link key script</b> + bản mã Base64),
+            cùng hai tab <b>Base64 / Hex</b> và tệp <b>.aia</b>.</li>
+          <li>Dòng <b>Link key script mở khoá</b> hiện URL đầy đủ, có nút Chép — mặc định là
+            <code>aia.key.js</code> <b>dùng chung cho mọi lần mã hoá và mọi người</b>.</li>
+          <li>Ba kiểu bảo vệ: <b>không mật khẩu</b> (mặc định, chép là chạy), <b>nhúng sẵn</b>,
+            hoặc <b>hỏi khi chạy</b>. Không mật khẩu = ai có code cũng mở được.</li>
           <li>Khoá tệp ngẫu nhiên <b>chỉ nằm trong key script / header đã bọc</b> → thiếu key là không mở được.</li>
           <li>Khoá gắn với <b>thời gian tạo</b> (đến mili giây) + <b>link key</b> + mật khẩu.</li>
           <li>Header giữ thời gian/link key <b>không mã hoá</b> để nhận biết.</li>

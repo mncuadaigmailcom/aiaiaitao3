@@ -209,6 +209,36 @@ Không có lỗi làm tròn nào: hai chuỗi này biểu diễn **đúng từng
 nên có thể chép ra ngoài và dựng lại tệp. Trang chỉ hiện tối đa 2 MiB đầu tiên
 (tệp lớn hơn nên tải `.aia`) để không treo trình duyệt.
 
+## 7c. Snippet "chép là chạy" (`buildRunSnippet`)
+
+Ngoài tệp `.aia`, trang sinh thêm một **đoạn code tự chứa**:
+
+```js
+(async function () {
+  var KEY_URL = "https://…/secure-script/aia.key.js";  // link key script (mọi người dùng chung)
+  var KEY_SRC = null;      // chế độ riêng từng tệp: nhúng thẳng key script
+  var DATA = "QUlBU0NSMQ…"; // toàn bộ tệp .aia ở Base64
+  var PASS = "";           // "" = không mật khẩu, null = hỏi khi chạy
+  // … tự nạp key script → AIA_KEY.open({source, passphrase}) → eval code gốc
+})();
+```
+
+- Người nhận **chỉ cần chép và dán** — không cần tải tệp nào khác.
+- Kích thước ≈ **1,34 lần** tệp `.aia` (Base64), nên trang chỉ sinh snippet cho tệp ≤ **1,5 MiB**;
+  lớn hơn thì dùng tệp `.aia`.
+- `EXEC = false` với tệp không phải JS ⇒ snippet tải bản rõ thay vì chạy.
+- Snippet **không che giấu** gì: ai đọc cũng thấy link key, bản mã và (nếu chọn) mật khẩu.
+
+## 7d. Key script dùng chung
+
+`aia.key.js` chứa **khoá gốc S** 32 byte + `keyId` (8 byte hex = SHA-256(S) rút gọn) và API
+`AIA_KEY.open/run`. Tệp này **sinh một lần** và **byte-identical** ở mọi lần tải
+(không in thời điểm tạo), nên mọi người dùng đúng cùng một link.
+
+`keyWrapIn = "shared-key-script"` ⇒ `keyWrap` nằm trong header `.aia`, được bọc bằng khoá
+dẫn xuất từ `[thời gian, link key, mật khẩu, S]`. Thiếu `aia.key.js` là **không mở được**,
+kể cả khi biết mật khẩu.
+
 ## 8. Định dạng đầu ra của gói
 
 | Tệp | Vai trò |

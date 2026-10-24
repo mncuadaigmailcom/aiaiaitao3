@@ -26,7 +26,7 @@ npx serve .          # nếu có Node
 ## 2. Mã hoá một script
 
 1. Tab **Mã hoá** → **kéo tệp vào ô**, hoặc bấm **"Dán code trực tiếp"** rồi dán.
-   **Không cần bấm gì thêm**: thả tệp hoặc dán code là web **tự mã hoá** ngay.
+   **Không cần bấm gì thêm**: thả tệp hoặc dán code là web **tự mã hoá** ngay (không cần nhập ngày giờ — web tự lấy giờ máy).
 2. **Kiểu khoá** (mặc định *Dùng chung*):
    - **Dùng chung — `./aia.key.js`**: một link duy nhất cho **mọi** lần mã hoá và **mọi
      người**. Link key bị khoá ở giá trị này. Nên đặt mật khẩu (xem mục 2b).
@@ -47,9 +47,11 @@ npx serve .          # nếu có Node
    - **Tạo run.html**, **Đóng gói ZIP**.
 5. (Chỉ khi muốn đổi tuỳ chọn) bấm **Mã hoá ngay**. Xem thanh tiến trình: tốc độ,
    thời gian còn lại.
-6. Xem **hai kết quả** ngay trên trang:
-   - khung **Code đã mã hoá** — chuyển **Base64 / Hex** và bấm **Chép** để lấy nguyên
-     chuỗi bản mã;
+6. Xem **ba kết quả** ngay trên trang:
+   - dòng **Link key script mở khoá** (URL đầy đủ, nút **Chép link**, nút **Mở**);
+   - khung **Code đã mã hoá**, mặc định là tab **Snippet (kèm link)** — chép toàn bộ,
+     dán vào Console (F12) hoặc tệp `.js` là **chạy ngay**, không cần tải gì thêm;
+     hai tab còn lại là **Base64** và **Hex**;
    - danh sách tệp **`.aia`** (+ key script, run.html, README, ZIP) để tải về.
 7. Bấm **"Chạy thử ngay"** để kiểm tra ngay trong trình duyệt.
 
@@ -63,6 +65,16 @@ run-script.html  ← trang cho người nhận
 README-script.txt
 aia-script.zip   ← gói tất cả
 ```
+
+## 2a. Ba kiểu bảo vệ khi chép code
+
+| Kiểu | Người nhận phải làm gì | Mức bảo vệ |
+|---|---|---|
+| **Không mật khẩu** (mặc định) | dán snippet là chạy | **không có** — ai có đoạn code cũng mở được |
+| **Có mật khẩu, nhúng sẵn** | dán là chạy | thấp — ai đọc code cũng thấy mật khẩu |
+| **Có mật khẩu, hỏi khi chạy** | dán rồi nhập mật khẩu | cao nhất trong 3 kiểu |
+
+Đổi kiểu bảo vệ (hoặc gõ mật khẩu) là web **tự mã hoá lại**, không cần bấm thêm.
 
 ## 2b. Hai chế độ khoá trong thực tế
 
