@@ -1170,6 +1170,91 @@ export function buildWorkerSource(code) {
   );
 }
 
+/* ------------------------------------------------ Xem trước JS (iframe) --- */
+
+/**
+ * Trang xem trước của tab "Lập trình" — chỉ dành cho JavaScript.
+ *
+ * Code chạy trong <iframe sandbox="allow-scripts"> (không allow-same-origin)
+ * nên KHÔNG chạm được vào trang chính, cookie hay localStorage của trang.
+ * Mọi `console.*`, lỗi runtime và Promise bị từ chối đều được gửi về trang
+ * cha bằng `parent.postMessage({ __aia: token, kind, … })`.
+ *
+ * @param {string} code  mã JavaScript của người dùng
+ * @param {{token?:string, title?:string, note?:string}} [opts]
+ * @returns {string} tài liệu HTML hoàn chỉnh để gán vào iframe.srcdoc
+ */
+export function buildPreviewDocument(code, opts = {}) {
+  const token = opts.token ? String(opts.token) : 'aia-preview';
+  const title = escapeHtml(opts.title || 'Kết quả');
+  const note = escapeHtml(opts.note || 'Kết quả chạy JavaScript — nội dung do code của bạn tạo ra.');
+  const source = String(code == null ? '' : code).replace(/<\/script/gi, '<\\/script');
+  const tokenJson = JSON.stringify(token);
+
+  const bridge = [
+    '(function () {',
+    '  var T = ' + tokenJson + ';',
+    '  function fmt(v) {',
+    "    if (typeof v === 'string') return v;",
+    '    if (v instanceof Error) return v.stack || v.message;',
+    '    try { var s = JSON.stringify(v); return s === undefined ? String(v) : s; } catch (e) { return String(v); }',
+    '  }',
+    '  window.__aiaPost = function (kind, data) {',
+    '    try {',
+    '      var msg = { __aia: T, kind: kind };',
+    '      if (data) for (var k in data) if (Object.prototype.hasOwnProperty.call(data, k)) msg[k] = data[k];',
+    "      parent.postMessage(msg, '*');",
+    '    } catch (e) { /* không gửi được thì thôi */ }',
+    '  };',
+    "  ['log', 'info', 'warn', 'error', 'debug'].forEach(function (level) {",
+    '    var original = console[level];',
+    '    console[level] = function () {',
+    '      var text = Array.prototype.map.call(arguments, fmt).join(\' \');',
+    "      window.__aiaPost('log', { level: level === 'debug' ? 'log' : level, text: text });",
+    '      try { if (original) original.apply(console, arguments); } catch (e) {}',
+    '    };',
+    '  });',
+    "  window.addEventListener('error', function (e) {",
+    "    window.__aiaPost('error', { message: String(e.message || e) + (e.lineno ? ' (dòng ' + e.lineno + ')' : '') });",
+    '  });',
+    "  window.addEventListener('unhandledrejection', function (e) {",
+    "    window.__aiaPost('error', { message: 'Promise bị từ chối: ' + fmt(e.reason) });",
+    '  });',
+    "  document.addEventListener('DOMContentLoaded', function () { window.__aiaPost('ready', {}); });",
+    '})();',
+  ].join('\n');
+
+  return [
+    '<!doctype html>',
+    '<html lang="vi">',
+    '<head>',
+    '<meta charset="utf-8">',
+    '<meta name="viewport" content="width=device-width,initial-scale=1">',
+    '<title>' + title + '</title>',
+    '<style>',
+    ':root{color-scheme:light}',
+    'html,body{margin:0;min-height:100%}',
+    "body{padding:14px 16px;font:14px/1.55 ui-sans-serif,system-ui,'Segoe UI',Roboto,Arial,sans-serif;color:#111827;background:#fff;overflow-wrap:break-word}",
+    '#aia-note{margin:0 0 12px;padding:7px 10px;border-radius:8px;background:#eef2f7;color:#5b6b7f;font-size:12px}',
+    'pre{white-space:pre-wrap}',
+    '</style>',
+    '</head>',
+    '<body>',
+    '<p id="aia-note">' + note + '</p>',
+    '<script>\n' + bridge + '\n</script>',
+    '<script>',
+    'try {',
+    source,
+    '} catch (__aiaErr) {',
+    "  window.__aiaPost('error', { message: String((__aiaErr && (__aiaErr.stack || __aiaErr.message)) || __aiaErr) });",
+    '}',
+    '</script>',
+    "<script>window.__aiaPost('done', {});</script>",
+    '</body>',
+    '</html>',
+  ].join('\n');
+}
+
 /* --------------------------------------------------- Sinh "key script" --- */
 
 /**

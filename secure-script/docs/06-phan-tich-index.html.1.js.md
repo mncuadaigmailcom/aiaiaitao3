@@ -38,9 +38,9 @@ GitHub, AI, quảng cáo, combo).
 | 2 | Nhiều tệp | 2 trang × 3 tab HTML/CSS/JS | **Nhiều tệp tổng quát** (tối đa 12): thêm / đổi tên / đóng / chuyển tab | Đúng nhu cầu: một dự án script có thể gồm nhiều tệp |
 | 3 | Tìm & thay | `model.findMatches` + `executeEdits`, `Ctrl+F` | **`findMatches` / `replaceAllText` thuần** + thanh tìm/thay | Không cần Monaco vẫn làm được, có đếm kết quả + phân biệt hoa/thường |
 | 4 | Định dạng | `formatDocument` của Monaco, HTML/CSS tự viết | **`formatCode()`**: JS/TS, Lua/Luau, Python (dùng `reverse.js`), JSON | Tái dùng bộ định dạng đã có test; nói rõ CSS/HTML chưa hỗ trợ thay vì sửa bừa |
-| 5 | Chạy code | `runCode()` → `iframe.srcdoc` | **Web Worker** bằng `buildWorkerSource()` sẵn có | Code không chạm DOM trang; cùng cơ chế với tab Giải mã ⇒ hành vi nhất quán |
+| 5 | Chạy code | `runCode()` → `iframe.srcdoc` | **`iframe` `sandbox="allow-scripts"`** + `buildPreviewDocument()` | Giống cách Code Space chạy code: kết quả hiện ngay bên phải, không chạm được trang (không `allow-same-origin`) |
 | 6 | Console | `postMessage` từ iframe, 1.500 dòng | **Panel Console** trong tab, 1.500 dòng, log/warn/error/sys | Giữ đúng trải nghiệm, không cần iframe |
-| 7 | Nút chạy | `▶ Chạy`, `⚡ Tự chạy` | `Chạy ▶` + `Ctrl+Shift+Enter`, `Dừng`, `Chạy lại`, `Xoá log` | Tự chạy liên tục dễ gây lag khi gõ code lớn ⇒ bỏ |
+| 7 | Nút chạy | `▶ Chạy`, `⚡ Tự chạy` | `Chạy ▶` + `Ctrl+Shift+Enter`, `Dừng`, `Chạy lại`, `Xoá log`, **`Tự chạy`** (tuỳ chọn, mặc định tắt, chỉ code < 300 KB) | Giữ đúng thói quen Code Space nhưng không làm lag khi mở tệp lớn |
 | 8 | Lưu dự án | 5 ô `localStorage`, có tên/thời gian/kích thước, ghi đè, đổi tên, xoá, tải | **5 ô lưu** `aia.ide.slots`: lưu mới, mở, ghi đè, đổi tên, xoá, tải ZIP | Đúng tính năng người dùng yêu cầu; thêm kiểm tra dữ liệu hỏng và giới hạn dung lượng |
 | 9 | Tự lưu | `save-indicator` | **Tự lưu nháp** `aia.ide.workspace` + chỉ báo “đã lưu · HH:MM”; `Ctrl+S` | Tránh mất code khi lỡ đóng tab |
 | 10 | Tải xuống | menu tải: ZIP, tệp 1, tệp 2, tách riêng | **Tải ZIP** toàn bộ tệp + tải từng tệp đang mở | Gọn hơn, đủ dùng |
@@ -75,12 +75,22 @@ GitHub, AI, quảng cáo, combo).
 Lợi ích: 0 KB thư viện, chạy được khi **offline**, kiểm thử được bằng Node/jsdom, và không tạo
 kết nối mạng nào khi người dùng chỉ đang gõ code.
 
-### 3.2 Console: iframe + `postMessage` → Web Worker
+### 3.2 Console + khung kết quả: `iframe` + `postMessage`
 
-File tham chiếu chèn code vào `iframe.srcdoc` rồi nghe `message` để in log. Cách đó phù hợp khi
-code là **trang web** (cần DOM). Với script, `secure-script` đã có `buildWorkerSource()` (dùng cho
-tab Giải mã): code chạy trong Worker, `console.*` được chuyển thành `postMessage`, lỗi runtime được
-giải thích bằng tiếng Việt. Tab Lập trình dùng lại đúng cơ chế đó ⇒ cùng một hành vi ở mọi nơi.
+File tham chiếu chèn code vào `iframe.srcdoc` rồi nghe `message` để in log. Đây đúng là cách phù hợp
+khi code cần **DOM** để tạo kết quả. `secure-script` làm lại theo hướng an toàn hơn:
+
+- `buildPreviewDocument()` sinh tài liệu HTML hoàn chỉnh: chèn cầu nối `__aiaPost`, bọc code trong
+  `try/catch`, bắt `error` + `unhandledrejection`, chuyển `console.log/info/warn/error` thành
+  `parent.postMessage({ __aia: token, kind, … })`.
+- iframe có `sandbox="allow-scripts allow-modals"` và **không** `allow-same-origin` ⇒ code trong
+  khung không đọc được `localStorage`, cookie hay DOM của trang chính.
+- Trang chỉ nhận message có **token riêng** của phiên ⇒ không bị message lạ chen vào.
+- Mọi message được in ra **Console** (giới hạn 1.500 dòng) và trạng thái hiện ngay trên tab
+  **Kết quả** (đang chạy / xong · thời gian / lỗi).
+- Code chứa `</script>` được vô hiệu hoá (`<\/script>`) nên không phá vỡ khung.
+
+Tab Giải mã vẫn dùng **Web Worker** cho code không cần DOM; hai cơ chế bổ sung nhau.
 
 ### 3.3 Lưu dự án: cùng ý tưởng, chắc tay hơn
 
@@ -124,7 +134,7 @@ giải thích bằng tiếng Việt. Tab Lập trình dùng lại đúng cơ ch�
 | Tệp | 1 tệp | **12 tệp** dạng tab, thêm/đổi tên/đóng/chuyển, nạp nhiều tệp |
 | Tìm kiếm | không | **Tìm & thay thế** có đếm kết quả + phân biệt hoa/thường |
 | Định dạng | không | **JS/TS, Lua/Luau, Python, JSON** (`Shift+Alt+F`) |
-| Chạy thử | chỉ ở tab Giải mã | **Chạy trong tab Lập trình** + **Console** log/warn/error |
+| Chạy thử | chỉ ở tab Giải mã | **Chạy trong tab Lập trình** → **kết quả ngay bên phải** + **Console** log/warn/error (iframe sandbox) |
 | Giao diện màu | 1 | **4** (mặc định, Dracula, Monokai, Sáng) |
 | Lưu | nháp 1 tệp | **5 ô lưu dự án** + tự lưu nháp + `Ctrl+S` + ZIP |
 | Số dòng, zoom, thống kê, panel lỗi, chia đôi | có | giữ nguyên, thêm chỉ báo lưu + đếm tệp |
@@ -167,3 +177,55 @@ node tools/check-static.mjs
 - Chỉ **chạy được JavaScript/TypeScript** trong trình duyệt; Lua/Python vẫn soạn, kiểm tra, mã hoá bình thường.
 - `localStorage` của trình duyệt chỉ ~5 MB ⇒ nháp 2 MB, mỗi ô lưu 1,5 MB; dự án lớn nên dùng **Tải ZIP**.
 - Định dạng CSS/HTML chưa hỗ trợ (báo rõ thay vì sửa làm hỏng code).
+
+---
+
+## 9. Bản cập nhật lần này: **chỉ JavaScript** + khung kết quả bên phải
+
+Theo yêu cầu mới, tab Lập trình được thu hẹp **chỉ còn JavaScript** và phần chạy thử được làm
+**giống bên phải của Code Space** (khung xem trước + console).
+
+### 9.1 Chỉ JavaScript
+
+| Trước | Sau |
+|---|---|
+| Nhận mọi đuôi tệp, dò ngôn ngữ theo đuôi + nội dung (Lua, Python, JSON, CSS…) | Chỉ `.js` / `.mjs` / `.cjs`; tên khác **tự đổi** về `.js` (`note.lua` → `note.js`) |
+| Nạp tệp bất kỳ | Nạp tệp khác đuôi bị **bỏ qua** kèm thông báo; tệp cũ trong `localStorage` được chuẩn hoá lại khi mở |
+| Kiểm tra/định dạng/chạy theo ngôn ngữ dò được | Luôn kiểm tra/định dạng/chạy theo **JavaScript** |
+| Nút chạy có thể báo "không chạy được" với Lua/Python | Luôn chạy được (vì luôn là JS) |
+
+Lý do: người dùng chốt "lần này chỉ dành cho js"; giữ nguyên đuôi khác sẽ khiến phần kiểm tra,
+định dạng và chạy phải xử lý nhiều nhánh không dùng tới, dễ sinh lỗi và làm rối giao diện.
+
+### 9.2 Khung kết quả bên phải (như Code Space)
+
+| Code Space (bên phải) | `secure-script` |
+|---|---|
+| `iframe#viewer` hiện kết quả trang | `iframe#edPreview` (`sandbox="allow-scripts allow-modals"`, **không** `allow-same-origin`) |
+| `#console-panel` in log từ `postMessage` | Panel **Console** (1.500 dòng) + tab **Kết quả/Lỗi** ở cột phải |
+| Nút chạy, chế độ xem PC/điện thoại, toàn màn hình | `Chạy`, `Dừng`, `Chạy lại`, `Xoá log`, **tự chạy** sau khi ngừng gõ 0,7 giây (tuỳ chọn) |
+| Tự chạy mặc định BẬT | Tự chạy mặc định **TẮT**, chỉ bật khi code < 300 KB (tránh lag) |
+| Không có kiểm tra cú pháp trước khi chạy | Tab **Lỗi** dò cú pháp, bấm là nhảy tới dòng, đếm lỗi ngay trên tab |
+
+### 9.3 Kiểm chứng
+
+```bash
+node tests/run-js.mjs     # 53 điểm: chỉ JS + buildPreviewDocument
+node tests/run-dom.mjs    # 278 điểm: [7d] giao diện, [7e] iframe chạy thật
+node tools/check-static.mjs  # 227 điểm
+```
+
+Mục **[7e]** không chỉ kiểm chuỗi: nó tạo một `JSDOM` từ chính tài liệu `buildPreviewDocument()`
+sinh ra, chạy script bên trong rồi xác nhận `console.log`, object JSON hoá, mức `warn`, việc sửa
+DOM, `done`, và **lỗi ném trong `setTimeout`** đều về tới trang cha đúng token.
+
+### 9.4 Lỗi tìm thấy trong quá trình làm
+
+1. **`[hidden]` bị `display:flex` ghi đè** (nguy cơ thật trên trình duyệt): trước đây panel
+   `.ed-console` và thanh tìm kiếm dùng thuộc tính `hidden` nhưng class lại đặt `display:flex`,
+   nên CSS của trang thắng. Đã thêm `[hidden] { display: none !important; }` toàn cục và có test
+   kiểm tra tĩnh.
+2. **Lẫn ngôn ngữ**: khi tên tệp `.lua` vẫn được giữ, phần "chạy thử" báo lỗi khó hiểu; nay ép `.js`
+   ngay từ lúc thêm/đổi tên/nạp tệp.
+3. **Message lạ**: nếu không có token, bất kỳ iframe nào cũng có thể bơm log giả vào Console; đã
+   thêm token riêng mỗi phiên và test gửi message sai token (phải bị bỏ qua).

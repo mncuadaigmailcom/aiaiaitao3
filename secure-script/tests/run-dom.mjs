@@ -695,7 +695,7 @@ console.log('\n[7c] Chống soi — trang trắng');
 
 /* ------------------------------------- 7d. Lập trình nâng cao (IDE) --- */
 
-console.log('\n[7d] Nhiều tệp · tìm/thay · định dạng · chạy thử · ô lưu');
+console.log('\n[7d] Nhiều tệp · tìm/thay · định dạng · chạy thử + xem trước · ô lưu');
 {
   const A = globalThis.AIA_EDITOR;
   window.confirm = () => true;
@@ -706,6 +706,7 @@ console.log('\n[7d] Nhiều tệp · tìm/thay · định dạng · chạy thử
   check(!!$('edTabs') && !!$('edNewFile') && !!$('edFileCount'), 'có thanh tab tệp');
   check(!!$('edTheme') && !!$('edFindInput') && !!$('edReplaceInput'), 'có chọn màu + thanh tìm/thay');
   check(!!$('edConsole') && !!$('edConsoleOut'), 'có panel console');
+  check(!!$('edPreview') && !!$('edSideTabs'), 'có khung xem trước + tab Kết quả/Lỗi');
   check(!!$('edSlotsModal') && !!$('edSlotsList'), 'có hộp thoại lưu dự án');
 
   /* ------------------------------------------------------------- tệp --- */
@@ -720,6 +721,14 @@ console.log('\n[7d] Nhiều tệp · tìm/thay · định dạng · chạy thử
   check(window.document.querySelectorAll('.ed-tab').length === 2, 'hiện 2 tab');
   check($('edFileCount').textContent.includes('2 tệp'), 'hiện tổng số tệp', $('edFileCount').textContent);
 
+  A.addFile('note.lua', 'print(1)\n');
+  check(A.activeName() === 'note.js', 'tạo tệp .lua tự đổi thành .js (chỉ JS)', A.activeName());
+  check(ta.value.includes('print(1)'), 'nội dung tệp vẫn giữ nguyên');
+  window.document.querySelector('.ed-tab.active .ed-tab-x').click();
+
+  $('edName').value = 'style.css';
+  fire($('edName'), 'input');
+  check(A.activeName() === 'style.js', 'đổi tên .css tự thành .js', A.activeName());
   window.document.querySelectorAll('.ed-tab')[0].click();
   check(A.activeName() === 'demo.js', 'bấm tab để chuyển tệp', A.activeName());
   check(ta.value.includes('const a = 1'), 'nội dung tệp cũ được giữ nguyên');
@@ -779,8 +788,8 @@ console.log('\n[7d] Nhiều tệp · tìm/thay · định dạng · chạy thử
   $('edFormatBtn').click();
   check(ta.value.split('\n').length >= 2, 'định dạng JS thành nhiều dòng', JSON.stringify(ta.value));
   A.setCode('a{color:red}', 'style.css');
-  $('edFormatBtn').click();
-  check(ta.value === 'a{color:red}', 'CSS không bị sửa bừa khi chưa hỗ trợ');
+  check(A.activeName() === 'style.js', 'tab chỉ nhận JavaScript: .css → .js', A.activeName());
+  check(ta.value === 'a{color:red}', 'nội dung không bị sửa khi chưa bấm định dạng');
 
   /* ---------------------------------------------------------- màu --- */
   $('edTheme').value = 'dracula';
@@ -790,23 +799,69 @@ console.log('\n[7d] Nhiều tệp · tìm/thay · định dạng · chạy thử
   $('edTheme').value = 'dark';
   fire($('edTheme'), 'change');
 
-  /* -------------------------------------------------- chạy thử + log --- */
-  A.setCode('console.log("hi");', 'run.js');
+  /* ---------------------------------------- chạy thử + xem trước --- */
+  A.setCode('console.log("hi");\ndocument.body.innerHTML = "<b>kết quả</b>";', 'run.js');
   $('edRunBtn').click();
   check($('edConsole').hidden === false, 'bấm Chạy thì mở console');
-  await waitFor(() => $('edConsoleOut').textContent.includes('Xin chào từ worker giả'), 'log của code hiện trong console', 8000);
-  check($('edConsoleOut').textContent.includes('> Xin chào từ worker giả'), 'log có tiền tố ">"', $('edConsoleOut').textContent.slice(0, 80));
-  await waitFor(() => $('edConsoleStatus').textContent.includes('xong'), 'báo chạy xong', 8000);
-  check(/lỗi thử \(cố ý\)/.test($('edConsoleOut').textContent), 'lỗi runtime hiện trong console');
+  check($('edSidePreview').hidden === false, 'tự chuyển sang tab Kết quả');
+  const srcdoc = $('edPreview').srcdoc;
+  check(srcdoc.includes('document.body.innerHTML'), 'khung xem trước nhận đúng code');
+  check(srcdoc.includes('<!doctype html>'), 'khung xem trước là tài liệu HTML hoàn chỉnh');
+  const sandbox = $('edPreview').getAttribute('sandbox') || '';
+  check(sandbox.includes('allow-scripts'), 'iframe có sandbox allow-scripts');
+  check(!sandbox.includes('allow-same-origin'), 'iframe KHÔNG có allow-same-origin (cách ly trang)');
+  check($('edPreviewHint').hidden === true, 'ẩn lời nhắc khi đã chạy');
+  check($('edConsoleStatus').textContent.includes('đang chạy'), 'báo đang chạy', $('edConsoleStatus').textContent);
 
-  A.addFile('note.lua', 'local x = 1\nprint(x)\n');
-  $('edRunBtn').click();
-  check($('edConsoleStatus').textContent.includes('không chạy được'), 'tệp Lua bị chặn chạy (đúng thiết kế)', $('edConsoleStatus').textContent);
-  check($('edConsoleOut').textContent.includes('chỉ chạy được JavaScript'), 'giải thích rõ vì sao không chạy');
+  const token = A.previewToken();
+  check(typeof token === 'string' && token.length > 6, 'có token riêng cho khung xem trước');
+  const post = (data) => window.dispatchEvent(new window.MessageEvent('message', { data }));
+  post({ __aia: 'token-sai', kind: 'log', level: 'log', text: 'KHONG-DUOC-HIEN' });
+  check(!$('edConsoleOut').textContent.includes('KHONG-DUOC-HIEN'), 'bỏ qua message không đúng token');
+  post({ __aia: token, kind: 'log', level: 'log', text: 'Xin chào từ iframe' });
+  check($('edConsoleOut').textContent.includes('Xin chào từ iframe'), 'log của code hiện trong console');
+  check($('edConsoleOut').textContent.includes('> Xin chào từ iframe'), 'log có tiền tố ">"', $('edConsoleOut').textContent.slice(0, 90));
+  post({ __aia: token, kind: 'log', level: 'warn', text: 'cẩn thận' });
+  check($('edConsoleOut').querySelectorAll('.ed-log.warn').length >= 1, 'log mức warn có kiểu riêng');
+  post({ __aia: token, kind: 'error', message: 'boomChuaKhaiBao is not defined' });
+  check(/boomChuaKhaiBao/.test($('edConsoleOut').textContent), 'lỗi runtime hiện trong console');
+  check($('edConsoleStatus').textContent.includes('lỗi'), 'báo trạng thái lỗi', $('edConsoleStatus').textContent);
+  post({ __aia: token, kind: 'done' });
+  check($('edConsoleStatus').textContent.includes('xong'), 'báo chạy xong', $('edConsoleStatus').textContent);
+  check($('edPreviewStatus').textContent.includes('xong'), 'trạng thái khung xem trước = xong', $('edPreviewStatus').textContent);
+
+  $('edCheckBtn').click();
+  check($('edSideErrors').hidden === false, 'bấm Kiểm tra thì mở tab Lỗi');
+  check(/^\d+$/.test($('edErrCount').textContent), 'tab Lỗi có bộ đếm lỗi', $('edErrCount').textContent);
+  window.document.querySelector('#edSideTabs [data-side="preview"]').click();
+  check($('edSideErrors').hidden === true && $('edSidePreview').hidden === false, 'chuyển lại được tab Kết quả');
+  window.document.querySelector('#edSideTabs [data-side="errors"]').click();
+  check($('edSideErrors').hidden === false, 'chuyển sang tab Lỗi bằng chuột');
+
+  $('edStopBtn').click();
+  check($('edPreview').srcdoc === '', 'nút Dừng xoá khung xem trước');
+  check($('edConsoleStatus').textContent.includes('đã dừng'), 'báo đã dừng');
   $('edConsoleClear').click();
   check($('edConsoleOut').textContent === '', 'xoá được log');
   $('edConsoleClose').click();
   check($('edConsole').hidden === true, 'đóng được console');
+
+  /* ------------------------------------------------ tự chạy khi gõ --- */
+  A.autoRun(false);
+  A.setCode('const v = 1;', 'auto.js');
+  $('edPreview').srcdoc = '';
+  ta.value = 'const v = 1.5;';
+  fire(ta, 'input');
+  await new Promise((r) => setTimeout(r, 1100));
+  check($('edPreview').srcdoc === '', 'tắt Tự chạy thì không tự chạy');
+
+  A.autoRun(true);
+  check($('edAutoRun').checked === true && window.localStorage.getItem('aia.ed.autorun') === '1', 'bật Tự chạy + nhớ lựa chọn');
+  ta.value = 'const v = 2;';
+  fire(ta, 'input');
+  await waitFor(() => $('edPreview').srcdoc.includes('const v = 2'), 'bật Tự chạy thì chạy lại sau khi ngừng gõ', 6000);
+  check($('edConsoleStatus').textContent.includes('đang chạy'), 'tự chạy cập nhật trạng thái');
+  A.autoRun(false);
 
   /* -------------------------------------------------------- ô lưu --- */
   A.setCode('const saved = 42;\n', 'save-me.js');
@@ -860,6 +915,38 @@ console.log('\n[7d] Nhiều tệp · tìm/thay · định dạng · chạy thử
 
   // trả lại trạng thái có code để các mục sau dùng
   A.setCode(sampleCode, 'tu-editor.js');
+}
+
+/* --------------------------------------- 7e. xem trước chạy thật --- */
+
+console.log('\n[7e] Khung xem trước chạy thật (bridge postMessage)');
+{
+  const { buildPreviewDocument } = await import('../assets/core.js');
+  const code = [
+    'console.log("xin chào");',
+    'console.log({ a: 1 });',
+    'console.warn("cẩn thận");',
+    'document.body.insertAdjacentHTML("beforeend", "<b id=ok>đã chạy</b>");',
+    'setTimeout(function () { throw new Error("bùm"); }, 0);',
+  ].join('\n');
+  const doc = buildPreviewDocument(code, { token: 'tok-e2e', title: 'e2e.js' });
+  const frame = new JSDOM(doc, { runScripts: 'dangerously', url: 'http://localhost:8080/' });
+  const messages = [];
+  frame.window.addEventListener('message', (e) => messages.push(e.data));
+  await new Promise((r) => setTimeout(r, 200));
+
+  const ofKind = (kind) => messages.filter((m) => m && m.__aia === 'tok-e2e' && m.kind === kind);
+  check(ofKind('log').some((m) => m.text === 'xin chào'), 'console.log chạy và gửi về trang cha');
+  check(ofKind('log').some((m) => m.text === '{"a":1}'), 'log object được JSON hoá', JSON.stringify(ofKind('log').map((m) => m.text)));
+  check(ofKind('log').some((m) => m.level === 'warn' && m.text === 'cẩn thận'), 'giữ đúng mức warn');
+  check(!!frame.window.document.getElementById('ok'), 'code chạm được DOM trong iframe');
+  check(frame.window.document.body.textContent.includes('đã chạy'), 'kết quả hiện trong khung xem trước');
+  check(frame.window.document.title === 'e2e.js', 'tiêu đề khung = tên tệp');
+  check(!!ofKind('done').length, 'gửi tín hiệu done khi chạy xong');
+  const errs = ofKind('error');
+  check(errs.some((m) => /bùm/.test(String(m.message))), 'bắt được lỗi ném trong setTimeout', JSON.stringify(errs));
+  check(messages.every((m) => m && m.__aia === 'tok-e2e'), 'mọi message đều mang token đúng');
+  frame.window.close();
 }
 
 /* ------------------------------------------------- 8. hộp thoại GitHub --- */

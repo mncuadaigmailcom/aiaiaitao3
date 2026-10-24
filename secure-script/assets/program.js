@@ -10,7 +10,9 @@
  *   · tìm & thay thế (Ctrl+F / Ctrl+H)
  *   · định dạng code (Shift+Alt+F)
  *   · panel "tìm lỗi" (lỗi + cảnh báo), bấm là nhảy tới dòng
- *   · chạy thử trong Web Worker + Console log
+ *   · CHỈ JavaScript: tệp khác đuôi tự đổi về .js, ngôn ngữ luôn là JavaScript
+ *   · chạy thử trong iframe sandbox + xem kết quả ngay bên phải (như Code Space)
+ *   · Console log nhận từ iframe qua postMessage
  *   · chia đôi màn hình: code | lỗi, hoặc chọn chỉ code / chỉ lỗi
  *   · 5 ô lưu dự án, tải ZIP không gian làm việc
  *   · mã hoá code, tạo trang trắng chống soi, đẩy lên GitHub
@@ -35,6 +37,7 @@ const KEYS = {
   font: 'aia.ed.font',
   layout: 'aia.ed.layout',
   theme: 'aia.ed.theme',
+  side: 'aia.ed.side',
   draft: 'aia.ed.draft', // nháp kiểu cũ (1 tệp) — chỉ dùng để chuyển đổi
   draftName: 'aia.ed.draft.name',
 };
@@ -43,9 +46,19 @@ const AUTO_CHECK_DELAY = 420;
 const PERSIST_DELAY = 700;
 const CONSOLE_MAX_LINES = 1500;
 const THEMES = ['dark', 'dracula', 'monokai', 'light'];
+const JS_HINT = 'Tab Lập trình chỉ dành cho JavaScript (.js / .mjs / .cjs).';
+const PREVIEW_TIMEOUT = 5000;
+const AUTO_RUN_DELAY = 700;
+const AUTO_RUN_MAX_CHARS = 300000; // code lớn hơn thì không tự chạy để khỏi lag
 
 const state = {
   bridge: null,
+  previewToken: '',
+  previewTimer: 0,
+  runStartedAt: 0,
+  side: 'preview',
+  autoRun: false,
+  autoRunTimer: 0,
   font: FONT_DEFAULT,
   theme: 'dark',
   timer: 0,
@@ -161,6 +174,15 @@ function active() {
   return IDE.activeFile(state.ws);
 }
 
+/** Ép tên tệp về JavaScript (.js / .mjs / .cjs) — tab này chỉ dành cho JS. */
+function jsName(raw) {
+  return IDE.forceJsFileName(raw, IDE.nextFileName(state.ws.files));
+}
+
+function nowMs() {
+  return globalThis.performance && typeof performance.now === 'function' ? performance.now() : Date.now();
+}
+
 function commitActive() {
   const ta = editor();
   if (!ta) return;
@@ -179,6 +201,7 @@ function loadActiveToEditor() {
   renderStats(null, true);
   check(false);
   syncScroll();
+  resetPreview();
 }
 
 const bytesCache = new WeakMap();
@@ -242,7 +265,9 @@ function switchTo(index) {
 
 function addNewFile(name, content = '') {
   commitActive();
-  const index = IDE.addFile(state.ws, { name: name || IDE.nextFileName(state.ws.files), content });
+  const wanted = String(name == null ? '' : name).trim() || IDE.nextFileName(state.ws.files);
+  const finalName = jsName(wanted);
+  const index = IDE.addFile(state.ws, { name: finalName, content });
   if (index < 0) {
     toast('Chỉ mở tối đa ' + IDE.MAX_FILES + ' tệp. Hãy đóng bớt.', 'warn');
     return -1;
@@ -250,7 +275,11 @@ function addNewFile(name, content = '') {
   loadActiveToEditor();
   renderTabs();
   persistSoon();
-  toast('Đã thêm tệp ' + active().name, 'ok');
+  toast(
+    finalName === wanted ? 'Đã thêm tệp ' + active().name : 'Đã thêm ' + finalName + ' (' + JS_HINT + ')',
+    finalName === wanted ? 'ok' : 'warn',
+    4200,
+  );
   return index;
 }
 
@@ -268,10 +297,12 @@ function closeFile(index) {
   resetCloak();
 }
 
-function renameActive(name) {
+function renameActive(name, quiet = false) {
   commitActive();
-  const next = IDE.renameFile(state.ws, state.ws.active, name);
+  const wanted = String(name == null ? '' : name).trim();
+  const next = IDE.renameFile(state.ws, state.ws.active, jsName(wanted || active().name));
   if ($('edName') && next) $('edName').value = next;
+  if (!quiet && wanted && next && next !== wanted) toast(JS_HINT + ' Đã đổi tên thành ' + next, 'warn', 4200);
   renderTabs();
   check(false);
   persistSoon();
@@ -418,19 +449,9 @@ function setTheme(name) {
 
 /* ------------------------------------------------------------- thống kê --- */
 
-function detectEditorLang(text, name) {
-  const file = String(name || 'script.js');
-  const byName = C.detectLang(file);
-  try {
-    return C.resolveLang(file, text) || byName;
-  } catch {
-    return byName;
-  }
-}
-
 function currentLang() {
-  const ta = editor();
-  return detectEditorLang(ta ? ta.value : '', active().name);
+  // Tab "Lập trình" chỉ dành cho JavaScript ⇒ luôn kiểm tra/định dạng/chạy theo JS.
+  return 'javascript';
 }
 
 function renderStats(report, quick = false) {
@@ -439,8 +460,8 @@ function renderStats(report, quick = false) {
   const ta = editor();
   const text = ta ? ta.value : '';
   const stats = (report && report.stats) || codeStats(text);
-  // `quick` = cập nhật ngay khi gõ: không dò lại ngôn ngữ theo nội dung (đỡ tốn CPU)
-  const lang = (report && report.lang) || state.lang || (quick ? C.detectLang(active().name) : detectEditorLang(text, active().name));
+  // Tab này chỉ dành cho JavaScript nên nhãn ngôn ngữ luôn là JavaScript.
+  const lang = 'javascript';
   const big = stats.bytes >= 1024 ? formatSize(stats.bytes) : stats.bytes + ' B';
   box.innerHTML = '';
   const rows = [
@@ -489,13 +510,23 @@ function renderIssues(report) {
   if (!box) return;
   box.innerHTML = '';
   if (!report) {
-    box.innerHTML = '<p class="help">Bấm <b>Kiểm tra</b> để dò lỗi cú pháp, ngoặc lệch, chuỗi chưa đóng…</p>';
+    box.innerHTML = '<p class="help">Bấm <b>Kiểm tra</b> (Ctrl+Enter) để dò lỗi cú pháp, ngoặc lệch, chuỗi chưa đóng…</p>';
     if (summary) summary.textContent = 'chưa kiểm tra';
+    const badge0 = $('edErrCount');
+    if (badge0) {
+      badge0.textContent = '0';
+      badge0.classList.remove('has-errors');
+    }
     return;
   }
   const errs = report.errors || [];
   const warns = report.warnings || [];
   const shown = errs.concat(warns);
+  const badge = $('edErrCount');
+  if (badge) {
+    badge.textContent = String(errs.length);
+    badge.classList.toggle('has-errors', errs.length > 0);
+  }
   if (summary) {
     summary.textContent = errs.length + ' lỗi · ' + warns.length + ' cảnh báo';
     summary.style.color = errs.length ? 'var(--bad)' : warns.length ? 'var(--warn)' : 'var(--ok)';
@@ -550,7 +581,7 @@ function check(manual = false) {
   const ta = editor();
   if (!ta) return null;
   const text = ta.value;
-  const lang = detectEditorLang(text, active().name);
+  const lang = 'javascript';
   let report;
   try {
     report = analyzeCode(text, { lang });
@@ -569,6 +600,7 @@ function check(manual = false) {
   renderIssues(report);
   renderStats(report);
   if (manual) {
+    setSide('errors');
     toast(
       report.ok
         ? 'Không thấy lỗi — ' + (report.warnings.length ? report.warnings.length + ' cảnh báo' : 'code sạch')
@@ -582,6 +614,21 @@ function check(manual = false) {
 function scheduleCheck() {
   clearTimeout(state.timer);
   state.timer = setTimeout(() => check(false), AUTO_CHECK_DELAY);
+}
+
+/** Tự chạy lại sau khi ngừng gõ (chỉ khi bật "Tự chạy" và code không quá lớn). */
+function scheduleAutoRun() {
+  clearTimeout(state.autoRunTimer);
+  if (!state.autoRun) return;
+  const ta = editor();
+  const len = ta ? ta.value.length : 0;
+  if (!len || len > AUTO_RUN_MAX_CHARS) return;
+  state.autoRunTimer = setTimeout(() => {
+    if (!state.autoRun) return;
+    const nowTa = editor();
+    if (!nowTa || !nowTa.value.trim()) return;
+    runActive(true);
+  }, AUTO_RUN_DELAY);
 }
 
 /* ------------------------------------------------------ tìm / thay thế --- */
@@ -786,64 +833,131 @@ function setRunStatus(text, kind) {
   el.style.color = kind === 'bad' ? 'var(--bad)' : kind === 'ok' ? 'var(--ok)' : '';
 }
 
-function runActive() {
+/* -------------------------------------------------- tab phải: xem trước --- */
+
+/** Chọn tab bên phải: "preview" (kết quả chạy) hoặc "errors" (lỗi cú pháp). */
+function setSide(side) {
+  state.side = side === 'errors' ? 'errors' : 'preview';
+  const wrapPreview = $('edSidePreview');
+  const wrapErrors = $('edSideErrors');
+  if (wrapPreview) wrapPreview.hidden = state.side !== 'preview';
+  if (wrapErrors) wrapErrors.hidden = state.side !== 'errors';
+  const tabs = $('edSideTabs');
+  if (tabs) {
+    tabs.querySelectorAll('[data-side]').forEach((btn) => {
+      const on = btn.dataset.side === state.side;
+      btn.classList.toggle('active', on);
+      btn.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+  }
+  safeStore(KEYS.side, state.side);
+  return state.side;
+}
+
+function setPreviewStatus(text, kind) {
+  const el = $('edPreviewStatus');
+  if (!el) return;
+  el.textContent = text || '';
+  el.className = 'muted small preview-status' + (kind ? ' ' + kind : '');
+  el.style.color = kind === 'bad' ? 'var(--bad)' : kind === 'ok' ? 'var(--ok)' : '';
+}
+
+function stopRun() {
+  stopWorker();
+  clearTimeout(state.previewTimer);
+  state.previewTimer = 0;
+}
+
+/** Xoá khung xem trước (dùng khi đổi tệp / làm mới / dừng). */
+function resetPreview() {
+  stopRun();
+  const frame = $('edPreview');
+  if (frame) frame.srcdoc = '';
+  const hint = $('edPreviewHint');
+  if (hint) hint.hidden = false;
+  setPreviewStatus('chưa chạy');
+}
+
+/* ------------------------------------------------------- chạy thử + log --- */
+
+/**
+ * Chạy JavaScript trong iframe sandbox rồi hiện kết quả ngay bên phải
+ * (giống khung xem trước của Code Space), log/lỗi gửi về qua postMessage.
+ */
+function runActive(quiet = false) {
   const ta = editor();
   if (!ta) return { ok: false, reason: 'no-editor' };
   const code = ta.value;
-  const lang = currentLang();
-  consoleOpen(true);
+  if (!quiet) consoleOpen(true);
   if (!code.trim()) {
     consoleLine('warn', 'Chưa có code để chạy.');
     setRunStatus('trống', 'bad');
     return { ok: false, reason: 'empty' };
   }
-  if (!C.isRunnableLang(lang)) {
-    const msg = 'Tệp này là ' + langLabelOf(lang) + ' — trình duyệt chỉ chạy được JavaScript/TypeScript.';
-    consoleLine('warn', msg);
-    consoleLine('sys', 'Code vẫn mã hoá được bình thường. Hãy dùng “Tải tệp” để chạy bằng công cụ phù hợp.');
-    setRunStatus('không chạy được ' + langLabelOf(lang), 'bad');
-    toast(msg, 'warn', 6000);
-    return { ok: false, reason: 'lang', lang };
-  }
-  if (typeof Worker !== 'function' || typeof Blob !== 'function') {
-    consoleLine('error', 'Trình duyệt không hỗ trợ Web Worker.');
-    setRunStatus('không hỗ trợ Worker', 'bad');
-    return { ok: false, reason: 'no-worker' };
+  const frame = $('edPreview');
+  if (!frame) {
+    consoleLine('error', 'Không tìm thấy khung xem trước.');
+    setRunStatus('lỗi', 'bad');
+    return { ok: false, reason: 'no-frame' };
   }
 
-  stopWorker();
+  stopRun();
   consoleClear();
+  setSide('preview');
+  const hint = $('edPreviewHint');
+  if (hint) hint.hidden = true;
   consoleLine('sys', 'chạy ' + active().name + ' (' + formatSize(new TextEncoder().encode(code).length) + ')…');
   setRunStatus('đang chạy…');
-  let url = '';
+  setPreviewStatus('đang chạy…');
+  state.runStartedAt = nowMs();
+
   try {
-    const blob = new Blob([C.buildWorkerSource(code)], { type: 'text/javascript' });
-    url = URL.createObjectURL(blob);
-    const worker = new Worker(url);
-    state.worker = { worker, url };
-    state.runStartedAt = (globalThis.performance && performance.now()) || Date.now();
-    worker.onmessage = (ev) => {
-      const d = ev.data || {};
-      if (d.type === 'log') consoleLine(d.level === 'warn' ? 'warn' : d.level === 'error' ? 'error' : 'log', (d.args || []).join(' '));
-      else if (d.type === 'error') consoleLine('error', explainRunError(d.message));
-      else if (d.type === 'done') {
-        const ms = ((globalThis.performance && performance.now()) || Date.now()) - state.runStartedAt;
-        consoleLine('sys', 'chạy xong · ' + C.formatDuration(ms));
-        setRunStatus('xong · ' + C.formatDuration(ms), 'ok');
-        stopWorker();
-      }
-    };
-    worker.onerror = (e) => {
-      consoleLine('error', explainRunError(e && e.message ? e.message : 'lỗi không rõ'));
-      setRunStatus('lỗi', 'bad');
-      stopWorker();
-    };
+    frame.srcdoc = C.buildPreviewDocument(code, { token: state.previewToken, title: active().name });
   } catch (err) {
     consoleLine('error', explainRunError(err && err.message));
     setRunStatus('lỗi', 'bad');
+    setPreviewStatus('lỗi', 'bad');
     return { ok: false, reason: 'throw', message: err && err.message };
   }
-  return { ok: true, lang };
+
+  state.previewTimer = setTimeout(() => {
+    state.previewTimer = 0;
+    consoleLine('warn', 'Không nhận được phản hồi từ khung xem trước (có thể trình duyệt chặn iframe).');
+    setPreviewStatus('không có phản hồi', 'bad');
+  }, PREVIEW_TIMEOUT);
+
+  return { ok: true };
+}
+
+/** Nhận log/lỗi do iframe xem trước gửi về. */
+function handlePreviewMessage(data) {
+  if (!data || data.__aia !== state.previewToken) return false;
+  const kind = String(data.kind || '');
+  if (kind === 'log') {
+    const level = data.level === 'warn' || data.level === 'error' || data.level === 'info' ? data.level : 'log';
+    consoleLine(level, String(data.text == null ? '' : data.text));
+    return true;
+  }
+  if (kind === 'error') {
+    consoleLine('error', explainRunError(data.message));
+    setRunStatus('lỗi', 'bad');
+    setPreviewStatus('lỗi', 'bad');
+    return true;
+  }
+  if (kind === 'ready') {
+    setPreviewStatus('đang chạy…');
+    return true;
+  }
+  if (kind === 'done') {
+    clearTimeout(state.previewTimer);
+    state.previewTimer = 0;
+    const ms = nowMs() - state.runStartedAt;
+    consoleLine('sys', 'chạy xong · ' + C.formatDuration(ms));
+    setRunStatus('xong · ' + C.formatDuration(ms), 'ok');
+    setPreviewStatus('xong · ' + C.formatDuration(ms), 'ok');
+    return true;
+  }
+  return false;
 }
 
 /* ------------------------------------------------------------- ô lưu dự án --- */
@@ -955,7 +1069,7 @@ function loadSlotById(id) {
   const slot = IDE.findSlot(currentSlots(), id);
   if (!slot) return null;
   commitActive();
-  state.ws = IDE.createWorkspace(slot.files);
+  state.ws = ensureJsWorkspace(IDE.createWorkspace(slot.files), slot.active || 0);
   state.ws.active = Math.min(slot.active || 0, state.ws.files.length - 1);
   loadActiveToEditor();
   renderTabs();
@@ -1030,7 +1144,20 @@ function downloadSlotZip(id) {
 /* ------------------------------------------------------------ tệp / tải --- */
 
 async function loadFiles(fileList) {
-  const files = Array.from(fileList || []);
+  const all = Array.from(fileList || []);
+  if (!all.length) return 0;
+  const files = [];
+  let rejected = 0;
+  for (const file of all) {
+    const rawName = String((file && file.name) || '').trim();
+    const hasExt = /\.[^./\\]+$/.test(rawName);
+    if (hasExt && !IDE.isJsFileName(rawName)) {
+      rejected++;
+      continue;
+    }
+    files.push(file);
+  }
+  if (rejected) toast('Bỏ qua ' + rejected + ' tệp không phải JavaScript. ' + JS_HINT, 'warn', 6000);
   if (!files.length) return 0;
   let added = 0;
   for (const file of files) {
@@ -1040,7 +1167,7 @@ async function loadFiles(fileList) {
     }
     const text = typeof file.text === 'function' ? await file.text() : await new Response(file).text();
     commitActive();
-    const index = IDE.addFile(state.ws, { name: file.name || 'script.js', content: text });
+    const index = IDE.addFile(state.ws, { name: jsName(file.name || 'script.js'), content: text });
     if (index < 0) {
       toast('Chỉ mở tối đa ' + IDE.MAX_FILES + ' tệp.', 'warn');
       break;
@@ -1127,7 +1254,7 @@ function syncNameFromInput() {
   const input = $('edName');
   if (!input) return active().name;
   const typed = String(input.value || '').trim();
-  if (typed && typed !== active().name) IDE.renameFile(state.ws, state.ws.active, typed);
+  if (typed && typed !== active().name) IDE.renameFile(state.ws, state.ws.active, jsName(typed));
   const now = active().name;
   if (input.value !== now) input.value = now;
   return now;
@@ -1163,15 +1290,27 @@ export function editorContent() {
 
 /* ------------------------------------------------------------ khởi động --- */
 
+/** Mọi không gian làm việc (kể cả bản lưu cũ) đều phải là tệp JavaScript. */
+function ensureJsWorkspace(ws, activeIndex) {
+  const files = ((ws && ws.files) || []).map((f) => ({
+    name: IDE.forceJsFileName(f && f.name, 'script.js'),
+    content: (f && f.content) || '',
+  }));
+  const out = IDE.createWorkspace(files);
+  const wanted = activeIndex == null ? (ws && ws.active) || 0 : activeIndex;
+  out.active = Math.min(Math.max(0, Number(wanted) || 0), out.files.length - 1);
+  return out;
+}
+
 function bootWorkspace() {
   const storage = storageOrNull();
   const saved = IDE.loadWorkspace(storage);
-  if (saved) return saved;
+  if (saved) return ensureJsWorkspace(saved);
   // chuyển đổi từ bản cũ (chỉ 1 tệp, lưu ở aia.ed.draft)
   const draft = safeLoad(KEYS.draft);
   if (draft) {
     const ws = IDE.createWorkspace([{ name: safeLoad(KEYS.draftName) || 'script.js', content: draft }]);
-    return ws;
+    return ensureJsWorkspace(ws);
   }
   return IDE.createWorkspace();
 }
@@ -1205,6 +1344,7 @@ export function initProgram(bridge) {
     renderTabs();
     persistSoon();
     if ($('edFind') && !$('edFind').hidden) refreshFind();
+    scheduleAutoRun();
   });
   ta.addEventListener('scroll', syncScroll);
   ta.addEventListener('keydown', (e) => {
@@ -1265,9 +1405,12 @@ export function initProgram(bridge) {
   }
   if ($('edName')) {
     $('edName').addEventListener('change', () => renameActive($('edName').value));
+    $('edName').addEventListener('blur', () => {
+      if ($('edName')) $('edName').value = active().name;
+    });
     $('edName').addEventListener('input', () => {
-      // đổi tên ngay khi gõ (không kiểm tra lại code, chỉ cập nhật tab + ngôn ngữ)
-      IDE.renameFile(state.ws, state.ws.active, $('edName').value);
+      // đổi tên ngay khi gõ, luôn ép về .js (không kiểm tra lại code)
+      IDE.renameFile(state.ws, state.ws.active, jsName($('edName').value));
       renderTabs();
       renderStats(null, true);
       scheduleCheck();
@@ -1280,6 +1423,16 @@ export function initProgram(bridge) {
   if ($('edLineToggle')) $('edLineToggle').addEventListener('change', (e) => toggleLines(e.target.checked));
   if ($('edWrapToggle')) $('edWrapToggle').addEventListener('change', (e) => toggleWrap(e.target.checked));
   if ($('edLayout')) $('edLayout').addEventListener('change', (e) => setLayout(e.target.value));
+  if ($('edAutoRun')) {
+    state.autoRun = safeLoad('aia.ed.autorun') === '1';
+    $('edAutoRun').checked = state.autoRun;
+    $('edAutoRun').addEventListener('change', (e) => {
+      state.autoRun = !!e.target.checked;
+      safeStore('aia.ed.autorun', state.autoRun ? '1' : '0');
+      if (state.autoRun) scheduleAutoRun();
+      toast(state.autoRun ? 'Đã bật tự chạy khi ngừng gõ.' : 'Đã tắt tự chạy.', 'info', 2600);
+    });
+  }
   if ($('edTheme')) $('edTheme').addEventListener('change', (e) => setTheme(e.target.value));
 
   if ($('edZoomIn')) $('edZoomIn').addEventListener('click', () => applyFont(state.font + 1));
@@ -1288,9 +1441,14 @@ export function initProgram(bridge) {
 
   if ($('edCheckBtn')) $('edCheckBtn').addEventListener('click', () => check(true));
   if ($('edFormatBtn')) $('edFormatBtn').addEventListener('click', () => formatActive());
-  if ($('edRunBtn')) $('edRunBtn').addEventListener('click', () => runActive());
+  if ($('edRunBtn')) $('edRunBtn').addEventListener('click', () => runActive(false));
   if ($('edStopBtn')) $('edStopBtn').addEventListener('click', () => {
-    stopWorker();
+    stopRun();
+    const frame = $('edPreview');
+    if (frame) frame.srcdoc = '';
+    const hint = $('edPreviewHint');
+    if (hint) hint.hidden = false;
+    setPreviewStatus('đã dừng', 'bad');
     consoleLine('sys', 'đã dừng.');
     setRunStatus('đã dừng', 'bad');
   });
@@ -1299,7 +1457,7 @@ export function initProgram(bridge) {
   }
   if ($('edConsoleClose')) $('edConsoleClose').addEventListener('click', () => consoleOpen(false));
   if ($('edConsoleClear')) $('edConsoleClear').addEventListener('click', () => consoleClear());
-  if ($('edRunAgain')) $('edRunAgain').addEventListener('click', () => runActive());
+  if ($('edRunAgain')) $('edRunAgain').addEventListener('click', () => runActive(false));
 
   if ($('edIssues')) {
     $('edIssues').addEventListener('click', (e) => {
@@ -1428,6 +1586,22 @@ export function initProgram(bridge) {
     });
   }
 
+  /* ------------------------------------------- tab phải: xem trước / lỗi --- */
+
+  state.previewToken = 'aia' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+  if ($('edSideTabs')) {
+    $('edSideTabs').addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-side]');
+      if (btn) setSide(btn.dataset.side);
+    });
+  }
+  setSide(safeLoad(KEYS.side) || 'preview');
+
+  window.addEventListener('message', (ev) => {
+    if (!ev) return;
+    handlePreviewMessage(ev.data);
+  });
+
   /* ----------------------------------------------------------- phím tắt --- */
 
   document.addEventListener('keydown', (e) => {
@@ -1452,7 +1626,7 @@ export function initProgram(bridge) {
     }
     if ((e.ctrlKey || e.metaKey) && !e.altKey && e.shiftKey && e.key === 'Enter') {
       e.preventDefault();
-      runActive();
+      runActive(false);
       return;
     }
     if (e.shiftKey && e.altKey && (e.key === 'F' || e.key === 'f')) {
@@ -1525,8 +1699,18 @@ export function initProgram(bridge) {
     activeName: () => active().name,
     // công cụ
     format: formatActive,
-    run: runActive,
-    stop: stopWorker,
+    run: () => runActive(false),
+    stop: stopRun,
+    side: (name) => (name ? setSide(name) : state.side),
+    previewDocument: () => ($('edPreview') ? $('edPreview').srcdoc : ''),
+    previewToken: () => state.previewToken,
+    previewStatus: () => (($('edPreviewStatus') && $('edPreviewStatus').textContent) || ''),
+    autoRun: (on) => {
+      state.autoRun = on == null ? state.autoRun : !!on;
+      if ($('edAutoRun')) $('edAutoRun').checked = state.autoRun;
+      safeStore('aia.ed.autorun', state.autoRun ? '1' : '0');
+      return state.autoRun;
+    },
     consoleOpen,
     consoleClear,
     consoleLines: () => (($('edConsoleOut') && $('edConsoleOut').textContent) || '').split('\n').filter(Boolean),
