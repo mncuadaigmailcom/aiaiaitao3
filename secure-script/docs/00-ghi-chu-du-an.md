@@ -105,12 +105,13 @@ secure-script/
 Chạy `node tests/run-node.mjs` (Node 22, WebCrypto thật):
 
 - **244/244** kiểm thử lõi + **75/75** lõi soạn thảo + **94/94** client GitHub +
-  **104/104** lõi tab Lập trình (`run-ide.mjs`).
-- **243/243** kiểm thử giao diện trên DOM ả (jsdom) — gồm cả **gói demo phát hành kèm**,
-  tab **Lập trình** (nhiều tệp, tìm/thay, định dạng, console, 5 ô lưu, ZIP),
-  **trang trắng chống soi** và **hộp thoại GitHub** — **205/205** kiểm tra tĩnh,
-  và **80/80** bài **kiểm thử cường độ cao**.
-  Tổng **1045 điểm kiểm tra**.
+  **104/104** lõi tab Lập trình (`run-ide.mjs`) + **53/53** phần **chỉ JavaScript**
+  và **khung xem trước** (`run-js.mjs`).
+- **278/278** kiểm thử giao diện trên DOM ả (jsdom) — gồm cả **gói demo phát hành kèm**,
+  tab **Lập trình** (nhiều tệp, tìm/thay, định dạng, chạy ra kết quả bên phải, console,
+  tự chạy, 5 ô lưu, ZIP), **trang trắng chống soi** và **hộp thoại GitHub** —
+  **227/227** kiểm tra tĩnh, và **80/80** bài **kiểm thử cường độ cao**.
+  Tổng **1155 điểm kiểm tra**.
 - Vòng lặp đúng với khối 64 KiB / 256 KiB / 1 MiB; tệp rỗng; tệp chia hết khối.
 - Sai mật khẩu, sửa link key, sửa 1 bit, cắt tệp, ghép thêm, đảo khối, sai magic →
   đều bị chặn.

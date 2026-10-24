@@ -40,12 +40,13 @@ Editor : 75 đạt · 0 lỗi
 GitHub : 94 đạt · 0 lỗi
 
 Lõi không gian làm việc (tests/run-ide.mjs): 104 đạt · 0 lỗi
-Kiểm tra tĩnh (tools/check-static.mjs): 205 đạt · 0 lỗi
-Kiểm thử DOM  (tests/run-dom.mjs)     : 243 đạt · 0 lỗi
+Chỉ JavaScript + xem trước (tests/run-js.mjs): 53 đạt · 0 lỗi
+Kiểm tra tĩnh (tools/check-static.mjs): 227 đạt · 0 lỗi
+Kiểm thử DOM  (tests/run-dom.mjs)     : 278 đạt · 0 lỗi
 Kiểm thử cường độ cao (stress.mjs --quick): 80/80 đạt · 0 lỗi · ~18 s
 ```
 
-Tổng: **1045 điểm kiểm tra đạt** (244 + 75 + 94 + 104 + 205 + 243 + 80).
+Tổng: **1155 điểm kiểm tra đạt** (244 + 75 + 94 + 104 + 53 + 227 + 278 + 80).
 
 ## 3. Chi tiết từng nhóm
 
@@ -327,10 +328,29 @@ Fuzz 600/600 ca bị phát hiện (đảo bit 120 · cắt 120 · ghép 120 · �
 | 5 | Định dạng: JSON, JS, Lua, Python, CSS báo "chưa hỗ trợ", code rỗng | 14 |
 | 6 | 5 ô lưu: lưu mới, ghi đè, đổi tên, xoá, ô đầy, ô quá lớn, mô tả ô | 12 |
 
-`tests/run-dom.mjs` mục **[7d]** thêm **57 điểm** cho giao diện: nạp 3 tệp, chuyển tab, đổi tên,
-đóng tệp, tìm/thay trên DOM, định dạng qua nút và `Shift+Alt+F`, đổi 4 theme, chạy thử ra console,
+`tests/run-dom.mjs` mục **[7d]** kiểm giao diện thật trên DOM ả: nạp 3 tệp, chuyển tab, đổi tên,
+đóng tệp, tìm/thay trên DOM, định dạng qua nút và `Shift+Alt+F`, đổi 4 theme, **chạy ra khung xem
+trước**, log/lỗi/warn gửi từ iframe, chuyển tab Kết quả ↔ Lỗi, **tự chạy sau khi ngừng gõ**,
 mở/đóng console, lưu dự án rồi nạp lại, tải ZIP, `Ctrl+S`, `Ctrl+F`, nút đặt lại.
 
-`tools/check-static.mjs` (205 điểm) kiểm thêm: 21 `id` mới có trong HTML, 12 hàm xuất của `ide.js`,
-giới hạn 12 tệp / 5 ô lưu, chạy bằng Web Worker (không `eval` trên trang), 3 theme trong CSS,
-`Ctrl+F`/`Ctrl+S`/`Shift+Alt+F`, và **không** nạp Monaco/CDN.
+`tests/run-dom.mjs` mục **[7e]** cho **khung xem trước chạy thật**: tạo một `JSDOM` từ đúng tài liệu
+`buildPreviewDocument()` sinh ra, chạy script (`runScripts: 'dangerously'`) rồi kiểm:
+`console.log` + object JSON hoá + mức `warn` gửi về đúng token, code chạm được DOM trong iframe,
+tiêu đề = tên tệp, có tín hiệu `done`, và **bắt được lỗi ném trong `setTimeout`**.
+
+### Chỉ JavaScript + khung kết quả bên phải
+
+`tests/run-js.mjs` — **53 điểm**, chạy thuần Node:
+
+| Nhóm | Nội dung | Điểm |
+|---|---|---|
+| 1 | Tên tệp: `.js/.mjs/.cjs` hợp lệ; `.lua/.py/.css` → `.js`; tên rỗng → `script.js`; chặn `../`; tiếng Việt; cắt 200 ký tự | 21 |
+| 2 | `buildPreviewDocument`: doctype, charset UTF-8, tiêu đề escape HTML, nhúng code, token, `parent.postMessage`, 5 mức console, `error`/`unhandledrejection`, `done`/`ready`, try/catch | 22 |
+| 3 | An toàn: `</script>` trong code bị vô hiệu (chỉ còn 3 thẻ đóng của khung), code rỗng/`null`/`undefined`, tiếng Việt + emoji, ghi chú tuỳ chỉnh | 8 |
+| 4 | Hiệu năng: code 1 MB vẫn nhúng đủ và tạo trang < 1,5 s; tài liệu nhỏ (< 8 KB) | 2 |
+
+`tools/check-static.mjs` (227 điểm) kiểm thêm: 28 `id` của tab Lập trình, 12 hàm xuất của `ide.js`,
+giới hạn 12 tệp / 5 ô lưu, **iframe `sandbox="allow-scripts allow-modals"` và KHÔNG có
+`allow-same-origin`**, token lọc message, `forceJsFileName`/`isJsFileName`, ngôn ngữ luôn là
+JavaScript, 2 tab Kết quả/Lỗi, tự chạy có giới hạn 300 KB, `[hidden]` thắng `display:flex`,
+3 theme trong CSS, `Ctrl+F`/`Ctrl+S`/`Shift+Alt+F`, và **không** nạp Monaco/CDN.

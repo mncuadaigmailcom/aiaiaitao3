@@ -105,21 +105,23 @@ node tests/run-node.mjs       # 244/244 đạt — lõi mã hoá + snippet + lin
 node tests/run-editor.mjs     # 75/75  — số dòng, zoom, dò lỗi, thống kê
 node tests/run-github.mjs     # 94/94  — GitHub REST client (không gọi mạng thật)
 node tests/run-ide.mjs       # 104/104 — lõi tab Lập trình: tệp, tìm/thay, định dạng, 5 ô lưu
-node tools/check-static.mjs   # 205/205 — id/đường dẫn/cú pháp HTML + link + ngôn ngữ + tab mới
+node tests/run-js.mjs        # 53/53  — chỉ JavaScript + khung xem trước (buildPreviewDocument)
+node tools/check-static.mjs   # 227/227 — id/đường dẫn/cú pháp HTML + link + ngôn ngữ + tab mới
 npm install                   # chỉ để chạy test DOM
-node tests/run-dom.mjs        # 243/243 — giao diện + gói demo + Lập trình + GitHub (jsdom)
+node tests/run-dom.mjs        # 278/278 — giao diện + gói demo + Lập trình + GitHub (jsdom)
 node tests/stress.mjs --quick # 80/80 — cường độ cao (~18 s)
 node tests/stress.mjs --max   # như trên + tệp 1 GiB (~90 s)
 ```
 
-Tổng **1045 điểm kiểm tra**.
+Tổng **1155 điểm kiểm tra**.
 
 Kết quả mới nhất và chi tiết: [`docs/05-kiem-thu-va-ket-qua.md`](docs/05-kiem-thu-va-ket-qua.md).
 
 ## Giới hạn — nói thẳng
 
 - **Chưa kiểm thử bằng trình duyệt thật** trong môi trường tạo ra dự án này; đã có
-  1045 điểm kiểm tra (lõi, giao diện DOM ả, kiểm tra tĩnh, cường độ cao). Hãy bấm thử một lần.
+  1155 điểm kiểm tra (lõi, giao diện DOM ả, iframe xem trước chạy thật, kiểm tra tĩnh, cường độ cao).
+  Hãy bấm thử một lần.
 - **5 GiB là giới hạn đã chặn trong code**, khả thi thực tế còn phụ thuộc RAM/CPU/trình duyệt.
 - **Không có bảo vệ tuyệt đối** trước người chạy được code trên máy họ.
 - **Header đọc được** là lựa chọn có ý thức (theo yêu cầu), nhưng khoá tệp thì không
@@ -138,7 +140,7 @@ Chi tiết: [`docs/02-bao-mat-gioi-han.md`](docs/02-bao-mat-gioi-han.md).
 | [03-huong-dan-su-dung.md](docs/03-huong-dan-su-dung.md) | Hướng dẫn từng bước + xử lý sự cố |
 | [04-trien-khai-mien-phi.md](docs/04-trien-khai-mien-phi.md) | GitHub Pages, Cloudflare, Netlify, Vercel |
 | [06-phan-tich-index.html.1.js.md](docs/06-phan-tich-index.html.1.js.md) | Phân tích file tham chiếu `index.html.1.js`: đã port gì, bỏ gì, vì sao |
-| [05-kiem-thu-va-ket-qua.md](docs/05-kiem-thu-va-ket-qua.md) | 1045 điểm kiểm tra, số đo thật, test cường độ cao |
+| [05-kiem-thu-va-ket-qua.md](docs/05-kiem-thu-va-ket-qua.md) | 1155 điểm kiểm tra, số đo thật, test cường độ cao |
 
 ## Giấy phép
 

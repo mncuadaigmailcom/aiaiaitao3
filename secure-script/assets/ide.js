@@ -37,6 +37,25 @@ export function sanitizeFileName(raw, fallback = 'script.js') {
   return s;
 }
 
+/** Tab "Lập trình" chỉ nhận JavaScript — các đuôi được phép. */
+export const JS_EXT = /^.*\.(js|mjs|cjs)$/i;
+
+/** Tên tệp có phải JavaScript không (.js / .mjs / .cjs). */
+export function isJsFileName(name) {
+  return JS_EXT.test(sanitizeFileName(name, ''));
+}
+
+/**
+ * Ép một tên bất kỳ thành tên tệp JavaScript:
+ *   note.lua → note.js · style.css → style.js · abc → abc.js · a.JS → a.JS
+ */
+export function forceJsFileName(raw, fallback = 'script.js') {
+  const name = sanitizeFileName(raw, fallback);
+  if (isJsFileName(name)) return name;
+  const stem = name.replace(/\.[^./\\]*$/, '').trim() || 'script';
+  return stem + '.js';
+}
+
 /** Tên duy nhất trong danh sách (script.js → script-2.js). */
 export function uniqueFileName(name, files = [], exceptIndex = -1) {
   const base = sanitizeFileName(name);

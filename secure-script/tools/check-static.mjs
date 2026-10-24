@@ -48,7 +48,7 @@ for (const f of [
   'assets/program.js',
   'assets/github-ui.js',
   'tests/run-editor.mjs',
-  'tests/run-ide.mjs',
+  'tests/run-ide.mjs', 'tests/run-js.mjs',
   'tests/run-github.mjs',
   'assets/style.css',
   'tools/cli.mjs',
@@ -268,7 +268,7 @@ check(appText.includes("useSource: async"), 'tab Lập trình chuyển code sang
 
 console.log('\n[9] Tab Lập trình nâng cao (nhiều tệp · tìm/thay · console · ô lưu)');
 const ideText = read('assets/ide.js');
-for (const id of ['edTabs', 'edNewFile', 'edFileCount', 'edFormatBtn', 'edRunBtn', 'edConsole', 'edConsoleOut', 'edFind', 'edFindInput', 'edReplaceInput', 'edFindCount', 'edReplaceAll', 'edTheme', 'edSaveProject', 'edSlotsModal', 'edSlotsList', 'edSlotName', 'edSlotSave', 'edZipBtn', 'edResetBtn', 'edSavedHint']) {
+for (const id of ['edTabs', 'edNewFile', 'edFileCount', 'edFormatBtn', 'edRunBtn', 'edConsole', 'edConsoleOut', 'edFind', 'edFindInput', 'edReplaceInput', 'edFindCount', 'edReplaceAll', 'edTheme', 'edSaveProject', 'edSlotsModal', 'edSlotsList', 'edSlotName', 'edSlotSave', 'edZipBtn', 'edResetBtn', 'edSavedHint', 'edPreview', 'edSideTabs', 'edSidePreview', 'edSideErrors', 'edErrCount', 'edPreviewStatus', 'edPreviewHint', 'edAutoRun']) {
   check(htmlText.includes('id="' + id + '"'), 'index.html có #' + id);
 }
 for (const fn of ['export function createWorkspace', 'export function addFile', 'export function renameFile', 'export function removeFile', 'export function findMatches', 'export function replaceAllText', 'export function formatCode', 'export function makeSlot', 'export function upsertSlot', 'export function loadSlots', 'export function persistSlots']) {
@@ -277,7 +277,20 @@ for (const fn of ['export function createWorkspace', 'export function addFile', 
 check(ideText.includes('MAX_FILES = 12') && ideText.includes('MAX_SLOTS = 5'), 'giới hạn 12 tệp / 5 ô lưu');
 check(programText.includes('IDE.createWorkspace') && programText.includes('IDE.findMatches'), 'program.js dùng lõi ide.js');
 check(programText.includes("createZip(") || programText.includes('C.createZip'), 'có tải ZIP không gian làm việc');
-check(programText.includes('buildWorkerSource'), 'chạy thử bằng Web Worker (không eval trên trang)');
+check(programText.includes('C.buildPreviewDocument') && coreText.includes('export function buildPreviewDocument'), 'chạy thử bằng khung xem trước (buildPreviewDocument)');
+check(!/buildWorkerSource/.test(programText), 'tab Lập trình không còn chạy qua Worker (đã chuyển sang iframe)');
+check(/sandbox="allow-scripts allow-modals"/.test(htmlText), 'iframe xem trước có sandbox allow-scripts');
+check(!/allow-same-origin/.test(htmlText), 'iframe xem trước KHÔNG cấp allow-same-origin');
+check(/state\.previewToken/.test(programText) && /__aia/.test(coreText), 'lọc message xem trước bằng token riêng');
+check(/forceJsFileName/.test(programText) && /export function forceJsFileName/.test(ideText), 'ép mọi tệp về JavaScript (.js/.mjs/.cjs)');
+check(/isJsFileName/.test(programText), 'chặn nạp tệp không phải JavaScript');
+check(/const JS_HINT = 'Tab Lập trình chỉ dành cho JavaScript/.test(programText), 'có lời nhắc chỉ dùng JavaScript');
+check(/function currentLang\(\) \{\s*\n\s*\/\//.test(programText) && /return 'javascript';/.test(programText), 'ngôn ngữ luôn là JavaScript');
+check(/data-side="preview"/.test(htmlText) && /data-side="errors"/.test(htmlText), 'tab phải có 2 chế độ Kết quả / Lỗi');
+check(programText.includes('handlePreviewMessage'), 'có hàm nhận log/lỗi từ iframe');
+check(/\[hidden\] \{ display: none !important; \}/.test(read('assets/style.css')), 'CSS: [hidden] thắng display:flex');
+check(/AUTO_RUN_DELAY/.test(programText) && /scheduleAutoRun/.test(programText), 'có tự chạy sau khi ngừng gõ (như Code Space)');
+check(programText.includes('AUTO_RUN_MAX_CHARS'), 'tự chạy có giới hạn kích thước để không lag');
 check(programText.includes('CONSOLE_MAX_LINES'), 'console giới hạn số dòng');
 check(programText.includes('aia.ide.workspace') || ideText.includes("WORKSPACE_KEY = 'aia.ide.workspace'"), 'tự lưu nháp vào localStorage');
 check(/Ctrl\+F|'f'/.test(programText) && programText.includes('e.key === \'s\''), 'có phím tắt Ctrl+F / Ctrl+S');

@@ -156,7 +156,9 @@ Mặc định `run()` dùng **Web Worker** (không treo trang, không chạm DOM
 
 ## 3c. Tab Lập trình (trình soạn thảo)
 
-Tab **Lập trình** là chỗ soạn/sửa code trước khi mã hoá:
+Tab **Lập trình** là chỗ soạn/sửa code **JavaScript** trước khi mã hoá. Tab này **chỉ dành cho
+JavaScript** (`.js`, `.mjs`, `.cjs`): đổi tên hay nạp tệp khác đuôi đều tự chuyển về `.js`,
+ngôn ngữ luôn được kiểm tra/định dạng theo JavaScript.
 
 | Thành phần | Cách dùng |
 |---|---|
@@ -165,15 +167,18 @@ Tab **Lập trình** là chỗ soạn/sửa code trước khi mã hoá:
 | **Kích thước tệp** | Thanh thống kê dưới khung code: **B / KB / MB / GB**, số dòng, ngôn ngữ, số ký tự, cỡ chữ |
 | **Tìm lỗi** | Panel bên phải: lỗi (đỏ) và cảnh báo (vàng); **bấm vào là nhảy tới đúng dòng**. Tự kiểm tra sau khi gõ ~0,4 giây, hoặc **Ctrl Enter** |
 | **Chia đôi màn hình** | Ô chọn: **Chia đôi: code \| lỗi** · **Chỉ code** · **Chỉ lỗi** |
-| **Nhiều tệp** | Thanh tab phía trên: **＋ Tệp mới**, bấm **×** để đóng, **bấm đúp vào tên trên tab** (hoặc sửa ô tên) để đổi tên. Tối đa **12 tệp**, mỗi tệp ≤ 4 M ký tự; tên trùng tự thành `script-2.js` |
+| **Nhiều tệp** | Thanh tab phía trên: **＋ Tệp mới**, bấm **×** để đóng, **bấm đúp vào tên trên tab** (hoặc sửa ô tên) để đổi tên. Tối đa **12 tệp**, mỗi tệp ≤ 4 M ký tự; tên trùng tự thành `script-2.js`; **mọi tệp đều là `.js`** |
 | **Tìm & thay** | **Ctrl F** (hoặc nút **Tìm**) mở thanh tìm: đếm `1/12`, ↑ ↓, phân biệt hoa/thường, **Thay 1**, **Thay tất cả**, **Esc** để đóng |
-| **Định dạng** | **Shift Alt F** hoặc nút **Định dạng**: JS/TS, Lua/Luau, Python, JSON (thụt 2 dấu cách) |
-| **Chạy thử + Console** | **Ctrl Shift Enter** hoặc nút **Chạy**: code chạy trong **Web Worker** (không treo trang, không chạm DOM), log/warn/error hiện ở panel **Console** (tối đa 1.500 dòng) cùng **Dừng**, **Chạy lại**, **Xoá log** |
+| **Định dạng** | **Shift Alt F** hoặc nút **Định dạng**: JavaScript/TypeScript (và JSON nếu tệp `.js` chỉ chứa JSON), thụt 2 dấu cách |
+| **Kết quả bên phải** | Cột phải có 2 tab: **Kết quả** (khung xem trước) và **Lỗi** (kèm số lỗi). Bấm **Chạy** là code chạy trong **iframe `sandbox="allow-scripts"`** — không chạm được trang, cookie hay `localStorage` của bạn — rồi **kết quả hiện ngay trong khung** (kể cả khi code sửa DOM) |
+| **Console** | `console.log/info/warn/error` và lỗi runtime của code được gửi về panel **Console** (tối đa 1.500 dòng) cùng **Dừng**, **Chạy lại**, **Xoá log** |
+| **Tự chạy** | Ô **Tự chạy**: bật thì code tự chạy lại sau khi ngừng gõ ~0,7 giây (chỉ với code < 300 KB để không lag). Mặc định **tắt** |
 | **Giao diện màu** | Ô **Màu**: mặc định, **Dracula**, **Monokai**, **Sáng** — nhớ lựa chọn cho lần sau |
 | **Lưu dự án (5 ô)** | Nút **Lưu dự án** (hoặc **Ctrl S**): đặt tên, lưu tối đa **5 bản**; mỗi bản có **Mở**, **Ghi đè**, **Đổi tên**, **Tải ZIP**, **Xoá**. Nháp hiện tại tự lưu sau ~0,7 giây, thanh dưới hiện “đã lưu · HH:MM” |
 | **Tải ZIP** | Nút **ZIP** gói toàn bộ tệp đang mở thành một tệp `.zip` |
 | **Nạp / tải / chép** | **Nạp tệp** (≤ 64 MB, chọn được nhiều tệp), **Tải tệp**, **Chép**, **Đặt lại** (xoá trắng về 1 tệp) |
 | **Mã hoá code này** | Đưa nguyên code sang tab **Mã hoá** và mã hoá ngay (giữ tên tệp) |
+| **Cách ly an toàn** | Khung xem trước **không** có `allow-same-origin` nên code trong đó không đọc được trang/cookie của bạn; tắt **Tự chạy** nếu muốn code chỉ chạy khi bấm **Chạy** |
 | **Đăng lên GitHub** | Mở hộp thoại GitHub ở tab “Mã nguồn mới” |
 
 Trình kiểm tra bắt được: ngoặc tròn/vuông/nhọn lệch, chuỗi chưa đóng, template literal

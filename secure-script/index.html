@@ -375,16 +375,18 @@
       <div>
         <h1>Lập trình &amp; kiểm tra code</h1>
         <p>
-          Trình soạn thảo nhiều tệp: <b>số dòng</b>, <b>phóng to / thu nhỏ</b>, <b>kích thước tệp (B · KB · MB · GB)</b>,
-          <b>tìm &amp; thay thế</b>, <b>định dạng code</b>, <b>chạy thử + console</b>, <b>tìm lỗi code</b>,
-          chế độ <b>chia đôi màn hình</b> (code | lỗi) và <b>5 ô lưu dự án</b>. Soạn xong có thể
+          Trình soạn thảo <b>chỉ dành cho JavaScript</b> (nhiều tệp): <b>số dòng</b>, <b>phóng to / thu nhỏ</b>,
+          <b>kích thước tệp (B · KB · MB · GB)</b>, <b>tìm &amp; thay thế</b>, <b>định dạng code</b>,
+          <b>chạy thử</b> rồi xem <b>kết quả ngay bên phải</b> + <b>console</b>, <b>tìm lỗi code</b>,
+          chế độ <b>chia đôi màn hình</b> (code | kết quả/lỗi) và <b>5 ô lưu dự án</b>. Soạn xong có thể
           <b>mã hoá ngay</b>, tạo <b>trang trắng chống soi</b>, hoặc <b>đăng lên GitHub</b>.
         </p>
       </div>
       <div class="pill-row">
+        <span class="pill">chỉ JavaScript (.js)</span>
         <span class="pill">nhiều tệp + số dòng</span>
-        <span class="pill">tìm/thay · định dạng · chạy thử</span>
-        <span class="pill">zoom 10–28px · 4 giao diện màu</span>
+        <span class="pill">chạy → kết quả bên phải + console</span>
+        <span class="pill">tìm/thay · định dạng · 4 giao diện màu</span>
         <span class="pill">5 ô lưu dự án</span>
       </div>
     </div>
@@ -403,18 +405,20 @@
             <div class="row tight" style="margin:0">
               <label class="check"><input type="checkbox" id="edLineToggle" checked> Dòng</label>
               <label class="check"><input type="checkbox" id="edWrapToggle"> Xuống dòng</label>
+              <label class="check" title="Tự chạy lại sau khi ngừng gõ (code < 300 KB)"><input type="checkbox" id="edAutoRun"> Tự chạy</label>
               <select id="edLayout" class="mini" title="Cách chia màn hình">
-                <option value="split" selected>Chia đôi: code | lỗi</option>
+                <option value="split" selected>Chia đôi: code | kết quả</option>
                 <option value="code">Chỉ code</option>
-                <option value="errors">Chỉ lỗi</option>
+                <option value="errors">Chỉ kết quả / lỗi</option>
               </select>
             </div>
           </div>
 
           <div class="row tight" style="margin:0 0 10px">
-            <input type="text" id="edName" value="script.js" spellcheck="false" style="max-width:230px" aria-label="Tên tệp">
-            <button class="ghost small" id="edLoad" type="button">Nạp tệp</button>
-            <input type="file" id="edFile" hidden multiple>
+            <input type="text" id="edName" value="script.js" spellcheck="false" style="max-width:230px"
+                   placeholder="script.js" title="Tên tệp JavaScript (.js / .mjs / .cjs)" aria-label="Tên tệp">
+            <button class="ghost small" id="edLoad" type="button" title="Chỉ nhận tệp .js / .mjs / .cjs">Nạp tệp</button>
+            <input type="file" id="edFile" hidden multiple accept=".js,.mjs,.cjs,text/javascript">
             <span class="spacer"></span>
             <button class="ghost small" id="edZoomOut" type="button" title="Thu nhỏ chữ (Ctrl −)">A−</button>
             <span class="muted small" id="edZoomLabel">100%</span>
@@ -438,6 +442,7 @@
             <button class="ghost small" id="edZipBtn" type="button" title="Tải tất cả tệp thành .zip">Tải ZIP</button>
             <button class="ghost small" id="edResetBtn" type="button">Làm mới</button>
             <span class="muted small" id="edSavedHint">tự lưu trong trình duyệt</span>
+            <span class="muted small js-only" title="Tab Lập trình chỉ dành cho JavaScript">chỉ JS</span>
           </div>
 
           <div class="ed-find" id="edFind" hidden>
@@ -460,13 +465,33 @@
                           aria-label="Code" placeholder="// Dán code vào đây…"></textarea>
               </div>
             </div>
-            <div class="ed-pane ed-errors" id="edErrorPane">
-              <div class="ed-errors-head">
-                <b>Kết quả kiểm tra</b>
-                <span class="muted small" id="edSummary">chưa kiểm tra</span>
+            <div class="ed-pane ed-side" id="edErrorPane">
+              <div class="ed-side-head" id="edSideTabs" role="tablist" aria-label="Kết quả và lỗi">
+                <button class="side-tab active" type="button" data-side="preview" role="tab" aria-selected="true">Kết quả</button>
+                <button class="side-tab" type="button" data-side="errors" role="tab" aria-selected="false">
+                  Lỗi <span class="err-badge" id="edErrCount">0</span>
+                </button>
+                <span class="spacer"></span>
+                <span class="muted small preview-status" id="edPreviewStatus">chưa chạy</span>
               </div>
-              <div class="issues" id="edIssues">
-                <p class="help">Bấm <b>Kiểm tra</b> để dò lỗi cú pháp, ngoặc lệch, chuỗi chưa đóng…</p>
+              <div class="ed-side-body">
+                <div id="edSidePreview">
+                  <p class="help" id="edPreviewHint">
+                    Bấm <b>Chạy</b> (Ctrl+Shift+Enter) để chạy JavaScript và xem kết quả ngay tại đây.
+                    Code chạy trong <b>iframe sandbox</b> — không chạm được vào trang này.
+                  </p>
+                  <iframe id="edPreview" class="ed-preview" title="Kết quả chạy JavaScript"
+                          sandbox="allow-scripts allow-modals" referrerpolicy="no-referrer"></iframe>
+                </div>
+                <div id="edSideErrors" hidden>
+                  <div class="ed-errors-head">
+                    <b>Kết quả kiểm tra</b>
+                    <span class="muted small" id="edSummary">chưa kiểm tra</span>
+                  </div>
+                  <div class="issues" id="edIssues">
+                    <p class="help">Bấm <b>Kiểm tra</b> (Ctrl+Enter) để dò lỗi cú pháp, ngoặc lệch, chuỗi chưa đóng…</p>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -835,9 +860,9 @@
           <li><code>node tests/run-node.mjs</code> — 244 kiểm thử: mã hoá/giải mã, cắt khối, sửa bit, sai mật khẩu,
             sai link key, snippet, <b>mã hoá link</b>, <b>nhận diện ngôn ngữ</b>, <b>trang trắng</b>, giới hạn dung lượng.</li>
           <li><code>node tests/run-editor.mjs</code> (75) · <code>node tests/run-github.mjs</code> (94, GitHub giả) ·
-            <code>node tests/run-ide.mjs</code> (104, lõi tab Lập trình) · <code>node tools/check-static.mjs</code> (205) ·
-            <code>node tests/run-dom.mjs</code> (243) · <code>node tests/stress.mjs --quick</code> (80)
-            — tổng <b>1045 điểm</b> kiểm tra.</li>
+            <code>node tests/run-ide.mjs</code> (104) · <code>node tests/run-js.mjs</code> (53, chỉ JS + xem trước) ·
+            <code>node tools/check-static.mjs</code> (227) · <code>node tests/run-dom.mjs</code> (278) ·
+            <code>node tests/stress.mjs --quick</code> (80) — tổng <b>1155 điểm</b> kiểm tra.</li>
           <li><code>node tools/cli.mjs --help</code> — dùng ngay trên máy.</li>
         </ul>
       </article>
