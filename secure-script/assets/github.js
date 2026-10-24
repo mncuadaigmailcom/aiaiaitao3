@@ -345,8 +345,8 @@ export class GithubClient {
       branch: realBranch,
       sha,
     });
-    const htmlUrl = `https://github.com/${realOwner}/${repo}/blob/${realBranch}/${filePath}`;
-    const rawUrl = `https://raw.githubusercontent.com/${realOwner}/${repo}/${realBranch}/${filePath}`;
+    const htmlUrl = fileHtmlUrl(realOwner, repo, realBranch, filePath);
+    const rawUrl = fileRawUrl(realOwner, repo, realBranch, filePath);
     const pagesUrl = repoInfo.has_pages ? `https://${realOwner}.github.io/${repo}/` : null;
     return { repo: repoInfo, file: saved, sha: (saved && saved.content && saved.content.sha) || sha || '', htmlUrl, rawUrl, pagesUrl };
   }
@@ -403,12 +403,25 @@ export function loadLastRepo(storage) {
   }
 }
 
+/** Mã hoá từng đoạn đường dẫn (giữ nguyên dấu `/`) để link không bị vỡ khi tên tệp có dấu cách. */
+export function encodePath(filePath) {
+  return String(filePath || '')
+    .split('/')
+    .map((seg) => encodeURIComponent(seg))
+    .join('/');
+}
+
 /** Link xem tệp trên GitHub. */
 export function fileHtmlUrl(owner, repo, branch, filePath) {
-  return `https://github.com/${owner}/${repo}/blob/${branch || 'main'}/${filePath}`;
+  return `https://github.com/${owner}/${repo}/blob/${branch || 'main'}/${encodePath(filePath)}`;
 }
 
 /** Link tải thô (raw) — dùng để nhúng thẳng vào script src. */
 export function fileRawUrl(owner, repo, branch, filePath) {
-  return `https://raw.githubusercontent.com/${owner}/${repo}/${branch || 'main'}/${filePath}`;
+  return `https://raw.githubusercontent.com/${owner}/${repo}/${branch || 'main'}/${encodePath(filePath)}`;
+}
+
+/** Link dự án (trang chủ repo) trên GitHub. */
+export function repoHtmlUrl(owner, repo) {
+  return `https://github.com/${owner}/${repo}`;
 }

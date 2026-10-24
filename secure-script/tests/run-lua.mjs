@@ -35,7 +35,15 @@ function ok(cond, name, detail = '') {
   }
 }
 
-const SHIM = `
+/**
+ * Môi trường giả lập. `game` được đặt làm biến TOÀN CỤC (như Roblox), không phải
+ * `_G.game` — vì Luau sandbox không đặt biến toàn cục vào bảng `_G`.
+ */
+function makeShim(opts = {}) {
+  const gameLine =
+    opts.gameLine ||
+    "game = { HttpGet = function (self, url) fetched[#fetched+1] = url; return KEY_B64 end }";
+  return `
 bit32 = {
   bxor = function (...) local r = 0; for i = 1, select('#', ...) do r = (r ~ (select(i, ...))) & 0xffffffff end; return r end,
   band = function (a, b) return (a & b) & 0xffffffff end,
@@ -43,12 +51,17 @@ bit32 = {
   lshift = function (a, n) return (a << n) & 0xffffffff end,
   rshift = function (a, n) return (a >> n) & 0xffffffff end,
 }
-loadstring = load
+${opts.noLoadstring ? '' : 'loadstring = load'}
 prints = {}
 function print(...) local t = {}; for i = 1, select('#', ...) do t[#t+1] = tostring((select(i, ...))) end; prints[#prints+1] = table.concat(t, ' ') end
+function warn(...) local t = {}; for i = 1, select('#', ...) do t[#t+1] = tostring((select(i, ...))) end; warns[#warns+1] = table.concat(t, ' ') end
+warns = {}
 fetched = {}
-game = { HttpGet = function (self, url) fetched[#fetched+1] = url; return KEY_B64 end }
+${gameLine}
+${opts.extra || ''}
 `;
+}
+const SHIM = makeShim();
 
 function encryptForGame(text, key) {
   const k = key || crypto.randomBytes(32);
@@ -65,14 +78,23 @@ function encryptForGame(text, key) {
 }
 
 /** Chạy loader trong Lua; trả về {ok, err, globals, fetched, prints}. */
-function runLoader(loaderSrc, keyB64) {
+function runLoader(loaderSrc, keyB64, opts = {}) {
   const L = lauxlib.luaL_newstate();
   lualib.luaL_openlibs(L);
-  const prelude = SHIM + `\nKEY_B64 = '${keyB64}'\n`;
+  // giữ một bản `load` riêng để test có thể xoá `load` toàn cục mà vẫn dựng được chunk
+  let prelude = 'AIA_REAL_LOAD = load\n' + (opts.shim || SHIM) + `\nKEY_B64 = '${keyB64}'\n`;
+  let body = loaderSrc;
+  if (opts.envMode === 'roblox') {
+    // Kiểu Roblox: `_G` là bảng chia sẻ RIÊNG (không phải môi trường toàn cục),
+    // các biến toàn cục thật (game, loadstring, print…) nằm ở env của chunk.
+    const delim = loaderSrc.includes(']===]') ? '====' : '===';
+    prelude += `\nAIA_ENV = setmetatable({ _G = {} }, { __index = _G })\nAIA_SRC = [${delim}[${loaderSrc}]${delim}]\n`;
+    body = `local f, e = AIA_REAL_LOAD(AIA_SRC, '=aia_lua', 't', AIA_ENV); if not f then error(e) end; f()`;
+  }
   let rc = lauxlib.luaL_dostring(L, to_luastring(prelude));
   if (rc !== lua.LUA_OK) throw new Error('prelude lỗi: ' + to_jsstring(lua.lua_tostring(L, -1)));
 
-  rc = lauxlib.luaL_dostring(L, to_luastring(loaderSrc));
+  rc = lauxlib.luaL_dostring(L, to_luastring(body));
   const okRun = rc === lua.LUA_OK;
   const err = okRun ? '' : to_jsstring(lua.lua_tostring(L, -1));
   if (!okRun) lua.lua_pop(L, 1);
@@ -97,6 +119,7 @@ function runLoader(loaderSrc, keyB64) {
     fetchedCount: Number(read('#fetched') || 0),
     fetchedUrl: read('fetched[1]') || '',
     prints: read('table.concat(prints, "\\n")') || '',
+    warns: read('table.concat(warns, "\\n")') || '',
     test: read('AIA_TEST') || '',
   };
   lua.lua_close(L);
@@ -150,6 +173,9 @@ ok(!loader.includes('xin chào từ game'), 'KHÔNG chứa bản rõ');
 ok(!loader.includes('example.test'), 'KHÔNG chứa link khoá dạng đọc được');
 ok(!loader.includes(enc.key.toString('base64')), 'KHÔNG chứa khoá');
 ok(loader.includes("'=aia'"), 'có tên chunk khi loadstring');
+ok(no53(loader).length === 0, 'cả loader sinh ra cũng không dùng cú pháp Lua 5.3', no53(loader).join(','));
+ok(/getfenv\(0\)/.test(loader) && /getgenv\(\)/.test(loader), 'loader dò biến toàn cục bằng getgenv/getfenv (không chỉ _G)');
+ok(/return request end/.test(loader), 'loader có dự phòng request() cho executor');
 ok(buildLuaLoader({ ...opts(enc), keyUrl: 'https://example.test/s/k-abc.txt', suffix: 'zz' }) === loader, 'cùng đầu vào → cùng kết quả');
 ok(buildLuaLoader({ ...opts(enc), keyUrl: 'https://x.test/k.txt' }) !== buildLuaLoader({ ...opts(enc), keyUrl: 'https://x.test/k.txt' }), 'khác nhau khi không truyền suffix (tên biến ngẫu nhiên)');
 
@@ -206,6 +232,74 @@ const rcNo = lauxlib.luaL_dostring(Lx, to_luastring(loader));
 const errNo = rcNo === lua.LUA_OK ? '' : to_jsstring(lua.lua_tostring(Lx, -1));
 ok(rcNo !== lua.LUA_OK && /khong tai duoc khoa/.test(errNo), 'thiếu HttpGet → báo lỗi rõ ràng', errNo);
 lua.lua_close(Lx);
+
+/* --------------------------- 5. môi trường giống Roblox / executor thật --- */
+
+console.log('\n[5] Chạy trong môi trường giống Roblox / Delta (không có _G.game)');
+
+const keyB64 = enc.key.toString('base64');
+
+// (a) _G KHÔNG chứa `game` như Luau sandbox — đây chính là lỗi làm script không chạy trong Delta
+const rb = runLoader(loader, keyB64, { envMode: 'roblox' });
+ok(rb.ok, '_G không chứa game (như Roblox) → loader vẫn chạy', rb.err);
+ok(rb.test === 'xin chào từ game', '_G không chứa game → script gốc vẫn chạy', JSON.stringify(rb.test));
+ok(rb.fetchedUrl === 'https://example.test/s/k-abc.txt', '_G không chứa game → vẫn tải đúng link khoá', rb.fetchedUrl);
+
+// (b) game:HttpGet bị chặn nhưng executor có `request` (UNC — Delta hỗ trợ)
+const uncShim = makeShim({
+  gameLine: "game = { HttpGet = function () error('HttpGet bi chan') end }",
+  extra: `
+function request(t)
+  fetched[#fetched+1] = t.Url
+  return { StatusCode = 200, Body = KEY_B64, Headers = {} }
+end`,
+});
+const unc = runLoader(loader, keyB64, { shim: uncShim, envMode: 'roblox' });
+ok(unc.ok, 'game:HttpGet lỗi nhưng có request() → vẫn chạy', unc.err);
+ok(unc.test === 'xin chào từ game', 'request() tải được khoá → script chạy', JSON.stringify(unc.test));
+
+// (c) chỉ có getgenv().request (một số executor chỉ đặt hàm trong getgenv)
+const genvShim = makeShim({
+  gameLine: 'game = {}',
+  extra: `
+getgenv = function()
+  return {
+    request = function (t)
+      fetched[#fetched+1] = t.Url
+      return { StatusCode = 200, Body = KEY_B64 }
+    end,
+  }
+end`,
+});
+const genv = runLoader(loader, keyB64, { shim: genvShim, envMode: 'roblox' });
+ok(genv.ok, 'chỉ có getgenv().request → vẫn chạy', genv.err);
+
+// (d) thiếu loadstring nhưng còn load (Lua 5.3/Luau) → vẫn chạy
+const onlyLoad = runLoader(loader, keyB64, { shim: makeShim({ noLoadstring: true }), envMode: 'roblox' });
+ok(onlyLoad.ok, 'thiếu loadstring nhưng có load → vẫn chạy', onlyLoad.err);
+
+// (d2) không có cả loadstring lẫn load → báo lỗi rõ ràng
+const noLs = runLoader(loader, keyB64, {
+  shim: makeShim({ noLoadstring: true, extra: 'load = nil' }),
+  envMode: 'roblox',
+});
+ok(!noLs.ok && /loadstring/.test(noLs.err), 'thiếu cả loadstring và load → báo đúng lỗi', noLs.err);
+
+// (e) dán nhầm "link công khai" (trang trắng HTML) → báo lỗi nêu rõ là trang web
+const htmlShim = makeShim({ gameLine: "game = { HttpGet = function () return '<!doctype html><html><body>404: Not Found</body></html>' end }" });
+const html = runLoader(loader, keyB64, { shim: htmlShim, envMode: 'roblox' });
+ok(!html.ok && /trang web/.test(html.err), 'link trả về HTML → báo “trang web”, không im lặng', html.err);
+
+// (f) tệp khoá sai kích thước
+const shortShim = makeShim({ gameLine: "game = { HttpGet = function () return 'QUJD' end }" });
+const short = runLoader(loader, keyB64, { shim: shortShim, envMode: 'roblox' });
+ok(!short.ok && /32/.test(short.err), 'tệp khoá sai kích thước → báo “can 32 byte”', short.err);
+
+// (g) lỗi tải phải nêu kèm URL để người dùng tự kiểm tra
+const downShim = makeShim({ gameLine: "game = { HttpGet = function () error('404 Not Found') end }" });
+const down = runLoader(loader, keyB64, { shim: downShim, envMode: 'roblox' });
+ok(!down.ok && down.err.includes('https://example.test/s/k-abc.txt'), 'lỗi tải nêu rõ URL khoá', down.err);
+ok(/warn/i.test('warn') && down.warns.length > 0, 'lỗi được in ra warn/print để người dùng thấy', down.warns);
 
 console.log('\n────────────────────────────────────────────────────────');
 console.log(`Kết quả Luau: ${pass} đạt · ${fails.length} lỗi`);

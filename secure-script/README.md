@@ -28,6 +28,7 @@ chạy ngay trong trình duyệt. Không máy chủ, không đăng ký, không t
 | 🔗 **Mã hoá link** | Mã hoá link trang web / link script thành token `AIALNK1.…` + snippet tự mở link |
 | 🧭 **Dò ngôn ngữ thật** | Tệp `.js` chứa Lua/Python vẫn được nhận đúng — không còn lỗi `Unexpected identifier` |
 | 🔗 **Link key rõ ràng** | Dòng "Link key script mở khoá" có URL đầy đủ + nút **Chép link** |
+| 🔗 **Link mã nguồn tự điền** | Chọn dự án / chọn file trong tab **Sửa file** là link GitHub + link raw hiện ngay — không cần đẩy code lên, không tốn lượt gọi API |
 | 🎚️ **3 kiểu bảo vệ** | Không mật khẩu · mật khẩu nhúng sẵn · mật khẩu hỏi khi chạy |
 | 🔗 **1 link key cho mọi lần** | Key script dùng chung `aia.key.js` (hoặc chế độ riêng từng tệp) |
 | 🔒 **Mã hoá thật** | AES-256-GCM, mỗi khối có tag xác thực; sửa 1 bit là hỏng |
@@ -41,7 +42,8 @@ chạy ngay trong trình duyệt. Không máy chủ, không đăng ký, không t
 | 🐙 **Đăng lên GitHub** | Hộp thoại 5 tab: **API key** · **tạo dự án** · **sửa file** · **kết quả** · **mã hoá + chống soi** |
 | 🎯 **Một nút là xong** | Bật *Mã hoá* + *Chống soi* → bấm **Đưa lên GitHub**: tự tạo repo, tự bật Pages, tự ghi 3 tệp, trả **link script** để chép |
 | 🧱 **Link công khai vô hại** | Người khác mở link chỉ thấy trang trắng `404: Not Found`; dán đúng link `.lua` vào game thì script chạy |
-| 🎮 **Loader Luau thật** | Giải mã AES-256-GCM bằng thuật toán thuần Lua trong game, tải khoá bằng `game:HttpGet` — đã chạy thử trong máy ảo Lua |
+| 🎮 **Loader Luau thật** | Giải mã AES-256-GCM bằng thuật toán thuần Lua trong game; tự dò `game:HttpGet` → `HttpGetAsync` → `request` → `syn.request` → `getgenv()` (chạy được trên Delta và các executor theo UNC) |
+| 🧾 **Dòng lệnh sẵn để dán** | Xuất bản xong có ngay `loadstring(game:HttpGet("…"))()` + nút chép — dán URL trần vào executor thì không có gì chạy |
 | 🧩 **Kèm dịch ngược** | Làm đẹp, rút gọn, tách chuỗi, đổi tên biến, giải base64/hex/URL, phân tích |
 | 🆓 **Miễn phí** | Tệp tĩnh: GitHub Pages / Cloudflare Pages / Netlify / Vercel |
 | 🚫 **Không upload** | Code không rời khỏi máy bạn; không có backend |
@@ -106,26 +108,28 @@ examples/           script mẫu + gói demo
 ```bash
 node tests/run-node.mjs       # 244/244 đạt — lõi mã hoá + snippet + link + ngôn ngữ + trang trắng
 node tests/run-editor.mjs     # 75/75  — số dòng, zoom, dò lỗi, thống kê
-node tests/run-github.mjs     # 94/94  — GitHub REST client (không gọi mạng thật)
+node tests/run-github.mjs     # 101/101 — GitHub REST client + link mã nguồn (không gọi mạng thật)
 node tests/run-ide.mjs       # 104/104 — lõi tab Lập trình: tệp, tìm/thay, định dạng, 5 ô lưu
 node tests/run-publish.mjs   # 103/103 — gói xuất bản: trang 404 + loader Luau/JS + đẩy GitHub
 node tests/run-js.mjs        # 53/53  — chỉ JavaScript + khung xem trước (buildPreviewDocument)
-node tools/check-static.mjs   # 281/281 — id/đường dẫn/cú pháp HTML + link + ngôn ngữ + tab mới
+node tools/check-static.mjs   # 310/310 — id/đường dẫn/cú pháp HTML + link + ngôn ngữ + tab mới
 npm install                   # chỉ để chạy test DOM
-node tests/run-dom.mjs        # 307/307 — giao diện + gói demo + Lập trình + GitHub + xuất bản
-node tests/run-lua.mjs        # 31/31  — chạy THẬT loader Luau trong fengari (cần npm i fengari)
+node tests/run-dom.mjs        # 323/323 — giao diện + gói demo + Lập trình + GitHub + xuất bản
+node tests/run-lua.mjs        # 46/46  — chạy THẬT loader Luau trong fengari (cần npm i fengari)
+node tests/run-e2e-lua.mjs    # 24/24  — end-to-end: gói xuất bản → tệp .lua → chạy trong máy ảo Lua
+                              #          với môi trường kiểu Roblox (_G rỗng, request/HttpGet)
 node tests/stress.mjs --quick # 80/80 — cường độ cao (~18 s)
 node tests/stress.mjs --max   # như trên + tệp 1 GiB (~90 s)
 ```
 
-Tổng **1372 điểm kiểm tra**.
+Tổng **1463 điểm kiểm tra**.
 
 Kết quả mới nhất và chi tiết: [`docs/05-kiem-thu-va-ket-qua.md`](docs/05-kiem-thu-va-ket-qua.md).
 
 ## Giới hạn — nói thẳng
 
 - **Chưa kiểm thử bằng trình duyệt thật** trong môi trường tạo ra dự án này; đã có
-  1372 điểm kiểm tra (lõi, giao diện DOM ả, iframe xem trước chạy thật, loader Luau chạy trong máy ảo Lua,
+  1463 điểm kiểm tra (lõi, giao diện DOM ả, iframe xem trước chạy thật, loader Luau chạy trong máy ảo Lua,
   kiểm tra tĩnh, cường độ cao).
   Hãy bấm thử một lần.
 - **5 GiB là giới hạn đã chặn trong code**, khả thi thực tế còn phụ thuộc RAM/CPU/trình duyệt.
@@ -146,7 +150,7 @@ Chi tiết: [`docs/02-bao-mat-gioi-han.md`](docs/02-bao-mat-gioi-han.md).
 | [03-huong-dan-su-dung.md](docs/03-huong-dan-su-dung.md) | Hướng dẫn từng bước + xử lý sự cố |
 | [04-trien-khai-mien-phi.md](docs/04-trien-khai-mien-phi.md) | GitHub Pages, Cloudflare, Netlify, Vercel |
 | [06-phan-tich-index.html.1.js.md](docs/06-phan-tich-index.html.1.js.md) | Phân tích file tham chiếu `index.html.1.js`: đã port gì, bỏ gì, vì sao |
-| [05-kiem-thu-va-ket-qua.md](docs/05-kiem-thu-va-ket-qua.md) | 1372 điểm kiểm tra, số đo thật, test cường độ cao |
+| [05-kiem-thu-va-ket-qua.md](docs/05-kiem-thu-va-ket-qua.md) | 1463 điểm kiểm tra, số đo thật, test cường độ cao |
 
 ## Giấy phép
 

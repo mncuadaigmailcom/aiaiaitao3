@@ -506,7 +506,13 @@ export function sniffContentLang(text = '') {
   if (!raw.trim()) return null;
   // Bỏ các "gạch trang trí" trong chú thích (====, ----, ****) để không đếm nhầm
   // thành `===` của JavaScript.
-  const s = raw.replace(/={4,}|-{4,}|\*{4,}|#{4,}/g, ' ');
+  // Bỏ cả NỘI DUNG chuỗi dài: template literal (`` ` ``) và long string của Lua (`[[ ]]`).
+  // Nhờ vậy một tệp JS sinh mã Lua (như assets/lua-loader.js) không bị nhận nhầm là Lua,
+  // còn tệp .js mà cả nội dung là Lua thì vẫn được nhận đúng (Lua không nằm trong chuỗi).
+  const s = raw
+    .replace(/={4,}|-{4,}|\*{4,}|#{4,}/g, ' ')
+    .replace(/`[^`]*`/g, ' ')
+    .replace(/\[=*\[[\s\S]*?\]=*\]/g, ' ');
   const count = (re) => (s.match(re) || []).length;
 
   // Lua / Luau

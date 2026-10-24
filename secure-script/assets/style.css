@@ -295,9 +295,7 @@ select.mini {
 
 .ed-split { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 12px; }
 .ed-split.mode-code { grid-template-columns: minmax(0, 1fr); }
-.ed-split.mode-code #edErrorPane { display: none; }
 .ed-split.mode-errors { grid-template-columns: minmax(0, 1fr); }
-.ed-split.mode-errors #edEditorPane { display: none; }
 
 .ed-pane { min-width: 0; }
 .ed-shell {
@@ -387,6 +385,10 @@ select.mini {
 /* --------------------------------------------- tab phải: Kết quả | Lỗi --- */
 
 .ed-side { overflow: hidden; }
+
+/* Ẩn panel theo chế độ xem — đặt SAU .ed-side để luôn thắng (và để jsdom áp đúng thứ tự). */
+.ed-split.mode-code #edErrorPane { display: none; }
+.ed-split.mode-errors #edEditorPane { display: none; }
 .ed-side-head {
   display: flex;
   align-items: center;
@@ -445,6 +447,18 @@ select.mini {
 .gh-ta { min-height: 190px; height: 220px; width: 100%; border: 1px solid var(--line-2); border-radius: 10px; background: #060c16; }
 #ghRepoSelect, #ghFileSelect { width: 100%; }
 #ghFileContent { font-family: var(--mono); }
+
+/* Link mã nguồn tự điền trong tab “Sửa file” */
+.gh-linkbox {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #0b1523;
+  padding: 10px 12px;
+}
+.gh-linkbox .field { margin: 0; }
+.gh-linkbox input[readonly] { color: var(--text); background: #060c16; }
+.gh-linkbox .help { margin: 0; }
+.gh-linkbox .help.is-missing { color: var(--warn); }
 .check input[type="checkbox"] { margin-right: 6px; }
 
 /* ---------------------------------------------------- Lập trình: màn nhỏ --- */

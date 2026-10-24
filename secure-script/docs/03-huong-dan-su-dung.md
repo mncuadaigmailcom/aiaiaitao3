@@ -221,9 +221,17 @@ Nút **GitHub** ở góc trên bên phải mở hộp thoại 5 tab (tab 5 = xu�
 2. **Mã nguồn** — nhập **tên dự án mới** → **Tạo dự án**: tạo repo (mặc định **riêng tư**)
    rồi **tự đẩy code JS đang soạn** lên `script.js`.
 3. **Sửa file** — **Tải danh sách dự án** (mọi repo token thấy được) → chọn 1 dự án →
-   **Xem các file** (hiện **bao nhiêu file** + danh sách) → mở file, sửa nội dung rồi
+   **tự tải danh sách file** (không cần bấm thêm) → chọn file/mở file, sửa nội dung rồi
    **Lưu thay đổi** (tự lấy `sha` để ghi đè), **Thêm / ghi file** cho đường dẫn mới,
    hoặc **Xoá file**.
+
+   **Link mã nguồn tự điền:** ngay khi chọn dự án (và cả khi chọn file hay gõ đường dẫn),
+   hộp **Link mã nguồn trên GitHub** + **Link tải thô (raw)** + **Mở dự án** hiện ra
+   **tức thì** — chỉ ghép từ `owner/repo/nhánh/đường-dẫn`, **không cần đẩy code lên**
+   và **không tốn thêm lượt gọi API**. Dòng ghi chú cho biết tệp **đã có** hay **chưa có**
+   trên GitHub (dựa vào danh sách vừa tải): nếu chưa có, link vẫn đúng và sẽ sống ngay sau
+   khi bạn bấm **Lưu thay đổi** / **Thêm / ghi file**. Tên tệp có dấu cách vẫn được mã hoá
+   đúng (`%20`) nên link không bị vỡ.
 4. **Kết quả** — đẩy code lên đường dẫn bất kỳ rồi hiện ngay **link GitHub**, **link raw**
    và **link GitHub Pages** (nếu repo đã bật Pages).
 
@@ -259,6 +267,28 @@ Chi tiết trong hộp thoại **GitHub → tab 5 · Mã hoá + chống soi**:
 
 Đẩy lại lần sau **không tạo repo mới** và **link không đổi** — chỉ nội dung được cập nhật,
 nên link đã phát cho người khác vẫn dùng tiếp.
+
+## 3g. Dán link vào Delta / executor mà script không chạy?
+
+Hộp thoại xuất bản giờ có sẵn ô **“Dán vào Delta / executor — một dòng là chạy”**
+(`loadstring(game:HttpGet("<link script>"))()`). Cứ **chép cả dòng đó**, đừng chép mỗi URL.
+
+| Triệu chứng | Nguyên nhân | Cách xử lý |
+| --- | --- | --- |
+| Dán URL trần vào executor, không có gì xảy ra | Executor chạy **code**, không tự tải URL | Dán cả dòng `loadstring(game:HttpGet("…"))()` |
+| Báo lỗi `khong tai duoc khoa … (HTTP 404)` | Pages chưa build xong, hoặc dán nhầm link | Chờ 30–90 giây; dùng đúng **Link script** `…/s/l-<id>.lua`, không dùng **Link công khai** `…/s/` |
+| Báo `link khoa tra ve trang web (HTML)` | Đang dán **link công khai** (trang trắng 404) hoặc link `github.com/.../blob/...` | Dùng link `https://<user>.github.io/<repo>/s/l-<id>.lua` hoặc link `raw.githubusercontent.com` của tệp `.lua` |
+| Báo `tep khoa sai (n byte, can 32)` | Tệp `k-<id>.txt` bị sửa/thiếu, hoặc repo private nên Pages trả 404 | Kiểm tra tệp `s/k-<id>.txt` trong repo; repo phải **công khai** để Pages phục vụ |
+| Báo `executor khong ho tro loadstring` | Executor chặn `loadstring`/`load` | Đổi executor, hoặc dán trực tiếp bản `.lua` đã giải mã |
+| Báo `khong co ham tai HTTP nao dung duoc` | Executor không có `game:HttpGet`, `request`, `HttpGet` | Loader đã thử lần lượt `game:HttpGet` → `game:HttpGetAsync` → `request` → `http_request` → `syn.request` → `http.request` → `fluxus.request` → `getgenv().request`. Nếu vẫn lỗi: kiểm tra mạng/DPI, hoặc dùng `raw.githubusercontent.com` thay cho `github.io` |
+| Báo `sai khoa (tag GCM khong khop)` | Tệp khoá không phải của bản mã này | Xuất bản lại để lấy cặp `l-<id>.lua` + `k-<id>.txt` khớp nhau |
+
+> **Đã sửa (2026-10-24):** loader cũ đọc `game` qua `_G[name]`. Trong Luau của Roblox,
+> `_G` **không phải** môi trường toàn cục (nó chỉ là bảng chia sẻ giữa các script), nên
+> `_G.game` là `nil` ⇒ loader không tải được khoá ⇒ script “không chạy” mà gần như im lặng.
+> Loader mới đọc theo thứ tự `getgenv()` → `getfenv(0)` → `_G`, và dò trực tiếp
+> `request` / `http_request` / `syn.request` / `HttpGet`; mọi lỗi được in ra `warn`/`print`
+> kèm URL để bạn thấy ngay nguyên nhân.
 
 ## 4. Giải mã trên web
 

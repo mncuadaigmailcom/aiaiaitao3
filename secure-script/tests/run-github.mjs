@@ -19,9 +19,11 @@ import {
   GithubError,
   b64DecodeUtf8,
   b64EncodeUtf8,
+  encodePath,
   explainStatus,
   fileHtmlUrl,
   fileRawUrl,
+  repoHtmlUrl,
   loadLastRepo,
   loadToken,
   parseRepoRef,
@@ -226,6 +228,23 @@ ok(parseRepoRef('không phải link') === null, 'chuỗi rác → null');
 ok(parseRepoRef('') === null, 'rỗng → null');
 ok(fileHtmlUrl('a', 'b', 'main', 'x/y.js') === 'https://github.com/a/b/blob/main/x/y.js', 'link xem tệp');
 ok(fileRawUrl('a', 'b', 'main', 'x/y.js') === 'https://raw.githubusercontent.com/a/b/main/x/y.js', 'link raw');
+
+/* ------------------------------------------- 4b. link mã nguồn tự điền --- */
+
+console.log('\n[4b] Link mã nguồn (tự điền khi chọn dự án / chọn file)');
+ok(repoHtmlUrl('a', 'b') === 'https://github.com/a/b', 'link dự án');
+ok(encodePath('x/y.js') === 'x/y.js', 'đường dẫn thường giữ nguyên');
+ok(encodePath('moi/thu muc/ban moi.js') === 'moi/thu%20muc/ban%20moi.js', 'mã hoá dấu cách, giữ dấu /');
+ok(encodePath('a/b#c.js') === 'a/b%23c.js', 'mã hoá ký tự đặc biệt');
+ok(
+  fileHtmlUrl('o', 'r', 'main', 'moi/thu muc/a.js') === 'https://github.com/o/r/blob/main/moi/thu%20muc/a.js',
+  'link xem tệp có dấu cách',
+);
+ok(
+  fileRawUrl('o', 'r', 'dev', 'moi/thu muc/a.js') === 'https://raw.githubusercontent.com/o/r/dev/moi/thu%20muc/a.js',
+  'link raw theo đúng nhánh',
+);
+ok(fileHtmlUrl('o', 'r', '', 'a.js') === 'https://github.com/o/r/blob/main/a.js', 'nhánh rỗng → main');
 
 /* ------------------------------------------------------------- 5. lỗi --- */
 

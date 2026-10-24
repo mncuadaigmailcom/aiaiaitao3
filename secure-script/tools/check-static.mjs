@@ -51,6 +51,7 @@ for (const f of [
   'assets/lua-loader.js',
   'tests/run-publish.mjs',
   'tests/run-lua.mjs',
+  'tests/run-e2e-lua.mjs',
   'tests/run-editor.mjs',
   'tests/run-ide.mjs', 'tests/run-js.mjs',
   'tests/run-github.mjs',
@@ -146,6 +147,7 @@ for (const f of [
   'tests/run-editor.mjs',
   'tests/run-ide.mjs',
   'tests/run-github.mjs',
+  'tests/run-e2e-lua.mjs',
   'tools/check-static.mjs',
 ]) {
   const target = path.join(tmp, path.basename(f).replace(/\.js$/, '.mjs'));
@@ -375,6 +377,38 @@ check(programText.includes("addEventListener('aia:ship'"), 'tab Lập trình nh�
 check(publishTest.includes('publishPlanToGithub') && publishTest.includes('404: Not Found'), 'có test cho luồng xuất bản');
 check(read('tests/run-lua.mjs').includes('fengari'), 'có test chạy loader Luau thật');
 check(!/https?:\/\/api\.github\.com/.test(shipHtml), 'không nhúng token/URL lạ vào HTML');
+
+/* ----------------------------------------- 9b. link mã nguồn tự điền --- */
+
+console.log('\n[9b] Link mã nguồn trong tab “Sửa file”');
+for (const id of ['ghFileLinks', 'ghFileLink', 'ghFileRaw', 'ghFileLinkCopy', 'ghFileRawCopy', 'ghFileLinkOpen', 'ghRepoLink', 'ghFileLinkNote']) {
+  check(html.includes('id="' + id + '"'), 'index.html có #' + id);
+}
+check(ghUiText.includes('function showFileLinks'), 'github-ui.js có showFileLinks()');
+check(ghUiText.includes('function buildFileLinks'), 'github-ui.js có buildFileLinks()');
+check(ghUiText.includes('function autoLoadFiles'), 'github-ui.js tự tải file khi chọn dự án');
+check(/addEventListener\('change'[\s\S]{0,200}showFileLinks\(path\)/.test(ghUiText), 'chọn file → hiện link ngay');
+check(ghUiText.includes('showFileLinks(path, { exists: true })'), 'mở/lưu file → link báo đúng trạng thái');
+check(read('assets/github.js').includes('export function repoHtmlUrl'), 'github.js có repoHtmlUrl()');
+check(read('assets/github.js').includes('export function encodePath'), 'github.js có encodePath()');
+check(read('tests/run-dom.mjs').includes('link mã nguồn tự điền'), 'có test DOM cho link tự điền');
+check(read('tests/run-github.mjs').includes('encodePath'), 'có test đơn vị cho encodePath');
+
+/* --------------------------------- 9c. loader chạy được trong executor --- */
+
+console.log('\n[9c] Loader Luau chạy được trong Delta / executor');
+const luaLoaderText = read('assets/lua-loader.js');
+check(luaLoaderText.includes('getfenv(0)'), 'loader đọc biến toàn cục qua getfenv(0) (không chỉ _G)');
+check(luaLoaderText.includes("('getgenv')") || luaLoaderText.includes('getgenv()'), 'loader dùng getgenv() của executor');
+check(luaLoaderText.includes("get('request')") || luaLoaderText.includes("('request')"), 'loader thử request() (UNC — Delta)');
+check(luaLoaderText.includes("('HttpGet')"), 'loader thử HttpGet toàn cục');
+check(luaLoaderText.includes('<html'), 'loader phát hiện dán nhầm link trang web (HTML)');
+check(luaLoaderText.includes("'loadstring'") && luaLoaderText.includes("'load'"), 'loader dự phòng loadstring → load');
+check(ghUiText.includes('function buildRunCommand'), 'github-ui.js có buildRunCommand() (dòng lệnh loadstring)');
+for (const id of ['ghShipSnippet', 'ghShipCopySnippet']) {
+  check(html.includes('id="' + id + '"'), 'index.html có #' + id);
+}
+check(read('tests/run-lua.mjs').includes("envMode: 'roblox'"), 'có test môi trường kiểu Roblox (_G rỗng)');
 
 /* ------------------------------------------------------------------ tổng --- */
 
