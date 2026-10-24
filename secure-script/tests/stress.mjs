@@ -854,6 +854,133 @@ async function testRunSnippet() {
     `dài ${C.formatBytes(bigStealth.length)}`);
 }
 
+
+/* =====================================================================
+ * 12. Mã hoá LINK — tải, fuzz, song song, độ bền
+ * ===================================================================== */
+
+async function testLinks() {
+  section('12. Mã hoá LINK (trang web / script) — tải & fuzz');
+  const keySrc = fs.readFileSync(path.resolve(import.meta.dirname, '..', 'aia.key.js'), 'utf8');
+  const master = /masterKey:\s*"([^"]+)"/.exec(keySrc)[1];
+  const base = { keyUrl: './aia.key.js', sharedKey: master, iterations: 10000 };
+  const rounds = QUICK ? 40 : 200;
+
+  // vòng cơ bản
+  const one = await C.encryptLink('https://example.com/a/b?c=d', base);
+  const back = await C.decryptLink(one.token, base);
+  record('link', 'mã hoá → giải mã đúng URL', back.url === 'https://example.com/a/b?c=d', one.token.length + ' ký tự');
+
+  // nhiều vòng: đo thời gian + tính duy nhất
+  const tokens = new Set();
+  const t0 = nowMs();
+  for (let i = 0; i < rounds; i++) {
+    const r = await C.encryptLink('https://example.com/page/' + i, base);
+    tokens.add(r.token);
+    const d = await C.decryptLink(r.token, base);
+    if (d.url !== 'https://example.com/page/' + i) {
+      record('link', 'vòng ' + i + ' giải mã sai', false, d.url);
+      return;
+    }
+  }
+  const ms = nowMs() - t0;
+  record('link', `${rounds} vòng mã hoá + giải mã đều đúng`, true, `${(ms / rounds).toFixed(1)} ms/vòng`);
+  record('link', 'mọi token đều khác nhau', tokens.size === rounds, `${tokens.size}/${rounds}`);
+
+  // song song
+  const t1 = nowMs();
+  const many = await Promise.all(
+    Array.from({ length: QUICK ? 16 : 64 }, (_, i) => C.encryptLink('https://example.com/par/' + i, base)),
+  );
+  const msPar = nowMs() - t1;
+  const opened = await Promise.all(many.map((m) => C.decryptLink(m.token, base)));
+  const okPar = opened.every((o, i) => o.url === 'https://example.com/par/' + i);
+  record('link', 'mã hoá song song rồi mở lại đúng hết', okPar, `${many.length} token · ${msPar.toFixed(0)} ms`);
+  record('link', 'song song không sinh token trùng', new Set(many.map((m) => m.token)).size === many.length);
+
+  // URL dài nhất cho phép
+  const maxUrl = 'https://example.com/' + 'x'.repeat(C.LINK_MAX_CHARS - 30);
+  const maxEnc = await C.encryptLink(maxUrl, base);
+  record('link', `URL dài ${maxUrl.length} ký tự vẫn mã hoá/giải mã được`,
+    (await C.decryptLink(maxEnc.token, base)).url === new URL(maxUrl).href, `${maxEnc.token.length} ký tự token`);
+  let tooLong = '';
+  try {
+    await C.encryptLink('https://example.com/' + 'x'.repeat(C.LINK_MAX_CHARS), base);
+  } catch (err) {
+    tooLong = err.code;
+  }
+  record('link', 'URL vượt giới hạn bị chặn', tooLong === 'LINK_TOO_LONG', tooLong);
+
+  // fuzz: token ngẫu nhiên + token bị sửa
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.';
+  const fuzzRounds = Math.max(40, Math.round(FUZZ_ROUNDS / 3));
+  let crashes = 0;
+  let accepted = 0;
+  const t2 = nowMs();
+  for (let i = 0; i < fuzzRounds; i++) {
+    let token;
+    if (i % 2 === 0) {
+      token = 'AIALNK1.' + Array.from({ length: 120 + (i % 160) }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join('');
+    } else {
+      const chars = one.token.split('');
+      for (let k = 0; k < 3; k++) {
+        const pos = 8 + Math.floor(Math.random() * (chars.length - 8));
+        chars[pos] = alphabet[Math.floor(Math.random() * alphabet.length)];
+      }
+      token = chars.join('');
+    }
+    try {
+      await C.decryptLink(token, base);
+      accepted++;
+    } catch (err) {
+      if (!err || !/^(LINK_|BAD_|NO_SHARED_KEY)/.test(String(err.code))) crashes++;
+    }
+  }
+  record('link', `${fuzzRounds} token rác/bị sửa không làm sập chương trình`, crashes === 0, crashes + ' lỗi lạ');
+  record('link', 'token rác/bị sửa KHÔNG mở được', accepted === 0, accepted + ' token lọt');
+  record('link', 'fuzz chạy nhanh', nowMs() - t2 < 60000, `${(nowMs() - t2).toFixed(0)} ms`);
+
+  // sai key script / sai mật khẩu ở mọi vòng
+  let badKey = 0;
+  for (let i = 0; i < 5; i++) {
+    try {
+      await C.decryptLink(one.token, { ...base, sharedKey: C.generateSharedKeyBase64() });
+    } catch {
+      badKey++;
+    }
+  }
+  record('link', 'sai key script bị chặn 5/5 lần', badKey === 5, `${badKey}/5`);
+
+  // KDF chuẩn 600k: đo chi phí thật
+  const t3 = nowMs();
+  const strong = await C.encryptLink('https://example.com/strong', { ...base, iterations: C.DEFAULT_ITERATIONS });
+  const tEnc = nowMs() - t3;
+  const t4 = nowMs();
+  await C.decryptLink(strong.token, { ...base, iterations: C.DEFAULT_ITERATIONS });
+  const tDec = nowMs() - t4;
+  record('link', 'KDF 600k: mã hoá + giải mã dưới 2 giây', tEnc < 2000 && tDec < 2000, `${tEnc.toFixed(0)} ms / ${tDec.toFixed(0)} ms`);
+
+  // snippet: kích thước + không lộ + chạy được cú pháp
+  const sn = C.buildLinkSnippet({ token: one.token, keyUrl: 'https://example.com/aia.key.js' });
+  const leaks = ['AIALNK1', 'openLink', 'https://', 'example.com', 'AIA_KEY'].filter((m) => sn.includes(m));
+  record('link', 'snippet link không lộ dấu vết', leaks.length === 0, leaks.join(', ') || `${sn.length} ký tự`);
+  record('link', 'snippet link là JS hợp lệ', (() => { try { new Function(sn); return true; } catch { return false; } })());
+  const t5 = nowMs();
+  for (let i = 0; i < 200; i++) C.buildLinkSnippet({ token: one.token, keyUrl: './aia.key.js' });
+  record('link', 'sinh 200 snippet link nhanh', nowMs() - t5 < 2000, `${(nowMs() - t5).toFixed(0)} ms`);
+
+  // quy mô lớn: bộ nhớ không phình theo số token
+  const baseline = process.memoryUsage().rss;
+  const keep = [];
+  for (let i = 0; i < 500; i++) {
+    const r = await C.encryptLink('https://example.com/loop/' + i, base);
+    keep.push(r.token.length);
+  }
+  const grown = (process.memoryUsage().rss - baseline) / (1024 * 1024);
+  record('link', '500 token liên tiếp: RAM tăng ít', grown < 80, `+${grown.toFixed(1)} MiB`);
+  record('link', '500 token có độ dài ổn định (lệch ≤ 8 ký tự)', Math.max(...keep) - Math.min(...keep) <= 8, `${Math.min(...keep)}–${Math.max(...keep)} ký tự`);
+}
+
 /* =====================================================================
  * CHẠY
  * ===================================================================== */
@@ -875,6 +1002,7 @@ const suites = [
   ['tiến trình', testCancelAndProgress],
   ['ram', testMemoryScaling],
   ['snippet', testRunSnippet],
+  ['link', testLinks],
   ['tệp lớn', testLargeFile],
 ];
 

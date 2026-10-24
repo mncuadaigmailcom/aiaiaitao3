@@ -4,13 +4,13 @@
 
 ```bash
 cd secure-script
-node tests/run-node.mjs      # 135 kiểm thử lõi (không cần cài gì)
-node tools/check-static.mjs  # 44 kiểm tra tĩnh HTML ↔ app.js
+node tests/run-node.mjs      # 189 kiểm thử lõi (không cần cài gì)
+node tools/check-static.mjs  # 61 kiểm tra tĩnh HTML ↔ app.js
 node tools/cli.mjs selftest  # kiểm tra nhanh CLI
 
 npm install                  # chỉ cần cho test DOM (jsdom)
-node tests/run-dom.mjs       # 71 kiểm thử giao diện + gói demo trên DOM ả
-node tests/stress.mjs --quick   # 52 bài kiểm thử cường độ cao (~21 s)
+node tests/run-dom.mjs       # 91 kiểm thử giao diện + gói demo trên DOM ả
+node tests/stress.mjs --quick   # 69 bài kiểm thử cường độ cao (~29 s)
 ```
 
 Yêu cầu: Node 18+ (đã chạy trên Node 22.22.3). Test lõi và test tĩnh không cần
@@ -27,18 +27,19 @@ Node v22.22.3 · WebCrypto: true
 [4b] Bắt buộc phải có key script     11/11
 [4c] Key script DÙNG CHUNG           22/22
 [4d] Snippet "chép là chạy"          27/27
+[4e] Mã hoá LINK                     54/54
 [5] ZIP & tiện ích                    7/7
 [6] Công cụ dịch ngược               15/15
 [7] Thông lượng                       4/4
 ─────────────────────────────────────────────
-Kết quả: 135 đạt · 0 lỗi · ~7,4 s
+Kết quả: 189 đạt · 0 lỗi · ~10,2 s
 
-Kiểm tra tĩnh (tools/check-static.mjs): 44 đạt · 0 lỗi
-Kiểm thử DOM  (tests/run-dom.mjs)     : 71 đạt · 0 lỗi
-Kiểm thử cường độ cao (stress.mjs --quick): 52/52 đạt · 0 lỗi · ~21 s
+Kiểm tra tĩnh (tools/check-static.mjs): 61 đạt · 0 lỗi
+Kiểm thử DOM  (tests/run-dom.mjs)     : 91 đạt · 0 lỗi
+Kiểm thử cường độ cao (stress.mjs --quick): 69/69 đạt · 0 lỗi · ~29 s
 ```
 
-Tổng: **302 điểm kiểm tra đạt** (135 + 44 + 71 + 52).
+Tổng: **410 điểm kiểm tra đạt** (189 + 61 + 91 + 69).
 
 ## 3. Chi tiết từng nhóm
 
@@ -124,6 +125,23 @@ Ngoài ra: `iterations` < 10.000 bị kẹp; `chunkSize` < 64 KiB bị kẹp.
   (kiểm tra cả biến toàn cục do code gốc tạo ra).
 - Kích thước **nhỏ hơn** bản có chú thích (~4,7 KB so với ~5,4 KB cho script nhỏ).
 
+### [4e] Mã hoá LINK (mới)
+
+- Vòng cơ bản: token `AIALNK1.…` → mở lại đúng URL (kể cả `?query`, `#hash`).
+- Token **không chứa** host/đường dẫn gốc; dài ~270 ký tự cho URL thường.
+- Mỗi lần mã hoá ra token **khác nhau** (salt + IV + thời gian).
+- Mật khẩu: đúng thì mở, sai bị chặn (`LINK_BAD_PASS`); sai key script cũng bị chặn;
+  thiếu khoá key script bị chặn (`NO_SHARED_KEY`).
+- Sửa 1 ký tự token, sửa `u` (link key) hay `x` (thời gian) trong header → không mở được.
+- 5 kiểu token hỏng (rỗng/rác/quá ngắn/ký tự lạ/bị cắt) → `LINK_BAD_TOKEN`, không sập.
+- 7 kiểu link xấu (`javascript:`, `data:`, `file:`, `ftp:`, chuỗi thường, rỗng) → bị chặn.
+- URL tiếng Việt/emoji giữ nguyên; URL 2000+ ký tự vẫn đúng (token ≈ 1,33 × URL do Base64).
+- `aia.key.js` phát hành kèm site có `openLink()`: tự mở token (có/không tiền tố đều được).
+- Snippet link: 0 marker lộ (`AIALNK1`, `openLink`, `AIA_KEY`, `https://`, host…), là JS hợp lệ,
+  chạy trong sandbox và mở đúng URL; chế độ `text` chỉ in link, chế độ `load` nạp link thành script.
+- Mật khẩu nhúng không hiện dạng chữ; chế độ hỏi mật khẩu nhận **mật khẩu gõ tay** (không phải Base64).
+- Hồi quy: snippet script "ẩn dấu vết" cũng đã sửa lỗi giải Base64 mật khẩu gõ tay.
+
 ### [5] ZIP
 
 - 2 mục, tên đúng, CRC32 đúng, dữ liệu nhị phân giữ nguyên.
@@ -187,7 +205,9 @@ và key script đảm nhiệm.
 - mọi `src`/`href` nội bộ trỏ tới tệp có thật;
 - `index.html` nạp `assets/app.js` dưới dạng module;
 - tài liệu trong `docs/` tồn tại;
-- không có `http://` không bảo mật trong mã.
+- không có `http://` không bảo mật trong mã;
+- **tính năng link**: đủ `id` giao diện, `core.js` có `encryptLink`/`decryptLink`/`buildLinkSnippet`,
+  CLI có `link`/`unlink`, `aia.key.js` phát hành kèm site có `openLink` (17 kiểm tra).
 
 ## 5. Những gì KHÔNG được kiểm thử
 
@@ -234,6 +254,7 @@ Nếu bạn chạy thử và gặp lỗi, gửi lại thông báo trong tab "Nh�
 | 10. Tệp lớn | 64 MiB (1 GiB với `--max`), so SHA-256 từng byte | ✔ |
 | 11. Snippet | 0 B/1 B/1 KiB/64 KiB/1,5 MiB, chi phí Base64 ×1,34, 3 chế độ mật khẩu | ✔ |
 | 11b. Snippet ẩn | không lộ marker, mỗi lần sinh khác nhau, sinh 1,5 MiB < 1 s | ✔ |
+| 12. Link | 40–200 vòng, song song, fuzz token rác/sửa hỏng, URL 8 KiB, RAM, snippet | ✔ |
 
 Số đo thật (`--max`, máy 2 CPU):
 

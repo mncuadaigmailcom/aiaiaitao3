@@ -613,6 +613,13 @@ function runSnippetInSandbox(snippet, { keyFiles = {}, promptAnswer = '' } = {})
     prompt: () => promptAnswer,
     URL: { createObjectURL: () => 'blob:fake', revokeObjectURL: () => {} },
     __downloads: [],
+    __opened: [],
+  };
+  ctx.location = { href: 'about:blank' };
+  ctx.window = ctx;
+  ctx.open = (u) => {
+    ctx.__opened.push(u);
+    return {};
   };
   ctx.document = {
     head: {
@@ -650,7 +657,7 @@ function runSnippetInSandbox(snippet, { keyFiles = {}, promptAnswer = '' } = {})
   ctx.self = ctx;
   vm.createContext(ctx);
   vm.runInContext(snippet, ctx);
-  return { logs, ctx };
+  return { logs, ctx, opened: ctx.__opened };
 }
 
 async function testRunSnippet() {
@@ -776,12 +783,200 @@ async function testRunSnippet() {
   ok(rLua.logs.some((l) => l.includes('đã tải bản rõ')), 'tệp .lua: báo đã tải bản rõ');
 }
 
+
+/* ============================================ mã hoá LINK (trang web/script) === */
+
+async function testLink() {
+  console.log('\n[4e] Mã hoá LINK (link trang web / link script)');
+  const keySrc = fs.readFileSync(path.resolve(import.meta.dirname, '..', 'aia.key.js'), 'utf8');
+  const master = /masterKey:\s*"([^"]+)"/.exec(keySrc)[1];
+  const KEY_URL = 'https://mncuadagmailcom.github.io/aiaiaitao3/secure-script/aia.key.js';
+  const base = { keyUrl: './aia.key.js', sharedKey: master, iterations: 10000 };
+
+  // 1) vòng cơ bản
+  const target = 'https://example.com/path/script.js?a=1&b=2#top';
+  const enc = await C.encryptLink(target, base);
+  ok(enc.token.startsWith(C.LINK_PREFIX), 'token link có tiền tố ' + C.LINK_PREFIX);
+  ok(!enc.token.includes('example.com') && !enc.token.includes('script.js'), 'token KHÔNG chứa link gốc');
+  ok(enc.token.length < 600, 'token link ngắn (' + enc.token.length + ' ký tự)');
+  const dec = await C.decryptLink(enc.token, base);
+  ok(dec.url === target, 'giải mã link ra đúng URL gốc', dec.url);
+  ok(dec.keyUrl === './aia.key.js', 'token giữ link key script (đọc được)');
+  ok(/^\d{17}$/.test(dec.createdAt), 'token giữ thời gian tạo 17 chữ số (không mã hoá)', dec.createdAt);
+
+  // 2) hai lần mã hoá cùng link ⇒ token khác nhau (salt + IV + thời gian)
+  const enc2 = await C.encryptLink(target, base);
+  ok(enc2.token !== enc.token, 'mỗi lần mã hoá ra token khác nhau');
+  ok((await C.decryptLink(enc2.token, base)).url === target, 'token thứ hai vẫn mở đúng');
+
+  // 3) mật khẩu
+  const pw = await C.encryptLink('https://example.com/rieng-tu', { ...base, passphrase: 'pw-link' });
+  ok((await C.decryptLink(pw.token, { ...base, passphrase: 'pw-link' })).url === 'https://example.com/rieng-tu', 'link có mật khẩu: mở đúng khi đúng mật khẩu');
+  await expectError(() => C.decryptLink(pw.token, { ...base, passphrase: 'sai' }), 'LINK_BAD_PASS', 'sai mật khẩu bị chặn');
+  await expectError(() => C.decryptLink(enc.token, { ...base, passphrase: 'thu' }), ['LINK_BAD_PASS', 'LINK_AUTH_FAILED'], 'token không mật khẩu không mở bằng mật khẩu lạ');
+
+  // 4) sai key script
+  await expectError(
+    () => C.decryptLink(enc.token, { ...base, sharedKey: C.generateSharedKeyBase64() }),
+    'LINK_BAD_PASS',
+    'sai key script chung bị chặn',
+  );
+  await expectError(() => C.decryptLink(enc.token, { keyUrl: './aia.key.js' }), 'NO_SHARED_KEY', 'thiếu khoá key script bị chặn');
+  await expectError(() => C.encryptLink(target, { keyUrl: './aia.key.js' }), 'NO_SHARED_KEY', 'mã hoá link cần khoá key script');
+
+  // 5) sửa token / header
+  const body = enc.token.slice(C.LINK_PREFIX.length);
+  const flip = (s, i) => s.slice(0, i) + (s[i] === 'A' ? 'B' : 'A') + s.slice(i + 1);
+  await expectError(() => C.decryptLink(C.LINK_PREFIX + flip(body, body.length - 5), base), 'LINK_AUTH_FAILED', 'sửa 1 ký tự token bị phát hiện');
+  const parsed = C.parseLinkToken(enc.token);
+  const badHeader = { ...parsed.header, u: 'https://evil.example/key.js' };
+  const hb = utf8(JSON.stringify(badHeader));
+  const forged = new Uint8Array(2 + hb.length + 12 + parsed.ciphertext.length);
+  forged[0] = (hb.length >>> 8) & 0xff;
+  forged[1] = hb.length & 0xff;
+  forged.set(hb, 2);
+  forged.set(parsed.iv, 2 + hb.length);
+  forged.set(parsed.ciphertext, 2 + hb.length + 12);
+  await expectError(() => C.decryptLink(C.LINK_PREFIX + C.bytesToBase64Url(forged), base), ['LINK_BAD_PASS', 'LINK_AUTH_FAILED'], 'sửa link key trong header bị phát hiện');
+  const badTime = { ...parsed.header, x: parsed.header.x + 1 };
+  const tb = utf8(JSON.stringify(badTime));
+  const forged2 = new Uint8Array(2 + tb.length + 12 + parsed.ciphertext.length);
+  forged2[0] = (tb.length >>> 8) & 0xff;
+  forged2[1] = tb.length & 0xff;
+  forged2.set(tb, 2);
+  forged2.set(parsed.iv, 2 + tb.length);
+  forged2.set(parsed.ciphertext, 2 + tb.length + 12);
+  await expectError(() => C.decryptLink(C.LINK_PREFIX + C.bytesToBase64Url(forged2), base), ['LINK_BAD_PASS', 'LINK_AUTH_FAILED'], 'sửa thời gian trong header bị phát hiện');
+
+  // 6) token hỏng đủ kiểu
+  for (const [bad, label] of [
+    ['', 'rỗng'],
+    ['khong-phai-token', 'rác'],
+    ['AIALNK1.abc', 'quá ngắn'],
+    ['AIALNK1.!!!!', 'ký tự lạ'],
+    [enc.token.slice(0, 20), 'bị cắt cụt'],
+  ]) {
+    let code = '';
+    try {
+      await C.decryptLink(bad, base);
+    } catch (err) {
+      code = err.code;
+    }
+    ok(code === 'LINK_BAD_TOKEN' || code === 'LINK_EMPTY', `token ${label} bị từ chối`, code);
+  }
+
+  // 7) link nguy hiểm / không hợp lệ
+  for (const [bad, label] of [
+    ['javascript:alert(1)', 'javascript:'],
+    ['data:text/html,<script>x</script>', 'data:'],
+    ['file:///etc/passwd', 'file:'],
+    ['ftp://example.com/x', 'ftp:'],
+    ['khong-phai-link', 'chuỗi thường'],
+    ['', 'rỗng'],
+    ['   ', 'toàn khoảng trắng'],
+  ]) {
+    let code = '';
+    try {
+      await C.encryptLink(bad, base);
+    } catch (err) {
+      code = err.code;
+    }
+    ok(code === 'LINK_SCHEME' || code === 'LINK_INVALID' || code === 'LINK_EMPTY', `chặn link ${label}`, code);
+  }
+
+  // 8) URL đặc biệt
+  const uni = 'https://vi.wikipedia.org/wiki/Tiếng_Việt?q=✓&x=中文';
+  const uniEnc = await C.encryptLink(uni, base);
+  ok((await C.decryptLink(uniEnc.token, base)).url === new URL(uni).href, 'link có dấu tiếng Việt/emoji giữ nguyên');
+  const longUrl = 'https://example.com/' + 'a'.repeat(2000) + '?q=' + encodeURIComponent('x y z');
+  const longEnc = await C.encryptLink(longUrl, base);
+  ok((await C.decryptLink(longEnc.token, base)).url === new URL(longUrl).href, 'link dài 2000+ ký tự vẫn mở đúng');
+  ok(longEnc.token.length < longUrl.length * 1.4 + 400, 'token dài ~1,33 lần URL (do Base64) — ' + longEnc.token.length + ' ký tự cho URL ' + longUrl.length);
+
+  // 9) key script phát hành kèm site có openLink và mở được token
+  const holder = {};
+  const api = new Function('globalThis', keySrc + '\nreturn globalThis.AIA_KEY;')(holder);
+  ok(typeof api.openLink === 'function', 'aia.key.js phát hành kèm site có openLink');
+  const viaKey = await api.openLink(pw.token, { passphrase: 'pw-link' });
+  ok(viaKey.url === 'https://example.com/rieng-tu', 'key script tự mở khoá token link');
+  await api.openLink(pw.token, { passphrase: 'sai' }).then(
+    () => ok(false, 'key script từ chối mật khẩu sai cho token link'),
+    (err) => ok(/mật khẩu/i.test(err.message), 'key script từ chối mật khẩu sai cho token link', err.message),
+  );
+  await api.openLink('AIALNK1.rac', {}).then(
+    () => ok(false, 'key script từ chối token rác'),
+    (err) => ok(/không hợp lệ|cắt cụt|Thiếu/i.test(err.message), 'key script từ chối token rác', err.message),
+  );
+  const noPrefix = await api.openLink(enc.token.slice(C.LINK_PREFIX.length), {});
+  ok(noPrefix.url === target, 'key script mở token không có tiền tố');
+
+  // 10) snippet
+  const sn = C.buildLinkSnippet({ token: enc.token, keyUrl: KEY_URL });
+  ok(sn.trim().startsWith('(function'), 'snippet link ẩn dấu vết: không có chú thích');
+  for (const marker of ['AIALNK1', 'openLink', 'AIA_KEY', 'https://', 'AIA Secure Script', 'example.com']) {
+    ok(!sn.includes(marker), `snippet link không lộ "${marker}"`);
+  }
+  ok((() => { try { new Function(sn); return true; } catch { return false; } })(), 'snippet link là JavaScript hợp lệ');
+
+  const r = runSnippetInSandbox(sn, { keyFiles: { [KEY_URL]: keySrc } });
+  await wait(250);
+  ok(r.opened.includes(target), 'snippet link mở đúng URL sau khi tự giải mã', r.opened.join(',') || r.logs.join(' | '));
+
+  const snText = C.buildLinkSnippet({ token: enc.token, keyUrl: KEY_URL, action: 'text' });
+  const rt = runSnippetInSandbox(snText, { keyFiles: { [KEY_URL]: keySrc } });
+  await wait(250);
+  ok(rt.logs.some((l) => l.includes(target)), 'snippet chế độ "chỉ in link" ghi URL ra console');
+
+  const snLoad = C.buildLinkSnippet({ token: enc.token, keyUrl: KEY_URL, action: 'load' });
+  const rl = runSnippetInSandbox(snLoad, { keyFiles: { [KEY_URL]: keySrc } });
+  await wait(250);
+  ok(rl.ctx.__opened.length === 0, 'snippet "nạp script" không mở tab');
+
+  const snLabeled = C.buildLinkSnippet({ token: enc.token, keyUrl: KEY_URL, style: 'labeled' });
+  ok(snLabeled.includes('AIA Secure Script') && snLabeled.includes(KEY_URL), 'kiểu "có chú thích" hiện tiêu đề + link key');
+
+  // 11) mật khẩu trong snippet link: nhúng sẵn và hỏi khi chạy
+  const snEmbed = C.buildLinkSnippet({ token: pw.token, keyUrl: KEY_URL, passphrase: 'pw-link' });
+  ok(!snEmbed.includes('pw-link'), 'mật khẩu nhúng trong snippet link không hiện dạng chữ');
+  const rp = runSnippetInSandbox(snEmbed, { keyFiles: { [KEY_URL]: keySrc } });
+  await wait(250);
+  ok(rp.opened.includes('https://example.com/rieng-tu'), 'snippet link mở được link có mật khẩu (nhúng sẵn)');
+
+  const snAsk = C.buildLinkSnippet({ token: pw.token, keyUrl: KEY_URL, askPassphrase: true });
+  const ra = runSnippetInSandbox(snAsk, { keyFiles: { [KEY_URL]: keySrc }, promptAnswer: 'pw-link' });
+  await wait(250);
+  ok(ra.opened.includes('https://example.com/rieng-tu'), 'snippet link hỏi mật khẩu: gõ ĐÚNG mật khẩu (chữ thường) là mở được', ra.logs.join(' | '));
+  const rw = runSnippetInSandbox(snAsk, { keyFiles: { [KEY_URL]: keySrc }, promptAnswer: 'sai' });
+  await wait(250);
+  ok(rw.opened.length === 0 && rw.logs.some((l) => /mật khẩu/i.test(l)), 'snippet link hỏi mật khẩu: sai thì báo lỗi, không mở', rw.logs.join(' | '));
+
+  // 12) hồi quy: snippet script kiểu ẩn dấu vết cũng phải nhận mật khẩu gõ tay (trước đây bị lỗi Base64)
+  const encPw = await encryptBytes(utf8('globalThis.__pwok = 1;'), {
+    keyMode: 'shared',
+    sharedKey: master,
+    keyUrl: './aia.key.js',
+    iterations: 10000,
+    fileName: 'script.js',
+    passphrase: 'go-tay',
+  });
+  const snScriptAsk = C.buildRunSnippet({
+    meta: encPw.meta,
+    containerBytes: encPw.bytes,
+    keyUrl: KEY_URL,
+    style: 'stealth',
+    askPassphrase: true,
+  });
+  const rs = runSnippetInSandbox(snScriptAsk, { keyFiles: { [KEY_URL]: keySrc }, promptAnswer: 'go-tay' });
+  await wait(300);
+  ok(rs.ctx.__pwok === 1, 'snippet ẩn dấu vết: gõ mật khẩu thường (không phải Base64) vẫn chạy', rs.logs.join(' | '));
+}
+
 /* -------------------------------------------------------------- chạy tất cả --- */
 
 console.log('AIA Secure Script — kiểm thử');
 console.log('Node', process.version, '· WebCrypto:', !!(globalThis.crypto && globalThis.crypto.subtle));
 
-const suites = [testRoundtrip, testSecurity, testHeader, testKeyScript, testKeyScriptRequired, testSharedKey, testRunSnippet, testZip, testReverse, testThroughput];
+const suites = [testRoundtrip, testSecurity, testHeader, testKeyScript, testKeyScriptRequired, testSharedKey, testRunSnippet, testLink, testZip, testReverse, testThroughput];
 const started = Date.now();
 for (const suite of suites) {
   try {

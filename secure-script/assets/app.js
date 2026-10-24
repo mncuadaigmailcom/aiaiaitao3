@@ -23,6 +23,7 @@ const state = {
   decrypted: null, // { bytes, meta }
   worker: null,
   runStartedAt: 0,
+  link: null, // { token, snippet, url, header }
 };
 
 /* ---------------------------------------------------------------- tiện ích --- */
@@ -1243,6 +1244,196 @@ $('revToEncrypt').addEventListener('click', () => {
   setSourceFromText(text);
   showView('encrypt');
 });
+
+
+/* ------------------------------------------------------------- mã hoá link --- */
+
+function linkProtection() {
+  const el = $('linkPassMode');
+  return (el && el.value) || 'none';
+}
+
+function syncLinkPassUi() {
+  const mode = linkProtection();
+  const pass = $('linkPass');
+  if (!pass) return;
+  pass.disabled = mode === 'none';
+  pass.style.opacity = mode === 'none' ? '0.55' : '';
+  const note = $('linkPassNote');
+  if (note) {
+    note.textContent =
+      mode === 'none'
+        ? 'Không mật khẩu: ai có token VÀ key script là mở được — phù hợp để che link cho gọn mắt.'
+        : mode === 'embed'
+          ? 'Mật khẩu nhúng sẵn trong snippet: người nhận không phải nhập, nhưng ai đọc snippet cũng thấy (dạng Base64).'
+          : 'Người nhận phải nhập mật khẩu khi chạy snippet hoặc khi mở token ở trang này.';
+  }
+  if ($('linkStatus')) $('linkStatus').textContent = '';
+}
+
+async function copyToClipboard(text, message) {
+  try {
+    await navigator.clipboard.writeText(text);
+    toast(message || 'Đã chép.', 'ok');
+    return true;
+  } catch {
+    toast('Không chép được — hãy bôi đen và chép tay.', 'warn');
+    return false;
+  }
+}
+
+function linkPassForSnippet() {
+  const mode = linkProtection();
+  return {
+    askPassphrase: mode === 'ask',
+    passphrase: mode === 'none' ? '' : $('linkPass').value,
+  };
+}
+
+async function encryptLinkFromUi() {
+  const btn = $('linkEncrypt');
+  const status = $('linkStatus');
+  let target;
+  try {
+    target = C.normalizeLink($('linkInput').value);
+  } catch (err) {
+    status.textContent = err.message;
+    toast(err.message, 'bad', 6000);
+    return null;
+  }
+  const master = sharedMasterKey();
+  if (!master) {
+    toast('Chưa nạp được aia.key.js (khoá dùng chung). Hãy tải lại trang.', 'bad', 8000);
+    return null;
+  }
+  const mode = linkProtection();
+  const pass = mode === 'none' ? '' : $('linkPass').value;
+  if (mode !== 'none' && !pass) {
+    toast('Bạn chọn có mật khẩu nhưng chưa nhập mật khẩu.', 'bad', 6000);
+    return null;
+  }
+  btn.disabled = true;
+  status.textContent = 'đang mã hoá…';
+  try {
+    const iterations = Number($('linkIter').value) || C.DEFAULT_ITERATIONS;
+    const result = await C.encryptLink(target, {
+      keyUrl: SHARED_KEY_URL,
+      sharedKey: master,
+      passphrase: pass,
+      iterations,
+    });
+    const snippet = C.buildLinkSnippet({
+      token: result.token,
+      style: $('linkStyle').value === 'stealth' ? 'stealth' : 'labeled',
+      action: $('linkAction').value,
+      keyUrl: absoluteUrl(SHARED_KEY_FILE),
+      ...linkPassForSnippet(),
+    });
+    state.link = { token: result.token, snippet, url: target, header: result.header };
+
+    $('linkToken').textContent = result.token;
+    $('linkSnippet').textContent = snippet;
+    $('linkTokenNote').textContent =
+      `Dài ${result.token.length} ký tự · bảo vệ: ${mode === 'none' ? 'KHÔNG mật khẩu' : mode === 'embed' ? 'có mật khẩu (nhúng sẵn)' : 'có mật khẩu (hỏi khi chạy)'} · ` +
+      `thời gian tạo (không mã hoá) ${result.header.t}`;
+    $('linkSnippetNote').textContent =
+      $('linkStyle').value === 'stealth'
+        ? 'Ẩn dấu vết: không tiêu đề, không lộ link/tên API; dán vào Console (F12) hoặc tệp .js là chạy.'
+        : 'Có chú thích: thấy rõ link key + cách dùng; dán vào Console (F12) hoặc tệp .js là chạy.';
+    $('linkStats').innerHTML = [
+      stat('Link gốc', `${target.length} ký tự`),
+      stat('Token', `${result.token.length} ký tự`),
+      stat('Snippet', `${snippet.length} ký tự`),
+      stat('KDF', `${iterations.toLocaleString('vi-VN')} vòng`),
+    ].join('');
+    $('linkResultCard').hidden = false;
+    status.textContent = 'xong';
+    toast('Đã mã hoá link.', 'ok');
+    return result;
+  } catch (err) {
+    status.textContent = '';
+    toast('Không mã hoá được: ' + (err && err.message ? err.message : err), 'bad', 7000);
+    return null;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function decodeLinkFromUi() {
+  const btn = $('linkDecodeBtn');
+  const note = $('linkDecodeNote');
+  const out = $('linkDecodeOut');
+  const token = $('linkDecodeInput').value.trim();
+  if (!token) {
+    note.textContent = 'Chưa dán token.';
+    return null;
+  }
+  const master = sharedMasterKey();
+  if (!master) {
+    note.textContent = 'Chưa nạp được aia.key.js — hãy tải lại trang.';
+    return null;
+  }
+  btn.disabled = true;
+  note.textContent = 'đang mở khoá…';
+  try {
+    const res = await C.decryptLink(token, {
+      sharedKey: master,
+      passphrase: $('linkDecodePass').value,
+    });
+    $('linkDecodeUrl').textContent = res.url;
+    $('linkDecodeMeta').textContent = `· tạo lúc ${res.createdAt}`;
+    const open = $('linkDecodeOpen');
+    open.href = res.url;
+    open.hidden = false;
+    out.hidden = false;
+    note.textContent = 'Mở khoá thành công.';
+    toast('Đã mở khoá link.', 'ok');
+    return res;
+  } catch (err) {
+    out.hidden = true;
+    note.textContent = err && err.message ? err.message : 'Không mở được token.';
+    toast('Không mở được: ' + note.textContent, 'bad', 7000);
+    return null;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+if ($('linkPassMode')) {
+  $('linkPassMode').addEventListener('change', syncLinkPassUi);
+  syncLinkPassUi();
+}
+if ($('linkEncrypt')) $('linkEncrypt').addEventListener('click', () => encryptLinkFromUi());
+if ($('linkInput')) {
+  $('linkInput').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      encryptLinkFromUi();
+    }
+  });
+}
+if ($('linkCopy')) {
+  $('linkCopy').addEventListener('click', () => {
+    const text = $('linkToken').textContent;
+    if (!text) return toast('Chưa có token.', 'warn');
+    copyToClipboard(text, 'Đã chép token.');
+  });
+}
+if ($('linkSnippetCopy')) {
+  $('linkSnippetCopy').addEventListener('click', () => {
+    const text = $('linkSnippet').textContent;
+    if (!text) return toast('Chưa có snippet.', 'warn');
+    copyToClipboard(text, 'Đã chép snippet.');
+  });
+}
+if ($('linkDecodeBtn')) $('linkDecodeBtn').addEventListener('click', () => decodeLinkFromUi());
+if ($('linkDecodeCopy')) {
+  $('linkDecodeCopy').addEventListener('click', () => {
+    const url = $('linkDecodeUrl').textContent;
+    if (!url || url === '—') return toast('Chưa có link.', 'warn');
+    copyToClipboard(url, 'Đã chép link.');
+  });
+}
 
 /* --------------------------------------------------------------- khởi động --- */
 

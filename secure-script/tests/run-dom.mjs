@@ -120,8 +120,9 @@ const sampleCode = 'function hien(n){ console.log("Xin chào " + n); }\nhien("AI
 
 console.log('[1] Khởi động giao diện');
 check(!!$('encryptBtn'), 'có nút mã hoá');
-check(window.document.querySelectorAll('.view').length === 4, 'có 4 tab nội dung');
+check(window.document.querySelectorAll('.view').length === 5, 'có 5 tab nội dung');
 check(window.document.querySelector('.tabs button.active').dataset.view === 'encrypt', 'tab mặc định là Mã hoá');
+check(!!$('view-link') && !!$('linkEncrypt'), 'có tab Mã hoá link');
 check($('fileInfo').textContent.includes('chưa chọn'), 'chưa chọn tệp');
 
 /* -------------------------------------------------------------- 2. mã hoá --- */
@@ -383,6 +384,79 @@ console.log('\n[6] Gói demo phát hành kèm repo');
   }
   check(wrong, 'gói demo từ chối mật khẩu sai');
 }
+
+
+/* --------------------------------------------------------- 6. mã hoá link --- */
+
+console.log('\n[6] Mã hoá link');
+
+window.document.querySelector('.tabs button[data-view="link"]').click();
+check($('view-link').classList.contains('active'), 'bấm tab Mã hoá link mở đúng màn hình');
+
+const LINK_URL = 'https://example.com/path/script.js?a=1&b=2';
+$('linkIter').value = '100000';
+$('linkInput').value = LINK_URL;
+$('linkEncrypt').click();
+await waitFor(() => $('linkToken').textContent.startsWith('AIALNK1.'), 'mã hoá link ra token');
+
+const tokenText = $('linkToken').textContent;
+check(tokenText.length < 600, 'token link ngắn gọn', tokenText.length + ' ký tự');
+check(!tokenText.includes('example.com') && !tokenText.includes('script.js'), 'token KHÔNG lộ link gốc');
+check(!$('linkResultCard').hidden, 'hiện khung kết quả link');
+check($('linkStats').textContent.includes('Token'), 'có thống kê token', $('linkStats').textContent.slice(0, 60));
+check($('linkTokenNote').textContent.includes('KHÔNG mật khẩu'), 'ghi chú token nói rõ chế độ bảo vệ');
+
+const linkSnippet = $('linkSnippet').textContent;
+check(linkSnippet.trim().startsWith('(function'), 'snippet link ẩn dấu vết (không chú thích)', linkSnippet.slice(0, 24));
+check(!linkSnippet.includes('https://'), 'snippet link không lộ link key/URL dạng chữ');
+check(!linkSnippet.includes('AIALNK1'), 'snippet link không lộ tiền tố token');
+check(!linkSnippet.includes('openLink'), 'snippet link không lộ tên API');
+
+// mở khoá lại trên chính trang
+$('linkDecodeInput').value = tokenText;
+$('linkDecodeBtn').click();
+await waitFor(() => $('linkDecodeUrl').textContent === LINK_URL, 'mở khoá token ra đúng link gốc');
+check($('linkDecodeOpen').getAttribute('href') === LINK_URL, 'nút Mở trỏ đúng link gốc', $('linkDecodeOpen').getAttribute('href'));
+check(($('linkDecodeOpen').getAttribute('rel') || '').includes('noopener'), 'nút Mở có rel="noopener"');
+check($('linkDecodeOut').hidden === false, 'hiện khung link sau khi mở khoá');
+
+// token hỏng
+$('linkDecodeInput').value = 'AIALNK1.abc';
+$('linkDecodeBtn').click();
+await waitFor(() => $('linkDecodeNote').textContent.includes('Token'), 'báo token hỏng');
+check($('linkDecodeOut').hidden, 'token hỏng thì không hiện link');
+
+// chặn link nguy hiểm
+$('linkInput').value = 'javascript:alert(1)';
+$('linkEncrypt').click();
+await waitFor(() => $('linkStatus').textContent.includes('http'), 'chặn link javascript:');
+check(($('linkToken').textContent || '').startsWith('AIALNK1.'), 'token cũ vẫn còn nguyên khi nhập link sai');
+
+// có mật khẩu
+$('linkPassMode').value = 'ask';
+$('linkPassMode').dispatchEvent(new window.Event('change'));
+check($('linkPass').disabled === false, 'chọn có mật khẩu thì ô mật khẩu bật lên');
+$('linkPass').value = 'pw-link-1';
+$('linkInput').value = 'https://example.com/secret';
+$('linkEncrypt').click();
+await waitFor(() => $('linkTokenNote').textContent.includes('hỏi khi chạy'), 'token ghi rõ chế độ hỏi mật khẩu');
+const pwToken = $('linkToken').textContent;
+check(pwToken.startsWith('AIALNK1.') && pwToken !== tokenText, 'token có mật khẩu khác token không mật khẩu');
+
+$('linkDecodeInput').value = pwToken;
+$('linkDecodePass').value = 'sai';
+$('linkDecodeBtn').click();
+await waitFor(() => /Sai mật khẩu|Không mở được/.test($('linkDecodeNote').textContent), 'sai mật khẩu bị chặn');
+check($('linkDecodeOut').hidden, 'sai mật khẩu không hiện link');
+
+$('linkDecodePass').value = 'pw-link-1';
+$('linkDecodeBtn').click();
+await waitFor(() => $('linkDecodeUrl').textContent === 'https://example.com/secret', 'đúng mật khẩu mở được link');
+check($('linkDecodeOut').hidden === false, 'hiện link khi đúng mật khẩu');
+
+$('linkPassMode').value = 'none';
+$('linkPassMode').dispatchEvent(new window.Event('change'));
+$('linkPass').value = '';
 
 /* --------------------------------------------------------------- 7. lỗi --- */
 

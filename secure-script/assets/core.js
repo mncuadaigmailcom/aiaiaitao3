@@ -982,13 +982,71 @@ export function buildSharedKeyScript({ sharedKey, keyUrl = './aia.key.js', keyId
     return { bytes: res.bytes, header: res.header, worker: worker };
   }
 
+  function b64u(s2) {
+    var t = String(s2 || '').replace(/-/g, '+').replace(/_/g, '/');
+    while (t.length % 4) t += '=';
+    return b64d(t);
+  }
+
+  /**
+   * Mở token link (AIALNK1.…) → { url, keyUrl, createdAt }.
+   * options.passphrase: mật khẩu đã dùng lúc mã hoá link (nếu có).
+   */
+  async function openLink(token, options) {
+    options = options || {};
+    if (!SHARED.masterKey) throw new Error('Key script chung này không có khoá gốc.');
+    var s = String(token || '').trim();
+    if (s.slice(0, 8).toUpperCase() === 'AIALNK1.') s = s.slice(8);
+    s = s.replace(/[^A-Za-z0-9_-]+/g, '');
+    if (!s) throw new Error('Thiếu token link.');
+    var raw;
+    try { raw = b64u(s); } catch (e) { throw new Error('Token link không hợp lệ.'); }
+    if (raw.length < 30) throw new Error('Token link bị cắt cụt.');
+    var hlen = (raw[0] << 8) | raw[1];
+    if (!hlen || 2 + hlen + 28 > raw.length) throw new Error('Token link không hợp lệ.');
+    var header;
+    try { header = JSON.parse(new TextDecoder().decode(raw.subarray(2, 2 + hlen))); }
+    catch (e) { throw new Error('Token link không hợp lệ.'); }
+    if (!header || !header.t || !header.x || !header.u || !header.s || !header.n) {
+      throw new Error('Token link thiếu thông tin khoá.');
+    }
+    var iv = raw.subarray(2 + hlen, 2 + hlen + 12);
+    var ct = raw.subarray(2 + hlen + 12);
+    var iterations = Number(header.n);
+    if (!isFinite(iterations) || iterations < 1000 || iterations > 5000000) {
+      throw new Error('Token link có số vòng KDF không hợp lệ.');
+    }
+    var salt;
+    try { salt = b64d(header.s); } catch (e) { throw new Error('Token link có salt hỏng.'); }
+    if (salt.length < 8) throw new Error('Token link có salt hỏng.');
+    var material = JSON.stringify([1, header.t, header.x, header.u, options.passphrase || '', SHARED.masterKey]);
+    var base = await crypto.subtle.importKey('raw', utf8(material), 'PBKDF2', false, ['deriveBits']);
+    var bits = new Uint8Array(await crypto.subtle.deriveBits(
+      { name: 'PBKDF2', salt: salt, iterations: iterations, hash: 'SHA-256' }, base, 256));
+    var kid = hex(new Uint8Array(await crypto.subtle.digest('SHA-256', bits)).slice(0, 8));
+    if (header.k && header.k !== kid) throw new Error('Sai mật khẩu hoặc sai key script.');
+    var key = await crypto.subtle.importKey('raw', bits, { name: 'AES-GCM' }, false, ['decrypt']);
+    var aad = utf8(JSON.stringify(['AIA-LINK1', header.t, header.u]));
+    var pt;
+    try {
+      pt = new Uint8Array(await crypto.subtle.decrypt(
+        { name: 'AES-GCM', iv: iv, additionalData: aad, tagLength: 128 }, key, ct));
+    } catch (e) {
+      throw new Error('Không mở được link: sai mật khẩu, sai key script hoặc token đã bị sửa.');
+    }
+    var obj = JSON.parse(new TextDecoder().decode(pt));
+    if (!obj || !obj.u) throw new Error('Nội dung token hỏng.');
+    return { url: String(obj.u), keyUrl: header.u, createdAt: header.t };
+  }
+
   var API = {
-    version: '1.0.0',
+    version: '1.1.0',
     kind: 'shared',
     masterKey: SHARED.masterKey,
     keyId: SHARED.keyId,
     keyUrl: SHARED.keyUrl,
     open: open,
+    openLink: openLink,
     run: run,
     generateInfo: function () { return { keyMode: 'shared', keyUrl: SHARED.keyUrl, sharedKeyId: SHARED.keyId }; },
   };
@@ -1508,8 +1566,12 @@ export function buildRunSnippetStealth({
   }
   async function ${N.run}() {
     var p = ${N.pass};
-    if (p === null) p = typeof prompt === 'function' ? (prompt('Key') || '') : '';
-    if (p) p = ${N.text}(p);
+    if (p === null) {
+      // hỏi người dùng: họ gõ mật khẩu dạng chữ thường
+      p = typeof prompt === 'function' ? (prompt('Key') || '') : '';
+    } else if (p) {
+      p = ${N.text}(p);
+    }
     var u8 = ${N.bytes}(${N.data}.join(''));
     var src = ${N.stream}(u8);
     var plain = null;
@@ -1916,6 +1978,305 @@ CẢNH BÁO BẢO MẬT
 }
 
 /* ---------------------------------------------------------------- ZIP --- */
+
+/* ------------------------------------------------------ Mã hoá LINK (URL) --- */
+
+/**
+ * Mã hoá một LINK (link trang web hoặc link script) thành một chuỗi ngắn
+ * `AIALNK1.<base64url>` — chỉ mở được khi có key script dùng chung (và mật khẩu,
+ * nếu đặt). Cùng nguyên tắc khoá như tệp .aia: PBKDF2(thời gian + link key +
+ * mật khẩu + khoá gốc trong key script).
+ *
+ * Cấu trúc (sau khi giải base64url):
+ *   [2 byte BE: độ dài header][header JSON][IV 12 byte][ciphertext + tag 16 byte]
+ * Header để ĐỌC ĐƯỢC: { v, t: thời gian raw 17 số, x: unixMs, u: link key,
+ *                        s: salt, n: số vòng KDF, k: keyId }
+ * Toàn bộ header (trừ k) đều tham gia tạo khoá ⇒ sửa header là không mở được.
+ */
+export const LINK_PREFIX = 'AIALNK1.';
+export const LINK_VERSION = 1;
+export const LINK_AAD_TAG = 'AIA-LINK1';
+export const LINK_MAX_CHARS = 8192; // độ dài URL tối đa
+export const LINK_TOKEN_MAX_CHARS = 200000;
+
+export function bytesToBase64Url(bytes) {
+  return bytesToBase64(bytes).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+export function base64UrlToBytes(str) {
+  const s = String(str || '').replace(/-/g, '+').replace(/_/g, '/');
+  const pad = s.length % 4 === 0 ? '' : '='.repeat(4 - (s.length % 4));
+  return base64ToBytes(s + pad);
+}
+
+/** Kiểm tra + chuẩn hoá link. Chỉ nhận http/https (chặn javascript:, data:…). */
+export function normalizeLink(input) {
+  const raw = String(input == null ? '' : input).trim();
+  if (!raw) throw new AIAError('LINK_EMPTY', 'Chưa nhập link cần mã hoá.');
+  if (raw.length > LINK_MAX_CHARS) {
+    throw new AIAError('LINK_TOO_LONG', `Link quá dài (tối đa ${LINK_MAX_CHARS} ký tự).`);
+  }
+  let u;
+  try {
+    u = new URL(raw);
+  } catch {
+    throw new AIAError('LINK_INVALID', 'Link không hợp lệ. Ví dụ đúng: https://example.com/script.js');
+  }
+  if (u.protocol !== 'http:' && u.protocol !== 'https:') {
+    throw new AIAError('LINK_SCHEME', 'Chỉ nhận link http:// hoặc https:// (không nhận javascript:, data:…).');
+  }
+  return u.href;
+}
+
+function linkAad(header) {
+  return utf8(JSON.stringify([LINK_AAD_TAG, String(header.t), String(header.u)]));
+}
+
+/** Mã hoá link → token. Trả về { token, header, bytes }. */
+export async function encryptLink(url, opts = {}) {
+  const target = normalizeLink(url);
+  const keyUrl = String(opts.keyUrl || './aia.key.js');
+  const passphrase = String(opts.passphrase || '');
+  const iterations = Number(opts.iterations) || DEFAULT_ITERATIONS;
+  const sharedKey = opts.sharedKey ? sharedKeyToString(opts.sharedKey) : '';
+  if (!sharedKey) {
+    throw new AIAError('NO_SHARED_KEY', 'Cần khoá của key script dùng chung (aia.key.js) để mã hoá link.');
+  }
+  const time = makeTimestamp(opts.date instanceof Date ? opts.date : new Date());
+  const salt = randomBytes(16);
+  const { key, kid } = await deriveAesKey(
+    { timeRaw: time.raw, unixMs: time.unixMs, keyUrl, passphrase, salt, iterations, sharedKey },
+    ['encrypt'],
+  );
+  const header = {
+    v: LINK_VERSION,
+    t: time.raw,
+    x: time.unixMs,
+    u: keyUrl,
+    s: bytesToBase64(salt),
+    n: iterations,
+    k: kid,
+  };
+  const iv = randomBytes(12);
+  const plain = utf8(JSON.stringify({ u: target }));
+  const ct = new Uint8Array(
+    await asyncSubtle().encrypt(
+      { name: 'AES-GCM', iv, additionalData: linkAad(header), tagLength: 128 },
+      key,
+      plain,
+    ),
+  );
+  const headerBytes = utf8(JSON.stringify(header));
+  if (headerBytes.length > 65535) throw new AIAError('BAD_HEADER', 'Header link quá dài.');
+  const bytes = new Uint8Array(2 + headerBytes.length + iv.length + ct.length);
+  bytes[0] = (headerBytes.length >>> 8) & 0xff;
+  bytes[1] = headerBytes.length & 0xff;
+  bytes.set(headerBytes, 2);
+  bytes.set(iv, 2 + headerBytes.length);
+  bytes.set(ct, 2 + headerBytes.length + iv.length);
+  return { token: LINK_PREFIX + bytesToBase64Url(bytes), header, bytes, keyUrl };
+}
+
+/** Tách token → { header, iv, ciphertext, bytes }. Ném lỗi nếu không phải token link. */
+export function parseLinkToken(token) {
+  let s = String(token == null ? '' : token).trim().replace(/\s+/g, '');
+  if (!s) throw new AIAError('LINK_EMPTY', 'Chưa nhập token link.');
+  if (s.length > LINK_TOKEN_MAX_CHARS) throw new AIAError('LINK_BAD_TOKEN', 'Token quá dài.');
+  if (s.slice(0, LINK_PREFIX.length).toUpperCase() === LINK_PREFIX) s = s.slice(LINK_PREFIX.length);
+  let bytes;
+  try {
+    bytes = base64UrlToBytes(s);
+  } catch {
+    throw new AIAError('LINK_BAD_TOKEN', 'Token không phải base64url hợp lệ.');
+  }
+  if (bytes.length < 2 + 12 + 16) throw new AIAError('LINK_BAD_TOKEN', 'Token bị cắt cụt.');
+  const hlen = (bytes[0] << 8) | bytes[1];
+  if (hlen <= 0 || 2 + hlen + 12 + 16 > bytes.length) throw new AIAError('LINK_BAD_TOKEN', 'Header trong token không hợp lệ.');
+  let header;
+  try {
+    header = JSON.parse(fromUtf8(bytes.subarray(2, 2 + hlen)));
+  } catch {
+    throw new AIAError('LINK_BAD_TOKEN', 'Header trong token hỏng.');
+  }
+  if (!header || typeof header !== 'object' || !header.t || !header.x || !header.u || !header.s || !header.n) {
+    throw new AIAError('LINK_BAD_TOKEN', 'Token thiếu thông tin khoá.');
+  }
+  if (!Number.isFinite(Number(header.x)) || !Number.isFinite(Number(header.n))) {
+    throw new AIAError('LINK_BAD_TOKEN', 'Thông tin khoá trong token không hợp lệ.');
+  }
+  if (header.v !== undefined && Number(header.v) !== LINK_VERSION) {
+    throw new AIAError('LINK_BAD_TOKEN', 'Token link thuộc phiên bản không hỗ trợ.');
+  }
+  const iv = bytes.subarray(2 + hlen, 2 + hlen + 12);
+  const ciphertext = bytes.subarray(2 + hlen + 12);
+  return { header, iv, ciphertext, bytes };
+}
+
+/** Giải mã token → { url, header, keyUrl, createdAt }. */
+export async function decryptLink(token, opts = {}) {
+  const { header, iv, ciphertext } = parseLinkToken(token);
+  const sharedKey = opts.sharedKey ? sharedKeyToString(opts.sharedKey) : '';
+  if (!sharedKey) {
+    throw new AIAError('NO_SHARED_KEY', 'Cần khoá của key script dùng chung (aia.key.js) để mở link.');
+  }
+  const passphrase = String(opts.passphrase || '');
+  const iterations = Number(header.n);
+  if (!Number.isFinite(iterations) || iterations < 1000 || iterations > 5000000) {
+    throw new AIAError('LINK_BAD_TOKEN', 'Số vòng KDF trong token không hợp lệ.');
+  }
+  let salt;
+  try {
+    salt = base64ToBytes(String(header.s));
+  } catch {
+    throw new AIAError('LINK_BAD_TOKEN', 'Salt trong token hỏng.');
+  }
+  if (salt.length < 8 || salt.length > 1024) {
+    throw new AIAError('LINK_BAD_TOKEN', 'Salt trong token không hợp lệ.');
+  }
+  const { key, kid } = await deriveAesKey(
+    {
+      timeRaw: String(header.t),
+      unixMs: Number(header.x),
+      keyUrl: String(header.u),
+      passphrase,
+      salt,
+      iterations,
+      sharedKey,
+    },
+    ['decrypt'],
+  );
+  if (header.k && kid !== header.k) {
+    throw new AIAError('LINK_BAD_PASS', 'Sai mật khẩu hoặc sai key script.');
+  }
+  let plain;
+  try {
+    plain = new Uint8Array(
+      await asyncSubtle().decrypt(
+        { name: 'AES-GCM', iv, additionalData: linkAad(header), tagLength: 128 },
+        key,
+        ciphertext,
+      ),
+    );
+  } catch (err) {
+    throw new AIAError('LINK_AUTH_FAILED', 'Không mở được link: sai mật khẩu, sai key script hoặc token đã bị sửa.', err);
+  }
+  let payload;
+  try {
+    payload = JSON.parse(fromUtf8(plain));
+  } catch {
+    throw new AIAError('LINK_BAD_PAYLOAD', 'Nội dung trong token hỏng.');
+  }
+  const url = normalizeLink(payload && payload.u);
+  return { url, header, keyUrl: String(header.u), createdAt: String(header.t) };
+}
+
+/**
+ * Snippet "chép là chạy" cho link: tự nạp key script, tự mở khoá rồi mở link.
+ * action: 'open' (mở tab mới) | 'load' (nạp làm script) | 'text' (chỉ in ra).
+ */
+export function buildLinkSnippet(opts = {}) {
+  const token = String(opts.token || '');
+  if (!token) throw new AIAError('LINK_EMPTY', 'Thiếu token link.');
+  const stealth = opts.style !== 'labeled';
+  const action = ['open', 'load', 'text'].includes(opts.action) ? opts.action : 'open';
+  const keyUrl = String(opts.keyUrl || './aia.key.js');
+  const askPassphrase = !!opts.askPassphrase;
+  const passphrase = String(opts.passphrase || '');
+
+  const cut = (str, size) => (String(str).match(new RegExp('.{1,' + size + '}', 'g')) || []);
+  const tokenBody = token.replace(/^AIALNK1\./i, '');
+  const tokChunks = cut(tokenBody, 197);
+  const urlChunks = cut(bytesToBase64(utf8(keyUrl)), 53);
+  const passB64 = passphrase ? bytesToBase64(utf8(passphrase)) : '';
+  const tag = bytesToHex(randomBytes(3));
+  const id = (name) => '_' + name + tag;
+  const N = { tok: id('a'), url: id('b'), pass: id('c'), load: id('d'), go: id('e'), api: id('f'), out: id('g') };
+
+  const body = `(function () {
+  'use strict';
+  var ${N.tok} = ${JSON.stringify(tokChunks)};
+  var ${N.url} = ${JSON.stringify(urlChunks)};
+  var ${N.pass} = ${askPassphrase ? 'null' : JSON.stringify(passB64)};
+
+  function ${N.out}(s) {
+    var bin = atob(s), o = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) o[i] = bin.charCodeAt(i);
+    return new TextDecoder().decode(o);
+  }
+  function ${N.api}() {
+    var api = globalThis[atob('QUlBX0tFWQ==')];
+    var fn = api ? api[atob('b3Blbkxpbms=')] : null;
+    return typeof fn === 'function' ? api : null;
+  }
+  function ${N.load}() {
+    return new Promise(function (ok, no) {
+      if (${N.api}()) { ok(); return; }
+      if (typeof document === 'undefined') { no(new Error('No DOM')); return; }
+      var s = document.createElement('script');
+      s.src = ${N.out}(${N.url}.join(''));
+      s.async = true;
+      s.onload = function () { ok(); };
+      s.onerror = function () { no(new Error('Load failed')); };
+      (document.head || document.documentElement).appendChild(s);
+    });
+  }
+  async function ${N.go}() {
+    var p = ${N.pass};
+    if (p === null) {
+      p = typeof prompt === 'function' ? (prompt('Key') || '') : '';
+    } else if (p) {
+      p = ${N.out}(p);
+    }
+    var api = ${N.api}();
+    if (!api) throw new Error('No API');
+    var info = await api[atob('b3Blbkxpbms=')](${N.tok}.join(''), { passphrase: p });
+    var url = info && info.url;
+    if (!url) throw new Error('No URL');
+    var action = ${JSON.stringify(action)};
+    if (action === 'text') {
+      try { console.log(url); } catch (e) {}
+      return url;
+    }
+    if (action === 'load') {
+      await new Promise(function (ok, no) {
+        var s = document.createElement('script');
+        s.src = url;
+        s.async = true;
+        s.onload = function () { ok(); };
+        s.onerror = function () { no(new Error('Script load failed')); };
+        (document.head || document.documentElement).appendChild(s);
+      });
+      return url;
+    }
+    var w = null;
+    try { w = window.open(url, '_blank', 'noopener'); } catch (e) {}
+    if (!w) location.href = url;
+    return url;
+  }
+  ${N.load}().then(function () { return ${N.go}(); }).then(null, function (e) {
+    try { console.error(e && e.message ? e.message : String(e)); } catch (x) {}
+  });
+})();`;
+
+  if (stealth) return body + '\n';
+  const modeText = askPassphrase
+    ? 'có mật khẩu (sẽ hỏi khi chạy)'
+    : passphrase
+      ? 'có mật khẩu (nhúng sẵn)'
+      : 'KHÔNG mật khẩu';
+  return `/*!
+ * AIA Secure Script — mở LINK đã mã hoá
+ * Link key  : ${keyUrl}
+ * Bảo vệ    : ${modeText}
+ * Hành động : ${action === 'load' ? 'nạp làm script' : action === 'text' ? 'chỉ in link ra console' : 'mở tab mới'}
+ *
+ * CÁCH DÙNG: chép toàn bộ đoạn này → dán vào Console (F12) hoặc tệp .js rồi chạy.
+ * Đoạn code tự nạp key script, tự mở khoá token rồi ${action === 'load' ? 'nạp link như một script' : action === 'text' ? 'in link ra console' : 'mở link'}.
+ * Cần mạng để tải key script.
+ */
+${body}
+`;
+}
 
 const CRC_TABLE = (() => {
   const table = new Uint32Array(256);

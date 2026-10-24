@@ -60,6 +60,13 @@ Ai nhận được đoạn code đó là có **tất cả những gì cần** đ
 
 Snippet cũng làm tăng kích thước ~1,34 lần và chỉ dùng cho tệp ≤ 1,5 MiB.
 
+**Token link** là bản mã thật (AES-256-GCM), nhưng:
+
+- header token **đọc được** thời gian tạo + link key + keyId (đúng thiết kế "thời gian không mã hoá");
+- token dài ~1,33 lần URL vì Base64 — link càng dài token càng dài;
+- khi người nhận mở khoá xong thì **họ thấy link** — mã hoá chỉ bảo vệ lúc đang truyền;
+- `aia.key.js` là tệp công khai ⇒ token **không mật khẩu** thì ai có token cũng mở được.
+
 **Kiểu "ẩn dấu vết"** (mặc định) chỉ làm cho đoạn code **khó nhận ra** bằng mắt: bỏ chú
 thích, giấu link/tên API trong Base64, đổi tên biến ngẫu nhiên, cắt chuỗi thành mảng.
 Nó **không phải mã hoá** và **không ngăn được** người biết kỹ thuật:
