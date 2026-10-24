@@ -605,6 +605,13 @@ async function runEncryption(runOpts = {}) {
   $('progressWrap').hidden = true;
   $('progBar').style.width = '100%';
   toast(verified === false ? 'Đã mã hoá nhưng tự kiểm tra KHÔNG khớp — hãy thử lại.' : 'Mã hoá xong.', verified === false ? 'bad' : 'ok', 6000);
+  if (meta.keyWrapIn === 'shared-key-script' && !passphrase) {
+    toast(
+      'Chưa đặt mật khẩu: aia.key.js là công khai nên ai có tệp .aia cũng mở được. Hãy đặt mật khẩu nếu cần bảo vệ.',
+      'warn',
+      9000,
+    );
+  }
 }
 
 function renderResult({ meta, options, elapsed, verified, keyText, zipSize, sink }) {
