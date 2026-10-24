@@ -693,6 +693,175 @@ console.log('\n[7c] Chống soi — trang trắng');
   check(auto.unlock.length > cloak.unlock.length - 20 && auto.unlock.includes('#k='), 'vẫn có link mở khi tự sinh khoá', auto.unlock);
 }
 
+/* ------------------------------------- 7d. Lập trình nâng cao (IDE) --- */
+
+console.log('\n[7d] Nhiều tệp · tìm/thay · định dạng · chạy thử · ô lưu');
+{
+  const A = globalThis.AIA_EDITOR;
+  window.confirm = () => true;
+  globalThis.confirm = () => true;
+  const ta = $('edCode');
+  const fire = (el, type) => el.dispatchEvent(new window.Event(type));
+
+  check(!!$('edTabs') && !!$('edNewFile') && !!$('edFileCount'), 'có thanh tab tệp');
+  check(!!$('edTheme') && !!$('edFindInput') && !!$('edReplaceInput'), 'có chọn màu + thanh tìm/thay');
+  check(!!$('edConsole') && !!$('edConsoleOut'), 'có panel console');
+  check(!!$('edSlotsModal') && !!$('edSlotsList'), 'có hộp thoại lưu dự án');
+
+  /* ------------------------------------------------------------- tệp --- */
+  A.setCode('const a = 1;\nconst b = 2;\n', 'demo.js');
+  check(A.activeName() === 'demo.js', 'đổi tên tệp đang mở', A.activeName());
+  check(window.document.querySelectorAll('.ed-tab').length === A.files().length, 'số tab khớp số tệp');
+
+  A.addFile('util.js', '// util\n');
+  check(A.files().length === 2, 'thêm được tệp thứ hai', String(A.files().length));
+  check(A.activeName() === 'util.js', 'tệp mới được chọn');
+  check(ta.value.includes('// util'), 'nội dung tệp mới hiện trong khung soạn thảo');
+  check(window.document.querySelectorAll('.ed-tab').length === 2, 'hiện 2 tab');
+  check($('edFileCount').textContent.includes('2 tệp'), 'hiện tổng số tệp', $('edFileCount').textContent);
+
+  window.document.querySelectorAll('.ed-tab')[0].click();
+  check(A.activeName() === 'demo.js', 'bấm tab để chuyển tệp', A.activeName());
+  check(ta.value.includes('const a = 1'), 'nội dung tệp cũ được giữ nguyên');
+
+  $('edName').value = 'main.js';
+  fire($('edName'), 'input');
+  check(A.activeName() === 'main.js', 'đổi tên qua ô Tên tệp', A.activeName());
+  check(window.document.querySelector('.ed-tab.active .ed-tab-name').textContent === 'main.js', 'nhãn tab đổi theo');
+
+  window.document.querySelectorAll('.ed-tab .ed-tab-x')[1].click();
+  check(A.files().length === 1, 'nút × đóng được tệp', String(A.files().length));
+
+  /* -------------------------------------------------------- tìm/thay --- */
+  ta.value = 'foo bar foo\nFOO baz foo\n';
+  fire(ta, 'input');
+  $('edFindToggle').click();
+  check($('edFind').hidden === false, 'mở thanh tìm kiếm');
+  $('edFindInput').value = 'foo';
+  fire($('edFindInput'), 'input');
+  check($('edFindCount').textContent === '0/4', 'đếm đúng 4 kết quả (không phân biệt hoa thường)', $('edFindCount').textContent);
+
+  $('edFindNext').click();
+  check(ta.value.slice(ta.selectionStart, ta.selectionEnd) === 'foo', 'nút ↓ chọn kết quả đầu');
+  check($('edFindCount').textContent === '1/4', 'bộ đếm tiến 1/4', $('edFindCount').textContent);
+  $('edFindNext').click();
+  check($('edFindCount').textContent === '2/4', 'nút ↓ sang kết quả kế', $('edFindCount').textContent);
+  $('edFindPrev').click();
+  check($('edFindCount').textContent === '1/4', 'nút ↑ lùi lại', $('edFindCount').textContent);
+
+  $('edFindCase').checked = true;
+  fire($('edFindCase'), 'change');
+  check($('edFindCount').textContent.endsWith('/3'), 'phân biệt hoa thường → 3 kết quả', $('edFindCount').textContent);
+  $('edFindCase').checked = false;
+  fire($('edFindCase'), 'change');
+
+  $('edReplaceInput').value = 'X';
+  $('edReplaceAll').click();
+  check(!ta.value.includes('foo') && ta.value.includes('X bar X'), 'Thay tất cả hoạt động', JSON.stringify(ta.value));
+  check($('edFindCount').textContent === '0/0', 'sau khi thay không còn kết quả');
+
+  ta.value = 'mot hai mot';
+  fire(ta, 'input');
+  $('edFindInput').value = 'mot';
+  fire($('edFindInput'), 'input');
+  $('edReplaceInput').value = 'ba';
+  $('edFindNext').click();
+  $('edReplaceOne').click();
+  check(ta.value === 'ba hai mot', 'Thay 1 chỗ đúng vị trí đang chọn', JSON.stringify(ta.value));
+  $('edFindClose').click();
+  check($('edFind').hidden === true, 'đóng thanh tìm kiếm');
+
+  /* ----------------------------------------------------- định dạng --- */
+  A.setCode('{"b":2,"a":[1,2]}', 'data.json');
+  $('edFormatBtn').click();
+  check(ta.value.includes('\n  "b": 2'), 'định dạng JSON xuống dòng + thụt lề', JSON.stringify(ta.value.slice(0, 30)));
+  A.setCode('function f(){return 1}', 'x.js');
+  $('edFormatBtn').click();
+  check(ta.value.split('\n').length >= 2, 'định dạng JS thành nhiều dòng', JSON.stringify(ta.value));
+  A.setCode('a{color:red}', 'style.css');
+  $('edFormatBtn').click();
+  check(ta.value === 'a{color:red}', 'CSS không bị sửa bừa khi chưa hỗ trợ');
+
+  /* ---------------------------------------------------------- màu --- */
+  $('edTheme').value = 'dracula';
+  fire($('edTheme'), 'change');
+  check(window.document.querySelector('.ed-shell').classList.contains('theme-dracula'), 'đổi được giao diện soạn thảo');
+  check(window.localStorage.getItem('aia.ed.theme') === 'dracula', 'nhớ giao diện đã chọn');
+  $('edTheme').value = 'dark';
+  fire($('edTheme'), 'change');
+
+  /* -------------------------------------------------- chạy thử + log --- */
+  A.setCode('console.log("hi");', 'run.js');
+  $('edRunBtn').click();
+  check($('edConsole').hidden === false, 'bấm Chạy thì mở console');
+  await waitFor(() => $('edConsoleOut').textContent.includes('Xin chào từ worker giả'), 'log của code hiện trong console', 8000);
+  check($('edConsoleOut').textContent.includes('> Xin chào từ worker giả'), 'log có tiền tố ">"', $('edConsoleOut').textContent.slice(0, 80));
+  await waitFor(() => $('edConsoleStatus').textContent.includes('xong'), 'báo chạy xong', 8000);
+  check(/lỗi thử \(cố ý\)/.test($('edConsoleOut').textContent), 'lỗi runtime hiện trong console');
+
+  A.addFile('note.lua', 'local x = 1\nprint(x)\n');
+  $('edRunBtn').click();
+  check($('edConsoleStatus').textContent.includes('không chạy được'), 'tệp Lua bị chặn chạy (đúng thiết kế)', $('edConsoleStatus').textContent);
+  check($('edConsoleOut').textContent.includes('chỉ chạy được JavaScript'), 'giải thích rõ vì sao không chạy');
+  $('edConsoleClear').click();
+  check($('edConsoleOut').textContent === '', 'xoá được log');
+  $('edConsoleClose').click();
+  check($('edConsole').hidden === true, 'đóng được console');
+
+  /* -------------------------------------------------------- ô lưu --- */
+  A.setCode('const saved = 42;\n', 'save-me.js');
+  const filesBeforeSave = A.files().length;
+  $('edSaveProject').click();
+  check($('edSlotsModal').hidden === false, 'mở hộp thoại lưu dự án');
+  $('edSlotName').value = 'Dự án A';
+  $('edSlotSave').click();
+  check(A.slots().length === 1, 'lưu được 1 bản', String(A.slots().length));
+  check($('edSlotsList').querySelectorAll('.slot').length === 1, 'danh sách hiện 1 bản lưu');
+  check($('edSlotCount').textContent === '1/5', 'bộ đếm ô lưu 1/5', $('edSlotCount').textContent);
+
+  A.addFile('tam.js', '// tam\n');
+  check(A.files().length === filesBeforeSave + 1, 'thêm tệp tạm sau khi lưu');
+  window.document.querySelector('#edSlotsList [data-action="load"]').click();
+  check(A.files().length === filesBeforeSave, 'mở lại bản lưu phục hồi đúng số tệp', String(A.files().length));
+  check(A.activeName() === 'save-me.js' && ta.value.includes('saved = 42'), 'nội dung bản lưu khôi phục đúng');
+  check($('edSlotsModal').hidden === true, 'mở bản lưu xong thì đóng hộp thoại');
+
+  const slotId = A.slots()[0].id;
+  A.renameSlot(slotId, 'Tên khác');
+  check(A.slots()[0].name === 'Tên khác', 'đổi tên bản lưu');
+  check((window.localStorage.getItem('aia.ide.slots') || '').includes('Tên khác'), 'bản lưu được ghi vào localStorage');
+  A.deleteSlot(slotId);
+  check(A.slots().length === 0, 'xoá được bản lưu', String(A.slots().length));
+
+  /* ------------------------------------------------------- ZIP, phím --- */
+  const beforeZip = downloads.length;
+  $('edZipBtn').click();
+  check(downloads.length === beforeZip + 1 && downloads[downloads.length - 1] === 'aia-workspace.zip', 'tải được ZIP không gian làm việc', String(downloads[downloads.length - 1]));
+
+  ta.value = 'const persistMe = 1;\n';
+  fire(ta, 'input');
+  document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 's', ctrlKey: true, bubbles: true }));
+  check((window.localStorage.getItem('aia.ide.workspace') || '').includes('persistMe'), 'Ctrl+S lưu nháp vào trình duyệt');
+  check($('edSavedHint').textContent.includes('đã lưu'), 'có chỉ báo đã lưu', $('edSavedHint').textContent);
+
+  document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'f', ctrlKey: true, bubbles: true }));
+  check($('edFind').hidden === false, 'Ctrl+F mở tìm kiếm');
+  $('edFindClose').click();
+
+  document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, shiftKey: true, bubbles: true }));
+  await waitFor(() => $('edConsole').hidden === false, 'Ctrl+Shift+Enter chạy code');
+  $('edConsoleClose').click();
+
+  /* --------------------------------------------------------- làm mới --- */
+  $('edResetBtn').click();
+  check(A.files().length === 1, 'Làm mới đưa về 1 tệp', String(A.files().length));
+  check(ta.value === '', 'Làm mới xoá trắng nội dung', JSON.stringify(ta.value));
+  check(window.document.querySelectorAll('.ed-tab').length === 1, 'thanh tab còn 1 tab');
+
+  // trả lại trạng thái có code để các mục sau dùng
+  A.setCode(sampleCode, 'tu-editor.js');
+}
+
 /* ------------------------------------------------- 8. hộp thoại GitHub --- */
 
 console.log('\n[8] Hộp thoại GitHub (API key · tạo dự án · sửa file · kết quả)');

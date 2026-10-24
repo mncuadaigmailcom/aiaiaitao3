@@ -39,12 +39,13 @@ Kết quả: 244 đạt · 0 lỗi · ~12,4 s
 Editor : 75 đạt · 0 lỗi
 GitHub : 94 đạt · 0 lỗi
 
-Kiểm tra tĩnh (tools/check-static.mjs): 155 đạt · 0 lỗi
-Kiểm thử DOM  (tests/run-dom.mjs)     : 186 đạt · 0 lỗi
-Kiểm thử cường độ cao (stress.mjs --quick): 80/80 đạt · 0 lỗi · ~20 s
+Lõi không gian làm việc (tests/run-ide.mjs): 104 đạt · 0 lỗi
+Kiểm tra tĩnh (tools/check-static.mjs): 205 đạt · 0 lỗi
+Kiểm thử DOM  (tests/run-dom.mjs)     : 243 đạt · 0 lỗi
+Kiểm thử cường độ cao (stress.mjs --quick): 80/80 đạt · 0 lỗi · ~18 s
 ```
 
-Tổng: **834 điểm kiểm tra đạt** (244 + 75 + 94 + 155 + 186 + 80).
+Tổng: **1045 điểm kiểm tra đạt** (244 + 75 + 94 + 104 + 205 + 243 + 80).
 
 ## 3. Chi tiết từng nhóm
 
@@ -312,3 +313,24 @@ Fuzz 600/600 ca bị phát hiện (đảo bit 120 · cắt 120 · ghép 120 · �
 3. **RAM phình theo kích thước tệp** trong CLI/harness: adapter `fs.createReadStream` đẩy
    dữ liệu vào `ReadableStream` mà **không tôn trọng backpressure**. Đã sửa thành adapter
    kiểu `pull()`: 256 MiB trước đây tăng ~190 MiB RAM, nay chỉ ~14 MiB.
+
+### Tab Lập trình nâng cao (bản nhiều tệp)
+
+`tests/run-ide.mjs` chạy thuần Node, không cần trình duyệt — **104 điểm**:
+
+| Nhóm | Nội dung | Điểm |
+|---|---|---|
+| 1 | Tên tệp: ký tự cấm, tiếng Việt, tên rỗng, tên quá dài, chống trùng (`script-2.js`) | 21 |
+| 2 | Không gian làm việc: tạo, thêm, đổi tên, xoá, luôn còn ≥1 tệp, chuyển tệp đang mở | 24 |
+| 3 | Lưu/đọc `localStorage`: dữ liệu hỏng, JSON rác, thiếu trường, quota đầy, vượt 2 MiB | 15 |
+| 4 | Tìm & thay: hoa/thường, chồng lấn, tiếng Việt có dấu, `$&` là chữ thường, thay thế | 18 |
+| 5 | Định dạng: JSON, JS, Lua, Python, CSS báo "chưa hỗ trợ", code rỗng | 14 |
+| 6 | 5 ô lưu: lưu mới, ghi đè, đổi tên, xoá, ô đầy, ô quá lớn, mô tả ô | 12 |
+
+`tests/run-dom.mjs` mục **[7d]** thêm **57 điểm** cho giao diện: nạp 3 tệp, chuyển tab, đổi tên,
+đóng tệp, tìm/thay trên DOM, định dạng qua nút và `Shift+Alt+F`, đổi 4 theme, chạy thử ra console,
+mở/đóng console, lưu dự án rồi nạp lại, tải ZIP, `Ctrl+S`, `Ctrl+F`, nút đặt lại.
+
+`tools/check-static.mjs` (205 điểm) kiểm thêm: 21 `id` mới có trong HTML, 12 hàm xuất của `ide.js`,
+giới hạn 12 tệp / 5 ô lưu, chạy bằng Web Worker (không `eval` trên trang), 3 theme trong CSS,
+`Ctrl+F`/`Ctrl+S`/`Shift+Alt+F`, và **không** nạp Monaco/CDN.

@@ -43,10 +43,12 @@ for (const f of [
   'assets/app.js',
   'assets/reverse.js',
   'assets/editor.js',
+  'assets/ide.js',
   'assets/github.js',
   'assets/program.js',
   'assets/github-ui.js',
   'tests/run-editor.mjs',
+  'tests/run-ide.mjs',
   'tests/run-github.mjs',
   'assets/style.css',
   'tools/cli.mjs',
@@ -131,12 +133,14 @@ for (const f of [
   'assets/app.js',
   'assets/reverse.js',
   'assets/editor.js',
+  'assets/ide.js',
   'assets/github.js',
   'assets/program.js',
   'assets/github-ui.js',
   'tools/cli.mjs',
   'tests/run-node.mjs',
   'tests/run-editor.mjs',
+  'tests/run-ide.mjs',
   'tests/run-github.mjs',
   'tools/check-static.mjs',
 ]) {
@@ -259,6 +263,31 @@ check(ghUiText.includes('initGithub') && ghUiText.includes('publish'), 'github-u
 check(ghUiText.includes('ghModal'), 'github-ui.js điều khiển hộp thoại');
 check(appText.includes('initProgram') && appText.includes('initGithub'), 'app.js khởi tạo 2 module mới');
 check(appText.includes("useSource: async"), 'tab Lập trình chuyển code sang tab Mã hoá');
+
+/* --------------------------- 9. Không gian làm việc (theo index.html.1.js) --- */
+
+console.log('\n[9] Tab Lập trình nâng cao (nhiều tệp · tìm/thay · console · ô lưu)');
+const ideText = read('assets/ide.js');
+for (const id of ['edTabs', 'edNewFile', 'edFileCount', 'edFormatBtn', 'edRunBtn', 'edConsole', 'edConsoleOut', 'edFind', 'edFindInput', 'edReplaceInput', 'edFindCount', 'edReplaceAll', 'edTheme', 'edSaveProject', 'edSlotsModal', 'edSlotsList', 'edSlotName', 'edSlotSave', 'edZipBtn', 'edResetBtn', 'edSavedHint']) {
+  check(htmlText.includes('id="' + id + '"'), 'index.html có #' + id);
+}
+for (const fn of ['export function createWorkspace', 'export function addFile', 'export function renameFile', 'export function removeFile', 'export function findMatches', 'export function replaceAllText', 'export function formatCode', 'export function makeSlot', 'export function upsertSlot', 'export function loadSlots', 'export function persistSlots']) {
+  check(ideText.includes(fn), 'ide.js có ' + fn.replace('export ', ''));
+}
+check(ideText.includes('MAX_FILES = 12') && ideText.includes('MAX_SLOTS = 5'), 'giới hạn 12 tệp / 5 ô lưu');
+check(programText.includes('IDE.createWorkspace') && programText.includes('IDE.findMatches'), 'program.js dùng lõi ide.js');
+check(programText.includes("createZip(") || programText.includes('C.createZip'), 'có tải ZIP không gian làm việc');
+check(programText.includes('buildWorkerSource'), 'chạy thử bằng Web Worker (không eval trên trang)');
+check(programText.includes('CONSOLE_MAX_LINES'), 'console giới hạn số dòng');
+check(programText.includes('aia.ide.workspace') || ideText.includes("WORKSPACE_KEY = 'aia.ide.workspace'"), 'tự lưu nháp vào localStorage');
+check(/Ctrl\+F|'f'/.test(programText) && programText.includes('e.key === \'s\''), 'có phím tắt Ctrl+F / Ctrl+S');
+check(/shiftKey[\s\S]{0,60}\(e\.key === 'F'/.test(programText) && /altKey/.test(programText), 'có Shift+Alt+F để định dạng');
+check(ideText.includes('beautify'), 'định dạng dùng lại reverse.js');
+for (const theme of ['dracula', 'monokai', 'light']) {
+  check(read('assets/style.css').includes('theme-' + theme), 'có giao diện soạn thảo ' + theme);
+}
+check(!/<script[^>]+src=["']https?:/i.test(htmlText) && !/monaco\.editor|codemirror|cdn\.jsdelivr|cdnjs\.cloudflare/i.test(htmlText + ideText + programText), 'không phụ thuộc Monaco/CDN');
+check(exists('docs/06-phan-tich-index.html.1.js.md'), 'có tài liệu phân tích file tham chiếu');
 
 /* ------------------------------------------------------------------ tổng --- */
 
