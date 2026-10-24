@@ -51,6 +51,7 @@ for (const f of [
   'assets/lua-loader.js',
   'tests/run-publish.mjs',
   'tests/run-lua.mjs',
+  'tests/run-e2e-lua.mjs',
   'tests/run-editor.mjs',
   'tests/run-ide.mjs', 'tests/run-js.mjs',
   'tests/run-github.mjs',
@@ -146,6 +147,7 @@ for (const f of [
   'tests/run-editor.mjs',
   'tests/run-ide.mjs',
   'tests/run-github.mjs',
+  'tests/run-e2e-lua.mjs',
   'tools/check-static.mjs',
 ]) {
   const target = path.join(tmp, path.basename(f).replace(/\.js$/, '.mjs'));

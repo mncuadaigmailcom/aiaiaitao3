@@ -85,7 +85,7 @@ Môi trường: Node v22.22.3, `npm i jsdom fengari` (chỉ để chạy test DO
 | `tests/run-ide.mjs` | **104 / 104** | ~1 s |
 | `tests/run-publish.mjs` | **103 / 103** | ~2 s |
 | `tests/run-js.mjs` | **53 / 53** | ~1 s |
-| `tools/check-static.mjs` | **308 / 308** | ~1 s |
+| `tools/check-static.mjs` | **310 / 310** | ~1 s |
 | `tests/run-dom.mjs` (jsdom) | **323 / 323** | ~6,5 s |
 | `tests/run-lua.mjs` (fengari, loader Luau thật) | **46 / 46** | ~5 s |
 | `tests/stress.mjs --quick` | **80 / 80** | 15,4 s |

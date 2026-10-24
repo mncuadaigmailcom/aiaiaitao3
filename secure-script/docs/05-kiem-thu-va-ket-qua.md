@@ -50,7 +50,12 @@ Kiểm thử DOM  (tests/run-dom.mjs)     : 307 đạt · 0 lỗi
 Kiểm thử cường độ cao (stress.mjs --quick): 80/80 đạt · 0 lỗi · ~18 s
 ```
 
-Tổng: **1437 điểm kiểm tra đạt** (244 + 75 + 101 + 104 + 53 + 103 + 46 + 308 + 323 + 80).
+Tổng: **1463 điểm kiểm tra đạt** (244 + 75 + 101 + 104 + 53 + 103 + 46 + 24 + 310 + 323 + 80).
+
+`tests/run-e2e-lua.mjs` (24 điểm) đi trọn chuỗi mà người dùng làm: `buildPublishPlan` sinh
+gói → lấy đúng tệp `s/l-<id>.lua` + `s/k-<id>.txt` → chạy `l-<id>.lua` trong fengari với
+`_G` rỗng (kiểu Luau) và 4 kiểu executor khác nhau (`game:HttpGet`, `request`, `getgenv().request`,
+`HttpGet` toàn cục), kèm các ca lỗi: link HTML, tệp khoá ngắn, sai khoá, sửa bản mã.
 
 `tests/run-lua.mjs` mục **[5]** chạy loader trong môi trường **giống Roblox/executor thật**:
 `_G` là bảng rỗng (đúng như Luau sandbox), `game:HttpGet` bị chặn nhưng có `request` (UNC),
