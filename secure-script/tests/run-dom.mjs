@@ -133,6 +133,8 @@ $('pasteText').value = sampleCode;
 $('pass').value = 'mat-khau-dom-test';
 $('pass').dispatchEvent(new window.Event('input'));
 check($('passLabel').textContent.includes('ký tự'), 'hiển thị độ mạnh mật khẩu', $('passLabel').textContent);
+check($('passMode').value === 'none', 'mặc định: không mật khẩu');
+check($('pass').disabled === true, 'ô mật khẩu bị khoá khi chọn không mật khẩu');
 
 check(!$('pasteUse'), 'đã bỏ nút "Dùng nội dung này"');
 $('pasteText').dispatchEvent(new window.Event('paste'));
@@ -161,15 +163,30 @@ check(!!metaPreview.sharedKeyId, 'header có sharedKeyId để đối chiếu ke
 check(!metaPreview.keyWrap, 'header công khai KHÔNG chứa khoá tệp (chế độ chung: keyWrap trong header, không hiện ở meta công khai)');
 check(/^[0-9a-f]{64}$/.test(metaPreview.headerHash), 'header có SHA-256 toàn vẹn (headerHash)');
 
-// khung code đã mã hoá, chép được
-const encCodeText = $('encCode').textContent;
-check(encCodeText.startsWith('QUlBU0NSMQ'), 'code đã mã hoá hiện dạng Base64 (bắt đầu QUlBU0NSMQ)', encCodeText.slice(0, 16));
-check(!$('encCodeBox').hidden && encCodeText.length > 100, 'khung code đã mã hoá có nội dung', String(encCodeText.length));
+// khung code đã mã hoá: mặc định là SNIPPET chép-là-chạy (kèm link key)
+const snippetText = $('encCode').textContent;
+check($('encFmtRun').classList.contains('on'), 'mặc định chọn tab Snippet');
+check(snippetText.includes('AIA Secure Script') && snippetText.includes('var DATA'), 'snippet có cấu trúc tự chứa', snippetText.slice(0, 40));
+check(snippetText.includes('http://localhost:8080/aia.key.js'), 'snippet nhúng LINK key script tuyệt đối', (snippetText.match(/var KEY_URL = [^;]+/) || [])[0]);
+check(snippetText.includes('QUlBU0NSMQ'), 'snippet nhúng bản mã Base64 (bắt đầu QUlBU0NSMQ)');
+check(/var PASS = "";/.test(snippetText), 'mặc định KHÔNG cần mật khẩu trong snippet');
+check(snippetText.includes('await AIA_KEY.open') || snippetText.includes('AIA_KEY.open('), 'snippet tự gọi API của key script');
+check((() => { try { new Function(snippetText); return true; } catch { return false; } })(), 'snippet là JavaScript hợp lệ (chạy được)');
+check(snippetText.includes('(0, eval)(code)'), 'snippet tự chạy code sau khi giải mã');
+
+// dòng link key script nổi bật
+check($('keyLinkText').textContent === 'http://localhost:8080/aia.key.js', 'dòng link key hiện URL đầy đủ', $('keyLinkText').textContent);
+check($('keyLinkOpen').href.includes('aia.key.js'), 'nút Mở trỏ đúng key script');
+check($('keyLinkNote').textContent.includes('cũng dùng đúng link này'), 'ghi chú: ai cũng dùng cùng link');
+
+// các tab khác vẫn đúng
 $('encFmtHex').click();
 check(/^[0-9a-f]+$/.test($('encCode').textContent.slice(0, 64)), 'chuyển sang Hex được');
 check($('encCode').textContent.startsWith('414941534352310a'), 'Hex đúng magic AIASCR1\n');
 $('encFmtB64').click();
-check($('encCode').textContent.startsWith('QUlBU0NSMQ'), 'chuyển lại Base64 được');
+check($('encCode').textContent.startsWith('QUlBU0NSMQ'), 'chuyển sang Base64 được (bắt đầu QUlBU0NSMQ)');
+$('encFmtRun').click();
+check($('encCode').textContent.includes('var DATA') && !$('encFmtRun').disabled, 'quay lại tab Snippet được');
 
 /* --------------------------------------------------------- 3. tải & chạy --- */
 

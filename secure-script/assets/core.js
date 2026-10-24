@@ -794,12 +794,13 @@ export async function sharedKeyId(sharedKey) {
  * Sinh MỘT key script dùng chung cho mọi bản mã và mọi người.
  * Tệp này chứa khoá gốc ⇒ ai có nó + mật khẩu là mở được mọi tệp .aia cùng bộ.
  */
-export function buildSharedKeyScript({ sharedKey, keyUrl = './aia.key.js', keyId = '', note = '' }) {
+export function buildSharedKeyScript({ sharedKey, keyUrl = './aia.key.js', keyId = '', note = '', createdAt = '' }) {
   const master = sharedKeyToString(sharedKey);
+  // Không in thời điểm tạo ⇒ mọi lần tải key script chung đều ra CÙNG một tệp (byte-identical).
   return `/*!
  * AIA Secure Script — KEY SCRIPT DÙNG CHUNG
  * ---------------------------------------------------------------------------
- * Tạo lúc   : ${makeTimestamp().readable}
+ * Tạo lúc   : ${createdAt || 'cố định (dùng cho mọi lần mã hoá)'}
  * Key ID    : ${keyId || '(chưa tính)'}
  * Link key  : ${keyUrl}
  * Ghi chú   : ${note || 'dùng cho nhiều bản mã .aia cùng bộ'}
@@ -1393,6 +1394,163 @@ export function buildKeyScript(meta, opts = {}) {
 }
 
 /* ------------------------------------------------- Sinh trang chạy thử --- */
+
+/* ------------------------------------------------- Đoạn "chép là chạy" --- */
+
+/**
+ * Sinh một đoạn code TỰ CHỨA để người nhận chỉ cần dán vào Console / file .js là chạy:
+ *  - kèm sẵn LINK key script (mặc định aia.key.js dùng chung cho mọi người),
+ *  - kèm sẵn bản mã Base64,
+ *  - tự nạp key script, tự giải mã, tự chạy (không cần mật khẩu nếu mã hoá không mật khẩu).
+ *
+ * @param {object} p
+ * @param {object} p.meta            header meta (có file.name, keyUrl…)
+ * @param {Uint8Array} p.containerBytes  toàn bộ tệp .aia
+ * @param {string} [p.keyUrl]        link key script (nên là URL tuyệt đối)
+ * @param {string|null} [p.keyScriptText] mã nguồn key script (chế độ riêng từng tệp)
+ * @param {string} [p.passphrase]    mật khẩu nhúng sẵn ('' = không mật khẩu)
+ * @param {boolean} [p.askPassphrase] true = hỏi mật khẩu khi chạy
+ * @param {boolean} [p.execute]      false = chỉ tải bản rõ thay vì chạy
+ */
+export function buildRunSnippet({
+  meta,
+  containerBytes,
+  keyUrl = './aia.key.js',
+  keyScriptText = null,
+  passphrase = '',
+  askPassphrase = false,
+  execute = true,
+}) {
+  if (!(containerBytes instanceof Uint8Array)) throw new AIAError('BAD_INPUT', 'buildRunSnippet cần containerBytes dạng Uint8Array.');
+  const fileName = (meta && meta.file && meta.file.name) || 'script.js';
+  const isJs = /\.(m?js|cjs|ts|jsx)$/i.test(fileName);
+  const b64 = bytesToBase64(containerBytes);
+  const keySrcJson = keyScriptText ? JSON.stringify(keyScriptText) : 'null';
+  const passJson = askPassphrase ? 'null' : JSON.stringify(String(passphrase || ''));
+  const modeText = askPassphrase ? 'có mật khẩu (sẽ hỏi khi chạy)' : passphrase ? 'có mật khẩu (nhúng sẵn)' : 'KHÔNG mật khẩu';
+
+  return `/*!
+ * AIA Secure Script — đoạn "chép là chạy"
+ * Tệp gốc   : ${fileName}
+ * Tạo lúc   : ${meta.time ? meta.time.readable : ''}
+ * Key ID    : ${meta.kdf && meta.kdf.kid ? meta.kdf.kid : ''}
+ * Link key  : ${keyUrl}
+ * Bảo vệ    : ${modeText}
+ *
+ * CÁCH DÙNG: chép TOÀN BỘ đoạn này → dán vào Console (F12) hoặc một tệp .js và chạy.
+ * Đoạn code tự nạp key script từ link ở trên, tự giải mã rồi chạy code gốc.
+ * Cần mạng để tải key script. Không cần cài gì thêm.
+ */
+(async function () {
+  'use strict';
+
+  var KEY_URL = ${JSON.stringify(String(keyUrl))};
+  var KEY_SRC = ${keySrcJson}; // chế độ riêng từng tệp: mã nguồn key script nhúng sẵn
+  var DATA = ${JSON.stringify(b64)};
+  var PASS = ${passJson}; // null = hỏi người dùng, '' = không mật khẩu
+  var FILE = ${JSON.stringify(fileName)};
+  var EXEC = ${execute && isJs ? 'true' : 'false'};
+
+  function say() {
+    try { console.log.apply(console, ['[AIA]'].concat([].slice.call(arguments))); } catch (e) {}
+  }
+
+  function toBytes(b64) {
+    var bin = atob(b64);
+    var out = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+
+  function streamOf(bytes) {
+    if (typeof ReadableStream !== 'function') return bytes;
+    if (typeof Blob === 'function' && Blob.prototype && Blob.prototype.stream) {
+      return new Blob([bytes]).stream();
+    }
+    return new ReadableStream({
+      start: function (c) {
+        c.enqueue(bytes);
+        c.close();
+      },
+    });
+  }
+
+  function loadKeyScript() {
+    return new Promise(function (ok, fail) {
+      if (KEY_SRC) {
+        try {
+          (0, eval)(KEY_SRC);
+          ok();
+        } catch (e) {
+          fail(e);
+        }
+        return;
+      }
+      if (globalThis.AIA_KEY) {
+        ok();
+        return;
+      }
+      if (typeof document === 'undefined') {
+        fail(new Error('Không nạp được key script (môi trường không có DOM). Link: ' + KEY_URL));
+        return;
+      }
+      var s = document.createElement('script');
+      s.src = KEY_URL;
+      s.async = true;
+      s.onload = function () { ok(); };
+      s.onerror = function () { fail(new Error('Không tải được key script: ' + KEY_URL)); };
+      (document.head || document.documentElement).appendChild(s);
+    });
+  }
+
+  async function decryptAll() {
+    var pass = PASS;
+    if (pass === null) {
+      pass = typeof prompt === 'function' ? prompt('Nhập mật khẩu để mở ' + FILE) || '' : '';
+    }
+    var bytes = toBytes(DATA);
+    if (globalThis.AIA_KEY && typeof AIA_KEY.open === 'function') {
+      var res = await AIA_KEY.open({ source: streamOf(bytes), passphrase: pass });
+      return res.bytes;
+    }
+    if (globalThis.AIA_UNLOCK && typeof AIA_UNLOCK.decrypt === 'function') {
+      return await AIA_UNLOCK.decrypt({ source: streamOf(bytes), passphrase: pass });
+    }
+    throw new Error('Key script không có API giải mã (AIA_KEY / AIA_UNLOCK).');
+  }
+
+  function save(bytes) {
+    if (typeof document === 'undefined') throw new Error('Không có DOM để tải tệp — hãy chạy trong trình duyệt.');
+    var blob = new Blob([bytes], { type: 'application/octet-stream' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = FILE;
+    document.body.appendChild(a);
+    a.click();
+    try { if (a.remove) a.remove(); } catch (e) {}
+    setTimeout(function () { try { URL.revokeObjectURL(a.href); } catch (e) {} }, 4000);
+  }
+
+  try {
+    await loadKeyScript();
+    say('đang giải mã', FILE, '…');
+    var plain = await decryptAll();
+    say('giải mã OK:', plain.length, 'byte');
+    if (!EXEC) {
+      save(plain);
+      say('đã tải bản rõ:', FILE, '(' + plain.length + ' byte)');
+      return;
+    }
+    var code = new TextDecoder().decode(plain);
+    (0, eval)(code);
+    say('đã chạy', FILE);
+  } catch (err) {
+    var msg = err && err.message ? err.message : String(err);
+    try { console.error('[AIA] lỗi:', msg); } catch (e) {}
+  }
+})();
+`;
+}
 
 export function buildRunnerHtml(meta, opts = {}) {
   const title = `AIA Runner — ${escapeHtml(meta.file.name)}`;
