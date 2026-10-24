@@ -376,6 +376,22 @@ check(publishTest.includes('publishPlanToGithub') && publishTest.includes('404: 
 check(read('tests/run-lua.mjs').includes('fengari'), 'có test chạy loader Luau thật');
 check(!/https?:\/\/api\.github\.com/.test(shipHtml), 'không nhúng token/URL lạ vào HTML');
 
+/* ----------------------------------------- 9b. link mã nguồn tự điền --- */
+
+console.log('\n[9b] Link mã nguồn trong tab “Sửa file”');
+for (const id of ['ghFileLinks', 'ghFileLink', 'ghFileRaw', 'ghFileLinkCopy', 'ghFileRawCopy', 'ghFileLinkOpen', 'ghRepoLink', 'ghFileLinkNote']) {
+  check(html.includes('id="' + id + '"'), 'index.html có #' + id);
+}
+check(ghUiText.includes('function showFileLinks'), 'github-ui.js có showFileLinks()');
+check(ghUiText.includes('function buildFileLinks'), 'github-ui.js có buildFileLinks()');
+check(ghUiText.includes('function autoLoadFiles'), 'github-ui.js tự tải file khi chọn dự án');
+check(/addEventListener\('change'[\s\S]{0,200}showFileLinks\(path\)/.test(ghUiText), 'chọn file → hiện link ngay');
+check(ghUiText.includes('showFileLinks(path, { exists: true })'), 'mở/lưu file → link báo đúng trạng thái');
+check(read('assets/github.js').includes('export function repoHtmlUrl'), 'github.js có repoHtmlUrl()');
+check(read('assets/github.js').includes('export function encodePath'), 'github.js có encodePath()');
+check(read('tests/run-dom.mjs').includes('link mã nguồn tự điền'), 'có test DOM cho link tự điền');
+check(read('tests/run-github.mjs').includes('encodePath'), 'có test đơn vị cho encodePath');
+
 /* ------------------------------------------------------------------ tổng --- */
 
 console.log('\n' + '─'.repeat(56));

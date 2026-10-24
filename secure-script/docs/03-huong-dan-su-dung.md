@@ -221,9 +221,17 @@ Nút **GitHub** ở góc trên bên phải mở hộp thoại 5 tab (tab 5 = xu�
 2. **Mã nguồn** — nhập **tên dự án mới** → **Tạo dự án**: tạo repo (mặc định **riêng tư**)
    rồi **tự đẩy code JS đang soạn** lên `script.js`.
 3. **Sửa file** — **Tải danh sách dự án** (mọi repo token thấy được) → chọn 1 dự án →
-   **Xem các file** (hiện **bao nhiêu file** + danh sách) → mở file, sửa nội dung rồi
+   **tự tải danh sách file** (không cần bấm thêm) → chọn file/mở file, sửa nội dung rồi
    **Lưu thay đổi** (tự lấy `sha` để ghi đè), **Thêm / ghi file** cho đường dẫn mới,
    hoặc **Xoá file**.
+
+   **Link mã nguồn tự điền:** ngay khi chọn dự án (và cả khi chọn file hay gõ đường dẫn),
+   hộp **Link mã nguồn trên GitHub** + **Link tải thô (raw)** + **Mở dự án** hiện ra
+   **tức thì** — chỉ ghép từ `owner/repo/nhánh/đường-dẫn`, **không cần đẩy code lên**
+   và **không tốn thêm lượt gọi API**. Dòng ghi chú cho biết tệp **đã có** hay **chưa có**
+   trên GitHub (dựa vào danh sách vừa tải): nếu chưa có, link vẫn đúng và sẽ sống ngay sau
+   khi bạn bấm **Lưu thay đổi** / **Thêm / ghi file**. Tên tệp có dấu cách vẫn được mã hoá
+   đúng (`%20`) nên link không bị vỡ.
 4. **Kết quả** — đẩy code lên đường dẫn bất kỳ rồi hiện ngay **link GitHub**, **link raw**
    và **link GitHub Pages** (nếu repo đã bật Pages).
 

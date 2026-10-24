@@ -893,7 +893,7 @@
             <code>node tests/run-publish.mjs</code> (103, gói mã hoá + chống soi + đẩy GitHub) ·
             <code>node tests/run-lua.mjs</code> (31, chạy thật loader Luau trong máy ảo Lua) ·
             <code>node tools/check-static.mjs</code> (281) · <code>node tests/run-dom.mjs</code> (307) ·
-            <code>node tests/stress.mjs --quick</code> (80) — tổng <b>1372 điểm</b> kiểm tra.</li>
+            <code>node tests/stress.mjs --quick</code> (80) — tổng <b>1409 điểm</b> kiểm tra.</li>
           <li><code>node tools/cli.mjs --help</code> — dùng ngay trên máy.</li>
         </ul>
       </article>
@@ -1001,13 +1001,33 @@
         <button class="ghost small" id="ghDeleteFile" type="button">Xoá file</button>
         <span class="muted small" id="ghFilePath">—</span>
       </div>
+
+      <!-- Link mã nguồn: tự điền ngay khi chọn dự án / chọn file, không cần đẩy code lên -->
+      <div class="gh-linkbox" id="ghFileLinks" hidden>
+        <div class="field">
+          <label for="ghFileLink">Link mã nguồn trên GitHub <span class="muted small">(tự điền)</span></label>
+          <input type="text" id="ghFileLink" readonly spellcheck="false" placeholder="https://github.com/…">
+        </div>
+        <div class="field" style="margin-top:8px">
+          <label for="ghFileRaw">Link tải thô (raw)</label>
+          <input type="text" id="ghFileRaw" readonly spellcheck="false" placeholder="https://raw.githubusercontent.com/…">
+        </div>
+        <div class="row tight" style="margin-top:8px">
+          <button class="ghost small" id="ghFileLinkCopy" type="button">Chép link</button>
+          <button class="ghost small" id="ghFileRawCopy" type="button">Chép link raw</button>
+          <a class="ghost small" id="ghFileLinkOpen" href="#" target="_blank" rel="noopener noreferrer">Mở trên GitHub</a>
+          <a class="ghost small" id="ghRepoLink" href="#" target="_blank" rel="noopener noreferrer">Mở dự án</a>
+        </div>
+        <p class="help" id="ghFileLinkNote" style="margin-top:6px">—</p>
+      </div>
+
       <textarea id="ghFileContent" class="ed-ta gh-ta" spellcheck="false" placeholder="Nội dung file…"></textarea>
       <div class="row tight" style="margin-top:8px">
         <input type="text" id="ghNewPath" spellcheck="false" placeholder="đường-dẫn/tệp-mới.js" style="max-width:260px">
         <button class="ghost small" id="ghAddFile" type="button">Thêm / ghi file</button>
         <button class="primary small" id="ghSaveFile" type="button">Lưu thay đổi</button>
       </div>
-      <p class="help" id="ghFileStatus">Chọn dự án → xem file → sửa nội dung → Lưu (tự commit lên nhánh mặc định).</p>
+      <p class="help" id="ghFileStatus">Chọn dự án → file tự tải → link mã nguồn tự hiện. Sửa nội dung rồi bấm “Lưu thay đổi” (tự commit lên nhánh mặc định).</p>
     </div>
 
     <!-- 4. Kết quả: đăng code + link -->

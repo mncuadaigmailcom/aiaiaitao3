@@ -50,7 +50,7 @@ Kiểm thử DOM  (tests/run-dom.mjs)     : 307 đạt · 0 lỗi
 Kiểm thử cường độ cao (stress.mjs --quick): 80/80 đạt · 0 lỗi · ~18 s
 ```
 
-Tổng: **1372 điểm kiểm tra đạt** (244 + 75 + 94 + 104 + 53 + 103 + 31 + 281 + 307 + 80).
+Tổng: **1409 điểm kiểm tra đạt** (244 + 75 + 101 + 104 + 53 + 103 + 31 + 298 + 320 + 80).
 
 ## 3. Chi tiết từng nhóm
 

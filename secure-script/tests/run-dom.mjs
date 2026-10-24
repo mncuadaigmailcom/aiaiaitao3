@@ -1068,15 +1068,47 @@ console.log('\n[8] Hộp thoại GitHub (API key · tạo dự án · sửa file
   check(!$('ghPaneEdit').hidden, 'mở tab sửa file');
   $('ghRepoSelect').value = 'tester/editor-demo';
   $('ghRepoSelect').dispatchEvent(new window.Event('change'));
-  $('ghLoadFiles').click();
-  await waitFor(() => /có \d+ file/.test($('ghFileInfo').textContent), 'hiện số file của dự án', 15000);
+
+  // chọn dự án là tự tải file (chưa bấm "Xem các file") và tự hiện link mã nguồn
+  await waitFor(() => /có \d+ file/.test($('ghFileInfo').textContent), 'chọn dự án → tự tải danh sách file', 15000);
   check($('ghFileInfo').textContent.includes('1 file'), 'dự án có 1 file', $('ghFileInfo').textContent);
   check([...$('ghFileSelect').options].some((o) => o.value === 'script.js'), 'liệt kê tên file');
+  check($('ghFileSelect').value === 'script.js', 'tự chọn sẵn file mã nguồn', $('ghFileSelect').value);
+  check($('ghFileLinks').hidden === false, 'khối link tự hiện khi mới chọn dự án (chưa đẩy code lên)');
+  check(
+    $('ghFileLink').value === 'https://github.com/tester/editor-demo/blob/main/script.js',
+    'link mã nguồn tự điền đúng',
+    $('ghFileLink').value,
+  );
+  check(
+    $('ghFileRaw').value === 'https://raw.githubusercontent.com/tester/editor-demo/main/script.js',
+    'link tải thô tự điền đúng',
+    $('ghFileRaw').value,
+  );
+  check($('ghFileLinkOpen').getAttribute('href') === $('ghFileLink').value, 'nút “Mở trên GitHub” trỏ đúng link');
+  check($('ghRepoLink').getAttribute('href') === 'https://github.com/tester/editor-demo', 'có link mở dự án');
+  check(/Đang có sẵn trên GitHub/.test($('ghFileLinkNote').textContent), 'ghi chú: tệp đã có trên GitHub', $('ghFileLinkNote').textContent);
+
+  // gõ đường dẫn tệp chưa có → link vẫn hiện, ghi chú đổi, tên có dấu cách vẫn đúng
+  $('ghNewPath').value = 'moi/thu muc/ban moi.js';
+  $('ghNewPath').dispatchEvent(new window.Event('input'));
+  check(
+    $('ghFileLink').value === 'https://github.com/tester/editor-demo/blob/main/moi/thu%20muc/ban%20moi.js',
+    'đường dẫn có dấu cách được mã hoá trong link',
+    $('ghFileLink').value,
+  );
+  check(/chưa có trên GitHub/.test($('ghFileLinkNote').textContent), 'ghi chú: tệp chưa có trên GitHub', $('ghFileLinkNote').textContent);
+  $('ghNewPath').value = 'script.js';
+  $('ghNewPath').dispatchEvent(new window.Event('input'));
+
+  $('ghLoadFiles').click();
+  await waitFor(() => /có \d+ file/.test($('ghFileInfo').textContent), 'hiện số file của dự án', 15000);
 
   $('ghFileSelect').value = 'script.js';
   $('ghFileSelect').dispatchEvent(new window.Event('change'));
   await waitFor(() => $('ghFileContent').value.includes('tu-github'), 'mở được nội dung file', 15000);
   check($('ghFilePath').textContent === 'script.js', 'hiện đường dẫn file đang mở');
+  check($('ghFileLink').value.endsWith('/script.js'), 'link giữ đúng file đang chọn', $('ghFileLink').value);
 
   $('ghFileContent').value = 'console.log("da-sua");\n';
   $('ghSaveFile').click();
@@ -1093,6 +1125,7 @@ console.log('\n[8] Hộp thoại GitHub (API key · tạo dự án · sửa file
   $('ghDeleteFile').click();
   await waitFor(() => /có 1 file/.test($('ghFileInfo').textContent), 'xoá file', 15000);
   check(!ghFiles.has('tester/editor-demo:assets/extra.js'), 'file đã bị xoá khỏi GitHub');
+  check($('ghFileLinks').hidden === true, 'xoá file → ẩn link cũ');
 
   // 4 · kết quả: đăng lại từ nội dung ở tab Sửa file
   window.document.querySelector('[data-gh="result"]').click();
@@ -1102,6 +1135,12 @@ console.log('\n[8] Hộp thoại GitHub (API key · tạo dự án · sửa file
   await waitFor(() => $('ghResultLink').value.includes('ban-moi.js'), 'đăng code lần nữa', 15000);
   check(ghFiles.has('tester/editor-demo:ban-moi.js'), 'file mới có trên GitHub');
   check($('ghResultLink').value.startsWith('https://github.com/tester/editor-demo/'), 'link đúng dự án');
+
+  // bỏ chọn dự án → ẩn link đang hiện
+  $('ghRepoSelect').value = '';
+  $('ghRepoSelect').dispatchEvent(new window.Event('change'));
+  check($('ghFileLinks').hidden === true, 'bỏ chọn dự án → ẩn link cũ');
+  check($('ghFileLink').value === '', 'bỏ chọn dự án → xoá nội dung link');
 
   // lỗi: chưa có token
   $('ghToken').value = '';

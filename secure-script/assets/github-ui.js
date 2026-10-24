@@ -22,6 +22,7 @@ import {
   validateRepoName,
   fileHtmlUrl,
   fileRawUrl,
+  repoHtmlUrl,
 } from './github.js';
 import {
   buildPublishPlan,
@@ -45,6 +46,8 @@ const state = {
   ship: null, // kết quả xuất bản gần nhất
   payload: null, // code đẩy từ tab Lập trình
   shipOwner: '',
+  filesRepo: '', // dự án ứng với danh sách file đang có trong state.files
+  loadingFiles: null, // Promise đang tải danh sách file (chống gọi trùng)
 };
 
 function toast(message, kind = 'info', ms) {
@@ -233,6 +236,11 @@ function selectRepo(fullName) {
   const repo = state.repos.find((r) => r.full_name === fullName);
   if (!repo) {
     state.repo = null;
+    state.files = [];
+    state.filesRepo = '';
+    state.file = null;
+    clearFileLinks();
+    if ($('ghFileInfo')) $('ghFileInfo').textContent = 'chưa chọn dự án';
     return null;
   }
   state.repo = {
@@ -241,10 +249,35 @@ function selectRepo(fullName) {
     fullName: repo.full_name,
     branch: repo.default_branch || 'main',
   };
+  state.files = [];
+  state.filesRepo = '';
+  state.file = null;
+  clearFileLinks();
   saveLastRepo(state.repo);
-  if ($('ghFileInfo')) $('ghFileInfo').textContent = 'chưa xem file của ' + repo.full_name;
-  if ($('ghFileSelect')) $('ghFileSelect').innerHTML = '<option value="">— bấm “Xem các file” —</option>';
+  if ($('ghFileInfo')) $('ghFileInfo').textContent = 'đang tải file của ' + repo.full_name + '…';
+  if ($('ghFileSelect')) $('ghFileSelect').innerHTML = '<option value="">— đang tải file… —</option>';
+  // Chọn dự án là tự tải danh sách file (1 request) để link mã nguồn hiện ra ngay,
+  // không cần bấm “Xem các file” và không cần đẩy code lên trước.
+  autoLoadFiles();
   return state.repo;
+}
+
+/** Tự tải file sau khi chọn dự án + chọn sẵn 1 file để link hiện ngay (không tải nội dung). */
+function autoLoadFiles() {
+  if (!state.repo || !currentToken()) return Promise.resolve([]);
+  return loadFiles().then((files) => {
+    if (!files || !files.length) return files || [];
+    const prefer = ['.js', '.mjs', '.lua', '.luau', '.md', '.txt', '.json'];
+    const byExt = prefer.map((ext) => files.find((f) => String(f.path).toLowerCase().endsWith(ext))).find(Boolean);
+    const pick = files.find((f) => f.path === (state.file && state.file.path)) || byExt || files[0];
+    if (pick) {
+      const sel = $('ghFileSelect');
+      if (sel) sel.value = pick.path;
+      if ($('ghFilePath')) $('ghFilePath').textContent = pick.path;
+      showFileLinks(pick.path);
+    }
+    return files;
+  });
 }
 
 async function createRepo() {
@@ -299,30 +332,46 @@ async function loadFiles() {
     setStatus(status, 'chưa chọn dự án', 'bad');
     return [];
   }
+  // Đang tải đúng dự án này thì trả về lần tải đó (chọn dự án tự tải + bấm nút ≠ 2 request).
+  const repo = state.repo;
+  if (state.loadingFiles && state.loadingFiles.repo === repo.fullName) return state.loadingFiles.promise;
   setStatus(status, 'đang đếm file…');
-  try {
-    const tree = await client().getTree(state.repo.owner, state.repo.name, state.repo.branch, true);
-    const files = (tree.tree || []).filter((n) => n.type === 'blob');
-    state.files = files;
-    select.innerHTML = '';
-    if (!files.length) {
-      const opt = document.createElement('option');
-      opt.value = '';
-      opt.textContent = '— dự án chưa có file —';
-      select.appendChild(opt);
+  const promise = (async () => {
+    try {
+      const tree = await client().getTree(repo.owner, repo.name, repo.branch, true);
+      const files = (tree.tree || []).filter((n) => n.type === 'blob');
+      // Người dùng đã đổi dự án trong lúc chờ ⇒ bỏ kết quả cũ, không ghi đè danh sách mới.
+      if (!state.repo || state.repo.fullName !== repo.fullName) return files;
+      state.files = files;
+      state.filesRepo = repo.fullName;
+      select.innerHTML = '';
+      if (!files.length) {
+        const opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = '— dự án chưa có file —';
+        select.appendChild(opt);
+      }
+      for (const f of files) {
+        const opt = document.createElement('option');
+        opt.value = f.path;
+        opt.textContent = f.path + (f.size != null ? ' · ' + fmtSize(f.size) : '');
+        select.appendChild(opt);
+      }
+      setStatus(status, repo.fullName + ' có ' + files.length + ' file', 'ok');
+      // Cập nhật lại dòng ghi chú cho file đang mở — chỉ khi file đó có thật trong danh sách mới
+      // (file vừa xoá / đường dẫn còn đang gõ thì không hiện lại link cũ).
+      const current = (state.file && state.file.path) || ($('ghNewPath') && $('ghNewPath').value.trim()) || '';
+      if (current && files.some((f) => f.path === current)) showFileLinks(current);
+      return files;
+    } catch (err) {
+      if (state.repo && state.repo.fullName === repo.fullName) setStatus(status, errText(err), 'bad');
+      return [];
+    } finally {
+      if (state.loadingFiles && state.loadingFiles.repo === repo.fullName) state.loadingFiles = null;
     }
-    for (const f of files) {
-      const opt = document.createElement('option');
-      opt.value = f.path;
-      opt.textContent = f.path + (f.size != null ? ' · ' + fmtSize(f.size) : '');
-      select.appendChild(opt);
-    }
-    setStatus(status, state.repo.fullName + ' có ' + files.length + ' file', 'ok');
-    return files;
-  } catch (err) {
-    setStatus(status, errText(err), 'bad');
-    return [];
-  }
+  })();
+  state.loadingFiles = { repo: repo.fullName, promise };
+  return promise;
 }
 
 function fmtSize(bytes) {
@@ -330,6 +379,81 @@ function fmtSize(bytes) {
   if (n < 1024) return n + ' B';
   if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
   return (n / 1024 / 1024).toFixed(2) + ' MB';
+}
+
+/* ------------------------------------------------ link mã nguồn tự điền --- */
+
+/**
+ * Link xem tệp + link raw + link dự án cho một đường dẫn trong dự án đang chọn.
+ * Chỉ ghép chuỗi từ thông tin đã biết — KHÔNG gọi GitHub, KHÔNG cần tệp đã tồn tại.
+ */
+function buildFileLinks(path) {
+  if (!state.repo) return null;
+  const clean = String(path == null ? '' : path).trim().replace(/^\/+/, '');
+  if (!clean) return null;
+  const owner = state.repo.owner;
+  const name = state.repo.name;
+  const branch = state.repo.branch || 'main';
+  return {
+    path: clean,
+    owner,
+    name,
+    branch,
+    htmlUrl: fileHtmlUrl(owner, name, branch, clean),
+    rawUrl: fileRawUrl(owner, name, branch, clean),
+    repoUrl: repoHtmlUrl(owner, name),
+  };
+}
+
+/** Tệp đã có trên GitHub chưa — chỉ dựa vào danh sách đã tải, không gọi API. */
+function fileExistsOnGithub(path) {
+  if (state.file && state.file.path === path && state.file.sha) return true;
+  if (!state.repo || state.filesRepo !== state.repo.fullName) return false;
+  return state.files.some((f) => f && f.path === path);
+}
+
+function clearFileLinks() {
+  if ($('ghFileLinks')) $('ghFileLinks').hidden = true;
+  if ($('ghFileLink')) $('ghFileLink').value = '';
+  if ($('ghFileRaw')) $('ghFileRaw').value = '';
+  if ($('ghFileLinkOpen')) $('ghFileLinkOpen').href = '#';
+  if ($('ghRepoLink')) {
+    $('ghRepoLink').href = '#';
+    $('ghRepoLink').hidden = true;
+  }
+  if ($('ghFileLinkNote')) {
+    $('ghFileLinkNote').textContent = '—';
+    $('ghFileLinkNote').classList.remove('is-missing');
+  }
+}
+
+/**
+ * Hiện link mã nguồn ngay khi chọn dự án / chọn file / gõ đường dẫn.
+ * `opts.exists`: đã chắc tệp có trên GitHub (VD vừa lưu xong). Bỏ trống = tự đoán.
+ * `opts.prefix`: câu mở đầu thêm vào dòng ghi chú.
+ */
+function showFileLinks(path, opts = {}) {
+  const box = $('ghFileLinks');
+  const links = buildFileLinks(path);
+  if (!box || !links) return null;
+  const exists = opts.exists != null ? !!opts.exists : fileExistsOnGithub(links.path);
+  if ($('ghFileLink')) $('ghFileLink').value = links.htmlUrl;
+  if ($('ghFileRaw')) $('ghFileRaw').value = links.rawUrl;
+  if ($('ghFileLinkOpen')) $('ghFileLinkOpen').href = links.htmlUrl;
+  if ($('ghRepoLink')) {
+    $('ghRepoLink').href = links.repoUrl;
+    $('ghRepoLink').hidden = false;
+  }
+  const note = $('ghFileLinkNote');
+  if (note) {
+    const stateText = exists
+      ? 'Đang có sẵn trên GitHub · nhánh ' + links.branch + ' — không cần đẩy lại, link dùng được ngay.'
+      : 'Tệp chưa có trên GitHub — link đã đúng sẵn, sẽ sống sau khi bạn bấm “Lưu thay đổi” hoặc “Thêm / ghi file”.';
+    note.textContent = (opts.prefix ? opts.prefix + ' ' : '') + stateText;
+    note.classList.toggle('is-missing', !exists);
+  }
+  box.hidden = false;
+  return links;
 }
 
 async function openFile(path) {
@@ -353,6 +477,8 @@ async function openFile(path) {
     state.file = { path, sha: data.sha };
     if ($('ghFilePath')) $('ghFilePath').textContent = path;
     if ($('ghNewPath')) $('ghNewPath').value = path;
+    // vừa đọc được từ GitHub ⇒ chắc chắn có thật, hiện link ngay (không cần bấm gì thêm)
+    showFileLinks(path, { exists: true });
     setStatus(status, 'Đã mở ' + path + ' (' + fmtSize(text.length) + '). Sửa rồi bấm “Lưu thay đổi”.', 'ok');
     return state.file;
   } catch (err) {
@@ -382,6 +508,7 @@ async function saveFile() {
     state.file = { path, sha: (res && res.content && res.content.sha) || '' };
     if ($('ghFilePath')) $('ghFilePath').textContent = path;
     const url = fileHtmlUrl(state.repo.owner, state.repo.name, state.repo.branch, path);
+    showFileLinks(path, { exists: true, prefix: 'Vừa lưu lên GitHub.' });
     setStatus(status, 'Đã lưu ' + path + ' · ' + url, 'ok');
     toast('Đã lưu ' + path + ' lên GitHub.', 'ok');
     await loadFiles();
@@ -415,6 +542,7 @@ async function addFile() {
     });
     state.file = { path, sha: (res && res.content && res.content.sha) || '' };
     if ($('ghFilePath')) $('ghFilePath').textContent = path;
+    showFileLinks(path, { exists: true, prefix: 'Vừa thêm lên GitHub.' });
     setStatus(status, 'Đã thêm ' + path + '.', 'ok');
     toast('Đã thêm file ' + path, 'ok');
     await loadFiles();
@@ -448,6 +576,7 @@ async function deleteFile() {
     state.file = null;
     if ($('ghFileContent')) $('ghFileContent').value = '';
     if ($('ghFilePath')) $('ghFilePath').textContent = '—';
+    clearFileLinks();
     setStatus(status, 'Đã xoá ' + path + '.', 'ok');
     toast('Đã xoá ' + path, 'ok');
     await loadFiles();
@@ -765,7 +894,33 @@ export function initGithub(bridge) {
   if ($('ghLoadFiles')) $('ghLoadFiles').addEventListener('click', () => loadFiles());
   if ($('ghFileSelect')) {
     $('ghFileSelect').addEventListener('change', (e) => {
-      if (e.target.value) openFile(e.target.value);
+      const path = e.target.value;
+      if (!path) return clearFileLinks();
+      // hiện link ngay (không cần chờ mở nội dung), rồi mới tải nội dung
+      showFileLinks(path);
+      openFile(path);
+    });
+  }
+  if ($('ghNewPath')) {
+    $('ghNewPath').addEventListener('input', () => {
+      const path = $('ghNewPath').value.trim();
+      if (path) showFileLinks(path);
+      else if (state.file) showFileLinks(state.file.path);
+      else clearFileLinks();
+    });
+  }
+  if ($('ghFileLinkCopy')) {
+    $('ghFileLinkCopy').addEventListener('click', () => {
+      const v = $('ghFileLink') && $('ghFileLink').value;
+      if (!v) return toast('Chưa có link — chọn dự án và file trước.', 'warn');
+      copy(v, 'Đã chép link mã nguồn.');
+    });
+  }
+  if ($('ghFileRawCopy')) {
+    $('ghFileRawCopy').addEventListener('click', () => {
+      const v = $('ghFileRaw') && $('ghFileRaw').value;
+      if (!v) return toast('Chưa có link raw — chọn dự án và file trước.', 'warn');
+      copy(v, 'Đã chép link raw.');
     });
   }
   if ($('ghOpenFile')) {
@@ -837,6 +992,9 @@ export function initGithub(bridge) {
     addFile,
     deleteFile,
     publish,
+    showFileLinks,
+    buildFileLinks,
+    autoLoadFiles,
     ship: shipToGithub,
     checkShipPages,
     renderShip,
