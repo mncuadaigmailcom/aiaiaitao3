@@ -213,6 +213,10 @@
                 <button class="seg on" id="encFmtRun" type="button">Snippet (kèm link)</button>
                 <button class="seg" id="encFmtB64" type="button">Base64</button>
                 <button class="seg" id="encFmtHex" type="button">Hex</button>
+                <select id="encStyle" class="mini" title="Kiểu hiển thị của snippet">
+                  <option value="stealth" selected>Ẩn dấu vết</option>
+                  <option value="labeled">Có chú thích</option>
+                </select>
                 <button class="ghost small" id="encCopy" type="button">Chép</button>
               </div>
             </div>
@@ -427,6 +431,9 @@
           <li>Dán code hoặc thả tệp là <b>tự mã hoá</b> — không cần nhập ngày giờ, không bấm thêm.</li>
           <li>Kết quả gồm <b>snippet "chép là chạy"</b> (tự chứa <b>link key script</b> + bản mã Base64),
             cùng hai tab <b>Base64 / Hex</b> và tệp <b>.aia</b>.</li>
+          <li>Snippet mặc định ở kiểu <b>ẩn dấu vết</b>: không tiêu đề, không lộ link/tên API,
+            tên biến ngẫu nhiên, chuỗi cắt nhỏ + Base64 — chỉ là <b>làm khó đọc</b>,
+            không thay thế mật khẩu.</li>
           <li>Dòng <b>Link key script mở khoá</b> hiện URL đầy đủ, có nút Chép — mặc định là
             <code>aia.key.js</code> <b>dùng chung cho mọi lần mã hoá và mọi người</b>.</li>
           <li>Ba kiểu bảo vệ: <b>không mật khẩu</b> (mặc định, chép là chạy), <b>nhúng sẵn</b>,

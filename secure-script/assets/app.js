@@ -764,7 +764,8 @@ function stat(label, value) {
 // Giới hạn hiển thị/chép: dưới mức này thì đưa toàn bộ, trên thì chỉ đưa phần đầu
 // (tệp lớn hơn nên tải .aia — dán hàng trăm MB vào ô văn bản sẽ làm treo trình duyệt).
 const ENC_CODE_FULL_LIMIT = 2 * 1024 * 1024;
-let encFmt = 'b64';
+let encFmt = 'run';
+let encStyle = 'stealth';
 
 function bytesToHexAll(bytes) {
   let out = '';
@@ -799,6 +800,7 @@ function renderEncryptedCode(bytes, meta, extra = {}) {
     try {
       const keyUrl = absoluteUrl(meta.keyWrapIn === 'shared-key-script' ? SHARED_KEY_FILE : extra.keyName || meta.keyUrl);
       state.encSnippet = C.buildRunSnippet({
+        style: encStyle,
         meta,
         containerBytes: bytes,
         keyUrl,
@@ -830,8 +832,12 @@ function renderEncryptedCode(bytes, meta, extra = {}) {
   const fmtName = encFmt === 'run' ? 'snippet' : encFmt === 'b64' ? 'Base64' : 'Hex';
   let note;
   if (encFmt === 'run') {
+    const hidden = encStyle === 'stealth';
     note =
-      'Chép toàn bộ đoạn này → dán vào Console (F12) hoặc tệp .js là chạy: nó tự nạp key script từ link, tự giải mã' +
+      (hidden
+        ? 'Đã ẩn dấu vết: không có tiêu đề, không lộ link key dạng chữ thường, tên biến ngẫu nhiên, mọi chuỗi cắt nhỏ + Base64. '
+        : 'Có chú thích rõ ràng: tiêu đề, link key và cách dùng hiện ngay đầu đoạn code. ') +
+      'Chép toàn bộ đoạn này → dán vào Console (F12) hoặc tệp .js là chạy: nó tự nạp key script, tự giải mã' +
       (isRunnable(meta.file) ? ', tự chạy code gốc.' : ' rồi tải bản rõ về (định dạng này không tự chạy trong trình duyệt).') +
       (extra.passphrase ? ' Có mật khẩu bên trong.' : ' KHÔNG cần mật khẩu.');
   } else if (snippetTooBig && encFmt === 'b64') {
@@ -867,6 +873,14 @@ $('encFmtHex').addEventListener('click', () => {
   encFmt = 'hex';
   rerenderCode();
 });
+if ($('encStyle')) {
+  $('encStyle').value = encStyle;
+  $('encStyle').addEventListener('change', () => {
+    encStyle = $('encStyle').value === 'labeled' ? 'labeled' : 'stealth';
+    encFmt = 'run';
+    rerenderCode();
+  });
+}
 $('encCopy').addEventListener('click', async () => {
   const text = state.encCodeText || '';
   if (!text) return toast('Chưa có bản mã để chép.', 'warn');

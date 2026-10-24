@@ -831,6 +831,27 @@ async function testRunSnippet() {
     return C.buildRunSnippet({ meta, containerBytes: C.concatBytes(chunks), keyUrl: KEY_URL });
   })();
   record('snippet', 'tệp không phải JS: không tự chạy', /var EXEC = false;/.test(lua), 'EXEC = false');
+
+  // ---- bản "ẩn dấu vết" ----
+  const markers = ['AIA Secure Script', 'AIA_KEY', 'AIA_UNLOCK', 'KEY_URL', 'https://', 'Bảo vệ', 'var DATA', 'chép là chạy'];
+  const stealthRuns = [];
+  for (const size of [0, 1, 4096, 256 * 1024]) {
+    const r = await make(size);
+    const st = C.buildRunSnippet({ style: 'stealth', meta: r.meta, containerBytes: r.bytes, keyUrl: KEY_URL });
+    const leaked = markers.filter((m) => st.includes(m));
+    record('snippet ẩn', `tệp ${size} B: không lộ dấu vết`, leaked.length === 0, leaked.join(', ') || `snippet ${C.formatBytes(st.length)}`);
+    stealthRuns.push(st);
+  }
+  record('snippet ẩn', 'mỗi lần sinh ra mã khác nhau (tên biến ngẫu nhiên)',
+    new Set(stealthRuns.map((x) => x.slice(0, 200))).size === stealthRuns.length,
+    `${new Set(stealthRuns.map((x) => x.slice(0, 200))).size}/${stealthRuns.length} khác nhau`);
+
+  const t0 = nowMs();
+  const bigStealth = C.buildRunSnippet({ style: 'stealth', meta: big.meta, containerBytes: big.bytes, keyUrl: KEY_URL });
+  const stMs = nowMs() - t0;
+  record('snippet ẩn', 'sinh snippet ẩn cho 1,5 MiB < 1 giây', stMs < 1000, `${stMs.toFixed(0)} ms · ${C.formatBytes(bigStealth.length)}`);
+  record('snippet ẩn', 'không lộ link kể cả bản lớn', !bigStealth.includes('https://') && !bigStealth.includes('AIA_KEY'),
+    `dài ${C.formatBytes(bigStealth.length)}`);
 }
 
 /* =====================================================================

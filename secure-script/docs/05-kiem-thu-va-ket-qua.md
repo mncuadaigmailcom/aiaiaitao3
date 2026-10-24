@@ -4,13 +4,13 @@
 
 ```bash
 cd secure-script
-node tests/run-node.mjs      # 127 kiểm thử lõi (không cần cài gì)
+node tests/run-node.mjs      # 135 kiểm thử lõi (không cần cài gì)
 node tools/check-static.mjs  # 44 kiểm tra tĩnh HTML ↔ app.js
 node tools/cli.mjs selftest  # kiểm tra nhanh CLI
 
 npm install                  # chỉ cần cho test DOM (jsdom)
-node tests/run-dom.mjs       # 65 kiểm thử giao diện + gói demo trên DOM ả
-node tests/stress.mjs --quick   # 45 bài kiểm thử cường độ cao (~19 s)
+node tests/run-dom.mjs       # 71 kiểm thử giao diện + gói demo trên DOM ả
+node tests/stress.mjs --quick   # 52 bài kiểm thử cường độ cao (~21 s)
 ```
 
 Yêu cầu: Node 18+ (đã chạy trên Node 22.22.3). Test lõi và test tĩnh không cần
@@ -26,19 +26,19 @@ Node v22.22.3 · WebCrypto: true
 [4] Key script sinh ra chạy thật     10/10
 [4b] Bắt buộc phải có key script     11/11
 [4c] Key script DÙNG CHUNG           22/22
-[4d] Snippet "chép là chạy"          19/19
+[4d] Snippet "chép là chạy"          27/27
 [5] ZIP & tiện ích                    7/7
 [6] Công cụ dịch ngược               15/15
 [7] Thông lượng                       4/4
 ─────────────────────────────────────────────
-Kết quả: 127 đạt · 0 lỗi · ~6,0 s
+Kết quả: 135 đạt · 0 lỗi · ~7,4 s
 
 Kiểm tra tĩnh (tools/check-static.mjs): 44 đạt · 0 lỗi
-Kiểm thử DOM  (tests/run-dom.mjs)     : 65 đạt · 0 lỗi
-Kiểm thử cường độ cao (stress.mjs --quick): 45/45 đạt · 0 lỗi · ~19 s
+Kiểm thử DOM  (tests/run-dom.mjs)     : 71 đạt · 0 lỗi
+Kiểm thử cường độ cao (stress.mjs --quick): 52/52 đạt · 0 lỗi · ~21 s
 ```
 
-Tổng: **281 điểm kiểm tra đạt** (127 + 44 + 65 + 45).
+Tổng: **302 điểm kiểm tra đạt** (135 + 44 + 71 + 52).
 
 ## 3. Chi tiết từng nhóm
 
@@ -112,6 +112,17 @@ Ngoài ra: `iterations` < 10.000 bị kẹp; `chunkSize` < 64 KiB bị kẹp.
 - Sai mật khẩu / link hỏng → `console.error` rõ ràng, **không ném lỗi văng ra ngoài**.
 - Chế độ **riêng từng tệp**: snippet nhúng thẳng mã nguồn key script ⇒ chạy được **không cần mạng**.
 - Tệp `.lua`: `EXEC = false` → tải bản rõ thay vì chạy.
+
+### [4d-b] Snippet "ẩn dấu vết" (mặc định trên web)
+
+- Không có chú thích mở đầu, **không lộ** `AIA Secure Script`, `KEY_URL`, `AIA_KEY`,
+  `AIA_UNLOCK`, `https://`, `Bảo vệ`, `var DATA`… (đã test bằng danh sách marker).
+- Tên biến **ngẫu nhiên mỗi lần sinh** (mỗi snippet một kiểu khác nhau).
+- Bản mã + link key + mật khẩu đều **cắt nhỏ thành mảng chuỗi Base64**, ghép lại lúc chạy;
+  mật khẩu nhúng **không hiện dạng chữ**.
+- Vẫn **chạy đúng**: tự nạp key script từ link đã giấu, giải mã, chạy code gốc
+  (kiểm tra cả biến toàn cục do code gốc tạo ra).
+- Kích thước **nhỏ hơn** bản có chú thích (~4,7 KB so với ~5,4 KB cho script nhỏ).
 
 ### [5] ZIP
 
@@ -222,6 +233,7 @@ Nếu bạn chạy thử và gặp lỗi, gửi lại thông báo trong tab "Nh�
 | 9. Huỷ | dừng giữa đường, không ghi tiếp | ✔ |
 | 10. Tệp lớn | 64 MiB (1 GiB với `--max`), so SHA-256 từng byte | ✔ |
 | 11. Snippet | 0 B/1 B/1 KiB/64 KiB/1,5 MiB, chi phí Base64 ×1,34, 3 chế độ mật khẩu | ✔ |
+| 11b. Snippet ẩn | không lộ marker, mỗi lần sinh khác nhau, sinh 1,5 MiB < 1 s | ✔ |
 
 Số đo thật (`--max`, máy 2 CPU):
 

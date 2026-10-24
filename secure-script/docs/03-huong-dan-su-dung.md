@@ -52,6 +52,8 @@ npx serve .          # nếu có Node
    - khung **Code đã mã hoá**, mặc định là tab **Snippet (kèm link)** — chép toàn bộ,
      dán vào Console (F12) hoặc tệp `.js` là **chạy ngay**, không cần tải gì thêm;
      hai tab còn lại là **Base64** và **Hex**;
+     ô chọn cạnh đó có **Ẩn dấu vết** (mặc định: không tiêu đề, không lộ link/tên API,
+     tên biến ngẫu nhiên) hoặc **Có chú thích** (dễ đọc, thấy rõ link key);
    - danh sách tệp **`.aia`** (+ key script, run.html, README, ZIP) để tải về.
 7. Bấm **"Chạy thử ngay"** để kiểm tra ngay trong trình duyệt.
 

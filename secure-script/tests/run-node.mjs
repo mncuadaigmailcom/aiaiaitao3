@@ -741,6 +741,31 @@ async function testRunSnippet() {
   await wait(250);
   ok(rPer.logs.some((l) => l.includes('rieng tung tep')), 'chế độ riêng: chạy được không cần mạng', rPer.logs.join(' | '));
 
+  // 3b) bản "ẩn dấu vết": không lộ tiêu đề/link/AIA_KEY, vẫn chạy đúng
+  const stealth = C.buildRunSnippet({ style: 'stealth', meta: enc.meta, containerBytes: enc.bytes, keyUrl: KEY_URL });
+  const markers = ['AIA Secure Script', 'AIA_KEY', 'AIA_UNLOCK', 'KEY_URL', 'https://', 'chép là chạy', 'Bảo vệ', 'var DATA', 'giải mã', 'key script'];
+  const leaked = markers.filter((m) => stealth.includes(m));
+  ok(leaked.length === 0, 'ẩn dấu vết: không lộ tiêu đề / link / tên API', 'lọt: ' + leaked.join(', '));
+  ok(stealth.trim().startsWith('(function'), 'ẩn dấu vết: không có chú thích mở đầu');
+  ok(!/\b[A-Za-z]+_KEY\b|_UNLOCK\b/.test(stealth), 'ẩn dấu vết: không có tên API dạng chữ');
+  ok(stealth.length < snippet.length * 1.2, 'ẩn dấu vết: kích thước không phình', stealth.length + ' vs ' + snippet.length);
+  const rStealth = runSnippetInSandbox(stealth, { keyFiles: { [KEY_URL]: keySrc } });
+  await wait(300);
+  ok(rStealth.logs.some((l) => l.includes('TONG = 55')), 'ẩn dấu vết: vẫn tự nạp key + chạy đúng', rStealth.logs.join(' | '));
+  ok(rStealth.ctx.__kq === 55, 'ẩn dấu vết: code gốc chạy thật (biến toàn cục tồn tại)');
+
+  const stealthPw = C.buildRunSnippet({
+    style: 'stealth',
+    meta: encPw.meta,
+    containerBytes: encPw.bytes,
+    keyUrl: KEY_URL,
+    passphrase: 'pw-snippet',
+  });
+  ok(!stealthPw.includes('pw-snippet'), 'ẩn dấu vết: mật khẩu nhúng KHÔNG hiện dạng chữ');
+  const rStealthPw = runSnippetInSandbox(stealthPw, { keyFiles: { [KEY_URL]: keySrc } });
+  await wait(300);
+  ok(rStealthPw.logs.some((l) => l.includes('can mat khau')), 'ẩn dấu vết + mật khẩu nhúng: chạy đúng');
+
   // 4) tệp không phải JS: không tự chạy, chỉ tải bản rõ
   const lua = await buildShared('print("xin chao")', { fileName: 'script.lua' });
   const luaSnippet = C.buildRunSnippet({ meta: lua.meta, containerBytes: lua.bytes, keyUrl: KEY_URL });
