@@ -77,7 +77,8 @@ assets/core.js      lõi mã hoá, không phụ thuộc thư viện
 assets/app.js       giao diện
 assets/reverse.js   công cụ đọc/dịch ngược code
 tools/cli.mjs       CLI
-tests/run-node.mjs  80 kiểm thử lõi (Node 18+)
+tests/run-node.mjs  108 kiểm thử lõi (Node 18+)
+tests/stress.mjs    36 bài kiểm thử cường độ cao
 docs/               tài liệu chi tiết
 deploy/             mẫu workflow GitHub Pages, Netlify, Vercel
 examples/           script mẫu + gói demo
@@ -86,13 +87,15 @@ examples/           script mẫu + gói demo
 ## Kiểm thử
 
 ```bash
-node tests/run-node.mjs       # 80/80 đạt — lõi mã hoá
-node tools/check-static.mjs   # 43/43 — id/đường dẫn/cú pháp HTML
+node tests/run-node.mjs       # 108/108 đạt — lõi mã hoá
+node tools/check-static.mjs   # 44/44 — id/đường dẫn/cú pháp HTML
 npm install                   # chỉ để chạy test DOM
-node tests/run-dom.mjs        # 47/47 — giao diện + gói demo (jsdom)
+node tests/run-dom.mjs        # 53/53 — giao diện + gói demo (jsdom)
+node tests/stress.mjs --quick # 36/36 — cường độ cao (~21 s)
+node tests/stress.mjs --max   # như trên + tệp 1 GiB (~90 s)
 ```
 
-Tổng **170 điểm kiểm tra**.
+Tổng **241 điểm kiểm tra**.
 
 Kết quả mới nhất và chi tiết: [`docs/05-kiem-thu-va-ket-qua.md`](docs/05-kiem-thu-va-ket-qua.md).
 
@@ -117,7 +120,7 @@ Chi tiết: [`docs/02-bao-mat-gioi-han.md`](docs/02-bao-mat-gioi-han.md).
 | [02-bao-mat-gioi-han.md](docs/02-bao-mat-gioi-han.md) | Bảo mật, điểm yếu bản chất, cách dùng an toàn |
 | [03-huong-dan-su-dung.md](docs/03-huong-dan-su-dung.md) | Hướng dẫn từng bước + xử lý sự cố |
 | [04-trien-khai-mien-phi.md](docs/04-trien-khai-mien-phi.md) | GitHub Pages, Cloudflare, Netlify, Vercel |
-| [05-kiem-thu-va-ket-qua.md](docs/05-kiem-thu-va-ket-qua.md) | 170 điểm kiểm tra, số đo thật, kịch bản thử tay |
+| [05-kiem-thu-va-ket-qua.md](docs/05-kiem-thu-va-ket-qua.md) | 241 điểm kiểm tra, số đo thật, test cường độ cao |
 
 ## Giấy phép
 

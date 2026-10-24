@@ -25,11 +25,14 @@ npx serve .          # nếu có Node
 
 ## 2. Mã hoá một script
 
-1. Tab **Mã hoá** → kéo tệp vào ô, hoặc bấm **"Dán code trực tiếp"**.
-2. **Link key script**: trang tự điền `./<tên-tệp>.key.js` (đúng tên tệp khoá sẽ sinh
-   ra). Giữ nguyên nếu bạn để mọi tệp cùng thư mục. Nếu tải key lên CDN, ghi đúng URL
-   đầy đủ (ví dụ `https://cdn.example.com/aia/abc.key.js`) **trước khi** mã hoá —
-   chuỗi này là một phần của khoá.
+1. Tab **Mã hoá** → **kéo tệp vào ô**, hoặc bấm **"Dán code trực tiếp"** rồi dán.
+   **Không cần bấm gì thêm**: thả tệp hoặc dán code là web **tự mã hoá** ngay.
+2. **Kiểu khoá** (mặc định *Dùng chung*):
+   - **Dùng chung — `./aia.key.js`**: một link duy nhất cho **mọi** lần mã hoá và **mọi
+     người**. Link key bị khoá ở giá trị này. Nên đặt mật khẩu (xem mục 2b).
+   - **Riêng từng tệp**: mỗi tệp sinh một key script riêng; link tự điền
+     `./<tên-tệp>.key.js`, sửa được (ví dụ URL CDN `https://cdn.example.com/aia/abc.key.js`)
+     **trước khi** mã hoá — chuỗi này là một phần của khoá.
 3. **Mật khẩu**: bấm "tạo" để sinh mật khẩu mạnh — **lưu lại ngay**.
 4. Tuỳ chọn:
    - **Độ mạnh KDF**: 100k (nhanh) / 600k (chuẩn OWASP) / 1.2M (mạnh).
@@ -42,19 +45,33 @@ npx serve .          # nếu có Node
    - **Băm SHA-256**: kiểm tra toàn vẹn cho tệp ≤ 64 MiB.
    - **Nhúng mật khẩu**: chỉ bật khi gửi cho người tin cậy.
    - **Tạo run.html**, **Đóng gói ZIP**.
-5. Bấm **Mã hoá ngay**. Xem thanh tiến trình: tốc độ, thời gian còn lại.
-6. Tải **ZIP** (khuyến nghị) hoặc từng tệp. Bấm **"Chạy thử ngay"** để kiểm tra
-   ngay trong trình duyệt.
+5. (Chỉ khi muốn đổi tuỳ chọn) bấm **Mã hoá ngay**. Xem thanh tiến trình: tốc độ,
+   thời gian còn lại.
+6. Xem **hai kết quả** ngay trên trang:
+   - khung **Code đã mã hoá** — chuyển **Base64 / Hex** và bấm **Chép** để lấy nguyên
+     chuỗi bản mã;
+   - danh sách tệp **`.aia`** (+ key script, run.html, README, ZIP) để tải về.
+7. Bấm **"Chạy thử ngay"** để kiểm tra ngay trong trình duyệt.
 
 Kết quả gồm:
 
 ```
 script.aia       ← dữ liệu mã hoá (bí mật)
-script.key.js    ← key script
+aia.key.js       ← key script DÙNG CHUNG (chế độ dùng chung; mọi tệp dùng lại được)
+script.key.js    ← key script riêng (chỉ ở chế độ "Riêng từng tệp")
 run-script.html  ← trang cho người nhận
 README-script.txt
 aia-script.zip   ← gói tất cả
 ```
+
+## 2b. Hai chế độ khoá trong thực tế
+
+**Dùng chung (mặc định).** 10 lần mã hoá → **vẫn một link** `./aia.key.js` và cùng một
+tệp `aia.key.js`. Gửi người nhận: `script.aia` + mật khẩu; trang web tự nạp
+`aia.key.js`. Vì tệp này công khai, **hãy luôn đặt mật khẩu**.
+
+**Riêng từng tệp.** Mỗi tệp có key script riêng; khoá tệp chỉ nằm trong key script đó.
+An toàn tách biệt hơn, nhưng phải gửi kèm key cho từng tệp.
 
 ## 3. Gửi cho người khác
 
@@ -129,12 +146,18 @@ node tools/cli.mjs decrypt ./out/script.aia --key ./out/script.key.js \
 # kiểm tra key script có khớp
 node tools/cli.mjs keycheck ./out/script.aia ./out/script.key.js
 
+# chế độ khoá DÙNG CHUNG: mọi tệp dùng ./aia.key.js
+node tools/cli.mjs encrypt script.js --shared --pass "mat-khau-manh" --out ./out
+node tools/cli.mjs decrypt ./out/script.aia --pass "mat-khau-manh" --out ./script.js
+
 # tự kiểm tra nhanh
 node tools/cli.mjs selftest
 ```
 
 Tuỳ chọn khác: `--iter`, `--chunk`, `--key-url`, `--expiry`, `--note`, `--embed`,
-`--no-hash`, `--no-require-key` (tắt bắt buộc key script). Xem `node tools/cli.mjs --help`.
+`--no-hash`, `--no-require-key` (tắt bắt buộc key script),
+`--shared` / `--shared-key <aia.key.js>` (dùng key script chung).
+Xem `node tools/cli.mjs --help`.
 
 ## 6. Dịch ngược / đọc code đã bị làm rối
 

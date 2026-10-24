@@ -4,12 +4,13 @@
 
 ```bash
 cd secure-script
-node tests/run-node.mjs      # 80 kiểm thử lõi (không cần cài gì)
-node tools/check-static.mjs  # 43 kiểm tra tĩnh HTML ↔ app.js
+node tests/run-node.mjs      # 108 kiểm thử lõi (không cần cài gì)
+node tools/check-static.mjs  # 44 kiểm tra tĩnh HTML ↔ app.js
 node tools/cli.mjs selftest  # kiểm tra nhanh CLI
 
 npm install                  # chỉ cần cho test DOM (jsdom)
-node tests/run-dom.mjs       # 47 kiểm thử giao diện + gói demo trên DOM ả
+node tests/run-dom.mjs       # 53 kiểm thử giao diện + gói demo trên DOM ả
+node tests/stress.mjs --quick   # 36 bài kiểm thử cường độ cao (~21 s)
 ```
 
 Yêu cầu: Node 18+ (đã chạy trên Node 22.22.3). Test lõi và test tĩnh không cần
@@ -21,20 +22,22 @@ thư viện ngoài.
 Node v22.22.3 · WebCrypto: true
 [1] Mã hoá / giải mã vòng lặp        13/13
 [2] Bảo mật & toàn vẹn               10/10
-[3] Header & thời gian               10/10
+[3] Header & thời gian               16/16
 [4] Key script sinh ra chạy thật     10/10
 [4b] Bắt buộc phải có key script     11/11
+[4c] Key script DÙNG CHUNG           22/22
 [5] ZIP & tiện ích                    7/7
 [6] Công cụ dịch ngược               15/15
 [7] Thông lượng                       4/4
 ─────────────────────────────────────────────
-Kết quả: 80 đạt · 0 lỗi · ~4,6 s
+Kết quả: 108 đạt · 0 lỗi · ~4,7 s
 
-Kiểm tra tĩnh (tools/check-static.mjs): 43 đạt · 0 lỗi
-Kiểm thử DOM  (tests/run-dom.mjs)     : 47 đạt · 0 lỗi
+Kiểm tra tĩnh (tools/check-static.mjs): 44 đạt · 0 lỗi
+Kiểm thử DOM  (tests/run-dom.mjs)     : 53 đạt · 0 lỗi
+Kiểm thử cường độ cao (stress.mjs --quick): 36/36 đạt · 0 lỗi · ~21 s
 ```
 
-Tổng: **170 điểm kiểm tra đạt**.
+Tổng: **241 điểm kiểm tra đạt** (108 + 44 + 53 + 36).
 
 ## 3. Chi tiết từng nhóm
 
@@ -67,6 +70,9 @@ Ngoài ra: `iterations` < 10.000 bị kẹp; `chunkSize` < 64 KiB bị kẹp.
 - `unixMs` nằm trong khoảng trước/sau khi mã hoá.
 - Đọc header **không cần mật khẩu** (cả từ `Uint8Array` và từ luồng 7 byte/lần).
 - Chuỗi thời gian **xuất hiện nguyên văn** trong tệp .aia (đúng yêu cầu "không mã hoá").
+- `headerHash` = SHA-256(JSON header, `headerHash` thay bằng 64 số 0, bỏ `keyWrap`/`encryptionSeconds`).
+- Sửa **bất kỳ** trường nào (ghi chú, tên tệp, thời gian đọc được, link key, số khối) đều bị
+  `HEADER_TAMPERED` — fuzz 600/600 ca bị phát hiện.
 
 ### [4] Key script
 
@@ -84,6 +90,18 @@ Ngoài ra: `iterations` < 10.000 bị kẹp; `chunkSize` < 64 KiB bị kẹp.
 - Sửa 1 byte trong `keyWrap.ct` → `WRAP_FAILED`.
 - Key script thật mở được; key script bị xoá `keyWrap` → bị từ chối.
 - Chế độ cũ (không bắt buộc) vẫn giải mã được không cần key script.
+
+### [4c] Key script DÙNG CHUNG (mới)
+
+- `keyMode: 'shared'` → `keyWrapIn = "shared-key-script"`, `keyUrl = "./aia.key.js"` cố định.
+- `sharedKeyId` (8 byte hex) = SHA-256(khoá gốc) rút gọn, để biết key script có đúng bộ.
+- **10 lần mã hoá → cùng một link key** và cùng `sharedKeyId`.
+- Một khoá chung mở được **mọi** tệp trong bộ; thiếu khoá → `KEY_REQUIRED`;
+  khoá khác → `WRONG_SHARED_KEY`; sai mật khẩu → `WRONG_PASSPHRASE`.
+- `keyWrap` nằm trong header (tệp tự chứa), nhưng bản thân nó được AES-GCM xác thực bằng
+  khoá phụ thuộc **khoá chung + mật khẩu**. Sửa header → `HEADER_TAMPERED`.
+- `aia.key.js` phát hành kèm site được nạp trong sandbox và **tự mở đúng** bản mã
+  (không dùng mã nguồn core ⇒ chứng minh script độc lập chạy được).
 
 ### [5] ZIP
 
@@ -107,7 +125,7 @@ Tệp 8 MiB, khối 1 MiB:
 | Mã hoá (gồm PBKDF2 600k) | ~0,14 s |
 | Giải mã | ~0,15 s |
 
-Kích thước: **+844 byte** (header 716 byte + 128 byte tag) = **0,0101 %**.
+Kích thước: **+962 byte** (header 834 byte + 128 byte tag) = **0,0115 %**.
 Chỉ riêng tag: 128 B = **0,0015 %**.
 
 > Đây là số đo trên máy ảo không GPU, không phải cam kết. Máy thật thường nhanh hơn.
@@ -117,9 +135,12 @@ Chỉ riêng tag: 128 B = **0,0015 %**.
 `tests/run-dom.mjs` nạp `index.html` vào jsdom, gán `document`/`window` rồi import
 `assets/app.js` như trong trình duyệt, và mô phỏng thao tác thật:
 
-1. Dán code, đặt mật khẩu → bấm **Mã hoá ngay**.
-2. Chờ kết quả: kiểm tra thống kê, dòng **"Tự kiểm tra: khớp 100%"**, key script có
-   `AIA_UNLOCK` + `META`, header có `time.raw` 17 chữ số, `keyUrl`, AES-256-GCM, 600k vòng.
+1. Dán code (không bấm gì thêm) → **tự động mã hoá**; kiểm tra đã bỏ nút "Dùng nội dung này".
+2. Chờ kết quả: kiểm tra thống kê, dòng **"Tự kiểm tra: khớp 100%"**, key script dùng chung có
+   `AIA_KEY` + `masterKey`, header có `time.raw` 17 chữ số, `keyUrl = ./aia.key.js`,
+   `sharedKeyId`, `headerHash`, AES-256-GCM, 600k vòng.
+   **Khung code đã mã hoá**: Base64 bắt đầu `QUlBU0NSMQ` (= "AIASCR1"), chuyển Hex đúng
+   `414941534352310a`, có nút **Chép**.
 3. Tải ZIP, tải key script.
 4. **Chạy thử ngay**: giải mã trong bộ nhớ rồi chạy (Worker giả) — log hiện ra.
 5. Tab **Giải mã**: tạo tệp `.aia` thật, gán vào ô chọn tệp, đọc header, thử **sai**
@@ -153,9 +174,10 @@ và key script đảm nhiệm.
   Giao diện đã được kiểm thử trên **DOM ả (jsdom)** + kiểm tra tĩnh, nhưng jsdom không
   mô phỏng CSS, layout, `File System Access API`, hay khác biệt WebCrypto giữa các
   trình duyệt. Vẫn nên bấm thử một lần.
-- Chưa thử tệp **5 GiB** thật (không đủ RAM/thời gian trong môi trường làm việc).
+- Chưa thử tệp **5 GiB** thật (đã thử tới **1 GiB** trong `stress.mjs --max`).
 - Chưa thử Firefox/Safari, chưa thử WebView trên điện thoại.
-- Chưa đo mức tiêu thụ RAM/CPU bằng công cụ hệ thống.
+- RAM đo bằng `process.memoryUsage().rss` trong tiến trình riêng (không phải công cụ hệ thống),
+  CPU chỉ suy ra từ thời gian chạy.
 
 Nếu bạn chạy thử và gặp lỗi, gửi lại thông báo trong tab "Nhật ký" — mã lỗi
 (`WRONG_PASSPHRASE`, `AUTH_FAILED`…) chỉ ra đúng chỗ.
@@ -164,9 +186,49 @@ Nếu bạn chạy thử và gặp lỗi, gửi lại thông báo trong tab "Nh�
 
 1. Chạy `python3 -m http.server 8080` trong `secure-script`.
 2. Mở `http://localhost:8080`.
-3. Dán một script nhỏ, đặt mật khẩu, bấm **Mã hoá ngay**.
+3. Dán một script nhỏ (không cần bấm gì) → phải **tự mã hoá**; xem khung **Code đã mã hoá** và bấm **Chép**.
 4. Bấm **Chạy thử ngay** → phải thấy log của script và dòng "chạy xong".
 5. Tải ZIP → giải nén → mở `run-*.html` qua HTTP → nhập mật khẩu → chạy.
 6. Giải mã với **sai** mật khẩu → phải báo "Sai mật khẩu".
 7. Sửa 1 byte trong `.aia` bằng `hexedit`/`python` → phải báo lỗi khối.
 8. Mở tab Dịch ngược, dán một đoạn code rối → bấm **Làm đẹp**.
+
+## 7. Kiểm thử cường độ cao (`tests/stress.mjs`)
+
+10 nhóm + 1 nhóm RAM, chạy được ở 3 mức: `--quick` (mặc định, ~21 s), `--heavy`
+(~75 s), `--max` (~90 s, tệp 1 GiB). Cờ khác: `--size`, `--fuzz`, `--soak`, `--json`.
+
+| Nhóm | Nội dung | Kết quả (`--quick`) |
+|---|---|---|
+| 1. Biên | 0 B, 1 B, đúng 1 khối, 1 khối + 1 B, khối nhỏ nhất | ✔ |
+| 2. Ngẫu nhiên | 40 kích thước ngẫu nhiên 0–3 MiB, so SHA-256 | ✔ |
+| 3. Fuzz | 120 ca: đảo bit, cắt bớt, ghép thêm, đảo khối, sửa header | ✔ 120/120 |
+| 4. Duy nhất | 2 bản mã cùng đầu vào phải khác nhau (IV/salt ngẫu nhiên) | ✔ |
+| 5. Song song | 8 luồng × 4 MiB, không lẫn dữ liệu, mật khẩu chéo bị chặn | ✔ |
+| 6. Soak | 40 vòng mã hoá/giải mã liên tục, RAM không phình | ✔ |
+| 7. KDF | 10k/100k/600k/1,2M vòng + 30 mật khẩu sai | ✔ |
+| 7b. RAM | đo trong tiến trình con có `--expose-gc`, so 32 MiB với 256 MiB–1 GiB | ✔ |
+| 8. Giới hạn | > 5 GiB, chunk/iterations quá nhỏ/lớn | ✔ |
+| 9. Huỷ | dừng giữa đường, không ghi tiếp | ✔ |
+| 10. Tệp lớn | 64 MiB (1 GiB với `--max`), so SHA-256 từng byte | ✔ |
+
+Số đo thật (`--max`, máy 2 CPU):
+
+```
+Tệp 1024 MiB: mã hoá 2,21 s (464 MiB/s) · giải mã 2,81 s (365 MiB/s)
+Chi phí dung lượng: +17.215 byte (0,0016 %)
+RAM: nền 213 MiB → mã hoá 1 GiB chỉ tăng 20,8 MiB; giải mã tăng 1,1 MiB
+     (tệp lớn gấp 32 lần nhưng RAM không tăng ⇒ xử lý đúng kiểu luồng)
+Fuzz 600/600 ca bị phát hiện (đảo bit 120 · cắt 120 · ghép 120 · đảo khối 153 · header 120)
+30/30 mật khẩu sai bị chặn trong 0,07 s · ~8,6 lần thử/giây ở 600k vòng
+```
+
+### Lỗi thật mà bộ test cường độ cao tìm ra (đã sửa)
+
+1. `crypto.getRandomValues` giới hạn 65.536 byte/lần → `randomBytes(1 MiB)` ném
+   `QuotaExceededError`. Đã sửa: chia khối 65.536 byte.
+2. **8/120 ca sửa header không bị phát hiện** (chỉ sửa ghi chú/tên tệp/thời gian đọc được
+   thì tag AES-GCM vẫn đúng) → thêm `headerHash` (SHA-256 toàn header) + AAD khối 50 byte.
+3. **RAM phình theo kích thước tệp** trong CLI/harness: adapter `fs.createReadStream` đẩy
+   dữ liệu vào `ReadableStream` mà **không tôn trọng backpressure**. Đã sửa thành adapter
+   kiểu `pull()`: 256 MiB trước đây tăng ~190 MiB RAM, nay chỉ ~14 MiB.

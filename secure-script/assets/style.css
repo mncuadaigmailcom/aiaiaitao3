@@ -243,3 +243,24 @@ pre.code { max-height: 360px; overflow: auto; margin-top: 10px; white-space: pre
 .toast.bad { border-color: #6d1f2c; background: #2a0d13; color: #ffc6cd; }
 .toast.out { opacity: 0; transform: translate(-50%, 8px); transition: opacity .2s, transform .2s; }
 @keyframes toastIn { from { opacity: 0; transform: translate(-50%, 10px); } to { opacity: 1; transform: translate(-50%, 0); } }
+
+/* --------------------------------------------- code đã mã hoá (chép được) --- */
+.codebox { border: 1px solid var(--line); border-radius: 12px; background: #08111d; padding: 12px 14px; margin-bottom: 16px; }
+.codebox .card-head { margin: 0 0 8px; }
+.codebox h3 { margin: 0; font-size: 14px; }
+.tabs2 { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.seg {
+  border: 1px solid var(--line); background: #0d1a2b; color: #a8bad2; border-radius: 8px;
+  padding: 5px 11px; font-size: 12px; cursor: pointer;
+}
+.seg.on { background: #1d4ed8; border-color: #2563eb; color: #fff; font-weight: 600; }
+pre.codeout {
+  margin: 8px 0 0; padding: 10px 12px; max-height: 260px; overflow: auto;
+  background: #060c15; border: 1px solid #16243a; border-radius: 9px;
+  font-family: var(--mono); font-size: 12px; line-height: 1.5;
+  white-space: pre-wrap; word-break: break-all; color: #cfe0f5;
+}
+@media (max-width: 720px) {
+  .codebox .card-head { display: block; }
+  .tabs2 { margin-top: 8px; }
+}

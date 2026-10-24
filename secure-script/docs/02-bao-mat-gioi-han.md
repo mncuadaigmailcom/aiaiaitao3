@@ -39,16 +39,32 @@ hạn dùng thật, phải có máy chủ cấp khoá theo thời gian — trái
 
 | Lựa chọn | Được | Mất |
 |---|---|---|
-| Bắt buộc key script (mặc định) | `.aia` một mình vô dụng; đúng ý "key script là chìa khoá" | Mất key script = mất dữ liệu; người nhận cần đủ 2 tệp |
+| **Khoá dùng chung** `aia.key.js` (mặc định trên web) | Chỉ **một link** cho mọi tệp, mọi người; người nhận chỉ cần `.aia` + mật khẩu | `aia.key.js` công khai ⇒ **mật khẩu là lớp bảo vệ duy nhất**; một khoá dùng cho mọi tệp trong bộ |
+| **Riêng từng tệp** | Mỗi tệp một khoá; mất/ lộ một key không ảnh hưởng tệp khác | Mỗi tệp phải gửi kèm key script riêng |
+| Bắt buộc key script | `.aia` một mình vô dụng; đúng ý "key script là chìa khoá" | Mất key script = mất dữ liệu; người nhận cần đủ 2 tệp |
 | Nhúng mật khẩu vào key script | Người nhận không cần nhập gì | Ai có key script là mở được; mật khẩu nằm trong tệp |
 | Không đặt mật khẩu | Đơn giản | Bảo vệ chỉ còn ở mức "che mắt" |
 | Header đọc được | Đúng yêu cầu, dễ hỗ trợ, dễ kiểm tra | Lộ thời gian/tên tệp/link key |
 | 600.000 vòng PBKDF2 | Chống dò tốt | Mở khoá chậm hơn (~0,15 s trên máy thử) |
 | Khoá phụ thuộc `keyUrl` | Đổi link là không mở được | Đổi tên/thư mục tệp key cũng làm hỏng (phải giữ đúng link) |
 
+## 3b. Chế độ khoá dùng chung — nói thẳng
+
+Yêu cầu "một link key cho mọi lần mã hoá, mọi người" chỉ làm được nếu **khoá gốc nằm
+trong một key script công khai** (`aia.key.js` phát hành kèm site). Hệ quả toán học,
+không phải lỗi code:
+
+- Ai đọc `aia.key.js` cũng biết khoá gốc `S`.
+- Nhưng `S` **một mình không đủ**: `keyWrap`/khoá phiên còn cần **mật khẩu** qua
+  PBKDF2 600.000 vòng. Không có mật khẩu ⇒ `WRONG_PASSPHRASE`.
+- Vì vậy: **đặt mật khẩu là bắt buộc trên thực tế** ở chế độ dùng chung. Nếu để trống,
+  bất kỳ ai có `.aia` + `aia.key.js` đều mở được (tương đương "khoá mở").
+- Cần tách biệt tuyệt đối theo từng tệp → chọn **"Riêng từng tệp"**.
+
 ## 4. Cách dùng an toàn
 
 1. **Đặt mật khẩu mạnh** (≥ 16 ký tự, hoặc dùng nút "tạo"). Lưu ở trình quản lý mật khẩu.
+   Ở chế độ dùng chung, **không đặt mật khẩu = không bảo vệ**.
 2. **Không bật "nhúng mật khẩu"** nếu gửi qua kênh công khai.
 3. **Gửi `.aia` và `key.js` qua hai kênh khác nhau** khi có thể (ví dụ: tệp qua email,
    mật khẩu qua tin nhắn).

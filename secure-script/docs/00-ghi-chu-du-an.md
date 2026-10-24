@@ -85,8 +85,10 @@ secure-script/
 ├── tools/
 │   ├── cli.mjs              # mã hoá/giải mã bằng dòng lệnh
 │   └── check-static.mjs     # kiểm tra id/đường dẫn trong HTML
-├── tests/run-dom.mjs        # 41 kiểm thử giao diện (jsdom)
-├── tests/run-node.mjs       # 80 kiểm thử lõi
+├── aia.key.js               # KEY SCRIPT DÙNG CHUNG (1 link cho mọi lần mã hoá)
+├── tests/run-dom.mjs        # 53 kiểm thử giao diện (jsdom)
+├── tests/run-node.mjs       # 108 kiểm thử lõi
+├── tests/stress.mjs         # 36 bài kiểm thử cường độ cao
 ├── examples/                # script mẫu + gói demo
 ├── docs/                    # 6 tài liệu
 └── deploy/                  # pages.yml (mẫu workflow), netlify.toml, vercel.json
@@ -96,9 +98,10 @@ secure-script/
 
 Chạy `node tests/run-node.mjs` (Node 22, WebCrypto thật):
 
-- **80/80** kiểm thử lõi đạt, ~4,6 giây.
-- **47/47** kiểm thử giao diện trên DOM ả (jsdom) — gồm cả **gói demo phát hành kèm** —
-  và **43/43** kiểm tra tĩnh. Tổng **170 điểm kiểm tra**.
+- **108/108** kiểm thử lõi đạt, ~4,7 giây.
+- **53/53** kiểm thử giao diện trên DOM ả (jsdom) — gồm cả **gói demo phát hành kèm** —
+  **44/44** kiểm tra tĩnh, và **36/36** bài **kiểm thử cường độ cao**.
+  Tổng **241 điểm kiểm tra**.
 - Vòng lặp đúng với khối 64 KiB / 256 KiB / 1 MiB; tệp rỗng; tệp chia hết khối.
 - Sai mật khẩu, sửa link key, sửa 1 bit, cắt tệp, ghép thêm, đảo khối, sai magic →
   đều bị chặn.
@@ -111,7 +114,10 @@ Chạy `node tests/run-node.mjs` (Node 22, WebCrypto thật):
   cũng bị từ chối. Chế độ cũ vẫn giải mã được (tương thích ngược).
 - ZIP: CRC32 đúng, nội dung đúng.
 - Dịch ngược: làm đẹp/rút gọn **không đổi token**, giải base64, gỡ escape, phân tích.
-- 8 MiB: mã hoá ~0,14 s, giải mã ~0,15 s trên máy ảo này; tăng 844 byte (0,0101 %).
+- 8 MiB: mã hoá ~0,14 s, giải mã ~0,15 s trên máy ảo này; tăng 962 byte (0,0115 %).
+- Kiểm thử cường độ cao: fuzz **600/600** ca bị phát hiện; tệp **1 GiB** mã hoá
+  464 MiB/s, giải mã 365 MiB/s, **RAM không tăng theo kích thước tệp**; 30/30 mật khẩu
+  sai bị chặn trong 0,07 s.
 
 ## 6. Giới hạn — nói thẳng
 

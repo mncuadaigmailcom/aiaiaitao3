@@ -89,14 +89,20 @@ khoá. Header giữ cả `unixMs` để máy dùng.
 ## 3. Khoá
 
 ```
-material  = JSON.stringify([1, time.raw, time.unixMs, keyUrl, passphrase])
+material  = JSON.stringify([1, time.raw, time.unixMs, keyUrl, passphrase])          // chế độ riêng
+material  = JSON.stringify([1, time.raw, time.unixMs, keyUrl, passphrase, S])       // chế độ dùng chung
 khoáBọc   = PBKDF2-HMAC-SHA256(material, salt, iterations, 32 byte)
 fileKey   = 32 byte ngẫu nhiên cho mỗi tệp
 keyWrap   = AES-256-GCM( khoáBọc, fileKey, iv ngẫu nhiên 12 byte )
-            AAD = JSON ["AIA1-WRAP", id, time.raw, unixMs, keyUrl]
+            AAD = JSON ["AIA1-WRAP", id, time.raw, unixMs, keyUrl, headerHash]
 IV khối i = ivPrefix(8 byte ngẫu nhiên) ‖ uint32BE(i)
 AAD khối i = magic(8) ‖ version(1) ‖ uint32BE(i) ‖ cờ-cuối(1) ‖ uint32BE(tổng)
+             ‖ SHA-256(header) 32 byte        // 50 byte cho tệp mới, 18 byte cho tệp cũ
+headerHash = SHA-256(JSON header với headerHash = 64 số 0, bỏ keyWrap/encryptionSeconds)
 ```
+
+`S` là **khoá gốc dùng chung** 32 byte nằm trong `aia.key.js` (xem mục 3b).
+Tệp tạo bởi phiên bản cũ không có `headerHash` ⇒ không thêm digest vào AAD, vẫn giải mã được.
 
 **Chế độ bắt buộc key script (mặc định):** dữ liệu mã hoá bằng `fileKey`; `fileKey`
 chỉ tồn tại ở dạng đã bọc trong `keyWrap`, mà `keyWrap` **chỉ được ghi vào key
@@ -117,6 +123,24 @@ Ba yếu tố tạo khoá đúng như bạn yêu cầu:
 
 Đổi bất kỳ yếu tố nào → khoá khác → giải mã thất bại. Vì `time` và `keyUrl` nằm
 trong header (đọc được), key script không cần "giấu" chúng.
+
+## 3b. Hai chế độ key script
+
+| | **Dùng chung** (mặc định trên web) | **Riêng từng tệp** |
+|---|---|---|
+| Link key | `./aia.key.js` — **một link cho mọi lần mã hoá, mọi người** | `./<tên-tệp>.key.js` |
+| Khoá gốc | `S` cố định trong `aia.key.js` (công khai trong repo/site) | không có |
+| `keyWrap` nằm ở | **header `.aia`** (tệp tự chứa) | **key script** |
+| `keyWrapIn` | `"shared-key-script"` | `"key-script"` |
+| `sharedKeyId` | 8 byte hex = `SHA-256(S)` rút gọn | không có |
+| Mở được khi | có `aia.key.js` **+ mật khẩu** | có key script riêng **+ mật khẩu** |
+| Điểm mạnh | 1 link duy nhất, tiện chia sẻ, tệp tự chứa | tách biệt: mỗi tệp một khoá, mất 1 key không ảnh hưởng tệp khác |
+| Điểm yếu | vì `aia.key.js` công khai, **mật khẩu là lớp bảo vệ duy nhất** | phải gửi kèm key script cho từng tệp |
+
+Với chế độ dùng chung, trang web nạp `./aia.key.js` bằng `<script src>` ngay khi mở,
+nên người nhận chỉ cần `.aia` + mật khẩu là chạy. Ai cố tình mở `aia.key.js` cũng chỉ
+thấy khoá gốc — **không mở được** nếu không có mật khẩu. Vì vậy chế độ này **nên luôn
+đặt mật khẩu**; nếu để trống, coi như tệp không được bảo vệ.
 
 ## 4. Vì sao vẫn dùng thời gian + link key khi đã có khoá ngẫu nhiên
 
@@ -171,6 +195,19 @@ phép: RAM thấp, tiến trình hiển thị được, huỷ giữa đường, 
 | `AIA_UNLOCK.hasEmbeddedPassphrase` | có nhúng mật khẩu? |
 
 `source` cho phép bạn tự cấp dữ liệu (ví dụ lấy từ IndexedDB) thay vì `fetch`.
+
+## 7b. Code đã mã hoá dạng chép được
+
+Giao diện hiện thêm khung **Code đã mã hoá** với hai định dạng của **cùng một chuỗi byte**
+`header ‖ khối 0 ‖ khối 1 ‖ …`:
+
+- **Base64**: 4 ký tự cho mỗi 3 byte; chuỗi luôn bắt đầu bằng `QUlBU0NSMQ`
+  (giải mã ra `AIASCR1\n`).
+- **Hex**: 2 ký tự cho mỗi byte; bắt đầu bằng `414941534352310a`.
+
+Không có lỗi làm tròn nào: hai chuỗi này biểu diễn **đúng từng byte** của tệp `.aia`,
+nên có thể chép ra ngoài và dựng lại tệp. Trang chỉ hiện tối đa 2 MiB đầu tiên
+(tệp lớn hơn nên tải `.aia`) để không treo trình duyệt.
 
 ## 8. Định dạng đầu ra của gói
 
