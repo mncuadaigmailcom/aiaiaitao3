@@ -60,6 +60,10 @@ Ai nhận được đoạn code đó là có **tất cả những gì cần** đ
 
 Snippet cũng làm tăng kích thước ~1,34 lần và chỉ dùng cho tệp ≤ 1,5 MiB.
 
+**Giới hạn ngôn ngữ**: trình duyệt chỉ chạy được JavaScript/TypeScript. Tệp Lua/Luau/Python…
+vẫn mã hoá & giải mã đúng từng byte, nhưng **không chạy thử** trong trang (trang tự nhận ra
+nhờ dò nội dung và khoá nút chạy — đây là hành vi đúng, không phải lỗi mã hoá).
+
 **Token link** là bản mã thật (AES-256-GCM), nhưng:
 
 - header token **đọc được** thời gian tạo + link key + keyId (đúng thiết kế "thời gian không mã hoá");

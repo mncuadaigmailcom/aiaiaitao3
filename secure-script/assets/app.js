@@ -290,7 +290,7 @@ $('pasteText').addEventListener('input', () => autoEncryptFromPaste(800));
   }),
 );
 
-function setSourceFromFile(file, opts = {}) {
+async function setSourceFromFile(file, opts = {}) {
   state.lastCipher = null;
   if (file.size > C.MAX_INPUT_BYTES) {
     toast(`Tệp ${C.formatBytes(file.size)} vượt quá giới hạn 5 GiB.`, 'bad', 6000);
@@ -302,21 +302,30 @@ function setSourceFromFile(file, opts = {}) {
     type: file.type || '',
     bytes: null,
     openStream: () => file.stream(),
+    // đọc mẫu đầu tệp để dò ngôn ngữ THẬT (nhiều người đặt .js cho tệp Lua)
+    readSample: async (n) => {
+      const blob = file.slice(0, n);
+      if (typeof blob.text === 'function') return await blob.text();
+      const buf = await blob.arrayBuffer();
+      return new TextDecoder().decode(new Uint8Array(buf));
+    },
   };
   maybeSuggestKeyUrl();
   updateSourceInfo();
   resetResult();
+  await refineSourceLang();
   if (opts.auto !== false) startEncryption({ auto: true });
 }
 
-function setSourceFromText(text, opts = {}) {
+async function setSourceFromText(text, opts = {}) {
   state.lastCipher = null;
   const bytes = new TextEncoder().encode(text);
   state.source = {
-    name: 'script.js',
+    name: opts.name || 'script.js',
     size: bytes.length,
     type: 'text/javascript',
     bytes,
+    textSample: text,
     openStream: () =>
       new ReadableStream({
         start(c) {
@@ -328,9 +337,54 @@ function setSourceFromText(text, opts = {}) {
   maybeSuggestKeyUrl();
   updateSourceInfo();
   resetResult();
+  await refineSourceLang();
   if (!opts.silent) toast('Đã nạp code từ ô dán.', 'ok');
   // Dán là tự mã hoá — không cần bấm thêm bước nào.
   if (opts.auto !== false) startEncryption({ auto: true });
+}
+
+/**
+ * Dò ngôn ngữ thật của nguồn (theo NỘI DUNG, không chỉ theo đuôi tệp).
+ * Nhờ vậy tệp `script.js` nhưng nội dung là Lua/Luau sẽ không bị đưa vào
+ * Web Worker rồi nổ `SyntaxError: Unexpected identifier`.
+ */
+async function refineSourceLang() {
+  const src = state.source;
+  if (!src) return;
+  let sample = '';
+  try {
+    if (typeof src.textSample === 'string') sample = src.textSample.slice(0, C.LANG_SNIFF_BYTES);
+    else if (src.bytes) sample = new TextDecoder().decode(src.bytes.subarray(0, C.LANG_SNIFF_BYTES));
+    else if (typeof src.readSample === 'function') sample = (await src.readSample(C.LANG_SNIFF_BYTES)) || '';
+  } catch {
+    sample = '';
+  }
+  const byName = C.detectLang(src.name);
+  const lang = C.resolveLang(src.name, sample);
+  src.nameLang = byName;
+  src.lang = lang;
+  src.langMismatch = lang !== byName;
+  updateSourceInfo();
+  if (src.langMismatch && !src.mismatchNotified) {
+    src.mismatchNotified = true;
+    toast(
+      `Tệp "${src.name}" có đuôi là ${langLabel(byName)} nhưng nội dung là ${langLabel(lang)} — ` +
+        'trang vẫn mã hoá bình thường, nhưng KHÔNG chạy thử trong trình duyệt (chỉ tải bản rõ).',
+      'warn',
+      9000,
+    );
+  }
+}
+
+function langLabel(lang) {
+  return ({
+    javascript: 'JavaScript',
+    typescript: 'TypeScript',
+    lua: 'Lua/Luau',
+    luau: 'Lua/Luau',
+    python: 'Python',
+    text: 'văn bản',
+  })[lang] || lang;
 }
 
 function maybeSuggestKeyUrl() {
@@ -342,10 +396,19 @@ function updateSourceInfo() {
   const s = state.source;
   if (!s) {
     $('fileInfo').textContent = 'chưa chọn tệp';
+    $('fileInfo').classList.remove('warn');
+    $('fileInfo').title = '';
     return;
   }
-  const lang = C.detectLang(s.name);
-  $('fileInfo').innerHTML = `<b>${escapeHtml(s.name)}</b> · ${C.formatBytes(s.size)} · ${lang}`;
+  const lang = s.lang || C.detectLang(s.name);
+  const badge = s.langMismatch
+    ? ` · <b>${langLabel(lang)}</b> <span class="warn">(đuôi tệp là ${langLabel(s.nameLang || C.detectLang(s.name))})</span>`
+    : ` · ${lang}`;
+  $('fileInfo').innerHTML = `<b>${escapeHtml(s.name)}</b> · ${C.formatBytes(s.size)}${badge}`;
+  $('fileInfo').classList.toggle('warn', !!s.langMismatch);
+  $('fileInfo').title = s.langMismatch
+    ? 'Đuôi tệp không khớp nội dung: trang vẫn mã hoá bình thường nhưng không chạy thử trong trình duyệt (chỉ tải bản rõ).'
+    : '';
 }
 
 function escapeHtml(s) {
@@ -530,7 +593,7 @@ async function runEncryption(runOpts = {}) {
     note: $('note').value.trim(),
     fileName: src.name,
     fileType: src.type,
-    lang: C.detectLang(src.name),
+    lang: src.lang || C.detectLang(src.name),
     hashPlaintext: $('hashChk').checked,
     requireKeyScript: keyMode === 'shared' ? true : $('requireKeyChk').checked,
     payloadFile,
@@ -721,7 +784,15 @@ function renderResult({ meta, options, elapsed, verified, keyText, zipSize, sink
   $('dlContainer').style.display = state.artifacts.get(payloadName).data ? '' : 'none';
   $('dlContainer').textContent = sink.kind === 'file' ? 'đã ghi ra đĩa' : 'Tải .aia';
   $('dlContainer').disabled = !state.artifacts.get(payloadName).data;
-  $('testRunBtn').disabled = !state.lastCipher.bytes || plain > PREVIEW_LIMIT || !isRunnable(meta.file);
+  const runnableNow = isRunnable(meta.file);
+  $('testRunBtn').disabled = !state.lastCipher.bytes || plain > PREVIEW_LIMIT || !runnableNow;
+  $('testRunBtn').title = runnableNow
+    ? 'Chạy thử code đã giải mã trong Web Worker'
+    : !isRunnable(meta.file)
+      ? `Không chạy thử được: tệp là ${langLabel(meta.file.lang)} (không phải JavaScript). Trang vẫn mã hoá và cho tải bản rõ.`
+      : plain > PREVIEW_LIMIT
+        ? 'Tệp quá lớn để chạy thử trong bộ nhớ (giới hạn 32 MiB).'
+        : 'Tệp chưa nằm trong bộ nhớ (đã ghi trực tiếp ra đĩa).';
 
   const keyNameForLink = [...state.artifacts.keys()].find((n) => n.endsWith('.key.js')) || SHARED_KEY_FILE;
   state.lastCodeExtra = {
@@ -926,6 +997,35 @@ function isRunnable(fileMeta) {
   return C.isRunnableLang(fileMeta.lang);
 }
 
+/**
+ * Có nên ĐƯA CODE VÀO WEB WORKER hay không?
+ * Ngoài nhãn ngôn ngữ, còn dò nhanh nội dung: tệp cũ (mã hoá trước bản sửa này)
+ * có thể ghi `javascript` trong header dù bên trong là Lua.
+ */
+function canExecute(fileMeta, code) {
+  if (!C.isRunnableLang(fileMeta && fileMeta.lang)) return false;
+  const sniffed = C.sniffContentLang(code || '');
+  return !sniffed || sniffed === 'javascript';
+}
+
+/** Đổi lỗi kỹ thuật thành câu dễ hiểu cho người dùng. */
+function explainRuntimeError(message) {
+  const m = String(message == null ? '' : message).trim();
+  if (/Unexpected identifier|Unexpected token|Unexpected end of input|Invalid or unexpected token|SyntaxError|missing \) after/i.test(m)) {
+    return (
+      `${m}\n→ Đây là lỗi CÚ PHÁP của chính tệp gốc, không phải lỗi mã hoá: tệp không phải JavaScript nên trình duyệt không chạy được. ` +
+      'Dữ liệu đã giải mã xong — bấm "Tải bản rõ" để lấy lại code (hoặc đặt đúng đuôi .lua/.py rồi mã hoá lại để trang tự nhận đúng).'
+    );
+  }
+  if (/document is not defined|window is not defined/i.test(m)) {
+    return `${m}\n→ Code gốc cần DOM, nhưng Web Worker không có DOM. Hãy chạy trong trang bằng thẻ <script>.`;
+  }
+  if (/Cannot use import statement|import declarations may only appear/i.test(m)) {
+    return `${m}\n→ Code dùng ES module (import/export): Web Worker dạng cổ điển không nạp được. Hãy chạy trong trang bằng <script type="module">.`;
+  }
+  return m;
+}
+
 /* ------------------------------------------------------------ tải tệp --- */
 
 function downloadByName(name) {
@@ -976,9 +1076,14 @@ $('testRunBtn').addEventListener('click', async () => {
     });
     appendLog(log, 'ok', `[AIA] giải mã OK: ${plaintext.length} byte.`);
     const code = new TextDecoder().decode(plaintext);
-    if (!isRunnable(meta.file)) {
+    if (!canExecute(meta.file, code)) {
       log.textContent += '\n' + code.slice(0, 3000);
-      appendLog(log, 'warn', '[AIA] Định dạng này không chạy trực tiếp trong trình duyệt — chỉ hiển thị trước.');
+      appendLog(
+        log,
+        'warn',
+        `[AIA] Không chạy thử: tệp là ${langLabel(C.sniffContentLang(code) || meta.file.lang)} — trình duyệt chỉ chạy được JavaScript/TypeScript. ` +
+          'Dữ liệu đã giải mã đúng; mở tab "Giải mã & chạy" → "Tải bản rõ" để lấy code.',
+      );
       return;
     }
     runInWorker(code, log);
@@ -998,13 +1103,13 @@ function runInWorker(code, log) {
   worker.onmessage = (ev) => {
     const d = ev.data || {};
     if (d.type === 'log') appendLog(log, d.level, (d.args || []).join(' '));
-    else if (d.type === 'error') appendLog(log, 'err', '[runtime] ' + d.message);
+    else if (d.type === 'error') appendLog(log, 'err', '[runtime] ' + explainRuntimeError(d.message));
     else if (d.type === 'done') {
       appendLog(log, 'sys', `[AIA] chạy xong phần đồng bộ · ${C.formatDuration(performance.now() - state.runStartedAt)}`);
       try { URL.revokeObjectURL(url); } catch { /* ignore */ }
     }
   };
-  worker.onerror = (e) => appendLog(log, 'err', '[worker] ' + (e.message || 'lỗi không rõ'));
+  worker.onerror = (e) => appendLog(log, 'err', '[worker] ' + explainRuntimeError(e && e.message ? e.message : 'lỗi không rõ'));
   setTimeout(() => {
     try { URL.revokeObjectURL(url); } catch { /* ignore */ }
   }, 1000);
@@ -1143,8 +1248,11 @@ async function doDecrypt(exec) {
     const code = new TextDecoder().decode(plaintext);
     $('plainPreview').textContent = code.length > 400000 ? code.slice(0, 400000) + '\n… (đã rút gọn khi hiển thị, tải về để xem đủ)' : code;
     if (exec) {
-      if (isRunnable(meta.file)) runInWorker(code, log);
-      else appendLog(log, 'warn', `[AIA] ${meta.file.lang} không chạy trực tiếp trong trình duyệt — dùng "Tải bản rõ".`);
+      if (canExecute(meta.file, code)) runInWorker(code, log);
+      else {
+        const realLang = C.sniffContentLang(code) || meta.file.lang;
+        appendLog(log, 'warn', `[AIA] ${langLabel(realLang)} không chạy trực tiếp trong trình duyệt — bấm "Tải bản rõ" để lấy code.`);
+      }
     }
   } catch (err) {
     appendLog(log, 'err', '[AIA] ' + (err && err.message ? err.message : err));

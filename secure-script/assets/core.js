@@ -485,6 +485,96 @@ export function isRunnableLang(lang) {
   return lang === 'javascript' || lang === 'typescript';
 }
 
+/** Số byte đầu tệp dùng để dò ngôn ngữ theo nội dung (đủ để nhận ra Luau/Python). */
+export const LANG_SNIFF_BYTES = 64 * 1024;
+
+/**
+ * Dò ngôn ngữ theo NỘI DUNG, không theo đuôi tệp.
+ *
+ * Vì sao cần: rất nhiều người đặt tên `script.js` cho tệp Lua/Luau của Roblox.
+ * Nếu chỉ tin đuôi tệp, trang sẽ đưa Luau vào Web Worker và nổ
+ * `SyntaxError: Unexpected identifier` — người dùng không hiểu vì sao.
+ *
+ * Nguyên tắc: **thận trọng** — chỉ trả lời khi dấu hiệu rõ ràng, còn lại trả `null`
+ * để nơi gọi giữ nguyên kết luận theo đuôi tệp.
+ *
+ * @param {string} text mẫu nội dung (nên là ~64 KiB đầu)
+ * @returns {'javascript'|'lua'|'python'|null}
+ */
+export function sniffContentLang(text = '') {
+  const raw = String(text == null ? '' : text).slice(0, LANG_SNIFF_BYTES);
+  if (!raw.trim()) return null;
+  // Bỏ các "gạch trang trí" trong chú thích (====, ----, ****) để không đếm nhầm
+  // thành `===` của JavaScript.
+  const s = raw.replace(/={4,}|-{4,}|\*{4,}|#{4,}/g, ' ');
+  const count = (re) => (s.match(re) || []).length;
+
+  // Lua / Luau
+  const lua =
+    count(/\bgame\s*:\s*GetService\s*\(/g) * 6 +
+    count(/:WaitForChild\s*\(/g) * 4 +
+    count(/\bInstance\.new\s*\(/g) * 4 +
+    count(/\b(?:UDim2|CFrame|Vector3|Vector2|Color3|BrickColor)\.new\s*\(/g) * 3 +
+    count(/\bEnum\.[A-Za-z]/g) * 2 +
+    count(/\blocal\s+function\b/g) * 3 +
+    count(/\blocal\s+[A-Za-z_]\w*\s*=/g) +
+    count(/\belseif\b|\bipairs\s*\(|\bpairs\s*\(|\btask\.(?:wait|spawn|delay)\s*\(/g) * 2 +
+    count(/~=/g) * 2 +
+    count(/:Connect\s*\(/g) * 2 +
+    count(/^\s*--(?!\[\[)/gm);
+
+  // JavaScript / TypeScript
+  const js =
+    count(/=>/g) * 3 +
+    count(/\b(?:const|let)\s+[A-Za-z_$][\w$]*\s*=/g) * 3 +
+    count(/\bconsole\.(?:log|warn|error|info)\s*\(/g) * 2 +
+    count(/\b(?:document|window|globalThis)\.[A-Za-z_$]/g) * 2 +
+    count(/\b(?:function|class)\s+[A-Za-z_$][\w$]*\s*\([^)]*\)\s*\{/g) * 2 +
+    count(/===|!==|\?\?|\?\./g) * 2 +
+    count(/"use strict"|'use strict'/g) * 4 +
+    count(/\brequire\s*\(/g) * 3 +
+    count(/\bexport\s+(?:default|const|function|class)\b/g) * 3 +
+    count(/\bmodule\.exports\b/g) * 3;
+
+  // Python
+  const py =
+    count(/^\s*def\s+[A-Za-z_]\w*\s*\(/gm) * 6 +
+    count(/^\s*(?:import|from)\s+[A-Za-z_]/gm) * 2 +
+    count(/^\s*(?:elif|except|finally)\b/gm) * 3 +
+    count(/\bself\./g) * 2 +
+    count(/\bprint\s*\(/g);
+
+  const MIN = 12;
+  const best = Math.max(lua, js, py);
+  if (best < MIN) return null;
+  // Chỉ nhận khi bên thắng áp đảo (tránh đoán bừa với tệp lai).
+  if (lua === best && lua > js * 2 && lua > py * 2) return 'lua';
+  if (py === best && py > js * 2 && py > lua * 2) return 'python';
+  if (js === best && js > lua * 2 && js > py * 2) return 'javascript';
+  return null;
+}
+
+/**
+ * Kết luận ngôn ngữ cuối cùng: ưu tiên ĐUÔI tệp, chỉ ghi đè khi nội dung nói khác
+ * một cách rõ ràng (ví dụ `script.js` nhưng nội dung là Luau).
+ *
+ * @param {string} fileName
+ * @param {string} [text] mẫu nội dung (~64 KiB đầu)
+ * @returns {string} 'javascript' | 'lua' | 'python' | …
+ */
+export function resolveLang(fileName = '', text = '') {
+  const byName = detectLang(fileName);
+  if (!text) return byName;
+  const sniffed = sniffContentLang(text);
+  if (!sniffed) return byName;
+  if (sniffed === byName) return byName;
+  // Đuôi nói "chạy được trong trình duyệt" nhưng nội dung là ngôn ngữ khác → tin nội dung.
+  if (isRunnableLang(byName) && (sniffed === 'lua' || sniffed === 'python')) return sniffed;
+  // Đuôi nói .lua/.luau/.txt… nhưng nội dung rõ ràng là JavaScript → tin nội dung.
+  if (sniffed === 'javascript' && !isRunnableLang(byName)) return 'javascript';
+  return byName;
+}
+
 /**
  * Mã hoá một luồng dữ liệu, ghi ra `sink` theo từng mảnh.
  *
@@ -1487,7 +1577,10 @@ export function buildRunSnippetStealth({
 }) {
   if (!(containerBytes instanceof Uint8Array)) throw new AIAError('BAD_INPUT', 'buildRunSnippet cần containerBytes dạng Uint8Array.');
   const fileName = (meta && meta.file && meta.file.name) || 'script.js';
-  const isJs = /\.(m?js|cjs|ts|jsx)$/i.test(fileName);
+  // Ưu tiên nhãn ngôn ngữ trong header (đã dò cả theo nội dung) — nếu không có mới xét đuôi tệp.
+  const isJs = meta && meta.file && meta.file.lang
+    ? isRunnableLang(meta.file.lang)
+    : /\.(m?js|cjs|ts|jsx)$/i.test(fileName);
 
   const tag = bytesToHex(randomBytes(3));
   const id = (name) => '_' + name + tag;
@@ -1608,7 +1701,10 @@ export function buildRunSnippet(opts = {}) {
   } = opts;
   if (!(containerBytes instanceof Uint8Array)) throw new AIAError('BAD_INPUT', 'buildRunSnippet cần containerBytes dạng Uint8Array.');
   const fileName = (meta && meta.file && meta.file.name) || 'script.js';
-  const isJs = /\.(m?js|cjs|ts|jsx)$/i.test(fileName);
+  // Ưu tiên nhãn ngôn ngữ trong header (đã dò cả theo nội dung) — nếu không có mới xét đuôi tệp.
+  const isJs = meta && meta.file && meta.file.lang
+    ? isRunnableLang(meta.file.lang)
+    : /\.(m?js|cjs|ts|jsx)$/i.test(fileName);
   const b64 = bytesToBase64(containerBytes);
   const keySrcJson = keyScriptText ? JSON.stringify(keyScriptText) : 'null';
   const passJson = askPassphrase ? 'null' : JSON.stringify(String(passphrase || ''));
@@ -1743,6 +1839,8 @@ export function buildRunnerHtml(meta, opts = {}) {
   const keyName = opts.keyFileName || 'key.js';
   const shared = meta.keyWrapIn === 'shared-key-script';
   const payloadUrl = './' + (meta.payload.file || 'payload.aia');
+  // Trình duyệt chỉ chạy được JS/TS — tệp Lua/Python… chỉ giải mã + tải bản rõ.
+  const runnable = meta.file && meta.file.lang ? isRunnableLang(meta.file.lang) : true;
   return `<!doctype html>
 <html lang="vi">
 <head>
@@ -1804,6 +1902,8 @@ export function buildRunnerHtml(meta, opts = {}) {
       <span id="status" class="badge">sẵn sàng</span>
     </div>
     <div class="hint">Script được chạy trong Web Worker (không treo trang). Muốn chạy trên trang chính, dùng <code>AIA_UNLOCK.run({execute:true, mode:'main'})</code>.</div>
+    ${runnable ? '' : '<div class="hint" style="border-color:#b45309;background:#3b2a12;color:#fbbf24">⚠ Tệp gốc là ' + escapeHtml(String((meta && meta.file && meta.file.lang) || '')) + ' — trình duyệt chỉ chạy được JavaScript/TypeScript. Trang này chỉ giải mã và cho <b>Tải bản rõ</b>.</div>'}
+    ${runnable ? '' : '<div class="hint" style="border-color:#b45309;background:#3b2a12;color:#fbbf24">⚠ Tệp gốc là ' + escapeHtml(String((meta && meta.file && meta.file.lang) || '')) + ' — trình duyệt chỉ chạy được JavaScript/TypeScript. Trang này chỉ giải mã và cho <b>Tải bản rõ</b>.</div>'}
   </div>
 
   <div class="card">
@@ -1817,11 +1917,21 @@ export function buildRunnerHtml(meta, opts = {}) {
 (function () {
   var META = ${metaJson};
   var SHARED = ${shared ? 'true' : 'false'};
+  var RUNNABLE = ${runnable ? 'true' : 'false'};
+  var RUNNABLE = ${runnable ? 'true' : 'false'};
   var PAYLOAD = ${JSON.stringify(payloadUrl)};
   var log = document.getElementById('log');
   var statusEl = document.getElementById('status');
   var passEl = document.getElementById('pass');
   var busy = false;
+
+  function explain(msg) {
+    var m = String(msg == null ? '' : msg);
+    if (/Unexpected identifier|Unexpected token|SyntaxError|Unexpected end of input/i.test(m)) {
+      return m + '\\n→ Lỗi cú pháp của chính tệp gốc (không phải lỗi mã hoá): tệp không phải JavaScript nên trình duyệt không chạy được. Bấm \"Tải bản rõ\" để lấy code.';
+    }
+    return m;
+  }
 
   function setStatus(text, cls) {
     statusEl.textContent = text;
@@ -1854,6 +1964,13 @@ export function buildRunnerHtml(meta, opts = {}) {
 
   document.getElementById('run').addEventListener('click', async function () {
     if (busy) return;
+    if (!RUNNABLE) {
+      // không phải JS/TS: chỉ giải mã rồi tải bản rõ, không đưa vào Worker
+      print('warn', '[AIA] Tệp gốc là ' + (META.file && META.file.lang ? META.file.lang : 'không rõ') +
+        ' — trình duyệt không chạy được. Đang giải mã để tải bản rõ…');
+      document.getElementById('dl').click();
+      return;
+    }
     busy = true; log.innerHTML = '';
     if (checkExpiry()) { print('error', '[AIA] Bản mã đã hết hạn dùng.'); busy = false; return; }
     setStatus('đang giải mã…');
@@ -1867,7 +1984,7 @@ export function buildRunnerHtml(meta, opts = {}) {
         worker.onmessage = function (ev) {
           var d = ev.data || {};
           if (d.type === 'log') print(d.level, d.args);
-          else if (d.type === 'error') print('error', '[runtime] ' + d.message);
+          else if (d.type === 'error') print('error', '[runtime] ' + explain(d.message));
           else if (d.type === 'done') { print('info', '[AIA] script đã chạy xong.'); setStatus('đã chạy', 'ok'); }
         };
         busy = false;
@@ -1878,7 +1995,7 @@ export function buildRunnerHtml(meta, opts = {}) {
         execute: true,
         mode: 'worker',
         onLog: function (level, args) { print(level, args); },
-        onError: function (msg) { print('error', '[runtime] ' + msg); },
+        onError: function (msg) { print('error', '[runtime] ' + explain(msg)); },
         onDone: function () { print('info', '[AIA] script đã chạy xong.'); setStatus('đã chạy', 'ok'); },
         onFetchProgress: function (loaded, total) {
           if (total) setStatus('đang tải ' + Math.round(loaded / total * 100) + '%');

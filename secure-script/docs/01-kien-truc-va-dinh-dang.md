@@ -272,6 +272,21 @@ Header **đọc được** (đúng nguyên tắc "thời gian không mã hoá"):
 Snippet cho link có 3 hành động: `open` (mở tab mới), `load` (nạp link thành `<script>`),
 `text` (chỉ in link ra console); mặc định kiểu **ẩn dấu vết** (không lộ token/link/tên API).
 
+## 7f. Trường `file.lang` — dò theo đuôi **và** nội dung
+
+`lang` trong header quyết định việc trang (và snippet) có **chạy** code sau khi giải mã hay không.
+
+1. `detectLang(tênTệp)` — theo đuôi tệp (như trước).
+2. `sniffContentLang(64 KiB đầu)` — chấm điểm Luau / JavaScript / Python bằng các dấu hiệu
+   đặc trưng (`game:GetService(`, `Instance.new(`, `UDim2.new(`, `:Connect(`… so với
+   `=>`, `const … =`, `document.`, `"use strict"`…). Chỉ trả lời khi **thắng áp đảo**
+   (điểm ≥ 12 và gấp đôi bên kia), ngược lại trả `null`.
+3. `resolveLang()` — ưu tiên đuôi; chỉ ghi đè khi nội dung nói khác rõ ràng.
+
+Nhờ vậy `script.js` chứa Luau → `lua` → `EXEC=false` trong snippet, `RUNNABLE=false` trong
+`run.html`, nút "Chạy thử" bị khoá. Tệp JS bình thường **không** bị ảnh hưởng
+(đã kiểm tra trên toàn bộ 11 tệp JS của dự án: không tệp nào bị nhận nhầm).
+
 ## 8. Định dạng đầu ra của gói
 
 | Tệp | Vai trò |

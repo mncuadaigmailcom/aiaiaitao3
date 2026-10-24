@@ -86,9 +86,9 @@ secure-script/
 │   ├── cli.mjs              # mã hoá/giải mã bằng dòng lệnh
 │   └── check-static.mjs     # kiểm tra id/đường dẫn trong HTML
 ├── aia.key.js               # KEY SCRIPT DÙNG CHUNG (1 link cho mọi lần mã hoá)
-├── tests/run-dom.mjs        # 91 kiểm thử giao diện (jsdom)
-├── tests/run-node.mjs       # 189 kiểm thử lõi
-├── tests/stress.mjs         # 69 bài kiểm thử cường độ cao
+├── tests/run-dom.mjs        # 106 kiểm thử giao diện (jsdom)
+├── tests/run-node.mjs       # 219 kiểm thử lõi
+├── tests/stress.mjs         # 80 bài kiểm thử cường độ cao
 ├── examples/                # script mẫu + gói demo
 ├── docs/                    # 6 tài liệu
 └── deploy/                  # pages.yml (mẫu workflow), netlify.toml, vercel.json
@@ -98,10 +98,10 @@ secure-script/
 
 Chạy `node tests/run-node.mjs` (Node 22, WebCrypto thật):
 
-- **189/189** kiểm thử lõi đạt, ~10,2 giây.
-- **91/91** kiểm thử giao diện trên DOM ả (jsdom) — gồm cả **gói demo phát hành kèm** —
-  **61/61** kiểm tra tĩnh, và **69/69** bài **kiểm thử cường độ cao**.
-  Tổng **410 điểm kiểm tra**.
+- **219/219** kiểm thử lõi đạt, ~8,8 giây.
+- **106/106** kiểm thử giao diện trên DOM ả (jsdom) — gồm cả **gói demo phát hành kèm** —
+  **77/77** kiểm tra tĩnh, và **80/80** bài **kiểm thử cường độ cao**.
+  Tổng **482 điểm kiểm tra**.
 - Vòng lặp đúng với khối 64 KiB / 256 KiB / 1 MiB; tệp rỗng; tệp chia hết khối.
 - Sai mật khẩu, sửa link key, sửa 1 bit, cắt tệp, ghép thêm, đảo khối, sai magic →
   đều bị chặn.
@@ -116,6 +116,9 @@ Chạy `node tests/run-node.mjs` (Node 22, WebCrypto thật):
 - Dịch ngược: làm đẹp/rút gọn **không đổi token**, giải base64, gỡ escape, phân tích.
 - 8 MiB: mã hoá ~0,14 s, giải mã ~0,15 s trên máy ảo này; tăng 962 byte (0,0115 %).
 - **Snippet "chép là chạy"**: tự nạp link key, tự giải mã, chạy đúng code gốc (đã thử trong sandbox).
+- **Nhận diện ngôn ngữ theo nội dung**: tệp `.js` chứa Luau/Python được nhận ra đúng
+  (30 kiểm thử riêng + 8 bài cường độ cao) — không còn nổ `Unexpected identifier`
+  khi bấm "Chạy thử ngay", khi giải mã hay khi chạy snippet.
 - **Mã hoá link** (`AIALNK1.…`): 54 kiểm thử riêng — vòng cơ bản, mật khẩu, sai key script,
   sửa token/header, 5 kiểu token hỏng, 7 kiểu link xấu (`javascript:`/`data:`/`file:`…),
   URL tiếng Việt/emoji, URL 8 KiB, snippet mở đúng link trong sandbox.

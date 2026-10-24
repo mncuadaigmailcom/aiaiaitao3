@@ -4,13 +4,13 @@
 
 ```bash
 cd secure-script
-node tests/run-node.mjs      # 189 kiểm thử lõi (không cần cài gì)
-node tools/check-static.mjs  # 61 kiểm tra tĩnh HTML ↔ app.js
+node tests/run-node.mjs      # 219 kiểm thử lõi (không cần cài gì)
+node tools/check-static.mjs  # 77 kiểm tra tĩnh HTML ↔ app.js
 node tools/cli.mjs selftest  # kiểm tra nhanh CLI
 
 npm install                  # chỉ cần cho test DOM (jsdom)
-node tests/run-dom.mjs       # 91 kiểm thử giao diện + gói demo trên DOM ả
-node tests/stress.mjs --quick   # 69 bài kiểm thử cường độ cao (~29 s)
+node tests/run-dom.mjs       # 106 kiểm thử giao diện + gói demo trên DOM ả
+node tests/stress.mjs --quick   # 80 bài kiểm thử cường độ cao (~20 s)
 ```
 
 Yêu cầu: Node 18+ (đã chạy trên Node 22.22.3). Test lõi và test tĩnh không cần
@@ -28,18 +28,19 @@ Node v22.22.3 · WebCrypto: true
 [4c] Key script DÙNG CHUNG           22/22
 [4d] Snippet "chép là chạy"          27/27
 [4e] Mã hoá LINK                     54/54
+[4f] Nhận diện ngôn ngữ (đuôi sai)    30/30
 [5] ZIP & tiện ích                    7/7
 [6] Công cụ dịch ngược               15/15
 [7] Thông lượng                       4/4
 ─────────────────────────────────────────────
-Kết quả: 189 đạt · 0 lỗi · ~10,2 s
+Kết quả: 219 đạt · 0 lỗi · ~8,8 s
 
-Kiểm tra tĩnh (tools/check-static.mjs): 61 đạt · 0 lỗi
-Kiểm thử DOM  (tests/run-dom.mjs)     : 91 đạt · 0 lỗi
-Kiểm thử cường độ cao (stress.mjs --quick): 69/69 đạt · 0 lỗi · ~29 s
+Kiểm tra tĩnh (tools/check-static.mjs): 77 đạt · 0 lỗi
+Kiểm thử DOM  (tests/run-dom.mjs)     : 106 đạt · 0 lỗi
+Kiểm thử cường độ cao (stress.mjs --quick): 80/80 đạt · 0 lỗi · ~20 s
 ```
 
-Tổng: **410 điểm kiểm tra đạt** (189 + 61 + 91 + 69).
+Tổng: **482 điểm kiểm tra đạt** (219 + 77 + 106 + 80).
 
 ## 3. Chi tiết từng nhóm
 
@@ -141,6 +142,36 @@ Ngoài ra: `iterations` < 10.000 bị kẹp; `chunkSize` < 64 KiB bị kẹp.
   chạy trong sandbox và mở đúng URL; chế độ `text` chỉ in link, chế độ `load` nạp link thành script.
 - Mật khẩu nhúng không hiện dạng chữ; chế độ hỏi mật khẩu nhận **mật khẩu gõ tay** (không phải Base64).
 - Hồi quy: snippet script "ẩn dấu vết" cũng đã sửa lỗi giải Base64 mật khẩu gõ tay.
+
+### [4f] Nhận diện ngôn ngữ — sửa lỗi "đuôi tệp sai"
+
+Bối cảnh: nhiều người đặt tên `script.js` cho **tệp Lua/Luau của Roblox**. Trước bản sửa,
+trang tin vào đuôi tệp nên đưa Luau vào Web Worker → `SyntaxError: Unexpected identifier`
+(cả ở nút "Chạy thử ngay", tab "Giải mã & chạy" và snippet gửi cho người nhận).
+
+Cách sửa: `sniffContentLang()` dò 64 KiB đầu tệp, `resolveLang()` chỉ ghi đè kết luận
+theo đuôi khi nội dung nói khác **rõ ràng** (thắng áp đảo).
+
+| Kiểm tra | Kết quả |
+|---|---|
+| mẫu Luau / JS / Python | nhận đúng cả 3 ✔ |
+| nội dung rỗng, chỉ có gạch trang trí `====` | không kết luận (giữ theo đuôi) ✔ |
+| `script.js` + nội dung Luau | → `lua` ✔ |
+| `script.js1.js` + nội dung Luau | → `lua` ✔ |
+| `script.js` + nội dung JS | → `javascript` (không phá tệp đúng) ✔ |
+| `.lua` nhưng nội dung JS | → `javascript` (tin nội dung) ✔ |
+| 3 tệp Luau thật trong repo | → `lua` ✔ |
+| 11 tệp JS của dự án | **không** tệp nào bị nhận nhầm ✔ |
+| header `.aia` | ghi `lang: "lua"` dù tên tệp là `.js` ✔ |
+| snippet (cả 2 kiểu) | `EXEC = false` → **tải bản rõ** thay vì chạy ✔ |
+| `run.html` | `RUNNABLE = false` + banner cảnh báo ✔ |
+| tệp JS thật | vẫn tự chạy, `EXEC = true` ✔ |
+
+Ngoài ra giao diện còn:
+- hiện nhãn `Lua/Luau (đuôi tệp là JavaScript)` + tooltip giải thích;
+- khoá nút "Chạy thử ngay" với lý do rõ ràng;
+- **dịch lỗi runtime** thành câu dễ hiểu: `Unexpected identifier 'Players'` →
+  *"Đây là lỗi CÚ PHÁP của chính tệp gốc, không phải lỗi mã hoá… bấm Tải bản rõ"*.
 
 ### [5] ZIP
 
@@ -255,6 +286,7 @@ Nếu bạn chạy thử và gặp lỗi, gửi lại thông báo trong tab "Nh�
 | 11. Snippet | 0 B/1 B/1 KiB/64 KiB/1,5 MiB, chi phí Base64 ×1,34, 3 chế độ mật khẩu | ✔ |
 | 11b. Snippet ẩn | không lộ marker, mỗi lần sinh khác nhau, sinh 1,5 MiB < 1 s | ✔ |
 | 12. Link | 40–200 vòng, song song, fuzz token rác/sửa hỏng, URL 8 KiB, RAM, snippet | ✔ |
+| 13. Ngôn ngữ | 3 tệp Luau thật, 11 tệp JS không nhận nhầm, 200–1000 lần dò, fuzz chuỗi rác | ✔ |
 
 Số đo thật (`--max`, máy 2 CPU):
 

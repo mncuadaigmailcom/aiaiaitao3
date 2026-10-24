@@ -784,6 +784,163 @@ async function testRunSnippet() {
 }
 
 
+
+/* ================================= nhận diện ngôn ngữ (đuôi tệp vs nội dung) === */
+
+async function testLangDetect() {
+  console.log('\n[4f] Nhận diện ngôn ngữ: đuôi tệp có thể SAI');
+
+  const LUAU = [
+    'local Players = game:GetService("Players")',
+    'local RunService = game:GetService("RunService")',
+    'local player = Players.LocalPlayer',
+    'local playerGui = player:WaitForChild("PlayerGui")',
+    'local function makeFrame(parent)',
+    '  local f = Instance.new("Frame")',
+    '  f.Size = UDim2.new(0, 120, 0, 40)',
+    '  f.Parent = parent',
+    '  f.MouseButton1Click:Connect(function() print("hi") end)',
+    '  return f',
+    'end',
+    'RunService.RenderStepped:Connect(function(dt) local x = 1 if x ~= 2 then print(dt) end end)',
+    'for _, v in ipairs({1,2,3}) do print(v) end',
+    'local ok = pcall(function() local t = {1, 2} end)',
+    'task.wait(0.1)',
+  ].join('\n');
+
+  const JS = [
+    'const core = require("./core");',
+    '"use strict";',
+    'function makeFrame(parent) {',
+    '  const f = document.createElement("div");',
+    '  f.style.width = "120px";',
+    '  parent.appendChild(f);',
+    '  return f;',
+    '}',
+    'const items = [1, 2, 3];',
+    'items.forEach((v) => console.log(v * 2));',
+    'if (items.length === 3 && items[0] !== null) {',
+    '  window.alert("ok");',
+    '}',
+    'module.exports = { makeFrame };',
+    'const fast = items?.length ?? 0;',
+  ].join('\n');
+
+  const PY = [
+    'import os',
+    'from typing import List',
+    '',
+    'class Foo:',
+    '    def __init__(self):',
+    '        self.x = 1',
+    '',
+    '    def run(self):',
+    '        if self.x is None:',
+    '            return False',
+    '        elif self.x:',
+    '            print(self.x)',
+    '        else:',
+    '            pass',
+    '        return True',
+    'try:',
+    '    Foo().run()',
+    'except Exception:',
+    '    pass',
+  ].join('\n');
+
+  ok(C.sniffContentLang(LUAU) === 'lua', 'dò nội dung: mẫu Luau → lua', String(C.sniffContentLang(LUAU)));
+  ok(C.sniffContentLang(JS) === 'javascript', 'dò nội dung: mẫu JS → javascript', String(C.sniffContentLang(JS)));
+  ok(C.sniffContentLang(PY) === 'python', 'dò nội dung: mẫu Python → python', String(C.sniffContentLang(PY)));
+  ok(C.sniffContentLang('') === null && C.sniffContentLang(null) === null, 'nội dung rỗng → không kết luận');
+  ok(C.sniffContentLang('-- ================\n--  ghi chú\n-- ================') === null, 'chỉ có dấu gạch trang trí → không kết luận');
+
+  ok(C.resolveLang('script.js', LUAU) === 'lua', 'đuôi .js + nội dung Luau → lua (đây là lỗi đã sửa)');
+  ok(C.resolveLang('script.js1.js', LUAU) === 'lua', 'đuôi .js1.js + nội dung Luau → lua');
+  ok(C.resolveLang('script.js', JS) === 'javascript', 'đuôi .js + nội dung JS → javascript (không phá tệp đúng)');
+  ok(C.resolveLang('script.lua', LUAU) === 'lua', 'đuôi .lua + nội dung Luau → lua');
+  ok(C.resolveLang('x.lua', JS) === 'javascript', 'đuôi .lua nhưng nội dung JS → tin nội dung');
+  ok(C.resolveLang('script.js', '') === 'javascript', 'không đọc được nội dung → giữ kết luận theo đuôi');
+  ok(C.resolveLang('data.txt', 'chỉ là văn bản thường, không có mã') === 'text', 'tệp văn bản thường giữ nguyên');
+
+  // tệp thật trong repo (nếu có) — đều là Luau dù tên .js
+  const repoRoot = path.resolve(import.meta.dirname, '..', '..');
+  const realLua = ['script.js', 'script.js1.js', 'script.js2.js'].filter((f) => fs.existsSync(path.join(repoRoot, f)));
+  for (const f of realLua) {
+    const text = fs.readFileSync(path.join(repoRoot, f), 'utf8');
+    ok(C.sniffContentLang(text) === 'lua', `tệp thật ${f} (đuôi .js) → nhận ra là Lua`);
+    ok(C.resolveLang(f, text) === 'lua', `tệp thật ${f}: kết luận = lua`);
+  }
+  if (!realLua.length) console.log('  · (không có tệp Luau mẫu trong repo — bỏ qua 2 kiểm tra tệp thật)');
+
+  // hồi quy: KHÔNG được nhận nhầm mã nguồn JS của chính dự án thành Lua/Python
+  const ssDir = path.resolve(import.meta.dirname, '..');
+  const walk = (dir, acc = []) => {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (['node_modules', '.git', 'dist', 'build'].includes(e.name)) continue;
+      const p = path.join(dir, e.name);
+      if (e.isDirectory()) walk(p, acc);
+      else if (/\.(m?js|cjs)$/.test(e.name)) acc.push(p);
+    }
+    return acc;
+  };
+  const jsFiles = walk(ssDir);
+  const wrong = jsFiles.filter((p) => {
+    const t = fs.readFileSync(p, 'utf8');
+    const got = C.sniffContentLang(t);
+    return got && got !== 'javascript';
+  });
+  ok(wrong.length === 0, `${jsFiles.length} tệp JS của dự án không bị nhận nhầm là Lua/Python`, wrong.join(', '));
+
+  // meta + snippet: tệp Luau (đuôi .js) KHÔNG được tự chạy
+  const keySrc = fs.readFileSync(path.resolve(ssDir, 'aia.key.js'), 'utf8');
+  const master = /masterKey:\s*"([^"]+)"/.exec(keySrc)[1];
+  const enc = await encryptBytes(utf8(LUAU), {
+    keyMode: 'shared',
+    sharedKey: master,
+    keyUrl: './aia.key.js',
+    iterations: 10000,
+    fileName: 'script.js',
+    lang: C.resolveLang('script.js', LUAU),
+    hashPlaintext: false,
+  });
+  ok(enc.meta.file.lang === 'lua', 'header ghi đúng lang = lua dù tên tệp là script.js', enc.meta.file.lang);
+
+  const stealth = C.buildRunSnippet({ style: 'stealth', meta: enc.meta, containerBytes: enc.bytes, keyUrl: './aia.key.js' });
+  const labeled = C.buildRunSnippet({ style: 'labeled', meta: enc.meta, containerBytes: enc.bytes, keyUrl: './aia.key.js' });
+  ok(/var EXEC = false;/.test(labeled), 'snippet có chú thích: EXEC = false (không cố chạy Luau)');
+  ok(!/var EXEC = true;/.test(labeled), 'snippet không đặt EXEC = true cho tệp Luau');
+
+  // chạy snippet: phải TẢI BẢN RÕ chứ không eval
+  const r = runSnippetInSandbox(stealth, { keyFiles: { './aia.key.js': keySrc } });
+  await wait(400);
+  ok((r.ctx.__downloads || []).some((n) => n === 'script.js'), 'snippet tải bản rõ thay vì chạy code Luau', JSON.stringify(r.ctx.__downloads));
+  ok(!r.logs.some((l) => /Unexpected identifier/.test(l)), 'snippet không sinh lỗi cú pháp khi chạy tệp Luau', r.logs.join(' | '));
+
+  // JS thật vẫn tự chạy như cũ
+  const encJs = await encryptBytes(utf8('globalThis.__js_ok = 41 + 1;'), {
+    keyMode: 'shared',
+    sharedKey: master,
+    keyUrl: './aia.key.js',
+    iterations: 10000,
+    fileName: 'hello.js',
+    lang: C.resolveLang('hello.js', 'globalThis.__js_ok = 41 + 1;'),
+    hashPlaintext: false,
+  });
+  ok(encJs.meta.file.lang === 'javascript', 'tệp JS thật vẫn là javascript');
+  const jsSnippet = C.buildRunSnippet({ style: 'stealth', meta: encJs.meta, containerBytes: encJs.bytes, keyUrl: './aia.key.js' });
+  const rj = runSnippetInSandbox(jsSnippet, { keyFiles: { './aia.key.js': keySrc } });
+  await wait(400);
+  ok(rj.ctx.__js_ok === 42, 'snippet JS vẫn chạy đúng như trước', String(rj.ctx.__js_ok));
+
+  // trang run.html: tệp Luau thì khoá nút chạy + hiện cảnh báo
+  const htmlLua = C.buildRunnerHtml(enc.meta, { keyFileName: 'aia.key.js' });
+  ok(/var RUNNABLE = false;/.test(htmlLua), 'run.html: RUNNABLE = false với tệp Luau');
+  ok(htmlLua.includes('chỉ giải mã và cho'), 'run.html: hiện cảnh báo giải thích');
+  const htmlJs = C.buildRunnerHtml(encJs.meta, { keyFileName: 'aia.key.js' });
+  ok(/var RUNNABLE = true;/.test(htmlJs), 'run.html: RUNNABLE = true với tệp JS');
+  ok(!htmlJs.includes('chỉ giải mã và cho'), 'run.html: không cảnh báo sai với tệp JS');
+}
+
 /* ============================================ mã hoá LINK (trang web/script) === */
 
 async function testLink() {
@@ -976,7 +1133,7 @@ async function testLink() {
 console.log('AIA Secure Script — kiểm thử');
 console.log('Node', process.version, '· WebCrypto:', !!(globalThis.crypto && globalThis.crypto.subtle));
 
-const suites = [testRoundtrip, testSecurity, testHeader, testKeyScript, testKeyScriptRequired, testSharedKey, testRunSnippet, testLink, testZip, testReverse, testThroughput];
+const suites = [testRoundtrip, testSecurity, testHeader, testKeyScript, testKeyScriptRequired, testSharedKey, testRunSnippet, testLangDetect, testLink, testZip, testReverse, testThroughput];
 const started = Date.now();
 for (const suite of suites) {
   try {

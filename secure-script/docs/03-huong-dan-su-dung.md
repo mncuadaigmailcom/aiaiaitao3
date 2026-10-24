@@ -132,6 +132,16 @@ AIA_UNLOCK.run({ execute: true, mode: 'main' })
 Mặc định `run()` dùng **Web Worker** (không treo trang, không chạm DOM). Dùng
 `mode:'main'` khi script cần DOM; khi đó code được chèn bằng thẻ `<script>`.
 
+## 3a. Đặt tên tệp & chạy thử
+
+- Trang **dò ngôn ngữ theo nội dung** (64 KiB đầu), không chỉ theo đuôi tệp: tệp Luau
+  đặt tên `script.js` vẫn được nhận là **Lua/Luau**, hiện nhãn cảnh báo và **không** chạy thử.
+- Trình duyệt chỉ chạy được **JavaScript/TypeScript**. Tệp Lua/Luau/Python… vẫn mã hoá &
+  giải mã bình thường, chỉ khác là bấm "Chạy thử" sẽ **khoá** — dùng **Tải bản rõ** để lấy code.
+- Nếu bấm chạy một tệp sai định dạng, trang báo rõ: *"Đây là lỗi CÚ PHÁP của chính tệp gốc,
+  không phải lỗi mã hoá… bấm Tải bản rõ"*.
+- Nên đặt đúng đuôi (`.lua`, `.luau`, `.py`) để header ghi đúng ngay từ đầu.
+
 ## 3b. Mã hoá một LINK (trang web / link script)
 
 1. Mở tab **Mã hoá link**.
