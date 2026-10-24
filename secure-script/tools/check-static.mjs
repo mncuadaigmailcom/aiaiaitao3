@@ -47,6 +47,10 @@ for (const f of [
   'assets/github.js',
   'assets/program.js',
   'assets/github-ui.js',
+  'assets/publish.js',
+  'assets/lua-loader.js',
+  'tests/run-publish.mjs',
+  'tests/run-lua.mjs',
   'tests/run-editor.mjs',
   'tests/run-ide.mjs', 'tests/run-js.mjs',
   'tests/run-github.mjs',
@@ -301,6 +305,76 @@ for (const theme of ['dracula', 'monokai', 'light']) {
 }
 check(!/<script[^>]+src=["']https?:/i.test(htmlText) && !/monaco\.editor|codemirror|cdn\.jsdelivr|cdnjs\.cloudflare/i.test(htmlText + ideText + programText), 'không phụ thuộc Monaco/CDN');
 check(exists('docs/06-phan-tich-index.html.1.js.md'), 'có tài liệu phân tích file tham chiếu');
+
+
+/* -------------------- 9. xuất bản một nút: mã hoá + chống soi + GitHub --- */
+
+console.log('\n[10] Xuất bản một nút: mã hoá + chống soi + GitHub');
+const publishText = read('assets/publish.js');
+const loaderText = read('assets/lua-loader.js');
+const publishTest = read('tests/run-publish.mjs');
+
+for (const fn of [
+  'buildWhitePage',
+  'encryptForGame',
+  'buildLuauBundle',
+  'buildJsBundle',
+  'buildPublishPlan',
+  'publishPlanToGithub',
+  'ensurePages',
+  'waitForPagesBuild',
+  'sanitizeDir',
+  'pagesBaseUrl',
+]) {
+  check(publishText.includes('export async function ' + fn) || publishText.includes('export function ' + fn), 'publish.js có ' + fn + '()');
+}
+check(publishText.includes('404: Not Found'), 'trang chống soi ghi 404: Not Found');
+check(!/<script/i.test(/export function buildWhitePage[\s\S]{0,900}/.exec(publishText)[0]), 'trang trắng KHÔNG có script');
+check(publishText.includes("name: 'AES-GCM'"), 'mã hoá bằng AES-GCM (WebCrypto)');
+check(publishText.includes('publicRepo'), 'xuất bản hỗ trợ repo công khai (Pages miễn phí)');
+check(publishText.includes('createIfMissing'), 'tự tạo dự án khi chưa có');
+check(publishText.includes('pagesBaseUrl'), 'có tính link GitHub Pages');
+
+check(loaderText.includes('aes_gcm_decrypt'), 'loader Luau có giải mã AES-256-GCM');
+check(loaderText.includes('b64decode'), 'loader Luau tự giải base64');
+check(loaderText.includes('HttpGet'), 'loader Luau tải khoá bằng game:HttpGet');
+check(!/[^\w]eval\(/.test(loaderText), 'loader Luau không dùng eval');
+
+const shipHtml = read('index.html');
+for (const id of [
+  'ghTabShip',
+  'ghPaneShip',
+  'ghShipEncrypt',
+  'ghShipCloak',
+  'ghShipWhiteText',
+  'ghShipTarget',
+  'ghShipRepo',
+  'ghShipDir',
+  'ghShipGo',
+  'ghShipScriptLink',
+  'ghShipPublicLink',
+  'ghShipKeyLink',
+  'ghShipCopyScript',
+  'ghShipOut',
+  'edShipCard',
+  'edShipEncrypt',
+  'edShipCloak',
+  'edShipGo',
+  'edShipLink',
+  'edShipCopy',
+]) {
+  check(shipHtml.includes('id="' + id + '"'), 'index.html có #' + id);
+}
+check(/data-gh="ship"/.test(shipHtml), 'hộp thoại GitHub có tab 5 · Mã hoá + chống soi');
+check(ghUiText.includes("import {") && ghUiText.includes('buildPublishPlan'), 'github-ui.js dùng chung publish.js');
+check(ghUiText.includes('async function shipToGithub'), 'github-ui.js có shipToGithub()');
+check(ghUiText.includes('function notifyShip') && ghUiText.includes("'aia:ship'"), 'kết quả xuất bản bắn về tab Lập trình');
+check(ghUiText.includes('Chép link script'), 'có nút chép link script');
+check(programText.includes('function shipOptions') && programText.includes("'ship'"), 'tab Lập trình mở thẳng tab xuất bản');
+check(programText.includes("addEventListener('aia:ship'"), 'tab Lập trình nhận link sau khi xuất bản');
+check(publishTest.includes('publishPlanToGithub') && publishTest.includes('404: Not Found'), 'có test cho luồng xuất bản');
+check(read('tests/run-lua.mjs').includes('fengari'), 'có test chạy loader Luau thật');
+check(!/https?:\/\/api\.github\.com/.test(shipHtml), 'không nhúng token/URL lạ vào HTML');
 
 /* ------------------------------------------------------------------ tổng --- */
 

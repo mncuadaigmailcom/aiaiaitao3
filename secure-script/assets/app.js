@@ -1566,8 +1566,8 @@ const uiBridge = {
     globalThis.AIA_EDITOR && typeof globalThis.AIA_EDITOR.content === 'function'
       ? globalThis.AIA_EDITOR.content()
       : { content: '', name: 'script.js' },
-  openGithub: (payload) => {
-    if (globalThis.AIA_GH) globalThis.AIA_GH.open('new', payload || null);
+  openGithub: (payload, tab) => {
+    if (globalThis.AIA_GH) globalThis.AIA_GH.open(tab || (payload && payload.ship ? 'ship' : 'new'), payload || null);
     else toast('Chưa nạp được hộp thoại GitHub.', 'bad');
   },
 };

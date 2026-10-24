@@ -212,7 +212,7 @@ Tệp `.html` phải nằm cạnh `aia.key.js` (hoặc sửa `keyUrl` trong mã 
 
 ## 3e. Đăng / sửa script trên GitHub
 
-Nút **GitHub** ở góc trên bên phải mở hộp thoại 4 tab:
+Nút **GitHub** ở góc trên bên phải mở hộp thoại 5 tab (tab 5 = xuất bản một nút):
 
 1. **API key** — dán *Personal Access Token* (fine-grained: `Contents: Read and write`,
    và `Administration: Read and write` nếu muốn tạo dự án). Bấm **Kiểm tra token** để xem
@@ -229,6 +229,36 @@ Nút **GitHub** ở góc trên bên phải mở hộp thoại 4 tab:
 
 Giới hạn của GitHub contents API: mỗi tệp ≤ **5 MB** (web chặn trước khi gọi), và
 `/user/repos` chỉ trả tối đa 100 dự án mỗi lần tải.
+
+## 3f. Mã hoá + chống soi + GitHub trong MỘT nút
+
+Đây là cách nhanh nhất để có một link script dùng được trong game mà người khác không đọc được code.
+
+1. Mở tab **Lập trình**, dán code Luau/Lua (hoặc JavaScript nếu chạy trên web).
+2. Ở cột phải, thẻ **Mã hoá + chống soi (một nút)**: để nguyên cả hai ô
+   ☑ *Mã hoá code* và ☑ *Chống soi (trang trắng 404)*.
+3. Bấm **Đưa lên GitHub**. Nếu chưa có API key, hộp thoại tự mở tab 1 để dán token
+   (token cần quyền *Contents*, *Pages*, *Administration*).
+4. Lần đầu: nhập **tên dự án** (ví dụ `game-hub`). Trang tự tạo repo công khai,
+   bật GitHub Pages, ghi 3 tệp rồi hiện link.
+5. Chờ dòng trạng thái báo **Pages đã build xong** (thường 30–90 giây), rồi bấm
+   **Chép link script** — đó là link dán vào game (Roblox: `loadstring(game:HttpGet(LINK))()`).
+6. Người khác mở link công khai (`https://<tên>.github.io/<repo>/s/`) chỉ thấy trang
+   trắng `404: Not Found`. Link script `…/l-<id>.lua` mới là thứ chạy được.
+
+Chi tiết trong hộp thoại **GitHub → tab 5 · Mã hoá + chống soi**:
+
+| Ô | Tác dụng |
+| --- | --- |
+| Mã hoá code | Bọc code bằng AES-256-GCM; tắt thì đẩy nguyên tệp (chỉ còn chống soi) |
+| Chống soi | Sinh `index.html` trắng 404; tắt thì không có link công khai |
+| Hiện chữ 404 | Bật/tắt đúng dòng `404: Not Found` trên trang trắng |
+| Game Roblox / Web | Sinh loader Lua (`.lua`) hoặc key script + snippet JS |
+| Tên dự án / thư mục | Repo GitHub và thư mục con (mặc định `s`) |
+| Dự án công khai | Bắt buộc để GitHub Pages miễn phí phục vụ được |
+
+Đẩy lại lần sau **không tạo repo mới** và **link không đổi** — chỉ nội dung được cập nhật,
+nên link đã phát cho người khác vẫn dùng tiếp.
 
 ## 4. Giải mã trên web
 
