@@ -165,7 +165,14 @@ Tab **Lập trình** là chỗ soạn/sửa code trước khi mã hoá:
 | **Kích thước tệp** | Thanh thống kê dưới khung code: **B / KB / MB / GB**, số dòng, ngôn ngữ, số ký tự, cỡ chữ |
 | **Tìm lỗi** | Panel bên phải: lỗi (đỏ) và cảnh báo (vàng); **bấm vào là nhảy tới đúng dòng**. Tự kiểm tra sau khi gõ ~0,4 giây, hoặc **Ctrl Enter** |
 | **Chia đôi màn hình** | Ô chọn: **Chia đôi: code \| lỗi** · **Chỉ code** · **Chỉ lỗi** |
-| **Nạp / tải / chép** | **Nạp tệp** (≤ 64 MB), **Tải tệp**, **Chép**, **xoá trắng** |
+| **Nhiều tệp** | Thanh tab phía trên: **＋ Tệp mới**, bấm **×** để đóng, **bấm đúp vào tên trên tab** (hoặc sửa ô tên) để đổi tên. Tối đa **12 tệp**, mỗi tệp ≤ 4 M ký tự; tên trùng tự thành `script-2.js` |
+| **Tìm & thay** | **Ctrl F** (hoặc nút **Tìm**) mở thanh tìm: đếm `1/12`, ↑ ↓, phân biệt hoa/thường, **Thay 1**, **Thay tất cả**, **Esc** để đóng |
+| **Định dạng** | **Shift Alt F** hoặc nút **Định dạng**: JS/TS, Lua/Luau, Python, JSON (thụt 2 dấu cách) |
+| **Chạy thử + Console** | **Ctrl Shift Enter** hoặc nút **Chạy**: code chạy trong **Web Worker** (không treo trang, không chạm DOM), log/warn/error hiện ở panel **Console** (tối đa 1.500 dòng) cùng **Dừng**, **Chạy lại**, **Xoá log** |
+| **Giao diện màu** | Ô **Màu**: mặc định, **Dracula**, **Monokai**, **Sáng** — nhớ lựa chọn cho lần sau |
+| **Lưu dự án (5 ô)** | Nút **Lưu dự án** (hoặc **Ctrl S**): đặt tên, lưu tối đa **5 bản**; mỗi bản có **Mở**, **Ghi đè**, **Đổi tên**, **Tải ZIP**, **Xoá**. Nháp hiện tại tự lưu sau ~0,7 giây, thanh dưới hiện “đã lưu · HH:MM” |
+| **Tải ZIP** | Nút **ZIP** gói toàn bộ tệp đang mở thành một tệp `.zip` |
+| **Nạp / tải / chép** | **Nạp tệp** (≤ 64 MB, chọn được nhiều tệp), **Tải tệp**, **Chép**, **Đặt lại** (xoá trắng về 1 tệp) |
 | **Mã hoá code này** | Đưa nguyên code sang tab **Mã hoá** và mã hoá ngay (giữ tên tệp) |
 | **Đăng lên GitHub** | Mở hộp thoại GitHub ở tab “Mã nguồn mới” |
 

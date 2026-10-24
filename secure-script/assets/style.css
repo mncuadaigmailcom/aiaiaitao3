@@ -404,3 +404,82 @@ select.mini {
   .tabs.sub { flex-wrap: wrap; }
   .tabs.sub button { flex: 1 1 auto; }
 }
+
+/* ============================================ LẬP TRÌNH: tệp, tìm, console --- */
+
+.ed-filebar { display: flex; align-items: center; gap: 6px; margin: -2px 0 10px; flex-wrap: wrap; }
+.ed-tabs { display: flex; gap: 4px; overflow-x: auto; max-width: 100%; padding-bottom: 2px; flex: 1 1 auto; }
+.ed-tab {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 6px 5px 10px; border-radius: 8px 8px 0 0;
+  background: #0a1424; border: 1px solid var(--line); border-bottom-color: transparent;
+  color: var(--muted); font-size: 12.5px; cursor: pointer; white-space: nowrap; user-select: none;
+}
+.ed-tab:hover { color: var(--text); border-color: var(--line-2); }
+.ed-tab.active { background: #101e33; color: var(--text); border-color: var(--line-2); }
+.ed-tab-name { font-family: var(--mono); }
+.ed-tab-x {
+  border: 0; background: transparent; color: var(--dim); padding: 0 4px;
+  font-size: 14px; line-height: 1; border-radius: 5px; cursor: pointer;
+}
+.ed-tab-x:hover { background: #2a1620; color: var(--bad); }
+#edFileCount { margin-left: auto; }
+
+.ed-tools { gap: 6px; }
+.ed-tools .muted { margin-left: auto; }
+
+.ed-find {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  margin: 0 0 10px; padding: 8px 10px; border: 1px solid var(--line-2);
+  border-radius: 10px; background: #0a1524;
+}
+.ed-find input[type="text"] { width: auto; flex: 1 1 180px; min-width: 140px; padding: 7px 10px; font-size: 13px; }
+.ed-find .check { font-size: 12px; }
+#edFindCount { font-family: var(--mono); min-width: 46px; }
+
+.ed-console {
+  margin-top: 12px; border: 1px solid var(--line-2); border-radius: 12px;
+  background: #060d18; overflow: hidden; display: flex; flex-direction: column;
+}
+.ed-console-head { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-bottom: 1px solid var(--line); background: #08111d; }
+.ed-console-out {
+  font-family: var(--mono); font-size: 12px; line-height: 1.55;
+  padding: 8px 10px; max-height: 260px; min-height: 80px; overflow: auto;
+  white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.ed-log { color: #c7d7ec; }
+.ed-log.warn { color: var(--warn); }
+.ed-log.error { color: var(--bad); }
+.ed-log.sys { color: var(--dim); }
+
+/* -------------------------------------------------------------- ô lưu --- */
+
+.slots { display: grid; gap: 8px; margin-top: 12px; max-height: 46vh; overflow: auto; }
+.slot { border: 1px solid var(--line); border-radius: 10px; background: #0a1524; padding: 10px 12px; display: grid; gap: 8px; }
+.slot-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.slot-head b { font-size: 13.5px; }
+.slot .row.tight { margin: 0; }
+button.danger { color: #fecdd3; border-color: #7f1d1d; background: #1d0f14; }
+
+/* ---------------------------------------------------- giao diện soạn thảo --- */
+
+.ed-shell.theme-dark { background: #060c16; }
+.ed-shell.theme-dark .ed-gutter { background: #08111d; }
+.ed-shell.theme-dracula { background: #282a36; }
+.ed-shell.theme-dracula .ed-ta { color: #f8f8f2; caret-color: #f8f8f0; }
+.ed-shell.theme-dracula .ed-gutter { background: #21222c; color: #6272a4; border-right-color: #44475a; }
+.ed-shell.theme-monokai { background: #272822; }
+.ed-shell.theme-monokai .ed-ta { color: #f8f8f2; caret-color: #f8f8f0; }
+.ed-shell.theme-monokai .ed-gutter { background: #1e1f1c; color: #75715e; border-right-color: #3b3c35; }
+.ed-shell.theme-light { background: #fbfcfe; }
+.ed-shell.theme-light .ed-ta { color: #16202e; caret-color: #1d4ed8; }
+.ed-shell.theme-light .ed-ta::placeholder { color: #8496ad; }
+.ed-shell.theme-light .ed-gutter { background: #eef2f7; color: #7b8aa0; border-right-color: #d7dfe9; }
+
+.ed-shell[class*="theme-"] { border-color: var(--line-2); }
+
+@media (max-width: 780px) {
+  .ed-find input[type="text"] { flex: 1 1 100%; }
+  .ed-filebar { align-items: flex-start; }
+  #edFileCount { margin-left: 0; }
+}

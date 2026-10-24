@@ -375,21 +375,29 @@
       <div>
         <h1>Lập trình &amp; kiểm tra code</h1>
         <p>
-          Trình soạn thảo có <b>số dòng</b>, <b>phóng to / thu nhỏ</b>, <b>kích thước tệp (B · KB · MB · GB)</b>,
-          <b>tìm lỗi code</b> và chế độ <b>chia đôi màn hình</b> (code | lỗi). Soạn xong có thể
+          Trình soạn thảo nhiều tệp: <b>số dòng</b>, <b>phóng to / thu nhỏ</b>, <b>kích thước tệp (B · KB · MB · GB)</b>,
+          <b>tìm &amp; thay thế</b>, <b>định dạng code</b>, <b>chạy thử + console</b>, <b>tìm lỗi code</b>,
+          chế độ <b>chia đôi màn hình</b> (code | lỗi) và <b>5 ô lưu dự án</b>. Soạn xong có thể
           <b>mã hoá ngay</b>, tạo <b>trang trắng chống soi</b>, hoặc <b>đăng lên GitHub</b>.
         </p>
       </div>
       <div class="pill-row">
-        <span class="pill">số dòng + tô sáng lỗi</span>
-        <span class="pill">zoom 10–28px</span>
-        <span class="pill">chia đôi / toàn màn hình</span>
+        <span class="pill">nhiều tệp + số dòng</span>
+        <span class="pill">tìm/thay · định dạng · chạy thử</span>
+        <span class="pill">zoom 10–28px · 4 giao diện màu</span>
+        <span class="pill">5 ô lưu dự án</span>
       </div>
     </div>
 
     <div class="cols">
       <div class="col-main">
         <div class="card">
+          <div class="ed-filebar">
+            <div class="ed-tabs" id="edTabs" role="tablist" aria-label="Các tệp đang mở"></div>
+            <button class="ghost small" id="edNewFile" type="button" title="Thêm tệp mới">+ Tệp</button>
+            <span class="muted small" id="edFileCount"></span>
+          </div>
+
           <div class="card-head">
             <h2>Code</h2>
             <div class="row tight" style="margin:0">
@@ -406,12 +414,42 @@
           <div class="row tight" style="margin:0 0 10px">
             <input type="text" id="edName" value="script.js" spellcheck="false" style="max-width:230px" aria-label="Tên tệp">
             <button class="ghost small" id="edLoad" type="button">Nạp tệp</button>
-            <input type="file" id="edFile" hidden>
+            <input type="file" id="edFile" hidden multiple>
             <span class="spacer"></span>
             <button class="ghost small" id="edZoomOut" type="button" title="Thu nhỏ chữ (Ctrl −)">A−</button>
             <span class="muted small" id="edZoomLabel">100%</span>
             <button class="ghost small" id="edZoomIn" type="button" title="Phóng to chữ (Ctrl +)">A+</button>
             <button class="ghost small" id="edZoomReset" type="button">100%</button>
+          </div>
+
+          <div class="row tight ed-tools" style="margin:0 0 10px">
+            <button class="ghost small" id="edFindToggle" type="button" title="Tìm &amp; thay thế (Ctrl+F)">Tìm</button>
+            <button class="ghost small" id="edFormatBtn" type="button" title="Định dạng code (Shift+Alt+F)">Định dạng</button>
+            <button class="primary small" id="edRunBtn" type="button" title="Chạy trong Web Worker (Ctrl+Shift+Enter)">Chạy ▶</button>
+            <button class="ghost small" id="edConsoleToggle" type="button" title="Hiện/ẩn console">Console</button>
+            <select id="edTheme" class="mini" title="Giao diện màu của trình soạn thảo">
+              <option value="dark" selected>Màu: mặc định</option>
+              <option value="dracula">Màu: Dracula</option>
+              <option value="monokai">Màu: Monokai</option>
+              <option value="light">Màu: sáng</option>
+            </select>
+            <span class="spacer"></span>
+            <button class="ghost small" id="edSaveProject" type="button" title="Lưu / mở dự án trong trình duyệt">Lưu dự án</button>
+            <button class="ghost small" id="edZipBtn" type="button" title="Tải tất cả tệp thành .zip">Tải ZIP</button>
+            <button class="ghost small" id="edResetBtn" type="button">Làm mới</button>
+            <span class="muted small" id="edSavedHint">tự lưu trong trình duyệt</span>
+          </div>
+
+          <div class="ed-find" id="edFind" hidden>
+            <input type="text" id="edFindInput" spellcheck="false" placeholder="Tìm trong tệp… (Enter = tiếp)" aria-label="Tìm">
+            <input type="text" id="edReplaceInput" spellcheck="false" placeholder="Thay bằng… (Enter = thay)" aria-label="Thay bằng">
+            <label class="check" title="Phân biệt hoa/thường"><input type="checkbox" id="edFindCase"> Aa</label>
+            <span class="muted small" id="edFindCount">0/0</span>
+            <button class="ghost small" id="edFindPrev" type="button" title="Kết quả trước">↑</button>
+            <button class="ghost small" id="edFindNext" type="button" title="Kết quả tiếp">↓</button>
+            <button class="ghost small" id="edReplaceOne" type="button">Thay</button>
+            <button class="ghost small" id="edReplaceAll" type="button">Thay tất cả</button>
+            <button class="link small" id="edFindClose" type="button">đóng</button>
           </div>
 
           <div class="ed-split" id="edSplit">
@@ -431,6 +469,19 @@
                 <p class="help">Bấm <b>Kiểm tra</b> để dò lỗi cú pháp, ngoặc lệch, chuỗi chưa đóng…</p>
               </div>
             </div>
+          </div>
+
+          <div class="ed-console" id="edConsole" hidden>
+            <div class="ed-console-head">
+              <b>Console</b>
+              <span class="muted small" id="edConsoleStatus">chưa chạy</span>
+              <span class="spacer"></span>
+              <button class="ghost small" id="edRunAgain" type="button">Chạy lại</button>
+              <button class="ghost small" id="edStopBtn" type="button">Dừng</button>
+              <button class="ghost small" id="edConsoleClear" type="button">Xoá log</button>
+              <button class="link small" id="edConsoleClose" type="button">đóng</button>
+            </div>
+            <div class="ed-console-out" id="edConsoleOut" role="log" aria-live="polite"></div>
           </div>
 
           <div class="row">
@@ -784,8 +835,9 @@
           <li><code>node tests/run-node.mjs</code> — 244 kiểm thử: mã hoá/giải mã, cắt khối, sửa bit, sai mật khẩu,
             sai link key, snippet, <b>mã hoá link</b>, <b>nhận diện ngôn ngữ</b>, <b>trang trắng</b>, giới hạn dung lượng.</li>
           <li><code>node tests/run-editor.mjs</code> (75) · <code>node tests/run-github.mjs</code> (94, GitHub giả) ·
-            <code>node tools/check-static.mjs</code> (155) · <code>node tests/run-dom.mjs</code> (186) ·
-            <code>node tests/stress.mjs --quick</code> (80) — tổng <b>834 điểm</b> kiểm tra.</li>
+            <code>node tests/run-ide.mjs</code> (104, lõi tab Lập trình) · <code>node tools/check-static.mjs</code> (205) ·
+            <code>node tests/run-dom.mjs</code> (243) · <code>node tests/stress.mjs --quick</code> (80)
+            — tổng <b>1045 điểm</b> kiểm tra.</li>
           <li><code>node tools/cli.mjs --help</code> — dùng ngay trên máy.</li>
         </ul>
       </article>
@@ -800,6 +852,24 @@
   <div class="muted small">Nếu trang này mở bằng <code>file://</code>, hãy chạy <code>python3 -m http.server</code> trong thư mục dự án rồi mở <code>http://localhost:8000</code>.</div>
 </footer>
 
+
+<!-- Lưu dự án trong trình duyệt -->
+<div class="modal" id="edSlotsModal" hidden>
+  <div class="modal-card wide" role="dialog" aria-modal="true" aria-labelledby="edSlotsTitle">
+    <div class="card-head">
+      <h2 id="edSlotsTitle">Lưu dự án <span class="muted small" id="edSlotCount">0/5</span></h2>
+      <button class="link small" id="edSlotsClose" type="button">đóng</button>
+    </div>
+    <p class="help">Lưu tối đa <b>5 bản</b> ngay trong trình duyệt này (localStorage) — không gửi lên máy chủ nào.
+      Muốn giữ lâu dài hoặc chuyển máy, hãy dùng <b>Tải ZIP</b>.</p>
+    <div class="row tight" style="margin-top:10px">
+      <input type="text" id="edSlotName" spellcheck="false" placeholder="Tên bản lưu" style="max-width:260px">
+      <button class="primary small" id="edSlotSave" type="button">Lưu bản mới</button>
+    </div>
+    <p class="help" id="edSlotStatus">—</p>
+    <div class="slots" id="edSlotsList"></div>
+  </div>
+</div>
 
 <!-- Hộp thoại GitHub: API key · dự án mới · sửa file · kết quả -->
 <div class="modal" id="ghModal" hidden>
