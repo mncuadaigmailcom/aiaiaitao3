@@ -1262,6 +1262,18 @@ console.log('\n[9] Xuất bản một nút: mã hoá + chống soi + GitHub');
 
     const scriptLink = $('ghShipScriptLink').value;
     check(/^https:\/\/tester\.github\.io\/game-hub\/s\/l-[0-9a-f]{8}\.lua$/.test(scriptLink), 'link script đúng dạng', scriptLink);
+    // Dán mỗi URL trần vào Delta thì executor không chạy gì ⇒ phải có sẵn dòng lệnh đầy đủ
+    check(
+      $('ghShipSnippet').value === 'loadstring(game:HttpGet("' + scriptLink + '"))()',
+      'có dòng lệnh dán vào Delta/executor',
+      $('ghShipSnippet').value,
+    );
+    check(!!$('ghShipCopySnippet'), 'có nút chép dòng lệnh');
+    check(
+      globalThis.AIA_GH.buildRunCommand('https://x/y.lua') === 'loadstring(game:HttpGet("https://x/y.lua"))()',
+      'buildRunCommand() tạo đúng cú pháp loadstring',
+      globalThis.AIA_GH.buildRunCommand('https://x/y.lua'),
+    );
     check(pages.has('tester/game-hub'), 'đã bật GitHub Pages cho dự án');
     check(calls.some((c) => c.method === 'POST' && c.url.endsWith('/user/repos')), 'tự tạo dự án trên GitHub');
     const repoFiles = [...files.keys()].filter((k) => k.startsWith('tester/game-hub/')).map((k) => k.split('/').slice(2).join('/'));

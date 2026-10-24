@@ -721,12 +721,20 @@ function notifyShip(detail) {
   }
 }
 
+/** Dòng lệnh sẵn để dán vào Delta/executor: dán mỗi URL trần thì executor không chạy gì. */
+export function buildRunCommand(url) {
+  const u = String(url || '').trim().replace(/"/g, '%22');
+  if (!u) return '';
+  return 'loadstring(game:HttpGet("' + u + '"))()';
+}
+
 function renderShip(res) {
   state.ship = res;
   const out = $('ghShipOut');
   if (out) out.hidden = false;
   const links = res.links || {};
   if ($('ghShipScriptLink')) $('ghShipScriptLink').value = links.scriptUrl || '';
+  if ($('ghShipSnippet')) $('ghShipSnippet').value = buildRunCommand(links.scriptUrl);
   if ($('ghShipPublicLink')) $('ghShipPublicLink').value = links.publicUrl || '(chưa bật chống soi)';
   if ($('ghShipKeyLink')) $('ghShipKeyLink').value = links.keyUrl || '(không dùng khoá)';
   if ($('ghShipOpen')) $('ghShipOpen').href = links.scriptUrl || '#';
@@ -953,6 +961,13 @@ export function initGithub(bridge) {
       copy(v, 'Đã chép link script — dán vào game là chạy.');
     });
   }
+  if ($('ghShipCopySnippet')) {
+    $('ghShipCopySnippet').addEventListener('click', () => {
+      const v = $('ghShipSnippet') && $('ghShipSnippet').value;
+      if (!v) return toast('Chưa có dòng lệnh — xuất bản trước.', 'warn');
+      copy(v, 'Đã chép — dán vào Delta/executor là chạy.');
+    });
+  }
   if ($('ghShipCopyPublic')) {
     $('ghShipCopyPublic').addEventListener('click', () => {
       const v = $('ghShipPublicLink') && $('ghShipPublicLink').value;
@@ -994,6 +1009,7 @@ export function initGithub(bridge) {
     publish,
     showFileLinks,
     buildFileLinks,
+    buildRunCommand,
     autoLoadFiles,
     ship: shipToGithub,
     checkShipPages,

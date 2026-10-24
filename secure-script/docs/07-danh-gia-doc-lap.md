@@ -85,12 +85,12 @@ Môi trường: Node v22.22.3, `npm i jsdom fengari` (chỉ để chạy test DO
 | `tests/run-ide.mjs` | **104 / 104** | ~1 s |
 | `tests/run-publish.mjs` | **103 / 103** | ~2 s |
 | `tests/run-js.mjs` | **53 / 53** | ~1 s |
-| `tools/check-static.mjs` | **298 / 298** | ~1 s |
-| `tests/run-dom.mjs` (jsdom) | **320 / 320** | ~6,5 s |
-| `tests/run-lua.mjs` (fengari, loader Luau thật) | **31 / 31** | ~5 s |
+| `tools/check-static.mjs` | **308 / 308** | ~1 s |
+| `tests/run-dom.mjs` (jsdom) | **323 / 323** | ~6,5 s |
+| `tests/run-lua.mjs` (fengari, loader Luau thật) | **46 / 46** | ~5 s |
 | `tests/stress.mjs --quick` | **80 / 80** | 15,4 s |
 
-Tổng: **1.409 / 1.409** trong môi trường này (244+75+101+104+103+53+298+320+31+80).
+Tổng: **1.437 / 1.437** trong môi trường này (244+75+101+104+103+53+308+323+46+80).
 
 > Ghi chú cập nhật 2026-10-24: báo cáo ban đầu ghi 1.371/1.372 vì một test DOM trượt do
 > lỗi cascade của `jsdom` (xem NOTE-2). Test đó đã được xử lý bằng cách đặt luật CSS
@@ -107,7 +107,7 @@ Tôi kiểm chứng riêng:
 - `el.matches('.ed-split.mode-code #edErrorPane')` → **true**
 - Nhưng `jsdom@24.1.3` lại trả `display: flex`, vì nó áp luật sau `.ed-errors, .ed-side { display: flex }` **đè lên** luật có ID (0-1-2-0 đáng lẽ phải thắng 0-0-1-0). Đây là lỗi cascade của jsdom, không phải của trang.
 
-⇒ Trên trình duyệt thật panel vẫn ẩn đúng. **Đã xử lý trong lần sửa này**: chuyển hai luật ẩn panel xuống sau `.ed-side` trong `assets/style.css`, nên jsdom cũng áp đúng và bộ DOM test giờ **320/320**.
+⇒ Trên trình duyệt thật panel vẫn ẩn đúng. **Đã xử lý trong lần sửa này**: chuyển hai luật ẩn panel xuống sau `.ed-side` trong `assets/style.css`, nên jsdom cũng áp đúng và bộ DOM test giờ **323/323**.
 
 ### Hiệu năng tôi đo độc lập (không dùng script của dự án)
 
@@ -179,6 +179,33 @@ async function unwrapFileKey(wrapKey, keyWrap, aad, legacyAad = null) {
 // trong decryptStream: legacyAad = utf8(JSON.stringify(['AIA1-WRAP', meta.id,
 //   meta.time.raw, meta.time.unixMs, meta.keyUrl]))   // 5 phần tử, chỉ dùng khi meta.headerHash rỗng
 ```
+
+### BUG-2 · Loader Luau không chạy trong game thật: đọc `game` qua `_G` (mức: cao — ĐÃ SỬA)
+
+**Hiện tượng người dùng gặp:** mã hoá code → xuất bản lên GitHub → copy link script → dán vào
+Delta/executor → **không có gì xảy ra**.
+
+**Nguyên nhân (đã xác minh):** loader sinh bởi `buildLuaLoader` lấy biến toàn cục bằng
+`pcall(function() return _G[name] end)`. Trong Luau của Roblox, **`_G` không phải môi trường
+toàn cục** — nó chỉ là bảng chia sẻ giữa các script (devforum: “Luau does not store global
+variables in global _G table… use `getfenv()` instead”). Vì vậy `_G['game']` là `nil`:
+loader không tìm được `game:HttpGet`, cũng không thấy `request`/`syn`, rồi `error(...)`
+ngay từ bước tải khoá. Executor thường chỉ hiện một dòng lỗi nhỏ nên người dùng thấy như
+“script không chạy”.
+
+**Vì sao test cũ không bắt được:** `tests/run-lua.mjs` chạy loader trong **fengari**
+(Lua 5.3) — ở đó `_G` **chính là** bảng toàn cục, nên `_G.game` tồn tại và 31/31 test xanh.
+Đây là bài học: mock phải mô phỏng cả *cơ chế sandbox* của nền tảng, không chỉ API.
+
+**Đã sửa:** loader mới đọc theo thứ tự `getgenv()` → `getfenv(0)` → `_G` **và** dò trực tiếp
+identifier (`game`, `request`, `http_request`, `syn.request`, `http.request`, `fluxus.request`,
+`HttpGet`, `loadstring`, `load`); mỗi lỗi được in bằng `warn` **và** `print` kèm URL;
+phát hiện hồi quy khi link trả về HTML (dán nhầm “link công khai”); kiểm tra tệp khoá đúng
+32 byte. Thêm mục test **[5]** chạy loader trong môi trường “kiểu Roblox” (`_G` rỗng,
+tách khỏi env) cùng 4 kịch bản executor khác — 46/46 đạt.
+
+**Bài học phụ:** dán **URL trần** (`https://…/l-<id>.lua`) vào executor thì không có gì chạy —
+phải dán `loadstring(game:HttpGet("…"))()`. UI nay sinh sẵn dòng lệnh này.
 
 ### RISK-1 · Code sau giải mã chạy cùng origin với trang (mức: cao)
 
@@ -266,7 +293,7 @@ Ngoài ra, về bản chất đây là công cụ **mã hoá + loader hai mục 
 1. **Không có backend, không upload** — tôi kiểm tra toàn bộ `fetch` trong `assets/*.js`: chỉ `api.github.com` (do người dùng chủ động) và tải tệp `.aia`/key. Không telemetry, không CDN ngoài.
 2. **Mật mã đúng chuẩn**, không tự chế: WebCrypto, AES-GCM, PBKDF2 600k, salt/IV ngẫu nhiên, AAD đầy đủ, `kid` để báo lỗi chính xác.
 3. **Toàn vẹn header** (`headerHash`) — kể cả sửa "note" cũng bị phát hiện. Nhiều công cụ thương mại không làm việc này.
-4. **Loader Luau thật sự là AES-GCM thuần Luau** (đối chiếu với WebCrypto trong `tests/run-lua.mjs`, 31/31 đạt trên fengari). Đây là phần khó và hiếm.
+4. **Loader Luau thật sự là AES-GCM thuần Luau** (đối chiếu với WebCrypto trong `tests/run-lua.mjs`, 46/46 đạt trên fengari). Đây là phần khó và hiếm.
 5. **Bộ test rộng và chạy lại được**, gồm cả test "GitHub giả" (không gọi mạng thật) và stress test.
 6. **Tài liệu trung thực**: `docs/02` liệt kê đúng điểm yếu bản chất, không hứa "không thể bẻ".
 7. **Escape HTML đúng chỗ**: dữ liệu từ header và từ API GitHub được render qua `escapeHtml` hoặc `textContent` (tôi kiểm `assets/github-ui.js` — dùng `textContent` cho option); khung xem trước chạy trong iframe sandbox không `allow-same-origin`.

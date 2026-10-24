@@ -50,7 +50,12 @@ Kiểm thử DOM  (tests/run-dom.mjs)     : 307 đạt · 0 lỗi
 Kiểm thử cường độ cao (stress.mjs --quick): 80/80 đạt · 0 lỗi · ~18 s
 ```
 
-Tổng: **1409 điểm kiểm tra đạt** (244 + 75 + 101 + 104 + 53 + 103 + 31 + 298 + 320 + 80).
+Tổng: **1437 điểm kiểm tra đạt** (244 + 75 + 101 + 104 + 53 + 103 + 46 + 308 + 323 + 80).
+
+`tests/run-lua.mjs` mục **[5]** chạy loader trong môi trường **giống Roblox/executor thật**:
+`_G` là bảng rỗng (đúng như Luau sandbox), `game:HttpGet` bị chặn nhưng có `request` (UNC),
+chỉ có `getgenv().request`, thiếu `loadstring`, link trả về HTML, tệp khoá sai 32 byte,
+và trường hợp mất mạng — tất cả đều phải chạy hoặc báo lỗi rõ ràng kèm URL.
 
 ## 3. Chi tiết từng nhóm
 

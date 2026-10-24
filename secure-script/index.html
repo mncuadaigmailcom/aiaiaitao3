@@ -893,7 +893,7 @@
             <code>node tests/run-publish.mjs</code> (103, gói mã hoá + chống soi + đẩy GitHub) ·
             <code>node tests/run-lua.mjs</code> (31, chạy thật loader Luau trong máy ảo Lua) ·
             <code>node tools/check-static.mjs</code> (281) · <code>node tests/run-dom.mjs</code> (307) ·
-            <code>node tests/stress.mjs --quick</code> (80) — tổng <b>1409 điểm</b> kiểm tra.</li>
+            <code>node tests/stress.mjs --quick</code> (80) — tổng <b>1437 điểm</b> kiểm tra.</li>
           <li><code>node tools/cli.mjs --help</code> — dùng ngay trên máy.</li>
         </ul>
       </article>
@@ -1098,6 +1098,15 @@
         <div class="row tight" style="margin-top:8px">
           <button class="primary small" id="ghShipCopyScript" type="button">Chép link script</button>
           <a class="ghost small" id="ghShipOpen" href="#" target="_blank" rel="noopener noreferrer">Mở thử link</a>
+        </div>
+        <div class="field" style="margin-top:8px">
+          <label for="ghShipSnippet">Dán vào Delta / executor — một dòng là chạy</label>
+          <input type="text" id="ghShipSnippet" readonly spellcheck="false"
+                 placeholder="loadstring(game:HttpGet(&quot;…&quot;))()">
+        </div>
+        <div class="row tight" style="margin-top:8px">
+          <button class="ghost small" id="ghShipCopySnippet" type="button">Chép dòng lệnh</button>
+          <span class="muted small">Dán <b>cả dòng lệnh</b>, đừng dán mỗi URL — dán URL trần thì executor không chạy gì.</span>
         </div>
         <div class="field" style="margin-top:8px">
           <label for="ghShipPublicLink">Link công khai (người khác chỉ thấy 404)</label>
