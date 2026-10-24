@@ -223,6 +223,12 @@ Ngoài tệp `.aia`, trang sinh thêm một **đoạn code tự chứa**:
 })();
 ```
 
+- Có **2 kiểu hiển thị**:
+  - `labeled` — có chú thích đầu đoạn (tên tệp, thời gian, link key, cách dùng);
+  - `stealth` (**mặc định trên web**) — không chú thích, không lộ link/tên API, tên biến
+    ngẫu nhiên mỗi lần sinh, mọi chuỗi (bản mã, link, mật khẩu, tên tệp) đều **cắt nhỏ
+    thành mảng Base64** rồi ghép lúc chạy. Chỉ là **làm khó đọc**, không phải mã hoá —
+    vẫn giải ngược được nếu ai đó cố tình.
 - Người nhận **chỉ cần chép và dán** — không cần tải tệp nào khác.
 - Kích thước ≈ **1,34 lần** tệp `.aia` (Base64), nên trang chỉ sinh snippet cho tệp ≤ **1,5 MiB**;
   lớn hơn thì dùng tệp `.aia`.

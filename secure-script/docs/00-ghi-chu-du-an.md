@@ -86,9 +86,9 @@ secure-script/
 │   ├── cli.mjs              # mã hoá/giải mã bằng dòng lệnh
 │   └── check-static.mjs     # kiểm tra id/đường dẫn trong HTML
 ├── aia.key.js               # KEY SCRIPT DÙNG CHUNG (1 link cho mọi lần mã hoá)
-├── tests/run-dom.mjs        # 65 kiểm thử giao diện (jsdom)
-├── tests/run-node.mjs       # 127 kiểm thử lõi
-├── tests/stress.mjs         # 45 bài kiểm thử cường độ cao
+├── tests/run-dom.mjs        # 71 kiểm thử giao diện (jsdom)
+├── tests/run-node.mjs       # 135 kiểm thử lõi
+├── tests/stress.mjs         # 52 bài kiểm thử cường độ cao
 ├── examples/                # script mẫu + gói demo
 ├── docs/                    # 6 tài liệu
 └── deploy/                  # pages.yml (mẫu workflow), netlify.toml, vercel.json
@@ -98,10 +98,10 @@ secure-script/
 
 Chạy `node tests/run-node.mjs` (Node 22, WebCrypto thật):
 
-- **127/127** kiểm thử lõi đạt, ~6,0 giây.
-- **65/65** kiểm thử giao diện trên DOM ả (jsdom) — gồm cả **gói demo phát hành kèm** —
-  **44/44** kiểm tra tĩnh, và **45/45** bài **kiểm thử cường độ cao**.
-  Tổng **281 điểm kiểm tra**.
+- **135/135** kiểm thử lõi đạt, ~7,4 giây.
+- **71/71** kiểm thử giao diện trên DOM ả (jsdom) — gồm cả **gói demo phát hành kèm** —
+  **44/44** kiểm tra tĩnh, và **52/52** bài **kiểm thử cường độ cao**.
+  Tổng **302 điểm kiểm tra**.
 - Vòng lặp đúng với khối 64 KiB / 256 KiB / 1 MiB; tệp rỗng; tệp chia hết khối.
 - Sai mật khẩu, sửa link key, sửa 1 bit, cắt tệp, ghép thêm, đảo khối, sai magic →
   đều bị chặn.

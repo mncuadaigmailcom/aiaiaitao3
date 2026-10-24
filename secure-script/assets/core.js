@@ -1412,7 +1412,13 @@ export function buildKeyScript(meta, opts = {}) {
  * @param {boolean} [p.askPassphrase] true = hỏi mật khẩu khi chạy
  * @param {boolean} [p.execute]      false = chỉ tải bản rõ thay vì chạy
  */
-export function buildRunSnippet({
+
+/**
+ * Bản "ẩn dấu vết": cùng chức năng nhưng KHÔNG có chú thích/tiêu đề, không lộ
+ * link key dạng chữ thường, tên biến ngẫu nhiên, mọi chuỗi đều cắt nhỏ + Base64.
+ * Lưu ý: đây chỉ là làm khó đọc, KHÔNG phải mã hoá — vẫn có thể khôi phục khi cần.
+ */
+export function buildRunSnippetStealth({
   meta,
   containerBytes,
   keyUrl = './aia.key.js',
@@ -1421,6 +1427,123 @@ export function buildRunSnippet({
   askPassphrase = false,
   execute = true,
 }) {
+  if (!(containerBytes instanceof Uint8Array)) throw new AIAError('BAD_INPUT', 'buildRunSnippet cần containerBytes dạng Uint8Array.');
+  const fileName = (meta && meta.file && meta.file.name) || 'script.js';
+  const isJs = /\.(m?js|cjs|ts|jsx)$/i.test(fileName);
+
+  const tag = bytesToHex(randomBytes(3));
+  const id = (name) => '_' + name + tag;
+  const N = {
+    data: id('a'), url: id('b'), src: id('c'), pass: id('d'), file: id('e'), exec: id('f'),
+    bytes: id('g'), stream: id('h'), glob: id('i'), load: id('j'), run: id('k'), save: id('l'),
+    slog: id('m'), text: id('n'),
+  };
+
+  const cut = (str, size) => (String(str).match(new RegExp('.{1,' + size + '}', 'g')) || []);
+  const b64 = bytesToBase64(containerBytes);
+  const dataChunks = cut(b64, 197);
+  const urlChunks = cut(bytesToBase64(utf8(keyUrl)), 53);
+  const srcChunks = keyScriptText ? cut(bytesToBase64(utf8(keyScriptText)), 197) : null;
+  const passB64 = passphrase ? bytesToBase64(utf8(passphrase)) : '';
+  const fileB64 = bytesToBase64(utf8(fileName));
+
+  return `(function () {
+  'use strict';
+  var ${N.data} = ${JSON.stringify(dataChunks)};
+  var ${N.url} = ${JSON.stringify(urlChunks)};
+  var ${N.src} = ${srcChunks ? JSON.stringify(srcChunks) : 'null'};
+  var ${N.pass} = ${askPassphrase ? 'null' : JSON.stringify(passB64)};
+  var ${N.file} = ${JSON.stringify(cut(fileB64, 41))};
+  var ${N.exec} = ${execute && isJs ? '1' : '0'};
+
+  function ${N.bytes}(s) {
+    var bin = atob(s), out = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+  function ${N.text}(s) {
+    return new TextDecoder().decode(${N.bytes}(s));
+  }
+  function ${N.stream}(u8) {
+    if (typeof ReadableStream !== 'function') return u8;
+    if (typeof Blob === 'function' && Blob.prototype && Blob.prototype.stream) return new Blob([u8]).stream();
+    return new ReadableStream({
+      start: function (c) { c.enqueue(u8); c.close(); },
+    });
+  }
+  function ${N.glob}(name) {
+    var api = globalThis[atob(name)];
+    return api && typeof api === 'object' ? api : null;
+  }
+  function ${N.slog}(msg) {
+    try { console.error(msg); } catch (e) {}
+  }
+  function ${N.load}() {
+    return new Promise(function (ok, no) {
+      var inline = ${N.src};
+      if (inline) {
+        try { (0, eval)(${N.text}(inline.join(''))); ok(); } catch (e) { no(e); }
+        return;
+      }
+      if (${N.glob}('QUlBX0tFWQ==')) { ok(); return; }
+      if (typeof document === 'undefined') { no(new Error('No DOM')); return; }
+      var s = document.createElement('script');
+      s.src = ${N.text}(${N.url}.join(''));
+      s.async = true;
+      s.onload = function () { ok(); };
+      s.onerror = function () { no(new Error('Load failed')); };
+      (document.head || document.documentElement).appendChild(s);
+    });
+  }
+  function ${N.save}(u8) {
+    if (typeof document === 'undefined') throw new Error('No DOM');
+    var blob = new Blob([u8], { type: 'application/octet-stream' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = ${N.text}(${N.file}.join(''));
+    document.body.appendChild(a);
+    a.click();
+    try { if (a.remove) a.remove(); } catch (e) {}
+    setTimeout(function () { try { URL.revokeObjectURL(a.href); } catch (e) {} }, 4000);
+  }
+  async function ${N.run}() {
+    var p = ${N.pass};
+    if (p === null) p = typeof prompt === 'function' ? (prompt('Key') || '') : '';
+    if (p) p = ${N.text}(p);
+    var u8 = ${N.bytes}(${N.data}.join(''));
+    var src = ${N.stream}(u8);
+    var plain = null;
+    var shared = ${N.glob}('QUlBX0tFWQ==');
+    if (shared && typeof shared.open === 'function') {
+      var res = await shared.open({ source: src, passphrase: p });
+      plain = res.bytes;
+    } else {
+      var local = ${N.glob}('QUlBX1VOTE9DSw==');
+      if (!local || typeof local.decrypt !== 'function') throw new Error('No API');
+      plain = await local.decrypt({ source: src, passphrase: p });
+    }
+    if (!${N.exec}) { ${N.save}(plain); return; }
+    (0, eval)(new TextDecoder().decode(plain));
+  }
+  ${N.load}().then(function () { return ${N.run}(); }).then(null, function (e) {
+    ${N.slog}(e && e.message ? e.message : String(e));
+  });
+})();
+`;
+}
+
+export function buildRunSnippet(opts = {}) {
+  // style: 'labeled' (có chú thích) | 'stealth' (ẩn dấu vết, khó nhận ra)
+  if (opts.style === 'stealth' || opts.stealth === true) return buildRunSnippetStealth(opts);
+  const {
+    meta,
+    containerBytes,
+    keyUrl = './aia.key.js',
+    keyScriptText = null,
+    passphrase = '',
+    askPassphrase = false,
+    execute = true,
+  } = opts;
   if (!(containerBytes instanceof Uint8Array)) throw new AIAError('BAD_INPUT', 'buildRunSnippet cần containerBytes dạng Uint8Array.');
   const fileName = (meta && meta.file && meta.file.name) || 'script.js';
   const isJs = /\.(m?js|cjs|ts|jsx)$/i.test(fileName);

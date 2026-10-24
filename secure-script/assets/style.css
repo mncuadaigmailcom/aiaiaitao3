@@ -280,3 +280,8 @@ pre.codeout {
 }
 .keylink-line a { text-decoration: none; display: inline-flex; align-items: center; }
 .seg:disabled { opacity: .45; cursor: not-allowed; }
+
+select.mini {
+  border: 1px solid var(--line); background: #0d1a2b; color: #a8bad2; border-radius: 8px;
+  padding: 5px 8px; font-size: 12px;
+}

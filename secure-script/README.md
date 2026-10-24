@@ -24,6 +24,7 @@ chạy ngay trong trình duyệt. Không máy chủ, không đăng ký, không t
 |---|---|
 | ⚡ **Dán là mã hoá** | Dán code hoặc thả tệp → tự mã hoá, không bấm thêm bước nào |
 | 📋 **Snippet chép là chạy** | Đoạn code tự chứa **link key + bản mã** — dán vào Console là chạy |
+| 🕶️ **Ẩn dấu vết** | Mặc định: không tiêu đề, giấu link/tên API trong Base64, tên biến ngẫu nhiên |
 | 🔗 **Link key rõ ràng** | Dòng "Link key script mở khoá" có URL đầy đủ + nút **Chép link** |
 | 🎚️ **3 kiểu bảo vệ** | Không mật khẩu · mật khẩu nhúng sẵn · mật khẩu hỏi khi chạy |
 | 🔗 **1 link key cho mọi lần** | Key script dùng chung `aia.key.js` (hoặc chế độ riêng từng tệp) |
@@ -83,8 +84,8 @@ assets/core.js      lõi mã hoá, không phụ thuộc thư viện
 assets/app.js       giao diện
 assets/reverse.js   công cụ đọc/dịch ngược code
 tools/cli.mjs       CLI
-tests/run-node.mjs  127 kiểm thử lõi (Node 18+)
-tests/stress.mjs    45 bài kiểm thử cường độ cao
+tests/run-node.mjs  135 kiểm thử lõi (Node 18+)
+tests/stress.mjs    52 bài kiểm thử cường độ cao
 docs/               tài liệu chi tiết
 deploy/             mẫu workflow GitHub Pages, Netlify, Vercel
 examples/           script mẫu + gói demo
@@ -93,15 +94,15 @@ examples/           script mẫu + gói demo
 ## Kiểm thử
 
 ```bash
-node tests/run-node.mjs       # 127/127 đạt — lõi mã hoá + snippet
+node tests/run-node.mjs       # 135/135 đạt — lõi mã hoá + snippet
 node tools/check-static.mjs   # 44/44 — id/đường dẫn/cú pháp HTML
 npm install                   # chỉ để chạy test DOM
-node tests/run-dom.mjs        # 65/65 — giao diện + gói demo (jsdom)
-node tests/stress.mjs --quick # 45/45 — cường độ cao (~19 s)
+node tests/run-dom.mjs        # 71/71 — giao diện + gói demo (jsdom)
+node tests/stress.mjs --quick # 52/52 — cường độ cao (~21 s)
 node tests/stress.mjs --max   # như trên + tệp 1 GiB (~90 s)
 ```
 
-Tổng **281 điểm kiểm tra**.
+Tổng **302 điểm kiểm tra**.
 
 Kết quả mới nhất và chi tiết: [`docs/05-kiem-thu-va-ket-qua.md`](docs/05-kiem-thu-va-ket-qua.md).
 
@@ -126,7 +127,7 @@ Chi tiết: [`docs/02-bao-mat-gioi-han.md`](docs/02-bao-mat-gioi-han.md).
 | [02-bao-mat-gioi-han.md](docs/02-bao-mat-gioi-han.md) | Bảo mật, điểm yếu bản chất, cách dùng an toàn |
 | [03-huong-dan-su-dung.md](docs/03-huong-dan-su-dung.md) | Hướng dẫn từng bước + xử lý sự cố |
 | [04-trien-khai-mien-phi.md](docs/04-trien-khai-mien-phi.md) | GitHub Pages, Cloudflare, Netlify, Vercel |
-| [05-kiem-thu-va-ket-qua.md](docs/05-kiem-thu-va-ket-qua.md) | 281 điểm kiểm tra, số đo thật, test cường độ cao |
+| [05-kiem-thu-va-ket-qua.md](docs/05-kiem-thu-va-ket-qua.md) | 302 điểm kiểm tra, số đo thật, test cường độ cao |
 
 ## Giấy phép
 

@@ -60,6 +60,17 @@ Ai nhận được đoạn code đó là có **tất cả những gì cần** đ
 
 Snippet cũng làm tăng kích thước ~1,34 lần và chỉ dùng cho tệp ≤ 1,5 MiB.
 
+**Kiểu "ẩn dấu vết"** (mặc định) chỉ làm cho đoạn code **khó nhận ra** bằng mắt: bỏ chú
+thích, giấu link/tên API trong Base64, đổi tên biến ngẫu nhiên, cắt chuỗi thành mảng.
+Nó **không phải mã hoá** và **không ngăn được** người biết kỹ thuật:
+
+- mở DevTools → tab Network là thấy request tải `aia.key.js`;
+- copy đoạn code ra công cụ làm đẹp là đọc được toàn bộ;
+- `atob()` vài chuỗi là ra link, ra bản mã.
+
+Muốn người khác **không chạy được** thì phải dùng **mật khẩu hỏi khi chạy**, không phải
+ẩn dấu vết.
+
 ## 3b. Chế độ khoá dùng chung — nói thẳng
 
 Yêu cầu "một link key cho mọi lần mã hoá, mọi người" chỉ làm được nếu **khoá gốc nằm
