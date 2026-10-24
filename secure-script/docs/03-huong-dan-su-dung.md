@@ -154,6 +154,70 @@ Mặc định `run()` dùng **Web Worker** (không treo trang, không chạm DOM
 5. Người nhận dán token vào ô **Mở khoá link** (cùng trang) hoặc chạy snippet.
 6. Dòng lệnh: `node tools/cli.mjs link <url> --pass "…"` và `node tools/cli.mjs unlink "<token>" --pass "…"`.
 
+## 3c. Tab Lập trình (trình soạn thảo)
+
+Tab **Lập trình** là chỗ soạn/sửa code trước khi mã hoá:
+
+| Thành phần | Cách dùng |
+|---|---|
+| **Số dòng** | Hiện bên trái, cuộn đồng bộ với code; bật/tắt bằng ô **Dòng** |
+| **Phóng to / thu nhỏ** | Nút **A+ / A− / 100%**, hoặc **Ctrl +** , **Ctrl −** , **Ctrl 0** (chỉ khi đang ở tab này) |
+| **Kích thước tệp** | Thanh thống kê dưới khung code: **B / KB / MB / GB**, số dòng, ngôn ngữ, số ký tự, cỡ chữ |
+| **Tìm lỗi** | Panel bên phải: lỗi (đỏ) và cảnh báo (vàng); **bấm vào là nhảy tới đúng dòng**. Tự kiểm tra sau khi gõ ~0,4 giây, hoặc **Ctrl Enter** |
+| **Chia đôi màn hình** | Ô chọn: **Chia đôi: code \| lỗi** · **Chỉ code** · **Chỉ lỗi** |
+| **Nạp / tải / chép** | **Nạp tệp** (≤ 64 MB), **Tải tệp**, **Chép**, **xoá trắng** |
+| **Mã hoá code này** | Đưa nguyên code sang tab **Mã hoá** và mã hoá ngay (giữ tên tệp) |
+| **Đăng lên GitHub** | Mở hộp thoại GitHub ở tab “Mã nguồn mới” |
+
+Trình kiểm tra bắt được: ngoặc tròn/vuông/nhọn lệch, chuỗi chưa đóng, template literal
+`${…}` chưa đóng, chú thích khối chưa đóng (kể cả `--[[ ]]` của Lua), lỗi cú pháp
+JavaScript (`new Function`, **không chạy code**), JSON sai, thiếu `end` của Lua
+(ước lượng), Python trộn tab/khoảng trắng; cảnh báo thêm `eval`, `new Function`,
+`debugger`, TODO/FIXME, dòng quá dài, khoảng trắng cuối dòng. Với TypeScript/JSX/ES module,
+chỉ kiểm tra cấu trúc (trình duyệt không biên dịch được).
+
+## 3d. Chống soi: trang trắng
+
+Cột phải tab **Lập trình** → khối **Chống soi: trang trắng**:
+
+1. Dán **Link thật cần giấu** (trang web, link script, link tải…).
+2. Đặt **Khoá mở** (để trống thì máy tự sinh một khoá và hiện ra một lần).
+3. Bấm **Tạo trang trắng** → tải về `tên-trang-trang.html` + hiện **link mở**
+   dạng `tên-trang-trang.html#k=<khoá>`.
+
+Cách hoạt động: trang đã tải là **nền trắng, không một chữ nào**, `<title></title>` rỗng.
+Link đích nằm trong **token AES-GCM** (`AIALNK1.…` đã cắt khúc, không lộ link gốc);
+địa chỉ `aia.key.js` cũng được giấu dạng Base64 nhiều mảnh.
+
+- Mở link **không** có `#k=` → trang ở nguyên màu trắng và **không gọi mạng**.
+- Mở link **có** `#k=<khoá>` → trang tải `aia.key.js`, giải token rồi chuyển tới link thật
+  (**đầy đủ tính năng** như link gốc). Khoá đặt ở `?k=` cũng được.
+- Sai khoá → vẫn ở trang trắng (không báo lỗi, không lộ gì).
+
+⚠️ Đây là **che giấu**, không phải bảo vệ tuyệt đối: người mở DevTools vẫn thấy mã HTML
+và token (nhưng token là bản mã, không chứa link đích). **Luôn đặt khoá mở** nếu cần chặn thật.
+Tệp `.html` phải nằm cạnh `aia.key.js` (hoặc sửa `keyUrl` trong mã sinh ra cho khớp CDN).
+
+## 3e. Đăng / sửa script trên GitHub
+
+Nút **GitHub** ở góc trên bên phải mở hộp thoại 4 tab:
+
+1. **API key** — dán *Personal Access Token* (fine-grained: `Contents: Read and write`,
+   và `Administration: Read and write` nếu muốn tạo dự án). Bấm **Kiểm tra token** để xem
+   tên đăng nhập + số lượt gọi API còn lại. Tick **Nhớ token** nếu muốn lưu trong
+   `localStorage` của máy này (không gửi đi đâu khác ngoài `api.github.com`).
+2. **Mã nguồn** — nhập **tên dự án mới** → **Tạo dự án**: tạo repo (mặc định **riêng tư**)
+   rồi **tự đẩy code JS đang soạn** lên `script.js`.
+3. **Sửa file** — **Tải danh sách dự án** (mọi repo token thấy được) → chọn 1 dự án →
+   **Xem các file** (hiện **bao nhiêu file** + danh sách) → mở file, sửa nội dung rồi
+   **Lưu thay đổi** (tự lấy `sha` để ghi đè), **Thêm / ghi file** cho đường dẫn mới,
+   hoặc **Xoá file**.
+4. **Kết quả** — đẩy code lên đường dẫn bất kỳ rồi hiện ngay **link GitHub**, **link raw**
+   và **link GitHub Pages** (nếu repo đã bật Pages).
+
+Giới hạn của GitHub contents API: mỗi tệp ≤ **5 MB** (web chặn trước khi gọi), và
+`/user/repos` chỉ trả tối đa 100 dự án mỗi lần tải.
+
 ## 4. Giải mã trên web
 
 Tab **Giải mã & chạy**:

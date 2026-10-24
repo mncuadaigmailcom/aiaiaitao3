@@ -108,6 +108,22 @@ không phải lỗi code:
 6. Với tệp quan trọng: **giữ bản gốc** ở nơi an toàn. Mất mật khẩu = mất dữ liệu,
    không có cửa sau.
 
+## 4b. Tab Lập trình · trang trắng · GitHub
+
+- **Trang trắng "chống soi"** chỉ là **che giấu**: HTML và token vẫn nằm trong trang,
+  DevTools đọc được. Token đã mã hoá nên **không lộ link đích**, và khi **không có `#k=`**
+  trang **không gọi mạng** — nhưng ai có link mở (`#k=<khoá>`) thì mở được đủ tính năng.
+  Muốn chặn thật: **luôn đặt khoá mở** và gửi link mở qua kênh riêng.
+- **Token GitHub** chỉ nên cấp quyền tối thiểu cho đúng repo cần dùng; **đừng** tick
+  “Nhớ token” trên máy công cộng. Token nằm trong `localStorage` của trình duyệt
+  (không mã hoá) — ai dùng chung máy/mở DevTools đều đọc được. Web chỉ gửi token trong
+  header `Authorization` tới `https://api.github.com`, **không** đưa vào URL, không gửi
+  tới máy chủ nào khác (không có backend).
+- **Code bạn đẩy lên GitHub là bản rõ**. Nếu cần giữ bí mật, hãy đẩy **bản `.aia`** hoặc
+  **snippet đã mã hoá** thay vì code gốc; repo riêng tư vẫn nên coi là “bán công khai”.
+- **Trình kiểm tra lỗi không chạy code**: JS chỉ được **biên dịch thử** bằng `new Function`,
+  không gọi hàm; mã Lua/Python chỉ phân tích văn bản (có thể bỏ sót).
+
 ## 5. Những gì đã kiểm chứng (và chưa)
 
 Đã kiểm chứng tự động trên Node 22 + WebCrypto:

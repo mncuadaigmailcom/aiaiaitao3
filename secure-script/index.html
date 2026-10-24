@@ -25,9 +25,11 @@
     <button role="tab" aria-selected="true" data-view="encrypt" class="active">Mã hoá</button>
     <button role="tab" aria-selected="false" data-view="decrypt">Giải mã &amp; chạy</button>
     <button role="tab" aria-selected="false" data-view="link">Mã hoá link</button>
+    <button role="tab" aria-selected="false" data-view="editor">Lập trình</button>
     <button role="tab" aria-selected="false" data-view="reverse">Dịch ngược code</button>
     <button role="tab" aria-selected="false" data-view="docs">Ghi chú</button>
   </nav>
+  <button class="ghost small" id="ghOpenBtn" type="button" title="Đăng / sửa script trên GitHub">GitHub</button>
   <button class="ghost small" id="helpBtn" type="button">Cách dùng</button>
 </header>
 
@@ -366,6 +368,129 @@
 
   <!-- ========================= DỊCH NGƯỢC ========================= -->
 
+
+  <!-- ============================== LẬP TRÌNH ============================== -->
+  <section class="view" id="view-editor">
+    <div class="hero">
+      <div>
+        <h1>Lập trình &amp; kiểm tra code</h1>
+        <p>
+          Trình soạn thảo có <b>số dòng</b>, <b>phóng to / thu nhỏ</b>, <b>kích thước tệp (B · KB · MB · GB)</b>,
+          <b>tìm lỗi code</b> và chế độ <b>chia đôi màn hình</b> (code | lỗi). Soạn xong có thể
+          <b>mã hoá ngay</b>, tạo <b>trang trắng chống soi</b>, hoặc <b>đăng lên GitHub</b>.
+        </p>
+      </div>
+      <div class="pill-row">
+        <span class="pill">số dòng + tô sáng lỗi</span>
+        <span class="pill">zoom 10–28px</span>
+        <span class="pill">chia đôi / toàn màn hình</span>
+      </div>
+    </div>
+
+    <div class="cols">
+      <div class="col-main">
+        <div class="card">
+          <div class="card-head">
+            <h2>Code</h2>
+            <div class="row tight" style="margin:0">
+              <label class="check"><input type="checkbox" id="edLineToggle" checked> Dòng</label>
+              <label class="check"><input type="checkbox" id="edWrapToggle"> Xuống dòng</label>
+              <select id="edLayout" class="mini" title="Cách chia màn hình">
+                <option value="split" selected>Chia đôi: code | lỗi</option>
+                <option value="code">Chỉ code</option>
+                <option value="errors">Chỉ lỗi</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="row tight" style="margin:0 0 10px">
+            <input type="text" id="edName" value="script.js" spellcheck="false" style="max-width:230px" aria-label="Tên tệp">
+            <button class="ghost small" id="edLoad" type="button">Nạp tệp</button>
+            <input type="file" id="edFile" hidden>
+            <span class="spacer"></span>
+            <button class="ghost small" id="edZoomOut" type="button" title="Thu nhỏ chữ (Ctrl −)">A−</button>
+            <span class="muted small" id="edZoomLabel">100%</span>
+            <button class="ghost small" id="edZoomIn" type="button" title="Phóng to chữ (Ctrl +)">A+</button>
+            <button class="ghost small" id="edZoomReset" type="button">100%</button>
+          </div>
+
+          <div class="ed-split" id="edSplit">
+            <div class="ed-pane" id="edEditorPane">
+              <div class="ed-shell">
+                <div class="ed-gutter" id="edGutter" aria-hidden="true"><div class="ed-nums" id="edNums">1</div></div>
+                <textarea id="edCode" class="ed-ta" spellcheck="false" autocapitalize="off" autocomplete="off"
+                          aria-label="Code" placeholder="// Dán code vào đây…"></textarea>
+              </div>
+            </div>
+            <div class="ed-pane ed-errors" id="edErrorPane">
+              <div class="ed-errors-head">
+                <b>Kết quả kiểm tra</b>
+                <span class="muted small" id="edSummary">chưa kiểm tra</span>
+              </div>
+              <div class="issues" id="edIssues">
+                <p class="help">Bấm <b>Kiểm tra</b> để dò lỗi cú pháp, ngoặc lệch, chuỗi chưa đóng…</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="row">
+            <button class="primary" id="edCheckBtn" type="button">Kiểm tra</button>
+            <button class="ghost" id="edToEncrypt" type="button">Mã hoá code này</button>
+            <button class="ghost" id="edToGithub" type="button">Đăng lên GitHub</button>
+            <button class="ghost small" id="edDownload" type="button">Tải tệp</button>
+            <button class="ghost small" id="edCopy" type="button">Chép</button>
+            <span class="spacer"></span>
+            <button class="link small" id="edClear" type="button">xoá trắng</button>
+          </div>
+
+          <div class="stat-row" id="edStats"></div>
+        </div>
+      </div>
+
+      <aside class="col-side">
+        <div class="card">
+          <h3>Chống soi: trang trắng</h3>
+          <p class="help">
+            Tạo một trang HTML <b>trắng hoàn toàn</b> (không chữ, không tiêu đề). Người mở link bình thường
+            chỉ thấy nền trắng; ai có <b>khoá mở</b> thì trang tự chuyển tới địa chỉ thật.
+          </p>
+          <div class="field" style="margin-top:8px">
+            <label for="cloakLink">Link thật cần giấu</label>
+            <input type="text" id="cloakLink" spellcheck="false" placeholder="https://…">
+          </div>
+          <div class="field" style="margin-top:8px">
+            <label for="cloakPass">Khoá mở (mật khẩu)</label>
+            <input type="password" id="cloakPass" autocomplete="new-password" placeholder="để trống = tự sinh khoá mở">
+          </div>
+          <div class="row">
+            <button class="primary" id="cloakMake" type="button">Tạo trang trắng</button>
+            <button class="ghost small" id="cloakDownload" type="button" hidden>Tải .html</button>
+          </div>
+          <p class="help" id="cloakStatus"></p>
+          <div id="cloakOut" hidden>
+            <div class="field" style="margin-top:6px">
+              <label for="cloakUnlock">Link mở (chỉ gửi cho người được xem)</label>
+              <input type="text" id="cloakUnlock" readonly spellcheck="false">
+            </div>
+            <div class="row tight" style="margin-top:8px">
+              <button class="ghost small" id="cloakCopy" type="button">Chép link mở</button>
+            </div>
+            <pre id="cloakPreview" class="codeout" style="max-height:120px"></pre>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Nói thật</h3>
+          <p class="help">
+            Trang trắng là <b>che giấu</b>, không phải bảo vệ tuyệt đối: mở DevTools vẫn thấy mã HTML.
+            Token bên trong là bản mã (không lộ địa chỉ đích), nhưng nếu <b>không đặt khoá mở</b> thì
+            <code>aia.key.js</code> công khai ⇒ vẫn mở được. Đặt khoá mở nếu cần chặn thật.
+          </p>
+        </div>
+      </aside>
+    </div>
+  </section>
+
   <!-- ============================ MÃ HOÁ LINK ============================ -->
   <section class="view" id="view-link">
     <div class="hero">
@@ -604,6 +729,12 @@
           <li>Khoá gắn với <b>thời gian tạo</b> (đến mili giây) + <b>link key</b> + mật khẩu.</li>
           <li>Header giữ thời gian/link key <b>không mã hoá</b> để nhận biết.</li>
           <li>Tăng kích thước gần như bằng 0; không treo máy; script vẫn chạy bình thường.</li>
+          <li><b>Tab Lập trình</b>: số dòng, phóng to/thu nhỏ, kích thước B·KB·MB·GB, panel tìm lỗi
+            (bấm là nhảy tới dòng) và chế độ <b>chia đôi màn hình</b> code | lỗi.</li>
+          <li><b>Chống soi</b>: sinh trang HTML <b>trắng hoàn toàn, không chữ</b>; chỉ link có
+            <code>#k=&lt;khoá&gt;</code> mới mở ra đúng link thật (đầy đủ tính năng).</li>
+          <li><b>GitHub</b>: hộp thoại 4 tab — API key · tạo dự án mới (cấy tên mã nguồn) ·
+            sửa file (xem dự án có bao nhiêu file, sửa/thêm/xoá) · kết quả (link vừa tạo).</li>
         </ul>
       </article>
       <article class="card">
@@ -611,6 +742,8 @@
         <ul>
           <li><code>assets/core.js</code> — lõi mã hoá, không phụ thuộc thư viện.</li>
           <li><code>assets/app.js</code> — giao diện.</li>
+          <li><code>assets/program.js</code> + <code>assets/editor.js</code> — tab Lập trình, dò lỗi, trang trắng.</li>
+          <li><code>assets/github.js</code> + <code>assets/github-ui.js</code> — đăng/sửa script trên GitHub.</li>
           <li><code>assets/reverse.js</code> — bộ phân tích/dịch ngược.</li>
           <li><code>tools/cli.mjs</code> — mã hoá/giải mã bằng dòng lệnh.</li>
           <li><code>tests/</code> — kiểm thử trên Node bằng WebCrypto thật.</li>
@@ -641,15 +774,18 @@
           <li>Giới hạn file của hệ điều hành và ổ đĩa vẫn áp dụng.</li>
           <li>Key script chỉ tự giải mã JavaScript/TypeScript; ngôn ngữ khác thì tải bản rõ về.</li>
           <li>Script dùng <code>import</code> ES module cần chạy ở chế độ <code>module</code>.</li>
+          <li>Trang trắng là <b>che giấu</b>, không chống được DevTools — hãy đặt khoá mở và gửi qua kênh riêng.</li>
+          <li>GitHub contents API: tối đa <b>5 MB/tệp</b>; token nên cấp quyền tối thiểu cho đúng dự án.</li>
         </ul>
       </article>
       <article class="card">
         <h3>Kiểm thử</h3>
         <ul>
-          <li><code>node tests/run-node.mjs</code> — 219 kiểm thử: mã hoá/giải mã, cắt khối, sửa bit, sai mật khẩu,
-            sai link key, snippet, <b>mã hoá link</b>, <b>nhận diện ngôn ngữ</b>, giới hạn dung lượng.</li>
-          <li><code>node tools/check-static.mjs</code> · <code>node tests/run-dom.mjs</code> ·
-            <code>node tests/stress.mjs --quick</code> — tổng <b>482 điểm</b> kiểm tra.</li>
+          <li><code>node tests/run-node.mjs</code> — 244 kiểm thử: mã hoá/giải mã, cắt khối, sửa bit, sai mật khẩu,
+            sai link key, snippet, <b>mã hoá link</b>, <b>nhận diện ngôn ngữ</b>, <b>trang trắng</b>, giới hạn dung lượng.</li>
+          <li><code>node tests/run-editor.mjs</code> (75) · <code>node tests/run-github.mjs</code> (94, GitHub giả) ·
+            <code>node tools/check-static.mjs</code> (155) · <code>node tests/run-dom.mjs</code> (186) ·
+            <code>node tests/stress.mjs --quick</code> (80) — tổng <b>834 điểm</b> kiểm tra.</li>
           <li><code>node tools/cli.mjs --help</code> — dùng ngay trên máy.</li>
         </ul>
       </article>
@@ -664,6 +800,119 @@
   <div class="muted small">Nếu trang này mở bằng <code>file://</code>, hãy chạy <code>python3 -m http.server</code> trong thư mục dự án rồi mở <code>http://localhost:8000</code>.</div>
 </footer>
 
+
+<!-- Hộp thoại GitHub: API key · dự án mới · sửa file · kết quả -->
+<div class="modal" id="ghModal" hidden>
+  <div class="modal-card wide" role="dialog" aria-modal="true" aria-labelledby="ghTitle">
+    <div class="card-head">
+      <h2 id="ghTitle">Cập nhật script lên GitHub</h2>
+      <button class="link small" id="ghClose" type="button">đóng</button>
+    </div>
+
+    <div class="tabs sub" role="tablist" aria-label="GitHub">
+      <button role="tab" data-gh="key" class="active" id="ghTabKey" type="button" aria-selected="true">1 · API key</button>
+      <button role="tab" data-gh="new" id="ghTabNew" type="button" aria-selected="false">2 · Mã nguồn</button>
+      <button role="tab" data-gh="edit" id="ghTabEdit" type="button" aria-selected="false">3 · Sửa file</button>
+      <button role="tab" data-gh="result" id="ghTabResult" type="button" aria-selected="false">4 · Kết quả</button>
+    </div>
+
+    <!-- 1. API key -->
+    <div class="gh-pane" id="ghPaneKey">
+      <div class="field">
+        <label for="ghToken">Personal Access Token (GitHub)</label>
+        <input type="password" id="ghToken" spellcheck="false" autocomplete="off" placeholder="ghp_… hoặc github_pat_…">
+      </div>
+      <label class="check" style="margin-top:8px"><input type="checkbox" id="ghRemember"> Nhớ token trên máy này (localStorage)</label>
+      <div class="row">
+        <button class="primary" id="ghTest" type="button">Kiểm tra token</button>
+        <button class="ghost" id="ghSaveKey" type="button">Lưu</button>
+      </div>
+      <p class="help" id="ghKeyStatus">Token chỉ gửi thẳng tới <code>api.github.com</code>, không qua máy chủ nào khác.</p>
+      <div class="callout small">
+        Quyền cần: <b>Contents: Read and write</b> (đọc/ghi tệp) và <b>Administration: Read and write</b>
+        (tạo dự án mới). Với repo riêng tư, token phải được cấp cho repo đó.
+      </div>
+    </div>
+
+    <!-- 2. Mã nguồn: tạo dự án -->
+    <div class="gh-pane" id="ghPaneNew" hidden>
+      <div class="field">
+        <label for="ghNewName">Tên dự án mới</label>
+        <input type="text" id="ghNewName" spellcheck="false" placeholder="VD: roblox-hub-v2">
+      </div>
+      <div class="field" style="margin-top:8px">
+        <label for="ghNewDesc">Mô tả (tuỳ chọn)</label>
+        <input type="text" id="ghNewDesc" spellcheck="false" placeholder="Mã nguồn đã mã hoá…">
+      </div>
+      <label class="check" style="margin-top:8px"><input type="checkbox" id="ghNewPrivate" checked> Dự án riêng tư (private)</label>
+      <div class="row">
+        <button class="primary" id="ghCreate" type="button">Tạo dự án</button>
+      </div>
+      <p class="help" id="ghNewStatus">Tạo xong sẽ hiện trong danh sách ở tab “Sửa file”.</p>
+    </div>
+
+    <!-- 3. Sửa file -->
+    <div class="gh-pane" id="ghPaneEdit" hidden>
+      <div class="row tight" style="margin:0 0 8px">
+        <button class="ghost small" id="ghLoadRepos" type="button">Tải danh sách dự án</button>
+        <span class="muted small" id="ghRepoStatus">chưa tải</span>
+      </div>
+      <div class="field">
+        <label for="ghRepoSelect">Dự án trong GitHub</label>
+        <select id="ghRepoSelect"><option value="">— chưa có dự án —</option></select>
+      </div>
+      <div class="row tight" style="margin:8px 0 0">
+        <button class="ghost small" id="ghLoadFiles" type="button">Xem các file</button>
+        <span class="muted small" id="ghFileInfo">chưa chọn dự án</span>
+      </div>
+      <div class="field" style="margin-top:8px">
+        <label for="ghFileSelect">File trong dự án</label>
+        <select id="ghFileSelect"><option value="">— chưa có file —</option></select>
+      </div>
+      <div class="row tight" style="margin:8px 0 0">
+        <button class="ghost small" id="ghOpenFile" type="button">Mở file</button>
+        <button class="ghost small" id="ghDeleteFile" type="button">Xoá file</button>
+        <span class="muted small" id="ghFilePath">—</span>
+      </div>
+      <textarea id="ghFileContent" class="ed-ta gh-ta" spellcheck="false" placeholder="Nội dung file…"></textarea>
+      <div class="row tight" style="margin-top:8px">
+        <input type="text" id="ghNewPath" spellcheck="false" placeholder="đường-dẫn/tệp-mới.js" style="max-width:260px">
+        <button class="ghost small" id="ghAddFile" type="button">Thêm / ghi file</button>
+        <button class="primary small" id="ghSaveFile" type="button">Lưu thay đổi</button>
+      </div>
+      <p class="help" id="ghFileStatus">Chọn dự án → xem file → sửa nội dung → Lưu (tự commit lên nhánh mặc định).</p>
+    </div>
+
+    <!-- 4. Kết quả: đăng code + link -->
+    <div class="gh-pane" id="ghPaneResult" hidden>
+      <div class="field">
+        <label for="ghPublishPath">Đường dẫn file trên GitHub</label>
+        <input type="text" id="ghPublishPath" value="script.js" spellcheck="false">
+      </div>
+      <p class="help" style="margin-top:6px">Nội dung lấy từ tab <b>Lập trình</b> (ô code). Nếu chưa có, dùng nội dung đang mở ở tab Sửa file.</p>
+      <div class="row">
+        <button class="primary" id="ghPublish" type="button">Đăng code &amp; lấy link</button>
+        <button class="ghost small" id="ghPublishFromFile" type="button">Dùng nội dung ở tab Sửa file</button>
+      </div>
+      <p class="help" id="ghPublishStatus">—</p>
+      <div id="ghResultOut" hidden>
+        <div class="field">
+          <label for="ghResultLink">Link GitHub vừa tạo</label>
+          <input type="text" id="ghResultLink" readonly spellcheck="false">
+        </div>
+        <div class="field" style="margin-top:8px">
+          <label for="ghResultRaw">Link tải thô (raw)</label>
+          <input type="text" id="ghResultRaw" readonly spellcheck="false">
+        </div>
+        <div class="row tight" style="margin-top:8px">
+          <button class="ghost small" id="ghResultCopy" type="button">Chép link</button>
+          <a class="ghost small" id="ghResultOpen" href="#" target="_blank" rel="noopener noreferrer">Mở trên GitHub</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Hộp thoại trợ giúp -->
 <div class="modal" id="helpModal" hidden>
   <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
@@ -676,6 +925,12 @@
       <li>Bấm <b>Mã hoá ngay</b> → tải gói ZIP gồm <code>.aia</code>, <code>key.js</code>, <code>run.html</code>, <code>README.txt</code>.</li>
       <li>Đưa các tệp cho người khác, họ mở <code>run.html</code> qua HTTP, nhập mật khẩu là chạy.</li>
       <li>Muốn nhúng vào web: thêm <code>&lt;script src="./key.js"&gt;&lt;/script&gt;</code> rồi gọi <code>AIA_UNLOCK.run({execute:true})</code>.</li>
+      <li>Tab <b>Lập trình</b>: soạn code với số dòng, zoom, kích thước tệp, panel tìm lỗi và chế độ chia đôi;
+        bấm lỗi để nhảy tới dòng. Có nút <b>Mã hoá code này</b> và <b>Đăng lên GitHub</b>.</li>
+      <li><b>Chống soi</b> (cột phải tab Lập trình): dán link thật + khoá mở → tải về trang trắng
+        <code>…-trang-trang.html</code>; chỉ link kèm <code>#k=…</code> mới mở ra nội dung thật.</li>
+      <li>Nút <b>GitHub</b> (góc trên): tab 1 nhập API key → tab 2 tạo dự án (tự đẩy code) →
+        tab 3 xem/sửa file của mọi dự án → tab 4 nhận link GitHub vừa tạo.</li>
     </ol>
     <div class="callout small">Không mở được? Kiểm tra: đang dùng <code>https://</code> hoặc <code>localhost</code>, tệp cùng thư mục, mật khẩu đúng.</div>
     <div class="row"><button class="primary" id="helpClose" type="button">Đã hiểu</button></div>

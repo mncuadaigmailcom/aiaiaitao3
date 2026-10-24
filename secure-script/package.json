@@ -9,7 +9,9 @@
     "test": "node tests/run-node.mjs",
     "test:dom": "node tests/run-dom.mjs",
     "test:static": "node tools/check-static.mjs",
-    "check": "node tests/run-node.mjs && node tools/check-static.mjs && node tests/run-dom.mjs",
+    "test:editor": "node tests/run-editor.mjs",
+    "test:github": "node tests/run-github.mjs",
+    "check": "node tests/run-node.mjs && node tests/run-editor.mjs && node tests/run-github.mjs && node tools/check-static.mjs && node tests/run-dom.mjs",
     "cli": "node tools/cli.mjs"
   },
   "devDependencies": {

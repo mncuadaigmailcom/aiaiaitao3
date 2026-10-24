@@ -42,6 +42,12 @@ for (const f of [
   'assets/core.js',
   'assets/app.js',
   'assets/reverse.js',
+  'assets/editor.js',
+  'assets/github.js',
+  'assets/program.js',
+  'assets/github-ui.js',
+  'tests/run-editor.mjs',
+  'tests/run-github.mjs',
   'assets/style.css',
   'tools/cli.mjs',
   'tests/run-node.mjs',
@@ -75,11 +81,15 @@ const htmlIds = [...html.matchAll(/\sid="([^"]+)"/g)].map((m) => m[1]);
 const dupes = htmlIds.filter((id, i) => htmlIds.indexOf(id) !== i);
 check(dupes.length === 0, 'không có id trùng', dupes.join(', '));
 
+const uiModules = ['assets/app.js', 'assets/program.js', 'assets/github-ui.js'];
 const used = new Set();
-for (const m of app.matchAll(/\$\('([^']+)'\)/g)) used.add(m[1]);
-for (const m of app.matchAll(/document\.getElementById\('([^']+)'\)/g)) used.add(m[1]);
+for (const file of uiModules) {
+  const text = file === 'assets/app.js' ? app : read(file);
+  for (const m of text.matchAll(/\$\('([^']+)'\)/g)) used.add(m[1]);
+  for (const m of text.matchAll(/document\.getElementById\('([^']+)'\)/g)) used.add(m[1]);
+}
 const missing = [...used].filter((id) => !htmlIds.includes(id));
-check(missing.length === 0, `mọi id app.js dùng đều tồn tại (${used.size} id)`, missing.join(', '));
+check(missing.length === 0, `mọi id giao diện dùng đều tồn tại (${used.size} id)`, missing.join(', '));
 
 // biến thể $('x') && ... vẫn được tính; kiểm tra thêm các id trong index được dùng
 const unusedWarn = [...htmlIds].filter((id) => !used.has(id));
@@ -116,7 +126,20 @@ check(!/https?:\/\/(?!localhost)[^\s"']+\.js["']/.test(html), 'không nạp scri
 
 console.log('\n[4] Cú pháp');
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'aia-check-'));
-for (const f of ['assets/core.js', 'assets/app.js', 'assets/reverse.js', 'tools/cli.mjs', 'tests/run-node.mjs', 'tools/check-static.mjs']) {
+for (const f of [
+  'assets/core.js',
+  'assets/app.js',
+  'assets/reverse.js',
+  'assets/editor.js',
+  'assets/github.js',
+  'assets/program.js',
+  'assets/github-ui.js',
+  'tools/cli.mjs',
+  'tests/run-node.mjs',
+  'tests/run-editor.mjs',
+  'tests/run-github.mjs',
+  'tools/check-static.mjs',
+]) {
   const target = path.join(tmp, path.basename(f).replace(/\.js$/, '.mjs'));
   fs.copyFileSync(path.join(root, f), target);
   try {
@@ -190,6 +213,52 @@ const cliText2 = read('tools/cli.mjs');
 check(cliText2.includes('readHeadText'), 'CLI đọc mẫu đầu tệp để dò ngôn ngữ');
 check(cliText2.includes("args.lang || C.resolveLang"), 'CLI có --lang và tự dò nội dung');
 check(read('index.html').includes('id="testRunBtn"'), 'index.html có nút chạy thử');
+
+/* ------------------------------ 8. tab Lập trình + GitHub + chống soi --- */
+
+console.log('\n[8] Tab Lập trình · chống soi · GitHub');
+const editorText = read('assets/editor.js');
+const programText = read('assets/program.js');
+const ghText = read('assets/github.js');
+const ghUiText = read('assets/github-ui.js');
+
+check(htmlText.includes('data-view="editor"'), 'thanh tab có mục Lập trình');
+check(htmlText.includes('id="view-editor"'), 'có khung #view-editor');
+for (const id of ['edCode', 'edGutter', 'edNums', 'edStats', 'edIssues', 'edSplit', 'edErrorPane', 'edZoomIn', 'edZoomOut', 'edZoomReset', 'edLayout', 'edLineToggle', 'edWrapToggle', 'edCheckBtn', 'edToEncrypt', 'edToGithub', 'edName']) {
+  check(htmlText.includes('id="' + id + '"'), 'index.html có #' + id);
+}
+for (const fn of ['export function analyzeCode', 'export function codeStats', 'export function checkBalance', 'export function countLuaBlocks', 'export function formatSize', 'export function clampFontSize', 'export function issueLabel']) {
+  check(editorText.includes(fn), 'editor.js có ' + fn.replace('export ', ''));
+}
+check(editorText.includes('FONT_MAX = 28') && editorText.includes('FONT_MIN = 10'), 'giới hạn cỡ chữ 10–28px');
+check(/ed-nums|edNums/.test(htmlText) && programText.includes('function renderGutter'), 'program.js vẽ số dòng');
+check(programText.includes("translateY("), 'số dòng cuộn đồng bộ với code');
+check(programText.includes("'keydown'") && programText.includes("e.key === '0'"), 'có phím tắt zoom Ctrl +/−/0');
+check(programText.includes('mode-code') && programText.includes('mode-errors'), 'có chế độ chỉ code / chỉ lỗi');
+check(programText.includes('AUTO_CHECK_DELAY') && programText.includes('scheduleCheck'), 'có tự kiểm tra sau khi gõ (debounce)');
+
+// chống soi
+check(coreText.includes('export function buildCloakPage'), 'core.js có buildCloakPage()');
+check(programText.includes('C.buildCloakPage') && programText.includes('C.encryptLink'), 'program.js tạo trang trắng từ token link');
+check(programText.includes('aia.key.js'), 'trang trắng trỏ tới key script');
+check(programText.includes("'#k='"), 'link mở dùng #k=<khoá>');
+check(coreText.includes('location.hash'), 'trang trắng đọc khoá từ hash');
+check(/if \(!\$\{id\('p'\)\}\) return;/.test(coreText), 'không có khoá thì ở lại trắng, không gọi mạng');
+
+// github
+check(htmlText.includes('id="ghModal"') && htmlText.includes('data-gh="key"') && htmlText.includes('data-gh="new"') && htmlText.includes('data-gh="edit"') && htmlText.includes('data-gh="result"'), 'hộp thoại GitHub có 4 tab đúng thứ tự');
+for (const id of ['ghToken', 'ghTest', 'ghRemember', 'ghNewName', 'ghCreate', 'ghRepoSelect', 'ghLoadFiles', 'ghFileSelect', 'ghSaveFile', 'ghAddFile', 'ghDeleteFile', 'ghPublish', 'ghResultLink']) {
+  check(htmlText.includes('id="' + id + '"'), 'index.html có #' + id);
+}
+for (const fn of ['export class GithubClient', 'export function b64EncodeUtf8', 'export function validateRepoName', 'export function validatePath', 'export function parseRepoRef', 'export function explainStatus', 'export function saveToken', 'publishFile(']) {
+  check(ghText.includes(fn), 'github.js có ' + fn.replace('export ', ''));
+}
+check(/Authorization/.test(ghText) && /Bearer/.test(ghText), 'gửi token qua header Authorization');
+check(!/token\s*:\s*.*\?access_token/.test(ghText), 'không đặt token trong URL');
+check(ghUiText.includes('initGithub') && ghUiText.includes('publish'), 'github-ui.js nối được nút đăng');
+check(ghUiText.includes('ghModal'), 'github-ui.js điều khiển hộp thoại');
+check(appText.includes('initProgram') && appText.includes('initGithub'), 'app.js khởi tạo 2 module mới');
+check(appText.includes("useSource: async"), 'tab Lập trình chuyển code sang tab Mã hoá');
 
 /* ------------------------------------------------------------------ tổng --- */
 

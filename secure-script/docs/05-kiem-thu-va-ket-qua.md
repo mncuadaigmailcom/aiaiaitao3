@@ -4,12 +4,14 @@
 
 ```bash
 cd secure-script
-node tests/run-node.mjs      # 219 kiểm thử lõi (không cần cài gì)
-node tools/check-static.mjs  # 77 kiểm tra tĩnh HTML ↔ app.js
+node tests/run-node.mjs      # 244 kiểm thử lõi (không cần cài gì)
+node tests/run-editor.mjs    # 75 kiểm thử lõi trình soạn thảo (không cần cài gì)
+node tests/run-github.mjs    # 94 kiểm thử client GitHub với GitHub giả (không gọi mạng)
+node tools/check-static.mjs  # 155 kiểm tra tĩnh HTML ↔ app.js/program.js/github-ui.js
 node tools/cli.mjs selftest  # kiểm tra nhanh CLI
 
 npm install                  # chỉ cần cho test DOM (jsdom)
-node tests/run-dom.mjs       # 106 kiểm thử giao diện + gói demo trên DOM ả
+node tests/run-dom.mjs       # 186 kiểm thử giao diện + gói demo + Lập trình + GitHub
 node tests/stress.mjs --quick   # 80 bài kiểm thử cường độ cao (~20 s)
 ```
 
@@ -33,14 +35,16 @@ Node v22.22.3 · WebCrypto: true
 [6] Công cụ dịch ngược               15/15
 [7] Thông lượng                       4/4
 ─────────────────────────────────────────────
-Kết quả: 219 đạt · 0 lỗi · ~8,8 s
+Kết quả: 244 đạt · 0 lỗi · ~12,4 s
+Editor : 75 đạt · 0 lỗi
+GitHub : 94 đạt · 0 lỗi
 
-Kiểm tra tĩnh (tools/check-static.mjs): 77 đạt · 0 lỗi
-Kiểm thử DOM  (tests/run-dom.mjs)     : 106 đạt · 0 lỗi
+Kiểm tra tĩnh (tools/check-static.mjs): 155 đạt · 0 lỗi
+Kiểm thử DOM  (tests/run-dom.mjs)     : 186 đạt · 0 lỗi
 Kiểm thử cường độ cao (stress.mjs --quick): 80/80 đạt · 0 lỗi · ~20 s
 ```
 
-Tổng: **482 điểm kiểm tra đạt** (219 + 77 + 106 + 80).
+Tổng: **834 điểm kiểm tra đạt** (244 + 75 + 94 + 155 + 186 + 80).
 
 ## 3. Chi tiết từng nhóm
 

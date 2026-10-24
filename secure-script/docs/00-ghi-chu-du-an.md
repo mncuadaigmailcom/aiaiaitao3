@@ -74,20 +74,26 @@ key.js    = META (gồm keyWrap) + bộ giải mã
 
 ```
 secure-script/
-├── index.html               # trang chính (4 tab)
+├── index.html               # trang chính (6 tab: Mã hoá · Giải mã · Mã hoá link · Lập trình · Dịch ngược · Tài liệu)
 ├── README.md
 ├── package.json
 ├── assets/
 │   ├── core.js              # lõi mã hoá (dùng chung browser + Node)
 │   ├── app.js               # giao diện
+│   ├── program.js           # tab Lập trình: số dòng, zoom, panel lỗi, trang trắng
+│   ├── editor.js            # lõi soạn thảo: phân tích lỗi, thống kê, dò ngoặc (thuần JS)
+│   ├── github.js            # GitHub REST client + base64 + kiểm tra tên/đường dẫn
+│   ├── github-ui.js         # hộp thoại GitHub 4 tab (API key · dự án · sửa file · kết quả)
 │   ├── reverse.js           # dịch ngược / phân tích
 │   └── style.css
 ├── tools/
 │   ├── cli.mjs              # mã hoá/giải mã bằng dòng lệnh
 │   └── check-static.mjs     # kiểm tra id/đường dẫn trong HTML
 ├── aia.key.js               # KEY SCRIPT DÙNG CHUNG (1 link cho mọi lần mã hoá)
-├── tests/run-dom.mjs        # 106 kiểm thử giao diện (jsdom)
-├── tests/run-node.mjs       # 219 kiểm thử lõi
+├── tests/run-dom.mjs        # 186 kiểm thử giao diện (jsdom)
+├── tests/run-node.mjs       # 244 kiểm thử lõi
+├── tests/run-editor.mjs     # 75 kiểm thử lõi trình soạn thảo
+├── tests/run-github.mjs     # 94 kiểm thử client GitHub (GitHub giả)
 ├── tests/stress.mjs         # 80 bài kiểm thử cường độ cao
 ├── examples/                # script mẫu + gói demo
 ├── docs/                    # 6 tài liệu
@@ -98,10 +104,11 @@ secure-script/
 
 Chạy `node tests/run-node.mjs` (Node 22, WebCrypto thật):
 
-- **219/219** kiểm thử lõi đạt, ~8,8 giây.
-- **106/106** kiểm thử giao diện trên DOM ả (jsdom) — gồm cả **gói demo phát hành kèm** —
-  **77/77** kiểm tra tĩnh, và **80/80** bài **kiểm thử cường độ cao**.
-  Tổng **482 điểm kiểm tra**.
+- **244/244** kiểm thử lõi + **75/75** lõi soạn thảo + **94/94** client GitHub.
+- **186/186** kiểm thử giao diện trên DOM ả (jsdom) — gồm cả **gói demo phát hành kèm**,
+  tab **Lập trình**, **trang trắng chống soi** và **hộp thoại GitHub** —
+  **155/155** kiểm tra tĩnh, và **80/80** bài **kiểm thử cường độ cao**.
+  Tổng **834 điểm kiểm tra**.
 - Vòng lặp đúng với khối 64 KiB / 256 KiB / 1 MiB; tệp rỗng; tệp chia hết khối.
 - Sai mật khẩu, sửa link key, sửa 1 bit, cắt tệp, ghép thêm, đảo khối, sai magic →
   đều bị chặn.
