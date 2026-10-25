@@ -135,6 +135,43 @@ check("whisper delivered to target", T.friendInbox[inbox + 1] and T.friendInbox[
 check("whisper NOT written to note", #NV.saves == saves and not NV.text:find("bí mật", 1, true))
 gui.ChatContainer.ChatInputBar.InputBox.TextContainer.TargetChip.MouseButton1Click:Fire(); T.run(0.1)
 
+-- bubble above the head of another player in the same server
+do
+	local friend = T.friend
+	local char = Instance.new("Model"); char.Name = "FriendPlayer"
+	local head = Instance.new("Part"); head.Name = "Head"; head.Parent = char
+	char.Parent = workspace
+	T.set(friend, "Character", char)
+	local lpChar = Instance.new("Model"); lpChar.Name = "TestPlayer"
+	local lpHead = Instance.new("Part"); lpHead.Name = "Head"; lpHead.Parent = lpChar
+	lpChar.Parent = workspace
+	T.set(Players.LocalPlayer, "Character", lpChar)
+	RS.CustomChatRemote.OnServerEvent:Fire(friend, { kind = "chat", text = "chào cả nhà" })
+	T.run(0.5)
+	check("other player's message in chat", has("Friend:</font> chào cả nhà"), lines())
+	local pg = Players.LocalPlayer.PlayerGui
+	local bb = pg:FindFirstChild("CustomChatBubbles_FriendPlayer")
+	check("bubble BillboardGui above friend's head", bb ~= nil and bb:IsA("BillboardGui") and bb.Adornee == head)
+	local bubbleText = nil
+	if bb then for _, f in bb.List:GetChildren() do if f:IsA("Frame") then for _, l in f:GetChildren() do if l:IsA("TextLabel") then bubbleText = l.Text end end end end end
+	check("bubble shows the message text", bubbleText == "chào cả nhà", bubbleText)
+	say("mình thấy rồi")
+	check("own bubble above own head", pg:FindFirstChild("CustomChatBubbles_TestPlayer") ~= nil and pg.CustomChatBubbles_TestPlayer.Adornee == lpHead)
+	check("no bubble for note/web users", pg:FindFirstChild("CustomChatBubbles_web_user") == nil)
+	local wb = 0
+	if bb then for _, f in bb.List:GetChildren() do if f:IsA("Frame") then wb += 1 end end end
+	RS.CustomChatRemote.OnServerEvent:Fire(friend, { kind = "whisper", target = "TestPlayer", text = "thì thầm" })
+	T.run(0.5)
+	local wb2 = 0
+	if bb then for _, f in bb.List:GetChildren() do if f:IsA("Frame") then wb2 += 1 end end end
+	check("whisper does not show bubble (like Roblox)", wb2 == wb, wb .. "->" .. wb2)
+	T.run(16)
+	local left = 0
+	if bb then for _, f in bb.List:GetChildren() do if f:IsA("Frame") then left += 1 end end end
+	check("bubble disappears after 15s", left == 0, left)
+	T.run(1.5)
+end
+
 -- multi-line message from client is one line in note
 RS.CustomChatRemote:FireServer({ kind = "chat", text = "dòng 1\ndòng 2" })
 T.run(1.5)

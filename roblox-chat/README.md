@@ -138,7 +138,7 @@ Chạy lại: `LUAU=/đường/dẫn/luau bash roblox-chat/tests/run.sh`
 |---|---|---|
 | `test_ui.luau` | 45 | kích thước 4 độ phân giải, màu, gửi tin, RichText, lệnh, thì thầm, spam, mờ dần, lịch sử… (chế độ DEMO) |
 | `test_fade.luau` | 1 | chữ mờ sau 30 giây |
-| `test_notevn.luau` | 61 | so khớp dòng mới, mã hoá form, lịch sử khi vào, đọc mỗi 3 giây, tin từ web, /mute người ngoài, ghi lên note, không trùng tin, /raw trả bản cũ, lọc TextService 2 chiều, gửi cùng lúc, /w không lên note, xuống dòng, 200 ký tự, chống spam phía server, thứ tự tin, note bị xoá, cắt `MaxNoteLines`, lưu lỗi + thử lại, HTTP tắt, note khoá, **xoá note khi tắt server**, dừng đọc sau khi tắt |
+| `test_notevn.luau` | 68 | bong bóng chat trên đầu người chơi khác + chính mình (không hiện cho người viết trên web, không hiện khi thì thầm, tự tắt sau 15 giây), so khớp dòng mới, mã hoá form, lịch sử khi vào, đọc mỗi 3 giây, tin từ web, /mute người ngoài, ghi lên note, không trùng tin, /raw trả bản cũ, lọc TextService 2 chiều, gửi cùng lúc, /w không lên note, xuống dòng, 200 ký tự, chống spam phía server, thứ tự tin, note bị xoá, cắt `MaxNoteLines`, lưu lỗi + thử lại, HTTP tắt, note khoá, **xoá note khi tắt server**, dừng đọc sau khi tắt |
 | `test_http_off.luau` | 4 | chưa bật Allow HTTP Requests: báo lỗi, chat trong server vẫn chạy |
 
 Lỗi tìm được và đã sửa trong lúc test: tin hiện **sai thứ tự** khi lọc chậm (nay xử lý lần lượt từng người),
