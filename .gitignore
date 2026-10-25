@@ -1,3 +1,4 @@
 node_modules/
 .dump/
 package-lock.json
+roblox-chat/tests/.cache/

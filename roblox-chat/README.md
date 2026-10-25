@@ -1,16 +1,58 @@
-# Roblox Chat Menu — giao diện chat giống Roblox (bản UI, chưa nối server)
+# Roblox Chat Menu — chat giống Roblox, "server" là ghi chú notevn
 
-Một **LocalScript duy nhất**: [`ChatMenu.client.luau`](ChatMenu.client.luau).
-Script dựng lại khung chat trông và thao tác giống chat mặc định của Roblox.
-Vì **chưa có server**, tin nhắn của "người chơi khác" hiện đang là **bot giả lập** (chế độ DEMO).
+Gồm 2 script:
+
+| Tệp | Loại | Đặt ở đâu | Việc làm |
+|---|---|---|---|
+| [`ChatMenu.client.luau`](ChatMenu.client.luau) | LocalScript | `StarterPlayer › StarterPlayerScripts` | Giao diện chat giống Roblox |
+| [`NotevnChatServer.server.luau`](NotevnChatServer.server.luau) | Script | `ServerScriptService` | Lọc tin + đồng bộ với ghi chú notevn |
+
+Có server script → chat thật. Không có server script → giao diện tự chạy **chế độ DEMO** (bot giả lập) sau 5 giây chờ.
 
 ## Cài vào Roblox Studio
 
-1. `StarterPlayer` → `StarterPlayerScripts` → **Insert Object** → **LocalScript**.
-2. Dán toàn bộ nội dung `ChatMenu.client.luau` vào.
-3. Bấm **Play**.
+1. `ServerScriptService` → **Insert Object** → **Script** → dán `NotevnChatServer.server.luau`.
+2. `StarterPlayer` → `StarterPlayerScripts` → **Insert Object** → **LocalScript** → dán `ChatMenu.client.luau`.
+3. **Home → Game Settings → Security → bật “Allow HTTP Requests”** (bắt buộc, không bật thì không đọc/ghi được notevn — chat sẽ báo trong khung).
+4. Bấm **Play**.
 
 Script tự tắt khung chat mặc định của Roblox (`CONFIG.DisableDefaultChat`) để không bị hiện 2 khung chat.
+
+## Server notevn hoạt động thế nào
+
+| Việc | Cách làm |
+|---|---|
+| **Đọc** | Cứ **3 giây** `GET https://notevn.com/raw/qdzjmz94` (thêm `?t=...` chống cache). Mỗi dòng `tên: tin nhắn`. Dòng mới → gửi tới mọi người chơi. |
+| **Ghi** | Người chơi chat → server lọc bằng `TextService` → hiện ngay cho cả server → **đọc lại ghi chú, thêm dòng `Username: tin` vào cuối, lưu** lên `https://notevn.com/cbyurm9g`. |
+| **Thoát** | Server tắt (`game:BindToClose`, kể cả bấm **Stop** trong Studio) → **xoá sạch** nội dung ghi chú. |
+| **Người mới vào** | Thấy tối đa 20 tin gần nhất trong ghi chú. |
+| **Thì thầm `/w`** | Chỉ trong cùng server Roblox, **không** ghi lên ghi chú (ghi chú ai cũng đọc được). |
+
+Cách ghi lấy từ chính mã nguồn trang notevn (`/assets/js/v19.min.js`):
+
+```text
+POST https://notevn.com/ajax.php        (application/x-www-form-urlencoded, kiểu jQuery)
+  action=getnote&file=/cbyurm9g                       -> id, tên, thứ tự... của tab
+  action=save&file=/cbyurm9g&share_url=qdzjmz94&type=
+      &data[0][id]=...&data[0][name]=...&data[0][order_index]=...&data[0][visibility]=...
+      &data[0][data]={"ops":[{"insert":"tên: tin\n"}]}   <- nội dung dạng Quill Delta
+```
+
+Cấu hình ở bảng `CONFIG` đầu `NotevnChatServer.server.luau`: `NoteFile`, `ShareKey`, `ReadUrl`, `PollInterval` (3),
+`ClearOnShutdown` (true), `MaxNoteLines` (80 — chỉ giữ 80 dòng cuối), `HistoryOnJoin` (20),
+`NameField` (`"Name"` = username, hoặc `"DisplayName"`), `Debug` (in request/response ra Output).
+
+> ⚠️ Lưu ý quan trọng
+> - **Chưa thử được với notevn thật**: môi trường làm việc không gọi được notevn.com và không có Roblox Studio.
+>   Phần đọc (`/raw`) chắc chắn đúng; phần **ghi** viết theo mã nguồn trang notevn và đã kiểm thử với
+>   notevn giả lập. Nếu ghi lỗi, khung chat sẽ báo `Không ghi được tin nhắn lên notevn (...)` — bật
+>   `CONFIG.Debug = true` để xem phản hồi trong Output.
+> - notevn chỉ có lệnh **lưu đè cả ghi chú**, không có “thêm vào cuối”. Server luôn đọc lại ngay trước khi lưu,
+>   nhưng nếu nhiều server/người cùng ghi trong cùng một khoảnh khắc thì vẫn có thể mất tin.
+> - **Xoá khi thoát** áp dụng cho cả ghi chú: một server tắt là xoá hết tin của mọi người.
+> - Tin đọc từ ghi chú cũng được lọc bằng `TextService` trước khi hiện (luật Roblox). Ghi chú là công khai:
+>   ai có link đều đọc/sửa được.
+> - Nếu ghi chú bị đặt mật khẩu/riêng tư, server không ghi được và sẽ báo trong khung chat.
 
 ## Giao diện & thao tác
 
@@ -64,44 +106,44 @@ Mọi thứ nằm trong 3 bảng ở đầu tệp:
 - `TEXT`: toàn bộ chữ tiếng Việt hiển thị trên giao diện.
 - `THEME`: màu sắc.
 
-## Nối server sau này
+## Giao thức giữa giao diện và server
 
-Giao diện chỉ gọi tới bảng `Transport` (mục 15 trong script). Hiện tại là `MockTransport`.
-Khi có server, chỉ cần viết một transport mới với 3 hàm rồi đổi dòng `Transport = MockTransport`:
+Giao diện chỉ gọi tới bảng `Transport` (mục 15 trong script):
 
-```lua
-Transport.Send(payload)        -- { kind = "chat", text = "..." }
-                               -- { kind = "whisper", target = "Username", text = "..." }
-Transport.ListUsers()          -- danh sách người chat ngoài Players (cho /w, /mute), có thể trả {}
-Transport.Start(onIncoming)    -- mỗi tin nhận được gọi onIncoming(packet)
-```
-
-Định dạng `packet` server gửi về:
+- `RemoteTransport` — khi có `ReplicatedStorage.CustomChatRemote` (server script tự tạo). Client gửi
+  `{ kind = "chat" | "whisper" | "hello", text, target }`; server trả từng `packet`.
+- `MockTransport` — khi không có server (đợi tối đa `CONFIG.ServerWaitTime` = 5 giây), bot giả lập.
 
 ```lua
 {
-  kind   = "chat" | "whisper" | "system",
-  sender = { name = "Username", displayName = "Tên hiển thị", userId = 123 },
-  target = { name = "...", displayName = "..." }, -- chỉ có khi kind = "whisper"
-  text   = "nội dung",
+  kind    = "chat" | "whisper" | "system",
+  sender  = { name = "Username", displayName = "Tên hiển thị", userId = 123, external = true? },
+  target  = { name = "...", displayName = "..." }, -- chỉ có khi kind = "whisper"
+  text    = "nội dung (đã lọc)",
+  history = true?,                                 -- tin cũ gửi lúc mới vào (không hiện bong bóng)
 }
 ```
 
-> ⚠️ Khi nối server thật trong Roblox, **server bắt buộc phải lọc chữ** bằng
-> `TextService:FilterStringAsync` trước khi gửi cho người chơi khác (quy định của Roblox).
-> Script phía client đã "thoát" ký tự RichText nên người chơi không chèn thẻ `<font>` để phá giao diện được.
+`external = true` = người viết thẳng vào ghi chú notevn (không ở trong server). Có thể `/mute` họ.
+Script client “thoát” ký tự RichText nên không ai chèn thẻ `<font>` phá giao diện được.
 
 ## Đã kiểm thử thế nào
 
-Môi trường làm việc **không có Roblox Studio**, nên script **chưa được chạy trong Studio thật**.
-Đã kiểm tra:
+Môi trường làm việc **không có Roblox Studio** và **không truy cập được notevn.com**, nên chưa chạy thật.
+Đã kiểm tra bằng **Luau CLI** chính thức + bộ mock Roblox kiểm tra tên lớp/thuộc tính/kiểu/Enum theo
+API Dump của Roblox, cùng một **notevn giả lập** (raw + `ajax.php` getnote/save, kiểm tra đúng tham số).
+Chạy lại: `LUAU=/đường/dẫn/luau bash roblox-chat/tests/run.sh`
 
-- Biên dịch + chạy bằng **Luau CLI** chính thức (build từ mã nguồn `luau-lang/luau`).
-- Chạy trên bộ mock Roblox có **kiểm tra tên lớp, tên thuộc tính, kiểu giá trị và Enum theo API Dump
-  của Roblox** (`MaximumADHD/Roblox-Client-Tracker`) — gán sai tên/kiểu thuộc tính là báo lỗi ngay.
-- 45 kịch bản: kích thước ở 4 độ phân giải, vị trí, màu/độ trong suốt, gửi tin, thoát RichText, /help,
-  /w + nhãn `[Tới X]`, thoát thì thầm bằng Backspace/bấm nhãn, bot trả lời, /mute, /unmute, cắt 200 ký tự,
-  chống spam, /clear, đóng/mở + huy hiệu, phím `/`, nền + chữ ô nhập mờ, hover, thanh cuộn, lịch sử ↑,
-  giới hạn 100 tin, chạy 300 giây không lỗi; thêm chế độ bật tab, chế độ cảm ứng và chữ mờ sau 30 giây.
+| Bộ test | Số kịch bản | Nội dung |
+|---|---|---|
+| `test_ui.luau` | 45 | kích thước 4 độ phân giải, màu, gửi tin, RichText, lệnh, thì thầm, spam, mờ dần, lịch sử… (chế độ DEMO) |
+| `test_fade.luau` | 1 | chữ mờ sau 30 giây |
+| `test_notevn.luau` | 61 | so khớp dòng mới, mã hoá form, lịch sử khi vào, đọc mỗi 3 giây, tin từ web, /mute người ngoài, ghi lên note, không trùng tin, /raw trả bản cũ, lọc TextService 2 chiều, gửi cùng lúc, /w không lên note, xuống dòng, 200 ký tự, chống spam phía server, thứ tự tin, note bị xoá, cắt `MaxNoteLines`, lưu lỗi + thử lại, HTTP tắt, note khoá, **xoá note khi tắt server**, dừng đọc sau khi tắt |
+| `test_http_off.luau` | 4 | chưa bật Allow HTTP Requests: báo lỗi, chat trong server vẫn chạy |
 
-Phần **chỉ xem được bằng mắt trong Studio** (font, vị trí thật trên topbar, độ đẹp bong bóng) cần bạn bấm Play để kiểm tra.
+Lỗi tìm được và đã sửa trong lúc test: tin hiện **sai thứ tự** khi lọc chậm (nay xử lý lần lượt từng người),
+**tin cũ bị hiện lại hàng loạt** khi `/raw` trả bản cũ hơn, người vào ngay lúc server mở **không thấy lịch sử**,
+tin **mất hẳn** khi lưu lỗi (nay thử lại 3 lần), dòng `https://...` bị hiểu nhầm là tên người gửi,
+thông báo “Đã kết nối” sai khi HTTP đang tắt.
+
+Phần **chỉ xem được bằng mắt trong Studio** (font, vị trí thật trên topbar, bong bóng) cần bạn bấm Play để kiểm tra.

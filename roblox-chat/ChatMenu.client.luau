@@ -2,12 +2,14 @@
 --[[
 	ChatMenu.client.luau
 	====================
-	Menu chat GIỐNG GIAO DIỆN CHAT CỦA ROBLOX — bản GIAO DIỆN (UI) TRƯỚC.
+	Menu chat GIỐNG GIAO DIỆN CHAT CỦA ROBLOX (LocalScript, phần giao diện).
 
-	• Chưa có server  ->  dùng "MockTransport": tin nhắn của bạn được hiện lại
+	• Có server (NotevnChatServer.server.luau trong ServerScriptService)
+	  ->  tự dùng "RemoteTransport": chat thật qua RemoteEvent "CustomChatRemote",
+	      server đồng bộ với ghi chú notevn mỗi 3 giây.
+	• Không có server ->  dùng "MockTransport": tin nhắn của bạn được hiện lại
 	  ngay trên máy, còn "người chơi khác" là bot giả lập để xem thử giao diện.
-	• Khi có server   ->  chỉ cần viết lại phần TRANSPORT (cuối tệp) — toàn bộ
-	  giao diện phía trên giữ nguyên. Xem roblox-chat/README.md.
+	Xem roblox-chat/README.md.
 
 	Cách dùng nhanh (Roblox Studio):
 	  StarterPlayer > StarterPlayerScripts > Insert Object > LocalScript
@@ -30,7 +32,10 @@
 --==============================================================================
 
 local CONFIG = {
-	DemoMode = true, -- true: bật bot giả lập người chơi khác (chưa có server)
+	UseServer = true, -- true: dùng server (RemoteEvent "CustomChatRemote") nếu có
+	ServerRemoteName = "CustomChatRemote",
+	ServerWaitTime = 5, -- giây chờ server tạo RemoteEvent; hết giờ -> chế độ demo
+	DemoMode = true, -- true: bật bot giả lập người chơi khác (chỉ khi KHÔNG có server)
 	DemoChatterMin = 7, -- giây, khoảng nghỉ ngắn nhất giữa 2 câu bot tự nói
 	DemoChatterMax = 16, -- giây, khoảng nghỉ dài nhất
 
@@ -126,6 +131,7 @@ local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local StarterGui = game:GetService("StarterGui")
 local GuiService = game:GetService("GuiService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
@@ -1378,7 +1384,8 @@ local function onIncoming(packet)
 	if muted[string.lower(senderName)] then
 		return
 	end
-	local isLocal = senderName == LocalPlayer.Name
+	local isExternal = sender.external == true -- người viết thẳng vào ghi chú notevn
+	local isLocal = senderName == LocalPlayer.Name and not isExternal
 	local displayName = CONFIG.UseDisplayName and (sender.displayName or senderName) or senderName
 
 	local msg: ChatMessage = {
@@ -1407,7 +1414,9 @@ local function onIncoming(packet)
 		end
 	else
 		addMessage("general", msg)
-		showBubble(Players:FindFirstChild(senderName) :: Player?, packet.text)
+		if not packet.history and not isExternal then
+			showBubble(Players:FindFirstChild(senderName) :: Player?, packet.text)
+		end
 	end
 end
 
@@ -1745,9 +1754,9 @@ end)
 	  Transport.Start(onIncoming)
 	      bắt đầu nhận tin; mỗi tin gọi onIncoming(packet) — định dạng ở mục 12.
 
-	Hiện chưa có server nên dùng MockTransport bên dưới.
-	Khi bạn đưa server, mình sẽ viết RemoteTransport (RemoteEvent / HTTP / ...)
-	và chỉ cần đổi dòng `Transport = MockTransport`.
+	• RemoteTransport: nói chuyện với NotevnChatServer.server.luau qua RemoteEvent
+	  ReplicatedStorage.CustomChatRemote (server lọc tin + đồng bộ ghi chú notevn).
+	• MockTransport  : khi không có server (bot giả lập, xem thử giao diện).
 ]]
 
 local MockTransport = {}
@@ -1872,7 +1881,75 @@ function MockTransport.Start(listener)
 	end)
 end
 
-Transport = MockTransport
+--------------------------------------------------------------------------------
+-- RemoteTransport (server thật)
+--------------------------------------------------------------------------------
+
+local RemoteTransport = {}
+local chatRemote: RemoteEvent? = nil
+local remoteUsers = {} -- người chat bên ngoài server (đọc từ ghi chú) — cho /mute
+local remoteUserByName = {}
+
+function RemoteTransport.ListUsers()
+	return remoteUsers
+end
+
+function RemoteTransport.Send(payload)
+	if chatRemote then
+		chatRemote:FireServer({ kind = payload.kind, text = payload.text, target = payload.target })
+	end
+end
+
+function RemoteTransport.Start(listener)
+	if not chatRemote then
+		return
+	end
+	chatRemote.OnClientEvent:Connect(function(packet)
+		if type(packet) ~= "table" then
+			return
+		end
+		local sender = packet.sender
+		if type(sender) == "table" and sender.external and type(sender.name) == "string" then
+			local key = string.lower(sender.name)
+			if not remoteUserByName[key] and not Players:FindFirstChild(sender.name) then
+				local info = { name = sender.name, displayName = sender.displayName or sender.name, userId = 0 }
+				remoteUserByName[key] = info
+				table.insert(remoteUsers, info)
+			end
+		end
+		listener(packet)
+	end)
+	chatRemote:FireServer({ kind = "hello" }) -- xin lịch sử tin gần đây
+end
+
+--------------------------------------------------------------------------------
+-- Chọn transport: có RemoteEvent của server -> RemoteTransport, không -> demo
+--------------------------------------------------------------------------------
+
+-- Trong lúc chờ server, tin gửi đi được giữ lại rồi gửi khi đã chọn xong
+local pendingSends = {}
+Transport = {
+	ListUsers = function()
+		return {}
+	end,
+	Send = function(payload)
+		table.insert(pendingSends, payload)
+	end,
+	Start = function() end,
+}
+
+local function chooseTransport()
+	if CONFIG.UseServer then
+		local found = ReplicatedStorage:FindFirstChild(CONFIG.ServerRemoteName)
+			or ReplicatedStorage:WaitForChild(CONFIG.ServerRemoteName, CONFIG.ServerWaitTime)
+		if found and found:IsA("RemoteEvent") then
+			chatRemote = found :: RemoteEvent
+			CONFIG.DemoMode = false
+			return RemoteTransport
+		end
+	end
+	return MockTransport
+end
 
 --==============================================================================
 -- 16. KHỞI ĐỘNG
@@ -1885,4 +1962,10 @@ setWindowOpen(windowOpen)
 updateInputVisuals()
 
 systemMessage(TEXT.Welcome)
-Transport.Start(onIncoming)
+local chosen = chooseTransport()
+Transport = chosen
+chosen.Start(onIncoming)
+for _, payload in pendingSends do
+	chosen.Send(payload)
+end
+table.clear(pendingSends)
