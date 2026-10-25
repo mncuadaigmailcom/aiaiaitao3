@@ -712,27 +712,162 @@ pcall(function() area = o.AbsoluteSize.X * o.AbsoluteSize.Y end) pcall(function(
 pcall(function() isAct = (o.Active == true) end) local interactive = (o:IsA("GuiButton") or o:IsA("TextBox"))
 local tag = tostring(o.Name) .. " (" .. tostring(o.ClassName) .. ")" if interactive and area < bigArea then hard = hard or tag
 elseif interactive or isAct or trans < 0.5 then soft = soft or tag end end end end end return hard, soft end
-function S.PickByRayScan(ray, filterList) if not ray or not ray.Origin or not ray.Direction then return nil, "không có tia ngắm hợp lệ" end
-local dir = ray.Direction local dirMagnitude = dir.Magnitude if dirMagnitude < 0.001 then return nil, "tia ngắm không có hướng hợp lệ" end dir = dir / dirMagnitude
-local maxD = tonumber(S.AnaCfg and S.AnaCfg.maxDist) or 10000 if maxD ~= maxD or maxD == math.huge or maxD <= 0 then maxD = 10000 end maxD = math.clamp(maxD, 1, 10000)
-local corridor = 6
-local okParams, op = pcall(function() local overlap = OverlapParams.new()
-overlap.FilterType = Enum.RaycastFilterType.Exclude overlap.FilterDescendantsInstances = filterList or {} overlap.MaxParts = 512 return overlap
-end) if not okParams or not op then return nil, "không tạo được bộ lọc quét vật thể" end local parts, seen = {}, {} local center = ray.Origin + dir * (maxD / 2)
-local up = (math.abs(dir.Y) > 0.98) and Vector3.new(0, 0, 1) or Vector3.new(0, 1, 0) local boxCFrame = CFrame.lookAt(center, center + dir, up)
-local okBox, boxParts = pcall(function() return workspace:GetPartBoundsInBox(boxCFrame, Vector3.new(corridor * 2, corridor * 2, maxD), op)
-end) if okBox and type(boxParts) == "table" then for _, pt in ipairs(boxParts) do if pt and not seen[pt] then seen[pt] = true parts[#parts + 1] = pt end end else
-local stepLen = 180 for startD = 0, maxD, stepLen do local length = math.min(stepLen, maxD - startD) if length > 0 then
-local sample = ray.Origin + dir * (startD + length / 2) local okRadius, around = pcall(function() return workspace:GetPartBoundsInRadius(sample, length / 2 + corridor, op) end)
-if okRadius and type(around) == "table" then for _, pt in ipairs(around) do if pt and not seen[pt] then seen[pt] = true parts[#parts + 1] = pt
-end end end end end end if #parts == 0 then return nil, string.format("không tìm thấy vật quanh tia trong %.0f studs", maxD) end
-local best, bestSurfaceD, bestOffset = nil, math.huge, math.huge for _, pt in ipairs(parts) do
-local okV, along, offset, radius = pcall(function() local rel = pt.Position - ray.Origin local t = rel:Dot(dir) if t <= 0.5 or t > maxD then return nil end
-local closest = ray.Origin + dir * t local lateral = (pt.Position - closest).Magnitude
-local half = math.max(pt.Size.X, pt.Size.Y, pt.Size.Z) / 2 if lateral > math.max(corridor, half + 2) then return nil end
-return t, lateral, half end) if okV and along then local surfaceD = math.max(0, along - radius) if surfaceD < bestSurfaceD then best, bestSurfaceD, bestOffset = pt, surfaceD, offset end end end
-if not best then return nil, "quét " .. #parts .. " vật nhưng không vật nào nằm trên tia trong " .. string.format("%.0f", maxD) .. " studs"
-end return best, string.format("quét xa dự phòng · %.0f studs · lệch tâm %.1f studs", bestSurfaceD, bestOffset) end function S.NearestParts(n) local char = player.Character
+function S.PickByRayScan(ray, filterList)
+    if not ray or not ray.Origin or not ray.Direction then
+        return nil, "không có tia ngắm hợp lệ"
+    end
+    local dir = ray.Direction
+    local dirMagnitude = dir.Magnitude
+    if dirMagnitude < 0.001 then
+        return nil, "tia ngắm không có hướng hợp lệ"
+    end
+    dir = dir / dirMagnitude
+
+    local maxD = tonumber(S.AnaCfg and S.AnaCfg.maxDist) or 10000
+    if maxD ~= maxD or maxD == math.huge or maxD <= 0 then maxD = 10000 end
+    maxD = math.clamp(maxD, 1, 10000)
+    local corridor = 6
+    local excluded = filterList or {}
+    local okParams, op = pcall(function()
+        local overlap = OverlapParams.new()
+        overlap.FilterType = Enum.RaycastFilterType.Exclude
+        overlap.FilterDescendantsInstances = excluded
+        overlap.MaxParts = 512
+        return overlap
+    end)
+    if not okParams or not op then
+        return nil, "không tạo được bộ lọc quét vật thể"
+    end
+
+    local parts, seen, nonQueryableHits = {}, {}, {}
+    local center = ray.Origin + dir * (maxD / 2)
+    local up = (math.abs(dir.Y) > 0.98) and Vector3.new(0, 0, 1) or Vector3.new(0, 1, 0)
+    local boxCFrame = CFrame.lookAt(center, center + dir, up)
+    local okBox, boxParts = pcall(function()
+        return workspace:GetPartBoundsInBox(boxCFrame, Vector3.new(corridor * 2, corridor * 2, maxD), op)
+    end)
+    if okBox and type(boxParts) == "table" then
+        for _, pt in ipairs(boxParts) do
+            if pt and not seen[pt] then
+                seen[pt] = true
+                parts[#parts + 1] = pt
+            end
+        end
+    else
+        local stepLen = 180
+        for startD = 0, maxD, stepLen do
+            local length = math.min(stepLen, maxD - startD)
+            if length > 0 then
+                local sample = ray.Origin + dir * (startD + length / 2)
+                local okRadius, around = pcall(function()
+                    return workspace:GetPartBoundsInRadius(sample, length / 2 + corridor, op)
+                end)
+                if okRadius and type(around) == "table" then
+                    for _, pt in ipairs(around) do
+                        if pt and not seen[pt] then
+                            seen[pt] = true
+                            parts[#parts + 1] = pt
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    -- Spatial overlap queries omit BaseParts with CanQuery=false. Inspect those
+    -- parts directly and intersect the ray against each part's oriented bounds,
+    -- so non-collidable / non-queryable trigger parts remain analyzable.
+    local function isExcluded(pt)
+        for _, root in ipairs(excluded) do
+            if root then
+                local ok, matches = pcall(function()
+                    return pt == root or pt:IsDescendantOf(root)
+                end)
+                if ok and matches then return true end
+            end
+        end
+        return false
+    end
+    local function rayBoxDistance(pt)
+        local ok, distance = pcall(function()
+            local cf, size = pt.CFrame, pt.Size
+            local origin = cf:PointToObjectSpace(ray.Origin)
+            local direction = cf:VectorToObjectSpace(dir)
+            local half = size * 0.5
+            local tMin, tMax = 0, maxD
+            for _, axis in ipairs({"X", "Y", "Z"}) do
+                local o, d, h = origin[axis], direction[axis], half[axis]
+                if math.abs(d) < 1e-8 then
+                    if o < -h or o > h then return nil end
+                else
+                    local nearT, farT = (-h - o) / d, (h - o) / d
+                    if nearT > farT then nearT, farT = farT, nearT end
+                    tMin, tMax = math.max(tMin, nearT), math.min(tMax, farT)
+                    if tMin > tMax then return nil end
+                end
+            end
+            if tMax < 0 or tMin > maxD then return nil end
+            return math.max(0, tMin)
+        end)
+        if ok then return distance end
+        return nil
+    end
+    local okDesc, descendants = pcall(function() return workspace:GetDescendants() end)
+    if okDesc and type(descendants) == "table" then
+        for _, pt in ipairs(descendants) do
+            local okPart, isPart = pcall(function() return pt:IsA("BasePart") end)
+            if okPart and isPart and not seen[pt] and not isExcluded(pt) then
+                local okQuery, canQuery = pcall(function() return pt.CanQuery end)
+                if okQuery and canQuery == false then
+                    local distance = rayBoxDistance(pt)
+                    if distance ~= nil then
+                        seen[pt] = true
+                        parts[#parts + 1] = pt
+                        nonQueryableHits[pt] = distance
+                    end
+                end
+            end
+        end
+    end
+
+    if #parts == 0 then
+        return nil, string.format("không tìm thấy vật quanh tia trong %.0f studs", maxD)
+    end
+    local best, bestSurfaceD, bestOffset = nil, math.huge, math.huge
+    local hiddenBest, hiddenBestDistance = nil, math.huge
+    for _, pt in ipairs(parts) do
+        local exactHit = nonQueryableHits[pt]
+        if exactHit ~= nil then
+            if exactHit < bestSurfaceD then
+                best, bestSurfaceD, bestOffset = pt, exactHit, 0
+            end
+            if exactHit < hiddenBestDistance then
+                hiddenBest, hiddenBestDistance = pt, exactHit
+            end
+        else
+            local okV, along, offset, radius = pcall(function()
+                local rel = pt.Position - ray.Origin
+                local t = rel:Dot(dir)
+                if t <= 0.5 or t > maxD then return nil end
+                local closest = ray.Origin + dir * t
+                local lateral = (pt.Position - closest).Magnitude
+                local half = math.max(pt.Size.X, pt.Size.Y, pt.Size.Z) / 2
+                if lateral > math.max(corridor, half + 2) then return nil end
+                return t, lateral, half
+            end)
+            if okV and along then
+                local surfaceD = math.max(0, along - radius)
+                if surfaceD < bestSurfaceD then
+                    best, bestSurfaceD, bestOffset = pt, surfaceD, offset
+                end
+            end
+        end
+    end
+    if not best then
+        return nil, "quét " .. #parts .. " vật nhưng không vật nào nằm trên tia trong " .. string.format("%.0f", maxD) .. " studs"
+    end
+    return best, string.format("quét xa dự phòng · %.0f studs · lệch tâm %.1f studs", bestSurfaceD, bestOffset), hiddenBest, hiddenBestDistance
+end function S.NearestParts(n) local char = player.Character
 local root = char and char:FindFirstChild("HumanoidRootPart") if not root then return nil, "chưa có nhân vật (đang ở lobby/menu?)" end
 local ok, parts = pcall(function() local op = OverlapParams.new() op.FilterType = Enum.RaycastFilterType.Exclude op.FilterDescendantsInstances = {char, gui}
 op.MaxParts = 120 return workspace:GetPartBoundsInRadius(root.Position, 60, op)
@@ -770,9 +905,23 @@ local pw = RaycastParams.new() pw.FilterType = Enum.RaycastFilterType.Exclude
 pw.FilterDescendantsInstances = filterList pw.IgnoreWater = true local rw = workspace:Raycast(unitRay.Origin, unitRay.Direction * S.AnaCfg.maxDist, pw)
 if rw and rw.Instance then result = rw S.AnaNote = "🌊 đã xuyên qua mặt nước để lấy vật bên dưới" end end local inst, hitPos, hitNormal, hitMat, how if result and result.Instance then
 inst, hitPos, hitNormal, hitMat = result.Instance, result.Position, result.Normal, result.Material how = "🎯 tia bắn trúng"
-elseif S.AnaCfg.scanFallback then local part, why2 = S.PickByRayScan(unitRay, filterList) if part then inst, hitPos, how = part, part.Position, "🧭 " .. tostring(why2)
-pcall(function() hitNormal = part.CFrame.LookVector end) pcall(function() hitMat = part.Material end) else S.AnaWhyScan = why2
-end end objResultPanel.Visible = true if inst then S.FillObjPanel(inst, hitPos, hitNormal, hitMat, how)
+end
+if S.AnaCfg.scanFallback then
+local part, why2, hiddenPart, hiddenDistance = S.PickByRayScan(unitRay, filterList)
+if result and hiddenPart then
+local rayDistance = (result.Position - unitRay.Origin).Magnitude
+if hiddenDistance < rayDistance then
+inst, hitPos, how = hiddenPart, hiddenPart.Position, "🧭 vật CanQuery=false nằm trước vật tia raycast"
+pcall(function() hitNormal = hiddenPart.CFrame.LookVector end) pcall(function() hitMat = hiddenPart.Material end)
+end
+elseif not result and part then
+inst, hitPos, how = part, part.Position, "🧭 " .. tostring(why2)
+pcall(function() hitNormal = part.CFrame.LookVector end) pcall(function() hitMat = part.Material end)
+elseif not result then
+S.AnaWhyScan = why2
+end
+end
+objResultPanel.Visible = true if inst then S.FillObjPanel(inst, hitPos, hitNormal, hitMat, how)
 else local prevName = objNameLbl.Text objNameLbl.Text = "⚠️ Không hit gì — giữ vật đang chọn" S.AnaSay("⚠️ Không thấy vật ở điểm chạm"
 .. (S.AnaWhyScan and (" (" .. S.AnaWhyScan .. ")") or " (tia đi vào khoảng không)") .. " — thử ⊕ Giữa màn hình, 🧭 Gần nhất, hoặc lại gần vật hơn")
 task.delay(1.0, function() if objNameLbl and objNameLbl.Parent and objNameLbl.Text == "⚠️ Không hit gì — giữ vật đang chọn" then objNameLbl.Text = prevName end end) end end
@@ -866,7 +1015,7 @@ or "🛡 Xuyên HUD game: TẮT (như bản cũ)" D.SetBg(S.AnaUi.skipGuiBtn, on
 S.AnaSay(on and "🛡 BẬT: bỏ qua HUD/nền bán trong suốt của game (khuyên dùng, nhất là 📱 mobile)" or "🛡 TẮT: quay lại kiểu cũ — HUD của game sẽ CHẶN phân tích ở điểm chạm")
 end) S.AnaUi.scanFbBtn.Activated:Connect(function() S.AnaCfg.scanFallback = not S.AnaCfg.scanFallback local on = S.AnaCfg.scanFallback
 S.AnaUi.scanFbBtn.Text = on and "🧭 Quét dự phòng: BẬT" or "🧭 Quét dự phòng: TẮT" D.SetBg(S.AnaUi.scanFbBtn, on and C.GREEN or C.GRAY)
-S.AnaSay(on and "🧭 BẬT: tia trượt sẽ tự quét vật gần tia — game đặt CanQuery=false vẫn phân tích được" or "🧭 TẮT: chỉ dùng tia raycast (nhanh hơn, nhưng game khó sẽ không ra kết quả)") end)
+S.AnaSay(on and "🧭 BẬT: quét dự phòng có kiểm tra BasePart CanQuery=false bằng tia hình học; map lớn có thể chậm hơn" or "🧭 TẮT: chỉ dùng tia raycast (nhanh hơn, nhưng game khó sẽ không ra kết quả)") end)
 clearObjectBtn.Activated:Connect(function() objResultPanel.Visible = false RemoveCurrentHighlight() end)
 copyObjBtn.Activated:Connect(function() local pos = objResultPanel:GetAttribute("LastHitPos") if pos and pos ~= "" then S.CopyToClipboard(pos) flash(copyObjBtn, "✅ Đã Copy!", 1.2) end end)
 copyPathBtn.Activated:Connect(function() local path = objResultPanel:GetAttribute("LastPath") if path and path ~= "" then S.CopyToClipboard(path)
