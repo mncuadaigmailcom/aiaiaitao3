@@ -22,6 +22,9 @@ không dùng executor, không dùng `setrbxsetting`, không can thiệp anti-che
 > Mã nguồn: [`secure-script/`](secure-script/README.md) · chạy trên máy:
 > `python3 -m http.server 8080 --directory secure-script` → http://localhost:8080
 
+> **Dự án thứ ba:** 💬 [`roblox-chat/`](roblox-chat/README.md) — menu chat giống giao diện chat Roblox
+> (một LocalScript, bản giao diện, chưa nối server).
+
 ---
 
 ## 1. Cài đặt
