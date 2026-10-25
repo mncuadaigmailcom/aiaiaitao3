@@ -22,8 +22,8 @@ Script tự tắt khung chat mặc định của Roblox (`CONFIG.DisableDefaultC
 
 | Việc | Cách làm |
 |---|---|
-| **Đọc** | Cứ **3 giây** `GET https://notevn.com/raw/qdzjmz94` (thêm `?t=...` chống cache). Mỗi dòng `tên: tin nhắn`. Dòng mới → gửi tới mọi người chơi. |
-| **Ghi** | Người chơi chat → server lọc bằng `TextService` → hiện ngay cho cả server → **đọc lại ghi chú, thêm dòng `Username: tin` vào cuối, lưu** lên `https://notevn.com/cbyurm9g`. |
+| **Đọc** | Cứ **3 giây** `GET https://notevn.com/raw/qdzjmz94` (thêm `?t=...` chống cache). Trang này là **HTML**, nội dung nằm trong `quill.setContents({"ops":[...]})` → script tách lấy chữ (đọc không được thì tự chuyển sang `/get_shared/qdzjmz94`). Mỗi dòng `tên: tin nhắn`. Dòng mới → gửi tới mọi người chơi. |
+| **Ghi** | (Mở trang ghi chú 1 lần để lấy cookie phiên như trình duyệt.) Người chơi chat → server lọc bằng `TextService` → hiện ngay cho cả server → **đọc lại ghi chú, thêm dòng `Username: tin` vào cuối, lưu** lên `https://notevn.com/cbyurm9g`. |
 | **Thoát** | Server tắt (`game:BindToClose`, kể cả bấm **Stop** trong Studio) → **xoá sạch** nội dung ghi chú. |
 | **Người mới vào** | Thấy tối đa 20 tin gần nhất trong ghi chú. |
 | **Thì thầm `/w`** | Chỉ trong cùng server Roblox, **không** ghi lên ghi chú (ghi chú ai cũng đọc được). |
@@ -138,12 +138,17 @@ Chạy lại: `LUAU=/đường/dẫn/luau bash roblox-chat/tests/run.sh`
 |---|---|---|
 | `test_ui.luau` | 45 | kích thước 4 độ phân giải, màu, gửi tin, RichText, lệnh, thì thầm, spam, mờ dần, lịch sử… (chế độ DEMO) |
 | `test_fade.luau` | 1 | chữ mờ sau 30 giây |
-| `test_notevn.luau` | 68 | bong bóng chat trên đầu người chơi khác + chính mình (không hiện cho người viết trên web, không hiện khi thì thầm, tự tắt sau 15 giây), so khớp dòng mới, mã hoá form, lịch sử khi vào, đọc mỗi 3 giây, tin từ web, /mute người ngoài, ghi lên note, không trùng tin, /raw trả bản cũ, lọc TextService 2 chiều, gửi cùng lúc, /w không lên note, xuống dòng, 200 ký tự, chống spam phía server, thứ tự tin, note bị xoá, cắt `MaxNoteLines`, lưu lỗi + thử lại, HTTP tắt, note khoá, **xoá note khi tắt server**, dừng đọc sau khi tắt |
+| `test_notevn.luau` | 79 | tách nội dung từ HTML `/raw` thật (cả chữ có `}` `"` `'silent')`), dự phòng `/get_shared`, cookie phiên, bong bóng chat trên đầu người chơi khác + chính mình (không hiện cho người viết trên web, không hiện khi thì thầm, tự tắt sau 15 giây), so khớp dòng mới, mã hoá form, lịch sử khi vào, đọc mỗi 3 giây, tin từ web, /mute người ngoài, ghi lên note, không trùng tin, /raw trả bản cũ, lọc TextService 2 chiều, gửi cùng lúc, /w không lên note, xuống dòng, 200 ký tự, chống spam phía server, thứ tự tin, note bị xoá, cắt `MaxNoteLines`, lưu lỗi + thử lại, HTTP tắt, note khoá, **xoá note khi tắt server**, dừng đọc sau khi tắt |
 | `test_http_off.luau` | 4 | chưa bật Allow HTTP Requests: báo lỗi, chat trong server vẫn chạy |
 
 Lỗi tìm được và đã sửa trong lúc test: tin hiện **sai thứ tự** khi lọc chậm (nay xử lý lần lượt từng người),
 **tin cũ bị hiện lại hàng loạt** khi `/raw` trả bản cũ hơn, người vào ngay lúc server mở **không thấy lịch sử**,
 tin **mất hẳn** khi lưu lỗi (nay thử lại 3 lần), dòng `https://...` bị hiểu nhầm là tên người gửi,
 thông báo “Đã kết nối” sai khi HTTP đang tắt.
+**Lỗi nặng phát hiện khi chạy thật:** `/raw` trả về trang HTML chứ không phải chữ thuần → bản cũ hiểu cả trang
+HTML là 1 tin nhắn và có thể ghi rác HTML lên ghi chú. Đã sửa: tách đúng nội dung, và không bao giờ lưu khi đọc ra HTML lạ.
+
+Khi chạy, cửa sổ **Output** sẽ in `✔ đọc ghi chú OK`, `✔ ghi lên notevn thành công` hoặc lý do lỗi (kèm đoạn đầu phản hồi của notevn).
+Trang `notevn.com/cbyurm9g` đang mở trên trình duyệt **không tự cập nhật** — bấm **F5** để thấy tin mới.
 
 Phần **chỉ xem được bằng mắt trong Studio** (font, vị trí thật trên topbar, bong bóng) cần bạn bấm Play để kiểm tra.

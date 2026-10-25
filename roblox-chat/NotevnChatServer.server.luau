@@ -183,6 +183,74 @@ function Text.newLines(old: { string }, new: { string }): { string }
 	return table.clone(new)
 end
 
+-- Cắt đúng một object JSON {...} bắt đầu tại vị trí `start` (bỏ qua { } nằm trong chuỗi)
+function Text.matchJsonObject(s: string, start: number): string?
+	local depth, inStr, i, n = 0, false, start, #s
+	while i <= n do
+		local c = string.byte(s, i)
+		if inStr then
+			if c == 92 then -- \
+				i += 1
+			elseif c == 34 then -- "
+				inStr = false
+			end
+		elseif c == 34 then
+			inStr = true
+		elseif c == 123 then -- {
+			depth += 1
+		elseif c == 125 then -- }
+			depth -= 1
+			if depth == 0 then
+				return string.sub(s, start, i)
+			end
+		end
+		i += 1
+	end
+	return nil
+end
+
+-- Lấy NỘI DUNG CHỮ của ghi chú từ phản hồi notevn. Hỗ trợ:
+--   • trang /raw/...       : HTML, nội dung nằm trong quill.setContents({"ops":[...]}, 'silent')
+--   • /get_shared/...      : JSON Quill Delta {"ops":[{"insert":"..."}]}
+--   • chữ thuần
+-- Trả nil nếu là HTML lạ (không tìm thấy nội dung) — để KHÔNG BAO GIỜ ghi rác HTML vào ghi chú.
+function Text.extractNoteText(body: string?, decode: (string) -> any): string?
+	if type(body) ~= "string" then
+		return nil
+	end
+	local trimmed = Text.trim(body)
+	local json = nil
+	if string.sub(trimmed, 1, 1) == "{" then
+		json = trimmed
+	else
+		local at = string.find(body, "setContents(", 1, true)
+		if at then
+			local start = string.find(body, "{", at, true)
+			json = start and Text.matchJsonObject(body, start)
+		elseif string.find(string.lower(string.sub(trimmed, 1, 200)), "<html", 1, true)
+			or string.find(string.lower(string.sub(trimmed, 1, 200)), "<!doctype", 1, true)
+		then
+			return nil
+		else
+			return body
+		end
+	end
+	if not json then
+		return nil
+	end
+	local ok, delta = pcall(decode, json)
+	if not ok or type(delta) ~= "table" or type(delta.ops) ~= "table" then
+		return nil
+	end
+	local parts = {}
+	for _, op in delta.ops do
+		if type(op) == "table" and type(op.insert) == "string" then
+			table.insert(parts, op.insert)
+		end
+	end
+	return table.concat(parts)
+end
+
 -- Mã hoá form kiểu jQuery.param:  data[0][id]=1&data[0][name]=x&action=save
 function Text.formEncode(params: { [string]: any }, encode: (string) -> string): string
 	local parts = {}
@@ -254,8 +322,11 @@ local function httpErrorText(err): string
 	return s
 end
 
-function Notevn.read(): (boolean, string)
-	local url = CONFIG.ReadUrl
+local function jsonDecode(s: string)
+	return HttpService:JSONDecode(s)
+end
+
+local function httpGet(url: string): (boolean, string)
 	if CONFIG.CacheBust then
 		url ..= (string.find(url, "?", 1, true) and "&" or "?") .. "t=" .. tostring(os.time()) .. tostring(math.random(100, 999))
 	end
@@ -268,7 +339,70 @@ function Notevn.read(): (boolean, string)
 	return true, body
 end
 
+local readWarned = false
+
+-- Đọc ghi chú -> (true, "nội dung chữ") hoặc (false, lỗi)
+function Notevn.read(): (boolean, string)
+	local ok, body = httpGet(CONFIG.ReadUrl)
+	if not ok then
+		return false, body
+	end
+	local text = Text.extractNoteText(body, jsonDecode)
+	if text then
+		return true, text
+	end
+	-- Trang /raw đổi định dạng -> thử đường JSON /get_shared/<mã> (trang chia sẻ của notevn dùng)
+	if not readWarned then
+		readWarned = true
+		warn("[NotevnChat] không tách được nội dung từ " .. CONFIG.ReadUrl .. " — thử /get_shared. Đầu phản hồi: " .. string.sub(body, 1, 200))
+	end
+	local ok2, body2 = httpGet(CONFIG.BaseUrl .. "/get_shared/" .. CONFIG.ShareKey)
+	if ok2 then
+		local text2 = Text.extractNoteText(body2, jsonDecode)
+		if text2 then
+			return true, text2
+		end
+	end
+	return false, "không đọc được nội dung ghi chú (định dạng lạ)"
+end
+
+-- Cookie phiên (PHPSESSID...) lấy khi mở trang ghi chú, gửi kèm ajax giống trình duyệt
+local sessionCookie: string? = nil
+local COOKIE_ATTR = { expires = true, path = true, domain = true, ["max-age"] = true, samesite = true, secure = true, httponly = true }
+
+function Text.parseSetCookie(header: string?): string?
+	if type(header) ~= "string" or header == "" then
+		return nil
+	end
+	local pairs_ = {}
+	for name, value in string.gmatch(header, "([%w_%-%.]+)=([^;,]*)") do
+		if not COOKIE_ATTR[string.lower(name)] then
+			table.insert(pairs_, name .. "=" .. value)
+		end
+	end
+	return #pairs_ > 0 and table.concat(pairs_, "; ") or nil
+end
+
+local function ensureSession()
+	if sessionCookie ~= nil then
+		return
+	end
+	sessionCookie = ""
+	local ok, res = pcall(function()
+		return HttpService:RequestAsync({ Url = CONFIG.BaseUrl .. CONFIG.NoteFile, Method = "GET" })
+	end)
+	if ok and type(res) == "table" and type(res.Headers) == "table" then
+		for k, v in res.Headers do
+			if string.lower(tostring(k)) == "set-cookie" then
+				sessionCookie = Text.parseSetCookie(v) or ""
+			end
+		end
+	end
+	log("cookie phiên:", sessionCookie)
+end
+
 local function ajax(params): (boolean, any)
+	ensureSession()
 	local body = Text.formEncode(params, urlEncode)
 	log("POST ajax.php", body)
 	local function send(extraHeaders: boolean)
@@ -276,6 +410,9 @@ local function ajax(params): (boolean, any)
 		if extraHeaders then
 			headers["X-Requested-With"] = "XMLHttpRequest" -- giống jQuery trên trang notevn
 			headers["Referer"] = CONFIG.BaseUrl .. CONFIG.NoteFile
+			if sessionCookie and sessionCookie ~= "" then
+				headers["Cookie"] = sessionCookie
+			end
 		end
 		return pcall(function()
 			return HttpService:RequestAsync({ Url = CONFIG.BaseUrl .. "/ajax.php", Method = "POST", Headers = headers, Body = body })
@@ -289,13 +426,16 @@ local function ajax(params): (boolean, any)
 		return false, httpErrorText(res)
 	end
 	log("->", res.StatusCode, res.Body)
+	local snippet = string.sub(tostring(res.Body), 1, 150)
 	if not res.Success then
+		warn("[NotevnChat] ajax.php " .. tostring(params.action) .. " -> HTTP " .. tostring(res.StatusCode) .. ": " .. snippet)
 		return false, "HTTP " .. tostring(res.StatusCode)
 	end
 	local okJson, data = pcall(function()
 		return HttpService:JSONDecode(res.Body)
 	end)
 	if not okJson or type(data) ~= "table" then
+		warn("[NotevnChat] ajax.php " .. tostring(params.action) .. " trả về không phải JSON: " .. snippet)
 		return false, "phản hồi không phải JSON"
 	end
 	return true, data
@@ -558,11 +698,38 @@ local function ingest(body: string)
 	end
 end
 
+local verify = nil -- { line, polls }: kiểm tra tin vừa lưu có thật sự nằm trong ghi chú
+local firstReadLogged, firstWriteLogged = false, false
+
+local function checkVerify(body: string)
+	if not verify then
+		return
+	end
+	if string.find(body, verify.line, 1, true) then
+		verify = nil
+		if not firstWriteLogged then
+			firstWriteLogged = true
+			print("[NotevnChat] ✔ ghi lên notevn thành công (F5 trang " .. CONFIG.BaseUrl .. CONFIG.NoteFile .. " để thấy)")
+		end
+	else
+		verify.polls += 1
+		if verify.polls >= 2 then
+			verify = nil
+			reportError("write", "notevn trả lời OK nhưng đọc lại không thấy tin — có thể bị chặn")
+		end
+	end
+end
+
 local function pollOnce()
 	local ok, body = Notevn.read()
 	if ok then
 		lastError = nil
+		if not firstReadLogged then
+			firstReadLogged = true
+			print(string.format("[NotevnChat] ✔ đọc ghi chú OK (%d dòng)", #Text.splitLines(body)))
+		end
 		ingest(body)
+		checkVerify(body)
 	else
 		reportError("read", body)
 	end
@@ -615,6 +782,7 @@ local function flushWrites()
 		for _, item in pending do
 			markOwn(item.line) -- phòng khi /raw còn trả bản cũ ở lần đọc kế tiếp
 		end
+		verify = { line = pending[#pending].line, polls = 0 }
 	else
 		reportError("write", err or "?")
 		requeue(pending)

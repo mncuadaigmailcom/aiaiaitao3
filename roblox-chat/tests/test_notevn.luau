@@ -39,6 +39,16 @@ local enc = function(s) return (s:gsub("[^%w%-_%.~]", function(c) return string.
 local form = Text.formEncode({ action = "save", type = "", data = { { id = 5, name = "a b", flag = true } } }, enc)
 check("formEncode jQuery style", form == "action=save&data%5B0%5D%5Bflag%5D=true&data%5B0%5D%5Bid%5D=5&data%5B0%5D%5Bname%5D=a%20b&type=", form)
 
+local dec = T.JSON.decode
+local realRaw = '<!DOCTYPE html><html lang="vi"><head><meta charset="UTF-8"><title>notevn / raw / qdzjmz94</title></head><body><script>var quill = new Quill(\'.editable\', {\tmodules: {\ttoolbar: false\t},\ttheme: \'snow\'\t});\tquill.disable();\tquill.setContents({"ops":[{"insert":"taodepzaitopsever: bạn đang làm gì vậy ?\\nhuyhieucute123456789: bạn có thể giúp mình không\\n"}]}, \'silent\');\tvar editor = 1;</script></body></html>'
+check("extract text from real /raw HTML", Text.extractNoteText(realRaw, dec) == "taodepzaitopsever: bạn đang làm gì vậy ?\nhuyhieucute123456789: bạn có thể giúp mình không\n", Text.extractNoteText(realRaw, dec))
+local tricky = 'x<script>quill.setContents({"ops":[{"insert":"a: dấu } và \\" và \'silent\') nhé\\n"},{"insert":{"image":"u"}},{"insert":"b: link https:\\/\\/x.com\\n","attributes":{"bold":true}}]}, \'silent\');</script>'
+check("extract handles } \" 'silent') \\/ and embeds", Text.extractNoteText(tricky, dec) == "a: dấu } và \" và 'silent') nhé\nb: link https://x.com/\n" or Text.extractNoteText(tricky, dec) == "a: dấu } và \" và 'silent') nhé\nb: link https://x.com\n", Text.extractNoteText(tricky, dec))
+check("extract Delta JSON (/get_shared)", Text.extractNoteText('{"ops":[{"insert":"z: 1\\n"}]}', dec) == "z: 1\n")
+check("extract plain text", Text.extractNoteText("a: b\nc: d\n", dec) == "a: b\nc: d\n")
+check("unknown HTML -> nil (never saved as chat)", Text.extractNoteText("<!DOCTYPE html><html><body>lỗi 502: bad gateway</body></html>", dec) == nil)
+check("parse Set-Cookie", Text.parseSetCookie("PHPSESSID=abc; path=/; HttpOnly, cf=x; expires=Fri, 31 Dec 2027 23:59:59 GMT; path=/") == "PHPSESSID=abc; cf=x", Text.parseSetCookie("PHPSESSID=abc; path=/; HttpOnly, cf=x; expires=Fri, 31 Dec 2027 23:59:59 GMT; path=/"))
+
 -- ---------- integration ----------
 local Players = game:GetService("Players")
 local RS = game:GetService("ReplicatedStorage")
@@ -62,6 +72,7 @@ check("no demo when server present", not has("DEMO"))
 check("connected notice", has("Đã kết nối chat chung"))
 check("history from note shown", has("taodepzaitopsever:</font> bạn đang làm gì vậy ?") and has("huyhieucute123456789:</font> bạn có thể giúp mình không"), lines())
 check("history filtered per recipient", T.filterCalls >= 2)
+check("no HTML junk shown in chat", not has("DOCTYPE") and not has("quill") and not has("&lt;"), lines())
 check("read uses raw url + cache bust", NV.gets[1] and NV.gets[1].url:find("^https://notevn.com/raw/qdzjmz94%?t=") ~= nil, NV.gets[1] and NV.gets[1].url)
 
 -- poll interval
@@ -90,6 +101,8 @@ T.run(1.5)
 check("save request sent", #NV.saves == s0 + 1, #NV.saves - s0)
 check("note has 'TestPlayer: hello server' at end", NV.text:sub(-#"TestPlayer: hello server\n") == "TestPlayer: hello server\n", NV.text)
 check("old note lines kept", NV.text:find("taodepzaitopsever: bạn đang làm gì vậy ?", 1, true) ~= nil)
+check("saved note is clean text (no HTML)", not NV.text:find("<", 1, true) and not NV.text:find("quill", 1, true), NV.text)
+check("session cookie from note page sent to ajax.php", NV.lastCookie == "PHPSESSID=abc123; cf_bm=xyz", NV.lastCookie)
 check("friend got broadcast", (function() for _, p in T.friendInbox do if p.text == "hello server" then return true end end return false end)())
 T.run(7)
 check("own message not duplicated by poll", count(lines(), "hello server") == 1, count(lines(), "hello server"))
@@ -224,6 +237,16 @@ T.run(7)
 check("no re-broadcast storm after failure", count(lines(), "trim 3") == 1, count(lines(), "trim 3"))
 check("failed message retried and saved", NV.text:find("TestPlayer: sẽ lỗi", 1, true) ~= nil, NV.text)
 check("retried message not duplicated in chat", count(lines(), "sẽ lỗi") == 1)
+
+-- /raw changes format -> fallback to /get_shared
+NV.rawFormat = "broken"
+NV.text ..= "web_user: đọc qua get_shared\n"
+T.run(3.5)
+check("fallback to /get_shared when /raw unreadable", has("web_user:</font> đọc qua get_shared"), lines())
+say("vẫn ghi được")
+T.run(1.5)
+check("write still works with fallback read", NV.text:find("TestPlayer: vẫn ghi được", 1, true) ~= nil and not NV.text:find("<", 1, true))
+NV.rawFormat = nil
 
 -- HTTP disabled
 T.httpEnabled = false

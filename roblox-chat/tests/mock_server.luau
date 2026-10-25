@@ -170,15 +170,28 @@ T.funcs["HttpService.GetAsync"] = function(_, url, nocache)
 	if not T.httpEnabled then error("Http requests are not enabled. Enable via game settings", 2) end
 	task.wait(NV.latency)
 	table.insert(NV.gets, { url = url, t = T.now, nocache = nocache })
+	local text = NV.text
+	if NV.staleNext then NV.staleNext = false; text = NV.prevText end
+	-- PHP json_encode(JSON_UNESCAPED_UNICODE): escapes "/" as "\/"
+	local delta = (JSON.encode({ ops = { { insert = text } } }):gsub("/", "\\/"))
+	if url:match("^https://notevn%.com/get_shared/qdzjmz94") then return delta end
 	assert(url:match("^https://notevn%.com/raw/qdzjmz94"), "unexpected GET " .. url)
-	if NV.staleNext then NV.staleNext = false return NV.prevText end
-	return NV.text
+	if NV.rawFormat == "broken" then return "<!DOCTYPE html><html><body>maintenance</body></html>" end
+	-- same shape as the real page (single line HTML, content inside quill.setContents)
+	return '<!DOCTYPE html><html lang="vi"><head><meta charset="UTF-8"><meta name="description"\tcontent="Lưu trữ văn bản: ẩn danh"><title>notevn / raw / qdzjmz94 | Ghi chú</title><style>* {\tmargin: 0;}</style></head><body><pre><div class="editable" spellcheck="false"></div></pre><script src="//cdnjs.cloudflare.com/ajax/libs/quill/1.3.6/quill.min.js"></script><script>var quill = new Quill(\'.editable\', {\tmodules: {\ttoolbar: false\t},\ttheme: \'snow\'\t});\tquill.disable();\tquill.setContents(' .. delta .. ", 'silent');\tvar editor = document.querySelector('.ql-editor');\teditor.textContent = quill.getText();</script></body></html>"
 end
 T.funcs["HttpService.RequestAsync"] = function(_, req)
 	assert(type(req) == "table" and type(req.Url) == "string", "RequestAsync expects table")
 	if not T.httpEnabled then error("Http requests are not enabled. Enable via game settings", 2) end
 	for k in req do assert(k == "Url" or k == "Method" or k == "Headers" or k == "Body" or k == "Compress", "RequestAsync bad field " .. k) end
 	task.wait(NV.latency)
+	if req.Method == "GET" or req.Method == nil then
+		assert(req.Url == "https://notevn.com/cbyurm9g", "unexpected GET " .. req.Url)
+		NV.pageGets = (NV.pageGets or 0) + 1
+		return { Success = true, StatusCode = 200, StatusMessage = "OK", Body = "<html></html>",
+			Headers = { ["set-cookie"] = "PHPSESSID=abc123; path=/; HttpOnly, cf_bm=xyz; expires=Fri, 31 Dec 2027 23:59:59 GMT; path=/" } }
+	end
+	NV.lastCookie = req.Headers and req.Headers.Cookie
 	assert(req.Url == "https://notevn.com/ajax.php", "unexpected POST " .. req.Url)
 	assert(req.Method == "POST")
 	assert(req.Headers["Content-Type"]:find("application/x-www-form-urlencoded", 1, true))
