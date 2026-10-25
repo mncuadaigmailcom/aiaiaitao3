@@ -16,13 +16,13 @@
 	Có gì trong giao diện (bám theo chat mặc định của Roblox):
 	  - Nút chat 💬 trên thanh topbar (bật/tắt khung chat, có huy hiệu số tin chưa đọc)
 	  - Khung chat nền tối bán trong suốt ở góc trên bên trái, tự mờ dần khi không dùng
-	  - Thanh nhập "Nhấp vào đây hoặc nhấn phím "/" để trò chuyện" + nút gửi
+	  - Kích thước đúng chat mặc định: rộng 40% màn hình (tối đa 475px), cao 25% (tối đa 275px)
+	  - Ô nhập nằm trong khung "Nhấp vào đây hoặc nhấn phím "/" để trò chuyện" + nút gửi
 	  - Tên người chơi có màu theo thuật toán màu tên cổ điển của Roblox
-	  - Tab kênh: "Chung" + tab thì thầm (/w) có nút đóng ×, số tin chưa đọc
+	  - Thì thầm /w hiện nhãn "[Tới X]" trong ô nhập (tab kênh: tuỳ chọn, mặc định tắt như Roblox)
 	  - Lệnh: /? /help /w /r /mute /unmute /clear /e
 	  - Bong bóng chat (bubble) trên đầu nhân vật
 	  - Lịch sử tin đã gửi (phím ↑ / ↓), giới hạn 200 ký tự, chống spam
-	  - Nút "↓ Tin nhắn mới" khi bạn đang cuộn lên xem tin cũ
 ]]
 
 --==============================================================================
@@ -38,7 +38,8 @@ local CONFIG = {
 
 	MaxMessageLength = 200, -- giống giới hạn của Roblox
 	MaxMessagesPerChannel = 100,
-	ShowChannelTabs = true,
+	ShowChannelTabs = false, -- Roblox mặc định TẮT tab kênh; true = có tab "Chung" + tab riêng cho mỗi cuộc thì thầm
+	ShowNewMessagesButton = false, -- Roblox không có nút "↓ Tin nhắn mới"; true để bật
 	ShowTimestamps = false, -- true: hiện giờ "14:05" trước mỗi tin
 	LegacyNameFormat = false, -- true: "[Tên]: tin" (chat cũ) | false: "Tên: tin" (chat mới)
 	UseDisplayName = true, -- hiện DisplayName thay vì Username
@@ -53,10 +54,14 @@ local CONFIG = {
 	SpamLimit = 6, -- tối đa 6 tin ...
 	SpamWindow = 8, -- ... trong 8 giây
 
-	WindowWidth = 420,
-	WindowHeight = 230,
-	InputHeight = 40,
-	TextSize = 15,
+	-- Kích thước lấy theo mã nguồn chat mặc định của Roblox (ExperienceChat):
+	WindowWidthScale = 0.4, -- rộng 40% màn hình
+	WindowHeightScale = 0.25, -- cao 25% màn hình (phần bên dưới topbar)
+	MaxWindowWidth = 475, -- px, tối đa
+	MaxWindowHeight = 275, -- px, tối đa (chỉ tính phần danh sách tin)
+	WidthScale = 1, -- giống ChatWindowConfiguration.WidthScale
+	HeightScale = 1, -- giống ChatWindowConfiguration.HeightScale
+	TextSize = 14, -- giống ChatWindowConfiguration.TextSize mặc định
 }
 
 local TEXT = {
@@ -97,7 +102,9 @@ local THEME = {
 	WindowBgTransparency = 0.3, -- giống ChatWindowConfiguration mặc định
 	InputBg = Color3.fromRGB(25, 27, 29),
 	InputBgTransparency = 0.2,
-	InputBgFaded = 0.55,
+	InputBorderTransparency = 0.8, -- viền trắng mờ quanh ô nhập
+	InputCorner = UDim.new(0, 3),
+	PanelCorner = UDim.new(0, 8),
 	TopbarButtonBg = Color3.fromRGB(18, 18, 21),
 	Text = Color3.fromRGB(255, 255, 255),
 	SubText = Color3.fromRGB(178, 178, 178),
@@ -383,37 +390,59 @@ local badgeText = create("TextLabel", {
 setFont(badgeText, Enum.FontWeight.Bold)
 
 -- 5.2 Khung chat ---------------------------------------------------------------
+--[[
+	Bố cục + số đo lấy đúng theo mã nguồn ExperienceChat (chat mặc định của Roblox):
+
+	  ╭─ đệm trên 8px ───────────────────────────────────╮  <- bo góc 8px
+	  │  danh sách tin nhắn                              │  rộng 40% màn hình (tối đa 475px)
+	  │  (chữ 14, cách dòng 4px, lề trái/phải 8px)       │  cao 25% màn hình  (tối đa 275px)
+	  │  ┌─ ô nhập (đệm trên 8px, trái/phải 8px) ──────┐ │
+	  │  │ [Tới X] Nhấp vào đây hoặc nhấn phím "/"… ➤ │ │  nền 0.2, viền trắng 0.8, bo 3px
+	  │  └─────────────────────────────────────────────┘ │  chữ 14, đệm trong 10px
+	  ╰─ đệm dưới 8px ───────────────────────────────────╯
+
+	Cả khung dùng CHUNG MỘT nền (25,27,29) trong suốt 0.3, đặt cách mép trái 8px
+	và cách thanh topbar 4px.
+]]
 
 local container = create("Frame", {
 	Name = "ChatContainer",
-	BackgroundTransparency = 1,
-	Position = UDim2.fromOffset(8, 58),
-	Size = UDim2.fromOffset(CONFIG.WindowWidth, CONFIG.WindowHeight + 6 + CONFIG.InputHeight),
-	Parent = screenGui,
-})
-
-local chatWindow = create("Frame", {
-	Name = "ChatWindow",
 	BackgroundColor3 = THEME.WindowBg,
 	BackgroundTransparency = THEME.WindowBgTransparency,
-	Size = UDim2.new(1, 0, 0, CONFIG.WindowHeight),
-	ClipsDescendants = true,
-	Parent = container,
-}, { corner() })
+	BorderSizePixel = 0,
+	Position = UDim2.fromOffset(8, 62),
+	Size = UDim2.fromOffset(400, 0),
+	AutomaticSize = Enum.AutomaticSize.Y,
+	Parent = screenGui,
+}, {
+	corner(THEME.PanelCorner),
+	padding(8, 0, 8, 0),
+	create("UIListLayout", {
+		FillDirection = Enum.FillDirection.Vertical,
+		SortOrder = Enum.SortOrder.LayoutOrder,
+	}),
+})
 
-local TAB_HEIGHT = CONFIG.ShowChannelTabs and 30 or 0
+-- Tab kênh (Roblox mặc định TẮT; bật bằng CONFIG.ShowChannelTabs)
+local tabsRow = create("Frame", {
+	Name = "ChannelTabsRow",
+	BackgroundTransparency = 1,
+	Size = UDim2.new(1, 0, 0, 30),
+	LayoutOrder = 1,
+	Visible = CONFIG.ShowChannelTabs,
+	Parent = container,
+})
 
 local tabBar = create("ScrollingFrame", {
 	Name = "ChannelTabs",
 	BackgroundTransparency = 1,
 	BorderSizePixel = 0,
-	Size = UDim2.new(1, 0, 0, TAB_HEIGHT),
+	Size = UDim2.new(1, 0, 1, -1),
 	CanvasSize = UDim2.new(0, 0, 0, 0),
 	AutomaticCanvasSize = Enum.AutomaticSize.X,
 	ScrollingDirection = Enum.ScrollingDirection.X,
 	ScrollBarThickness = 0,
-	Visible = CONFIG.ShowChannelTabs,
-	Parent = chatWindow,
+	Parent = tabsRow,
 }, {
 	create("UIListLayout", {
 		FillDirection = Enum.FillDirection.Horizontal,
@@ -421,48 +450,55 @@ local tabBar = create("ScrollingFrame", {
 		VerticalAlignment = Enum.VerticalAlignment.Center,
 		Padding = UDim.new(0, 2),
 	}),
-	padding(0, 6, 0, 6),
+	padding(0, 6, 4, 6),
 })
 
 local tabDivider = create("Frame", {
 	Name = "Divider",
+	AnchorPoint = Vector2.new(0, 1),
 	BackgroundColor3 = THEME.Text,
 	BackgroundTransparency = 0.88,
 	BorderSizePixel = 0,
-	Position = UDim2.new(0, 8, 0, TAB_HEIGHT),
+	Position = UDim2.new(0, 8, 1, 0),
 	Size = UDim2.new(1, -16, 0, 1),
-	Visible = CONFIG.ShowChannelTabs,
-	Parent = chatWindow,
+	Parent = tabsRow,
 })
+
+-- Danh sách tin nhắn
+local chatWindow = create("Frame", {
+	Name = "ChatWindow",
+	BackgroundTransparency = 1,
+	Size = UDim2.new(1, 0, 0, 165),
+	ClipsDescendants = true,
+	LayoutOrder = 2,
+	Parent = container,
+}, { padding(0, 8, 0, 8) })
 
 local messagesFrame = create("ScrollingFrame", {
 	Name = "Messages",
 	BackgroundTransparency = 1,
 	BorderSizePixel = 0,
-	Position = UDim2.fromOffset(0, TAB_HEIGHT + 1),
-	Size = UDim2.new(1, 0, 1, -(TAB_HEIGHT + 1)),
+	Size = UDim2.fromScale(1, 1),
 	CanvasSize = UDim2.new(0, 0, 0, 0),
 	ScrollingDirection = Enum.ScrollingDirection.Y,
-	ScrollBarThickness = 4,
+	ScrollBarThickness = 8, -- giống Roblox, chỉ hiện khi rê chuột vào
 	ScrollBarImageColor3 = THEME.Text,
-	ScrollBarImageTransparency = 0.6,
-	VerticalScrollBarInset = Enum.ScrollBarInset.ScrollBar,
+	ScrollBarImageTransparency = 1,
 	Parent = chatWindow,
 })
 
-local MESSAGE_PADDING = 8
+local MESSAGE_PADDING = 0
 local messagesLayout = create("UIListLayout", {
 	SortOrder = Enum.SortOrder.LayoutOrder,
-	Padding = UDim.new(0, 3),
+	Padding = UDim.new(0, 4),
 	Parent = messagesFrame,
 })
-padding(MESSAGE_PADDING, 10, MESSAGE_PADDING, 10).Parent = messagesFrame
 
 local newMessagesPill = create("TextButton", {
 	Name = "NewMessages",
 	AnchorPoint = Vector2.new(0.5, 1),
-	Position = UDim2.new(0.5, 0, 1, -8),
-	Size = UDim2.fromOffset(0, 26),
+	Position = UDim2.new(0.5, 0, 1, -6),
+	Size = UDim2.fromOffset(0, 24),
 	AutomaticSize = Enum.AutomaticSize.X,
 	BackgroundColor3 = THEME.Accent,
 	Text = TEXT.NewMessages,
@@ -477,86 +513,119 @@ setFont(newMessagesPill, Enum.FontWeight.SemiBold)
 
 -- 5.3 Thanh nhập ---------------------------------------------------------------
 
+local SEND_BUTTON_WIDTH = 30 -- sendButtonContainerWidth của Roblox
+local CHIP_GAP = 8 -- khoảng cách giữa nhãn "[Tới X]" và ô chữ
+
 local inputBar = create("Frame", {
 	Name = "ChatInputBar",
+	BackgroundTransparency = 1,
+	Size = UDim2.new(1, 0, 0, 0),
+	AutomaticSize = Enum.AutomaticSize.Y,
+	LayoutOrder = 3,
+	Parent = container,
+}, { padding(8, 8, 1, 8) })
+
+local inputBox = create("Frame", {
+	Name = "InputBox",
 	BackgroundColor3 = THEME.InputBg,
 	BackgroundTransparency = THEME.InputBgTransparency,
-	Position = UDim2.fromOffset(0, CONFIG.WindowHeight + 6),
-	Size = UDim2.new(1, 0, 0, CONFIG.InputHeight),
-	Parent = container,
-}, { corner() })
+	BorderSizePixel = 0,
+	Size = UDim2.new(1, 0, 0, 0),
+	AutomaticSize = Enum.AutomaticSize.Y,
+	Parent = inputBar,
+}, { corner(THEME.InputCorner) })
 
 local inputStroke = create("UIStroke", {
 	Color = THEME.Text,
 	Thickness = 1,
-	Transparency = 1,
+	Transparency = THEME.InputBorderTransparency,
 	ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
-	Parent = inputBar,
+	Parent = inputBox,
 })
 
--- Nhãn "Tới <tên>" hiện ở đầu thanh nhập khi đang ở tab thì thầm
-local targetChip = create("TextLabel", {
+local textContainer = create("Frame", {
+	Name = "TextContainer",
+	BackgroundTransparency = 1,
+	Size = UDim2.new(1, -SEND_BUTTON_WIDTH, 0, 0),
+	AutomaticSize = Enum.AutomaticSize.Y,
+	Parent = inputBox,
+}, { padding(10, 10, 10, 10) })
+
+-- Nhãn "[Tới <tên>]" ở đầu ô nhập khi đang thì thầm; bấm vào để thoát thì thầm
+local targetChip = create("TextButton", {
 	Name = "TargetChip",
 	BackgroundTransparency = 1,
-	Position = UDim2.fromOffset(12, 0),
-	Size = UDim2.new(0, 0, 1, 0),
-	AutomaticSize = Enum.AutomaticSize.X,
+	Size = UDim2.new(0, 0, 0, CONFIG.TextSize),
+	AutomaticSize = Enum.AutomaticSize.XY,
 	Text = "",
 	TextSize = CONFIG.TextSize,
-	TextColor3 = THEME.Whisper,
+	TextColor3 = THEME.Text,
+	TextXAlignment = Enum.TextXAlignment.Left,
+	TextYAlignment = Enum.TextYAlignment.Top,
+	AutoButtonColor = false,
 	Visible = false,
-	Parent = inputBar,
+	Parent = textContainer,
 })
-setFont(targetChip, Enum.FontWeight.SemiBold)
+setFont(targetChip)
+
+local textBoxContainer = create("Frame", {
+	Name = "TextBoxContainer",
+	AnchorPoint = Vector2.new(1, 0),
+	BackgroundTransparency = 1,
+	Position = UDim2.fromScale(1, 0),
+	Size = UDim2.new(1, -CHIP_GAP, 0, 0),
+	AutomaticSize = Enum.AutomaticSize.Y,
+	Parent = textContainer,
+})
+
+local PLACEHOLDER = IS_TOUCH and TEXT.PlaceholderTouch or TEXT.Placeholder
 
 local textBox = create("TextBox", {
 	Name = "TextBox",
 	BackgroundTransparency = 1,
-	Position = UDim2.fromOffset(12, 0),
-	Size = UDim2.new(1, -60, 1, 0),
+	Size = UDim2.new(1, 0, 0, CONFIG.TextSize),
+	AutomaticSize = Enum.AutomaticSize.Y,
 	ClearTextOnFocus = false,
 	MultiLine = false,
-	TextWrapped = false,
-	ClipsDescendants = true,
+	TextWrapped = true, -- tin dài tự xuống dòng, ô nhập cao dần như Roblox
 	Text = "",
-	PlaceholderText = IS_TOUCH and TEXT.PlaceholderTouch or TEXT.Placeholder,
+	PlaceholderText = PLACEHOLDER,
 	PlaceholderColor3 = THEME.SubText,
 	TextColor3 = THEME.Text,
 	TextSize = CONFIG.TextSize,
+	TextTransparency = 0.5,
+	TextStrokeColor3 = Color3.new(0, 0, 0),
+	TextStrokeTransparency = 0.5,
 	TextXAlignment = Enum.TextXAlignment.Left,
-	Parent = inputBar,
+	TextYAlignment = Enum.TextYAlignment.Top,
+	Parent = textBoxContainer,
 })
 setFont(textBox)
 
-local charCounter = create("TextLabel", {
-	Name = "CharCounter",
-	AnchorPoint = Vector2.new(1, 0.5),
-	BackgroundTransparency = 1,
-	Position = UDim2.new(1, -46, 0.5, 0),
-	Size = UDim2.fromOffset(52, 20),
-	Text = "",
-	TextSize = 12,
-	TextColor3 = THEME.SubText,
-	TextXAlignment = Enum.TextXAlignment.Right,
-	Visible = false,
-	Parent = inputBar,
-})
-setFont(charCounter)
-
 local sendButton = create("TextButton", {
 	Name = "SendButton",
-	AnchorPoint = Vector2.new(1, 0.5),
-	Position = UDim2.new(1, -5, 0.5, 0),
-	Size = UDim2.fromOffset(32, 32),
-	BackgroundColor3 = THEME.Text,
+	AnchorPoint = Vector2.new(1, 0),
 	BackgroundTransparency = 1,
-	Text = "➤",
-	TextSize = 18,
-	TextColor3 = THEME.SubText,
+	Position = UDim2.fromScale(1, 0),
+	Size = UDim2.new(0, SEND_BUTTON_WIDTH, 1, 0),
+	Text = "",
 	AutoButtonColor = false,
-	Parent = inputBar,
-}, { corner(UDim.new(1, 0)) })
-setFont(sendButton, Enum.FontWeight.Bold)
+	Parent = inputBox,
+})
+
+local sendIcon = create("TextLabel", {
+	Name = "SendIcon",
+	AnchorPoint = Vector2.new(0.5, 0.5),
+	BackgroundTransparency = 1,
+	Position = UDim2.fromScale(0.5, 0.5),
+	Size = UDim2.fromOffset(30, 30),
+	Text = "➤",
+	TextSize = 17,
+	TextColor3 = THEME.SubText,
+	TextTransparency = 0.5,
+	Parent = sendButton,
+})
+setFont(sendIcon, Enum.FontWeight.Bold)
 
 screenGui.Parent = PlayerGui
 
@@ -576,7 +645,17 @@ local function getTopbar(): (number, number)
 	return 60, math.max(inset.Y, 36)
 end
 
-local windowHeight = CONFIG.WindowHeight
+-- Tính kích thước giống Roblox:
+--   rộng = min(40% rộng màn hình × WidthScale, 475)
+--   cao  = min(25% (cao màn hình − topbar) × HeightScale, 275)
+local function computeWindowSize(viewport: Vector2, topHeight: number): (number, number)
+	local width = math.min(viewport.X * CONFIG.WindowWidthScale * CONFIG.WidthScale, CONFIG.MaxWindowWidth)
+	local height = math.min(
+		math.max(0, viewport.Y - topHeight) * CONFIG.WindowHeightScale * CONFIG.HeightScale,
+		CONFIG.MaxWindowHeight
+	)
+	return math.floor(width), math.floor(height)
+end
 
 local function layout()
 	local topX, topHeight = getTopbar()
@@ -586,28 +665,16 @@ local function layout()
 
 	local camera = workspace.CurrentCamera
 	local viewport = camera and camera.ViewportSize or Vector2.new(1280, 720)
-	local width = math.min(CONFIG.WindowWidth, viewport.X - 16)
-	local height = CONFIG.WindowHeight
-	if IS_TOUCH or viewport.Y < 500 then
-		height = math.clamp(math.floor(viewport.Y * 0.3), 110, CONFIG.WindowHeight)
-	end
-	windowHeight = height
+	local width, height = computeWindowSize(viewport, topHeight)
 
 	container.Position = UDim2.fromOffset(8, topHeight + 4)
-	container.Size = UDim2.fromOffset(width, height + 6 + CONFIG.InputHeight)
+	container.Size = UDim2.fromOffset(width, 0)
 	chatWindow.Size = UDim2.new(1, 0, 0, height)
-	inputBar.Position = UDim2.fromOffset(0, height + 6)
 end
 
 local function layoutInput()
-	if targetChip.Visible then
-		local chipWidth = targetChip.AbsoluteSize.X
-		textBox.Position = UDim2.fromOffset(12 + chipWidth + 6, 0)
-		textBox.Size = UDim2.new(1, -(12 + chipWidth + 6 + 48), 1, 0)
-	else
-		textBox.Position = UDim2.fromOffset(12, 0)
-		textBox.Size = UDim2.new(1, -60, 1, 0)
-	end
+	local chipWidth = targetChip.Visible and targetChip.AbsoluteSize.X or 0
+	textBoxContainer.Size = UDim2.new(1, -(chipWidth + CHIP_GAP), 0, 0)
 end
 
 layout()
@@ -665,6 +732,7 @@ local unreadWhileClosed = 0
 
 local muted: { [string]: boolean } = {}
 local lastWhisperFrom: string? = nil
+local whisperTarget: { name: string, display: string }? = nil -- dùng khi KHÔNG có tab
 local sentHistory: { string } = {}
 local historyIndex = 0
 local sendTimes: { number } = {}
@@ -683,6 +751,7 @@ local focused = false
 local Transport
 local renderTabs
 local switchChannel
+local updateInputVisuals
 
 --==============================================================================
 -- 8. HIỂN THỊ TIN NHẮN
@@ -813,7 +882,7 @@ local function addMessage(channelId: string, msg: ChatMessage)
 		if #visibleLabels > CONFIG.MaxMessagesPerChannel then
 			table.remove(visibleLabels, 1):Destroy()
 		end
-		if not wasAtBottom and not msg.isLocal then
+		if not wasAtBottom and not msg.isLocal and CONFIG.ShowNewMessagesButton then
 			newMessagesPill.Visible = true
 		elseif msg.isLocal then
 			stickToBottom = true
@@ -986,11 +1055,23 @@ function renderTabs()
 	end
 end
 
+-- Người đang được thì thầm (nếu có)
+local function getWhisperTarget(): { name: string, display: string }?
+	if CONFIG.ShowChannelTabs then
+		local channel = channels[activeChannelId]
+		if channel and channel.kind == "whisper" and channel.target then
+			return { name = channel.target, display = channel.targetDisplay or channel.target }
+		end
+		return nil
+	end
+	return whisperTarget
+end
+
 local function updateTargetChip()
-	local channel = channels[activeChannelId]
-	if channel and channel.kind == "whisper" then
+	local target = getWhisperTarget()
+	if target then
 		targetChip.Visible = true
-		targetChip.Text = "[" .. string.format(TEXT.WhisperTo, channel.targetDisplay or channel.target or "?") .. "]"
+		targetChip.Text = "[" .. string.format(TEXT.WhisperTo, target.display) .. "]"
 	else
 		targetChip.Visible = false
 		targetChip.Text = ""
@@ -1061,13 +1142,14 @@ local function applyBackground(show: boolean)
 		return
 	end
 	bgShown = show
-	local d = show and 0.15 or 0.6
-	tween(chatWindow, d, { BackgroundTransparency = show and THEME.WindowBgTransparency or 1 })
-	tween(inputBar, d, { BackgroundTransparency = show and THEME.InputBgTransparency or THEME.InputBgFaded })
-	tween(messagesFrame, d, { ScrollBarImageTransparency = show and 0.6 or 1 })
+	-- Giống Roblox: nền khung, nền ô nhập, viền và chữ trong ô nhập cùng mờ hẳn
+	local d = show and 0.15 or 0.8
+	tween(container, d, { BackgroundTransparency = show and THEME.WindowBgTransparency or 1 })
+	tween(inputBox, d, { BackgroundTransparency = show and THEME.InputBgTransparency or 1 })
+	tween(inputStroke, d, { Transparency = show and THEME.InputBorderTransparency or 1 })
 	tween(tabDivider, d, { BackgroundTransparency = show and 0.88 or 1 })
-	tabBar.Visible = CONFIG.ShowChannelTabs and show
-	tabDivider.Visible = CONFIG.ShowChannelTabs
+	tabBar.Visible = show
+	updateInputVisuals(d)
 end
 
 local function applyText(show: boolean)
@@ -1108,6 +1190,11 @@ task.spawn(function()
 			if hovering or focused then
 				lastBgActivity = now
 				lastTextActivity = now
+			end
+			-- Thanh cuộn chỉ hiện khi rê chuột vào (giống Roblox)
+			local barTransparency = hovering and 0 or 1
+			if messagesFrame.ScrollBarImageTransparency ~= barTransparency then
+				messagesFrame.ScrollBarImageTransparency = barTransparency
 			end
 			applyBackground(now - lastBgActivity < CONFIG.BackgroundFadeDelay)
 			applyText(now - lastTextActivity < CONFIG.TextFadeDelay)
@@ -1214,12 +1301,13 @@ local function showBubble(player: Player?, text: string)
 	local bubble = create("Frame", {
 		Name = "Bubble",
 		BackgroundColor3 = THEME.Bubble,
+		BackgroundTransparency = 0.1,
 		Size = UDim2.fromOffset(0, 0),
 		AutomaticSize = Enum.AutomaticSize.XY,
 		LayoutOrder = bubbleOrder,
 	}, {
 		corner(UDim.new(0, 12)),
-		padding(8, 12, 8, 12),
+		padding(8, 8, 8, 8),
 		create("UIScale", { Scale = 0.6 }),
 	})
 	local label = create("TextLabel", {
@@ -1237,6 +1325,7 @@ local function showBubble(player: Player?, text: string)
 		Name = "Tail",
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		BackgroundColor3 = THEME.Bubble,
+		BackgroundTransparency = 0.1,
 		BorderSizePixel = 0,
 		Position = UDim2.new(0.5, 0, 1, 8),
 		Size = UDim2.fromOffset(10, 10),
@@ -1308,11 +1397,14 @@ local function onIncoming(packet)
 		local otherName = tostring(other.name or "?")
 		local otherDisplay = CONFIG.UseDisplayName and (other.displayName or otherName) or otherName
 		msg.targetDisplay = CONFIG.UseDisplayName and (target.displayName or target.name) or target.name
-		local channel = ensureWhisperChannel(otherName, otherDisplay)
 		if not isLocal then
 			lastWhisperFrom = otherName
 		end
-		addMessage(channel.id, msg)
+		if CONFIG.ShowChannelTabs then
+			addMessage(ensureWhisperChannel(otherName, otherDisplay).id, msg)
+		else
+			addMessage("general", msg) -- Roblox: mọi tin hiện chung một khung
+		end
 	else
 		addMessage("general", msg)
 		showBubble(Players:FindFirstChild(senderName) :: Player?, packet.text)
@@ -1361,7 +1453,7 @@ local function isSpamming(): boolean
 	return false
 end
 
-local function sendChat(text: string, channel: Channel)
+local function sendChat(text: string)
 	if utf8Length(text) > CONFIG.MaxMessageLength then
 		systemMessage(string.format(TEXT.TooLong, CONFIG.MaxMessageLength))
 		return
@@ -1370,8 +1462,9 @@ local function sendChat(text: string, channel: Channel)
 		systemMessage(TEXT.TooFast)
 		return
 	end
-	if channel.kind == "whisper" then
-		Transport.Send({ kind = "whisper", target = channel.target, text = text })
+	local target = getWhisperTarget()
+	if target then
+		Transport.Send({ kind = "whisper", target = target.name, text = text })
 	else
 		Transport.Send({ kind = "chat", text = text })
 	end
@@ -1388,14 +1481,20 @@ local function startWhisper(query: string, message: string?)
 		return
 	end
 	local display = CONFIG.UseDisplayName and (info.displayName or info.name) or info.name
-	local isNew = channels[whisperChannelId(info.name)] == nil
-	local channel = ensureWhisperChannel(info.name, display)
-	switchChannel(channel.id)
-	if isNew then
-		systemMessage(string.format(TEXT.WhisperStarted, display), THEME.Whisper)
+	if CONFIG.ShowChannelTabs then
+		local isNew = channels[whisperChannelId(info.name)] == nil
+		local channel = ensureWhisperChannel(info.name, display)
+		switchChannel(channel.id)
+		if isNew then
+			systemMessage(string.format(TEXT.WhisperStarted, display), THEME.Whisper)
+		end
+	else
+		-- Giống Roblox: hiện nhãn "[Tới X]" trong ô nhập, tin vẫn hiện ở khung chung
+		whisperTarget = { name = info.name, display = display }
+		updateTargetChip()
 	end
 	if message and message ~= "" then
-		sendChat(message, channel)
+		sendChat(message)
 	end
 end
 
@@ -1497,28 +1596,60 @@ local function submit(raw: string)
 	if string.sub(text, 1, 1) == "/" and handleCommand(text) then
 		return
 	end
-	sendChat(text, channels[activeChannelId])
+	sendChat(text)
 end
 
 --==============================================================================
 -- 14. NHẬP LIỆU
 --==============================================================================
 
-local function updateInputVisuals()
-	local length = utf8Length(textBox.Text)
-	local hasText = trim(textBox.Text) ~= ""
-	sendButton.TextColor3 = hasText and THEME.Text or THEME.SubText
-	sendButton.BackgroundTransparency = hasText and 0.85 or 1
-	local nearLimit = length >= CONFIG.MaxMessageLength - 50
-	charCounter.Visible = nearLimit
-	charCounter.Text = string.format("%d/%d", length, CONFIG.MaxMessageLength)
-	charCounter.TextColor3 = length >= CONFIG.MaxMessageLength and THEME.Badge or THEME.SubText
-	local reserve = nearLimit and 104 or 48
-	local left = textBox.Position.X.Offset
-	textBox.Size = UDim2.new(1, -(left + reserve), 1, 0)
+local function exitWhisper()
+	if CONFIG.ShowChannelTabs then
+		local channel = channels[activeChannelId]
+		if channel and channel.kind == "whisper" then
+			switchChannel("general")
+		end
+	elseif whisperTarget then
+		whisperTarget = nil
+		updateTargetChip()
+	end
 end
 
+-- Chữ gợi ý / chữ đang gõ / nút gửi: giống Roblox
+--   * chưa gõ gì và không focus -> hiện gợi ý, mờ 0.5
+--   * focus -> ẩn gợi ý
+--   * nút gửi xám mờ khi trống, trắng khi có chữ
+--   * khi khung chat mờ hẳn -> chữ trong ô nhập cũng mờ hẳn
+function updateInputVisuals(animate: number?)
+	local hasText = textBox.Text ~= ""
+	local showPlaceholder = not hasText and not focused
+	textBox.PlaceholderText = showPlaceholder and PLACEHOLDER or ""
+	local faded = not bgShown
+	local goalsText = {
+		TextTransparency = faded and 1 or (showPlaceholder and 0.5 or 0),
+		TextStrokeTransparency = faded and 1 or 0.5,
+	}
+	local goalsIcon = { TextTransparency = faded and 1 or (hasText and 0 or 0.5) }
+	local goalsChip = { TextTransparency = faded and 1 or 0 }
+	sendIcon.TextColor3 = hasText and THEME.Text or THEME.SubText
+	if animate then
+		tween(textBox, animate, goalsText)
+		tween(sendIcon, animate, goalsIcon)
+		tween(targetChip, animate, goalsChip)
+	else
+		for k, v in goalsText do
+			(textBox :: any)[k] = v
+		end
+		sendIcon.TextTransparency = goalsIcon.TextTransparency
+		targetChip.TextTransparency = goalsChip.TextTransparency
+	end
+end
+
+local emptySince = 0
 textBox:GetPropertyChangedSignal("Text"):Connect(function()
+	if textBox.Text == "" then
+		emptySince = os.clock()
+	end
 	if utf8Length(textBox.Text) > CONFIG.MaxMessageLength then
 		textBox.Text = utf8Truncate(textBox.Text, CONFIG.MaxMessageLength)
 		return
@@ -1528,18 +1659,23 @@ end)
 
 textBox.Focused:Connect(function()
 	focused = true
-	tween(inputStroke, 0.12, { Transparency = 0.6 })
+	lastBgActivity = os.clock()
+	applyBackground(true)
+	updateInputVisuals()
 end)
 
 textBox.FocusLost:Connect(function(enterPressed)
 	focused = false
-	tween(inputStroke, 0.12, { Transparency = 1 })
+	lastBgActivity = os.clock()
+	updateInputVisuals()
 	if enterPressed then
 		local text = textBox.Text
 		textBox.Text = ""
 		submit(text)
 	end
 end)
+
+targetChip.MouseButton1Click:Connect(exitWhisper)
 
 sendButton.MouseButton1Click:Connect(function()
 	local text = textBox.Text
@@ -1565,6 +1701,14 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 		end
 		textBox.Text = sentHistory[historyIndex] or ""
 		textBox.CursorPosition = #textBox.Text + 1
+		return
+	end
+
+	-- Backspace khi ô nhập trống -> thoát thì thầm (giống Roblox)
+	if focusedBox == textBox and input.KeyCode == Enum.KeyCode.Backspace and textBox.Text == ""
+		and os.clock() - emptySince > 0.05 -- chỉ khi ô ĐÃ trống từ trước, không phải vừa xoá ký tự cuối
+	then
+		exitWhisper()
 		return
 	end
 

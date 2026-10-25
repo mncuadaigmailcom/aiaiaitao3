@@ -17,12 +17,13 @@ Script tự tắt khung chat mặc định của Roblox (`CONFIG.DisableDefaultC
 | Thành phần | Mô tả |
 | --- | --- |
 | Nút 💬 trên topbar | Bật/tắt khung chat; khi đóng sẽ có huy hiệu đỏ đếm số tin chưa đọc |
-| Khung chat | Nền tối bán trong suốt ở góc trên bên trái; nền mờ đi sau 3,5 giây không dùng, chữ mờ đi sau 30 giây không có tin mới; rê chuột vào thì hiện lại |
-| Thanh nhập | `Nhấp vào đây hoặc nhấn phím "/" để trò chuyện`, nút gửi ➤, bộ đếm ký tự khi gần hết 200 ký tự |
+| Khung chat | Một khung bo góc 8px, nền (25,27,29) trong suốt 0.3, cách mép trái 8px và cách topbar 4px; nền mờ hẳn sau 3,5 giây không dùng, chữ mờ sau 30 giây không có tin mới; rê chuột vào thì hiện lại |
+| Ô nhập | Nằm **trong** khung, nền 0.2, viền trắng mờ 0.8, bo 3px; `Nhấp vào đây hoặc nhấn phím "/" để trò chuyện`, nút gửi ➤; tin dài tự xuống dòng |
 | Màu tên | Dùng thuật toán màu tên cổ điển của Roblox (cùng một tên thì luôn ra cùng một màu) |
-| Tab kênh | `Chung` + tab `@Tên` cho mỗi cuộc thì thầm (có số tin chưa đọc, nút × để đóng) |
+| Thì thầm | Giống Roblox: `/w tên` hiện nhãn `[Tới Tên]` trong ô nhập; bấm vào nhãn hoặc Backspace khi ô trống để thoát |
+| Tab kênh | Roblox mặc định **tắt**; bật `CONFIG.ShowChannelTabs = true` để có tab `Chung` + tab `@Tên` |
 | Bong bóng chat | Hiện trên đầu nhân vật, tối đa 3 bong bóng, tự biến mất sau 15 giây |
-| Tin nhắn mới | Đang cuộn lên đọc tin cũ thì hiện nút `↓ Tin nhắn mới` |
+| Thanh cuộn | Dày 8px, chỉ hiện khi rê chuột vào khung (giống Roblox) |
 
 Phím tắt: `/` mở chat · `Enter` gửi · `Esc` thoát ô nhập · `↑`/`↓` gọi lại tin đã gửi.
 Trên điện thoại khung chat mặc định đóng, chạm vào nút 💬 để mở (giống Roblox).
@@ -37,6 +38,23 @@ Trên điện thoại khung chat mặc định đóng, chạm vào nút 💬 đ�
 /clear               xoá tin trong kênh hiện tại
 /e wave|point|dance|dance2|dance3|laugh|cheer   biểu cảm
 ```
+
+## Kích thước (đúng theo chat mặc định của Roblox)
+
+Số đo lấy từ mã nguồn khung chat mặc định của Roblox (gói `ExperienceChat`, bản lưu trong
+[Roblox-Client-Tracker](https://github.com/MaximumADHD/Roblox-Client-Tracker)):
+
+| Thành phần | Giá trị |
+| --- | --- |
+| Rộng | 40% chiều rộng màn hình, tối đa **475px** |
+| Cao (phần danh sách tin) | 25% chiều cao màn hình (trừ topbar), tối đa **275px** |
+| Vị trí | cách mép trái 8px, cách topbar 4px |
+| Chữ | 14px, viền chữ đen 0.5, cách dòng 4px, lề trái/phải 8px |
+| Ô nhập | đệm trên 8px, trái/phải 8px; đệm trong 10px; nút gửi rộng 30px |
+
+Ví dụ: màn hình 1280×720 → **475 × 165**; 1920×1080 → **475 × 255**; 2560×1440 → **475 × 275**;
+điện thoại 844×390 → **337 × 83**.
+Muốn to/nhỏ hơn thì chỉnh `CONFIG.WidthScale` / `CONFIG.HeightScale` (giống `ChatWindowConfiguration`).
 
 ## Tuỳ chỉnh
 
@@ -81,8 +99,9 @@ Môi trường làm việc **không có Roblox Studio**, nên script **chưa đ�
 - Biên dịch + chạy bằng **Luau CLI** chính thức (build từ mã nguồn `luau-lang/luau`).
 - Chạy trên bộ mock Roblox có **kiểm tra tên lớp, tên thuộc tính, kiểu giá trị và Enum theo API Dump
   của Roblox** (`MaximumADHD/Roblox-Client-Tracker`) — gán sai tên/kiểu thuộc tính là báo lỗi ngay.
-- 30 kịch bản: gửi tin, thoát RichText, /help, /w, tab thì thầm, bot trả lời, /mute, /unmute, cắt 200 ký tự,
-  chống spam, /clear, đóng/mở + huy hiệu, phím `/`, nền mờ + hover, lịch sử ↑, giới hạn 100 tin,
-  chạy 300 giây không lỗi; thêm chế độ cảm ứng và chữ mờ sau 30 giây.
+- 45 kịch bản: kích thước ở 4 độ phân giải, vị trí, màu/độ trong suốt, gửi tin, thoát RichText, /help,
+  /w + nhãn `[Tới X]`, thoát thì thầm bằng Backspace/bấm nhãn, bot trả lời, /mute, /unmute, cắt 200 ký tự,
+  chống spam, /clear, đóng/mở + huy hiệu, phím `/`, nền + chữ ô nhập mờ, hover, thanh cuộn, lịch sử ↑,
+  giới hạn 100 tin, chạy 300 giây không lỗi; thêm chế độ bật tab, chế độ cảm ứng và chữ mờ sau 30 giây.
 
 Phần **chỉ xem được bằng mắt trong Studio** (font, vị trí thật trên topbar, độ đẹp bong bóng) cần bạn bấm Play để kiểm tra.
