@@ -19,15 +19,17 @@ if [ ! -s "$WORK/api_data.luau" ]; then
   node "$HERE/gen_api.js" "$WORK/API-Dump.json" "$WORK/api_data.luau"
 fi
 
-# build <tên> <test> <server|noserver> [setup] [nodemo]
+# build <tên> <test> <noserver|notevn|github> [setup] [nodemo] [sed cho server]
 build() {
-  local out="$WORK/$1.luau" drv="$HERE/$2" mode="$3" setup="${4:-}" nodemo="${5:-}"
+  local out="$WORK/$1.luau" drv="$HERE/$2" mode="$3" setup="${4:-}" nodemo="${5:-}" sedx="${6:-}"
   {
     echo "API_DATA = (function()"; cat "$WORK/api_data.luau"; echo "end)()"
-    cat "$HERE/mock.luau" "$HERE/mock_server.luau"
+    cat "$HERE/mock.luau" "$HERE/mock_server.luau" "$HERE/mock_github.luau"
     [ -n "$setup" ] && cat "$HERE/$setup"
-    if [ "$mode" = server ]; then
+    if [ "$mode" = notevn ]; then
       echo "task.spawn(function()"; sed 's/^--!nonstrict//' "$SRC/NotevnChatServer.server.luau"; echo "end)"
+    elif [ "$mode" = github ]; then
+      echo "task.spawn(function()"; sed -e 's/^--!nonstrict//' ${sedx:+-e "$sedx"} "$SRC/GitHubChatServer.server.luau"; echo "end)"
     fi
     echo "task.spawn(function()"
     if [ -n "$nodemo" ]; then
@@ -52,6 +54,9 @@ run() {
 }
 run ui        test_ui.luau        noserver
 run fade      test_fade.luau      noserver "" nodemo
-run notevn    test_notevn.luau    server setup_notevn.luau
-run http_off  test_http_off.luau  server setup_http_off.luau
+run notevn    test_notevn.luau    notevn setup_notevn.luau
+run http_off  test_http_off.luau  notevn setup_http_off.luau
+run github    test_github.luau    github
+run github_owner test_github_owner.luau github setup_github_owner.luau "" 's/^\tRepoOwner = "",/\tRepoOwner = "chatowner",/'
+run github_clear test_github_clear.luau github "" "" 's/^\tClearOnShutdown = false,/\tClearOnShutdown = true,/' 
 exit $status

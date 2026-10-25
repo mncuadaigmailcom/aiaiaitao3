@@ -130,6 +130,8 @@ box:ReleaseFocus(false)
 T.run(300)
 local all = lines()
 check("message cap respected", #all <= 100, #all)
+say("/ghp_demokey123456")
+check("demo: API key not shown, explains no server", has("chế độ DEMO") and not has("ghp_demokey"))
 check("no script errors", #T.errors == 0, T.errors[1])
 print(("RESULT: %d passed, %d failed"):format(pass, fail))
 end

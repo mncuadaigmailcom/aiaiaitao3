@@ -4,9 +4,9 @@
 	====================
 	Menu chat GIỐNG GIAO DIỆN CHAT CỦA ROBLOX (LocalScript, phần giao diện).
 
-	• Có server (NotevnChatServer.server.luau trong ServerScriptService)
-	  ->  tự dùng "RemoteTransport": chat thật qua RemoteEvent "CustomChatRemote",
-	      server đồng bộ với ghi chú notevn mỗi 3 giây.
+	• Có server (GitHubChatServer.server.luau trong ServerScriptService)
+	  ->  tự dùng "RemoteTransport": chat thật qua RemoteEvent "CustomChatRemote".
+	      Gõ  /<API key GitHub>  để kết nối; server đọc link raw chat.txt mỗi 3 giây.
 	• Không có server ->  dùng "MockTransport": tin nhắn của bạn được hiện lại
 	  ngay trên máy, còn "người chơi khác" là bot giả lập để xem thử giao diện.
 	Xem roblox-chat/README.md.
@@ -75,6 +75,8 @@ local TEXT = {
 	General = "Chung",
 	NewMessages = "↓  Tin nhắn mới",
 	Welcome = 'Gõ "/?" hoặc "/help" để xem danh sách lệnh chat.',
+	ApiKeySending = "Đã gửi API key lên server (key không hiện trong chat).",
+	ApiKeyNoServer = "Chưa có server chat (đang ở chế độ DEMO) nên API key không được dùng.",
 	DemoNotice = "[DEMO] Chưa kết nối server — tin nhắn của người chơi khác đang là giả lập.",
 	TooFast = "Bạn gửi tin quá nhanh. Vui lòng đợi một chút rồi thử lại.",
 	TooLong = "Tin nhắn quá dài (tối đa %d ký tự).",
@@ -94,6 +96,7 @@ local TEXT = {
 	HelpTitle = "Danh sách lệnh chat:",
 	Help = {
 		"/? hoặc /help  — hiện danh sách lệnh",
+		"/<API key GitHub>  — kết nối chat GitHub (vd: /ghp_xxxx), key không hiện lên chat",
 		"/w <tên> [tin]  — thì thầm (chat riêng) với người chơi",
 		"/r [tin]  — trả lời người vừa thì thầm với bạn",
 		"/mute <tên>  /  /unmute <tên>  — tắt / bật tiếng người chơi",
@@ -1591,9 +1594,25 @@ local function handleCommand(text: string): boolean
 	return false -- lệnh lạ: gửi như tin nhắn thường (giống Roblox)
 end
 
+-- "/ghp_xxx", "/github_pat_xxx" hoặc "/key <API key>" -> trả về key (không phải tin nhắn)
+local function parseApiKey(text: string): string?
+	local key = string.match(text, "^/%s*(gh[pousr]_[%w_]+)%s*$") or string.match(text, "^/%s*(github_pat_[%w_]+)%s*$")
+	if not key then
+		key = string.match(text, "^/[Kk][Ee][Yy]%s+(%S+)%s*$") or string.match(text, "^/[Aa][Pp][Ii][Kk][Ee][Yy]%s+(%S+)%s*$")
+	end
+	return key
+end
+
 local function submit(raw: string)
 	local text = trim(raw)
 	if text == "" then
+		return
+	end
+	-- API key: KHÔNG hiện lên chat, KHÔNG lưu vào lịch sử ↑/↓, chỉ gửi riêng cho server
+	local apiKey = parseApiKey(text)
+	if apiKey then
+		systemMessage(TEXT.ApiKeySending)
+		Transport.Send({ kind = "apikey", key = apiKey })
 		return
 	end
 	table.insert(sentHistory, text)
@@ -1754,8 +1773,9 @@ end)
 	  Transport.Start(onIncoming)
 	      bắt đầu nhận tin; mỗi tin gọi onIncoming(packet) — định dạng ở mục 12.
 
-	• RemoteTransport: nói chuyện với NotevnChatServer.server.luau qua RemoteEvent
-	  ReplicatedStorage.CustomChatRemote (server lọc tin + đồng bộ ghi chú notevn).
+	• RemoteTransport: nói chuyện với server script (GitHubChatServer hoặc NotevnChatServer)
+	  qua RemoteEvent ReplicatedStorage.CustomChatRemote (server lọc tin + đồng bộ tệp chat).
+	  Thêm payload { kind = "apikey", key = "..." } khi người chơi gõ /<API key>.
 	• MockTransport  : khi không có server (bot giả lập, xem thử giao diện).
 ]]
 
@@ -1827,6 +1847,12 @@ function MockTransport.ListUsers()
 end
 
 function MockTransport.Send(payload)
+	if payload.kind == "apikey" then
+		task.delay(0.05, function()
+			emit({ kind = "system", text = TEXT.ApiKeyNoServer })
+		end)
+		return
+	end
 	-- Tin của mình: hiện lại ngay (server thật sẽ lọc rồi gửi về cho mọi người)
 	local targetInfo = nil
 	if payload.kind == "whisper" then
@@ -1896,7 +1922,7 @@ end
 
 function RemoteTransport.Send(payload)
 	if chatRemote then
-		chatRemote:FireServer({ kind = payload.kind, text = payload.text, target = payload.target })
+		chatRemote:FireServer({ kind = payload.kind, text = payload.text, target = payload.target, key = payload.key })
 	end
 end
 

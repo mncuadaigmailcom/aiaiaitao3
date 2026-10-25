@@ -1,24 +1,56 @@
-# Roblox Chat Menu — chat giống Roblox, "server" là ghi chú notevn
-
-Gồm 2 script:
+# Roblox Chat Menu — chat giống Roblox, lưu tin trên GitHub
 
 | Tệp | Loại | Đặt ở đâu | Việc làm |
 |---|---|---|---|
 | [`ChatMenu.client.luau`](ChatMenu.client.luau) | LocalScript | `StarterPlayer › StarterPlayerScripts` | Giao diện chat giống Roblox |
-| [`NotevnChatServer.server.luau`](NotevnChatServer.server.luau) | Script | `ServerScriptService` | Lọc tin + đồng bộ với ghi chú notevn |
+| [`GitHubChatServer.server.luau`](GitHubChatServer.server.luau) | Script | `ServerScriptService` | **Server chat bằng GitHub** (khuyên dùng) |
+| [`NotevnChatServer.server.luau`](NotevnChatServer.server.luau) | Script | `ServerScriptService` | Bản cũ: server chat bằng notevn |
 
-Có server script → chat thật. Không có server script → giao diện tự chạy **chế độ DEMO** (bot giả lập) sau 5 giây chờ.
+Chỉ dùng **một** server script (GitHub hoặc notevn). Không có server script thì giao diện tự chạy **chế độ DEMO** (bot giả lập) sau 5 giây chờ.
 
 ## Cài vào Roblox Studio
 
-1. `ServerScriptService` → **Insert Object** → **Script** → dán `NotevnChatServer.server.luau`.
+1. `ServerScriptService` → **Insert Object** → **Script** → dán `GitHubChatServer.server.luau`.
 2. `StarterPlayer` → `StarterPlayerScripts` → **Insert Object** → **LocalScript** → dán `ChatMenu.client.luau`.
-3. **Home → Game Settings → Security → bật “Allow HTTP Requests”** (bắt buộc, không bật thì không đọc/ghi được notevn — chat sẽ báo trong khung).
-4. Bấm **Play**.
+3. **Home → Game Settings → Security → bật “Allow HTTP Requests”** (bắt buộc).
+4. Bấm **Play**, mở chat, gõ **`/` + API key GitHub** (vd: `/ghp_xxxxxxxxxxxx`) rồi Enter.
 
-Script tự tắt khung chat mặc định của Roblox (`CONFIG.DisableDefaultChat`) để không bị hiện 2 khung chat.
+## Chat bằng GitHub hoạt động thế nào
 
-## Server notevn hoạt động thế nào
+| Bước | Chuyện gì xảy ra |
+|---|---|
+| **Nhập key** | Gõ `/ghp_...` (hoặc `/github_pat_...`, hoặc `/key <key>`). Key **không hiện lên chat**, không lưu vào lịch sử ↑/↓, chỉ gửi riêng lên server và chỉ nằm trong bộ nhớ server (rời game là quên). |
+| **Tự tạo** | Server kiểm tra key, chưa có kho **`roblox-chat-server`** thì tự tạo (công khai). Chưa có tệp **`chat.txt`** thì tự tạo. **Đã có thì bỏ qua.** |
+| **Thông báo** | Chat hiện `✔ Kết nối GitHub thành công (@tên). Kho: tên/roblox-chat-server, tệp: chat.txt…`. Key sai hoặc thiếu quyền thì báo rõ lý do. |
+| **Gửi tin** | Tin được lọc bằng `TextService`, hiện ngay cho cả server, rồi thêm dòng `Username: tin` vào cuối `chat.txt` (GitHub API, có kiểm tra `sha`: nếu 2 người ghi cùng lúc thì đọc lại và ghi lại, **không mất tin**). |
+| **Nhận tin** | Cứ **3 giây** đọc link raw `https://raw.githubusercontent.com/<tên>/roblox-chat-server/main/chat.txt` một lần, dòng mới thì hiện lên chat. |
+| **Người mới vào** | Thấy 20 tin gần nhất. Chưa nhập key thì vẫn đọc được (nếu server đã biết kho) nhưng phải nhập key mới gửi được. |
+| `/w` | Thì thầm chỉ trong cùng server, **không** ghi lên GitHub. |
+
+**Tạo API key:** GitHub → Settings → Developer settings → Personal access tokens:
+- **Tokens (classic)**: chỉ tick quyền **`public_repo`**, key có dạng `ghp_...`.
+- **Fine-grained**: Repository access “All repositories”, quyền **Administration** + **Contents** = Read and write, key có dạng `github_pat_...`.
+
+**Cấu hình** (bảng `CONFIG` đầu `GitHubChatServer.server.luau`):
+
+| Tên | Mặc định | Ý nghĩa |
+|---|---|---|
+| `RepoOwner` | `""` | Để trống thì dùng tài khoản của key nhập đầu tiên. **Nên điền tên tài khoản GitHub** để mọi server đọc được chat ngay cả khi chưa ai nhập key. |
+| `RepoName` / `FilePath` | `roblox-chat-server` / `chat.txt` | Tên kho / tệp |
+| `PollInterval` | `3` | Giây giữa 2 lần đọc raw |
+| `MaxFileLines` | `100` | Chỉ giữ 100 dòng cuối |
+| `RequireKeyToChat` | `true` | Phải nhập key mới chat được |
+| `ClearOnShutdown` | `false` | `true` thì xoá `chat.txt` khi server tắt |
+| `Debug` | `false` | In request ra Output (không bao giờ in key) |
+
+> ⚠️ Lưu ý
+> - Mọi người muốn chat chung phải cùng **một kho**. Cách đơn giản nhất là dùng key của cùng một tài khoản, hoặc điền `RepoOwner` rồi thêm người khác làm *collaborator* của kho.
+> - **raw.githubusercontent.com có bộ nhớ đệm (~5 phút)**. Script thêm `?t=...` để lấy bản mới, nhưng nếu GitHub vẫn trả bản cũ thì tin từ server khác có thể đến chậm. Tin trong cùng server luôn hiện ngay. Script không bao giờ hiện trùng tin vì bản cũ.
+> - GitHub giới hạn số lần ghi (khoảng vài chục commit/phút cho mỗi key). Chat bình thường thì không sao, spam liên tục có thể bị chặn tạm thời.
+> - Kho là **công khai**: ai cũng đọc được `chat.txt`. Đừng chat thông tin riêng tư.
+> - Key là mật khẩu tài khoản GitHub của bạn: chỉ cấp quyền tối thiểu, xoá key khi không dùng nữa. Nếu lỡ dán key như tin nhắn thường, server sẽ chặn, không hiện và không ghi lên GitHub.
+
+## (Bản cũ) Server notevn hoạt động thế nào
 
 | Việc | Cách làm |
 |---|---|
@@ -129,17 +161,20 @@ Script client “thoát” ký tự RichText nên không ai chèn thẻ `<font>`
 
 ## Đã kiểm thử thế nào
 
-Môi trường làm việc **không có Roblox Studio** và **không truy cập được notevn.com**, nên chưa chạy thật.
+Môi trường làm việc **không có Roblox Studio** và không gọi được notevn.com / raw.githubusercontent.com, nên **chưa chạy thật**.
 Đã kiểm tra bằng **Luau CLI** chính thức + bộ mock Roblox kiểm tra tên lớp/thuộc tính/kiểu/Enum theo
-API Dump của Roblox, cùng một **notevn giả lập** (raw + `ajax.php` getnote/save, kiểm tra đúng tham số).
+API Dump của Roblox, cùng **GitHub giả lập** (REST API + raw, kiểm tra header, sha, base64, quyền) và **notevn giả lập**.
 Chạy lại: `LUAU=/đường/dẫn/luau bash roblox-chat/tests/run.sh`
 
 | Bộ test | Số kịch bản | Nội dung |
 |---|---|---|
-| `test_ui.luau` | 45 | kích thước 4 độ phân giải, màu, gửi tin, RichText, lệnh, thì thầm, spam, mờ dần, lịch sử… (chế độ DEMO) |
+| `test_ui.luau` | 46 | kích thước 4 độ phân giải, màu, gửi tin, RichText, lệnh, thì thầm, spam, mờ dần, lịch sử… (chế độ DEMO) |
 | `test_fade.luau` | 1 | chữ mờ sau 30 giây |
 | `test_notevn.luau` | 79 | tách nội dung từ HTML `/raw` thật (cả chữ có `}` `"` `'silent')`), dự phòng `/get_shared`, cookie phiên, bong bóng chat trên đầu người chơi khác + chính mình (không hiện cho người viết trên web, không hiện khi thì thầm, tự tắt sau 15 giây), so khớp dòng mới, mã hoá form, lịch sử khi vào, đọc mỗi 3 giây, tin từ web, /mute người ngoài, ghi lên note, không trùng tin, /raw trả bản cũ, lọc TextService 2 chiều, gửi cùng lúc, /w không lên note, xuống dòng, 200 ký tự, chống spam phía server, thứ tự tin, note bị xoá, cắt `MaxNoteLines`, lưu lỗi + thử lại, HTTP tắt, note khoá, **xoá note khi tắt server**, dừng đọc sau khi tắt |
 | `test_http_off.luau` | 4 | chưa bật Allow HTTP Requests: báo lỗi, chat trong server vẫn chạy |
+| `test_github.luau` | 53 | GitHub giả lập: nhận dạng key, base64, chưa có key thì chặn, key sai, key không hiện + không vào lịch sử ↑, tự tạo kho + tệp, báo thành công, đọc raw mỗi 3 giây, gửi + commit, không trùng tin, tin từ server khác, raw bị cache, ghi đụng nhau (409) thì thử lại không mất tin, key thứ 2 bỏ qua bước tạo, `/key <key>`, thiếu quyền tạo/ghi, dán key như tin thường thì bị chặn, lọc chữ, `/w` không lên GitHub, cắt 100 dòng, GitHub lỗi rồi thử lại, rời game thì quên key, mặc định không xoá khi tắt |
+| `test_github_owner.luau` | 8 | `RepoOwner` điền sẵn: đọc được khi chưa có key, kho/tệp có sẵn thì bỏ qua bước tạo, ghi nối tiếp |
+| `test_github_clear.luau` | 4 | `ClearOnShutdown = true`: xoá `chat.txt` khi tắt server |
 
 Lỗi tìm được và đã sửa trong lúc test: tin hiện **sai thứ tự** khi lọc chậm (nay xử lý lần lượt từng người),
 **tin cũ bị hiện lại hàng loạt** khi `/raw` trả bản cũ hơn, người vào ngay lúc server mở **không thấy lịch sử**,

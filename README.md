@@ -23,7 +23,7 @@ không dùng executor, không dùng `setrbxsetting`, không can thiệp anti-che
 > `python3 -m http.server 8080 --directory secure-script` → http://localhost:8080
 
 > **Dự án thứ ba:** 💬 [`roblox-chat/`](roblox-chat/README.md) — menu chat giống giao diện chat Roblox
-> + server script dùng ghi chú notevn làm nơi lưu tin (đọc mỗi 3 giây, xoá khi tắt server).
+> + server script lưu tin trên GitHub (nhập `/<API key>` trong chat, tự tạo kho + `chat.txt`, đọc raw mỗi 3 giây).
 
 ---
 
