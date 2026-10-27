@@ -117,7 +117,7 @@ Script vẫn thử (bọc `pcall`) để tận dụng nếu môi trường cho p
 
 | Kiểm tra | Kết quả |
 |----------|---------|
-| `fengari` parse `server-code.lua` | `PARSE OK` (60 178 B) |
-| `fengari` parse `player-tools.lua` | `PARSE OK` (111 276 B) |
+| `fengari` parse `server-code.lua` | `PARSE OK` (60 253 B) |
+| `fengari` parse `player-tools.lua` | `PARSE OK` (111 351 B) |
 | Test lõi (`/tmp/luachk/servertest.lua`, 12 nhóm) | `SERVER-CODE ALL OK` — thêm: mã cùng hải vẫn có PlaceId, game 1 place vẫn `JobId` trơn, đọc link + link private, quét mù dừng sau 3 trang/3 server và trả lỗi, `limit=100` rỗng → hạ 50 |
 | Smoke cả file với mock Roblox | `SMOKE ALL OK` — copy `4442272183:7f2c1d9e-…`, teleport `4442272183|7f2c1d9e-…`, dán mã → `2753915549|1111…` |

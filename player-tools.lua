@@ -2191,13 +2191,14 @@ function S.FormatCode(jobId, placeId, meta, coName)
     local ps = S.PlacesOf(tonumber(game.GameId) or 0, placeId or myPlace)
     local multiPlace = (type(ps) == "table" and #ps > 1)
     local needPlace = (placeId and placeId > 0) and (multiPlace or not myPlace or placeId ~= myPlace)
-    local codeForInput = needPlace and (placeStr(placeId) .. ":" .. jobId) or jobId
+    local placeTxt = needPlace and string.format("%.0f", placeId) or nil
+    local codeForInput = placeTxt and (placeTxt .. ":" .. jobId) or jobId
     local capTxt = ""
     if type(meta) == "table" and tonumber(meta.playing) and tonumber(meta.maxPlayers) and meta.maxPlayers > 0 then
         capTxt = string.format(" · %d/%d%s", meta.playing, meta.maxPlayers, meta.playing >= meta.maxPlayers and " ĐẦY" or "")
     end
     local coTxt = (type(coName) == "string" and coName ~= "") and (" · chơi cùng @" .. coName) or ""
-    local dispTxt = jobId .. (placeId and (" (Place: " .. placeStr(placeId) .. capTxt .. coTxt .. ")") or (capTxt .. coTxt))
+    local dispTxt = jobId .. (placeId and (" (Place: " .. string.format("%.0f", placeId) .. capTxt .. coTxt .. ")") or (capTxt .. coTxt))
     return codeForInput, dispTxt
 end
 
@@ -2374,7 +2375,7 @@ local status = New("TextLabel", {
 
 local codeBox = New("TextBox", {
     Size = UDim2.new(1, -112, 0, 28), Position = UDim2.new(0, 8, 0, 244), BackgroundColor3 = C.FIELD,
-    Text = "", PlaceholderText = "Dán mã SV đã copy (JobId hoặc PlaceId:JobId)…", PlaceholderColor3 = C.DIM,
+    Text = "", PlaceholderText = "Dán mã SV (JobId / PlaceId:JobId / link Roblox)…", PlaceholderColor3 = C.DIM,
     TextColor3 = C.TEXT, Font = Enum.Font.Gotham, TextSize = 11, BorderSizePixel = 0, ClearTextOnFocus = false,
 }, win)
 New("UICorner", { CornerRadius = UDim.new(0, 8) }, codeBox)

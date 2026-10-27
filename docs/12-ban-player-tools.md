@@ -57,7 +57,7 @@ JobId vẫn là UUID chuẩn như mọi game; khác thật chỉ ở **3 hải c
 
 ## Đã kiểm chứng (2026-10-27)
 
-1. **Cú pháp**: `fengari` → `PARSE OK` cho `server-code.lua` (60 178 B), `player-tools.lua` (111 276 B) và `outfit-local.lua`.
+1. **Cú pháp**: `fengari` → `PARSE OK` cho `server-code.lua` (60 253 B), `player-tools.lua` (111 351 B) và `outfit-local.lua`.
 2. **Global**: `luaparse {scope:true}` → `server-code.lua` không tạo global lạ.
 3. **Test lõi Lua** (stub API, 12 nhóm): `PlacesOf`/`SameGame`, `CheckPlayerIsPlaying` (người lạ / bạn bè offline /
    khác hải), `FindPlayerServer` (khớp `playerIds`, khớp ảnh ở hải 2, khớp mảng `players`, thống kê khi
