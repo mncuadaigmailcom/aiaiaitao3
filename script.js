@@ -2365,7 +2365,7 @@ S.TeleportToServer(game.PlaceId, nil) return "🔄 Không đọc được mã se
 function S.LocateJobPlace(jobId) local jId = tostring(jobId or "") if jId == "" then return nil end local cached = S._jobPlaceCache[jId] if cached then return cached end
 local pi = _G.BananaCatHub_PlayerInfo if type(pi) ~= "table" or type(pi.GetUniversePlaces) ~= "function" then return nil end local okP, places = pcall(pi.GetUniversePlaces, nil, tonumber(game.PlaceId))
 if not okP or type(places) ~= "table" then return nil end pcall(function() D.Say("🔍 Đang tìm đúng Place của mã server...", C.YELLOW) end)
-for pi2, p in ipairs(places) do if pi2 > 6 then break end for _, ord in ipairs({ "Asc", "Desc" }) do local cur = "" for _ = 1, 3 do local okF, list, nxt = pcall(function() return S.FetchServers(cur, p, ord) end)
+for pi2, p in ipairs(places) do if pi2 > 12 then break end for _, ord in ipairs({ "Asc", "Desc" }) do local cur = "" for _ = 1, 6 do local okF, list, nxt = pcall(function() return S.FetchServers(cur, p, ord) end)
 if not okF or type(list) ~= "table" then break end for _, sv in ipairs(list) do if type(sv) == "table" and sv.id and tostring(sv.id) == jId then S._jobPlaceCache[jId] = tonumber(p) return tonumber(p) end end
 if type(nxt) ~= "string" or nxt == "" then break end cur = nxt end end end return nil end
 function S.JoinServer(jobIdOrQuery, customPlaceId) local s = tostring(jobIdOrQuery or ""):gsub("^%s+", ""):gsub("%s+$", "")
@@ -4422,7 +4422,7 @@ if oldPI._sitWatchConn then pcall(function() oldPI._sitWatchConn:Disconnect() en
 RunService:UnbindFromRenderStep("BC_VirtualAvatarSync") RunService:UnbindFromRenderStep("BC_PlayerViewSpin") end) local PI = {}
 PI.reqId = 0
 PI.last = nil
-PI.productCache = {}
+PI.productCache = {} PI.ScanPages = tonumber(S._savedScanPages) or 150
 PI.activeCategory = "all"
 PI.view = { yaw = 0.6, pitch = 0.15, dist = 9, auto = false, drag = false, hover = false }
 PI.originalDesc = nil
@@ -4601,6 +4601,41 @@ if okS and type(fList) == "table" and #fList > 0 then return fList, fCur end
 end return nil, nil end
 local EVADE_PLACES = { 9872472334, 10324346056, 10324347967, 10662542523, 10808838353, 11353528705 }
 local EVADE_SET = {} for _, ep in ipairs(EVADE_PLACES) do EVADE_SET[ep] = true end
+PI.GAME_SETS = {
+    [994732206] = { 2753915549, 4442272183, 7449423635 },
+    [3652625463] = { 9872472334, 10324346056, 10324347967, 10662542523, 10808838353, 11353528705 },
+}
+PI.CustomPlaces = {}
+if type(S._savedCustomPlaces) == "table" then
+    for _, cp in ipairs(S._savedCustomPlaces) do local np = tonumber(cp)
+        if np and np > 0 then PI.CustomPlaces[#PI.CustomPlaces + 1] = np end end
+end
+function PI.PlacesOf(univId, placeId) local set = PI.GAME_SETS[tonumber(univId) or 0]
+    if type(set) ~= "table" then
+        local cand = tonumber(placeId)
+        if not cand and (not univId or tonumber(univId) == 0) then cand = tonumber(game.PlaceId) end
+        for _, s2 in pairs(PI.GAME_SETS) do
+            for _, p2 in ipairs(s2) do if tonumber(p2) == cand then set = s2 break end end
+            if type(set) == "table" then break end
+        end
+    end
+    local out = {} if type(set) == "table" then for _, p3 in ipairs(set) do out[#out + 1] = tonumber(p3) end end
+    return out end
+function PI.SameGame(univA, univB, placeId)
+    if not univA or not univB then return false end
+    if tonumber(univA) == tonumber(univB) then return true end
+    local setA, setB = PI.PlacesOf(univA, placeId), PI.PlacesOf(univB, placeId)
+    if #setA == 0 or #setB == 0 then return false end
+    for _, a in ipairs(setA) do for _, b in ipairs(setB) do if tonumber(a) == tonumber(b) then return true end end end
+    return false end
+function PI.SetScanPages(n) n = tonumber(n) if not n then return PI.ScanPages end
+    PI.ScanPages = math.clamp(math.floor(n), 10, 600) return PI.ScanPages end
+function PI.SetCustomPlaces(text) local out, seen = {}, {}
+    for num in tostring(text or ""):gmatch("%d+") do local n = tonumber(num)
+        if n and n > 0 and n < 1e12 and not seen[n] then seen[n] = true out[#out + 1] = n end end
+    PI.CustomPlaces = out return out end
+function PI.CustomPlacesText() local out = {}
+    for _, p in ipairs(PI.CustomPlaces or {}) do out[#out + 1] = tostring(p) end return table.concat(out, ", ") end
 function PI.GetUniversePlaces(univId, primaryPlaceId)
 local out, seen = {}, {}
 local function addP(p) p = tonumber(p) if p and p > 0 and not seen[p] then seen[p] = true out[#out + 1] = p end end
@@ -4641,6 +4676,9 @@ end
 if univId == 3652625463 or EVADE_SET[tonumber(primaryPlaceId) or 0] or EVADE_SET[tonumber(game.PlaceId) or 0] then
 for _, ep in ipairs(EVADE_PLACES) do addP(ep) end
 end
+if type(PI.CustomPlaces) == "table" then for _, cp in ipairs(PI.CustomPlaces) do addP(cp) end end
+for _, kp in ipairs(PI.PlacesOf(univId, primaryPlaceId)) do addP(kp) end
+while #out > 12 do table.remove(out) end
 return out end
 function PI.FormatJobAndPlace(jobId, placeId, meta, coPlayerName)
 jobId = tostring(jobId or "") if jobId == "" then return "", "" end
@@ -4706,6 +4744,9 @@ if type(pres) == "table" then
 local pType = tonumber(pres.userPresenceType) or 0
 local hasGameId = type(pres.gameId) == "string" and pres.gameId ~= ""
 if pType ~= 2 and not hasGameId then
+    local isFriend = false
+    pcall(function() isFriend = (player:IsFriendsWith(id) == true) end)
+    if not isFriend and type(fPres) ~= "table" then return true, nil, true end
 local stTxt = (pType == 1 and "đang Online ngoài Web/Sảnh (chưa vào game)")
 or (pType == 3 and "đang trong Roblox Studio (không chơi game)")
 or "đang Offline (không chơi game)"
@@ -4713,7 +4754,7 @@ return false, "Người chơi hiện " .. stTxt .. " — tính năng tìm server
 end
 local myUniv = tonumber(game.GameId)
 local pUniv = tonumber(pres.universeId)
-if myUniv and myUniv > 0 and pUniv and pUniv > 0 and pUniv ~= myUniv then
+if myUniv and myUniv > 0 and pUniv and pUniv > 0 and pUniv ~= myUniv and not PI.SameGame(myUniv, pUniv, tonumber(pres.placeId) or tonumber(pres.rootPlaceId)) then
 return false, "Người chơi đang chơi game khác — tính năng tìm server không hoạt động"
 end
 local myPlace = tonumber(game.PlaceId)
@@ -4728,7 +4769,7 @@ end
 end
 return true, nil
 end
-return false, "Người chơi hiện không chơi game — tính năng tìm server không hoạt động"
+return true, nil, true
 end
 function PI.FindPlayerServerByTokens(id, targetPlaceId, onProgress, maxPages, cachedPres) id = tonumber(id)
 if not id or id <= 0 then return nil, nil, nil, nil, nil, "ID không hợp lệ" end if PI.InThisServer(id, nil) and tostring(game.JobId or "") ~= "" then
@@ -4746,8 +4787,10 @@ local pId = tonumber(tpPlaceId) or tonumber(targetPlaceId) or tonumber(game.Plac
 S._jobPlaceCache[tostring(tpJobId)] = pId
 return tostring(tpJobId), pId, "teleport_service", nil, nil, nil end
 local pres = type(cachedPres) == "table" and cachedPres or PI.FetchPresence(id)
-local isPlaying, notPlayMsg = PI.CheckPlayerIsPlaying(id, pres)
-if not isPlaying then
+PI.lastScanStats = nil
+local isPlaying, notPlayMsg, presUnknown = PI.CheckPlayerIsPlaying(id, pres)
+local unknownPresence = (presUnknown == true)
+if not isPlaying and not unknownPresence then
 return nil, nil, nil, nil, nil, notPlayMsg
 end
 if type(pres) == "table" and type(pres.gameId) == "string" and pres.gameId ~= "" then
@@ -4766,6 +4809,19 @@ ah = ah:gsub("%-[Pp][Nn][Gg]$", ""):gsub("%-[Ww][Ee][Bb][Pp]$", ""):gsub("%-[Jj]
 if kt[ah] then return kt[ah] end end
 end local fp = imgUrl:match("rbxcdn%.com/([^%?]+)")
 if fp and kt[fp:lower()] then return kt[fp:lower()] end return nil
+end
+do
+    local kc = 0
+    if type(targetKeys) == "table" then for _k in pairs(targetKeys) do kc = kc + 1 end end
+    local tkTry = 0
+    while kc <= 0 and tkTry < 3 do
+        tkTry = tkTry + 1 task.wait(0.7 * tkTry)
+        local k2, _u2, c2 = PI.FetchTargetHeadshotKeys(id)
+        if type(k2) == "table" then targetKeys = k2 end
+        kc = tonumber(c2) or 0
+        if kc <= 0 and type(targetKeys) == "table" then for _k2 in pairs(targetKeys) do kc = kc + 1 end end
+    end
+    PI.lastThumbBlocked = (kc <= 0)
 end
 local placeStates = {}
 local scannedTokenThumbs = {}
@@ -4816,7 +4872,17 @@ if coIdMap and coIdMap[npid] then return sid, pId, "co_player:@" .. tostring(coI
 end
 end
 end
-if type(sv.playerTokens) == "table" then
+if type(sv.players) == "table" then
+                for _, pl in ipairs(sv.players) do
+                    local npl = tonumber(pl) or (type(pl) == "table" and (tonumber(pl.id) or tonumber(pl.userId))) or nil
+                    if npl and npl > 0 then
+                        scannedTokenIds[npl] = { sid = sid, pId = pId, meta = svMeta }
+                        if npl == id then return sid, pId, "players", svMeta, nil end
+                        if coIdMap and coIdMap[npl] then return sid, pId, "co_player:@" .. tostring(coIdMap[npl].name), svMeta, tostring(coIdMap[npl].name) end
+                    end
+                end
+            end
+            if type(sv.playerTokens) == "table" then
 for _, tok in ipairs(sv.playerTokens) do
 if type(tok) == "string" and tok ~= "" then
 if tok == tostring(id) or tok == ("token_" .. tostring(id)) then
@@ -4844,10 +4910,10 @@ for k = startIdx, math.min(#batch, startIdx + 99) do chunk[#chunk + 1] = batch[k
 chunks[#chunks + 1] = chunk
 end
 local foundSid, foundSrc, foundCoName = nil, nil, nil
-for wStart = 1, #chunks, 6 do
+for wStart = 1, #chunks, 3 do
 if foundSid then break end
 local pending = 0
-for cIdx = wStart, math.min(#chunks, wStart + 5) do
+for cIdx = wStart, math.min(#chunks, wStart + 2) do
 local chunk = chunks[cIdx]
 pending = pending + 1
 task.spawn(function()
@@ -4855,7 +4921,7 @@ local bRes = nil
 for bTry = 1, 3 do
 bRes = PI.Http("POST", "https://thumbnails.roblox.com/v1/batch", jsonEncode(chunk))
 if type(bRes) == "table" and type(bRes.data) == "table" then break end
-if bTry < 3 then task.wait(0.3 * bTry + (cIdx % 3) * 0.05) end
+if bTry < 3 then task.wait(0.7 * bTry + (cIdx % 3) * 0.1) end
 end
 local items = type(bRes) == "table" and type(bRes.data) == "table" and bRes.data or nil
 if type(items) == "table" then
@@ -4910,25 +4976,31 @@ end
 local univId = (type(pres) == "table" and tonumber(pres.universeId)) or tonumber(game.GameId)
 local allPlaces = PI.GetUniversePlaces(univId, scanPlaceId)
 local placeSet = {} for _, ap in ipairs(allPlaces) do placeSet[ap] = true end
-local totalPages = tonumber(maxPages) or 16
-local foundSid, foundPlace, foundSrc, foundMeta, foundCo = scanPlaceSteps(scanPlaceId, math.min(4, totalPages))
-if foundSid and foundSid ~= "" then return foundSid, foundPlace, foundSrc, foundMeta, foundCo end
-for _, subP in ipairs(allPlaces) do
-if subP ~= scanPlaceId then
-local sSid, sPl, sSrc, sMeta, sCo = scanPlaceSteps(subP, 4)
-if sSid and sSid ~= "" then return sSid, sPl, sSrc, sMeta, sCo end
-end
-end
-if totalPages > 4 then
-foundSid, foundPlace, foundSrc, foundMeta, foundCo = scanPlaceSteps(scanPlaceId, totalPages - 4)
-if foundSid and foundSid ~= "" then return foundSid, foundPlace, foundSrc, foundMeta, foundCo end
-for _, subP in ipairs(allPlaces) do
-if subP ~= scanPlaceId then
-local sSid, sPl, sSrc, sMeta, sCo = scanPlaceSteps(subP, 4)
-if sSid and sSid ~= "" then return sSid, sPl, sSrc, sMeta, sCo end
-end
-end
-end
+    local totalPages = tonumber(maxPages) or tonumber(PI.ScanPages) or 150
+    local placeList, placeSeen = {}, {}
+    for _, ap in ipairs(allPlaces) do local np = tonumber(ap)
+        if np and np > 0 and not placeSeen[np] then placeSeen[np] = true placeList[#placeList + 1] = np end end
+    if #placeList == 0 then placeList = { scanPlaceId } end
+    local perPlace = math.max(8, math.floor(totalPages / math.max(1, #placeList)))
+    for _round = 1, 3 do
+        local anyLeft = false
+        for _, pId2 in ipairs(placeList) do
+            local st2 = getPlaceState(pId2)
+            if not (st2.doneDesc and st2.doneAsc) then
+                anyLeft = true
+                local rSid, rPl, rSrc, rMeta, rCo = scanPlaceSteps(pId2, perPlace)
+                if rSid and rSid ~= "" then return rSid, rPl, rSrc, rMeta, rCo end
+            end
+        end
+        if not anyLeft then break end
+    end
+    do
+        local statServers, statPages = 0, 0
+        for _, pId3 in ipairs(placeList) do local st3 = placeStates[pId3]
+            if st3 then statPages = statPages + (tonumber(st3.pages) or 0)
+                for _sid in pairs(st3.seenSid or {}) do statServers = statServers + 1 end end end
+        PI.lastScanStats = { servers = statServers, pages = statPages, places = #placeList, unknownPresence = (unknownPresence == true), thumbBlocked = (PI.lastThumbBlocked == true) }
+    end
 
 local friends = PI.FetchPlayerFriends(id)
 if type(friends) == "table" and #friends > 0 then
@@ -5050,9 +5122,9 @@ function PI.JoinPlayerServer(recOrQuery, onProgress, onStatus) local jobId, plac
 if type(recOrQuery) == "table" then targetName = tostring(recOrQuery.name or recOrQuery.id or "")
 targetId = tonumber(recOrQuery.id)
 if recOrQuery.isPlaying == false then
-local isPl, npMsg = PI.CheckPlayerIsPlaying(targetId, nil)
-recOrQuery.isPlaying = isPl recOrQuery.notPlayingReason = npMsg
-if not isPl then
+local isPl, npMsg, npU = PI.CheckPlayerIsPlaying(targetId, nil)
+recOrQuery.isPlaying = (isPl or npU) and true or false recOrQuery.notPlayingReason = npMsg
+if not isPl and not npU then
 recOrQuery.serverJobId = nil recOrQuery.serverCode = ""
 recOrQuery.serverCodeText = "⛔ " .. tostring(npMsg or "Người chơi hiện không chơi game — tìm server không hoạt động")
 return false, "⛔ @" .. tostring(targetName ~= "" and targetName or targetId) .. ": " .. tostring(npMsg or "hiện không chơi game — tính năng tìm/vào server không hoạt động")
@@ -5064,7 +5136,7 @@ srvMeta = recOrQuery.serverMeta or (jobId and S._jobMetaCache[jobId])
 coName = recOrQuery.coPlayerName
 if not jobId and targetId and PI.InThisServer(targetId, nil) and tostring(game.JobId or "") ~= "" then jobId = tostring(game.JobId)
 placeId = placeId or tonumber(game.PlaceId) end
-if not jobId and targetId then local foundJ, foundP, foundSrc, foundMeta, foundCo, npMsg = PI.FindPlayerServerByTokens(targetId, placeId or game.PlaceId, onProgress, 20)
+if not jobId and targetId then local foundJ, foundP, foundSrc, foundMeta, foundCo, npMsg = PI.FindPlayerServerByTokens(targetId, placeId or game.PlaceId, onProgress, tonumber(PI.ScanPages) or 150)
 notPlayReason = npMsg
 if npMsg then
 recOrQuery.isPlaying = false recOrQuery.notPlayingReason = npMsg
@@ -5088,14 +5160,14 @@ explicitPlaceId = parsedPlace placeId = parsedPlace
 elseif s ~= "" then local uid, uname = PI.ResolveUser(s)
 if uid then targetId = uid
 targetName = tostring(uname or s) local pres = PI.FetchPresence(uid)
-local isPl, npMsg = PI.CheckPlayerIsPlaying(uid, pres)
-if not isPl then
+local isPl, npMsg, npU = PI.CheckPlayerIsPlaying(uid, pres)
+if not isPl and not npU then
 return false, "⛔ @" .. tostring(targetName) .. ": " .. tostring(npMsg or "hiện không chơi game — tính năng tìm/vào server không hoạt động")
 end
 local ej, ep = PI.ExtractServerInfo(uid, pres) jobId = ej
 explicitPlaceId = ep placeId = ep
 if not jobId or jobId == "" then
-local foundJ, foundP, _, foundMeta, foundCo, npMsg2 = PI.FindPlayerServerByTokens(uid, placeId or game.PlaceId, onProgress, 20, pres)
+local foundJ, foundP, _, foundMeta, foundCo, npMsg2 = PI.FindPlayerServerByTokens(uid, placeId or game.PlaceId, onProgress, tonumber(PI.ScanPages) or 150, pres)
 notPlayReason = npMsg2
 if foundJ and foundJ ~= "" then
 jobId = foundJ placeId = tonumber(foundP) or placeId or tonumber(game.PlaceId) srvMeta = foundMeta coName = foundCo
@@ -5157,10 +5229,11 @@ return nil, perr end
 end local pres = PI.FetchPresence(id)
 if stale(my) then return nil, nil end local thumb = PI.FetchThumb(id)
 if stale(my) then return nil, nil end
-local isPlaying, notPlayMsg = PI.CheckPlayerIsPlaying(id, pres)
+local isPlaying, notPlayMsg, presUnknown = PI.CheckPlayerIsPlaying(id, pres)
 local srvJobId, srvPlaceId, srvCode, srvCodeTxt = PI.ExtractServerInfo(id, pres)
+if presUnknown and not isPlaying then isPlaying = true notPlayMsg = nil end
 local srvSource = (srvJobId and srvJobId ~= "") and "presence" or nil
-local presTxt = PI.PresenceText(pres)
+local presTxt = PI.PresenceText(pres) if presUnknown then presTxt = "🔎 Roblox ẩn trạng thái với người lạ — chỉ tìm được qua SV công khai" end
 if not isPlaying then
 srvJobId, srvCode, srvSource = nil, "", nil
 srvCodeTxt = "⛔ " .. tostring(notPlayMsg or "Người chơi không chơi game — tìm server không hoạt động")
@@ -5184,7 +5257,7 @@ if type(onQuickRender) == "function" then
 rec.serverCodeText = "⏳ Đang quét các server công khai tìm @" .. tostring(rec.name) .. "..."
 pcall(onQuickRender, rec)
 end
-local foundJ, foundP, foundSrc, foundMeta, foundCo, npMsg2 = PI.FindPlayerServerByTokens(id, srvPlaceId or game.PlaceId, onProgress, 16, pres)
+local foundJ, foundP, foundSrc, foundMeta, foundCo, npMsg2 = PI.FindPlayerServerByTokens(id, srvPlaceId or game.PlaceId, onProgress, tonumber(PI.ScanPages) or 150, pres)
 if stale(my) then return nil, nil end
 if npMsg2 then
 rec.isPlaying = false rec.notPlayingReason = npMsg2
@@ -5202,7 +5275,9 @@ rec.coPlayerName = foundCo
 rec.serverSource = srvSource
 rec.serverCodeText = srvCodeTxt
 else
-rec.serverCodeText = srvPlaceId and ("Place: " .. tostring(srvPlaceId) .. " (Không thấy trong SV công khai)") or "Không tìm thấy trong SV công khai game này"
+local __st2 = PI.lastScanStats local __tx2 = ""
+            if type(__st2) == "table" then __tx2 = string.format(" (đã quét %d SV / %d trang / %d place)", __st2.servers or 0, __st2.pages or 0, __st2.places or 0) end
+            rec.serverCodeText = (srvPlaceId and ("Place: " .. tostring(srvPlaceId) .. " (Không thấy trong SV công khai)" .. __tx2) or ("Không tìm thấy trong SV công khai game này" .. __tx2))
 end
 end
 if srvJobId and srvJobId ~= "" then
@@ -5315,9 +5390,9 @@ setStatus(did and ("📋 Đã copy UserId " .. tostring(rec.id)) or ("UserId: " 
 PI.copySrvCodeBtn.Activated:Connect(function() ReleaseHubFocus()
 withTargetRec(function(rec)
 if rec.isPlaying == false then
-local isPl, npMsg = PI.CheckPlayerIsPlaying(rec.id, nil)
-rec.isPlaying = isPl rec.notPlayingReason = npMsg
-if not isPl then
+local isPl, npMsg, npU = PI.CheckPlayerIsPlaying(rec.id, nil)
+rec.isPlaying = (isPl or npU) and true or false rec.notPlayingReason = npMsg
+if not isPl and not npU then
 rec.serverJobId = nil rec.serverCode = ""
 rec.serverCodeText = "⛔ " .. tostring(npMsg or "Người chơi không chơi game — tìm server không hoạt động")
 setRow("serverCode", "Mã Server (JobId)", rec.serverCodeText)
@@ -5331,7 +5406,7 @@ if code == "" and rec.id then
 setStatus("🔍 Đang quét tìm đúng Mã Server của @" .. tostring(rec.name or rec.id) .. "...", C.YELLOW)
 local foundJ, foundP, foundSrc, foundMeta, foundCo, npMsg = PI.FindPlayerServerByTokens(rec.id, rec.placeId or game.PlaceId, function(pg, cnt, mode, pId)
 setStatus(string.format("🔍 Đang quét server tìm @%s (trang %s · %s · Place %s)...", tostring(rec.name or rec.id), tostring(pg), tostring(mode or "Desc"), tostring(pId or game.PlaceId)), C.YELLOW)
-end, 20)
+end, tonumber(PI.ScanPages) or 150)
 if npMsg then
 rec.isPlaying = false rec.notPlayingReason = npMsg
 rec.serverJobId = nil rec.serverCode = ""
@@ -5352,7 +5427,10 @@ rec.serverCode, rec.serverCodeText = PI.FormatJobAndPlace(code, rec.placeId, fou
 setRow("serverCode", "Mã Server (JobId)", rec.serverCodeText)
 end
 end
-if code == "" then setStatus("⚠️ Không tìm thấy Mã Server của @" .. tostring(rec.name or rec.id) .. " (đang ở Server VIP/riêng tư)", C.YELLOW) return end
+if code == "" then local __st3 = PI.lastScanStats local __tx3 = ""
+    if type(__st3) == "table" then __tx3 = string.format(" · đã quét %d SV / %d trang / %d place", __st3.servers or 0, __st3.pages or 0, __st3.places or 0)
+        if __st3.thumbBlocked then __tx3 = __tx3 .. " · ⚠️ ảnh đại diện bị rate-limit" end end
+    setStatus("⚠️ Không tìm thấy Mã Server của @" .. tostring(rec.name or rec.id) .. __tx3 .. " — thử tăng Độ sâu hoặc người chơi đang ở Server VIP/riêng tư", C.YELLOW) return end
 local codeIn = PI.FormatJobAndPlace(code, rec.placeId, rec.serverMeta, rec.coPlayerName)
 local did = S.CopyToClipboard(tostring(codeIn ~= "" and codeIn or code))
 pcall(function() if D.hubJobIn then D.hubJobIn.Text = tostring(codeIn ~= "" and codeIn or code) end end)
