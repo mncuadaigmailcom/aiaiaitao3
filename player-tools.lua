@@ -1818,20 +1818,45 @@ end
 -- ============================================================================
 -- 7. QUÉT SERVER CÔNG KHAI
 -- ============================================================================
+-- Roblox có đợt trả data rỗng khi limit=100 (báo lỗi 9/2025) → tự hạ 100→50→25→10
+-- và nhớ mức đang chạy được. excludeFullGames=false là BẮT BUỘC với Blox Fruits
+-- (server 12/12 luôn đầy, lọc full là mất sạch danh sách).
+S._serverLimit = 0
+
 function S.FetchServersPage(placeId, cursor, order)
     order = tostring(order or "Desc")
     local qCur = (type(cursor) == "string" and cursor ~= "") and ("&cursor=" .. tostring(cursor)) or ""
-    local base = "https://games.roblox.com/v1/games/" .. placeStr(placeId) .. "/servers/Public?sortOrder=" .. order .. "&limit=100&excludeFullGames=false" .. qCur
-    for attempt = 1, 3 do
-        local data, err = S.Http("GET", base)
-        if type(data) == "table" and type(data.data) == "table" then return data.data, data.nextPageCursor end
-        if tostring(err or ""):find("429") then
-            task.wait(0.45 * attempt)
-        else
-            break
-        end
+    local want = tonumber(S._serverLimit) or 0
+    local limits = { 100, 50, 25, 10 }
+    if want > 0 and want ~= 100 then
+        local tmp = { want }
+        for _, l in ipairs(limits) do if l ~= want then tmp[#tmp + 1] = l end end
+        limits = tmp
     end
-    return nil, nil
+    for _, lim in ipairs(limits) do
+        local url = "https://games.roblox.com/v1/games/" .. placeStr(placeId) .. "/servers/Public?sortOrder=" .. order
+            .. "&limit=" .. tostring(lim) .. "&excludeFullGames=false" .. qCur
+        local gotEmpty = false
+        for attempt = 1, 3 do
+            local data, err = S.Http("GET", url)
+            if type(data) == "table" and type(data.data) == "table" then
+                if #data.data > 0 then
+                    if S._serverLimit ~= lim then S._serverLimit = lim end
+                    return data.data, data.nextPageCursor
+                end
+                if qCur ~= "" then return data.data, data.nextPageCursor end
+                gotEmpty = true
+                break
+            end
+            if tostring(err or ""):find("429") then
+                task.wait(0.45 * attempt)
+            else
+                break
+            end
+        end
+        if not gotEmpty then return nil, nil end
+    end
+    return {}, nil
 end
 
 -- Trả về: jobId, placeId, nguồn, meta, tên người chơi cùng server, thông báo lỗi, thống kê
@@ -1954,10 +1979,17 @@ function S.FindPlayerServer(id, targetPlaceId, onProgress, maxPages, cachedPres)
                         steps = steps + 1 st.pages = st.pages + 1
                         if type(onProgress) == "function" then pcall(onProgress, st.pages, #list, mode, pId) end
                         local batch, reqMap, metaMap = {}, {}, {}
+                        local pageSeen, pageOcc = 0, 0
                         for _, sv in ipairs(list) do
                             local sid = type(sv) == "table" and sv.id and tostring(sv.id) or nil
                             if sid and sid ~= "" and not st.seenSid[sid] then
                                 st.seenSid[sid] = true
+                                pageSeen = pageSeen + 1
+                                if (type(sv.playerIds) == "table" and #sv.playerIds > 0)
+                                    or (type(sv.players) == "table" and #sv.players > 0)
+                                    or (type(sv.playerTokens) == "table" and #sv.playerTokens > 0) then
+                                    pageOcc = pageOcc + 1
+                                end
                                 local svMeta = { placeId = pId, playing = tonumber(sv.playing) or 0, maxPlayers = tonumber(sv.maxPlayers) or 0 }
                                 metaMap[sid] = svMeta
                                 S._jobPlaceCache[sid] = pId
@@ -2006,6 +2038,16 @@ function S.FindPlayerServer(id, targetPlaceId, onProgress, maxPages, cachedPres)
                                     end
                                 end
                             end
+                        end
+
+                        -- Roblox chỉ trả JobId mà KHÔNG trả players/playerTokens
+                        -- (Blox Fruits luôn vậy, và API còn ẩn với request chưa đăng nhập)
+                        -- → không thể so ảnh đại diện. Dừng place này ngay, đừng quét
+                        -- hàng trăm trang vô ích.
+                        if pageSeen > 0 and pageOcc == 0 then
+                            st.blind = (tonumber(st.blind) or 0) + 1
+                            st.doneDesc, st.doneAsc = true, true
+                            return nil, pId, nil, nil, nil
                         end
 
                         if #batch > 0 then
@@ -2109,15 +2151,24 @@ function S.FindPlayerServer(id, targetPlaceId, onProgress, maxPages, cachedPres)
     end
 
     do
-        local statServers, statPages = 0, 0
+        local statServers, statPages, blindCount = 0, 0, 0
         for _, pId3 in ipairs(placeList) do
             local st3 = placeStates[pId3]
             if st3 then
                 statPages = statPages + (tonumber(st3.pages) or 0)
                 for _sid in pairs(st3.seenSid or {}) do statServers = statServers + 1 end
+                if st3.blind then blindCount = blindCount + 1 end
             end
         end
-        S.lastScanStats = { servers = statServers, pages = statPages, places = #placeList, unknownPresence = (unknownPresence == true) }
+        S.lastScanStats = {
+            servers = statServers, pages = statPages, places = #placeList,
+            unknownPresence = (unknownPresence == true),
+            blind = (blindCount > 0), allBlind = (#placeList > 0 and blindCount >= #placeList),
+        }
+        if #placeList > 0 and blindCount >= #placeList then
+            return nil, scanPlaceId, nil, nil, nil,
+                "Roblox ẩn danh sách người chơi trong server (chỉ trả JobId, không trả playerTokens) nên không dò được ai ở server nào bằng ảnh đại diện. Blox Fruits luôn ở tình trạng này. Cách dùng được: người đó là bạn bè (presence), hoặc dán mã PlaceId:JobId đã có."
+        end
     end
 
     return nil, scanPlaceId, nil, nil, nil, nil
@@ -2133,7 +2184,14 @@ function S.FormatCode(jobId, placeId, meta, coName)
     if placeId and placeId > 0 then S._jobPlaceCache[jobId] = placeId end
     meta = type(meta) == "table" and meta or S._jobMetaCache[jobId]
     if type(meta) == "table" then S._jobMetaCache[jobId] = meta end
-    local codeForInput = (placeId and tonumber(game.PlaceId) and placeId ~= tonumber(game.PlaceId)) and (placeStr(placeId) .. ":" .. jobId) or jobId
+    -- Blox Fruits có 3 hải (3 place) trong CÙNG một universe: mã chỉ ghi JobId sẽ
+    -- bị hiểu là "hải đang đứng" khi dán ở phiên khác → sai place, vào không được.
+    -- Vì vậy game nhiều place thì LUÔN ghi kèm PlaceId:JobId.
+    local myPlace = tonumber(game.PlaceId)
+    local ps = S.PlacesOf(tonumber(game.GameId) or 0, placeId or myPlace)
+    local multiPlace = (type(ps) == "table" and #ps > 1)
+    local needPlace = (placeId and placeId > 0) and (multiPlace or not myPlace or placeId ~= myPlace)
+    local codeForInput = needPlace and (placeStr(placeId) .. ":" .. jobId) or jobId
     local capTxt = ""
     if type(meta) == "table" and tonumber(meta.playing) and tonumber(meta.maxPlayers) and meta.maxPlayers > 0 then
         capTxt = string.format(" · %d/%d%s", meta.playing, meta.maxPlayers, meta.playing >= meta.maxPlayers and " ĐẦY" or "")
@@ -2147,13 +2205,24 @@ function S.ParseCode(raw)
     local s = tostring(raw or ""):gsub("^%s+", ""):gsub("%s+$", ""):gsub('^"', ""):gsub('"$', ""):gsub("^'", ""):gsub("'$", "")
     s = s:gsub("^Mã Server %(JobId%)%s*:%s*", ""):gsub("^Mã SV%s*:%s*", ""):gsub("^🌐 Mã server%s*:%s*", "")
     if s == "" then return nil, nil end
+    -- Link Roblox hay được chia sẻ cho Blox Fruits:
+    --   roblox.com/games/start?placeId=4442272183&gameInstanceId=<JobId>
+    --   roblox.com/games/2753915549/Blox-Fruits?gameId=<JobId>
+    local isPrivate = s:find("privateServerLinkCode", 1, true) ~= nil
+    local urlPlace = s:match("[%?&]placeId=(%d+)") or s:match("roblox%.com/games/(%d+)")
+    local urlJob = s:match("[%?&]gameInstanceId=([%w%-]+)") or s:match("[%?&]gameId=([%w%-]+)") or s:match("[%?&]jobId=([%w%-]+)")
+    if urlJob and urlJob:find("-", 1, true) then
+        local np = tonumber(urlPlace)
+        if np and np > 0 then S._jobPlaceCache[urlJob] = np end
+        return urlJob, np, (isPrivate and "private" or nil)
+    end
     local pId, jId = s:match("^(%d+)%s*[:/|,]%s*([%w%-]+)$")
     if pId and jId and jId:find("-", 1, true) then
         local np = tonumber(pId)
         if np then S._jobPlaceCache[jId] = np end
         return jId, np
     end
-    local placeHint = s:match("PlaceId%s*[:=]%s*(%d+)") or s:match("Place%s*[:=]%s*(%d+)")
+    local placeHint = s:match("PlaceId%s*[:=]%s*(%d+)") or s:match("Place%s*[:=]%s*(%d+)") or s:match("roblox%.com/games/(%d+)")
     local uuid = s:match("(%x%x%x%x%x%x%x%x%-%x%x%x%x%-%x%x%x%x%-%x%x%x%x%-%x%x%x%x%x%x%x%x%x%x%x%x)")
     if uuid then
         local np = tonumber(placeHint) or S._jobPlaceCache[uuid]
@@ -2163,9 +2232,9 @@ function S.ParseCode(raw)
     local token = s:match("^([%w]+%-[%w%-]+)")
     if token and #token >= 8 then
         local np = tonumber(placeHint) or S._jobPlaceCache[token]
-        return token, np
+        return token, np, (isPrivate and "private" or nil)
     end
-    return nil, tonumber(placeHint)
+    return nil, tonumber(placeHint), (isPrivate and "private" or nil)
 end
 
 function S.Clipboard(text)
@@ -2241,7 +2310,11 @@ function S.Join(placeId, jobId, onStatus)
             end
         end)
     end
-    return true, string.format("🚀 Đang vào server %s (Place: %s)", tostring(jId ~= "" and jId or "—"), tostring(pId))
+    local guessTxt = ""
+    if tonumber(placeId) == nil and jId ~= "" then
+        guessTxt = " · ⚠️ mã không kèm PlaceId nên dùng Place hiện tại — sai hải thì dán lại dạng PlaceId:JobId"
+    end
+    return true, string.format("🚀 Đang vào server %s (Place: %s)%s", tostring(jId ~= "" and jId or "—"), tostring(pId), guessTxt)
 end
 -- ============================================================================
 -- GUI tab "📡 Mã server" (vẽ vào khung chung)
@@ -2357,6 +2430,7 @@ local function doLookup()
         presence = S.PresenceText(pres),
     }
     local isPlaying, msg, unknown = S.CheckPlayerIsPlaying(id, pres)
+    if unknown then rec.presence = "🔎 Roblox ẩn trạng thái với người lạ" end
     local lines = {
         "👤 " .. tostring(rec.name) .. (rec.displayName ~= "" and rec.displayName ~= rec.name and (" (" .. rec.displayName .. ")") or ""),
         "🆔 UserId: " .. tostring(id) .. "  ·  🗓 tạo: " .. tostring(rec.created),
@@ -2392,7 +2466,13 @@ local function ensureFound()
         if type(st) == "table" then
             statsTxt = string.format(" · đã quét %d SV / %d trang / %d place", st.servers or 0, st.pages or 0, st.places or 0)
         end
-        local msg = "Không tìm thấy server của người này" .. statsTxt .. " — có thể đang ở server VIP/riêng tư, hoặc tăng Độ sâu rồi thử lại."
+        local msg
+        if type(st) == "table" and st.blind then
+            msg = "Roblox ẩn danh sách người chơi trong server (chỉ trả JobId) nên không dò được bằng ảnh đại diện" .. statsTxt
+                .. " — Blox Fruits luôn vậy. Dùng: người đó là bạn bè (presence) hoặc dán mã PlaceId:JobId đã có."
+        else
+            msg = "Không tìm thấy server của người này" .. statsTxt .. " — có thể đang ở server VIP/riêng tư, hoặc tăng Độ sâu rồi thử lại."
+        end
         setStatus("⚠️ " .. msg, C.YELLOW)
         return nil, msg
     end
@@ -2442,12 +2522,16 @@ copyBtn.Activated:Connect(guarded(doCopy))
 joinBtn.Activated:Connect(guarded(doJoin))
 
 pasteJoinBtn.Activated:Connect(function()
-    local jId, pId = S.ParseCode(codeBox.Text)
+    local jId, pId, note = S.ParseCode(codeBox.Text)
     if not jId then
-        setStatus("⚠️ Mã không hợp lệ (cần JobId hoặc PlaceId:JobId).", C.RED)
+        setStatus("⚠️ Mã không hợp lệ (cần JobId, PlaceId:JobId hoặc link Roblox có gameInstanceId).", C.RED)
         return
     end
     local ok, msg = S.Join(pId, jId, function(m) setStatus(m, C.YELLOW) end)
+    if note == "private" then
+        msg = tostring(msg) .. " ⚠️ Link là server riêng (privateServerLinkCode) — cần access code, JobId không vào được."
+        ok = false
+    end
     setStatus((ok and "✅ " or "⚠️ ") .. tostring(msg), ok and C.GREEN or C.RED)
 end)
 

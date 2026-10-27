@@ -38,17 +38,31 @@ Lý do tách hàm cho mỗi tab: không trùng biến cục bộ, không vượt
 * `FindPlayerServer`: quét cả `Desc` + `Asc`, chia trang đều cho mọi place (3 vòng),
   khớp `playerIds` → mảng `players` → **so ảnh đại diện** (`playerTokens` + `thumbnails /v1/batch`),
   retry khi 429, lưu `S.lastScanStats` để hiện "đã quét N SV / N trang / N place".
-* `FormatCode` / `ParseCode`: `JobId` hoặc `PlaceId:JobId`.
-* `Join`: `TeleportToPlaceInstance`, tự đổi PlaceId khi 773/771, tự canh slot 25 × 1.8 s khi đầy.
+* `FormatCode`: game **nhiều place** (Blox Fruits 3 hải, Evade) → mã **luôn** `PlaceId:JobId`;
+  game 1 place → `JobId` trơn như cũ.
+* `ParseCode`: nhận `JobId`, `PlaceId:JobId`, **và link Roblox** `…?placeId=…&gameInstanceId=…`;
+  link `privateServerLinkCode` → báo là server riêng (cần access code).
+* `FetchServersPage`: `limit` tự hạ `100→50→25→10` (Roblox có đợt trả rỗng với `limit=100`),
+  `excludeFullGames=false` (bắt buộc cho server 12/12 của Blox Fruits).
+* Quét gặp place mà Roblox **ẩn danh sách người chơi** (`playerIds`/`players`/`playerTokens` đều rỗng)
+  → dừng place đó sau 1 trang và báo rõ, **không quét mù 150 trang**. Xem `docs/13`.
+* `Join`: `TeleportToPlaceInstance`, tự đổi PlaceId khi 773/771, tự canh slot 25 × 1.8 s khi đầy,
+  cảnh báo khi mã dán vào thiếu PlaceId.
 * URL dùng `placeStr()` (định dạng `%.0f`) để không bao giờ sinh `".../games/2753915549.0/..."`.
+
+## Blox Fruits khác gì? (soát 2026-10-27)
+
+JobId vẫn là UUID chuẩn như mọi game; khác thật chỉ ở **3 hải chung 1 universe** (`994732206`) và
+**server 12/12 + API ẩn danh sách người chơi**. Chi tiết bằng chứng đo được và 3 lỗi đã sửa: `docs/13-audit-ma-server-blox-fruits.md`.
 
 ## Đã kiểm chứng (2026-10-27)
 
-1. **Cú pháp**: `fengari` → `PARSE OK` cho `server-code.lua`, `player-tools.lua` (104 KB) và `outfit-local.lua`.
+1. **Cú pháp**: `fengari` → `PARSE OK` cho `server-code.lua` (60 178 B), `player-tools.lua` (111 276 B) và `outfit-local.lua`.
 2. **Global**: `luaparse {scope:true}` → `server-code.lua` không tạo global lạ.
-3. **Test lõi Lua** (stub API): `PlacesOf`/`SameGame`, `CheckPlayerIsPlaying` (người lạ / bạn bè offline /
+3. **Test lõi Lua** (stub API, 12 nhóm): `PlacesOf`/`SameGame`, `CheckPlayerIsPlaying` (người lạ / bạn bè offline /
    khác hải), `FindPlayerServer` (khớp `playerIds`, khớp ảnh ở hải 2, khớp mảng `players`, thống kê khi
-   không thấy, presence Offline thật thì dừng), `FormatCode`/`ParseCode` → **ALL OK**.
+   không thấy, presence Offline thật thì dừng), `FormatCode`/`ParseCode` (kèm link + link private),
+   chế độ "Roblox ẩn danh sách người chơi" và hạ `limit` → **ALL OK**.
 4. **Smoke test cả file với mock Roblox** (Instance/UDim2/Color3/Enum/Signal/HttpService/TeleportService…):
    * `outfit-local.lua`: GUI + nút 🧥 + mở/đóng → **OK**
    * `server-code.lua`: bấm 📡 → nhập tên → Tra cứu → Mã SV → Vào SV → **copy & teleport đúng**
