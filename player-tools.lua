@@ -1,37 +1,141 @@
 --[[
 ================================================================================
-  PLAYER TOOLS — chỉ 2 tính năng về người chơi
+  PLAYER TOOLS — 2 tính năng người chơi, GỘP TRONG 1 CỬA SỔ
 --------------------------------------------------------------------------------
-  File này gộp ĐÚNG 2 tính năng (không có gì khác):
+  Một file · một cửa sổ · hai tab:
 
-    1) 🧥 LẤY TRANG PHỤC NGƯỜI CHƠI  — xem / mặc / lưu trang phục của bất kỳ ai
-       (RightControl hoặc nút 🧥 để mở)
-
-    2) 📡 LẤY MÃ SERVER NGƯỜI CHƠI  — tìm / copy / vào đúng server (JobId) của
-       người chơi, kể cả người lạ (Roblox ẩn presence với người lạ), tự biết
-       3 hải Blox Fruits (2753915549 / 4442272183 / 7449423635)
-       (RightShift hoặc nút 📡 để mở)
+    🧥 Trang phục  — xem / mặc / lưu / trả skin trang phục của bất kỳ ai
+    📡 Mã server  — tra cứu · copy mã · vào đúng server (JobId) của người chơi,
+                    kể cả người lạ (Roblox ẩn presence), tự biết 3 hải Blox Fruits
+                    (2753915549 / 4442272183 / 7449423635)
 
   CÁCH DÙNG
     Dán cả file vào executor (Delta / Codex / Xeno / Synapse…) rồi chạy.
-    RightControl = cửa sổ trang phục · RightShift = cửa sổ mã server
+    • Nút 🎛 (hoặc RightControl / RightShift) để mở/đóng cửa sổ
+    • RightControl mở thẳng tab Trang phục, RightShift mở thẳng tab Mã server
+    • Kéo thanh tiêu đề để di chuyển cửa sổ
 
-  BẢN RIÊNG LẺ (nếu chỉ cần 1 trong 2)
-    • outfit-local.lua  — chỉ trang phục
-    • server-code.lua   — chỉ mã server
-    • script.js         — hub đầy đủ nhiều tính năng
+  BẢN RIÊNG LẺ
+    • outfit-local.lua — chỉ trang phục     • server-code.lua — chỉ mã server
+    • script.js        — hub đầy đủ nhiều tính năng
 
   GIỚI HẠN
-    • Trang phục: chỉ đổi phía client (người khác không thấy).
-    • Mã server: chỉ tìm được server CÔNG KHAI; server VIP/riêng tư thì Roblox
-      không trả mã. Quét càng sâu càng chắc nhưng càng lâu (mặc định 150
-      trang/place, đổi trong cửa sổ 📡).
+    • Trang phục chỉ đổi phía client (người khác không thấy).
+    • Mã server chỉ tìm được server CÔNG KHAI; VIP/riêng tư thì Roblox không trả mã.
 ================================================================================
 ]]
 
 -- ============================================================================
--- PHẦN 1/2 — LẤY TRANG PHỤC NGƯỜI CHƠI  (nguồn: outfit-local.lua)
--- Hai phần chạy độc lập: phần này lỗi thì phần mã server vẫn nạp bình thường.
+-- KHUNG CHUNG (1 cửa sổ, 2 tab)
+-- ============================================================================
+local Players = game:GetService("Players")
+local TeleportService = game:GetService("TeleportService")
+local GuiService = game:GetService("GuiService")
+local UserInputService = game:GetService("UserInputService")
+local HttpService = game:GetService("HttpService")
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+local targetGui = playerGui
+pcall(function()
+    if type(gethui) == "function" then
+        local hui = gethui()
+        if hui then targetGui = hui end
+    end
+end)
+
+local oldShell = targetGui:FindFirstChild("PlayerToolsGui")
+if oldShell then pcall(function() oldShell:Destroy() end) end
+local oldOutfit = targetGui:FindFirstChild("OutfitLocalGui")
+if oldOutfit then pcall(function() oldOutfit:Destroy() end) end
+local oldServer = targetGui:FindFirstChild("ServerCodeGui")
+if oldServer then pcall(function() oldServer:Destroy() end) end
+
+local function New(class, props, parent)
+    local obj = Instance.new(class)
+    for k, v in pairs(props or {}) do obj[k] = v end
+    if parent then obj.Parent = parent end
+    return obj
+end
+
+local SC = {
+    BG = Color3.fromRGB(18, 19, 24),
+    PANEL = Color3.fromRGB(28, 30, 38),
+    FIELD = Color3.fromRGB(38, 41, 52),
+    ACCENT = Color3.fromRGB(120, 170, 255),
+    GREEN = Color3.fromRGB(80, 200, 130),
+    TEXT = Color3.fromRGB(235, 238, 245),
+    DIM = Color3.fromRGB(150, 156, 172),
+}
+
+local shellGui = New("ScreenGui", {
+    Name = "PlayerToolsGui", ResetOnSpawn = false, IgnoreGuiInset = true,
+    ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+}, targetGui)
+shellGui.DisplayOrder = 999
+
+local floatBtn = New("TextButton", {
+    Name = "ToolsFloat", Size = UDim2.new(0, 44, 0, 44), Position = UDim2.new(1, -64, 1, -180),
+    BackgroundColor3 = SC.ACCENT, Text = "🎛", TextSize = 20, Font = Enum.Font.GothamBold,
+    TextColor3 = SC.BG, BorderSizePixel = 0, ZIndex = 60,
+}, shellGui)
+New("UICorner", { CornerRadius = UDim.new(1, 0) }, floatBtn)
+New("UIStroke", { Color = SC.ACCENT, Transparency = 0.2, Thickness = 1.4 }, floatBtn)
+
+local shellWin = New("Frame", {
+    Name = "ToolsWindow", Size = UDim2.new(0, 468, 0, 438), Position = UDim2.new(0.5, -234, 0.5, -219),
+    BackgroundColor3 = SC.BG, BorderSizePixel = 0, Visible = false, Active = true, ZIndex = 50,
+}, shellGui)
+New("UICorner", { CornerRadius = UDim.new(0, 14) }, shellWin)
+New("UIStroke", { Color = SC.ACCENT, Transparency = 0.5, Thickness = 1.2 }, shellWin)
+
+local shellHeader = New("Frame", {
+    Name = "Header", Size = UDim2.new(1, 0, 0, 32), BackgroundColor3 = SC.PANEL, BorderSizePixel = 0, ZIndex = 51,
+}, shellWin)
+New("UICorner", { CornerRadius = UDim.new(0, 14) }, shellHeader)
+New("TextLabel", {
+    Size = UDim2.new(1, -46, 1, 0), Position = UDim2.new(0, 12, 0, 0), BackgroundTransparency = 1,
+    Text = "🎛  PLAYER TOOLS", TextColor3 = SC.ACCENT, Font = Enum.Font.GothamBold, TextSize = 13,
+    TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 52,
+}, shellHeader)
+
+local closeShellBtn = New("TextButton", {
+    Size = UDim2.new(0, 26, 0, 22), Position = UDim2.new(1, -34, 0, 5), BackgroundColor3 = SC.FIELD,
+    Text = "✕", TextColor3 = SC.TEXT, Font = Enum.Font.GothamBold, TextSize = 12, BorderSizePixel = 0, ZIndex = 52,
+}, shellHeader)
+New("UICorner", { CornerRadius = UDim.new(0, 6) }, closeShellBtn)
+
+local tabBar = New("Frame", {
+    Name = "Tabs", Size = UDim2.new(1, -16, 0, 30), Position = UDim2.new(0, 8, 0, 36),
+    BackgroundTransparency = 1, ZIndex = 51,
+}, shellWin)
+
+local tabOutfit = New("TextButton", {
+    Size = UDim2.new(0, 218, 0, 30), Position = UDim2.new(0, 0, 0, 0), BackgroundColor3 = SC.ACCENT,
+    Text = "🧥  Trang phục", TextColor3 = SC.BG, Font = Enum.Font.GothamBold, TextSize = 12,
+    BorderSizePixel = 0, ZIndex = 52,
+}, tabBar)
+New("UICorner", { CornerRadius = UDim.new(0, 8) }, tabOutfit)
+
+local tabServer = New("TextButton", {
+    Size = UDim2.new(0, 218, 0, 30), Position = UDim2.new(1, -218, 0, 0), BackgroundColor3 = SC.FIELD,
+    Text = "📡  Mã server", TextColor3 = SC.DIM, Font = Enum.Font.GothamBold, TextSize = 12,
+    BorderSizePixel = 0, ZIndex = 52,
+}, tabBar)
+New("UICorner", { CornerRadius = UDim.new(0, 8) }, tabServer)
+
+local content = New("Frame", {
+    Name = "Content", Size = UDim2.new(1, -16, 0, 356), Position = UDim2.new(0, 8, 0, 74),
+    BackgroundTransparency = 1, ClipsDescendants = true, ZIndex = 51,
+}, shellWin)
+
+local hiddenBtn = New("TextButton", { Size = UDim2.new(0, 0, 0, 0), Visible = false, Text = "" }, content)
+
+local PT = { gui = shellGui, content = content, hiddenBtn = hiddenBtn, New = New }
+
+-- ============================================================================
+-- TAB 1/2 — LẤY TRANG PHỤC NGƯỜI CHƠI  (nguồn: outfit-local.lua)
 -- ============================================================================
 do
     local ok1, err1 = pcall(function()
@@ -667,38 +771,19 @@ end
 -- ============================================================================
 local WINDOW_W, WINDOW_H = 452, 356
 
-local gui = New("ScreenGui", {
-    Name = "OutfitLocalGui",
-    ResetOnSpawn = false,
-    IgnoreGuiInset = true,
-    ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
-}, targetGui)
-
-local floatBtn = New("TextButton", {
-    Name = "OutfitFloat",
-    Size = UDim2.new(0, 44, 0, 44),
-    Position = UDim2.new(1, -64, 1, -120),
-    BackgroundColor3 = C.PANEL,
-    BackgroundTransparency = 0.05,
-    Text = "🧥",
-    TextSize = 20,
-    Font = Enum.Font.GothamBold,
-    TextColor3 = C.ACCENT,
-    BorderSizePixel = 0,
-    ZIndex = 50,
-}, gui)
-Corner(floatBtn, UDim.new(1, 0))
-Stroke(floatBtn, C.ACCENT, 1.4)
+-- (khung + nút mở do file gộp quản lý; module vẽ vào trang "Trang phục")
+local gui = PT.content
+local floatBtn = PT.hiddenBtn
 
 local win = New("Frame", {
     Name = "OutfitWindow",
     Size = UDim2.new(0, WINDOW_W, 0, WINDOW_H),
-    Position = UDim2.new(0.5, -WINDOW_W / 2, 0.5, -WINDOW_H / 2),
+    Position = UDim2.new(0, 0, 0, 0),
     BackgroundColor3 = C.BG,
     BorderSizePixel = 0,
-    Visible = false,
+    Visible = true,
     ZIndex = 40,
-}, gui)
+}, PT.content)
 Corner(win, UDim.new(0, 14))
 Stroke(win, C.BORDER, 1.2)
 
@@ -1308,43 +1393,13 @@ local function toggleWindow()
     if not win.Visible then releaseFocus() end
 end
 
-floatBtn.Activated:Connect(toggleWindow)
-minBtn.Activated:Connect(toggleWindow)
+minBtn.Visible = false
 closeBtn.Activated:Connect(function()
-    win.Visible = false
     releaseFocus()
+    if PT and PT.closeShell then PT.closeShell() end
 end)
-track(UserInputService.InputBegan:Connect(function(inputObject, processed)
-    if processed then return end
-    if inputObject.KeyCode == Enum.KeyCode.RightControl then toggleWindow() end
-end))
 
--- Kéo cửa sổ
-local winDragging, winDragStart, winStartPos = false, nil, nil
-track(header.InputBegan:Connect(function(inputObject)
-    if inputObject.UserInputType == Enum.UserInputType.MouseButton1
-        or inputObject.UserInputType == Enum.UserInputType.Touch then
-        winDragging = true
-        winDragStart = inputObject.Position
-        winStartPos = win.Position
-    end
-end))
-track(UserInputService.InputChanged:Connect(function(inputObject)
-    if not winDragging then return end
-    if inputObject.UserInputType ~= Enum.UserInputType.MouseMovement
-        and inputObject.UserInputType ~= Enum.UserInputType.Touch then return end
-    local delta = inputObject.Position - winDragStart
-    win.Position = UDim2.new(
-        winStartPos.X.Scale, winStartPos.X.Offset + delta.X,
-        winStartPos.Y.Scale, winStartPos.Y.Offset + delta.Y
-    )
-end))
-track(UserInputService.InputEnded:Connect(function(inputObject)
-    if inputObject.UserInputType == Enum.UserInputType.MouseButton1
-        or inputObject.UserInputType == Enum.UserInputType.Touch then
-        winDragging = false
-    end
-end))
+-- (kéo cửa sổ do khung chung đảm nhiệm)
 
 -- Xoay mô hình 3D
 local viewDragging, viewDragStart = false, nil
@@ -1401,74 +1456,21 @@ task.spawn(function()
         ok and C.GREEN or C.YELLOW)
 end)
 
-print("[OutfitLocal] sẵn sàng — RightControl để mở/đóng · lưu tại " .. SAVE_FILE ..
-    (canUseDisk() and "" or " (executor không có writefile: chỉ giữ trong phiên)"))    end)
+print("[PlayerTools] tab Trang phục sẵn sàng · lưu tại " .. SAVE_FILE ..
+    (canUseDisk() and "" or " (executor không có writefile: chỉ giữ trong phiên)"))
+
+PT.outfitWin = win
+    end)
     if not ok1 then
-        pcall(function() warn("[PlayerTools] Phần TRANG PHỤC lỗi: " .. tostring(err1)) end)
+        pcall(function() warn("[PlayerTools] Tab TRANG PHỤC lỗi: " .. tostring(err1)) end)
     end
 end
 
 -- ============================================================================
--- PHẦN 2/2 — LẤY MÃ SERVER NGƯỜI CHƠI  (nguồn: server-code.lua)
+-- TAB 2/2 — LẤY MÃ SERVER NGƯỜI CHƠI  (nguồn: server-code.lua)
 -- ============================================================================
 do
     local ok2, err2 = pcall(function()
---[[
-================================================================================
-  MÃ SERVER NGƯỜI CHƠI — bản tách riêng (dùng được cho Blox Fruits)
---------------------------------------------------------------------------------
-  File này CHỈ làm một việc: tìm / copy / vào đúng server (JobId) của một người
-  chơi bất kỳ, kể cả người lạ (Roblox ẩn presence với người lạ).
-
-  CÁCH DÙNG
-    Dán cả file vào executor (Delta / Codex / Xeno / Synapse…) rồi chạy.
-    Bấm nút 📡 (hoặc RightShift) để mở/đóng cửa sổ.
-
-  LÀM ĐƯỢC
-    • 🔎 Tra cứu  : tên, UserId, trạng thái, hồ sơ người chơi
-    • 📋 Mã SV    : quét server công khai → copy mã (dạng "JobId" hoặc "PlaceId:JobId")
-    • 🚀 Vào SV   : quét (nếu cần) rồi teleport thẳng vào đúng server đó
-    • 🚀 Vào mã  : dán mã server đã copy ở đâu đó để vào
-    • Tự biết 3 hải Blox Fruits (2753915549 / 4442272183 / 7449423635) + Evade
-    • Tự canh slot khi server đầy, tự đổi PlaceId khi gặp 773/771
-
-  GIỚI HẠN — ĐỌC KỸ
-    • Chỉ tìm được server CÔNG KHAI. Người chơi ở server VIP/riêng tư thì
-      Roblox không trả về mã → không thể vào.
-    • Roblox ẩn presence với người lạ, nên phải quét danh sách server công khai
-      và so ảnh đại diện. Quét càng sâu càng chắc nhưng càng lâu (mặc định 150
-      trang/place, đổi được trong cửa sổ).
-    • Không gửi dữ liệu đi đâu ngoài các API công khai của Roblox.
-
-  ROLLBACK / BẢN KHÁC
-    Bản đầy đủ (hub nhiều tính năng): script.js
-    Bản chỉ có trang phục           : outfit-local.lua
-================================================================================
-]]
-
--- ============================================================================
--- 0. DỊCH VỤ
--- ============================================================================
-local Players = game:GetService("Players")
-local TeleportService = game:GetService("TeleportService")
-local GuiService = game:GetService("GuiService")
-local UserInputService = game:GetService("UserInputService")
-local HttpService = game:GetService("HttpService")
-
-local player = Players.LocalPlayer
-local playerGui = player:WaitForChild("PlayerGui")
-
-local targetGui = playerGui
-pcall(function()
-    if type(gethui) == "function" then
-        local hui = gethui()
-        if hui then targetGui = hui end
-    end
-end)
-
-local oldGui = targetGui:FindFirstChild("ServerCodeGui")
-if oldGui then pcall(function() oldGui:Destroy() end) end
-
 local S = {}
 
 -- ============================================================================
@@ -1526,6 +1528,14 @@ function S.Http(method, url, body)
     end)
     if okR then return data, nil end
     return nil, "http lỗi"
+end
+
+-- chuỗi số nguyên cho URL (tránh "123.0" khi số là float)
+local function placeStr(p)
+    p = tonumber(p)
+    if not p then return "0" end
+    local ok, sFmt = pcall(string.format, "%.0f", p)
+    return (ok and sFmt) or tostring(p)
 end
 
 -- ============================================================================
@@ -1685,15 +1695,15 @@ function S.GetUniversePlaces(univId, primaryPlaceId)
 
     univId = tonumber(univId) or tonumber(game.GameId)
     if (not univId or univId <= 0) and out[1] then
-        local uRes = S.Http("GET", "https://apis.roblox.com/universes/v1/places/" .. tostring(out[1]) .. "/universe")
+        local uRes = S.Http("GET", "https://apis.roblox.com/universes/v1/places/" .. placeStr(out[1]) .. "/universe")
         if type(uRes) == "table" and tonumber(uRes.universeId) then univId = tonumber(uRes.universeId) end
     end
 
     if univId and univId > 0 then
-        local gData = S.Http("GET", "https://games.roblox.com/v1/games?universeIds=" .. tostring(univId))
+        local gData = S.Http("GET", "https://games.roblox.com/v1/games?universeIds=" .. placeStr(univId))
         local gEntry = type(gData) == "table" and type(gData.data) == "table" and gData.data[1] or nil
         if type(gEntry) == "table" and tonumber(gEntry.rootPlaceId) then addP(gEntry.rootPlaceId) end
-        local uData = S.Http("GET", "https://develop.roblox.com/v1/universes/" .. tostring(univId) .. "/places?limit=50")
+        local uData = S.Http("GET", "https://develop.roblox.com/v1/universes/" .. placeStr(univId) .. "/places?limit=50")
         local uPlaces = type(uData) == "table" and type(uData.data) == "table" and uData.data or nil
         if type(uPlaces) == "table" then
             for _, pl in ipairs(uPlaces) do if type(pl) == "table" then addP(pl.id or pl.PlaceId) end end
@@ -1811,7 +1821,7 @@ end
 function S.FetchServersPage(placeId, cursor, order)
     order = tostring(order or "Desc")
     local qCur = (type(cursor) == "string" and cursor ~= "") and ("&cursor=" .. tostring(cursor)) or ""
-    local base = "https://games.roblox.com/v1/games/" .. tostring(placeId) .. "/servers/Public?sortOrder=" .. order .. "&limit=100&excludeFullGames=false" .. qCur
+    local base = "https://games.roblox.com/v1/games/" .. placeStr(placeId) .. "/servers/Public?sortOrder=" .. order .. "&limit=100&excludeFullGames=false" .. qCur
     for attempt = 1, 3 do
         local data, err = S.Http("GET", base)
         if type(data) == "table" and type(data.data) == "table" then return data.data, data.nextPageCursor end
@@ -2116,13 +2126,6 @@ end
 -- ============================================================================
 -- 8. MÃ SERVER: định dạng / đọc lại / vào server
 -- ============================================================================
-local function placeStr(p)
-    p = tonumber(p)
-    if not p then return "0" end
-    local ok, sFmt = pcall(string.format, "%.0f", p)
-    return (ok and sFmt) or tostring(p)
-end
-
 function S.FormatCode(jobId, placeId, meta, coName)
     jobId = tostring(jobId or "")
     if jobId == "" then return "", "" end
@@ -2240,12 +2243,10 @@ function S.Join(placeId, jobId, onStatus)
     end
     return true, string.format("🚀 Đang vào server %s (Place: %s)", tostring(jId ~= "" and jId or "—"), tostring(pId))
 end
-
 -- ============================================================================
--- 9. GUI
+-- GUI tab "📡 Mã server" (vẽ vào khung chung)
 -- ============================================================================
 local C = {
-    BG = Color3.fromRGB(18, 19, 24),
     PANEL = Color3.fromRGB(28, 30, 38),
     FIELD = Color3.fromRGB(38, 41, 52),
     ACCENT = Color3.fromRGB(120, 170, 255),
@@ -2255,51 +2256,15 @@ local C = {
     TEXT = Color3.fromRGB(235, 238, 245),
     DIM = Color3.fromRGB(150, 156, 172),
 }
-
-local New = function(class, props, parent)
-    local obj = Instance.new(class)
-    for k, v in pairs(props or {}) do obj[k] = v end
-    if parent then obj.Parent = parent end
-    return obj
-end
-
-local gui = New("ScreenGui", {
-    Name = "ServerCodeGui", ResetOnSpawn = false, IgnoreGuiInset = true, ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
-}, targetGui)
-gui.DisplayOrder = 999
-
-local floatBtn = New("TextButton", {
-    Name = "ServerFloat", Size = UDim2.new(0, 40, 0, 40), Position = UDim2.new(1, -56, 0, 160),
-    BackgroundColor3 = C.ACCENT, Text = "📡", TextSize = 20, Font = Enum.Font.GothamBold,
-    TextColor3 = C.BG, BorderSizePixel = 0, AutoButtonColor = true,
-}, gui)
-New("UICorner", { CornerRadius = UDim.new(0, 12) }, floatBtn)
+local New = PT.New
 
 local win = New("Frame", {
-    Name = "ServerWindow", Size = UDim2.new(0, 342, 0, 322), Position = UDim2.new(0.5, -171, 0.5, -161),
-    BackgroundColor3 = C.BG, BorderSizePixel = 0, Visible = false, Active = true,
-}, gui)
-New("UICorner", { CornerRadius = UDim.new(0, 12) }, win)
-New("UIStroke", { Color = C.ACCENT, Transparency = 0.55, Thickness = 1 }, win)
-
-local header = New("Frame", {
-    Name = "Header", Size = UDim2.new(1, 0, 0, 30), BackgroundColor3 = C.PANEL, BorderSizePixel = 0,
-}, win)
-New("UICorner", { CornerRadius = UDim.new(0, 12) }, header)
-New("TextLabel", {
-    Size = UDim2.new(1, -70, 1, 0), Position = UDim2.new(0, 10, 0, 0), BackgroundTransparency = 1,
-    Text = "📡 MÃ SERVER NGƯỜI CHƠI", TextColor3 = C.ACCENT, Font = Enum.Font.GothamBold, TextSize = 12,
-    TextXAlignment = Enum.TextXAlignment.Left,
-}, header)
-
-local closeBtn = New("TextButton", {
-    Size = UDim2.new(0, 26, 0, 20), Position = UDim2.new(1, -32, 0, 5), BackgroundColor3 = C.FIELD,
-    Text = "✕", TextColor3 = C.TEXT, Font = Enum.Font.GothamBold, TextSize = 12, BorderSizePixel = 0,
-}, header)
-New("UICorner", { CornerRadius = UDim.new(0, 6) }, closeBtn)
+    Name = "ServerWindow", Size = UDim2.new(0, 452, 0, 356), Position = UDim2.new(0, 0, 0, 0),
+    BackgroundTransparency = 1, Visible = false, ZIndex = 40,
+}, PT.content)
 
 local input = New("TextBox", {
-    Size = UDim2.new(1, -20, 0, 30), Position = UDim2.new(0, 10, 0, 38), BackgroundColor3 = C.FIELD,
+    Size = UDim2.new(1, -16, 0, 30), Position = UDim2.new(0, 8, 0, 6), BackgroundColor3 = C.FIELD,
     Text = "", PlaceholderText = "Tên / @tên / UserId người chơi…", PlaceholderColor3 = C.DIM,
     TextColor3 = C.TEXT, Font = Enum.Font.Gotham, TextSize = 12, BorderSizePixel = 0, ClearTextOnFocus = false,
 }, win)
@@ -2308,19 +2273,19 @@ New("UIPadding", { PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8) }
 
 local function mkBtn(text, x, w, color)
     local b = New("TextButton", {
-        Size = UDim2.new(0, w, 0, 30), Position = UDim2.new(0, x, 0, 76), BackgroundColor3 = color,
-        Text = text, TextColor3 = C.BG, Font = Enum.Font.GothamBold, TextSize = 11, BorderSizePixel = 0,
+        Size = UDim2.new(0, w, 0, 30), Position = UDim2.new(0, x, 0, 42), BackgroundColor3 = color,
+        Text = text, TextColor3 = Color3.fromRGB(18, 19, 24), Font = Enum.Font.GothamBold, TextSize = 11, BorderSizePixel = 0,
     }, win)
     New("UICorner", { CornerRadius = UDim.new(0, 8) }, b)
     return b
 end
 
-local lookBtn = mkBtn("🔎 Tra cứu", 10, 104, C.ACCENT)
-local copyBtn = mkBtn("📋 Mã SV", 120, 104, C.YELLOW)
-local joinBtn = mkBtn("🚀 Vào SV", 230, 102, C.GREEN)
+local lookBtn = mkBtn("🔎 Tra cứu", 8, 144, C.ACCENT)
+local copyBtn = mkBtn("📋 Mã SV", 158, 144, C.YELLOW)
+local joinBtn = mkBtn("🚀 Vào SV", 308, 136, C.GREEN)
 
 local info = New("TextLabel", {
-    Size = UDim2.new(1, -20, 0, 92), Position = UDim2.new(0, 10, 0, 114), BackgroundColor3 = C.PANEL,
+    Size = UDim2.new(1, -16, 0, 116), Position = UDim2.new(0, 8, 0, 78), BackgroundColor3 = C.PANEL,
     Text = "Nhập tên/UserId rồi bấm 🔎 Tra cứu.\n📋 Mã SV = quét & copy mã · 🚀 Vào SV = vào luôn server đó.",
     TextColor3 = C.DIM, Font = Enum.Font.Gotham, TextSize = 11, TextWrapped = true,
     TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, BorderSizePixel = 0,
@@ -2329,70 +2294,58 @@ New("UICorner", { CornerRadius = UDim.new(0, 8) }, info)
 New("UIPadding", { PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8), PaddingTop = UDim.new(0, 6), PaddingBottom = UDim.new(0, 6) }, info)
 
 local status = New("TextLabel", {
-    Size = UDim2.new(1, -20, 0, 34), Position = UDim2.new(0, 10, 0, 212), BackgroundTransparency = 1,
+    Size = UDim2.new(1, -16, 0, 40), Position = UDim2.new(0, 8, 0, 198), BackgroundTransparency = 1,
     Text = "Sẵn sàng.", TextColor3 = C.DIM, Font = Enum.Font.Gotham, TextSize = 11, TextWrapped = true,
     TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top,
 }, win)
 
 local codeBox = New("TextBox", {
-    Size = UDim2.new(1, -104, 0, 28), Position = UDim2.new(0, 10, 0, 250), BackgroundColor3 = C.FIELD,
+    Size = UDim2.new(1, -112, 0, 28), Position = UDim2.new(0, 8, 0, 244), BackgroundColor3 = C.FIELD,
     Text = "", PlaceholderText = "Dán mã SV đã copy (JobId hoặc PlaceId:JobId)…", PlaceholderColor3 = C.DIM,
     TextColor3 = C.TEXT, Font = Enum.Font.Gotham, TextSize = 11, BorderSizePixel = 0, ClearTextOnFocus = false,
 }, win)
 New("UICorner", { CornerRadius = UDim.new(0, 8) }, codeBox)
 
 local pasteJoinBtn = New("TextButton", {
-    Size = UDim2.new(0, 88, 0, 28), Position = UDim2.new(1, -94, 0, 250), BackgroundColor3 = C.GREEN,
-    Text = "🚀 Vào mã", TextColor3 = C.BG, Font = Enum.Font.GothamBold, TextSize = 11, BorderSizePixel = 0,
+    Size = UDim2.new(0, 96, 0, 28), Position = UDim2.new(1, -104, 0, 244), BackgroundColor3 = C.GREEN,
+    Text = "🚀 Vào mã", TextColor3 = Color3.fromRGB(18, 19, 24), Font = Enum.Font.GothamBold, TextSize = 11, BorderSizePixel = 0,
 }, win)
 New("UICorner", { CornerRadius = UDim.new(0, 8) }, pasteJoinBtn)
 
 local depthBtn = New("TextButton", {
-    Size = UDim2.new(1, -20, 0, 26), Position = UDim2.new(0, 10, 0, 284), BackgroundColor3 = C.FIELD,
+    Size = UDim2.new(1, -16, 0, 26), Position = UDim2.new(0, 8, 0, 278), BackgroundColor3 = C.FIELD,
     Text = "⚙️ Độ sâu quét: 150 trang/place (bấm để đổi)", TextColor3 = C.DIM,
     Font = Enum.Font.Gotham, TextSize = 10, BorderSizePixel = 0,
 }, win)
 New("UICorner", { CornerRadius = UDim.new(0, 8) }, depthBtn)
 
--- kéo cửa sổ
-do
-    local dragging, dragStart, startPos = false, nil, nil
-    header.InputBegan:Connect(function(i)
-        if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
-            dragging = true dragStart = i.Position startPos = win.Position
-        end
-    end)
-    UserInputService.InputChanged:Connect(function(i)
-        if dragging and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
-            local d = i.Position - dragStart
-            win.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, startPos.Y.Offset + d.Y)
-        end
-    end)
-    UserInputService.InputEnded:Connect(function(i)
-        if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
-            dragging = false
-        end
-    end)
-end
+local note = New("TextLabel", {
+    Size = UDim2.new(1, -16, 0, 40), Position = UDim2.new(0, 8, 0, 308), BackgroundTransparency = 1,
+    Text = "Chỉ tìm được server CÔNG KHAI. Người chơi ở server VIP/riêng tư thì Roblox không trả mã.",
+    TextColor3 = C.DIM, Font = Enum.Font.Gotham, TextSize = 10, TextWrapped = true,
+    TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top,
+}, win)
 
 local function setStatus(msg, color)
     status.Text = tostring(msg or "")
     status.TextColor3 = color or C.DIM
 end
 
-local rec = nil
-
 local function showInfo(lines, color)
     info.Text = table.concat(lines, "\n")
     info.TextColor3 = color or C.TEXT
 end
 
+local rec = nil
+
 local function doLookup()
-    local q = input.Text
     setStatus("🔎 Đang tra cứu…", C.YELLOW)
-    local id, err = S.ResolveUser(q)
+    local id, err = S.ResolveUser(input.Text)
     if not id then
-        rec = nil showInfo({ "❌ " .. tostring(err) }, C.RED) setStatus(tostring(err), C.RED) return
+        rec = nil
+        showInfo({ "❌ " .. tostring(err) }, C.RED)
+        setStatus(tostring(err), C.RED)
+        return
     end
     local prof = S.FetchProfile(id)
     local pres = S.FetchPresence(id)
@@ -2402,7 +2355,6 @@ local function doLookup()
         displayName = (prof and prof.displayName) or "",
         created = (prof and type(prof.created) == "string" and prof.created:sub(1, 10)) or "—",
         presence = S.PresenceText(pres),
-        jobId = nil, placeId = nil, meta = nil, coName = nil,
     }
     local isPlaying, msg, unknown = S.CheckPlayerIsPlaying(id, pres)
     local lines = {
@@ -2449,22 +2401,21 @@ local function ensureFound()
 end
 
 local function doCopy()
-    local r, err = ensureFound()
+    local r = ensureFound()
     if not r then return end
-    local codeIn, dispTxt = S.FormatCode(r.jobId, r.placeId, r.meta, r.coName)
+    local codeIn = S.FormatCode(r.jobId, r.placeId, r.meta, r.coName)
     local ok = S.Clipboard(codeIn ~= "" and codeIn or r.jobId)
-    local lines = {
+    showInfo({
         "👤 " .. tostring(r.name) .. " · 🆔 " .. tostring(r.id),
         "🔑 Mã SV: " .. tostring(r.jobId),
         "🌐 Place: " .. tostring(r.placeId or game.PlaceId) .. "  ·  nguồn: " .. tostring(r.src or "scan"),
         "📋 Mã để dán: " .. tostring(codeIn ~= "" and codeIn or r.jobId),
-    }
-    showInfo(lines, C.GREEN)
+    }, C.GREEN)
     setStatus(ok and ("✅ Đã copy mã: " .. tostring(codeIn)) or ("Mã: " .. tostring(codeIn) .. " (không copy được — chép tay)"), ok and C.GREEN or C.YELLOW)
 end
 
 local function doJoin()
-    local r, err = ensureFound()
+    local r = ensureFound()
     if not r then return end
     local codeIn = S.FormatCode(r.jobId, r.placeId, r.meta, r.coName)
     local ok, msg = S.Join(r.placeId, r.jobId, function(m) setStatus(m, C.YELLOW) end)
@@ -2480,9 +2431,15 @@ local function doJoin()
     end
 end
 
-lookBtn.Activated:Connect(function() pcall(doLookup) end)
-copyBtn.Activated:Connect(function() pcall(doCopy) end)
-joinBtn.Activated:Connect(function() pcall(doJoin) end)
+local function guarded(fn)
+    return function()
+        local ok, err = pcall(fn)
+        if not ok then setStatus("⚠️ Lỗi: " .. tostring(err), C.RED) end
+    end
+end
+lookBtn.Activated:Connect(guarded(doLookup))
+copyBtn.Activated:Connect(guarded(doCopy))
+joinBtn.Activated:Connect(guarded(doJoin))
 
 pasteJoinBtn.Activated:Connect(function()
     local jId, pId = S.ParseCode(codeBox.Text)
@@ -2502,23 +2459,89 @@ depthBtn.Activated:Connect(function()
     setStatus("Độ sâu = " .. tostring(S.ScanPages) .. " trang/place. Quét sâu hơn = lâu hơn nhưng chắc hơn.", C.DIM)
 end)
 
-local function toggle(force)
-    win.Visible = (force ~= nil) and force or (not win.Visible)
-end
-floatBtn.Activated:Connect(function() toggle() end)
-closeBtn.Activated:Connect(function() toggle(false) end)
-
-UserInputService.InputBegan:Connect(function(i, gp)
-    if gp then return end
-    if i.KeyCode == Enum.KeyCode.RightShift then toggle() end
-end)
-
 input.FocusLost:Connect(function(enter)
     if enter then pcall(doLookup) end
 end)
 
-setStatus("Sẵn sàng. RightShift để mở/đóng.", C.DIM)    end)
+PT.serverWin = win
+    end)
     if not ok2 then
-        pcall(function() warn("[PlayerTools] Phần MÃ SERVER lỗi: " .. tostring(err2)) end)
+        pcall(function() warn("[PlayerTools] Tab MÃ SERVER lỗi: " .. tostring(err2)) end)
     end
 end
+
+-- ============================================================================
+-- TAB: chuyển tab / mở-đóng khung
+-- ============================================================================
+local function showTab(idx)
+    if PT.outfitWin then PT.outfitWin.Visible = (idx == 1) end
+    if PT.serverWin then PT.serverWin.Visible = (idx == 2) end
+    if idx == 1 then
+        tabOutfit.BackgroundColor3 = SC.ACCENT tabOutfit.TextColor3 = SC.BG
+        tabServer.BackgroundColor3 = SC.FIELD tabServer.TextColor3 = SC.DIM
+    else
+        tabServer.BackgroundColor3 = SC.ACCENT tabServer.TextColor3 = SC.BG
+        tabOutfit.BackgroundColor3 = SC.FIELD tabOutfit.TextColor3 = SC.DIM
+    end
+end
+
+local currentTab = 1
+
+local function openShell(idx)
+    shellWin.Visible = true
+    showTab(idx or currentTab)
+end
+
+local function closeShell()
+    shellWin.Visible = false
+    if PT.outfitWin then PT.outfitWin.Visible = false end
+    if PT.serverWin then PT.serverWin.Visible = false end
+end
+
+local function toggleShell(idx)
+    if shellWin.Visible then
+        closeShell()
+    else
+        openShell(idx or currentTab)
+    end
+end
+
+PT.closeShell = closeShell
+
+tabOutfit.Activated:Connect(function() currentTab = 1 showTab(1) end)
+tabServer.Activated:Connect(function() currentTab = 2 showTab(2) end)
+floatBtn.Activated:Connect(function() toggleShell() end)
+closeShellBtn.Activated:Connect(function() closeShell() end)
+
+-- kéo cửa sổ bằng thanh tiêu đề
+do
+    local dragging, dragStart, startPos = false, nil, nil
+    shellHeader.InputBegan:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+            dragging = true dragStart = i.Position startPos = shellWin.Position
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(i)
+        if dragging and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
+            local d = i.Position - dragStart
+            shellWin.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, startPos.Y.Offset + d.Y)
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end)
+end
+
+-- phím tắt: RightControl = Trang phục · RightShift = Mã server
+UserInputService.InputBegan:Connect(function(i, gp)
+    if gp then return end
+    if i.KeyCode == Enum.KeyCode.RightControl then currentTab = 1 toggleShell(1)
+    elseif i.KeyCode == Enum.KeyCode.RightShift then currentTab = 2 toggleShell(2) end
+end)
+
+if PT.outfitWin then PT.outfitWin.Visible = true end
+if PT.serverWin then PT.serverWin.Visible = false end
+showTab(1)
+pcall(function() warn("[PlayerTools] sẵn sàng — RightControl = Trang phục · RightShift = Mã server") end)

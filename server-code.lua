@@ -113,6 +113,14 @@ function S.Http(method, url, body)
     return nil, "http lỗi"
 end
 
+-- chuỗi số nguyên cho URL (tránh "123.0" khi số là float)
+local function placeStr(p)
+    p = tonumber(p)
+    if not p then return "0" end
+    local ok, sFmt = pcall(string.format, "%.0f", p)
+    return (ok and sFmt) or tostring(p)
+end
+
 -- ============================================================================
 -- 3. NGƯỜI CHƠI / HỒ SƠ / PRESENCE
 -- ============================================================================
@@ -270,15 +278,15 @@ function S.GetUniversePlaces(univId, primaryPlaceId)
 
     univId = tonumber(univId) or tonumber(game.GameId)
     if (not univId or univId <= 0) and out[1] then
-        local uRes = S.Http("GET", "https://apis.roblox.com/universes/v1/places/" .. tostring(out[1]) .. "/universe")
+        local uRes = S.Http("GET", "https://apis.roblox.com/universes/v1/places/" .. placeStr(out[1]) .. "/universe")
         if type(uRes) == "table" and tonumber(uRes.universeId) then univId = tonumber(uRes.universeId) end
     end
 
     if univId and univId > 0 then
-        local gData = S.Http("GET", "https://games.roblox.com/v1/games?universeIds=" .. tostring(univId))
+        local gData = S.Http("GET", "https://games.roblox.com/v1/games?universeIds=" .. placeStr(univId))
         local gEntry = type(gData) == "table" and type(gData.data) == "table" and gData.data[1] or nil
         if type(gEntry) == "table" and tonumber(gEntry.rootPlaceId) then addP(gEntry.rootPlaceId) end
-        local uData = S.Http("GET", "https://develop.roblox.com/v1/universes/" .. tostring(univId) .. "/places?limit=50")
+        local uData = S.Http("GET", "https://develop.roblox.com/v1/universes/" .. placeStr(univId) .. "/places?limit=50")
         local uPlaces = type(uData) == "table" and type(uData.data) == "table" and uData.data or nil
         if type(uPlaces) == "table" then
             for _, pl in ipairs(uPlaces) do if type(pl) == "table" then addP(pl.id or pl.PlaceId) end end
@@ -396,7 +404,7 @@ end
 function S.FetchServersPage(placeId, cursor, order)
     order = tostring(order or "Desc")
     local qCur = (type(cursor) == "string" and cursor ~= "") and ("&cursor=" .. tostring(cursor)) or ""
-    local base = "https://games.roblox.com/v1/games/" .. tostring(placeId) .. "/servers/Public?sortOrder=" .. order .. "&limit=100&excludeFullGames=false" .. qCur
+    local base = "https://games.roblox.com/v1/games/" .. placeStr(placeId) .. "/servers/Public?sortOrder=" .. order .. "&limit=100&excludeFullGames=false" .. qCur
     for attempt = 1, 3 do
         local data, err = S.Http("GET", base)
         if type(data) == "table" and type(data.data) == "table" then return data.data, data.nextPageCursor end
@@ -701,13 +709,6 @@ end
 -- ============================================================================
 -- 8. MÃ SERVER: định dạng / đọc lại / vào server
 -- ============================================================================
-local function placeStr(p)
-    p = tonumber(p)
-    if not p then return "0" end
-    local ok, sFmt = pcall(string.format, "%.0f", p)
-    return (ok and sFmt) or tostring(p)
-end
-
 function S.FormatCode(jobId, placeId, meta, coName)
     jobId = tostring(jobId or "")
     if jobId == "" then return "", "" end
