@@ -319,6 +319,7 @@ local function createTracker(deps)
         local function collect(source)
             for _, hit in ipairs(source) do
                 if not seen[hit.inst] and live(hit.inst) and live(hit.part)
+                    and not (deps.ignore and deps.ignore(hit.inst))
                     and self:matches(hit.inst) and not self:isCharacter(hit.inst)
                     and not self:coveredByModel(hit.inst) then
                     seen[hit.inst] = true
@@ -391,7 +392,8 @@ local function createTracker(deps)
         local made, allowed = 0, self.markerRemaining or self.markerBudget
         self.markerPending = false
         for _, hit in ipairs(self.list) do
-            local part = live(hit.inst) and partOf(hit.inst) or nil
+            local allowed = live(hit.inst) and not (deps.ignore and deps.ignore(hit.inst))
+            local part = allowed and partOf(hit.inst) or nil
             if part and live(part) and not self:isCharacter(hit.inst) then
                 hit.part = part
                 if hit.pathName ~= hit.inst.Name or hit.pathParent ~= hit.inst.Parent then
@@ -547,7 +549,17 @@ local function createItemTracker(deps)
             "Mugg", "Tophat", "Coin Roll", "Tip Jar"}},
     }
     local controller = {engine = engine, groups = groups, byId = {}, query = "", paused = false,
-        aliasColors = {}, destroyed = false}
+        aliasColors = {}, destroyed = false, currentRoom = nil}
+    function controller:syncRoom()
+        if self.destroyed or not deps.getCurrentRoom then return false end
+        local room = deps.getCurrentRoom()
+        if room == nil or room == self.currentRoom then return false end
+        self.currentRoom = room
+        deps.currentRoomValue = room
+        -- Reset results and markers at each room transition; keep the active filter selections.
+        self:refresh()
+        return true
+    end
     for _, group in ipairs(groups) do
         group.enabled, group.selected, group.known = false, {}, {}
         controller.byId[group.id] = group
@@ -1094,6 +1106,58 @@ local trackerDeps = {
 local tracker = createTracker(trackerDeps)
 local itemDeps = {}
 for key, value in pairs(trackerDeps) do itemDeps[key] = value end
+local function itemCurrentRoom()
+    local rooms = workspace:FindFirstChild("CurrentRooms")
+    if not rooms then return nil end
+    local replicated = game:GetService("ReplicatedStorage")
+    local gameData = replicated:FindFirstChild("GameData")
+    local latest = gameData and gameData:FindFirstChild("LatestRoom")
+    local number = latest and tonumber(latest.Value)
+    if number then return math.floor(number) end
+    -- Fallback for compatible room-folder games without GameData.LatestRoom.
+    local character = player.Character
+    local root = character and character:FindFirstChild("HumanoidRootPart")
+    if not root then return nil end
+    local best, bestDistance
+    for _, room in ipairs(rooms:GetChildren()) do
+        local n = tonumber(room.Name)
+        if n and tostring(math.floor(n)) == room.Name then
+            local ok, pivot = pcall(function() return room:GetPivot() end)
+            if ok and pivot then
+                local distance = (pivot.Position - root.Position).Magnitude
+                if not bestDistance or distance < bestDistance then best, bestDistance = math.floor(n), distance end
+            end
+        end
+    end
+    return best
+end
+local function itemRoomNumber(inst)
+    local rooms = workspace:FindFirstChild("CurrentRooms")
+    if not rooms then return nil end
+    local node = inst
+    while node and node ~= workspace do
+        if node.Parent == rooms then
+            local number = tonumber(node.Name)
+            if number and tostring(math.floor(number)) == node.Name then return math.floor(number) end
+            return nil
+        end
+        node = node.Parent
+    end
+    return nil
+end
+itemDeps.getCurrentRoom = itemCurrentRoom
+itemDeps.currentRoomValue = itemCurrentRoom()
+itemDeps.ignore = function(inst)
+    if trackerDeps.ignore(inst) then return true end
+    local rooms = workspace:FindFirstChild("CurrentRooms")
+    if not rooms then return false end
+    -- Permit traversal to CurrentRooms, but exclude other Workspace branches/room folders.
+    if inst == workspace or inst == rooms or rooms:IsDescendantOf(inst) then return false end
+    local current = itemDeps.currentRoomValue
+    if not current then return false end
+    local number = itemRoomNumber(inst)
+    return number ~= current
+end
 itemDeps.createMarker = function(hit)
     local marker = trackerDeps.createMarker(hit)
     marker.container.Name, marker.container.Parent = "ItemMarker", itemEffects
@@ -1676,8 +1740,8 @@ local function renderItems()
         itemDetail.Text = selectedHit.inst.Name .. " · " .. selectedHit.inst.ClassName
         itemCopy.Text = string.format("%s | X %.3f, Y %.3f, Z %.3f", selectedHit.path, p.X, p.Y, p.Z)
     else itemSelected = nil; itemDetail.Text = "Chọn một vật phẩm để xem path và XYZ."; itemCopy.Text = "" end
-    itemStatus.Text = string.format("Vật phẩm: %s · %d/%d vật · tối đa %d · nhóm/màu riêng",
-        engine.enabled and "BẬT" or "TẮT", #engine.list, engine.found, engine.maxItems)
+    itemStatus.Text = string.format("Vật phẩm: %s · phòng %s · %d/%d vật · tối đa %d · nhóm/màu riêng",
+        engine.enabled and "BẬT" or "TẮT", tostring(itemTracker.currentRoom or "?"), #engine.list, engine.found, engine.maxItems)
     paintItemControls()
 end
 cleanupItemRows = function()
@@ -2041,6 +2105,7 @@ connect(RunService.Heartbeat, function(dt)
     end
     -- A failure in the new item module must not disable the existing tracker or alerts.
     local itemOk, itemError = pcall(function()
+        itemTracker:syncRoom()
         itemTracker.engine:step(dt)
         if refreshItemUi then renderItems() end
     end)
