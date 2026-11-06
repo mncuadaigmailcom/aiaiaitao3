@@ -1031,6 +1031,7 @@ local itemEffects = new("Folder", {Name = "ItemTrackerLocalEffects"}, workspace)
 local doorEffects = new("Folder", {Name = "DoorTrackerLocalEffects"}, workspace)
 local connections, stopped = {}, false
 local flightController
+local runSpeedController
 local cleanupRows = function() end
 local cleanupItemRows = function() end
 local palette = {Color3.fromRGB(0, 190, 255), Color3.fromRGB(80, 255, 160),
@@ -1148,6 +1149,7 @@ local function shutdown()
     doorTracker:destroy()
     nightVision:destroy()
     if flightController then flightController:destroy() end
+    if runSpeedController then runSpeedController:destroy() end
     cleanupRows(); cleanupItemRows()
     effects:Destroy(); itemEffects:Destroy(); doorEffects:Destroy()
     gui:Destroy()
@@ -1730,7 +1732,7 @@ local renderDoors, doorStatus = createDoorPanel()
 
 -- A single independent, soft night-vision switch; no extra Player tab.
 local function createNightPanel()
-    nightCard = new("Frame", {Name = "NightVisionPanel", Size = UDim2.fromOffset(548, 260),
+    nightCard = new("Frame", {Name = "NightVisionPanel", Size = UDim2.fromOffset(548, 340),
         BackgroundColor3 = C.SURFACE, BorderSizePixel = 0}, page)
     corner(nightCard, 10); stroke(nightCard)
     nightCardScale = new("UIScale", {Scale = 1}, nightCard)
@@ -1822,6 +1824,63 @@ end
 function flightController:destroy()
     if self.enabled or self.mover then self:setEnabled(false) end
 end
+
+-- Adjustable local Humanoid speed; restore the prior value when disabled or stopped.
+runSpeedController = {enabled = false, speed = 100, humanoid = nil, baseSpeed = nil, appliedSpeed = nil}
+function runSpeedController:setEnabled(enabled)
+    if enabled == true then
+        local character = player.Character
+        local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+        if not humanoid or humanoid.Health <= 0 then self.enabled = false; return false end
+        if self.humanoid ~= humanoid then
+            self.humanoid, self.baseSpeed = humanoid, humanoid.WalkSpeed
+        end
+        self.enabled = true
+        humanoid.WalkSpeed, self.appliedSpeed = self.speed, self.speed
+        return true
+    end
+    self.enabled = false
+    if self.humanoid and self.humanoid.Parent and self.appliedSpeed ~= nil
+        and self.humanoid.WalkSpeed == self.appliedSpeed then
+        self.humanoid.WalkSpeed = self.baseSpeed
+    end
+    self.humanoid, self.baseSpeed, self.appliedSpeed = nil, nil, nil
+    return false
+end
+function runSpeedController:setSpeed(raw)
+    local value = tonumber(raw)
+    if not value or value ~= value or value == math.huge or value == -math.huge or value < 16 or value > 500 then
+        return false
+    end
+    self.speed = value
+    if self.enabled then
+        local character = player.Character
+        local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+        if humanoid then humanoid.WalkSpeed, self.appliedSpeed = value, value end
+    end
+    return true
+end
+function runSpeedController:step()
+    if not self.enabled then return end
+    local character = player.Character
+    local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+    if not humanoid or humanoid.Health <= 0 then
+        self:setEnabled(false)
+        return
+    end
+    if humanoid ~= self.humanoid then
+        self.humanoid, self.baseSpeed = humanoid, humanoid.WalkSpeed
+        self.appliedSpeed = nil
+    end
+    if humanoid.WalkSpeed ~= self.appliedSpeed then
+        -- Respect a game-side speed update as the new restore value, then reapply our choice.
+        self.baseSpeed = humanoid.WalkSpeed
+        humanoid.WalkSpeed, self.appliedSpeed = self.speed, self.speed
+    end
+end
+function runSpeedController:destroy()
+    if self.enabled then self:setEnabled(false) end
+end
 local flyToggle
 flyToggle = button("Bay: TẮT", 12, 184, 260, function()
     local on = not flightController.enabled
@@ -1842,6 +1901,28 @@ button("Đặt tốc độ", 434, 184, 102, function()
 end, nightCard)
 label("W/S bay theo hướng nhìn camera (nhìn lên để lên, nhìn xuống để xuống); A/D rẽ ngang. Tắt để trở lại bình thường.",
     12, 220, 524, 34, nightCard)
+local runSpeedToggle
+runSpeedToggle = button("Tốc độ chạy: TẮT", 12, 264, 260, function()
+    local success = runSpeedController:setEnabled(not runSpeedController.enabled)
+    runSpeedToggle.Text = success and "Tốc độ chạy: BẬT" or "Tốc độ chạy: TẮT"
+    runSpeedToggle.TextColor3 = success and C.GREEN or C.MUTED
+    if not success and runSpeedController.enabled == false then
+        local character = player.Character
+        if not character or not character:FindFirstChildOfClass("Humanoid") then
+            runSpeedToggle.Text = "Chưa có nhân vật"
+        end
+    end
+end, nightCard)
+runSpeedToggle.Name = "ToggleRunSpeed"
+local runSpeedInput = input("100", "Tốc độ 16–500", 284, 264, 142, nightCard)
+button("Đặt tốc độ", 434, 264, 102, function()
+    if not runSpeedController:setSpeed(runSpeedInput.Text) then
+        runSpeedInput.Text = tostring(runSpeedController.speed)
+        runSpeedToggle.Text = "Tốc độ hợp lệ: 16–500"
+    end
+end, nightCard)
+label("Tăng WalkSpeed của nhân vật cục bộ. Khi tắt hoặc thoát, khôi phục giá trị trước đó nếu game chưa tự thay đổi.",
+    12, 300, 524, 34, nightCard)
 
 local dragging, dragInput, dragStart, startPosition
 local resizing, resizeInput, resizeStart, resizeSize, resizePosition
@@ -1903,6 +1984,7 @@ connect(RunService.Heartbeat, function(dt)
     local ok, err = pcall(function()
         tracker:step(dt)
         flightController:step()
+        runSpeedController:step()
         renderAlerts()
         ringGradient.Rotation = (ringGradient.Rotation + dt * 90) % 360
         uiElapsed = uiElapsed + dt
