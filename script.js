@@ -1533,7 +1533,7 @@ for _, f in ipairs(Store.loadedFeatures) do CreateFeatureTab(f.name, f.icon, f.c
 RebuildFeatureList() if Store.refreshStatus then Store.refreshStatus() end end if #Store.loadedFeatures > 0 then Store.restoreFeatures()
 createStatus.Text = string.format("💾 Đã khôi phục %d tab tính năng từ bộ nhớ", #Store.loadedFeatures) end S.Move = { fly = false, noclip = false, infJump = false, speed = false, carpet = false,
 runMode = false,
-sprint = false, sprintSpeed = 50,
+sprint = false, sprintSpeed = 100,
 highJump = false, highJumpSpeed = 80,
 _hud = nil, _hudUp = nil, _hudDown = nil, _hudCarpet = nil, _hudClose = nil, _menuWasOpen = nil, flySpeed = 50, walkSpeed = 16, jumpPower = 50,
 speedMode = "x", speedMul = 3, appliedWS = nil, carpetW = 6, carpetH = 0.5, carpetL = 6,
@@ -1711,7 +1711,7 @@ local r, h = MV.Root(), MV.Hum() if not r or not h or h.Health <= 0 then return 
 MV.sprint = true MV._EnsureSpeed() MV._BindSpeed() MV._SpeedFrame() else MV.sprint = false MV._StopSpeed() end MV._Watchdog()
 if S.SyncSpeedPanel then S.SyncSpeedPanel() end if S.SyncTunePanel then pcall(S.SyncTunePanel) end return MV.sprint end function MV.SetSprintSpeed(n)
 n = tonumber(n) if not n or n ~= n or n == math.huge or n == -math.huge then return false, "nhập tốc độ 1–2000" end
-MV.sprintSpeed = mvClamp(n, 1, 2000, 50) if S.SyncSpeedPanel then S.SyncSpeedPanel() end if S.SyncTunePanel then pcall(S.SyncTunePanel) end return true, MV.sprintSpeed end
+MV.sprintSpeed = mvClamp(n, 1, 2000, 100) if S.SyncSpeedPanel then S.SyncSpeedPanel() end if S.SyncTunePanel then pcall(S.SyncTunePanel) end return true, MV.sprintSpeed end
 end
 do local HJ = { last = 0 } MV.HighJump = HJ function MV.WantJumpSpeed() if MV.highJump then return mvClamp(MV.highJumpSpeed, 1, 500, 80) end return mvClamp(MV.jumpPower, 1, 500, 50) end
 function MV.HighJumpVelocity(current, speed) local vx = MV.comp(current, "X", 0) local vz = MV.comp(current, "Z", 0) return Vector3.new(vx, mvClamp(speed, 1, 500, 80), vz)
@@ -2490,7 +2490,7 @@ if not jid then return "⚠️ Không đọc được mã server (đang ở Stud
 pcall(function() if D.hubJobIn then D.hubJobIn.Text = jid end end) pcall(function() if S.SyncServerPanel then S.SyncServerPanel() end end) return (okCp and "🌐 Đã copy mã server: " or "🌐 Mã server (executor không cho copy, hãy chép tay): ") .. jid
 elseif id == "fly" then local wanted = not S.Move.fly local okF, on, err = pcall(S.Move.SetFly, wanted) if not okF then return "⚠️ lỗi bay: " .. tostring(on) end
 if wanted and not on then return "⚠️ " .. tostring(err) end S.Rebuild()
-return S.Move.fly and ("🚀 Bay theo camera: BẬT — WASD/điều khiển game · thả phím đứng lơ lửng · tốc độ " .. tostring(S.Move.flySpeed)) or "🚀 Bay: TẮT — xuyên tường giữ nguyên theo công tắc 🧱"
+return S.Move.fly and ("🚀 Bay: BẬT — W bay theo góc camera (ngẩng lên để lên, cúi xuống để xuống), A/D ngang · Space/Shift lên/xuống · thả phím đứng lơ lửng · tốc độ " .. tostring(S.Move.flySpeed)) or "🚀 Bay: TẮT — xuyên tường giữ nguyên theo công tắc 🧱"
 elseif id == "camspeed" then local wanted = not S.Move.sprint local okS, on, err = pcall(S.Move.SetSprint, wanted)
 if not okS then return "⚠️ lỗi tốc độ: " .. tostring(on) end if wanted and not on then return "⚠️ " .. tostring(err) end
 S.Rebuild() return S.Move.sprint and ("💨 Tốc độ theo camera: BẬT — WASD/joystick mặt đất · nhảy bình thường · rơi theo game · tốc độ " .. tostring(S.Move.sprintSpeed))
