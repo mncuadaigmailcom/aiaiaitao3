@@ -1113,7 +1113,13 @@ local function itemCurrentRoom()
     local gameData = replicated:FindFirstChild("GameData")
     local latest = gameData and gameData:FindFirstChild("LatestRoom")
     local number = latest and tonumber(latest.Value)
-    if number then return math.floor(number) end
+    if number then
+        number = math.floor(number)
+        -- LatestRoom can briefly be 0/stale while the next room streams in; only trust it
+        -- when that exact numeric folder is currently present in Workspace.CurrentRooms.
+        local roomName = tostring(number)
+        if rooms:FindFirstChild(roomName) then return number end
+    end
     -- Fallback for compatible room-folder games without GameData.LatestRoom.
     local character = player.Character
     local root = character and character:FindFirstChild("HumanoidRootPart")
