@@ -1760,9 +1760,10 @@ local function createNightPanel()
 end
 local renderNightVision = createNightPanel()
 
--- Client-only flight: hold WASD to move; forward/back follows camera pitch for ascent/descent.
--- This is intentionally an opt-in movement feature and is fully removed on shutdown/respawn.
-flightController = {enabled = false, speed = 50, mover = nil, humanoid = nil, oldAutoRotate = nil}
+-- Client-only flight with camera-relative keyboard, joystick/gamepad, vertical keys and camera-facing rotation.
+-- Forward/back follows camera pitch; all flight instances and Humanoid settings are restored on stop.
+flightController = {enabled = false, speed = 50, mover = nil, gyro = nil, humanoid = nil,
+    oldAutoRotate = nil, oldPlatformStand = nil}
 function flightController:setEnabled(enabled)
     local character = player.Character
     if enabled == true and (not character or not character:FindFirstChildOfClass("Humanoid")
@@ -1774,27 +1775,36 @@ function flightController:setEnabled(enabled)
     local humanoid = character and character:FindFirstChildOfClass("Humanoid")
     local root = character and character:FindFirstChild("HumanoidRootPart")
     if self.enabled and humanoid and root then
-        if self.mover then self.mover:Destroy() end
+        if self.mover then self.mover:Destroy(); self.mover = nil end
+        if self.gyro then self.gyro:Destroy(); self.gyro = nil end
         self.humanoid, self.oldAutoRotate = humanoid, humanoid.AutoRotate
-        humanoid.AutoRotate = false
+        self.oldPlatformStand = humanoid.PlatformStand
+        humanoid.AutoRotate, humanoid.PlatformStand = false, true
         humanoid:ChangeState(Enum.HumanoidStateType.Physics)
         self.mover = Instance.new("BodyVelocity")
         self.mover.Name = "LocalFlightVelocity"
-        self.mover.MaxForce = Vector3.new(1e6, 1e6, 1e6)
+        self.mover.MaxForce = Vector3.new(1e9, 1e9, 1e9)
         self.mover.P = 1e4
         self.mover.Velocity = Vector3.zero
         self.mover.Parent = root
+        self.gyro = Instance.new("BodyGyro")
+        self.gyro.Name = "LocalFlightGyro"
+        self.gyro.MaxTorque, self.gyro.P, self.gyro.D = Vector3.new(1e9, 1e9, 1e9), 1e4, 50
+        self.gyro.CFrame = root.CFrame
+        self.gyro.Parent = root
     elseif not self.enabled then
         if self.mover then
             local activeRoot = self.mover.Parent
             self.mover:Destroy(); self.mover = nil
             if activeRoot and activeRoot:IsA("BasePart") then activeRoot.AssemblyLinearVelocity = Vector3.zero end
         end
+        if self.gyro then self.gyro:Destroy(); self.gyro = nil end
         if self.humanoid and self.humanoid.Parent then
             self.humanoid.AutoRotate = self.oldAutoRotate ~= false
+            self.humanoid.PlatformStand = self.oldPlatformStand == true
             self.humanoid:ChangeState(Enum.HumanoidStateType.Running)
         end
-        self.humanoid, self.oldAutoRotate = nil, nil
+        self.humanoid, self.oldAutoRotate, self.oldPlatformStand = nil, nil, nil
     end
     return self.enabled and self.mover ~= nil
 end
@@ -1814,12 +1824,38 @@ function flightController:step()
         self:setEnabled(false)
         return
     end
-    local direction = Vector3.zero
-    if UserInputService:IsKeyDown(Enum.KeyCode.W) then direction = direction + camera.CFrame.LookVector end
-    if UserInputService:IsKeyDown(Enum.KeyCode.S) then direction = direction - camera.CFrame.LookVector end
-    if UserInputService:IsKeyDown(Enum.KeyCode.D) then direction = direction + camera.CFrame.RightVector end
-    if UserInputService:IsKeyDown(Enum.KeyCode.A) then direction = direction - camera.CFrame.RightVector end
-    self.mover.Velocity = direction.Magnitude > 0.01 and direction.Unit * self.speed or Vector3.zero
+    if UserInputService:GetFocusedTextBox() then
+        self.mover.Velocity = Vector3.zero
+        return
+    end
+    local cf = camera.CFrame
+    local x, z, y = 0, 0, 0
+    local forward = UserInputService:IsKeyDown(Enum.KeyCode.W)
+    local backward = UserInputService:IsKeyDown(Enum.KeyCode.S)
+    local left = UserInputService:IsKeyDown(Enum.KeyCode.A)
+    local right = UserInputService:IsKeyDown(Enum.KeyCode.D)
+    local keyboardMoving = forward or backward or left or right
+    if keyboardMoving then
+        x, z = (right and 1 or 0) - (left and 1 or 0), (backward and 1 or 0) - (forward and 1 or 0)
+    elseif self.humanoid then
+        -- Roblox's thumbstick/gamepad direction is world-space; convert it to camera-relative input.
+        local move = self.humanoid.MoveDirection
+        local flatRight = Vector3.new(cf.RightVector.X, 0, cf.RightVector.Z)
+        local flatForward = Vector3.new(-cf.LookVector.X, 0, -cf.LookVector.Z)
+        if flatRight.Magnitude > 0.001 then flatRight = flatRight.Unit end
+        if flatForward.Magnitude > 0.001 then flatForward = flatForward.Unit end
+        x, z = move:Dot(flatRight), move:Dot(flatForward)
+    end
+    if UserInputService:IsKeyDown(Enum.KeyCode.Space) then y = y + 1 end
+    if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
+        y = y - 1
+    end
+    local input = Vector3.new(x, y, z)
+    -- Use the camera's full look vector so aiming up/down changes flight altitude while moving forward.
+    local direction = cf.RightVector * input.X - cf.LookVector * input.Z + Vector3.new(0, input.Y, 0)
+    if direction.Magnitude > 1 then direction = direction.Unit end
+    self.mover.Velocity = direction * self.speed
+    if self.gyro then self.gyro.CFrame = CFrame.new(root.Position) * cf.Rotation end
 end
 function flightController:destroy()
     if self.enabled or self.mover then self:setEnabled(false) end
@@ -1899,7 +1935,7 @@ button("Đặt tốc độ", 434, 184, 102, function()
         flyToggle.Text = "Bay: tốc độ phải từ 1 đến 200"
     end
 end, nightCard)
-label("W/S bay theo hướng nhìn camera (nhìn lên để lên, nhìn xuống để xuống); A/D rẽ ngang. Tắt để trở lại bình thường.",
+label("W/S theo góc camera; ngẩng lên để lên, cúi xuống để xuống. A/D hoặc joystick di chuyển ngang; Space lên, Shift/Ctrl xuống.",
     12, 220, 524, 34, nightCard)
 local runSpeedToggle
 runSpeedToggle = button("Tốc độ chạy: TẮT", 12, 264, 260, function()
