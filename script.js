@@ -3814,7 +3814,7 @@ list = {},
 lastScan = 0,
 rescanEvery = 0.8,
 
-scanIdle = 1.0,
+scanIdle = 2.0,
 scanBudget = 300,
 scanSliceMs = 2.0,
 makeBudget = 15,
@@ -3997,9 +3997,14 @@ OT._gui = New("ScreenGui", { Name = "BC_ObjTrackESP", ResetOnSpawn = false, ZInd
 }, targetGui) return OT._gui end function OT.Kill(inst) local it = OT.items[inst]
 if not it then return end pcall(function() if it.hl then it.hl:Destroy() end end)
 pcall(function() if it.bb then it.bb:Destroy() end end) pcall(function() if it.box then it.box:Destroy() end end) OT.items[inst] = nil
-if it.slot then OT._order[it.slot] = nil end
+if it.slot then
+local last = OT._orderN or 0 local moved = OT._order[last]
+OT._order[it.slot] = moved OT._order[last] = nil OT._orderN = math.max(0, last - 1)
+if moved and moved ~= inst and OT.items[moved] then OT.items[moved].slot = it.slot end
+if OT._tickIdx > OT._orderN then OT._tickIdx = 0 end
+end
 end function OT.Clear() for inst in pairs(OT.items) do OT.Kill(inst) end
-OT.items = {} OT._order, OT._tickIdx, OT._pending = {}, 0, {} OT._passing = false OT._queue, OT._qN = {}, 0
+OT.items = {} OT._order, OT._orderN, OT._tickIdx, OT._pending = {}, 0, 0, {} OT._passing = false OT._manualScan = false OT._queue, OT._qN = {}, 0
 OT._sel, OT._selPart = nil, nil OT.list = {} OT._found = 0 OT._capped = false
 OT._rowSig = nil pcall(function() if OT._gui then OT._gui:ClearAllChildren() end end) end
 function OT._MakeBox(part, pal) local ok, box = pcall(function()
@@ -4030,9 +4035,9 @@ Size = UDim2.new(0, 210, 0, OT.showXYZ and 46 or 30), StudsOffset = Vector3.new(
 }, g) lbl = New("TextLabel", { Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1,
 Text = tostring(inst.Name), TextColor3 = pal.out, Font = Enum.Font.GothamBold, TextSize = 11,
 TextStrokeColor3 = Color3.fromRGB(0, 0, 0), TextStrokeTransparency = 0.35, TextWrapped = true, }, bb) end) end
-local box = nil if OT.showBox then box = OT._MakeBox(part, pal) end OT._slotN = (OT._slotN or 0) + 1 OT._order[OT._slotN] = inst
-OT._orderN = OT._slotN OT.items[inst] = { hl = hl, bb = bb, lbl = lbl, box = box, part = part, dist = 0,
-adornee = adornee, slot = OT._slotN, txt = nil } OT._renderErr = (hl == nil and bb == nil)
+local box = nil if OT.showBox then box = OT._MakeBox(part, pal) end OT._orderN = (OT._orderN or 0) + 1 OT._order[OT._orderN] = inst
+OT.items[inst] = { hl = hl, bb = bb, lbl = lbl, box = box, part = part, dist = 0,
+adornee = adornee, slot = OT._orderN, txt = nil } OT._renderErr = (hl == nil and bb == nil)
 if OT._renderErr then OT._err = "executor chặn Highlight/BillboardGui — không vẽ được định vị" end end
 function OT.TickOne(inst, myPos, pal) local it = OT.items[inst] if it == nil then return end local part = it.part
 local okA, alive = pcall(function() return part ~= nil and part.Parent ~= nil and inst.Parent ~= nil end) if not okA or not alive then OT.Kill(inst) return end
@@ -4107,13 +4112,11 @@ local made = 0 while quota > 0 and #pend > 0 do
 local h = table.remove(pend, 1) if h ~= nil then local okV, alive = pcall(function() return h.inst.Parent ~= nil and h.part.Parent ~= nil end)
 if okV and alive and OT.items[h.inst] == nil then pcall(OT.Make, h.inst, h.part) made = made + 1 end end quota = quota - 1 end return made end
 function OT.Rescan(force) if not OT.on and not (force and (#OT.keys > 0 or #(OT.pathKeys or {}) > 0)) then return 0 end
-if not force and (os.clock() - (OT._lastScan or 0)) < OT.rescanEvery then return OT._found or 0 end pcall(OT.ScanBegin)
-if not OT._passing then return OT._found or 0 end
-OT.ScanSlice(1e9, 1e9, true)
-if OT._passing then OT.ScanFinish() end
-OT.DrainPending(1e9)
+if not force and (os.clock() - (OT._lastScan or 0)) < OT.rescanEvery then return OT._found or 0 end
+-- Restart the pass, then process it in bounded slices on subsequent frames.
+OT._manualScan = not OT.on OT._scanAcc = 0 OT._pending = {} OT.ScanBegin() OT.Bind()
 return OT._found or 0 end function OT.Step(dt) local step = tonumber(dt) or 0.016
-local hasKeys = OT.on and (#OT.keys > 0 or #(OT.pathKeys or {}) > 0) local isPlayerTab = true local isMenuOpen = true if S.PagePerf then
+local hasKeys = (OT.on or OT._manualScan) and (#OT.keys > 0 or #(OT.pathKeys or {}) > 0) local isPlayerTab = true local isMenuOpen = true if S.PagePerf then
 isMenuOpen = S.PagePerf.IsMainVisible() local pt = D and D.playerTab if pt then isPlayerTab = S.PagePerf.IsTabVisible(pt)
 end end local isFast = OT._fastUntil and tick() < OT._fastUntil local tickInterval = OT.labelEvery or 0.12
 if isFast then
@@ -4122,7 +4125,7 @@ elseif not hasKeys then tickInterval = tickInterval * 3 elseif not isMenuOpen th
 elseif not isPlayerTab then tickInterval = tickInterval * 1.8 end OT._acc = (OT._acc or 0) + step
 if OT._acc >= tickInterval then OT._acc = 0 pcall(OT.Tick) end
 if hasKeys then local scanIdle = OT.scanIdle or 1.0 if isFast then
-scanIdle = 0.3
+scanIdle = 1.0
 elseif not isMenuOpen then
 scanIdle = scanIdle * 1.5
 elseif not isPlayerTab then
@@ -4132,25 +4135,29 @@ drainQuota = nil
 else drainQuota = isMenuOpen and (isPlayerTab and nil or 5) or 2 end pcall(OT.DrainPending, drainQuota)
 end if not OT._passing then OT._scanAcc = (OT._scanAcc or 0) + step if OT._scanAcc >= scanIdle then
 OT._scanAcc = 0 pcall(OT.ScanBegin) end end
-if OT._passing then pcall(OT.ScanSlice) end else
+if OT._passing then pcall(OT.ScanSlice) end
+if OT._manualScan and not OT._passing and (not OT._pending or #OT._pending == 0) then
+OT._manualScan = false OT.Unbind()
+end else
 if OT._pending ~= nil and #OT._pending > 0 then OT._scanAcc = (OT._scanAcc or 0) + step if OT._scanAcc >= 0.5 then OT._scanAcc = 0
 pcall(OT.DrainPending, 5) end end end
 end function OT.OnPerfTick() end function OT.Bind() if OT._bound then return end
 OT._bound = true pcall(function() RunService:BindToRenderStep("BC_ObjTrack", Enum.RenderPriority.Camera.Value - 6, function(dt) pcall(OT.Step, dt)
 end) end) end function OT.Unbind() OT._bound = false
 pcall(function() RunService:UnbindFromRenderStep("BC_ObjTrack") end) end function OT.Set(on) on = on and true or false
-if on and #OT.keys == 0 then OT.on = false OT.Unbind() OT.Clear()
+if on and #OT.keys == 0 and #(OT.pathKeys or {}) == 0 then OT.on = false OT.Unbind() OT.Clear()
 pcall(function() if S.Move and S.Move.StopObjectFly then S.Move.StopObjectFly() end end) return false, "chưa nhập tên vật (ô 🔎 Tên vật)"
 end OT.on = on if on then OT.Bind() OT.Rescan(true) return true end OT.Clear() OT.Unbind()
 pcall(function() if S.Move and S.Move.StopObjectFly then S.Move.StopObjectFly() end end) if OT.RefreshList then pcall(OT.RefreshList) end
 return false end function OT.Toggle() return OT.Set(not OT.on) end function OT.SetQuery(q) OT.query = tostring(q or "")
+-- Discard an unfinished pass before changing its search keys.
+OT._passing = false OT._queue, OT._qN, OT._pending = {}, 0, {}
 OT.RebuildKeys()
 OT._fastUntil = tick() + 4 S.Debounce("objtrack", 0.2, function() if #OT.keys == 0 and #(OT.pathKeys or {}) == 0 then
 if OT.on then OT.Set(false) end OT.Clear() if OT.RefreshList then pcall(OT.RefreshList) end return end OT.on = true
 OT._fastUntil = tick() + 4
-OT.Bind() local n = OT.Rescan(true) if n == 0 then pcall(function()
-if D.Say then D.Say("⚠️ không thấy vật nào khớp \"" .. tostring(OT.query) .. "\" — thử tên ngắn hơn (VD: cây)", C.RED) end end)
-end if OT.RefreshList then pcall(OT.RefreshList) end end) return OT.keys end
+OT.Bind() OT.Rescan(true)
+if OT.RefreshList then pcall(OT.RefreshList) end end) return OT.keys end
 function OT.SetMaxDist(n) local v = tonumber(n) or 0 if v ~= v or v < 0 then v = 0 end if v > 100000 then v = 100000 end
 OT.maxDist = v if OT.on then OT.Rescan(true) end return OT.maxDist end
 function OT.CycleColor() OT.color = ((tonumber(OT.color) or 1) % #OT.palette) + 1 OT.ApplyStyle() return OT.Pal().name
@@ -4165,6 +4172,7 @@ if h.part and h.part.Parent and h.inst.Parent then if best == nil or h.dist < be
 return bestH and bestH.inst or nil, bestH end
 function OT.Status() if #OT.keys == 0 and #(OT.pathKeys or {}) == 0 then return "🌳 Định vị vật: chưa nhập tên" end
 local n = 0 for _ in pairs(OT.items) do n = n + 1 end
+if OT._passing then return "⏳ Đang quét vật thể theo từng phần · đã kiểm tra " .. tostring(OT._scanned or 0) .. " vật" end
 if n == 0 and (OT._found or 0) == 0 then return "⚠️ không thấy vật nào khớp \"" .. tostring(OT.query)
 .. "\" (đã quét " .. tostring(OT._scanned or 0) .. " vật) — thử tên ngắn hơn (VD: cây) hoặc dán đúng path"
 end local t = "🌳 " .. table.concat(OT.keys, " + ") if #OT.entries > 0 then t = t .. " （" .. #OT.entries .. " mục đã ghim）" end
@@ -4325,11 +4333,12 @@ end
 local shown = math.max(0, math.min(#OT.list, tonumber(OT.showRows) or 8))
 local sigParts = {} for i = 1, shown do local h = OT.list[i] sigParts[i] = tostring(h.inst.Name) .. "|" .. tostring(h.inst)
 end local sig = table.concat(sigParts, "#")
-if #OT.list == 0 then sig = "EMPTY:" .. tostring(OT.query) .. ":" .. tostring(OT._scanned or 0) end if sig ~= OT._rowSig then
+if #OT.list == 0 then sig = "EMPTY:" .. tostring(OT.query) .. ":" .. tostring(OT._scanned or 0) .. ":" .. tostring(OT._passing) end if sig ~= OT._rowSig then
 OT._rowSig = sig for _, child in ipairs(list:GetChildren()) do
 if not child:IsA("UIListLayout") then pcall(function() child:Destroy() end) end end if #OT.list == 0 then New("TextLabel", { Name = "OTEmpty",
-Size = UDim2.new(1, 0, 0, 60), LayoutOrder = 1, Text = "⚠️ Không có vật nào khớp \"" .. tostring(OT.query) .. "\"\n"
-.. "Đã quét " .. tostring(OT._scanned or 0) .. " vật trong Workspace.\n" .. "Thử tên ngắn hơn (VD: cây) hoặc dán đúng Path (VD: Workspace.Rừng Cây).",
+Size = UDim2.new(1, 0, 0, 60), LayoutOrder = 1, Text = OT._passing and "⏳ Đang quét vật thể theo từng phần..." or
+("⚠️ Không có vật nào khớp \"" .. tostring(OT.query) .. "\"\n" .. "Đã quét " .. tostring(OT._scanned or 0)
+.. " vật trong Workspace.\n" .. "Thử tên ngắn hơn (VD: cây) hoặc dán đúng Path (VD: Workspace.Rừng Cây)."),
 TextWrapped = true, BackgroundColor3 = C.SURFACE2, BackgroundTransparency = 0.15, TextColor3 = C.RED, Font = Enum.Font.GothamMedium, TextSize = 9,
 BorderSizePixel = 0, ZIndex = 8, TextXAlignment = Enum.TextXAlignment.Left, }, list) end for i = 1, shown do local h = OT.list[i]
 local inst = h.inst local row = New("Frame", { Name = "OTRow_" .. tostring(i), Size = UDim2.new(1, 0, 0, 24), LayoutOrder = i,
@@ -4378,8 +4387,8 @@ end S.ObjTrack.SetQuery(queryIn.Text) pcall(S.ObjTrack.RefreshList) end)
 toggleBtn.Activated:Connect(function() ReleaseHubFocus() local ok, why = S.ObjTrack.Toggle()
 if ok == false and why then D.Say("⚠️ " .. tostring(why), C.RED) else D.Say(S.ObjTrack.Status(), ok and C.GREEN or C.YELLOW)
 end pcall(S.ObjTrack.RefreshList) end) rescanBtn.Activated:Connect(function() ReleaseHubFocus()
-if #S.ObjTrack.keys == 0 then D.Say("⚠️ nhập tên vật trước đã (VD: cây)", C.RED) else local n = S.ObjTrack.Rescan(true)
-D.Say("🔄 quét lại: thấy " .. tostring(n) .. " vật khớp · " .. S.ObjTrack.Status(), C.ACCENT) end pcall(S.ObjTrack.RefreshList) end)
+if #S.ObjTrack.keys == 0 and #(S.ObjTrack.pathKeys or {}) == 0 then D.Say("⚠️ nhập tên vật trước đã (VD: cây)", C.RED) else S.ObjTrack.Rescan(true)
+D.Say("🔄 đang quét lại theo từng phần · " .. S.ObjTrack.Status(), C.ACCENT) end pcall(S.ObjTrack.RefreshList) end)
 boxBtn.Activated:Connect(function() ReleaseHubFocus() S.ObjTrack.showBox = not S.ObjTrack.showBox
 S.ObjTrack.ApplyStyle() D.Say(S.ObjTrack.showBox and "🔲 hộp bao quanh vật: BẬT" or "🔲 hộp bao quanh vật: TẮT", C.YELLOW)
 pcall(S.ObjTrack.RefreshList) end) thruBtn.Activated:Connect(function() ReleaseHubFocus()
