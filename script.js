@@ -2649,7 +2649,7 @@ if yieldEvery and index % yieldEvery == 0 then task.wait() end end return true e
 function Perf.Write(instance, property, value) if value == nil then Perf.RestoreProperty(instance, property) return
 end local saved = Perf.Saved[instance] if not saved then saved = {}; Perf.Saved[instance] = saved end if saved[property] == nil then
 local ok, original = pcall(function() return instance[property] end) if not ok then return end saved[property] = original end
-pcall(function() instance[property] = value end) end
+pcall(function() if instance[property] ~= value then instance[property] = value end end) end
 function Perf.IsVisualEffect(instance) return instance:IsA("PostEffect") or instance:IsA("ParticleEmitter")
 or instance:IsA("Trail") or instance:IsA("Beam") or instance:IsA("Fire") or instance:IsA("Smoke")
 or instance:IsA("Sparkles") or instance:IsA("Light") end function Perf.ApplyInstance(instance) local character = player.Character
@@ -6025,7 +6025,9 @@ local c, h = PI.GetCharacterAndHumanoid(player) if not h then return end
 if h.Sit == true then if h.Jump == true then
 PI.StandUpFromSit(c) else
 local md = h.MoveDirection local moving = md and (tonumber(md.Magnitude) or 0) > 0.08
-if moving and not findActiveSeatWeld(c) then h.Sit = false
+-- A normal occupied seat already has a weld; avoid scanning the whole world each heartbeat.
+local seat = moving and h.SeatPart local seatWeld = seat and (seat:FindFirstChild("SeatWeld") or seat:FindFirstChildOfClass("Weld"))
+if moving and not seatWeld and not findActiveSeatWeld(c) then h.Sit = false
 pcall(function() h:ChangeState(Enum.HumanoidStateType.GettingUp) end) end
 end end
 end) end))
