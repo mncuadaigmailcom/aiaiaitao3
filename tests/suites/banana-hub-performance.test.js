@@ -13,6 +13,29 @@ function section(start, end) {
 }
 
 module.exports = function (suite) {
+  suite.test('script.js phân tích được cú pháp Lua', (t, A) => {
+    const fengari = require('fengari');
+    const L = fengari.lauxlib.luaL_newstate();
+    const bytes = fengari.to_luastring(source);
+    const status = fengari.lauxlib.luaL_loadbuffer(L, bytes, bytes.length, fengari.to_luastring('script.js'));
+    const error = status === fengari.lua.LUA_OK ? '' : fengari.lua.lua_tojsstring(L, -1);
+    A.equal(status, fengari.lua.LUA_OK, error);
+  });
+
+  suite.test('Font giao diện dùng SourceSans, chữ đậm và font code vẫn được phân biệt', (t, A) => {
+    const h = createRuntime({}, { bundle: false });
+    const fontFunction = section('local function LightweightFont', 'local function New(cls');
+    const out = h.eval(`
+      local Enum = {Font = {Code='Code', GothamBold='Bold', GothamBlack='Black', GothamSemibold='Semi',
+        GothamMedium='Medium', SourceSans='SourceSans', SourceSansBold='SourceSansBold'}}
+      ${fontFunction}
+      return table.concat({LightweightFont(Enum.Font.GothamBold), LightweightFont(Enum.Font.GothamBlack),
+        LightweightFont(Enum.Font.GothamSemibold), LightweightFont(Enum.Font.GothamMedium),
+        LightweightFont(Enum.Font.Code), LightweightFont(nil)}, '|')
+    `)[0];
+    A.equal(out, 'SourceSansBold|SourceSansBold|SourceSansBold|SourceSans|Code|SourceSans');
+  });
+
   suite.test('Hub Perf chỉ ghi khi cần, vẫn lưu và khôi phục giá trị ban đầu', (t, A) => {
     const h = createRuntime({}, { bundle: false });
     const functions = section('function Perf.RestoreProperty', 'function Perf.IsVisualEffect');

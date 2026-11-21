@@ -48,16 +48,19 @@ ACCENT3  = Color3.fromRGB(255, 238, 203),
 HAIRLINE = Color3.fromRGB(72, 79, 99),
 GLOW     = Color3.fromRGB(255, 214, 140),
 DEEP     = Color3.fromRGB(7, 8, 11),
-} local function New(cls, props, parent) local obj = Instance.new(cls) pcall(function() if cls == "Frame" or cls == "ScrollingFrame" or cls == "TextButton"
+} -- Use built-in fonts without constructing a FontFace for every text object.
+local function LightweightFont(f)
+if f == Enum.Font.Code then return f end
+if f == Enum.Font.GothamBold or f == Enum.Font.GothamBlack or f == Enum.Font.GothamSemibold then return Enum.Font.SourceSansBold end
+return Enum.Font.SourceSans end
+local function New(cls, props, parent) local obj = Instance.new(cls) pcall(function() if cls == "Frame" or cls == "ScrollingFrame" or cls == "TextButton"
 or cls == "TextLabel" or cls == "TextBox" or cls == "ImageButton" then obj.BorderSizePixel = 0
 end if cls == "ScrollingFrame" then obj.ScrollBarThickness = 3
 obj.ScrollBarImageColor3 = Color3.fromRGB(88, 96, 118)
-obj.ScrollBarImageTransparency = 0.45 end end) for k, v in pairs(props or {}) do obj[k] = v end if parent then obj.Parent = parent end pcall(function()
-if cls == "TextButton" or cls == "TextLabel" or cls == "TextBox" then local w = Enum.FontWeight.Medium
-local f = obj.Font if f == Enum.Font.GothamBold or f == Enum.Font.GothamBlack then w = Enum.FontWeight.Bold elseif f == Enum.Font.GothamSemibold then
-w = Enum.FontWeight.SemiBold elseif f == Enum.Font.Gotham or f == Enum.Font.GothamLight or f == Enum.Font.GothamItalic then
-w = Enum.FontWeight.Regular end obj.FontFace = Font.new("rbxasset://fonts/families/GothamSSo.json", w) end
-end) pcall(function() if cls == "TextBox" then trackConn(obj.Focused:Connect(function() local st = obj:FindFirstChildOfClass("UIStroke")
+obj.ScrollBarImageTransparency = 0.45 end end) local isText = cls == "TextButton" or cls == "TextLabel" or cls == "TextBox"
+for k, v in pairs(props or {}) do if isText and k == "Font" then v = LightweightFont(v) end obj[k] = v end
+if isText and not (props and props.Font) then obj.Font = LightweightFont(nil) end
+if parent then obj.Parent = parent end pcall(function() if cls == "TextBox" then trackConn(obj.Focused:Connect(function() local st = obj:FindFirstChildOfClass("UIStroke")
 if not st then
 st = New("UIStroke", { Thickness = 1.3, Transparency = 0.05, ApplyStrokeMode = Enum.ApplyStrokeMode.Border, }, obj)
 end TweenService:Create(st, TweenInfo.new(0.16, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
@@ -1098,11 +1101,11 @@ local function bcHubMain() local ok, m = pcall(function() return API and API.Mai
 pcall(function() if API and API.OnResize then bcConn = API:OnResize(bcFit) end end) local bcHubFrame = bcHubMain()
 if bcHubFrame then pcall(function() bcHubFrame:GetPropertyChangedSignal("AbsoluteSize"):Connect(bcFit) end) end task.delay(0.25, bcFit)
 task.delay(1.2, bcFit) ]==] local body = [==[ local title = Instance.new("TextLabel") title.Size = UDim2.new(1, -56, 0, 32) title.Position = UDim2.new(0, 10, 0, 0)
-title.BackgroundTransparency = 1 title.Text = BC.Icon .. "  " .. BC.Name title.Font = Enum.Font.GothamBold title.TextSize = 15
+title.BackgroundTransparency = 1 title.Text = BC.Icon .. "  " .. BC.Name title.Font = Enum.Font.SourceSansBold title.TextSize = 15
 title.TextXAlignment = Enum.TextXAlignment.Left title.TextColor3 = Color3.fromRGB(255, 255, 255)
 title.Parent = root local closeBtn = Instance.new("TextButton") closeBtn.Name = "CloseBtn" closeBtn.Size = UDim2.new(0, 20, 0, 20)
 closeBtn.Position = UDim2.new(1, -26, 0, 5) closeBtn.BackgroundColor3 = Color3.fromRGB(210, 70, 70)
-closeBtn.Text = "X" closeBtn.Font = Enum.Font.GothamBold closeBtn.TextSize = 11 closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeBtn.Text = "X" closeBtn.Font = Enum.Font.SourceSansBold closeBtn.TextSize = 11 closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 closeBtn.AutoButtonColor = true closeBtn.Parent = root bcCorner(closeBtn, 5) local panel = Instance.new("ScrollingFrame")
 panel.Name = "Panel" panel.Size = UDim2.new(1, -20, 1, -74) panel.Position = UDim2.new(0, 10, 0, 38) panel.BackgroundTransparency = 1 panel.BorderSizePixel = 0
 panel.ScrollBarThickness = 4   -- v4.9: đồng bộ
@@ -1110,10 +1113,10 @@ panel.AutomaticCanvasSize = Enum.AutomaticSize.Y panel.CanvasSize = UDim2.new(0,
 panel.Parent = root local list = Instance.new("UIListLayout") list.Padding = UDim.new(0, 6) list.SortOrder = Enum.SortOrder.LayoutOrder
 list.Parent = panel local pad = Instance.new("UIPadding") pad.PaddingRight = UDim.new(0, 8) pad.Parent = panel local bcStatus = Instance.new("TextLabel") bcStatus.Name = "Status"
 bcStatus.Size = UDim2.new(1, -20, 0, 22) bcStatus.Position = UDim2.new(0, 10, 1, -30) bcStatus.BackgroundTransparency = 1 bcStatus.Text = "Tắt"
-bcStatus.TextColor3 = Color3.fromRGB(255, 214, 90) bcStatus.Font = Enum.Font.Gotham
+bcStatus.TextColor3 = Color3.fromRGB(255, 214, 90) bcStatus.Font = Enum.Font.SourceSans
 bcStatus.TextSize = 12 bcStatus.TextXAlignment = Enum.TextXAlignment.Left bcStatus.Parent = root local function bcButton(txt, color)
     local b = Instance.new("TextButton") b.Size = UDim2.new(1, 0, 0, 22) b.BackgroundColor3 = color or Color3.fromRGB(60, 120, 220) b.Text = txt
-    b.Font = Enum.Font.GothamMedium b.TextSize = 10 b.TextColor3 = Color3.fromRGB(255, 255, 255) b.AutoButtonColor = true b.Parent = panel bcCorner(b, 5) return b end
+    b.Font = Enum.Font.SourceSans b.TextSize = 10 b.TextColor3 = Color3.fromRGB(255, 255, 255) b.AutoButtonColor = true b.Parent = panel bcCorner(b, 5) return b end
 bcToggle = bcButton(BC.Icon .. "  Bật " .. BC.Name) local function bcMakeExternalGui(name, order) local ext local ok, API = pcall(function() return _G.BananaCatHubAPI end)
     if ok and API and API.ExternalGui then ext = API:ExternalGui({Name = name, DisplayOrder = order}) else ext = Instance.new("ScreenGui")
         ext.Name = name ext.IgnoreGuiInset = true ext.ResetOnSpawn = false ext.ZIndexBehavior = Enum.ZIndexBehavior.Global
