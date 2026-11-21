@@ -35,6 +35,7 @@ module.exports = function (suite) {
       local b={Name='b', GetChildren=function() return {} end}
       local workspace={GetChildren=function() return {a,b} end}
       local OT={_passing=true, _queue={workspace}, _qN=1, _scanned=0, scanBudget=1, scanSliceMs=10000}
+      local S = {}
       local hits=0
       function OT.Candidate() return true end
       function OT.Skip() return false end

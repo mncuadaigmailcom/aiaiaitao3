@@ -7,7 +7,9 @@ local targetGui = playerGui pcall(function() if type(gethui) == "function" then 
 do local old = _G.BananaCatHub_MV if old then if old.StopAll then pcall(old.StopAll) end
 old._wdToken = nil if type(old._wd) == "thread" then pcall(task.cancel, old._wd) end old._wd = nil end end pcall(function() local oldPerf = _G.BananaCatHub_Perf
 if type(oldPerf) == "table" and type(oldPerf.Stop) == "function" then pcall(oldPerf.Stop) end _G.BananaCatHub_Perf = nil
-end) if _G.BananaCatHub_Connections then for _, c in ipairs(_G.BananaCatHub_Connections) do
+end) pcall(function() local oldFreeze = _G.BananaCatHub_LocalFreeze
+if type(oldFreeze) == "table" and type(oldFreeze.Stop) == "function" then oldFreeze.Stop() end
+_G.BananaCatHub_LocalFreeze = nil end) if _G.BananaCatHub_Connections then for _, c in ipairs(_G.BananaCatHub_Connections) do
 pcall(function() c:Disconnect() end) end end _G.BananaCatHub_Connections = {} pcall(function() local oldUnhook = _G.BananaCatHub_AntiBanUnhook
 if type(oldUnhook) == "function" then pcall(oldUnhook) end _G.BananaCatHub_AntiBanUnhook = nil end) pcall(function()
 local f = _G.BananaCatHub_Free if type(f) == "table" and f.Stop then pcall(f.Stop) end end) pcall(function() local old = _G.BananaCatHub_SpecCam
@@ -2466,13 +2468,16 @@ end) end if S.AntiBan.on then pcall(S.AntiBanArm) end S.ScriptHubList = {
 {icon="🪩", name="Thảm kính bám chân", cat="Di chuyển", ord=12.6, action="carpet"},
 {icon="🧱", name="Xuyên Tường", cat="Di chuyển", ord=13, action="noclip"}, {icon="🦘", name="Nhảy Vô Hạn", cat="Di chuyển", ord=14, action="infjump"},
 {icon="🦘", name="Nhảy Cao", cat="Di chuyển", ord=14.2, action="highjump"},
+{icon="❄️", name="Ngưng động thời gian (cục bộ)", cat="Tiện ích", ord=21.4, action="localfreeze"},
 {icon="🎥", name="Khán giả", cat="Tiện ích", ord=21.5, action="freecam"},
 {icon="✨", name="Phát Sáng", cat="Tiện ích", ord=22, action="glow"},
 {icon="🛡", name="Bay An Toàn", cat="Di chuyển", ord=23, action="safefly"}, }
 S.hubFavs   = S.hubFavs or {} S.hubCat    = "Tất cả" S.hubSearch = "" function S.RunHubAction(id) if id == "crosshair" then
 local okC = pcall(function() S.ToggleCrosshair() end) if not okC then return "⚠️ chưa bật được niêm tâm" end
 S.Rebuild()
-return "🎯 Niêm tâm: " .. (S.crosshairOn and "BẬT (giữa màn hình game)" or "TẮT") elseif id == "unpark" then local n = 0 pcall(function() n = n + (S.RemoveAllParked() or 0) end)
+return "🎯 Niêm tâm: " .. (S.crosshairOn and "BẬT (giữa màn hình game)" or "TẮT") elseif id == "localfreeze" then
+if not S.LocalFreeze then return "⚠️ Chưa sẵn sàng" end
+S.LocalFreeze.Set(not S.LocalFreeze.on) return S.LocalFreeze.Status() elseif id == "unpark" then local n = 0 pcall(function() n = n + (S.RemoveAllParked() or 0) end)
 for _, ft in ipairs(featureTabs) do local host = ft.frame and ft.frame:FindFirstChild("ScriptHost") if host then pcall(function() n = n + S.ClearEmbedsUnder(host) end) end end
 pcall(S.PruneEmbeds) pcall(function() if S.SyncEmbedToggles then S.SyncEmbedToggles() end end) return "🧩 đã trả " .. n .. " GUI về màn hình game (GUI gốc giữ nguyên, không Destroy)"
 elseif id == "fixmouse" then if type(S.DoFixMouse) == "function" then local msg = nil pcall(function() msg = S.DoFixMouse() end)
@@ -2771,7 +2776,94 @@ if instance == Perf.RangeAtmosphere and Perf.Modes.range then task.defer(Perf.Sy
 watchRoot(game:GetService("Lighting")) trackConn(player.CharacterAdded:Connect(function(character)
 task.defer(function() for _, instance in ipairs(character:GetDescendants()) do Perf.RestoreInstance(instance) end end) end))
 Perf.SyncPanel() end
-S.HubPanelCat = { HubPerf_Panel = "Tiện ích", HubTune_Panel = "Di chuyển", HubFly_Panel = "Di chuyển", HubSpeed_Panel = "Di chuyển",
+-- Local visual snapshot only: never anchor or move server-owned parts.
+do
+local F = {on = false, token = 0, maxParts = 750, count = 0, skipped = 0, records = {}, folder = nil, scanning = false, capped = false}
+S.LocalFreeze = F _G.BananaCatHub_LocalFreeze = F
+function F.Status()
+if not F.on then return "❄️ Ngưng động cục bộ: TẮT" end
+if F.scanning then return "❄️ Đang chụp cảnh cục bộ: " .. F.count .. " vật; server vẫn chạy" end
+return "❄️ Cảnh cục bộ: " .. F.count .. " vật" .. (F.capped and " (đạt giới hạn)" or "")
+.. (F.skipped > 0 and (" · bỏ qua " .. F.skipped) or "") .. " · server vẫn chạy"
+end
+function F.Sync() if F.UpdateUI then pcall(F.UpdateUI) end end
+function F.Stop()
+F.on = false F.scanning = false F.token = F.token + 1
+for _, rec in ipairs(F.records) do pcall(function()
+if rec.part and rec.part.Parent and rec.part.LocalTransparencyModifier == 1 then rec.part.LocalTransparencyModifier = rec.original end
+end) end
+F.records = {} if F.folder then pcall(function() F.folder:Destroy() end) end F.folder = nil
+F.Sync()
+end
+function F.Capture(part)
+local copy = nil
+local ok = pcall(function()
+if not part:IsA("BasePart") or not part.Parent or not part:IsDescendantOf(workspace) then return end
+local char = player.Character if char and (part == char or part:IsDescendantOf(char)) then return end
+local original = part.LocalTransparencyModifier
+if part.Transparency >= 1 or original >= 1 then return end
+copy = part:Clone() if not copy then F.skipped = F.skipped + 1 return end
+-- Only visual children survive; never run cloned scripts, sounds or physics joints.
+for _, child in ipairs(copy:GetDescendants()) do
+if not (child:IsA("Decal") or child:IsA("Texture") or child:IsA("SpecialMesh") or child:IsA("SurfaceAppearance")) then child:Destroy() end
+end
+copy.Anchored = true copy.CanCollide = false copy.CanTouch = false copy.CanQuery = false
+copy.LocalTransparencyModifier = original copy.Parent = F.folder
+part.LocalTransparencyModifier = 1
+F.records[#F.records + 1] = {part = part, original = original}
+F.count = F.count + 1 copy = nil
+end)
+if copy then pcall(function() copy:Destroy() end) end
+if not ok then F.skipped = F.skipped + 1 end
+end
+function F.Start()
+if F.on then return end
+F.on = true F.scanning = true F.count = 0 F.skipped = 0 F.capped = false F.records = {}
+F.token = F.token + 1 local token = F.token
+local ok, folder = pcall(function() local f = Instance.new("Folder") f.Name = "BananaCatHub_LocalSnapshot" f.Parent = workspace return f end)
+if not ok or not folder then F.on = false F.scanning = false F.Sync() return end
+F.folder = folder F.Sync()
+task.spawn(function()
+local success, err = pcall(function()
+local stack = {workspace} local processed = 0 local slice = os.clock()
+while #stack > 0 and F.on and F.token == token do
+local inst = table.remove(stack)
+if inst ~= folder then
+local okChildren, children = pcall(function() return inst:GetChildren() end)
+if okChildren then for _, child in ipairs(children) do stack[#stack + 1] = child end end
+if inst ~= workspace then
+F.Capture(inst)
+if F.count >= F.maxParts then F.capped = true break end
+end
+end
+processed = processed + 1
+if processed >= 60 or (os.clock() - slice) >= 0.002 then
+processed = 0 F.Sync() task.wait() slice = os.clock()
+end
+end
+end)
+if F.token ~= token or not F.on then return end
+F.scanning = false
+if not success then F.Stop() pcall(function() if D.Say then D.Say("⚠️ Không tạo được cảnh cục bộ: " .. tostring(err), C.RED) end end) return end
+F.Sync()
+end)
+end
+function F.Set(on) if on then F.Start() else F.Stop() end return F.on end
+local panel = New("Frame", {Name = "HubLocalFreeze_Panel", Size = UDim2.new(1, 0, 0, 76), LayoutOrder = -4,
+BackgroundColor3 = C.SURFACE, BackgroundTransparency = 0.12, ZIndex = 6}, D.hubList)
+Corner(panel, UDim.new(0, 10)) Stroke(panel, C.HAIRLINE, 1)
+local btn = New("TextButton", {Name = "LocalFreezeToggle", Size = UDim2.new(0, 160, 0, 20), Position = UDim2.new(0, 8, 0, 6),
+Text = "❄️ Ngưng động: TẮT", BackgroundColor3 = C.SURFACE2, TextColor3 = C.DARK, Font = Enum.Font.GothamBold, TextSize = 9, ZIndex = 7}, panel)
+Corner(btn, UDim.new(0, 5)) D.Tactile(btn, 0.08)
+local label = New("TextLabel", {Size = UDim2.new(1, -16, 0, 42), Position = UDim2.new(0, 8, 0, 28), BackgroundTransparency = 1,
+TextColor3 = C.MUTED, Font = Enum.Font.GothamMedium, TextSize = 9, TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 7}, panel)
+function F.UpdateUI() btn.Text = F.on and "❄️ Ngưng động: BẬT" or "❄️ Ngưng động: TẮT"
+D.SetBg(btn, F.on and C.GREEN or C.SURFACE2)
+label.Text = F.Status() .. "\nChỉ ảnh chụp cục bộ (tối đa 750 vật); bạn và server vẫn hoạt động." end
+btn.Activated:Connect(function() ReleaseHubFocus() F.Set(not F.on) D.Say(F.Status(), C.ACCENT) end)
+F.Sync()
+end
+S.HubPanelCat = { HubLocalFreeze_Panel = "Tiện ích", HubPerf_Panel = "Tiện ích", HubTune_Panel = "Di chuyển", HubFly_Panel = "Di chuyển", HubSpeed_Panel = "Di chuyển",
 HubHighJump_Panel = "Di chuyển", HubMove_Panel = "Di chuyển", HubSafe_Panel = "Di chuyển", HubGlow_Panel = "Tiện ích",
 HubFree_Panel = "Tiện ích", HubAntiBan_Panel = "Server", } function S.SyncHubPanels() local list = D.hubList
 if not list or not list.Parent then return end local cat = S.hubCat or "Tất cả"
@@ -4093,9 +4185,9 @@ OT._hits[#OT._hits + 1] = { inst = inst, part = part, dist = d } end end
 function OT.ScanSlice(budget, msCap, runToEnd) if not OT._passing then return true end
 budget = tonumber(budget) or tonumber(OT.scanBudget) or 180 msCap = tonumber(msCap) or tonumber(OT.scanSliceMs) or 1.2
 local t0 = os.clock() local done = 0 while OT._qN > 0 do local inst = OT._queue[OT._qN] OT._queue[OT._qN] = nil OT._qN = OT._qN - 1
-local okK, kids = pcall(function() return inst:GetChildren() end)
+local okK, kids = pcall(function() if S.LocalFreeze and inst == S.LocalFreeze.folder then return {} end return inst:GetChildren() end)
 if okK and type(kids) == "table" then for i = 1, #kids do OT._qN = OT._qN + 1 OT._queue[OT._qN] = kids[i]
-end end if inst ~= workspace then OT._scanned = OT._scanned + 1 if OT.Candidate(inst) and not OT.Skip(inst) then
+end end if inst ~= workspace and not (S.LocalFreeze and inst == S.LocalFreeze.folder) then OT._scanned = OT._scanned + 1 if OT.Candidate(inst) and not OT.Skip(inst) then
 OT.ScanHit(inst) end end done = done + 1 if not runToEnd and (done >= budget or (os.clock() - t0) * 1000 > msCap) then
 return false
 end end OT.ScanFinish() return true end function OT.ScanFinish() OT._passing = false
